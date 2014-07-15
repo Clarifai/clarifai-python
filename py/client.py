@@ -82,12 +82,15 @@ class ClarifaiApi(object):
       response = json.loads(response)
     except ValueError as e:
       raise ApiError(e)
-    num_imgs = len(response[op]['predictions']['classes'])
     results = []
-    for i in range(num_imgs):
-      results.append(
-          zip(response[op]['predictions']['classes'][i],
-              response[op]['predictions']['probs'][i]))
+    if op == 'classify':
+      num_imgs = len(response[op]['predictions']['classes'])
+      for i in range(num_imgs):
+        results.append(
+            zip(response[op]['predictions']['classes'][i],
+                response[op]['predictions']['probs'][i]))
+    elif op == 'embed':
+      results = response[op]['features']
     return results
 
   def _get_headers(self):
