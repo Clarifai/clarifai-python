@@ -1,18 +1,21 @@
 import base64
 import json
-import httplib
 import urllib2
-from urlparse import urlparse
+
+from mime_util import post_images_multipart
+
 
 class ApiError(Exception):
   """Api error."""
   pass
 
+
 class ClarifaiApi(object):
   def __init__(self, base_url='http://clarifai.com'):
     self._base_url = base_url
     self._urls = {
-      'classify': '%s/%s' % (self._base_url, 'api/call/')
+      'classify': '%s/%s' % (self._base_url, 'api/call/'),
+      'upload': '%s/%s' % (self._base_url, 'api/upload/')
       }
 
   def _url_for_op(self, op):
@@ -21,9 +24,9 @@ class ClarifaiApi(object):
   def tag_image(self, image_file):
     """Autotag an image.
 
-    Args:
-      image_file: an open file-like object containing the encodeed image bytes. The read method is
-      called on this object to get the encoded bytes so it can be a file handle or StringIO buffer.
+    :param image_file: an open file-like object containing the encodeed image bytes. The read
+    method is called on this object to get the encoded bytes so it can be a file handle or
+    StringIO buffer.
 
     Returns:
       results: A list of (tag, probability) tuples.
@@ -35,6 +38,26 @@ class ClarifaiApi(object):
     data = {'encoded_image': base64.encodestring(image_file.read())}
     return self._classify_image(data)
 
+  def batch_tag_images(self, images):
+    """Autotag an image.
+
+    :param images: list of (file, name) tuples, where file is an open file-like object
+       containing the encoded image bytes.
+
+    Returns:
+      results: A list of (tag, probability) tuples.
+    """
+    image_data = []
+    for image_file, name in images:
+      data = bytes(image_file.read())
+      image_data.append((data, name))
+    data = {
+      'op': 'classify',
+    }
+    url = self._url_for_op(data['op'])
+    response = post_images_multipart(image_data, data, url)
+    return self._parse_response(response)
+
   def tag_image_url(self, image_url):
     """Autotag an image from a URL. As above, but takes an image URL."""
     data = {'image_url': image_url}
@@ -45,8 +68,20 @@ class ClarifaiApi(object):
     data['op'] = 'classify'
     url = self._url_for_op(data['op'])
     response = self._get_response(url, data, headers)
-    return zip(response['classify']['predictions']['classes'][0],
-               response['classify']['predictions']['probs'][0])
+    return self._parse_response(response)[0]
+
+  def _parse_response(self, response):
+    try:
+      response = json.loads(response)
+    except ValueError as e:
+      raise ApiError(e)
+    num_imgs = len(response['classify']['predictions']['classes'])
+    results = []
+    for i in range(num_imgs):
+      results.append(
+          zip(response['classify']['predictions']['classes'][i],
+              response['classify']['predictions']['probs'][i]))
+    return results
 
   def _get_headers(self):
     headers = {"content-type": "application/json"}
@@ -60,7 +95,4 @@ class ClarifaiApi(object):
       raw_response = response.read()
     except urllib2.HTTPError as e:
       raise ApiError(e)
-    try:
-      return json.loads(raw_response)
-    except ValueError as e:
-      raise ApiError(e)
+    return raw_response
