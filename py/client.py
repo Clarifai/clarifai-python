@@ -32,26 +32,24 @@ class ClarifaiApi(object):
     data = {'encoded_image': base64.encodestring(image_file.read())}
     return self._classify_image(data)
 
-  def batch_tag_images(self, image_files):
+  def batch_tag_images(self, images):
     """Autotag an image.
 
-    :param: image_files: list of open file-like objects containing the encoded image bytes.
+    :param: images: list of (file, name) tuples, where file is an open file-like object
+       containing the encoded image bytes.
 
     Returns:
       results: A list of (tag, probability) tuples.
     """
-    images = []
-    for image_file in image_files:
-      if hasattr(image_file, 'name'):
-        name = image_file.name
-      else:
-        name = 'unknown'
-      images.append((image_file.read(), name))
+    image_data = []
+    for image_file, name in images:
+      data = bytes(image_file.read())
+      image_data.append((data, name))
     data = {
       'op': 'classify',
     }
     url = self._url_for_op(data['op'])
-    response = post_images_multipart(images, data, url)
+    response = post_images_multipart(image_data, data, url)
     return self._parse_response(response)
 
   def tag_image_url(self, image_url):

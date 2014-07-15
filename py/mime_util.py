@@ -16,10 +16,6 @@ def post_images_multipart(images, form_data, url):
   :param base_url: (host, port) tuple.
   """
   message = multipart_form_message(images, form_data)
-  with open('/tmp/foo', 'w') as f:
-    # FIXME
-    data = message_as_post_data(message)
-    f.write(data)
   response = post_multipart_request(url, message)
   return response
 
@@ -41,7 +37,7 @@ def post_multipart_request(url, multipart_message):
   h.endheaders()
   h.send(data)
   errcode, errmsg, headers = h.getreply()
-  print errcode, errmsg, headers
+  #print errcode, errmsg, headers
   return h.file.read()
 
 
@@ -50,12 +46,14 @@ def mime_image(encoded_image, subtype='jpeg', headers={}):
   return MIMEImage(encoded_image, subtype, encode_noop, **headers)
 
 
+# FIXME: Pass real subtype, don't assume jpeg.
+
 def form_data_image(encoded_image, filename, field_name='encoded_image', subtype='jpeg', headers={}):
   """From raw encoded image return a MIME part for POSTing as form data."""
   message = mime_image(encoded_image, subtype, headers)
   disposition_headers = {
     'name': '%s' % field_name,
-    'filename': urllib.quote(filename),
+    'filename': urllib.quote(filename.encode('utf-8')),
   }
   message.add_header('Content-Disposition', 'form-data', **disposition_headers)
   # Django seems fussy and doesn't like the MIME-Version header in multipart POSTs.
