@@ -1,10 +1,8 @@
 from email.encoders import encode_noop
-from email.Generator import Generator
 from email.message import Message
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 import httplib
-from cStringIO import StringIO
 import urllib
 from urlparse import urlparse
 
