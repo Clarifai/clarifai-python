@@ -25,9 +25,10 @@ class ClarifaiApi(object):
   def tag_image(self, image_file):
     """Autotag an image.
 
-    :param image_file: an open file-like object containing the encodeed image bytes. The read
-    method is called on this object to get the encoded bytes so it can be a file handle or
-    StringIO buffer.
+    Args:
+      image_file: an open file-like object containing the encodeed image bytes. The read
+      method is called on this object to get the encoded bytes so it can be a file handle or
+      StringIO buffer.
 
     Returns:
       results: A list of (tag, probability) tuples.
@@ -36,43 +37,57 @@ class ClarifaiApi(object):
       clarifai_api = ClarifaiApi()
       clarifai_api.tag_image(open('/path/to/local/image.jpeg'))
     """
-    data = {'encoded_image': base64.encodestring(image_file.read())}
-    return self._single_image_op(data, 'classify')
+    return self._single_image_op(image_file, 'classify')
 
-  def batch_tag_images(self, images):
-    """Autotag an image.
+  def embed_image(self, image_file):
+    return self._single_image_op(image_file,'embed')
 
-    :param images: list of (file, name) tuples, where file is an open file-like object
-       containing the encoded image bytes.
+  def batch_tag_images(self, image_files):
+    """Autotag a batch of image file objects.
+
+    Args:
+      image_files: list of (file, name) tuples, where file is an open file-like object
+        containing the encoded image bytes.
 
     Returns:
       results: A list of (tag, probability) tuples.
+
+    Example:
+      clarifai_api = ClarifaiApi()
+      clarifai_api.tag_image([open('/path/to/local/image.jpeg'),
+                              open('/path/to/local/image2.jpeg')])
     """
+    return self._multi_image_op(image_files, 'classify')
+
+  def batch_embed_images(self, image_files):
+    return self._multi_image_op(image_files, 'embed')
+
+  def _multi_image_op(self, image_files, op):
     image_data = []
-    for image_file, name in images:
+    for image_file, name in image_files:
       data = bytes(image_file.read())
       image_data.append((data, name))
-    data = {
-      'op': 'classify',
-    }
-    url = self._url_for_op(data['op'])
+    data = {'op': op}
+    url = self._url_for_op(op)
     response = post_images_multipart(image_data, data, url)
-    return self._parse_response(response)
+    return self._parse_response(response, op)
 
   def tag_image_url(self, image_url):
     """Autotag an image from a URL. As above, but takes an image URL."""
     data = {'image_url': image_url}
     return self._single_image_op(data, 'classify')
 
-  def embed_image(self, image_file):
-    data = {'encoded_image': base64.encodestring(image_file.read())}
-    return self._single_image_op(data,'embed')
+  def embed_image_url(self, image_url):
+    """ Embed an image from a URL. As above, but takes an image URL."""
+    data = {'image_url': image_url}
+    return self._single_image_op(data, 'embed')
 
-  def _single_image_op(self, data, op):
+  def _single_image_op(self, image_file, op):
     if op not in SUPPORTED_OPS:
       raise Exception('Unsupported op: %s, ops available: %s' % (op, str(SUPPORTED_OPS)))
+    data = {'encoded_image': base64.encodestring(image_file.read()),
+            'op': op}
     headers = self._get_headers()
-    data['op'] = op
     url = self._url_for_op(data['op'])
     response = self._get_response(url, data, headers)
     return self._parse_response(response, op)[0]
