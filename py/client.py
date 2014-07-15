@@ -22,10 +22,15 @@ class ClarifaiApi(object):
     """Autotag an image.
 
     Args:
-      image_file: an open file-like object containing the encoded image bytes.
+      image_file: an open file-like object containing the encodeed image bytes. The read method is
+      called on this object to get the encoded bytes so it can be a file handle or StringIO buffer.
 
     Returns:
       results: A list of (tag, probability) tuples.
+
+    Example:
+      clarifai_api = ClarifaiApi()
+      clarifai_api.tag_image(open('/path/to/local/image.jpeg'))
     """
     data = {'encoded_image': base64.encodestring(image_file.read())}
     return self._classify_image(data)
