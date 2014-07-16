@@ -42,7 +42,7 @@ class ClarifaiApi(object):
   def embed_image(self, image_file):
     return self._single_image_op(image_file,'embed')
 
-  def batch_tag_images(self, image_files):
+  def tag_images(self, image_files):
     """Autotag a batch of image file objects.
 
     Args:
@@ -59,14 +59,21 @@ class ClarifaiApi(object):
     """
     return self._multi_image_op(image_files, 'classify')
 
-  def batch_embed_images(self, image_files):
+  def embed_images(self, image_files):
     return self._multi_image_op(image_files, 'embed')
 
   def _multi_image_op(self, image_files, op):
+    if not isinstance(image_files, list):
+      image_files = [image_files]
     image_data = []
-    for image_file, name in image_files:
+    c = 0
+    for image_file in image_files:
       data = bytes(image_file.read())
-      image_data.append((data, name))
+      image_data.append((data, str(c)))
+      c += 1
+    # for image_file, name in image_files:
+    #   data = bytes(image_file.read())
+    #   image_data.append((data, name))
     data = {'op': op}
     url = self._url_for_op(op)
     response = post_images_multipart(image_data, data, url)
