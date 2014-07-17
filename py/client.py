@@ -110,8 +110,10 @@ class ClarifaiApi(object):
           op_results.append(
               zip(response[op]['predictions']['classes'][i],
                   response[op]['predictions']['probs'][i]))
-      elif op == 'embed':
+      elif op == 'extract':
         op_results = response[op]['features']
+      elif op == 'embed':
+        op_results = response[op]['embeddings']
       results[op] = op_results
     return results
 
