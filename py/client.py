@@ -94,7 +94,7 @@ class ClarifaiApi(object):
     headers = self._get_headers()
     url = self._url_for_op(data['op'])
     response = self._get_response(url, data, headers)
-    return self._parse_response(response, op)[0]
+    return dict([(k, v[0]) for k, v in self._parse_response(response, op).items()])
 
   def _parse_response(self, response, all_ops):
     try:
