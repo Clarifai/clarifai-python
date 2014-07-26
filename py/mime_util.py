@@ -46,7 +46,8 @@ def mime_image(encoded_image, subtype='jpeg', headers={}):
 
 # FIXME: Pass real subtype, don't assume jpeg.
 
-def form_data_image(encoded_image, filename, field_name='encoded_image', subtype='jpeg', headers={}):
+def form_data_image(encoded_image, filename, field_name='encoded_image',
+                    subtype='jpeg', headers={}):
   """From raw encoded image return a MIME part for POSTing as form data."""
   message = mime_image(encoded_image, subtype, headers)
   disposition_headers = {

@@ -8,7 +8,7 @@ class ApiError(Exception):
   """Api error."""
   pass
 
-SUPPORTED_OPS = ['classify','embed']
+SUPPORTED_OPS = ['classify','embed','classify,embed']
 
 class ClarifaiApi(object):
   def __init__(self, base_url='http://clarifai.com'):
@@ -16,6 +16,7 @@ class ClarifaiApi(object):
     self._urls = {
       'classify': '%s/%s' % (self._base_url, 'api/call/'),
       'embed': '%s/%s' % (self._base_url, 'api/call/'),
+      'classify,embed': '%s/%s' % (self._base_url, 'api/call/'),
       'upload': '%s/%s' % (self._base_url, 'api/upload/')
       }
 
@@ -62,6 +63,9 @@ class ClarifaiApi(object):
   def embed_images(self, image_files):
     return self._multi_image_op(image_files, 'embed')
 
+  def batch_tag_and_embed_images(self, image_files):
+    return self._multi_image_op(image_files, 'classify,embed')
+
   def _multi_image_op(self, image_files, op):
     if not isinstance(image_files, list):
       image_files = [image_files]
@@ -97,22 +101,27 @@ class ClarifaiApi(object):
     headers = self._get_headers()
     url = self._url_for_op(data['op'])
     response = self._get_response(url, data, headers)
-    return self._parse_response(response, op)[0]
+    return dict([(k, v[0]) for k, v in self._parse_response(response, op).items()])
 
-  def _parse_response(self, response, op):
+  def _parse_response(self, response, all_ops):
     try:
       response = json.loads(response)
     except ValueError as e:
       raise ApiError(e)
-    results = []
-    if op == 'classify':
-      num_imgs = len(response[op]['predictions']['classes'])
-      for i in range(num_imgs):
-        results.append(
-            zip(response[op]['predictions']['classes'][i],
-                response[op]['predictions']['probs'][i]))
-    elif op == 'embed':
-      results = response[op]['features']
+    results = {}
+    for op in all_ops.split(','):
+      op_results = []
+      if op == 'classify':
+        num_imgs = len(response[op]['predictions']['classes'])
+        for i in range(num_imgs):
+          op_results.append(
+              zip(response[op]['predictions']['classes'][i],
+                  response[op]['predictions']['probs'][i]))
+      elif op == 'extract':
+        op_results = response[op]['features']
+      elif op == 'embed':
+        op_results = response[op]['embeddings']
+      results[op] = op_results
     return results
 
   def _get_headers(self):
