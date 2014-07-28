@@ -99,6 +99,8 @@ class ClarifaiApi(object):
     return self._single_image_op(data, 'embed')
 
   def batch_tag_and_embed_imageurls(self, image_urls):
+    ''' Take in a list of image urls, downloading them on the server side and returning both
+    classifications and embeddings. '''
     data = {'image_url': image_urls}
     return self._multi_imagepath_op(data, 'classify,embed')
 
@@ -148,6 +150,9 @@ class ClarifaiApi(object):
     return headers
 
   def _get_response(self, url, data, headers):
+    # data['blah'] = ['http://davidfeldmanshow.com/wp-content/uploads/2014/01/dogs-wallpaper.jpg' for
+    # i in range(100)]
+    # print data
     data = json.dumps(data)
     # import pdb
     # pdb.set_trace()
