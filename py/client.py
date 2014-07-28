@@ -38,10 +38,12 @@ class ClarifaiApi(object):
       clarifai_api = ClarifaiApi()
       clarifai_api.tag_image(open('/path/to/local/image.jpeg'))
     """
-    return self._single_image_op(image_file, 'classify')
+    data = {'encoded_image': base64.encodestring(image_file.read())}
+    return self._single_image_op(data, 'classify')
 
   def embed_image(self, image_file):
-    return self._single_image_op(image_file,'embed')
+    data = {'encoded_image': base64.encodestring(image_file.read())}
+    return self._single_image_op(data, 'embed')
 
   def tag_images(self, image_files):
     """Autotag a batch of image file objects.
@@ -55,8 +57,8 @@ class ClarifaiApi(object):
 
     Example:
       clarifai_api = ClarifaiApi()
-      clarifai_api.tag_image([open('/path/to/local/image.jpeg'),
-                              open('/path/to/local/image2.jpeg')])
+      clarifai_api.tag_images([open('/path/to/local/image.jpeg'),
+                               open('/path/to/local/image2.jpeg')])
     """
     return self._multi_image_op(image_files, 'classify')
 
@@ -66,18 +68,21 @@ class ClarifaiApi(object):
   def batch_tag_and_embed_images(self, image_files):
     return self._multi_image_op(image_files, 'classify,embed')
 
+
   def _multi_image_op(self, image_files, op):
+    ''' Supports both list of tuples (image_file, name) or a list of image_files where a name will
+    be created as the index into the list. '''
     if not isinstance(image_files, list):
       image_files = [image_files]
     image_data = []
     c = 0
     for image_file in image_files:
-      data = bytes(image_file.read())
-      image_data.append((data, str(c)))
+      if isinstance(image_file, tuple):
+        image_data.append((bytes(image_file[0].read()), image_file[1]))
+      else:
+        data = bytes(image_file.read())
+        image_data.append((data, str(c)))
       c += 1
-    # for image_file, name in image_files:
-    #   data = bytes(image_file.read())
-    #   image_data.append((data, name))
     data = {'op': op}
     url = self._url_for_op(op)
     response = post_images_multipart(image_data, data, url)
@@ -93,15 +98,29 @@ class ClarifaiApi(object):
     data = {'image_url': image_url}
     return self._single_image_op(data, 'embed')
 
-  def _single_image_op(self, image_file, op):
+  def batch_tag_and_embed_imageurls(self, image_urls):
+    data = {'image_url': image_urls}
+    return self._multi_imagepath_op(data, 'classify,embed')
+
+  def _single_image_op(self, data, op):
     if op not in SUPPORTED_OPS:
       raise Exception('Unsupported op: %s, ops available: %s' % (op, str(SUPPORTED_OPS)))
-    data = {'encoded_image': base64.encodestring(image_file.read()),
-            'op': op}
+    data['op'] =  op
     headers = self._get_headers()
     url = self._url_for_op(data['op'])
     response = self._get_response(url, data, headers)
     return dict([(k, v[0]) for k, v in self._parse_response(response, op).items()])
+
+  def _multi_imagepath_op(self, data, op):
+    ''' If sending image_url or image_file strings, then we can send as json directly instead of the
+    multipart form. '''
+    if op not in SUPPORTED_OPS:
+      raise Exception('Unsupported op: %s, ops available: %s' % (op, str(SUPPORTED_OPS)))
+    data['op'] =  op
+    headers = self._get_headers()
+    url = self._url_for_op(data['op'])
+    response = self._get_response(url, data, headers)
+    return self._parse_response(response, op)
 
   def _parse_response(self, response, all_ops):
     try:
@@ -130,6 +149,8 @@ class ClarifaiApi(object):
 
   def _get_response(self, url, data, headers):
     data = json.dumps(data)
+    # import pdb
+    # pdb.set_trace()
     req = urllib2.Request(url, data, headers)
     try:
       response = urllib2.urlopen(req)
