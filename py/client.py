@@ -14,7 +14,7 @@ SUPPORTED_OPS = ['classify','embed','classify,embed']
 
 MIN_SIZE = 256
 MAX_SIZE = 512
-IM_QUALITY = 90
+IM_QUALITY = 95
 
 class ClarifaiApi(object):
   def __init__(self, base_url='http://clarifai.com'):
@@ -153,7 +153,7 @@ class ClarifaiApi(object):
           im_changed = True
         if im_changed:
           io = StringIO()
-          img.save(io, 'jpeg', quality=90)
+          img.save(io, 'jpeg', quality=IM_QUALITY)
           io.seek(0)  # rewind file-object to read() below is good to go. 
           image_files[i] = (io, image_tup[1])
       except IOError, e:
