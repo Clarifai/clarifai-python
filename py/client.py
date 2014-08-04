@@ -14,7 +14,7 @@ SUPPORTED_OPS = ['classify','embed','classify,embed']
 
 MIN_SIZE = 256
 MAX_SIZE = 512
-IM_QUALITY = 90
+IM_QUALITY = 95
 
 class ClarifaiApi(object):
   def __init__(self, base_url='http://clarifai.com'):
@@ -23,7 +23,6 @@ class ClarifaiApi(object):
       'classify': '%s/%s' % (self._base_url, 'api/call/'),
       'embed': '%s/%s' % (self._base_url, 'api/call/'),
       'classify,embed': '%s/%s' % (self._base_url, 'api/call/'),
-      'upload': '%s/%s' % (self._base_url, 'api/upload/')
       }
 
   def _url_for_op(self, op):
@@ -114,6 +113,46 @@ class ClarifaiApi(object):
     """
     return self._multi_imageurl_op(image_urls, 'classify,embed')
 
+  def _resize_image_tuple(self, image_tup):
+    """ Resize the (image, name) so that it falls between MIN_SIZE and MAX_SIZE as the minimum
+    dimension.
+    """
+    try:
+      img = Image.open(image_tup[0])
+      ms = min(img.size)
+      min_ratio = float(MIN_SIZE) / ms
+      max_ratio = float(MAX_SIZE) / ms
+      def get_newsize(img, ratio, SIZE):
+        if img.size[0] == ms:
+          newsize = (SIZE, int(round(ratio * img.size[1])))
+        else:
+          newsize = (int(round(ratio * img.size[0])), SIZE)
+        return newsize
+      im_changed = False
+      # Only resample if min size is > 512 or < 256
+      if max_ratio < 1.0:  # downsample to MAX_SIZE
+        newsize = get_newsize(img, max_ratio, MAX_SIZE)
+        img = img.resize(newsize, Image.BILINEAR)
+        im_changed = True
+      elif min_ratio > 1.0:  # upsample to MIN_SIZE
+        newsize = get_newsize(img, min_ratio, MIN_SIZE)
+        img = img.resize(newsize, Image.BICUBIC)
+        im_changed = True
+      else:  # no changes needed so rewind file-object.
+        image_tup[0].seek(0)
+      # Finally make sure we have RGB images.
+      if img.mode != "RGB":
+        img = img.convert("RGB")
+        im_changed = True
+      if im_changed:
+        io = StringIO()
+        img.save(io, 'jpeg', quality=IM_QUALITY)
+        io.seek(0)  # rewind file-object to read() below is good to go.
+        image_tup = (io, image_tup[1])
+    except IOError, e:
+      print "Could not open image file: %s, still sending to server." % image_tup[1]
+    return image_tup
+
   def _process_image_files(self, image_files):
     # Handle single file-object as arg.
     if not isinstance(image_files, list):
@@ -122,39 +161,9 @@ class ClarifaiApi(object):
     for i, tup in enumerate(image_files):
       if not isinstance(tup, tuple):
         image_files[i] = (tup, str(i))
-    # # Resize any images such that the
-    # for i, image_tup in enumerate(image_files):
-    #   try:
-    #     img = Image.open(image_tup[0])
-    #     ms = min(img.size)
-    #     min_ratio = float(MIN_SIZE) / ms
-    #     max_ratio = float(MAX_SIZE) / ms
-    #     # If a larger image and we leave it alone, then set the ratio to 1.0
-    #     def get_newsize(img, ratio, SIZE):
-    #       if img.size[0] == ms:
-    #         newsize = (SIZE, int(round(ratio * img.size[1])))
-    #       else:
-    #         newsize = (int(round(ratio * img.size[0])), SIZE)
-    #       return newsize
-    #     im_changed = False
-    #     # Only resample if min size is > 512 or < 256
-    #     if max_ratio < 1.0:  # downsample to MAX_SIZE
-    #       newsize = get_newsize(img, max_ratio, MAX_SIZE)
-    #       img = img.resize(newsize, Image.BILINEAR)
-    #       im_changed = True
-    #     elif min_ratio > 1.0:  # upsample to MIN_SIZE
-    #       newsize = get_newsize(img, min_ratio, MIN_SIZE)
-    #       img = img.resize(newsize, Image.BICUBIC)
-    #       im_changed = True
-    #     # Finally make sure we have RGB images.
-    #     if img.mode != "RGB": img = img.convert("RGB")
-    #     if im_changed:
-    #       io = StringIO()
-    #       img.save(io, 'jpeg', quality=90)
-    #       io.seek(0)
-    #       image_files[i] = (io, image_tup[1])
-    #   except IOError, e:
-    #     print "Could not open image file: %s, still sending to server." % image_tup[1]
+    # Resize any images such that the
+    for i, image_tup in enumerate(image_files):
+      image_files[i] = self._resize_image_tuple(image_tup)
     # Return a list of (bytes, name) tuples of the encoded image bytes.
     image_data = []
     for image_file in image_files:
@@ -191,12 +200,12 @@ class ClarifaiApi(object):
       response = json.loads(response)
     except ValueError as e:
       raise ApiError(e)
+    if 'error' in response:
+      raise ApiError(response['error'])
     results = {}
     for op in all_ops.split(','):
       op_results = []
       if op == 'classify':
-        print 'X' * 90
-        print response
         num_imgs = len(response[op]['predictions']['classes'])
         for i in range(num_imgs):
           op_results.append(
@@ -206,10 +215,14 @@ class ClarifaiApi(object):
         op_results = response[op]['features']
       elif op == 'embed':
         op_results = response[op]['embeddings']
+      # If single image, we just return the results, no list.
       if len(op_results) == 1: # single image query
         results[op] = op_results[0]  # return directly
       else:
         results[op] = op_results  # return as list.
+    # If single op, we just return the results, no dict.
+    if len(results) == 1:
+      return results.values()[0]
     return results
 
   def _get_headers(self):
