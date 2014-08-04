@@ -122,39 +122,39 @@ class ClarifaiApi(object):
     for i, tup in enumerate(image_files):
       if not isinstance(tup, tuple):
         image_files[i] = (tup, str(i))
-    # Resize any images such that the
-    for i, image_tup in enumerate(image_files):
-      try:
-        img = Image.open(image_tup[0])
-        ms = min(img.size)
-        min_ratio = float(MIN_SIZE) / ms
-        max_ratio = float(MAX_SIZE) / ms
-        # If a larger image and we leave it alone, then set the ratio to 1.0
-        def get_newsize(img, ratio, SIZE):
-          if img.size[0] == ms:
-            newsize = (SIZE, int(round(ratio * img.size[1])))
-          else:
-            newsize = (int(round(ratio * img.size[0])), SIZE)
-          return newsize
-        im_changed = False
-        # Only resample if min size is > 512 or < 256
-        if max_ratio < 1.0:  # downsample to MAX_SIZE
-          newsize = get_newsize(img, max_ratio, MAX_SIZE)
-          img = img.resize(newsize, Image.BILINEAR)
-          im_changed = True
-        elif min_ratio > 1.0:  # upsample to MIN_SIZE
-          newsize = get_newsize(img, min_ratio, MIN_SIZE)
-          img = img.resize(newsize, Image.BICUBIC)
-          im_changed = True
-        # Finally make sure we have RGB images.
-        if img.mode != "RGB": img = img.convert("RGB")
-        if im_changed:
-          io = StringIO()
-          img.save(io, 'jpeg', quality=90)
-          io.seek(0)
-          image_files[i] = (io, image_tup[1])
-      except IOError, e:
-        print "Could not open image file: %s, still sending to server." % image_tup[1]
+    # # Resize any images such that the
+    # for i, image_tup in enumerate(image_files):
+    #   try:
+    #     img = Image.open(image_tup[0])
+    #     ms = min(img.size)
+    #     min_ratio = float(MIN_SIZE) / ms
+    #     max_ratio = float(MAX_SIZE) / ms
+    #     # If a larger image and we leave it alone, then set the ratio to 1.0
+    #     def get_newsize(img, ratio, SIZE):
+    #       if img.size[0] == ms:
+    #         newsize = (SIZE, int(round(ratio * img.size[1])))
+    #       else:
+    #         newsize = (int(round(ratio * img.size[0])), SIZE)
+    #       return newsize
+    #     im_changed = False
+    #     # Only resample if min size is > 512 or < 256
+    #     if max_ratio < 1.0:  # downsample to MAX_SIZE
+    #       newsize = get_newsize(img, max_ratio, MAX_SIZE)
+    #       img = img.resize(newsize, Image.BILINEAR)
+    #       im_changed = True
+    #     elif min_ratio > 1.0:  # upsample to MIN_SIZE
+    #       newsize = get_newsize(img, min_ratio, MIN_SIZE)
+    #       img = img.resize(newsize, Image.BICUBIC)
+    #       im_changed = True
+    #     # Finally make sure we have RGB images.
+    #     if img.mode != "RGB": img = img.convert("RGB")
+    #     if im_changed:
+    #       io = StringIO()
+    #       img.save(io, 'jpeg', quality=90)
+    #       io.seek(0)
+    #       image_files[i] = (io, image_tup[1])
+    #   except IOError, e:
+    #     print "Could not open image file: %s, still sending to server." % image_tup[1]
     # Return a list of (bytes, name) tuples of the encoded image bytes.
     image_data = []
     for image_file in image_files:
