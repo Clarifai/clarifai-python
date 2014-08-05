@@ -1,6 +1,4 @@
-import base64
-import json
-import urllib2
+import base64, json, os, urllib2
 
 from PIL import Image
 from cStringIO import StringIO
@@ -10,19 +8,20 @@ class ApiError(Exception):
   """Api error."""
   pass
 
-SUPPORTED_OPS = ['classify','embed','classify,embed']
+SUPPORTED_OPS = ['tag','embed','tag,embed']
 
 MIN_SIZE = 256
 MAX_SIZE = 512
 IM_QUALITY = 95
+API_VERSION = 'v1'
 
 class ClarifaiApi(object):
   def __init__(self, base_url='http://clarifai.com'):
     self._base_url = base_url
     self._urls = {
-      'classify': '%s/%s' % (self._base_url, 'api/call/'),
-      'embed': '%s/%s' % (self._base_url, 'api/call/'),
-      'classify,embed': '%s/%s' % (self._base_url, 'api/call/'),
+      'tag': os.path.join(self._base_url, API_VERSION, 'tag/'),
+      'embed': os.path.join(self._base_url, API_VERSION, 'embed'),
+      'tag,embed': os.path.join(self._base_url, API_VERSION, 'multiop'),
       }
 
   def _url_for_op(self, op):
@@ -49,7 +48,7 @@ class ClarifaiApi(object):
       clarifai_api.tag_images([open('/path/to/local/image.jpeg'),
                                open('/path/to/local/image2.jpeg')])
     """
-    return self._multi_image_op(image_files, 'classify')
+    return self._multi_image_op(image_files, 'tag')
 
   def embed_image(self, image_files):
     """ Embed a single image from an open file object or multiples images from a list of open file
@@ -74,7 +73,7 @@ class ClarifaiApi(object):
     return self._multi_image_op(image_files, 'embed')
 
   def tag_and_embed_image(self, image_files):
-    return self._multi_image_op(image_files, 'classify,embed')
+    return self._multi_image_op(image_files, 'tag,embed')
 
   def tag_image_url(self, image_urls):
     """ Tag an image from a url or images from a list of urls.
@@ -86,7 +85,7 @@ class ClarifaiApi(object):
       probability) tuples when multiple images are input.
 
     """
-    return self._multi_imageurl_op(image_urls, 'classify')
+    return self._multi_imageurl_op(image_urls, 'tag')
 
   def embed_image_url(self, image_urls):
     """ Embed an image from a url or images from a list of urls.
@@ -111,7 +110,7 @@ class ClarifaiApi(object):
     Returns:
 
     """
-    return self._multi_imageurl_op(image_urls, 'classify,embed')
+    return self._multi_imageurl_op(image_urls, 'tag,embed')
 
   def _resize_image_tuple(self, image_tup):
     """ Resize the (image, name) so that it falls between MIN_SIZE and MAX_SIZE as the minimum
@@ -189,7 +188,7 @@ class ClarifaiApi(object):
     if not isinstance(image_urls, list):
       image_urls = [image_urls]
     data =  {'op':op,
-             'image_url': ','.join(image_urls)}
+             'url': ','.join(image_urls)}
     headers = self._get_headers()
     url = self._url_for_op(data['op'])
     response = self._get_response(url, data, headers)
@@ -205,7 +204,7 @@ class ClarifaiApi(object):
     results = {}
     for op in all_ops.split(','):
       op_results = []
-      if op == 'classify':
+      if op == 'tag':
         num_imgs = len(response[op]['predictions']['classes'])
         for i in range(num_imgs):
           op_results.append(
@@ -258,7 +257,7 @@ class ClarifaiApi(object):
       clarifai_api.tag_image(open('/path/to/local/image.jpeg'))
     """
     data = {'encoded_image': base64.encodestring(image_files[0].read())}
-    return self._single_image_op(data, 'classify')
+    return self._single_image_op(data, 'tag')
 
 
   def _single_image_op(self, data, op):
