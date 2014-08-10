@@ -7,14 +7,14 @@ import urllib
 from urlparse import urlparse
 
 
-def post_images_multipart(images, form_data, url):
+def post_images_multipart(images, form_data, url, access_token):
   """
   :param images: list of (encoded_image, filename) pairs.
   :param form_data: dict of API params.
   :param base_url: (host, port) tuple.
   """
   message = multipart_form_message(images, form_data)
-  response = post_multipart_request(url, message)
+  response = post_multipart_request(url, message, access_token)
   return response
 
 
@@ -25,13 +25,14 @@ def parse_url(url):
   return parsed_url.hostname, port, parsed_url.path
 
 
-def post_multipart_request(url, multipart_message):
+def post_multipart_request(url, multipart_message, access_token):
   host, port, path = parse_url(url)
   h = httplib.HTTP(host, port)
   h.putrequest('POST', path)
   data = message_as_post_data(multipart_message)
   h.putheader('Content-Length', str(len(data)))
   h.putheader('Content-Type', multipart_message.get('Content-Type'))
+  h.putheader("Authorization", "Bearer %s" % access_token)
   h.endheaders()
   h.send(data)
   errcode, errmsg, headers = h.getreply()
