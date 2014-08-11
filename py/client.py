@@ -13,7 +13,15 @@ class ApiError(Exception):
 # Enter your ID and SECRET for a Clarifai API Application.
 CLIENT_ID = 'OPoiUWRqHGOmcKjkFmHHLVecwsyt_hbogTlHmKsb'
 CLIENT_SECRET = '-MXxNPtRjnPwM7KN69mqQtaDfbF2vodyXcuQcJiSBeWcfpPno5WtJ7jttBDcTXIMwDVAY2S_cP6Bhid8s9cWZyQda-eLXWhJB5TSfHpaLHUtxmV5Abq-csbxmD5gEjVU'
+
+
+# # api.clarifai.com prod
+# CLIENT_ID = 'j57To4jogXszzcRHsruVyUQiYSybh_lhfVP6cvAS'
+# CLIENT_SECRET = 'jEnNVzsLTQKEBstmF2onqBBEV6L2SSHW49fRgs2aMOZ7neQ9kqw1IqkA0rxP2Sb3-Bepjloy_kX9uOM6TV37gOtMplQznlUAXaay9_k2mvoA-aevZl-N2gBwXusMecXl'
+
 ############################
+
+# cl.tag_image_url(['http://www.clarifai.com/img/metro-north.jpg' for j in range(100)])
 
 
 ############################
@@ -32,7 +40,8 @@ class ClarifaiApi(object):
       'tag': os.path.join(self._base_url, '%s/tag/' % API_VERSION),
       'embed': os.path.join(self._base_url, '%s/embed/' % API_VERSION),
       'tag,embed': os.path.join(self._base_url, '%s/multiop/' % API_VERSION),
-      'token': os.path.join(self._base_url, 'v1/token/'),
+      'token': os.path.join(self._base_url, '%s/token/' % API_VERSION),
+      'info': os.path.join(self._base_url, '%s/info/' % API_VERSION),
       }
     self.access_token = None
 
@@ -47,6 +56,16 @@ class ClarifaiApi(object):
     self.access_token = response['access_token']
     return response
 
+  def get_info(self):
+    url = self._url_for_op('info')
+    headers = self._get_json_headers()
+    data = {'blah':'blah'}
+    data= None
+    # Should do get now.
+    response = self._get_response(url, data, headers)
+    response = json.loads(response)
+    return response
+
   def _url_for_op(self, op):
     return self._urls.get(op)
 
@@ -57,7 +76,6 @@ class ClarifaiApi(object):
     The only method used on the file object is read() to get the bytes of the compressed
     image representation.
 
-
     Args:
       image_files: a single (file, name) tuple or a list of (file, name) tuples, where file is an
       open file-like object containing the encoded image bytes.
@@ -67,6 +85,7 @@ class ClarifaiApi(object):
       probability) tuples if multiple images are processed.
 
     Example:
+      from api.py.client import ClarifaiApi
       clarifai_api = ClarifaiApi()
       clarifai_api.tag_images([open('/path/to/local/image.jpeg'),
                                open('/path/to/local/image2.jpeg')])
@@ -89,6 +108,7 @@ class ClarifaiApi(object):
       probability) tuples if multiple images are processed.
 
     Example:
+      from api.py.client import ClarifaiApi
       clarifai_api = ClarifaiApi()
       clarifai_api.tag_images([open('/path/to/local/image.jpeg'),
                                open('/path/to/local/image2.jpeg')])
@@ -106,6 +126,12 @@ class ClarifaiApi(object):
     Returns:
       results: a (tag, probability) tuple if a single image was used, or a list of (tag,
       probability) tuples when multiple images are input.
+
+    Example:
+      from api.py.client import ClarifaiApi
+      clarifai_api = ClarifaiApi()
+      clarifai_api.tag_image_url(['http://www.clarifai.com/img/metro-north.jpg',
+                                  'http://www.clarifai.com/img/metro-north.jpg'])
 
     """
     return self._multi_imageurl_op(image_urls, 'tag')
@@ -218,10 +244,9 @@ class ClarifaiApi(object):
     if not isinstance(image_urls[0], basestring):
       raise Exception("image_urls must be strings")
     data =  {'op':op,
-             'url': ','.join(image_urls)}
+             'url': image_urls}
     headers = self._get_json_headers()
     url = self._url_for_op(data['op'])
-    # headers = {"Authorization": "Bearer %s" % self.access_token}
     response = self._get_response(url, data, headers)
     return self._parse_response(response, op)
 
@@ -265,10 +290,11 @@ class ClarifaiApi(object):
     return headers
 
   def _get_response(self, url, data, headers):
-    if headers.get("content-type","") == "application/json":
-      data = json.dumps(data)
-    else:
-      data = urllib.urlencode(data)
+    if data:
+      if headers.get("content-type","") == "application/json":
+        data = json.dumps(data)
+      else:
+        data = urllib.urlencode(data)
     req = urllib2.Request(url, data, headers)
     try:
       response = urllib2.urlopen(req)
