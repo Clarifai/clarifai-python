@@ -7,7 +7,7 @@ import urllib
 from urlparse import urlparse
 
 
-def post_images_multipart(images, form_data, url, access_token):
+def post_images_multipart(access_token, images, form_data, url):
   """
   :param images: list of (encoded_image, filename) pairs.
   :param form_data: dict of API params.

@@ -1,6 +1,12 @@
 import base64, json, os, urllib2, urllib
 
-from PIL import Image
+try:
+  from PIL import Image
+  CAN_RESIZE = True
+except Exception, e:
+  CAN_RESIZE = False
+  print ("It is recommended to install PIL with the desired image format support so that "
+         "image resizing to the correct dimesions will be handled for you.")
 from cStringIO import StringIO
 from mime_util import post_images_multipart
 
@@ -15,21 +21,36 @@ CLIENT_ID = 'OPoiUWRqHGOmcKjkFmHHLVecwsyt_hbogTlHmKsb'
 CLIENT_SECRET = '-MXxNPtRjnPwM7KN69mqQtaDfbF2vodyXcuQcJiSBeWcfpPno5WtJ7jttBDcTXIMwDVAY2S_cP6Bhid8s9cWZyQda-eLXWhJB5TSfHpaLHUtxmV5Abq-csbxmD5gEjVU'
 
 
-# # api.clarifai.com prod
-# CLIENT_ID = 'j57To4jogXszzcRHsruVyUQiYSybh_lhfVP6cvAS'
-# CLIENT_SECRET = 'jEnNVzsLTQKEBstmF2onqBBEV6L2SSHW49fRgs2aMOZ7neQ9kqw1IqkA0rxP2Sb3-Bepjloy_kX9uOM6TV37gOtMplQznlUAXaay9_k2mvoA-aevZl-N2gBwXusMecXl'
+# api.clarifai.com prod
+CLIENT_ID = 'j57To4jogXszzcRHsruVyUQiYSybh_lhfVP6cvAS'
+CLIENT_SECRET = 'jEnNVzsLTQKEBstmF2onqBBEV6L2SSHW49fRgs2aMOZ7neQ9kqw1IqkA0rxP2Sb3-Bepjloy_kX9uOM6TV37gOtMplQznlUAXaay9_k2mvoA-aevZl-N2gBwXusMecXl'
 
 ############################
 
-# cl.tag_image_url(['http://www.clarifai.com/img/metro-north.jpg' for j in range(100)])
+# url = 'http://www.clarifai.com/img/metro-north.jpg'
+# url = 'http://clarifai-img.s3.amazonaws.com/test/giraffe-256px.jpeg'
+# bsize = 4
+# threads = 16
+# batches = 10
+
+# def task():
+#   cl.tag_image_url([url for j in range(bsize)])
+#   # cl.tag_image([open('/Users/zeiler/tempsstk.jpeg') for j in range(bsize)])
+
+# import time
+# from utils.processors import Worker
+# st = time.time()
+# worker = Worker(threads,1000)
+# for i in range(batches):
+#   worker.add_task(task)
+# worker.join()
+# print batches * bsize / (time.time() - st)
 
 
 ############################
 # Clarifai Parameters. DO NOT TOUCH
-SUPPORTED_OPS = ['tag','embed','tag,embed']
+SUPPORTED_OPS = ['tag','embed']
 
-MIN_SIZE = 256
-MAX_SIZE = 512
 IM_QUALITY = 95
 API_VERSION = 'v1'
 
@@ -44,30 +65,37 @@ class ClarifaiApi(object):
       'info': os.path.join(self._base_url, '%s/info/' % API_VERSION),
       }
     self.access_token = None
+    self.api_info = None
 
-  def get_access_token(self):
-    headers = {}  # don't use json here, juse urlencode.
-    url = self._url_for_op('token')
-    data = {'grant_type': 'client_credentials',
-            'client_id':CLIENT_ID,
-            'client_secret':CLIENT_SECRET}
-    response = self._get_response(url, data, headers)
-    response = json.loads(response)
-    self.access_token = response['access_token']
-    return response
+  def get_access_token(self, renew=False):
+    if self.access_token is None or renew:
+      headers = {}  # don't use json here, juse urlencode.
+      url = self._url_for_op('token')
+      data = urllib.urlencode({'grant_type': 'client_credentials',
+                               'client_id':CLIENT_ID,
+                               'client_secret':CLIENT_SECRET})
+      req = urllib2.Request(url, data, headers)
+      response = urllib2.urlopen(req).read()
+      response = json.loads(response)
+      self.access_token = response['access_token']
+    return self.access_token
 
   def get_info(self):
     url = self._url_for_op('info')
-    headers = self._get_json_headers()
-    data = {'blah':'blah'}
-    data= None
-    # Should do get now.
-    response = self._get_response(url, data, headers)
+    data= None # This will be a GET request since data is None
+    access_token = self.get_access_token()
+    response = self._get_raw_response(self._get_json_response, access_token, url, data)
     response = json.loads(response)
-    return response
+    self.api_info = response['results']
+    return self.api_info
 
-  def _url_for_op(self, op):
-    return self._urls.get(op)
+  def _url_for_op(self, ops):
+    if not isinstance(ops, list):
+      ops = [ops]
+    if len(ops) > 1:
+      return self._urls.get('multiop')
+    else:
+      return self._urls.get(ops[0])
 
   def tag_image(self, image_files):
     """ Autotag a single image from an open file object or multiples images from a list of open file
@@ -90,7 +118,7 @@ class ClarifaiApi(object):
       clarifai_api.tag_images([open('/path/to/local/image.jpeg'),
                                open('/path/to/local/image2.jpeg')])
     """
-    return self._multi_image_op(image_files, 'tag')
+    return self._multi_image_op(image_files, ['tag'])
 
   def embed_image(self, image_files):
     """ Embed a single image from an open file object or multiples images from a list of open file
@@ -113,10 +141,10 @@ class ClarifaiApi(object):
       clarifai_api.tag_images([open('/path/to/local/image.jpeg'),
                                open('/path/to/local/image2.jpeg')])
     """
-    return self._multi_image_op(image_files, 'embed')
+    return self._multi_image_op(image_files, ['embed'])
 
   def tag_and_embed_image(self, image_files):
-    return self._multi_image_op(image_files, 'tag,embed')
+    return self._multi_image_op(image_files, ['tag','embed'])
 
   def tag_image_url(self, image_urls):
     """ Tag an image from a url or images from a list of urls.
@@ -134,7 +162,7 @@ class ClarifaiApi(object):
                                   'http://www.clarifai.com/img/metro-north.jpg'])
 
     """
-    return self._multi_imageurl_op(image_urls, 'tag')
+    return self._multi_imageurl_op(image_urls, ['tag'])
 
   def embed_image_url(self, image_urls):
     """ Embed an image from a url or images from a list of urls.
@@ -146,7 +174,7 @@ class ClarifaiApi(object):
     Returns:
 
     """
-    return self._multi_imageurl_op(image_urls, 'embed')
+    return self._multi_imageurl_op(image_urls, ['embed'])
 
   def tag_and_embed_image_url(self, image_urls):
     """ Take in a list of image urls, downloading them on the server side and returning both
@@ -159,13 +187,17 @@ class ClarifaiApi(object):
     Returns:
 
     """
-    return self._multi_imageurl_op(image_urls, 'tag,embed')
+    return self._multi_imageurl_op(image_urls, ['tag','embed'])
 
   def _resize_image_tuple(self, image_tup):
     """ Resize the (image, name) so that it falls between MIN_SIZE and MAX_SIZE as the minimum
     dimension.
     """
+    if self.api_info is None:
+      self.get_info()  # sets the image size and other such info from server.
     try:
+      MIN_SIZE = self.api_info['min_image_size']
+      MAX_SIZE = self.api_info['max_image_size']
       img = Image.open(image_tup[0])
       ms = min(img.size)
       min_ratio = float(MIN_SIZE) / ms
@@ -212,43 +244,45 @@ class ClarifaiApi(object):
         assert hasattr(image_files[i][0], 'read'), (
             'image_files[%d] has wrong type: %s. Must be file-object with read method.') % (
                 i, type(image_files[i][0]))
-    # Resize any images such that the
-    for i, image_tup in enumerate(image_files):
-      image_files[i] = self._resize_image_tuple(image_tup)
+    # Resize any images such that the min dimension is in range.
+    if CAN_RESIZE:
+      for i, image_tup in enumerate(image_files):
+        image_files[i] = self._resize_image_tuple(image_tup)
     # Return a list of (bytes, name) tuples of the encoded image bytes.
     image_data = []
     for image_file in image_files:
       image_data.append((bytes(image_file[0].read()), image_file[1]))
     return image_data
 
-  def _multi_image_op(self, image_files, op):
+  def _multi_image_op(self, image_files, ops):
     ''' Supports both list of tuples (image_file, name) or a list of image_files where a name will
     be created as the index into the list. '''
-    if op not in SUPPORTED_OPS:
-      raise Exception('Unsupported op: %s, ops available: %s' % (op, str(SUPPORTED_OPS)))
+    if len(set(ops).intersection(SUPPORTED_OPS)) != len(ops):
+      raise Exception('Unsupported op: %s, ops available: %s' % (str(ops), str(SUPPORTED_OPS)))
     image_data = self._process_image_files(image_files)
-    data = {'op': op}
-    url = self._url_for_op(op)
-    if self.access_token is None:
-      self.get_access_token()
-    response = post_images_multipart(image_data, data, url, self.access_token)
-    return self._parse_response(response, op)
+    data = {'op': ','.join(ops)}
+    url = self._url_for_op(ops)
+    access_token = self.get_access_token()
+    # response = post_images_multipart(image_data, data, url, self.access_token)
+    raw_response = self._get_raw_response(
+      post_images_multipart, access_token, image_data, data, url)
+    return self._parse_response(raw_response, ops)
 
-  def _multi_imageurl_op(self, image_urls, op):
+  def _multi_imageurl_op(self, image_urls, ops):
     ''' If sending image_url or image_file strings, then we can send as json directly instead of the
     multipart form. '''
-    if op not in SUPPORTED_OPS:
-      raise Exception('Unsupported op: %s, ops available: %s' % (op, str(SUPPORTED_OPS)))
+    if len(set(ops).intersection(SUPPORTED_OPS)) != len(ops):
+      raise Exception('Unsupported op: %s, ops available: %s' % (str(ops), str(SUPPORTED_OPS)))
     if not isinstance(image_urls, list):
       image_urls = [image_urls]
     if not isinstance(image_urls[0], basestring):
       raise Exception("image_urls must be strings")
-    data =  {'op':op,
+    data =  {'op': ','.join(ops),
              'url': image_urls}
-    headers = self._get_json_headers()
-    url = self._url_for_op(data['op'])
-    response = self._get_response(url, data, headers)
-    return self._parse_response(response, op)
+    url = self._url_for_op(ops)
+    access_token = self.get_access_token()
+    raw_response = self._get_raw_response(self._get_json_response, access_token, url, data)
+    return self._parse_response(raw_response, ops)
 
   def _parse_response(self, response, all_ops):
     try:
@@ -259,50 +293,42 @@ class ClarifaiApi(object):
       raise ApiError(response['error'])
     # Return the true API return value.
     return response
-    # results = {}
-    # for op in all_ops.split(','):
-    #   op_results = []
-    #   if op == 'tag':
-    #     num_imgs = len(response[op]['predictions']['classes'])
-    #     for i in range(num_imgs):
-    #       op_results.append(
-    #           zip(response[op]['predictions']['classes'][i],
-    #               response[op]['predictions']['probs'][i]))
-    #   elif op == 'extract':
-    #     op_results = response[op]['features']
-    #   elif op == 'embed':
-    #     op_results = response[op]['embeddings']
-    #   # If single image, we just return the results, no list.
-    #   if len(op_results) == 1: # single image query
-    #     results[op] = op_results[0]  # return directly
-    #   else:
-    #     results[op] = op_results  # return as list.
-    # # If single op, we just return the results, no dict.
-    # if len(results) == 1:
-    #   return results.values()[0]
-    # return results
 
-  def _get_json_headers(self):
-    if self.access_token is None:
-      self.get_access_token()
+  def _get_json_headers(self, access_token):
     headers = {"content-type": "application/json",
-               "Authorization": "Bearer %s" % self.access_token}
+               "Authorization": "Bearer %s" % access_token}
     return headers
 
-  def _get_response(self, url, data, headers):
-    if data:
-      if headers.get("content-type","") == "application/json":
-        data = json.dumps(data)
-      else:
-        data = urllib.urlencode(data)
-    req = urllib2.Request(url, data, headers)
-    try:
-      response = urllib2.urlopen(req)
-      raw_response = response.read()
-    except urllib2.HTTPError as e:
-      raise ApiError(e.read())
-    return raw_response
+  def _get_raw_response(self, request_func, access_token, *args):
+    """ Get a raw_response from the, and if a token is expired then try again."""
+    attempts = 3
+    while attempts > 0:
+      attempts -= 1
+      try:
+        # Try the request.
+        raw_response = request_func(access_token, *args)
+        return raw_response
+      except urllib2.HTTPError as e:
+        response = e.read()  # get error response
+        try:
+          response = json.loads(response)
+          if response['status_code'] == 'TOKEN_EXPIRED':
+            print 'Getting new access token.'
+            access_token = self.get_access_token(renew=True)
+          else:
+            raise ApiError(e)  # raise original error
+        except ValueError as e2:
+          raise ApiError(e) # raise original error.
 
+  def _get_json_response(self, access_token, url, data):
+    """ Get the response for sending json dumped data. """
+    headers = self._get_json_headers(access_token)
+    if data:
+      data = json.dumps(data)
+    req = urllib2.Request(url, data, headers)
+    response = urllib2.urlopen(req)
+    raw_response = response.read()
+    return raw_response
 
   def old_tag_image(self, image_files):
     """ DEPRECATED: use tag_images which is more efficient and support single or multiple images.
@@ -331,7 +357,7 @@ class ClarifaiApi(object):
     if op not in SUPPORTED_OPS:
       raise Exception('Unsupported op: %s, ops available: %s' % (op, str(SUPPORTED_OPS)))
     data['op'] =  op
-    headers = self._get_json_headers()
+    access_token = self.get_access_token()
     url = self._url_for_op(data['op'])
-    response = self._get_response(url, data, headers)
+    response = self._get_json_response(access_token, url, data)
     return dict([(k, v[0]) for k, v in self._parse_response(response, op).items()])
