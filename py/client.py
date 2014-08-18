@@ -15,26 +15,36 @@ class ApiError(Exception):
   pass
 
 
-############################
-# Enter your ID and SECRET for a Clarifai API Application.
-CLIENT_ID = 'OPoiUWRqHGOmcKjkFmHHLVecwsyt_hbogTlHmKsb'
-CLIENT_SECRET = '-MXxNPtRjnPwM7KN69mqQtaDfbF2vodyXcuQcJiSBeWcfpPno5WtJ7jttBDcTXIMwDVAY2S_cP6Bhid8s9cWZyQda-eLXWhJB5TSfHpaLHUtxmV5Abq-csbxmD5gEjVU'
+# ############################
+# # Enter your ID and SECRET for a Clarifai API Application.
+# CLIENT_ID = 'ZfRoZCVFIxhEsc1AJg56hdU4iGu1HhRgSpeD23_f'
+# CLIENT_SECRET = 'GI1Clx4I1Abjzk40suz8WT0Sm_m9n8v1X5vyEvob'
 
 
 # api.clarifai.com prod
-CLIENT_ID = 'j57To4jogXszzcRHsruVyUQiYSybh_lhfVP6cvAS'
-CLIENT_SECRET = 'jEnNVzsLTQKEBstmF2onqBBEV6L2SSHW49fRgs2aMOZ7neQ9kqw1IqkA0rxP2Sb3-Bepjloy_kX9uOM6TV37gOtMplQznlUAXaay9_k2mvoA-aevZl-N2gBwXusMecXl'
+CLIENT_ID = 'IuVC1cAJYK555OOgiiE5Kgks-2voNitgxIvenQt5'
+CLIENT_SECRET = 'CX33IbwHvD85r1iotkECBj40fmAo57g8NhXQNnkP'
 
 ############################
 
+
+
 # url = 'http://www.clarifai.com/img/metro-north.jpg'
-# url = 'http://clarifai-img.s3.amazonaws.com/test/giraffe-256px.jpeg'
-# bsize = 4
+# ;; url = 'http://clarifai-img.s3.amazonaws.com/test/giraffe-256px.jpeg'
+
+# from threading import Lock
+# lock = Lock()
+
+# bsize = 1
 # threads = 16
-# batches = 10
+# batches = 1
+# times = []
 
 # def task():
+#   st = time.time()
 #   cl.tag_image_url([url for j in range(bsize)])
+#   with lock:
+#     times.append(time.time() - st)
 #   # cl.tag_image([open('/Users/zeiler/tempsstk.jpeg') for j in range(bsize)])
 
 # import time
@@ -44,7 +54,8 @@ CLIENT_SECRET = 'jEnNVzsLTQKEBstmF2onqBBEV6L2SSHW49fRgs2aMOZ7neQ9kqw1IqkA0rxP2Sb
 # for i in range(batches):
 #   worker.add_task(task)
 # worker.join()
-# print batches * bsize / (time.time() - st)
+# diff_time = time.time() - st
+# print "%d fps, %f seconds" % (batches * bsize / (diff_time), diff_time)
 
 
 ############################
