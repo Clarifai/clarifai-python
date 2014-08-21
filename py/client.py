@@ -253,14 +253,15 @@ class ClarifaiApi(object):
       print "Could not open image file: %s, still sending to server." % image_tup[1]
     return image_tup
 
-  def _process_image_files(self, image_files):
+  def _process_image_files(self, input_files):
     # Handle single file-object as arg.
-    if not isinstance(image_files, list):
-      image_files = [image_files]
+    if not isinstance(input_files, list):
+      input_files = [input_files]
     # Handle unnames images as lists of file objects. Named by index in list.
-    for i, tup in enumerate(image_files):
+    image_files = []
+    for i, tup in enumerate(input_files):
       if not isinstance(tup, tuple):
-        image_files[i] = (tup, str(i))
+        image_files.append((tup, str(i)))
         assert hasattr(image_files[i][0], 'read'), (
             'image_files[%d] has wrong type: %s. Must be file-object with read method.') % (
                 i, type(image_files[i][0]))
