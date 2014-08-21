@@ -66,7 +66,16 @@ IM_QUALITY = 95
 API_VERSION = 'v1'
 
 class ClarifaiApi(object):
-  def __init__(self, base_url='http://api.clarifai.com'):
+  def __init__(self, app_id=None, app_secret=None, base_url='http://api.clarifai.com'):
+    if app_id is None:
+      self.CLIENT_ID = os.environ.get('CLARIFAI_APP_ID', None)
+    else:
+      self.CLIENT_ID = app_id
+    if app_secret is None:
+      self.CLIENT_SECRET = os.environ.get('CLARIFAI_APP_SECRET', None)
+    else:
+      self.CLIENT_SECRET = app_secret
+
     self._base_url = base_url
     self._urls = {
       'tag': os.path.join(self._base_url, '%s/tag/' % API_VERSION),
@@ -83,8 +92,8 @@ class ClarifaiApi(object):
       headers = {}  # don't use json here, juse urlencode.
       url = self._url_for_op('token')
       data = urllib.urlencode({'grant_type': 'client_credentials',
-                               'client_id':CLIENT_ID,
-                               'client_secret':CLIENT_SECRET})
+                               'client_id':self.CLIENT_ID,
+                               'client_secret':self.CLIENT_SECRET})
       req = urllib2.Request(url, data, headers)
       response = urllib2.urlopen(req).read()
       response = json.loads(response)
