@@ -80,7 +80,7 @@ class ClarifaiApi(object):
     self._urls = {
       'tag': os.path.join(self._base_url, '%s/tag/' % API_VERSION),
       'embed': os.path.join(self._base_url, '%s/embed/' % API_VERSION),
-      'tag,embed': os.path.join(self._base_url, '%s/multiop/' % API_VERSION),
+      'multiop': os.path.join(self._base_url, '%s/multiop/' % API_VERSION),
       'token': os.path.join(self._base_url, '%s/token/' % API_VERSION),
       'info': os.path.join(self._base_url, '%s/info/' % API_VERSION),
       }
