@@ -39,8 +39,9 @@ def post_multipart_request(url, multipart_message, headers={}):
     h.putheader(k, v)
   h.endheaders()
   h.send(data)
+  print headers
   errcode, errmsg, headers = h.getreply()
-  #print errcode, errmsg, headers
+  print errcode, errmsg, headers
   return h.file.read()
 
 

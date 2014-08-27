@@ -12,7 +12,10 @@ from mime_util import post_images_multipart
 
 class ApiError(Exception):
   """Api error."""
-  pass
+  def __init__(self, msg):
+    self.msg = msg
+  def __str__(self):
+    return repr(self.msg)
 
 SUPPORTED_OPS = ['tag','embed']
 
@@ -27,7 +30,7 @@ class ClarifaiApi(object):
     app_id: the client_id for an application you've created in your Clarifai account.
     app_secret: the client_secret for the same application.
   """
-  def __init__(self, app_id=None, app_secret=None, base_url='http://api.clarifai.com'):
+  def __init__(self, app_id=None, app_secret=None, base_url='https://api.clarifai.com'):
     if app_id is None:
       self.CLIENT_ID = os.environ.get('CLARIFAI_APP_ID', None)
     else:
@@ -221,12 +224,13 @@ class ClarifaiApi(object):
     # Handle unnames images as lists of file objects. Named by index in list.
     image_files = []
     for i, tup in enumerate(input_files):
-      # FIXME: Bug here in the case where input is a list of tuples already.
       if not isinstance(tup, tuple):
         image_files.append((tup, str(i)))
         assert hasattr(image_files[i][0], 'read'), (
             'image_files[%d] has wrong type: %s. Must be file-object with read method.') % (
                 i, type(image_files[i][0]))
+      else:  # already tuples passed in.
+        image_files.append(tup)
     # Resize any images such that the min dimension is in range.
     if CAN_RESIZE:
       for i, image_tup in enumerate(image_files):
@@ -267,13 +271,13 @@ class ClarifaiApi(object):
 
   def _parse_response(self, response, all_ops):
     try:
-      response = json.loads(response)
+      parsed_response = json.loads(response)
     except ValueError as e:
       raise ApiError(e)
-    if 'error' in response:
-      raise ApiError(response['error'])
+    if 'error' in parsed_response:  # needed anymore?
+      raise ApiError(parsed_response['error'])
     # Return the true API return value.
-    return response
+    return parsed_response
 
   def _get_authorization_headers(self):
     access_token = self.get_access_token()
@@ -313,9 +317,12 @@ class ClarifaiApi(object):
             self.get_access_token(renew=True)
             headers = header_func()
           else:
-            raise ApiError(e)  # raise original error
+            raise ApiError(response)  # raise original error
         except ValueError as e2:
-          raise ApiError(e) # raise original error.
+          raise ApiError(e2.read()) # raise original error.
+        except Exception as e2:
+          raise ApiError(response) # raise original error.
+
 
   def _get_json_response(self, url, data, headers):
     """ Get the response for sending json dumped data. """
