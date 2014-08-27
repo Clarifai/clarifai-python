@@ -21,9 +21,11 @@ API_VERSION = 'v1'
 
 class ClarifaiApi(object):
   """
-
-
-
+  The constructor for API access. You must sign up at developer.clarifai.com first and create an
+  application in order to generate your credentials to provide here.
+  Args:
+    app_id: the client_id for an application you've created in your Clarifai account.
+    app_secret: the client_secret for the same application.
   """
   def __init__(self, app_id=None, app_secret=None, base_url='http://api.clarifai.com'):
     if app_id is None:
@@ -287,7 +289,7 @@ class ClarifaiApi(object):
 
   def _get_raw_response(self, header_func, request_func, *args):
     """ Get a raw_response from the API, retrying on TOKEN_EXPIRED errors.
-    
+
     Args:
       header_func: function to generate dict of HTTP headers for this request, passed as kwarg to
                    request_func.
