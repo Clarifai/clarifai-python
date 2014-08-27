@@ -14,58 +14,17 @@ class ApiError(Exception):
   """Api error."""
   pass
 
-
-# ############################
-# # Enter your ID and SECRET for a Clarifai API Application.
-# CLIENT_ID = 'ZfRoZCVFIxhEsc1AJg56hdU4iGu1HhRgSpeD23_f'
-# CLIENT_SECRET = 'GI1Clx4I1Abjzk40suz8WT0Sm_m9n8v1X5vyEvob'
-
-
-# api.clarifai.com prod
-CLIENT_ID = 'IuVC1cAJYK555OOgiiE5Kgks-2voNitgxIvenQt5'
-CLIENT_SECRET = 'CX33IbwHvD85r1iotkECBj40fmAo57g8NhXQNnkP'
-
-############################
-
-
-
-# url = 'http://www.clarifai.com/img/metro-north.jpg'
-# ;; url = 'http://clarifai-img.s3.amazonaws.com/test/giraffe-256px.jpeg'
-
-# from threading import Lock
-# lock = Lock()
-
-# bsize = 1
-# threads = 16
-# batches = 1
-# times = []
-
-# def task():
-#   st = time.time()
-#   cl.tag_image_url([url for j in range(bsize)])
-#   with lock:
-#     times.append(time.time() - st)
-#   # cl.tag_image([open('/Users/zeiler/tempsstk.jpeg') for j in range(bsize)])
-
-# import time
-# from utils.processors import Worker
-# st = time.time()
-# worker = Worker(threads,1000)
-# for i in range(batches):
-#   worker.add_task(task)
-# worker.join()
-# diff_time = time.time() - st
-# print "%d fps, %f seconds" % (batches * bsize / (diff_time), diff_time)
-
-
-############################
-# Clarifai Parameters. DO NOT TOUCH
 SUPPORTED_OPS = ['tag','embed']
 
 IM_QUALITY = 95
 API_VERSION = 'v1'
 
 class ClarifaiApi(object):
+  """
+
+
+
+  """
   def __init__(self, app_id=None, app_secret=None, base_url='http://api.clarifai.com'):
     if app_id is None:
       self.CLIENT_ID = os.environ.get('CLARIFAI_APP_ID', None)
