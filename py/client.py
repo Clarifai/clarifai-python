@@ -52,6 +52,12 @@ class ClarifaiApi(object):
     self.api_info = None
 
   def get_access_token(self, renew=False):
+    """ Get an access token using your app_id and app_secret.
+
+    Args:
+      renew: if True, then force the client to get a new token (even if not expired). By default if
+      there is already an access token in the client then this method is a no-op.
+    """
     if self.access_token is None or renew:
       headers = {}  # don't use json here, juse urlencode.
       url = self._url_for_op('token')
@@ -59,8 +65,13 @@ class ClarifaiApi(object):
                                'client_id':self.CLIENT_ID,
                                'client_secret':self.CLIENT_SECRET})
       req = urllib2.Request(url, data, headers)
-      response = urllib2.urlopen(req).read()
-      response = json.loads(response)
+      try:
+        response = urllib2.urlopen(req).read()
+        response = json.loads(response)
+      except urllib2.HTTPError as e:
+        raise ApiError(e.reason)
+      except Exception, e:
+        raise ApiError(e)
       self.access_token = response['access_token']
     return self.access_token
 
@@ -272,7 +283,7 @@ class ClarifaiApi(object):
   def _parse_response(self, response, all_ops):
     try:
       parsed_response = json.loads(response)
-    except ValueError as e:
+    except Exception, e:
       raise ApiError(e)
     if 'error' in parsed_response:  # needed anymore?
       raise ApiError(parsed_response['error'])
@@ -319,7 +330,7 @@ class ClarifaiApi(object):
           else:
             raise ApiError(response)  # raise original error
         except ValueError as e2:
-          raise ApiError(e2.read()) # raise original error.
+          raise ApiError(response) # raise original error.
         except Exception as e2:
           raise ApiError(response) # raise original error.
 

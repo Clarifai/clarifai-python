@@ -25,12 +25,17 @@ def parse_url(url):
   """Return a host, port, path tuple from a url."""
   parsed_url = urlparse(url)
   port = parsed_url.port or 80
+  if url.startswith('https'):
+    port = 443
   return parsed_url.hostname, port, parsed_url.path
 
 
 def post_multipart_request(url, multipart_message, headers={}):
   host, port, path = parse_url(url)
-  h = httplib.HTTP(host, port)
+  if url.startswith('https'):
+    h = httplib.HTTPS(host, port)
+  else:
+    h = httplib.HTTP(host, port)
   h.putrequest('POST', path)
   data = message_as_post_data(multipart_message)
   h.putheader('Content-Length', str(len(data)))
@@ -39,9 +44,8 @@ def post_multipart_request(url, multipart_message, headers={}):
     h.putheader(k, v)
   h.endheaders()
   h.send(data)
-  print headers
   errcode, errmsg, headers = h.getreply()
-  print errcode, errmsg, headers
+  # print errcode, errmsg, headers
   return h.file.read()
 
 
