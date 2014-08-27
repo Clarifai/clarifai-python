@@ -62,8 +62,8 @@ class ClarifaiApi(object):
   def get_info(self):
     url = self._url_for_op('info')
     data= None # This will be a GET request since data is None
-    access_token = self.get_access_token()
-    response = self._get_raw_response(self._get_json_response, access_token, url, data)
+    response = self._get_raw_response(self._get_json_headers,
+                                      self._get_json_response, url, data)
     response = json.loads(response)
     self.api_info = response['results']
     return self.api_info
@@ -219,6 +219,7 @@ class ClarifaiApi(object):
     # Handle unnames images as lists of file objects. Named by index in list.
     image_files = []
     for i, tup in enumerate(input_files):
+      # FIXME: Bug here in the case where input is a list of tuples already.
       if not isinstance(tup, tuple):
         image_files.append((tup, str(i)))
         assert hasattr(image_files[i][0], 'read'), (
@@ -235,22 +236,20 @@ class ClarifaiApi(object):
     return image_data
 
   def _multi_image_op(self, image_files, ops):
-    ''' Supports both list of tuples (image_file, name) or a list of image_files where a name will
-    be created as the index into the list. '''
+    """ Supports both list of tuples (image_file, name) or a list of image_files where a name will
+    be created as the index into the list. """
     if len(set(ops).intersection(SUPPORTED_OPS)) != len(ops):
       raise Exception('Unsupported op: %s, ops available: %s' % (str(ops), str(SUPPORTED_OPS)))
     image_data = self._process_image_files(image_files)
     data = {'op': ','.join(ops)}
     url = self._url_for_op(ops)
-    access_token = self.get_access_token()
-    # response = post_images_multipart(image_data, data, url, self.access_token)
-    raw_response = self._get_raw_response(
-      post_images_multipart, access_token, image_data, data, url)
+    raw_response = self._get_raw_response(self._get_multipart_headers,
+                                          post_images_multipart, image_data, data, url)
     return self._parse_response(raw_response, ops)
 
   def _multi_imageurl_op(self, image_urls, ops):
-    ''' If sending image_url or image_file strings, then we can send as json directly instead of the
-    multipart form. '''
+    """ If sending image_url or image_file strings, then we can send as json directly instead of the
+    multipart form. """
     if len(set(ops).intersection(SUPPORTED_OPS)) != len(ops):
       raise Exception('Unsupported op: %s, ops available: %s' % (str(ops), str(SUPPORTED_OPS)))
     if not isinstance(image_urls, list):
@@ -260,8 +259,8 @@ class ClarifaiApi(object):
     data =  {'op': ','.join(ops),
              'url': image_urls}
     url = self._url_for_op(ops)
-    access_token = self.get_access_token()
-    raw_response = self._get_raw_response(self._get_json_response, access_token, url, data)
+    raw_response = self._get_raw_response(self._get_json_headers,
+                                          self._get_json_response, url, data)
     return self._parse_response(raw_response, ops)
 
   def _parse_response(self, response, all_ops):
@@ -274,19 +273,34 @@ class ClarifaiApi(object):
     # Return the true API return value.
     return response
 
-  def _get_json_headers(self, access_token):
-    headers = {"content-type": "application/json",
-               "Authorization": "Bearer %s" % access_token}
+  def _get_authorization_headers(self):
+    access_token = self.get_access_token()
+    return {'Authorization': 'Bearer %s' % access_token}
+
+  def _get_multipart_headers(self):
+    return self._get_authorization_headers()
+
+  def _get_json_headers(self):
+    headers = self._get_authorization_headers()
+    headers['content-type'] = 'application/json'
     return headers
 
-  def _get_raw_response(self, request_func, access_token, *args):
-    """ Get a raw_response from the, and if a token is expired then try again."""
+  def _get_raw_response(self, header_func, request_func, *args):
+    """ Get a raw_response from the API, retrying on TOKEN_EXPIRED errors.
+    
+    Args:
+      header_func: function to generate dict of HTTP headers for this request, passed as kwarg to
+                   request_func.
+      request_func: function to make the request, using the remaining args.
+      args: passed to request_func.
+    """
+    headers = header_func()
     attempts = 3
     while attempts > 0:
       attempts -= 1
       try:
         # Try the request.
-        raw_response = request_func(access_token, *args)
+        raw_response = request_func(*args, headers=headers)
         return raw_response
       except urllib2.HTTPError as e:
         response = e.read()  # get error response
@@ -294,15 +308,15 @@ class ClarifaiApi(object):
           response = json.loads(response)
           if response['status_code'] == 'TOKEN_EXPIRED':
             print 'Getting new access token.'
-            access_token = self.get_access_token(renew=True)
+            self.get_access_token(renew=True)
+            headers = header_func()
           else:
             raise ApiError(e)  # raise original error
         except ValueError as e2:
           raise ApiError(e) # raise original error.
 
-  def _get_json_response(self, access_token, url, data):
+  def _get_json_response(self, url, data, headers):
     """ Get the response for sending json dumped data. """
-    headers = self._get_json_headers(access_token)
     if data:
       data = json.dumps(data)
     req = urllib2.Request(url, data, headers)
@@ -339,5 +353,6 @@ class ClarifaiApi(object):
     data['op'] =  op
     access_token = self.get_access_token()
     url = self._url_for_op(data['op'])
-    response = self._get_json_response(access_token, url, data)
+    headers = self._get_json_headers(access_token)
+    response = self._get_json_response(url, data, headers)
     return dict([(k, v[0]) for k, v in self._parse_response(response, op).items()])
