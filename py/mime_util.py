@@ -7,14 +7,17 @@ import urllib
 from urlparse import urlparse
 
 
-def post_images_multipart(access_token, images, form_data, url):
-  """
-  :param images: list of (encoded_image, filename) pairs.
-  :param form_data: dict of API params.
-  :param base_url: (host, port) tuple.
+def post_images_multipart(images, form_data, url, headers={}):
+  """POST a multipart MIME request with image data.
+
+  Args:
+    images: list of (encoded_image, filename) pairs.
+    form_data: dict of API params.
+    base_url: (host, port) tuple.
+    headers: A dict of extra HTTP headers to send with the request.
   """
   message = multipart_form_message(images, form_data)
-  response = post_multipart_request(url, message, access_token)
+  response = post_multipart_request(url, message, headers=headers)
   return response
 
 
@@ -25,14 +28,15 @@ def parse_url(url):
   return parsed_url.hostname, port, parsed_url.path
 
 
-def post_multipart_request(url, multipart_message, access_token):
+def post_multipart_request(url, multipart_message, headers={}):
   host, port, path = parse_url(url)
   h = httplib.HTTP(host, port)
   h.putrequest('POST', path)
   data = message_as_post_data(multipart_message)
   h.putheader('Content-Length', str(len(data)))
   h.putheader('Content-Type', multipart_message.get('Content-Type'))
-  h.putheader("Authorization", "Bearer %s" % access_token)
+  for k, v in headers.items():
+    h.putheader(k, v)
   h.endheaders()
   h.send(data)
   errcode, errmsg, headers = h.getreply()
