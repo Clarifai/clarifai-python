@@ -1,3 +1,5 @@
+Clarifai Python Client
+====================
 
 This Python client provides a simple wrapper around our powerful image recognition API.
 
@@ -26,10 +28,10 @@ This will return the tagging result for the given image read off your local stor
 operations supported by the client can all handle batches of images. Keeping tagging as the
 running example, this would look like:
 
-<code>
+<pre>
 result = clarifai_api.tag_images([open('/path/to/local/image.jpeg'),
                                   open('/path/to/local/image2.jpeg')])
-</code>
+</pre>
 
 The result will now contain all the results of the tagging for each image in the batch. When
 sending large batches of images, you must adhere to your application limits for the maximum batch
