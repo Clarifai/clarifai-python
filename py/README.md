@@ -16,11 +16,11 @@ are processed without fail.
 
 As an example, to tag an image on your local drive you can do the following:
 
-<code>
+<pre>
 from api.py.client import ClarifaiApi
 clarifai_api = ClarifaiApi()
 result = clarifai_api.tag_images(open('/path/to/local/image.jpeg'))
-</code>
+</pre>
 
 This will return the tagging result for the given image read off your local storage system. The
 operations supported by the client can all handle batches of images. Keeping tagging as the
