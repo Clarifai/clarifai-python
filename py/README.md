@@ -36,3 +36,5 @@ result = clarifai_api.tag_images([open('/path/to/local/image.jpeg'),
 The result will now contain all the results of the tagging for each image in the batch. When
 sending large batches of images, you must adhere to your application limits for the maximum batch
 size per request.
+
+Please check out the full documentation for our API at <a href="http://developer.clarifai.com/docs">developer.clarifai.com</a>.
