@@ -2,10 +2,26 @@ from email.encoders import encode_noop
 from email.message import Message
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
-import httplib
 import urllib
+import urllib2
 from urlparse import urlparse
 
+class RequestWithMethod(urllib2.Request):
+  """Workaround for using DELETE with urllib2"""
+  def __init__(self, url, method, data=None, headers={},
+               origin_req_host=None, unverifiable=False):
+    self.url = url
+    self._method = method
+    urllib2.Request.__init__(self, url, data, headers,
+                             origin_req_host, unverifiable)
+  def get_method(self):
+    if self._method:
+        return self._method
+    else:
+        return urllib2.Request.get_method(self)
+
+  def __str__(self):
+    return 'url: %s, method %s' % (self.url, self._method)
 
 def post_images_multipart(images, form_data, url, headers={}):
   """POST a multipart MIME request with image data.
@@ -29,25 +45,15 @@ def parse_url(url):
     port = 443
   return parsed_url.hostname, port, parsed_url.path
 
-
 def post_multipart_request(url, multipart_message, headers={}):
-  host, port, path = parse_url(url)
-  if url.startswith('https'):
-    h = httplib.HTTPS(host, port)
-  else:
-    h = httplib.HTTP(host, port)
-  h.putrequest('POST', path)
   data = message_as_post_data(multipart_message)
-  h.putheader('Content-Length', str(len(data)))
-  h.putheader('Content-Type', multipart_message.get('Content-Type'))
-  for k, v in headers.items():
-    h.putheader(k, v)
-  h.endheaders()
-  h.send(data)
-  errcode, errmsg, headers = h.getreply()
-  # print errcode, errmsg, headers
-  return h.file.read()
-
+  headers['Content-Length'] = str(len(data))
+  headers['Content-Type'] = multipart_message.get('Content-Type')
+  req = RequestWithMethod(url, 'POST', data, headers)
+  f = urllib2.urlopen(req)
+  response = f.read()
+  f.close()
+  return response
 
 def mime_image(encoded_image, subtype='jpeg', headers={}):
   """From a raw encoded image return a MIME image part."""
