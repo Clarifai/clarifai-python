@@ -5,6 +5,7 @@ from email.mime.image import MIMEImage
 import urllib
 import urllib2
 from urlparse import urlparse
+from uuid import uuid4
 
 class RequestWithMethod(urllib2.Request):
   """Workaround for using DELETE with urllib2"""
@@ -46,9 +47,7 @@ def parse_url(url):
   return parsed_url.hostname, port, parsed_url.path
 
 def post_multipart_request(url, multipart_message, headers={}):
-  data = message_as_post_data(multipart_message)
-  headers['Content-Length'] = str(len(data))
-  headers['Content-Type'] = multipart_message.get('Content-Type')
+  data, headers = message_as_post_data(multipart_message, headers)
   req = RequestWithMethod(url, 'POST', data, headers)
   f = urllib2.urlopen(req)
   response = f.read()
@@ -76,7 +75,7 @@ def form_data_image(encoded_image, filename, field_name='encoded_image',
   return message
 
 
-def message_as_post_data(message):
+def message_as_post_data(message, headers):
   """Return a string suitable for using as POST data, from a multipart MIME message."""
   # The built-in mail generator outputs broken POST data for several reasons:
   # * It breaks long header lines, and django doesn't like this. Can use Generator.
@@ -86,8 +85,8 @@ def message_as_post_data(message):
   #   as form data because the HTTP headers are used instead.
   # So just generate what we need directly.
   assert message.is_multipart()
-  unused = message.as_string()  # Needed to generate the boundary
-  boundary = message.get_boundary()
+  # Simple way to get a boundary. urllib3 uses this approach.
+  boundary = uuid4().hex
   lines = []
   for part in message.get_payload():
     lines.append('--' + boundary)
@@ -97,7 +96,10 @@ def message_as_post_data(message):
     lines.append(part.get_payload())
   lines.append('--%s--' % boundary)
   crlf = '\r\n'
-  return crlf.join(lines)
+  post_data = crlf.join(lines)
+  headers['Content-Length'] = str(len(post_data))
+  headers['Content-Type'] = 'multipart/form-data; boundary=%s' % boundary
+  return post_data, headers
 
 
 def multipart_form_message(images, form_data={}):

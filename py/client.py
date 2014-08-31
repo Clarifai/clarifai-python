@@ -299,7 +299,7 @@ class ClarifaiApi(object):
 
   def _get_json_headers(self):
     headers = self._get_authorization_headers()
-    headers['content-type'] = 'application/json'
+    headers['Content-Type'] = 'application/json'
     return headers
 
   def _get_raw_response(self, header_func, request_func, *args):
