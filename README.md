@@ -21,8 +21,8 @@ Installation
 <pre>
 git clone https://github.com/Clarifai/clarifai_api.git
 cd clarifai_api
-export CLARIFAI_APP_ID=<an_application_id_from_your_account>
-export CLARIFAI_APP_SECRET=<an_application_secret_from_your_account>
+export CLARIFAI_APP_ID=&lt;an_application_id_from_your_account&gt;
+export CLARIFAI_APP_SECRET=&lt;an_application_secret_from_your_account&gt;
 </pre>
 
 
