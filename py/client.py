@@ -76,6 +76,12 @@ class ClarifaiApi(object):
     return self.access_token
 
   def get_info(self):
+    """ Get various information about the current state of the API.
+
+    This provides general information such as the API version number, but also use specific
+    information such as the limitations on your account. Some of this information is needed to
+    ensure that your API calls will go through within your limits.
+    """
     url = self._url_for_op('info')
     data= None # This will be a GET request since data is None
     response = self._get_raw_response(self._get_json_headers,
@@ -232,6 +238,7 @@ class ClarifaiApi(object):
     # Handle single file-object as arg.
     if not isinstance(input_files, list):
       input_files = [input_files]
+    self._check_batch_size(input_files)
     # Handle unnames images as lists of file objects. Named by index in list.
     image_files = []
     for i, tup in enumerate(input_files):
@@ -252,6 +259,14 @@ class ClarifaiApi(object):
       image_data.append((bytes(image_file[0].read()), image_file[1]))
     return image_data
 
+  def _check_batch_size(self, data_list):
+    if self.api_info is None:
+      self.get_info()  # sets the image size and other such info from server.
+    MAX_BATCH_SIZE = self.api_info['max_batch_size']
+    if len(data_list) > MAX_BATCH_SIZE:
+      raise ApiError(("Number of images provided in bach %d is greater than maximum allowed per "
+                      "request %d") % (len(data_list), MAX_BATCH_SIZE))
+
   def _multi_image_op(self, image_files, ops):
     """ Supports both list of tuples (image_file, name) or a list of image_files where a name will
     be created as the index into the list. """
@@ -271,6 +286,7 @@ class ClarifaiApi(object):
       raise Exception('Unsupported op: %s, ops available: %s' % (str(ops), str(SUPPORTED_OPS)))
     if not isinstance(image_urls, list):
       image_urls = [image_urls]
+    self._check_batch_size(image_urls)
     if not isinstance(image_urls[0], basestring):
       raise Exception("image_urls must be strings")
     data =  {'op': ','.join(ops),
