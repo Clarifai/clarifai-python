@@ -1,9 +1,3 @@
-<link rel="stylesheet"
-	  href="http://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.0/styles/tomorrow-night-bright.min.css">
-    <script src="http://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.1/highlight.min.js"></script>
-    <script>hljs.initHighlightingOnLoad();</script>
-
-
 Clarifai Python Client
 ====================
 
@@ -25,11 +19,11 @@ calls are processed without fail.
 An complete example of using this Python client is as follows. Suppose you want totag an image on
 your local drive:
 
-<pre class="code-block"><code>
+<code>
 from api.py.client import ClarifaiApi
 clarifai_api = ClarifaiApi() # assumes environment variables are set.
 result = clarifai_api.tag_images(open('/path/to/local/image.jpeg'))
-</code></pre>
+</code>
 
 This will return the tagging result for the given image read off your local storage system (see the
 <a href="https://developer.clarifai.com/docs">Docs</a> for response format). The operations
