@@ -19,11 +19,11 @@ calls are processed without fail.
 An complete example of using this Python client is as follows. Suppose you want totag an image on
 your local drive:
 
-<code>
+<pre>
 from api.py.client import ClarifaiApi
 clarifai_api = ClarifaiApi() # assumes environment variables are set.
 result = clarifai_api.tag_images(open('/path/to/local/image.jpeg'))
-</code>
+</pre>
 
 This will return the tagging result for the given image read off your local storage system (see the
 <a href="https://developer.clarifai.com/docs">Docs</a> for response format). The operations
