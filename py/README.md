@@ -16,11 +16,24 @@ automatically determine your allowed limits and resize any images you wish to pr
 before sending. If you do not have PIL or Pillow then you must do this yourself to ensure your API
 calls are processed without fail.
 
-An complete example of using this Python client is as follows. Suppose you want totag an image on
+Installation
+---------------------
+<pre>
+git clone https://github.com/Clarifai/clarifai_api.git
+cd clarifai_api
+export CLARIFAI_APP_ID=<an_application_id_from_your_account>
+export CLARIFAI_APP_SECRET=<an_application_secret_from_your_account>
+</pre>
+
+
+Usage
+---------------------
+
+An complete example of using this Python client is as follows. Suppose you want to tag an image on
 your local drive:
 
 <pre>
-from api.py.client import ClarifaiApi
+from clarifai_api.py.client import ClarifaiApi
 clarifai_api = ClarifaiApi() # assumes environment variables are set.
 result = clarifai_api.tag_images(open('/path/to/local/image.jpeg'))
 </pre>
@@ -41,7 +54,7 @@ size per request.
 
 If your images live remotely at a public url, you can also use tag_image_urls:
 <pre>
-from api.py.client import ClarifaiApi
+from clarifai_api.py.client import ClarifaiApi
 clarifai_api = ClarifaiApi()  # assumes environment variables are set.
 result = clarifai_api.tag_image_urls('http://www.clarifai.com/img/metro-north.jpg')
 </pre>
