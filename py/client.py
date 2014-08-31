@@ -25,7 +25,8 @@ API_VERSION = 'v1'
 class ClarifaiApi(object):
   """
   The constructor for API access. You must sign up at developer.clarifai.com first and create an
-  application in order to generate your credentials to provide here.
+  application in order to generate your credentials for API access.
+
   Args:
     app_id: the client_id for an application you've created in your Clarifai account.
     app_secret: the client_secret for the same application.
@@ -53,6 +54,10 @@ class ClarifaiApi(object):
 
   def get_access_token(self, renew=False):
     """ Get an access token using your app_id and app_secret.
+
+    You shouldn't need to call this method yourself. If there is no access token yet, this method
+    will be called when a request is made. If a token expires, this method will also automatically
+    be called to renew the token.
 
     Args:
       renew: if True, then force the client to get a new token (even if not expired). By default if
@@ -103,18 +108,19 @@ class ClarifaiApi(object):
     objects.
 
     The only method used on the file object is read() to get the bytes of the compressed
-    image representation.
+    image representation. Ensure that all file objects are pointing to the  beginning of a valid
+    image.
 
     Args:
       image_files: a single (file, name) tuple or a list of (file, name) tuples, where file is an
       open file-like object containing the encoded image bytes.
 
     Returns:
-      results: a tuple of (tag, probability) if a single image is processed or a list of (tag,
-      probability) tuples if multiple images are processed.
+      results: an API reponse including the generated tags. See the docs at
+      https://developer.clarifai.com/docs/ for more detais.
 
     Example:
-      from api.py.client import ClarifaiApi
+      from py.client import ClarifaiApi
       clarifai_api = ClarifaiApi()
       clarifai_api.tag_images([open('/path/to/local/image.jpeg'),
                                open('/path/to/local/image2.jpeg')])
@@ -133,11 +139,11 @@ class ClarifaiApi(object):
       open file-like object containing the encoded image bytes.
 
     Returns:
-      results: a tuple of (tag, probability) if a single image is processed or a list of (tag,
-      probability) tuples if multiple images are processed.
+      results: an API reponse including the generated embeddings. See the docs at
+      https://developer.clarifai.com/docs/ for more detais.
 
     Example:
-      from api.py.client import ClarifaiApi
+      from py.client import ClarifaiApi
       clarifai_api = ClarifaiApi()
       clarifai_api.tag_images([open('/path/to/local/image.jpeg'),
                                open('/path/to/local/image2.jpeg')])
@@ -145,19 +151,38 @@ class ClarifaiApi(object):
     return self._multi_image_op(image_files, ['embed'])
 
   def tag_and_embed_images(self, image_files):
+    """ Tag AND embed images in one request. Note: each operation is treated separate for billing
+    purposes.
+
+     Returns:
+      results: an API reponse including the generated tags and embeddings. See the docs at
+      https://developer.clarifai.com/docs/ for more detais.
+
+    Args:
+      image_files: a single (file, name) tuple or a list of (file, name) tuples, where file is an
+      open file-like object containing the encoded image bytes.
+
+    Example:
+      from py.client import ClarifaiApi
+      clarifai_api = ClarifaiApi()
+      clarifai_api.tag_and_embed_images([open('/path/to/local/image.jpeg'),
+                                         open('/path/to/local/image2.jpeg')])
+    """
     return self._multi_image_op(image_files, ['tag','embed'])
 
   def tag_image_urls(self, image_urls):
     """ Tag an image from a url or images from a list of urls.
+
+    Args:
       image_urls: a single url for the input image to be processed or a list of urls for a set of
-      images to be processed.
+      images to be processed. Note: all urls must be publically accessible.
 
     Returns:
-      results: a (tag, probability) tuple if a single image was used, or a list of (tag,
-      probability) tuples when multiple images are input.
+      results: an API reponse including the generated tags. See the docs at
+      https://developer.clarifai.com/docs/ for more detais.
 
     Example:
-      from api.py.client import ClarifaiApi
+      from py.client import ClarifaiApi
       clarifai_api = ClarifaiApi()
       clarifai_api.tag_image_url(['http://www.clarifai.com/img/metro-north.jpg',
                                   'http://www.clarifai.com/img/metro-north.jpg'])
@@ -170,23 +195,37 @@ class ClarifaiApi(object):
 
     Args:
       image_urls: a single url for the input image to be processed or a list of urls for a set of
-    images to be processed.
+      images to be processed. Note: all urls must be publically accessible.
 
     Returns:
+      results: an API reponse including the generated embeddings. See the docs at
+      https://developer.clarifai.com/docs/ for more detais.
+
+    Example:
+      from py.client import ClarifaiApi
+      clarifai_api = ClarifaiApi()
+      clarifai_api.embed_image_url(['http://www.clarifai.com/img/metro-north.jpg',
+                                  'http://www.clarifai.com/img/metro-north.jpg'])
 
     """
     return self._multi_imageurl_op(image_urls, ['embed'])
 
   def tag_and_embed_image_urls(self, image_urls):
-    """ Take in a list of image urls, downloading them on the server side and returning both
-    classifications and embeddings.
+    """ Tag AND Embed an image from a url or images from a list of urls.
 
     Args:
       image_urls: a single url for the input image to be processed or a list of urls for a set of
-    images to be processed.
+      images to be processed. Note: all urls must be publically accessible.
 
     Returns:
+      results: an API reponse including the generated tags and embeddings. See the docs at
+      https://developer.clarifai.com/docs/ for more detais.
 
+    Example:
+      from py.client import ClarifaiApi
+      clarifai_api = ClarifaiApi()
+      clarifai_api.tag_and_embed_image_url(['http://www.clarifai.com/img/metro-north.jpg',
+                                            'http://www.clarifai.com/img/metro-north.jpg'])
     """
     return self._multi_imageurl_op(image_urls, ['tag','embed'])
 
@@ -235,6 +274,8 @@ class ClarifaiApi(object):
     return image_tup
 
   def _process_image_files(self, input_files):
+    """ Ensure consistent format for image files from local storage.
+    """
     # Handle single file-object as arg.
     if not isinstance(input_files, list):
       input_files = [input_files]
@@ -260,6 +301,7 @@ class ClarifaiApi(object):
     return image_data
 
   def _check_batch_size(self, data_list):
+    """ Ensure the maximum batch size is obeyed on the client side. """
     if self.api_info is None:
       self.get_info()  # sets the image size and other such info from server.
     MAX_BATCH_SIZE = self.api_info['max_batch_size']
@@ -297,6 +339,7 @@ class ClarifaiApi(object):
     return self._parse_response(raw_response, ops)
 
   def _parse_response(self, response, all_ops):
+    """ Get the raw response form the API and convert into nice Python objects. """
     try:
       parsed_response = json.loads(response)
     except Exception, e:
@@ -382,13 +425,14 @@ class ClarifaiApi(object):
 
 
   def _single_image_op(self, data, op):
-    """ DEPRECATED: use _multi_image_op which is more efficient.
+    """ DEPRECATED: use _multi_image_op which is more efficient as it does not have the overhead of
+    base64 encoding the images.
     """
     if op not in SUPPORTED_OPS:
       raise Exception('Unsupported op: %s, ops available: %s' % (op, str(SUPPORTED_OPS)))
     data['op'] =  op
     access_token = self.get_access_token()
     url = self._url_for_op(data['op'])
-    headers = self._get_json_headers(access_token)
+    headers = self._get_json_headers()
     response = self._get_json_response(url, data, headers)
     return dict([(k, v[0]) for k, v in self._parse_response(response, op).items()])
