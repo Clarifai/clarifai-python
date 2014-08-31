@@ -1,40 +1,56 @@
+<link rel="stylesheet"
+	  href="http://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.0/styles/tomorrow-night-bright.min.css">
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.1/highlight.min.js"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+
+
 Clarifai Python Client
 ====================
 
-This Python client provides a simple wrapper around our powerful image recognition API.
+This Python client provides a simple wrapper around our powerful image recognition <a href="http://developer.clarifai.com">API</a>.
 
-The constructor takes your app_id and app_secrete created in your Clarifai Account. You can also
-set these variables as environment variables using:
+The constructor takes your APP_ID and APP_SECRET created in your Clarifai Account. You can also
+set these variables in your environment as:
 CLARIFAI_APP_ID
 CLARIFAI_APP_SECRET
 
-This client uses your ID and secret to get an access token. Since this expires every so often, the
-client is setup to renew the token for you automatically using your credentials so you don't have
-to worry about it. Additionally, we highly recomment that you have PIL or Pillow installed if you
-plan to send images from your local machine to our service. This client will automatically
-determine you allowed limits and resize any images you wish to process automatically before
-sending. If you do not have PIL or Pillow then you must do this yourself to ensure your API calls
-are processed without fail.
+This client uses your APP_ID and APP_SECRET to get an access token. Since this expires every so
+often, the client is setup to renew the token for you automatically using your credentials so you
+don't have to worry about it. Additionally, we highly recommend that you have PIL or Pillow
+installed if you plan to send images from your local machine to our service. The client will
+automatically determine your allowed limits and resize any images you wish to process automatically
+before sending. If you do not have PIL or Pillow then you must do this yourself to ensure your API
+calls are processed without fail.
 
-As an example, to tag an image on your local drive you can do the following:
+An complete example of using this Python client is as follows. Suppose you want totag an image on
+your local drive:
 
-<pre>
+<pre class="code-block"><code>
 from api.py.client import ClarifaiApi
-clarifai_api = ClarifaiApi()
+clarifai_api = ClarifaiApi() # assumes environment variables are set.
 result = clarifai_api.tag_images(open('/path/to/local/image.jpeg'))
-</pre>
+</code></pre>
 
-This will return the tagging result for the given image read off your local storage system. The
-operations supported by the client can all handle batches of images. Keeping tagging as the
-running example, this would look like:
+This will return the tagging result for the given image read off your local storage system (see the
+<a href="https://developer.clarifai.com/docs">Docs</a> for response format). The operations
+supported by the client can all handle batches of images. Keeping tagging as the running example,
+this would look like:
 
 <pre>
 result = clarifai_api.tag_images([open('/path/to/local/image.jpeg'),
                                   open('/path/to/local/image2.jpeg')])
 </pre>
-
 The result will now contain all the results of the tagging for each image in the batch. When
 sending large batches of images, you must adhere to your application limits for the maximum batch
 size per request.
 
-Please check out the full documentation for our API at <a href="http://developer.clarifai.com/docs">developer.clarifai.com</a>.
+
+If your images live remotely at a public url, you can also use tag_image_urls:
+<pre>
+from api.py.client import ClarifaiApi
+clarifai_api = ClarifaiApi()  # assumes environment variables are set.
+result = clarifai_api.tag_image_urls('http://www.clarifai.com/img/metro-north.jpg')
+</pre>
+The same result format is returned whether provided image bytes or urls.
+
+Please check out the full documentation for our API at <a href="https://developer.clarifai.com/docs">developer.clarifai.com</a>.

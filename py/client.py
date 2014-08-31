@@ -92,7 +92,7 @@ class ClarifaiApi(object):
     else:
       return self._urls.get(ops[0])
 
-  def tag_image(self, image_files):
+  def tag_images(self, image_files):
     """ Autotag a single image from an open file object or multiples images from a list of open file
     objects.
 
@@ -115,7 +115,7 @@ class ClarifaiApi(object):
     """
     return self._multi_image_op(image_files, ['tag'])
 
-  def embed_image(self, image_files):
+  def embed_images(self, image_files):
     """ Embed a single image from an open file object or multiples images from a list of open file
     objects.
 
@@ -138,10 +138,10 @@ class ClarifaiApi(object):
     """
     return self._multi_image_op(image_files, ['embed'])
 
-  def tag_and_embed_image(self, image_files):
+  def tag_and_embed_images(self, image_files):
     return self._multi_image_op(image_files, ['tag','embed'])
 
-  def tag_image_url(self, image_urls):
+  def tag_image_urls(self, image_urls):
     """ Tag an image from a url or images from a list of urls.
       image_urls: a single url for the input image to be processed or a list of urls for a set of
       images to be processed.
@@ -159,7 +159,7 @@ class ClarifaiApi(object):
     """
     return self._multi_imageurl_op(image_urls, ['tag'])
 
-  def embed_image_url(self, image_urls):
+  def embed_image_urls(self, image_urls):
     """ Embed an image from a url or images from a list of urls.
 
     Args:
@@ -171,7 +171,7 @@ class ClarifaiApi(object):
     """
     return self._multi_imageurl_op(image_urls, ['embed'])
 
-  def tag_and_embed_image_url(self, image_urls):
+  def tag_and_embed_image_urls(self, image_urls):
     """ Take in a list of image urls, downloading them on the server side and returning both
     classifications and embeddings.
 
