@@ -23,12 +23,12 @@ def main(argv):
   api = ClarifaiApi()
 
   if imageurl.startswith('http'):
-    response = api.tag_image_url(imageurl)
+    response = api.tag_image_urls(imageurl)
   elif imageurl.endswith('/'):
     response = tag_images_in_directory(imageurl, api)
   else:
     with open(imageurl) as image_file:
-      response = api.tag_image(image_file)
+      response = api.tag_images(image_file)
   print response
 
 if __name__ == '__main__':

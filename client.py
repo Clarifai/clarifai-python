@@ -184,7 +184,7 @@ class ClarifaiApi(object):
     Example:
       from py.client import ClarifaiApi
       clarifai_api = ClarifaiApi()
-      clarifai_api.tag_image_url(['http://www.clarifai.com/img/metro-north.jpg',
+      clarifai_api.tag_image_urls(['http://www.clarifai.com/img/metro-north.jpg',
                                   'http://www.clarifai.com/img/metro-north.jpg'])
 
     """
