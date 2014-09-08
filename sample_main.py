@@ -11,7 +11,7 @@ def tag_images_in_directory(path, api):
   path = path.rstrip('/')
   for fname in os.listdir(path):
     images.append((open(os.path.join(path, fname)), fname))
-  return api.tag_and_embed_images(images)
+  return api.tag_images(images)
 
 
 def main(argv):
