@@ -11,6 +11,7 @@ except Exception, e:
 from cStringIO import StringIO
 from mime_util import post_images_multipart
 
+
 class ApiError(Exception):
   """Api error."""
   def __init__(self, msg):
@@ -22,6 +23,7 @@ SUPPORTED_OPS = ['tag','embed']
 
 IM_QUALITY = 95
 API_VERSION = 'v1'
+
 
 class ClarifaiApi(object):
   """
@@ -394,7 +396,6 @@ class ClarifaiApi(object):
         except Exception as e2:
           raise ApiError(response) # raise original error.
 
-
   def _get_json_response(self, url, data, headers):
     """ Get the response for sending json dumped data. """
     if data:
@@ -404,13 +405,14 @@ class ClarifaiApi(object):
     raw_response = response.read()
     return raw_response
 
-  def old_tag_image(self, image_files):
-    """ DEPRECATED: use tag_images which is more efficient and support single or multiple images.
+  def tag_image_base64(self, image_file):
+    """ NOTE: If possible, you should use avoid this method and use tag_images, which is more
+    efficient and supports single or multiple images.  This version base64-encodes the images.
 
     Autotag an image.
 
     Args:
-      image_file: an open file-like object containing the encodeed image bytes. The read
+      image_file: an open file-like object containing the encoded image bytes. The read
       method is called on this object to get the encoded bytes so it can be a file handle or
       StringIO buffer.
 
@@ -421,14 +423,11 @@ class ClarifaiApi(object):
       clarifai_api = ClarifaiApi()
       clarifai_api.tag_image(open('/path/to/local/image.jpeg'))
     """
-    data = {'encoded_image': base64.encodestring(image_files[0].read())}
-    return self._single_image_op(data, 'tag')
+    data = {'encoded_image': base64.encodestring(image_file.read())}
+    return self._base64_encoded_image_op(data, 'tag')
 
-
-  def _single_image_op(self, data, op):
-    """ DEPRECATED: use _multi_image_op which is more efficient as it does not have the overhead of
-    base64 encoding the images.
-    """
+  def _base64_encoded_image_op(self, data, op):
+    """NOTE: _multi_image_op is more efficient, it avoids the overhead of base64 encoding."""
     if op not in SUPPORTED_OPS:
       raise Exception('Unsupported op: %s, ops available: %s' % (op, str(SUPPORTED_OPS)))
     data['op'] =  op
@@ -436,4 +435,4 @@ class ClarifaiApi(object):
     url = self._url_for_op(data['op'])
     headers = self._get_json_headers()
     response = self._get_json_response(url, data, headers)
-    return dict([(k, v[0]) for k, v in self._parse_response(response, op).items()])
+    return self._parse_response(response, op)

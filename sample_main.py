@@ -31,5 +31,6 @@ def main(argv):
       response = api.tag_images(image_file)
   print response
 
+
 if __name__ == '__main__':
   main(sys.argv)
