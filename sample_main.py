@@ -18,7 +18,7 @@ def main(argv):
   if len(argv) > 1:
     imageurl = argv[1]
   else:
-    imageurl = 'http://clarifai.com/img/toddler-flowers.jpg'
+    imageurl = 'http://clarifai-img.s3.amazonaws.com/test/toddler-flowers.jpeg'
 
   api = ClarifaiApi()
 

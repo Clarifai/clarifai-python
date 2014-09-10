@@ -5,8 +5,9 @@ try:
   CAN_RESIZE = True
 except Exception, e:
   CAN_RESIZE = False
-  print ("It is recommended to install PIL with the desired image format support so that "
-         "image resizing to the correct dimesions will be handled for you.")
+  print ('It is recommended to install PIL/Pillow with the desired image format support so that '
+         'image resizing to the correct dimesions will be handled for you. '
+         'If using pip, try "pip install Pillow"')
 from cStringIO import StringIO
 from mime_util import post_images_multipart
 
