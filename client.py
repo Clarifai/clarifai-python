@@ -242,11 +242,12 @@ class ClarifaiApi(object):
       MIN_SIZE = self.api_info['min_image_size']
       MAX_SIZE = self.api_info['max_image_size']
       img = Image.open(image_tup[0])
-      ms = min(img.size)
-      min_ratio = float(MIN_SIZE) / ms
-      max_ratio = float(MAX_SIZE) / ms
+      min_dimension = min(img.size)
+      max_dimension = max(img.size)
+      min_ratio = float(MIN_SIZE) / min_dimension
+      max_ratio = float(MAX_SIZE) / max_dimension
       def get_newsize(img, ratio, SIZE):
-        if img.size[0] == ms:
+        if img.size[0] == min_dimension:
           newsize = (SIZE, int(round(ratio * img.size[1])))
         else:
           newsize = (int(round(ratio * img.size[0])), SIZE)
