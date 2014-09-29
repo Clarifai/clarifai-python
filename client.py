@@ -33,8 +33,10 @@ class ClarifaiApi(object):
   Args:
     app_id: the client_id for an application you've created in your Clarifai account.
     app_secret: the client_secret for the same application.
+    base_url: Base URL of the API endpoints.
+    model: Name of the recognition model to query. Use the default if None.
   """
-  def __init__(self, app_id=None, app_secret=None, base_url='https://api.clarifai.com'):
+  def __init__(self, app_id=None, app_secret=None, base_url='https://api.clarifai.com', model=None):
     if app_id is None:
       self.CLIENT_ID = os.environ.get('CLARIFAI_APP_ID', None)
     else:
@@ -45,6 +47,7 @@ class ClarifaiApi(object):
       self.CLIENT_SECRET = app_secret
 
     self._base_url = base_url
+    self._model = model
     self._urls = {
       'tag': os.path.join(self._base_url, '%s/tag/' % API_VERSION),
       'embed': os.path.join(self._base_url, '%s/embed/' % API_VERSION),
@@ -313,19 +316,23 @@ class ClarifaiApi(object):
       raise ApiError(("Number of images provided in bach %d is greater than maximum allowed per "
                       "request %d") % (len(data_list), MAX_BATCH_SIZE))
 
-  def _multi_image_op(self, image_files, ops):
+  def _multi_image_op(self, image_files, ops, model=None):
     """ Supports both list of tuples (image_file, name) or a list of image_files where a name will
     be created as the index into the list. """
     if len(set(ops).intersection(SUPPORTED_OPS)) != len(ops):
       raise Exception('Unsupported op: %s, ops available: %s' % (str(ops), str(SUPPORTED_OPS)))
     image_data = self._process_image_files(image_files)
     data = {'op': ','.join(ops)}
+    if model:
+      data['model'] = model
+    elif self._model:
+      data['model'] = self._model
     url = self._url_for_op(ops)
     raw_response = self._get_raw_response(self._get_multipart_headers,
                                           post_images_multipart, image_data, data, url)
     return self._parse_response(raw_response, ops)
 
-  def _multi_imageurl_op(self, image_urls, ops):
+  def _multi_imageurl_op(self, image_urls, ops, model=None):
     """ If sending image_url or image_file strings, then we can send as json directly instead of the
     multipart form. """
     if len(set(ops).intersection(SUPPORTED_OPS)) != len(ops):
@@ -337,6 +344,10 @@ class ClarifaiApi(object):
       raise Exception("image_urls must be strings")
     data =  {'op': ','.join(ops),
              'url': image_urls}
+    if model:
+      data['model'] = model
+    elif self._model:
+      data['model'] = self._model
     url = self._url_for_op(ops)
     raw_response = self._get_raw_response(self._get_json_headers,
                                           self._get_json_response, url, data)
