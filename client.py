@@ -47,7 +47,7 @@ class ClarifaiApi(object):
       self.CLIENT_SECRET = app_secret
 
     self._base_url = base_url
-    self._model = model
+    self._model = str(model)
     self._urls = {
       'tag': os.path.join(self._base_url, '%s/tag/' % API_VERSION),
       'embed': os.path.join(self._base_url, '%s/embed/' % API_VERSION),
@@ -324,9 +324,9 @@ class ClarifaiApi(object):
     image_data = self._process_image_files(image_files)
     data = {'op': ','.join(ops)}
     if model:
-      data['model'] = model
+      data['model'] = str(model)
     elif self._model:
-      data['model'] = self._model
+      data['model'] = str(self._model)
     url = self._url_for_op(ops)
     raw_response = self._get_raw_response(self._get_multipart_headers,
                                           post_images_multipart, image_data, data, url)
@@ -345,9 +345,9 @@ class ClarifaiApi(object):
     data =  {'op': ','.join(ops),
              'url': image_urls}
     if model:
-      data['model'] = model
+      data['model'] = str(model)
     elif self._model:
-      data['model'] = self._model
+      data['model'] = str(self._model)
     url = self._url_for_op(ops)
     raw_response = self._get_raw_response(self._get_json_headers,
                                           self._get_json_response, url, data)
