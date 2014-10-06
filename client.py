@@ -160,7 +160,7 @@ class ClarifaiApi(object):
     """
     return self._multi_image_op(image_files, ['embed'], model=model)
 
-  def tag_and_embed_images(self, image_files, model=model):
+  def tag_and_embed_images(self, image_files, model=None):
     """ Tag AND embed images in one request. Note: each operation is treated separate for billing
     purposes.
 
@@ -180,7 +180,7 @@ class ClarifaiApi(object):
     """
     return self._multi_image_op(image_files, ['tag','embed'], model=model)
 
-  def tag_image_urls(self, image_urls, model=model):
+  def tag_image_urls(self, image_urls, model=None):
     """ Tag an image from a url or images from a list of urls.
 
     Args:
@@ -200,7 +200,7 @@ class ClarifaiApi(object):
     """
     return self._multi_imageurl_op(image_urls, ['tag'], model=model)
 
-  def embed_image_urls(self, image_urls, model=model):
+  def embed_image_urls(self, image_urls, model=None):
     """ Embed an image from a url or images from a list of urls.
 
     Args:
@@ -220,7 +220,7 @@ class ClarifaiApi(object):
     """
     return self._multi_imageurl_op(image_urls, ['embed'], model=model)
 
-  def tag_and_embed_image_urls(self, image_urls, model=model):
+  def tag_and_embed_image_urls(self, image_urls, model=None):
     """ Tag AND Embed an image from a url or images from a list of urls.
 
     Args:
