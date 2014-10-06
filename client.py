@@ -37,7 +37,7 @@ class ClarifaiApi(object):
     model: Name of the recognition model to query. Use the default if None.
   """
   def __init__(self, app_id=None, app_secret=None, base_url='https://api.clarifai.com',
-               model="default"):
+               model='default'):
     if app_id is None:
       self.CLIENT_ID = os.environ.get('CLARIFAI_APP_ID', None)
     else:
@@ -113,7 +113,7 @@ class ClarifaiApi(object):
     else:
       return self._urls.get(ops[0])
 
-  def tag_images(self, image_files):
+  def tag_images(self, image_files, model=None):
     """ Autotag a single image from an open file object or multiples images from a list of open file
     objects.
 
@@ -135,9 +135,9 @@ class ClarifaiApi(object):
       clarifai_api.tag_images([open('/path/to/local/image.jpeg'),
                                open('/path/to/local/image2.jpeg')])
     """
-    return self._multi_image_op(image_files, ['tag'])
+    return self._multi_image_op(image_files, ['tag'], model=model)
 
-  def embed_images(self, image_files):
+  def embed_images(self, image_files, model=None):
     """ Embed a single image from an open file object or multiples images from a list of open file
     objects.
 
@@ -158,9 +158,9 @@ class ClarifaiApi(object):
       clarifai_api.tag_images([open('/path/to/local/image.jpeg'),
                                open('/path/to/local/image2.jpeg')])
     """
-    return self._multi_image_op(image_files, ['embed'])
+    return self._multi_image_op(image_files, ['embed'], model=model)
 
-  def tag_and_embed_images(self, image_files):
+  def tag_and_embed_images(self, image_files, model=model):
     """ Tag AND embed images in one request. Note: each operation is treated separate for billing
     purposes.
 
@@ -178,9 +178,9 @@ class ClarifaiApi(object):
       clarifai_api.tag_and_embed_images([open('/path/to/local/image.jpeg'),
                                          open('/path/to/local/image2.jpeg')])
     """
-    return self._multi_image_op(image_files, ['tag','embed'])
+    return self._multi_image_op(image_files, ['tag','embed'], model=model)
 
-  def tag_image_urls(self, image_urls):
+  def tag_image_urls(self, image_urls, model=model):
     """ Tag an image from a url or images from a list of urls.
 
     Args:
@@ -198,9 +198,9 @@ class ClarifaiApi(object):
                                   'http://www.clarifai.com/img/metro-north.jpg'])
 
     """
-    return self._multi_imageurl_op(image_urls, ['tag'])
+    return self._multi_imageurl_op(image_urls, ['tag'], model=model)
 
-  def embed_image_urls(self, image_urls):
+  def embed_image_urls(self, image_urls, model=model):
     """ Embed an image from a url or images from a list of urls.
 
     Args:
@@ -218,9 +218,9 @@ class ClarifaiApi(object):
                                   'http://www.clarifai.com/img/metro-north.jpg'])
 
     """
-    return self._multi_imageurl_op(image_urls, ['embed'])
+    return self._multi_imageurl_op(image_urls, ['embed'], model=model)
 
-  def tag_and_embed_image_urls(self, image_urls):
+  def tag_and_embed_image_urls(self, image_urls, model=model):
     """ Tag AND Embed an image from a url or images from a list of urls.
 
     Args:
@@ -237,7 +237,7 @@ class ClarifaiApi(object):
       clarifai_api.tag_and_embed_image_url(['http://www.clarifai.com/img/metro-north.jpg',
                                             'http://www.clarifai.com/img/metro-north.jpg'])
     """
-    return self._multi_imageurl_op(image_urls, ['tag','embed'])
+    return self._multi_imageurl_op(image_urls, ['tag','embed'], model=model)
 
   def _resize_image_tuple(self, image_tup):
     """ Resize the (image, name) so that it falls between MIN_SIZE and MAX_SIZE as the minimum
