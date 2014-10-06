@@ -36,7 +36,8 @@ class ClarifaiApi(object):
     base_url: Base URL of the API endpoints.
     model: Name of the recognition model to query. Use the default if None.
   """
-  def __init__(self, app_id=None, app_secret=None, base_url='https://api.clarifai.com', model=None):
+  def __init__(self, app_id=None, app_secret=None, base_url='https://api.clarifai.com',
+               model="default"):
     if app_id is None:
       self.CLIENT_ID = os.environ.get('CLARIFAI_APP_ID', None)
     else:
@@ -47,7 +48,7 @@ class ClarifaiApi(object):
       self.CLIENT_SECRET = app_secret
 
     self._base_url = base_url
-    self._model = str(model)
+    self.set_model(model)
     self._urls = {
       'tag': os.path.join(self._base_url, '%s/tag/' % API_VERSION),
       'embed': os.path.join(self._base_url, '%s/embed/' % API_VERSION),
@@ -57,6 +58,9 @@ class ClarifaiApi(object):
       }
     self.access_token = None
     self.api_info = None
+
+  def set_model(self, model):
+    self._model = str(model)
 
   def get_access_token(self, renew=False):
     """ Get an access token using your app_id and app_secret.
