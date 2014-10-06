@@ -60,7 +60,7 @@ class ClarifaiApi(object):
     self.api_info = None
 
   def set_model(self, model):
-    self._model = str(model)
+    self._model = self._sanitize_param(model)
 
   def get_access_token(self, renew=False):
     """ Get an access token using your app_id and app_secret.
@@ -328,13 +328,20 @@ class ClarifaiApi(object):
     image_data = self._process_image_files(image_files)
     data = {'op': ','.join(ops)}
     if model:
-      data['model'] = str(model)
+      data['model'] = self._sanitize_param(model)
     elif self._model:
-      data['model'] = str(self._model)
+      data['model'] = self._model
     url = self._url_for_op(ops)
     raw_response = self._get_raw_response(self._get_multipart_headers,
                                           post_images_multipart, image_data, data, url)
     return self._parse_response(raw_response, ops)
+
+  def _sanitize_param(self, param):
+    """Convert parameters into a form ready for the wire."""
+    if param:
+      # Can't send unicode.
+      param = str(param)
+    return param
 
   def _multi_imageurl_op(self, image_urls, ops, model=None):
     """ If sending image_url or image_file strings, then we can send as json directly instead of the
@@ -349,9 +356,9 @@ class ClarifaiApi(object):
     data =  {'op': ','.join(ops),
              'url': image_urls}
     if model:
-      data['model'] = str(model)
+      data['model'] = self._sanitize_param(model)
     elif self._model:
-      data['model'] = str(self._model)
+      data['model'] = self._model
     url = self._url_for_op(ops)
     raw_response = self._get_raw_response(self._get_json_headers,
                                           self._get_json_response, url, data)
