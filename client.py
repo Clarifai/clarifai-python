@@ -19,6 +19,16 @@ class ApiError(Exception):
   def __str__(self):
     return repr(self.msg)
 
+
+class ApiThrottledError(Exception):
+  """This is raised when the usage throttle is hit. Client should for wait_seconds before retrying."""
+  def __init__(self, msg, wait_seconds):
+    self.msg = msg
+    self.wait_seconds = wait_seconds
+  def __str__(self):
+    return repr(self.msg) + '  Wait for %d seconds before retrying.' % self.wait_seconds
+
+
 SUPPORTED_OPS = ['tag','embed']
 
 IM_QUALITY = 95
@@ -406,6 +416,14 @@ class ClarifaiApi(object):
         return raw_response
       except urllib2.HTTPError as e:
         response = e.read()  # get error response
+        if e.code == 429:
+          # Throttled.  Wait for the specified number of seconds.
+          wait_secs = e.info().get('X-Throttle-Wait-Seconds', 10)
+          try:
+            wait_secs = int(wait_secs)
+          except ValueError as e:
+            wait_secs = 10
+          raise ApiThrottledError(response, wait_secs)
         try:
           response = json.loads(response)
           if response['status_code'] == 'TOKEN_EXPIRED':
