@@ -1,5 +1,4 @@
-import base64, json, os, urllib2, urllib
-
+import base64, json, logging, os, time, urllib2, urllib
 try:
   from PIL import Image
   CAN_RESIZE = True
@@ -10,6 +9,8 @@ except Exception, e:
          'If using pip, try "pip install Pillow"')
 from cStringIO import StringIO
 from mime_util import post_images_multipart
+
+logger = logging.getLogger(__name__)
 
 
 class ApiError(Exception):
@@ -45,9 +46,11 @@ class ClarifaiApi(object):
     app_secret: the client_secret for the same application.
     base_url: Base URL of the API endpoints.
     model: Name of the recognition model to query. Use the default if None.
+    wait_on_throttle: When the API returns a 429 throttled error, sleep for the amount of time
+        reported in the X-Throttle-Wait-Seconds HTTP response header.
   """
   def __init__(self, app_id=None, app_secret=None, base_url='https://api.clarifai.com',
-               model='default'):
+               model='default', wait_on_throttle=True):
     if app_id is None:
       self.CLIENT_ID = os.environ.get('CLARIFAI_APP_ID', None)
     else:
@@ -56,6 +59,7 @@ class ClarifaiApi(object):
       self.CLIENT_SECRET = os.environ.get('CLARIFAI_APP_SECRET', None)
     else:
       self.CLIENT_SECRET = app_secret
+    self.wait_on_throttle = wait_on_throttle
 
     self._base_url = base_url
     self.set_model(model)
@@ -291,7 +295,7 @@ class ClarifaiApi(object):
         io.seek(0)  # rewind file-object to read() below is good to go.
         image_tup = (io, image_tup[1])
     except IOError, e:
-      print "Could not open image file: %s, still sending to server." % image_tup[1]
+      logger.warning('Could not open image file: %s, still sending to server.', image_tup[1])
     return image_tup
 
   def _process_image_files(self, input_files):
@@ -423,11 +427,14 @@ class ClarifaiApi(object):
             wait_secs = int(wait_secs)
           except ValueError as e:
             wait_secs = 10
+          if self.wait_on_throttle:
+            logger.error('Throttled. Waiting %d seconds.', wait_secs)
+            time.sleep(wait_secs)
           raise ApiThrottledError(response, wait_secs)
         try:
           response = json.loads(response)
           if response['status_code'] == 'TOKEN_EXPIRED':
-            print 'Getting new access token.'
+            logger.info('Getting new access token.')
             self.get_access_token(renew=True)
             headers = header_func()
           else:
