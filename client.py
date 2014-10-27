@@ -30,7 +30,7 @@ class ApiThrottledError(Exception):
     return repr(self.msg) + '  Wait for %d seconds before retrying.' % self.wait_seconds
 
 
-SUPPORTED_OPS = ['tag','embed']
+SUPPORTED_OPS = ['tag','embed','feedback']
 
 IM_QUALITY = 95
 API_VERSION = 'v1'
@@ -67,6 +67,7 @@ class ClarifaiApi(object):
       'tag': os.path.join(self._base_url, '%s/tag/' % API_VERSION),
       'embed': os.path.join(self._base_url, '%s/embed/' % API_VERSION),
       'multiop': os.path.join(self._base_url, '%s/multiop/' % API_VERSION),
+      'feedback': os.path.join(self._base_url, '%s/feedback/' % API_VERSION),
       'token': os.path.join(self._base_url, '%s/token/' % API_VERSION),
       'info': os.path.join(self._base_url, '%s/info/' % API_VERSION),
       }
@@ -192,10 +193,6 @@ class ClarifaiApi(object):
     """ Tag AND embed images in one request. Note: each operation is treated separate for billing
     purposes.
 
-     Returns:
-      results: an API reponse including the generated tags and embeddings. See the docs at
-      https://developer.clarifai.com/docs/ for more detais.
-
     Args:
       image_files: a single (file, name) tuple or a list of (file, name) tuples, where file is an
     open file-like object containing the encoded image bytes.
@@ -205,6 +202,10 @@ class ClarifaiApi(object):
     back in order).
       meta: a string of any extra information to accompany the request. This has to be a string, so
     if passing structured data, pass a json.dumps(meta) string.
+
+     Returns:
+      results: an API reponse including the generated tags and embeddings. See the docs at
+      https://developer.clarifai.com/docs/ for more detais.
 
     Example:
       from py.client import ClarifaiApi
@@ -294,6 +295,70 @@ class ClarifaiApi(object):
     """
     return self._multi_imageurl_op(image_urls, ['tag','embed'], model=model, local_ids=local_ids,
                                    meta=meta)
+
+  def feedback(self, docids=None, image_urls=None, images=None, add_tags=None,
+               remove_tags=None, similar_docids=None, dissimilar_docids=None,
+               search_click=None):
+    """ Tag AND Embed an image from a url or images from a list of urls.
+
+    Args:
+      docids: list of docid strings for images already processed by the API.
+      image_files: a single (file, name) tuple or a list of (file, name) tuples, where file is an
+    open file-like object containing the encoded image bytes.
+      image_urls: a single url for the input image to be processed or a list of urls for a set of
+    images to be processed. Note: all urls must be publically accessible.
+      add_tags: If the user believes additioal tags are relavent to the given image, they can be
+    provided in the add_tags argument.
+      remove_tags: If the user believes tags were are not relavent to the given image, they can be
+    provided in the remove_tags argument.
+      similar_docids: If there is a notion of similarity between images, this can be fed back to the
+    system by providing an input set of docids and a list of docids that are similar to the input
+    docids.
+      dissimilar_docids: If there is a notion of similarity between images, this can be fed back to
+    the system by providing an input set of docids and a list of docids that are dissimilar to the
+    input docids.
+      search_click: This is useful when showing search results and a user clicks on images when the
+    "search_click" tags were used to generate the search results.
+
+    Returns:
+      results: OK if everything went well.
+
+    Example:
+      from py.client import ClarifaiApi
+      clarifai_api = ClarifaiApi()
+      clarifai_api.tag_and_embed_image_url(['http://www.clarifai.com/img/metro-north.jpg',
+                                            'http://www.clarifai.com/img/metro-north.jpg'])
+    """
+    if int(docids is not None) + int(image_urls is not None) + int(images is not None) != 1:
+      raise ApiError("Must specify exactly one of docids, image_urls or images")
+    if (int(add_tags is not None) + int(remove_tags is not None) +
+        int(similar_docids is not None) + int(dissimilar_docids is not None) +
+        int(search_click is not None)) == 0:
+      raise ApiError(("Must specify one or more of add_tags, remove_tags, similar_docids, "
+                      "dissimilar_docids, search_click."))
+    payload = {}
+    def add_comma_arg(payload, name, value):
+      if not isinstance(value, list):
+        value = [value]
+      payload[name] = ','.join(value)
+    if add_tags:
+      add_comma_arg(payload, 'add_tags', add_tags)
+    if remove_tags:
+      add_comma_arg(payload, 'remove_tags', remove_tags)
+    if similar_docids:
+      add_comma_arg(payload, 'similar_docids', similar_docids)
+    if dissimilar_docids:
+      add_comma_arg(payload, 'dissimilar_docids', dissimilar_docids)
+    if search_click:
+      add_comma_arg(payload, 'search_click', search_click)
+    if docids is not None:
+      add_comma_arg(payload, 'docids', docids)
+      return self._multi_imageurl_op(None, ['feedback'], payload=payload)
+    elif image_urls is not None:
+      return self._multi_imageurl_op(image_urls, ['feedback'], payload=payload)
+    else: # must be images
+      raise ApiError("Using encoded_images in feed is not supported in Python client yet.")
+      # return self._multi_image_op(image_files, ['feedback'], payload=payload)
 
   def _resize_image_tuple(self, image_tup):
     """ Resize the (image, name) so that it falls between MIN_SIZE and MAX_SIZE as the minimum
@@ -412,18 +477,20 @@ class ClarifaiApi(object):
     assert len(local_ids) == batch_size
     data['local_id'] = local_ids
 
-  def _multi_imageurl_op(self, image_urls, ops, model=None, local_ids=None, meta=None):
+  def _multi_imageurl_op(self, image_urls, ops, model=None, local_ids=None, meta=None,
+                         payload=None):
     """ If sending image_url or image_file strings, then we can send as json directly instead of the
     multipart form. """
     if len(set(ops).intersection(SUPPORTED_OPS)) != len(ops):
       raise Exception('Unsupported op: %s, ops available: %s' % (str(ops), str(SUPPORTED_OPS)))
-    if not isinstance(image_urls, list):
-      image_urls = [image_urls]
-    self._check_batch_size(image_urls)
-    if not isinstance(image_urls[0], basestring):
-      raise Exception("image_urls must be strings")
-    data =  {'op': ','.join(ops),
-             'url': image_urls}
+    data =  {'op': ','.join(ops)}
+    if image_urls is not None: # for feedback, this might not be required.
+      if not isinstance(image_urls, list):
+        image_urls = [image_urls]
+      self._check_batch_size(image_urls)
+      if not isinstance(image_urls[0], basestring):
+        raise Exception("image_urls must be strings")
+      data['url'] = image_urls
     if model:
       data['model'] = self._sanitize_param(model)
     elif self._model:
@@ -431,8 +498,10 @@ class ClarifaiApi(object):
     if local_ids:
       self._insert_local_ids(data, local_ids, len(image_urls))
       data['local_id'] = ','.join(data['local_id'])
-    # if meta:
-    #   data['meta'] = self._sanitize_param(meta)
+    if payload:
+      assert isinstance(payload, dict), "Addition payload must be a dict"
+      for k, v in payload.iteritems():
+        data[k] = v
     url = self._url_for_op(ops)
     raw_response = self._get_raw_response(self._get_json_headers,
                                           self._get_json_response, url, data)
