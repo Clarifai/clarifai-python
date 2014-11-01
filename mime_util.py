@@ -1,7 +1,7 @@
 from email.encoders import encode_noop
 from email.message import Message
 from email.mime.multipart import MIMEMultipart
-from email.mime.image import MIMEImage
+from email.mime.application import MIMEApplication
 import urllib
 import urllib2
 from urlparse import urlparse
@@ -37,7 +37,6 @@ def post_images_multipart(images, form_data, url, headers={}):
   response = post_multipart_request(url, message, headers=headers)
   return response
 
-
 def parse_url(url):
   """Return a host, port, path tuple from a url."""
   parsed_url = urlparse(url)
@@ -54,17 +53,10 @@ def post_multipart_request(url, multipart_message, headers={}):
   f.close()
   return response
 
-def mime_image(encoded_image, subtype='jpeg', headers={}):
-  """From a raw encoded image return a MIME image part."""
-  return MIMEImage(encoded_image, subtype, encode_noop, **headers)
-
-
-# FIXME: Pass real subtype, don't assume jpeg.
-
-def form_data_image(encoded_image, filename, field_name='encoded_image',
-                    subtype='jpeg', headers={}):
+def form_data_image(encoded_image, filename, field_name='encoded_image', headers={}):
   """From raw encoded image return a MIME part for POSTing as form data."""
-  message = mime_image(encoded_image, subtype, headers)
+  message = MIMEApplication(encoded_image, 'application/octet-stream', encode_noop, **headers)
+
   disposition_headers = {
     'name': '%s' % field_name,
     'filename': urllib.quote(filename.encode('utf-8')),
@@ -73,7 +65,6 @@ def form_data_image(encoded_image, filename, field_name='encoded_image',
   # Django seems fussy and doesn't like the MIME-Version header in multipart POSTs.
   del message['MIME-Version']
   return message
-
 
 def message_as_post_data(message, headers):
   """Return a string suitable for using as POST data, from a multipart MIME message."""

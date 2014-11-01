@@ -399,10 +399,12 @@ class ClarifaiApi(object):
       if im_changed:
         io = StringIO()
         img.save(io, 'jpeg', quality=IM_QUALITY)
-        io.seek(0)  # rewind file-object to read() below is good to go.
         image_tup = (io, image_tup[1])
     except IOError, e:
+
       logger.warning('Could not open image file: %s, still sending to server.', image_tup[1])
+    finally:
+      image_tup[0].seek(0)  # rewind file-object to read() below is good to go.
     return image_tup
 
   def _process_image_files(self, input_files):
