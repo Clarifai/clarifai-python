@@ -475,8 +475,8 @@ class ClarifaiApi(object):
     if not isinstance(local_ids, list):
       local_ids = [local_ids]
     assert isinstance(local_ids, list)
-    assert isinstance(local_ids[0], basestring)
-    assert len(local_ids) == batch_size
+    assert isinstance(local_ids[0], basestring), "local_ids must each be strings"
+    assert len(local_ids) == batch_size, "Number of local_ids must match data"
     data['local_id'] = local_ids
 
   def _multi_imageurl_op(self, image_urls, ops, model=None, local_ids=None, meta=None,
