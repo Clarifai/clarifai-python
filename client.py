@@ -51,11 +51,11 @@ class ClarifaiApi(object):
   """
   def __init__(self, app_id=None, app_secret=None, base_url='https://api.clarifai.com',
                model='default', wait_on_throttle=True):
-    if app_id is None:
+    if not app_id:
       self.CLIENT_ID = os.environ.get('CLARIFAI_APP_ID', None)
     else:
       self.CLIENT_ID = app_id
-    if app_secret is None:
+    if not app_secret:
       self.CLIENT_SECRET = os.environ.get('CLARIFAI_APP_SECRET', None)
     else:
       self.CLIENT_SECRET = app_secret
