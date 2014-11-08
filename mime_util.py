@@ -24,7 +24,7 @@ class RequestWithMethod(urllib2.Request):
   def __str__(self):
     return 'url: %s, method %s' % (self.url, self._method)
 
-def post_images_multipart(images, form_data, url, headers={}):
+def post_data_multipart(images, form_data, url, headers={}):
   """POST a multipart MIME request with image data.
 
   Args:

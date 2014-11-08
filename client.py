@@ -8,7 +8,7 @@ except Exception, e:
          'image resizing to the correct dimesions will be handled for you. '
          'If using pip, try "pip install Pillow"')
 from cStringIO import StringIO
-from mime_util import post_images_multipart
+from mime_util import post_data_multipart
 
 logger = logging.getLogger(__name__)
 
@@ -128,18 +128,18 @@ class ClarifaiApi(object):
     else:
       return self._urls.get(ops[0])
 
-  def tag_images(self, image_files, model=None, local_ids=None, meta=None):
-    """ Autotag a single image from an open file object or multiples images from a list of open file
-    objects.
+  def tag(self, files, model=None, local_ids=None, meta=None):
+    """ Autotag a single data file from an open file object or multiples data files from a list of
+    open file objects.
 
     The only method used on the file object is read() to get the bytes of the compressed
-    image representation. Ensure that all file objects are pointing to the  beginning of a valid
-    image.
+    data representation. Ensure that all file objects are pointing to the beginning of a
+    valid data file.
 
     Args:
-      image_files: a single (file, name) tuple or a list of (file, name) tuples, where file is an
-    open file-like object containing the encoded image bytes.
-      model: specifies the desired model to use for processing of the images.
+      files: a single (file, name) tuple or a list of (file, name) tuples, where file is an
+    open file-like object containing the encoded data bytes.
+      model: specifies the desired model to use for processing of the data.
       local_ids: a single string identifier or list of string identifies that are useful client
     side. These will be returned in the request to match up results (even though results to come
     back in order).
@@ -153,23 +153,25 @@ class ClarifaiApi(object):
     Example:
       from py.client import ClarifaiApi
       clarifai_api = ClarifaiApi()
-      clarifai_api.tag_images([open('/path/to/local/image.jpeg'),
-                               open('/path/to/local/image2.jpeg')])
+      clarifai_api.tag([open('/path/to/local/image.jpeg'),
+                        open('/path/to/local/image2.jpeg')])
     """
-    return self._multi_image_op(image_files, ['tag'], model=model, local_ids=local_ids,
-                                meta=meta)
+    return self._multi_data_op(files, ['tag'], model=model, local_ids=local_ids, meta=meta)
 
-  def embed_images(self, image_files, model=None, local_ids=None, meta=None):
-    """ Embed a single image from an open file object or multiples images from a list of open file
-    objects.
+  tag_images = tag
+
+  def embed(self, files, model=None, local_ids=None, meta=None):
+    """ Embed a single data file from an open file object or multiples data files from a list of
+    open file objects.
 
     The only method used on the file object is read() to get the bytes of the compressed
-    image representation.
+    data representation. Ensure that all file objects are pointing to the beginning of a
+    valid data file.
 
     Args:
-      image_files: a single (file, name) tuple or a list of (file, name) tuples, where file is an
-    open file-like object containing the encoded image bytes.
-      model: specifies the desired model to use for processing of the images.
+      files: a single (file, name) tuple or a list of (file, name) tuples, where file is an
+    open file-like object containing the encoded data bytes.
+      model: specifies the desired model to use for processing of the data.
       local_ids: a single string identifier or list of string identifies that are useful client
     side. These will be returned in the request to match up results (even though results to come
     back in order).
@@ -183,20 +185,25 @@ class ClarifaiApi(object):
     Example:
       from py.client import ClarifaiApi
       clarifai_api = ClarifaiApi()
-      clarifai_api.tag_images([open('/path/to/local/image.jpeg'),
-                               open('/path/to/local/image2.jpeg')])
+      clarifai_api.embed([open('/path/to/local/image.jpeg'),
+                          open('/path/to/local/image2.jpeg')])
     """
-    return self._multi_image_op(image_files, ['embed'], model=model, local_ids=local_ids,
-                                meta=meta)
+    return self._multi_data_op(files, ['embed'], model=model, local_ids=local_ids, meta=meta)
 
-  def tag_and_embed_images(self, image_files, model=None, local_ids=None, meta=None):
-    """ Tag AND embed images in one request. Note: each operation is treated separate for billing
-    purposes.
+  embed_images = embed
+
+  def tag_and_embed(self, files, model=None, local_ids=None, meta=None):
+    """ Tag AND embed data files in one request. Note: each operation is treated separate for
+    billing purposes.
+
+    The only method used on the file object is read() to get the bytes of the compressed
+    data representation. Ensure that all file objects are pointing to the beginning of a
+    valid data file.
 
     Args:
-      image_files: a single (file, name) tuple or a list of (file, name) tuples, where file is an
-    open file-like object containing the encoded image bytes.
-      model: specifies the desired model to use for processing of the images.
+      files: a single (file, name) tuple or a list of (file, name) tuples, where file is an
+    open file-like object containing the encoded data bytes.
+      model: specifies the desired model to use for processing of the data.
       local_ids: a single string identifier or list of string identifies that are useful client
     side. These will be returned in the request to match up results (even though results to come
     back in order).
@@ -210,19 +217,20 @@ class ClarifaiApi(object):
     Example:
       from py.client import ClarifaiApi
       clarifai_api = ClarifaiApi()
-      clarifai_api.tag_and_embed_images([open('/path/to/local/image.jpeg'),
+      clarifai_api.tag_and_embed([open('/path/to/local/image.jpeg'),
                                          open('/path/to/local/image2.jpeg')])
     """
-    return self._multi_image_op(image_files, ['tag','embed'], model=model, local_ids=local_ids,
-                                meta=meta)
+    return self._multi_data_op(files, ['tag','embed'], model=model, local_ids=local_ids, meta=meta)
 
-  def tag_image_urls(self, image_urls, model=None, local_ids=None, meta=None):
-    """ Tag an image from a url or images from a list of urls.
+  tag_and_embed_images = tag_and_embed
+
+  def tag_urls(self, urls, model=None, local_ids=None, meta=None):
+    """ Tag data from a url or data from a list of urls.
 
     Args:
-      image_urls: a single url for the input image to be processed or a list of urls for a set of
-    images to be processed. Note: all urls must be publically accessible.
-      model: specifies the desired model to use for processing of the images.
+      urls: a single url for the input data to be processed or a list of urls for a set of
+    data to be processed. Note: all urls must be publically accessible.
+      model: specifies the desired model to use for processing of the data.
       local_ids: a single string identifier or list of string identifies that are useful client
     side. These will be returned in the request to match up results (even though results to come
     back in order).
@@ -236,20 +244,21 @@ class ClarifaiApi(object):
     Example:
       from py.client import ClarifaiApi
       clarifai_api = ClarifaiApi()
-      clarifai_api.tag_image_urls(['http://www.clarifai.com/img/metro-north.jpg',
+      clarifai_api.tag_urls(['http://www.clarifai.com/img/metro-north.jpg',
                                   'http://www.clarifai.com/img/metro-north.jpg'])
 
     """
-    return self._multi_imageurl_op(image_urls, ['tag'], model=model, local_ids=local_ids,
-                                   meta=meta)
+    return self._multi_dataurl_op(urls, ['tag'], model=model, local_ids=local_ids, meta=meta)
 
-  def embed_image_urls(self, image_urls, model=None, local_ids=None, meta=None):
-    """ Embed an image from a url or images from a list of urls.
+  tag_image_urls = tag_urls
+
+  def embed_urls(self, urls, model=None, local_ids=None, meta=None):
+    """ Embed an data from a url or data from a list of urls.
 
     Args:
-      image_urls: a single url for the input image to be processed or a list of urls for a set of
-    images to be processed. Note: all urls must be publically accessible.
-      model: specifies the desired model to use for processing of the images.
+      urls: a single url for the input data be processed or a list of urls for a set of
+    data to be processed. Note: all urls must be publically accessible.
+      model: specifies the desired model to use for processing of the data.
       local_ids: a single string identifier or list of string identifies that are useful client
     side. These will be returned in the request to match up results (even though results to come
     back in order).
@@ -263,20 +272,21 @@ class ClarifaiApi(object):
     Example:
       from py.client import ClarifaiApi
       clarifai_api = ClarifaiApi()
-      clarifai_api.embed_image_url(['http://www.clarifai.com/img/metro-north.jpg',
+      clarifai_api.embed_url(['http://www.clarifai.com/img/metro-north.jpg',
                                   'http://www.clarifai.com/img/metro-north.jpg'])
 
     """
-    return self._multi_imageurl_op(image_urls, ['embed'], model=model, local_ids=local_ids,
-                                   meta=meta)
+    return self._multi_dataurl_op(urls, ['embed'], model=model, local_ids=local_ids, meta=meta)
 
-  def tag_and_embed_image_urls(self, image_urls, model=None, local_ids=None, meta=None):
-    """ Tag AND Embed an image from a url or images from a list of urls.
+  embed_image_urls = embed_urls
+
+  def tag_and_embed_urls(self, urls, model=None, local_ids=None, meta=None):
+    """ Tag AND Embed data from a url or data from a list of urls.
 
     Args:
-      image_urls: a single url for the input image to be processed or a list of urls for a set of
-    images to be processed. Note: all urls must be publically accessible.
-      model: specifies the desired model to use for processing of the images.
+      urls: a single url for the input data to be processed or a list of urls for a set of
+    data to be processed. Note: all urls must be publically accessible.
+      model: specifies the desired model to use for processing of the data.
       local_ids: a single string identifier or list of string identifies that are useful client
     side. These will be returned in the request to match up results (even though results to come
     back in order).
@@ -290,35 +300,37 @@ class ClarifaiApi(object):
     Example:
       from py.client import ClarifaiApi
       clarifai_api = ClarifaiApi()
-      clarifai_api.tag_and_embed_image_url(['http://www.clarifai.com/img/metro-north.jpg',
+      clarifai_api.tag_and_embed_url(['http://www.clarifai.com/img/metro-north.jpg',
                                             'http://www.clarifai.com/img/metro-north.jpg'])
     """
-    return self._multi_imageurl_op(image_urls, ['tag','embed'], model=model, local_ids=local_ids,
+    return self._multi_dataurl_op(urls, ['tag','embed'], model=model, local_ids=local_ids,
                                    meta=meta)
 
-  def feedback(self, docids=None, image_urls=None, images=None, add_tags=None,
+  tag_and_embed_image_urls = tag_and_embed_urls
+
+  def feedback(self, docids=None, urls=None, files=None, add_tags=None,
                remove_tags=None, similar_docids=None, dissimilar_docids=None,
                search_click=None):
-    """ Tag AND Embed an image from a url or images from a list of urls.
+    """ Tag AND Embed data from a url or data from a list of urls.
 
     Args:
-      docids: list of docid strings for images already processed by the API.
-      image_files: a single (file, name) tuple or a list of (file, name) tuples, where file is an
-    open file-like object containing the encoded image bytes.
-      image_urls: a single url for the input image to be processed or a list of urls for a set of
-    images to be processed. Note: all urls must be publically accessible.
-      add_tags: If the user believes additioal tags are relavent to the given image, they can be
-    provided in the add_tags argument.
-      remove_tags: If the user believes tags were are not relavent to the given image, they can be
-    provided in the remove_tags argument.
-      similar_docids: If there is a notion of similarity between images, this can be fed back to the
-    system by providing an input set of docids and a list of docids that are similar to the input
-    docids.
-      dissimilar_docids: If there is a notion of similarity between images, this can be fed back to
-    the system by providing an input set of docids and a list of docids that are dissimilar to the
-    input docids.
-      search_click: This is useful when showing search results and a user clicks on images when the
-    "search_click" tags were used to generate the search results.
+      docids: list of docid strings for data already processed by the API.
+      files: a single (file, name) tuple or a list of (file, name) tuples, where file is an
+    open file-like object containing the encoded data bytes.
+      urls: a single url for the input data to be processed or a list of urls for a set of
+    data to be processed. Note: all urls must be publically accessible.
+      add_tags: If the user believes additioal tags are relavent to the given data, they
+    can be provided in the add_tags argument.
+      remove_tags: If the user believes tags were are not relavent to the given data, they
+    can be provided in the remove_tags argument.
+      similar_docids: If there is a notion of similarity between data, this can be fed
+    back to the system by providing an input set of docids and a list of docids that are similar to
+    the input docids.
+      dissimilar_docids: If there is a notion of similarity between data, this can be
+    fed back to the system by providing an input set of docids and a list of docids that are
+    dissimilar to the input docids.
+      search_click: This is useful when showing search results and a user clicks on data
+    when the "search_click" tags were used to generate the search results.
 
     Returns:
       results: OK if everything went well.
@@ -326,11 +338,13 @@ class ClarifaiApi(object):
     Example:
       from py.client import ClarifaiApi
       clarifai_api = ClarifaiApi()
-      clarifai_api.tag_and_embed_image_url(['http://www.clarifai.com/img/metro-north.jpg',
-                                            'http://www.clarifai.com/img/metro-north.jpg'])
+      clarifai_api.feedback(urls=['http://www.clarifai.com/img/metro-north.jpg',
+                                  'http://www.clarifai.com/img/metro-north.jpg'],
+                            add_tags='dog,tree',
+                            remove_tags='fish')
     """
-    if int(docids is not None) + int(image_urls is not None) + int(images is not None) != 1:
-      raise ApiError("Must specify exactly one of docids, image_urls or images")
+    if int(docids is not None) + int(urls is not None) + int(files is not None) != 1:
+      raise ApiError("Must specify exactly one of docids, urls or files")
     if (int(add_tags is not None) + int(remove_tags is not None) +
         int(similar_docids is not None) + int(dissimilar_docids is not None) +
         int(search_click is not None)) == 0:
@@ -353,12 +367,11 @@ class ClarifaiApi(object):
       add_comma_arg(payload, 'search_click', search_click)
     if docids is not None:
       add_comma_arg(payload, 'docids', docids)
-      return self._multi_imageurl_op(None, ['feedback'], payload=payload)
-    elif image_urls is not None:
-      return self._multi_imageurl_op(image_urls, ['feedback'], payload=payload)
-    else: # must be images
-      raise ApiError("Using encoded_images in feed is not supported in Python client yet.")
-      # return self._multi_image_op(image_files, ['feedback'], payload=payload)
+      return self._multi_dataurl_op(None, ['feedback'], payload=payload)
+    elif urls is not None:
+      return self._multi_dataurl_op(urls, ['feedback'], payload=payload)
+    else: # must be files
+      raise ApiError("Using encoded_data in feedback is not supported in Python client yet.")
 
   def _resize_image_tuple(self, image_tup):
     """ Resize the (image, name) so that it falls between MIN_SIZE and MAX_SIZE as the minimum
@@ -369,7 +382,9 @@ class ClarifaiApi(object):
     try:
       MIN_SIZE = self.api_info['min_image_size']
       MAX_SIZE = self.api_info['max_image_size']
+      # Will fail here if PIL does not work or is not an image.
       img = Image.open(image_tup[0])
+      img.verify()
       min_dimension = min(img.size)
       max_dimension = max(img.size)
       min_ratio = float(MIN_SIZE) / min_dimension
@@ -407,32 +422,32 @@ class ClarifaiApi(object):
       image_tup[0].seek(0)  # rewind file-object to read() below is good to go.
     return image_tup
 
-  def _process_image_files(self, input_files):
-    """ Ensure consistent format for image files from local storage.
+  def _process_files(self, input_files):
+    """ Ensure consistent format for data files from local storage.
     """
     # Handle single file-object as arg.
     if not isinstance(input_files, list):
       input_files = [input_files]
     self._check_batch_size(input_files)
     # Handle unnames images as lists of file objects. Named by index in list.
-    image_files = []
+    files = []
     for i, tup in enumerate(input_files):
       if not isinstance(tup, tuple):
-        image_files.append((tup, str(i)))
-        assert hasattr(image_files[i][0], 'read'), (
-            'image_files[%d] has wrong type: %s. Must be file-object with read method.') % (
-                i, type(image_files[i][0]))
+        files.append((tup, str(i)))
+        assert hasattr(files[i][0], 'read'), (
+            'files[%d] has wrong type: %s. Must be file-object with read method.') % (
+                i, type(files[i][0]))
       else:  # already tuples passed in.
-        image_files.append(tup)
+        files.append(tup)
     # Resize any images such that the min dimension is in range.
     if CAN_RESIZE:
-      for i, image_tup in enumerate(image_files):
-        image_files[i] = self._resize_image_tuple(image_tup)
-    # Return a list of (bytes, name) tuples of the encoded image bytes.
-    image_data = []
-    for image_file in image_files:
-      image_data.append((bytes(image_file[0].read()), image_file[1]))
-    return image_data
+      for i, image_tup in enumerate(files):
+        files[i] = self._resize_image_tuple(image_tup)
+    # Return a list of (bytes, name) tuples of the encoded data bytes.
+    data = []
+    for data_file in files:
+      data.append((bytes(data_file[0].read()), data_file[1]))
+    return data
 
   def _check_batch_size(self, data_list):
     """ Ensure the maximum batch size is obeyed on the client side. """
@@ -440,28 +455,28 @@ class ClarifaiApi(object):
       self.get_info()  # sets the image size and other such info from server.
     MAX_BATCH_SIZE = self.api_info['max_batch_size']
     if len(data_list) > MAX_BATCH_SIZE:
-      raise ApiError(("Number of images provided in bach %d is greater than maximum allowed per "
+      raise ApiError(("Number of files provided in bach %d is greater than maximum allowed per "
                       "request %d") % (len(data_list), MAX_BATCH_SIZE))
 
-  def _multi_image_op(self, image_files, ops, model=None, local_ids=None, meta=None):
-    """ Supports both list of tuples (image_file, name) or a list of image_files where a name will
+  def _multi_data_op(self, files, ops, model=None, local_ids=None, meta=None):
+    """ Supports both list of tuples (data_file, name) or a list of files where a name will
     be created as the index into the list. """
     if len(set(ops).intersection(SUPPORTED_OPS)) != len(ops):
       raise Exception('Unsupported op: %s, ops available: %s' % (str(ops), str(SUPPORTED_OPS)))
-    image_data = self._process_image_files(image_files)
+    processed_data = self._process_files(files)
     data = {'op': ','.join(ops)}
     if model:
       data['model'] = self._sanitize_param(model)
     elif self._model:
       data['model'] = self._model
     if local_ids:
-      self._insert_local_ids(data, local_ids, len(image_data))
+      self._insert_local_ids(data, local_ids, len(processed_data))
       data['local_id'] = ','.join(data['local_id'])
     # if meta:
     #   data['meta'] = self._sanitize_param(meta)
     url = self._url_for_op(ops)
     raw_response = self._get_raw_response(self._get_multipart_headers,
-                                          post_images_multipart, image_data, data, url)
+                                          post_data_multipart, processed_data, data, url)
     return self._parse_response(raw_response, ops)
 
   def _sanitize_param(self, param):
@@ -479,26 +494,26 @@ class ClarifaiApi(object):
     assert len(local_ids) == batch_size, "Number of local_ids must match data"
     data['local_id'] = local_ids
 
-  def _multi_imageurl_op(self, image_urls, ops, model=None, local_ids=None, meta=None,
+  def _multi_dataurl_op(self, urls, ops, model=None, local_ids=None, meta=None,
                          payload=None):
     """ If sending image_url or image_file strings, then we can send as json directly instead of the
     multipart form. """
     if len(set(ops).intersection(SUPPORTED_OPS)) != len(ops):
       raise Exception('Unsupported op: %s, ops available: %s' % (str(ops), str(SUPPORTED_OPS)))
     data =  {'op': ','.join(ops)}
-    if image_urls is not None: # for feedback, this might not be required.
-      if not isinstance(image_urls, list):
-        image_urls = [image_urls]
-      self._check_batch_size(image_urls)
-      if not isinstance(image_urls[0], basestring):
-        raise Exception("image_urls must be strings")
-      data['url'] = image_urls
+    if urls is not None: # for feedback, this might not be required.
+      if not isinstance(urls, list):
+        urls = [urls]
+      self._check_batch_size(urls)
+      if not isinstance(urls[0], basestring):
+        raise Exception("urls must be strings")
+      data['url'] = urls
     if model:
       data['model'] = self._sanitize_param(model)
     elif self._model:
       data['model'] = self._model
     if local_ids:
-      self._insert_local_ids(data, local_ids, len(image_urls))
+      self._insert_local_ids(data, local_ids, len(urls))
       data['local_id'] = ','.join(data['local_id'])
     if payload:
       assert isinstance(payload, dict), "Addition payload must be a dict"
@@ -606,7 +621,7 @@ class ClarifaiApi(object):
     return self._base64_encoded_image_op(data, 'tag')
 
   def _base64_encoded_image_op(self, data, op):
-    """NOTE: _multi_image_op is more efficient, it avoids the overhead of base64 encoding."""
+    """NOTE: _multi_data_op is more efficient, it avoids the overhead of base64 encoding."""
     if op not in SUPPORTED_OPS:
       raise Exception('Unsupported op: %s, ops available: %s' % (op, str(SUPPORTED_OPS)))
     data['op'] =  op
