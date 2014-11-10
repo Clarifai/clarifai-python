@@ -406,7 +406,9 @@ class ClarifaiApi(object):
         img = img.resize(newsize, Image.BICUBIC)
         im_changed = True
       else:  # no changes needed so rewind file-object.
+        img.close()
         image_tup[0].seek(0)
+        img = Image.open(image_tup[0])
       # Finally make sure we have RGB images.
       if img.mode != "RGB":
         img = img.convert("RGB")
@@ -416,7 +418,6 @@ class ClarifaiApi(object):
         img.save(io, 'jpeg', quality=IM_QUALITY)
         image_tup = (io, image_tup[1])
     except IOError, e:
-
       logger.warning('Could not open image file: %s, still sending to server.', image_tup[1])
     finally:
       image_tup[0].seek(0)  # rewind file-object to read() below is good to go.
