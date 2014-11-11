@@ -618,10 +618,10 @@ class ClarifaiApi(object):
       clarifai_api = ClarifaiApi()
       clarifai_api.tag_image(open('/path/to/local/image.jpeg'))
     """
-    data = {'encoded_image': base64.encodestring(image_file.read())}
-    return self._base64_encoded_image_op(data, 'tag')
+    data = {'encoded_data': base64.encodestring(image_file.read())}
+    return self._base64_encoded_data_op(data, 'tag')
 
-  def _base64_encoded_image_op(self, data, op):
+  def _base64_encoded_data_op(self, data, op):
     """NOTE: _multi_data_op is more efficient, it avoids the overhead of base64 encoding."""
     if op not in SUPPORTED_OPS:
       raise Exception('Unsupported op: %s, ops available: %s' % (op, str(SUPPORTED_OPS)))

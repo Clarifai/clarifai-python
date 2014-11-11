@@ -28,7 +28,7 @@ def post_data_multipart(images, form_data, url, headers={}):
   """POST a multipart MIME request with image data.
 
   Args:
-    images: list of (encoded_image, filename) pairs.
+    images: list of (encoded_data, filename) pairs.
     form_data: dict of API params.
     base_url: (host, port) tuple.
     headers: A dict of extra HTTP headers to send with the request.
@@ -53,9 +53,9 @@ def post_multipart_request(url, multipart_message, headers={}):
   f.close()
   return response
 
-def form_data_image(encoded_image, filename, field_name='encoded_image', headers={}):
+def form_data_image(encoded_data, filename, field_name='encoded_data', headers={}):
   """From raw encoded image return a MIME part for POSTing as form data."""
-  message = MIMEApplication(encoded_image, 'application/octet-stream', encode_noop, **headers)
+  message = MIMEApplication(encoded_data, 'application/octet-stream', encode_noop, **headers)
 
   disposition_headers = {
     'name': '%s' % field_name,
@@ -97,7 +97,7 @@ def multipart_form_message(images, form_data={}):
   """Return a MIMEMultipart message to upload images via an HTTP form POST request.
 
   Args:
-    images: a list of (encoded_image, filename) tuples.
+    images: a list of (encoded_data, filename) tuples.
     form_data: dict of name, value form fields.
   """
   message = MIMEMultipart('form-data', None)
