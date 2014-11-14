@@ -384,7 +384,6 @@ class ClarifaiApi(object):
       MAX_SIZE = self.api_info['max_image_size']
       # Will fail here if PIL does not work or is not an image.
       img = Image.open(image_tup[0])
-      img.verify()
       min_dimension = min(img.size)
       max_dimension = max(img.size)
       min_ratio = float(MIN_SIZE) / min_dimension
@@ -406,6 +405,7 @@ class ClarifaiApi(object):
         img = img.resize(newsize, Image.BICUBIC)
         im_changed = True
       else:  # no changes needed so rewind file-object.
+        img.verify()
         img.close()
         image_tup[0].seek(0)
         img = Image.open(image_tup[0])
