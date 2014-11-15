@@ -388,20 +388,14 @@ class ClarifaiApi(object):
       max_dimension = max(img.size)
       min_ratio = float(MIN_SIZE) / min_dimension
       max_ratio = float(MAX_SIZE) / max_dimension
-      def get_newsize(img, ratio, SIZE):
-        if img.size[0] == min_dimension:
-          newsize = (SIZE, int(round(ratio * img.size[1])))
-        else:
-          newsize = (int(round(ratio * img.size[0])), SIZE)
-        return newsize
       im_changed = False
       # Only resample if min size is > 512 or < 256
       if max_ratio < 1.0:  # downsample to MAX_SIZE
-        newsize = get_newsize(img, max_ratio, MAX_SIZE)
+        newsize = (int(round(max_ratio * img.size[0])), int(round(max_ratio * img.size[1])))
         img = img.resize(newsize, Image.BILINEAR)
         im_changed = True
       elif min_ratio > 1.0:  # upsample to MIN_SIZE
-        newsize = get_newsize(img, min_ratio, MIN_SIZE)
+        newsize = (int(round(min_ratio * img.size[0])), int(round(min_ratio * img.size[1])))
         img = img.resize(newsize, Image.BICUBIC)
         im_changed = True
       else:  # no changes needed so rewind file-object.
