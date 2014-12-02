@@ -27,7 +27,7 @@ def main(argv):
   elif os.path.isdir(imageurl):
     response = tag_images_in_directory(imageurl, api)
   elif os.path.isfile(imageurl):
-    with open(imageurl) as image_file:
+    with open(imageurl,'rb') as image_file:
       response = api.tag_images(image_file)
   else:
     raise Exception("Must input url, directory path, or file path")

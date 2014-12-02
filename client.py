@@ -10,6 +10,7 @@ except Exception, e:
 from cStringIO import StringIO
 from mime_util import post_data_multipart
 
+#logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
@@ -64,12 +65,12 @@ class ClarifaiApi(object):
     self._base_url = base_url
     self.set_model(model)
     self._urls = {
-      'tag': os.path.join(self._base_url, '%s/tag/' % API_VERSION),
-      'embed': os.path.join(self._base_url, '%s/embed/' % API_VERSION),
-      'multiop': os.path.join(self._base_url, '%s/multiop/' % API_VERSION),
-      'feedback': os.path.join(self._base_url, '%s/feedback/' % API_VERSION),
-      'token': os.path.join(self._base_url, '%s/token/' % API_VERSION),
-      'info': os.path.join(self._base_url, '%s/info/' % API_VERSION),
+      'tag': "/".join( [ self._base_url, '%s/tag/' % API_VERSION ] ),
+      'embed': "/".join( [ self._base_url, '%s/embed/' % API_VERSION ] ),
+      'multiop': "/".join( [ self._base_url, '%s/multiop/' % API_VERSION ] ),
+      'feedback': "/".join( [ self._base_url, '%s/feedback/' % API_VERSION ] ),
+      'token': "/".join( [ self._base_url, '%s/token/' % API_VERSION ] ),
+      'info': "/".join( [ self._base_url, '%s/info/' % API_VERSION ] ),
       }
     self.access_token = None
     self.api_info = None
@@ -400,7 +401,6 @@ class ClarifaiApi(object):
         im_changed = True
       else:  # no changes needed so rewind file-object.
         img.verify()
-        img.close()
         image_tup[0].seek(0)
         img = Image.open(image_tup[0])
       # Finally make sure we have RGB images.
