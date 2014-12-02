@@ -8,7 +8,7 @@ from client import ClarifaiApi
 
 def tag_images_in_directory(path, api):
   images = []
-  path = path.rstrip('/')
+  path = path.rstrip(os.sep)
   for fname in os.listdir(path):
     images.append((open(os.path.join(path, fname)), fname))
   return api.tag_images(images)
@@ -24,11 +24,13 @@ def main(argv):
 
   if imageurl.startswith('http'):
     response = api.tag_image_urls(imageurl)
-  elif imageurl.endswith('/'):
+  elif os.path.isdir(imageurl):
     response = tag_images_in_directory(imageurl, api)
-  else:
+  elif os.path.isfile(imageurl):
     with open(imageurl) as image_file:
       response = api.tag_images(image_file)
+  else:
+    raise Exception("Must input url, directory path, or file path")
   print response
 
 
