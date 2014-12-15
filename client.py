@@ -451,8 +451,9 @@ class ClarifaiApi(object):
       self.get_info()  # sets the image size and other such info from server.
     MAX_BATCH_SIZE = self.api_info['max_batch_size']
     if len(data_list) > MAX_BATCH_SIZE:
-      raise ApiError(("Number of files provided in bach %d is greater than maximum allowed per "
-                      "request %d") % (len(data_list), MAX_BATCH_SIZE))
+      raise ApiError({'status_code':'ALL_ERROR',
+                      'status_msg':"request with %d images exceeds max batch size of %d" % (
+                        len(data_list), MAX_BATCH_SIZE)})
 
   def _multi_data_op(self, files, ops, model=None, local_ids=None, meta=None):
     """ Supports both list of tuples (data_file, name) or a list of files where a name will
