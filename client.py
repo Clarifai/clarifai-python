@@ -20,7 +20,8 @@ class ApiError(Exception):
     self.msg = msg
   def __str__(self):
     return repr(self.msg)
-
+  def __repr__(self):
+    return "Error: '%s'" % str(self.msg)
 
 class ApiThrottledError(Exception):
   """This is raised when the usage throttle is hit. Client should for wait_seconds before retrying."""
