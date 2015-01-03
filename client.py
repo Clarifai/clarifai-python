@@ -8,7 +8,8 @@ except Exception, e:
          'image resizing to the correct dimesions will be handled for you. '
          'If using pip, try "pip install Pillow"')
 from cStringIO import StringIO
-from mime_util import post_data_multipart
+
+from mime_util import post_data_multipart, RequestWithMethod
 
 #logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -16,20 +17,30 @@ logger = logging.getLogger(__name__)
 
 class ApiError(Exception):
   """Api error."""
+
   def __init__(self, msg):
     self.msg = msg
+
   def __str__(self):
     return repr(self.msg)
+
   def __repr__(self):
     return "Error: '%s'" % str(self.msg)
 
+
 class ApiThrottledError(Exception):
-  """This is raised when the usage throttle is hit. Client should for wait_seconds before retrying."""
+  """The usage limit throttle was hit.  Client should wait for wait_seconds before retrying."""
+
   def __init__(self, msg, wait_seconds):
     self.msg = msg
     self.wait_seconds = wait_seconds
+
   def __str__(self):
     return repr(self.msg) + '  Wait for %d seconds before retrying.' % self.wait_seconds
+
+
+class ApiBadRequestError(ApiError, ValueError):
+  pass
 
 
 SUPPORTED_OPS = ['tag','embed','feedback']
@@ -115,9 +126,10 @@ class ClarifaiApi(object):
     ensure that your API calls will go through within your limits.
     """
     url = self._url_for_op('info')
-    data= None # This will be a GET request since data is None
-    response = self._get_raw_response(self._get_json_headers,
-                                      self._get_json_response, url, data)
+    # This will be a GET request since data is None
+    kwargs = {}
+    response = self._get_raw_response(
+        self._get_json_headers, self._get_json_response, url, kwargs)
     response = json.loads(response)
     self.api_info = response['results']
     return self.api_info
@@ -460,20 +472,24 @@ class ClarifaiApi(object):
     be created as the index into the list. """
     if len(set(ops).intersection(SUPPORTED_OPS)) != len(ops):
       raise Exception('Unsupported op: %s, ops available: %s' % (str(ops), str(SUPPORTED_OPS)))
-    processed_data = self._process_files(files)
+    media = self._process_files(files)
     data = {'op': ','.join(ops)}
     if model:
       data['model'] = self._sanitize_param(model)
     elif self._model:
       data['model'] = self._model
     if local_ids:
-      self._insert_local_ids(data, local_ids, len(processed_data))
+      self._insert_local_ids(data, local_ids, len(media))
       data['local_id'] = ','.join(data['local_id'])
     # if meta:
     #   data['meta'] = self._sanitize_param(meta)
     url = self._url_for_op(ops)
-    raw_response = self._get_raw_response(self._get_multipart_headers,
-                                          post_data_multipart, processed_data, data, url)
+    kwargs = {
+      'media': media,
+      'form_data': data,
+    }
+    raw_response = self._get_raw_response(
+        self._get_multipart_headers, post_data_multipart, url, kwargs)
     return self._parse_response(raw_response, ops)
 
   def _sanitize_param(self, param):
@@ -517,8 +533,9 @@ class ClarifaiApi(object):
       for k, v in payload.iteritems():
         data[k] = v
     url = self._url_for_op(ops)
-    raw_response = self._get_raw_response(self._get_json_headers,
-                                          self._get_json_response, url, data)
+    kwargs = {'data': data}
+    raw_response = self._get_raw_response(
+        self._get_json_headers, self._get_json_response, url, kwargs)
     return self._parse_response(raw_response, ops)
 
   def _parse_response(self, response, all_ops):
@@ -544,14 +561,15 @@ class ClarifaiApi(object):
     headers['Content-Type'] = 'application/json'
     return headers
 
-  def _get_raw_response(self, header_func, request_func, *args):
+  def _get_raw_response(self, header_func, request_func, url, kwargs):
     """ Get a raw_response from the API, retrying on TOKEN_EXPIRED errors.
 
     Args:
       header_func: function to generate dict of HTTP headers for this request, passed as kwarg to
                    request_func.
-      request_func: function to make the request, using the remaining args.
-      args: passed to request_func.
+      request_func: function to make the request, using url and kwargs.
+      url: where to send the request.
+      kwargs: dict passed as **kwargs to request_func.
     """
     headers = header_func()
     attempts = 3
@@ -559,7 +577,8 @@ class ClarifaiApi(object):
       attempts -= 1
       try:
         # Try the request.
-        raw_response = request_func(*args, headers=headers)
+        kwargs['headers'] = headers
+        raw_response = request_func(url, **kwargs)
         return raw_response
       except urllib2.HTTPError as e:
         response = e.read()  # get error response
@@ -587,11 +606,19 @@ class ClarifaiApi(object):
         except Exception as e2:
           raise ApiError(response) # raise original error.
 
-  def _get_json_response(self, url, data, headers):
-    """ Get the response for sending json dumped data. """
+  def _get_json_response(self, url, method=None, data=None, headers={}):
+    """Get the response for sending json dumped data.
+
+    Args:
+      url: url of the request.
+      data: optional request dict send as json-encoded request body.
+      headers: optional dict of HTTP headers.
+      method: HTTP request method, e.g. GET, POST, PUT, DELETE. Default (None) uses POST if data
+              is present, otherwise GET.
+    """
     if data:
       data = json.dumps(data)
-    req = urllib2.Request(url, data, headers)
+    req = RequestWithMethod(url, method, data, headers)
     response = urllib2.urlopen(req)
     raw_response = response.read()
     return raw_response
@@ -625,5 +652,5 @@ class ClarifaiApi(object):
     access_token = self.get_access_token()
     url = self._url_for_op(data['op'])
     headers = self._get_json_headers()
-    response = self._get_json_response(url, data, headers)
+    response = self._get_json_response(url, data=data, headers=headers)
     return self._parse_response(response, op)

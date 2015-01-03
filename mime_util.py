@@ -7,14 +7,15 @@ import urllib2
 from urlparse import urlparse
 from uuid import uuid4
 
+
 class RequestWithMethod(urllib2.Request):
-  """Workaround for using DELETE with urllib2"""
+  """Extend urllib2.Request to support methods beyond GET and POST."""
   def __init__(self, url, method, data=None, headers={},
                origin_req_host=None, unverifiable=False):
     self.url = url
     self._method = method
-    urllib2.Request.__init__(self, url, data, headers,
-                             origin_req_host, unverifiable)
+    urllib2.Request.__init__(self, url, data, headers, origin_req_host, unverifiable)
+
   def get_method(self):
     if self._method:
         return self._method
@@ -22,18 +23,19 @@ class RequestWithMethod(urllib2.Request):
         return urllib2.Request.get_method(self)
 
   def __str__(self):
-    return 'url: %s, method %s' % (self.url, self._method)
+    return '%s %s' % (self.get_method(), self.url)
 
-def post_data_multipart(images, form_data, url, headers={}):
-  """POST a multipart MIME request with image data.
+
+def post_data_multipart(url, media=[], form_data={}, headers={}):
+  """POST a multipart MIME request with encoded media.
 
   Args:
-    images: list of (encoded_data, filename) pairs.
+    url: where to send the request.
+    media: list of (encoded_data, filename) pairs.
     form_data: dict of API params.
-    base_url: (host, port) tuple.
-    headers: A dict of extra HTTP headers to send with the request.
+    headers: dict of extra HTTP headers to send with the request.
   """
-  message = multipart_form_message(images, form_data)
+  message = multipart_form_message(media, form_data)
   response = post_multipart_request(url, message, headers=headers)
   return response
 
@@ -53,8 +55,8 @@ def post_multipart_request(url, multipart_message, headers={}):
   f.close()
   return response
 
-def form_data_image(encoded_data, filename, field_name='encoded_data', headers={}):
-  """From raw encoded image return a MIME part for POSTing as form data."""
+def form_data_media(encoded_data, filename, field_name='encoded_data', headers={}):
+  """From raw encoded media return a MIME part for POSTing as form data."""
   message = MIMEApplication(encoded_data, 'application/octet-stream', encode_noop, **headers)
 
   disposition_headers = {
@@ -93,21 +95,22 @@ def message_as_post_data(message, headers):
   return post_data, headers
 
 
-def multipart_form_message(images, form_data={}):
-  """Return a MIMEMultipart message to upload images via an HTTP form POST request.
+def multipart_form_message(media, form_data={}):
+  """Return a MIMEMultipart message to upload encoded media via an HTTP form POST request.
 
   Args:
-    images: a list of (encoded_data, filename) tuples.
+    media: a list of (encoded_data, filename) tuples.
     form_data: dict of name, value form fields.
   """
   message = MIMEMultipart('form-data', None)
-  for name, val in form_data.iteritems():
-    part = Message()
-    part.add_header('Content-Disposition', 'form-data', name=name)
-    part.set_payload(val)
-    message.attach(part)
+  if form_data:
+    for name, val in form_data.iteritems():
+      part = Message()
+      part.add_header('Content-Disposition', 'form-data', name=name)
+      part.set_payload(val)
+      message.attach(part)
 
-  for im, filename in images:
-    message.attach(form_data_image(im, filename))
+  for im, filename in media:
+    message.attach(form_data_media(im, filename))
 
   return message
