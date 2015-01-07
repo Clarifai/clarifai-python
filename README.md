@@ -19,8 +19,7 @@ calls are processed without fail.
 Installation
 ---------------------
 <pre>
-git clone https://github.com/Clarifai/clarifai_api.git
-cd clarifai_api
+pip install git+git://github.com/clarifai/clarifai_py.git
 export CLARIFAI_APP_ID=&lt;an_application_id_from_your_account&gt;
 export CLARIFAI_APP_SECRET=&lt;an_application_secret_from_your_account&gt;
 </pre>
