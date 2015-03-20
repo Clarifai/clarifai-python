@@ -3,7 +3,7 @@
 import os
 import sys
 
-from client import ClarifaiApi
+from clarifai.client import ClarifaiApi
 
 
 def tag_images_in_directory(path, api):
