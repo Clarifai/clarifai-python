@@ -33,7 +33,7 @@ your local drive:
 
 <pre>
 
-from py.client import ClarifaiApi
+from clarifai.client import ClarifaiApi
 clarifai_api = ClarifaiApi() # assumes environment variables are set.
 result = clarifai_api.tag_images(open('/path/to/local/image.jpeg'))
 </pre>
@@ -54,7 +54,7 @@ size per request.
 
 If your images live remotely at a public url, you can also use tag_image_urls:
 <pre>
-from py.client import ClarifaiApi
+from clarifai.client import ClarifaiApi
 clarifai_api = ClarifaiApi()  # assumes environment variables are set.
 result = clarifai_api.tag_image_urls('http://www.clarifai.com/img/metro-north.jpg')
 </pre>
