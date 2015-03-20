@@ -13,5 +13,5 @@ setup(
     namespace_packages=['clarifai'],
     packages=['clarifai.client'],
     scripts=[],
-    name='clarifai-py',
+    name='clarifai',
 )
