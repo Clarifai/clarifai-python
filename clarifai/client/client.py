@@ -43,8 +43,6 @@ class ApiBadRequestError(ApiError, ValueError):
   pass
 
 
-SUPPORTED_OPS = ['tag','embed','feedback']
-
 IM_QUALITY = 95
 API_VERSION = 'v1'
 
@@ -77,12 +75,12 @@ class ClarifaiApi(object):
     self._base_url = base_url
     self.set_model(model)
     self._urls = {
-      'tag': "/".join( [ self._base_url, '%s/tag/' % API_VERSION ] ),
-      'embed': "/".join( [ self._base_url, '%s/embed/' % API_VERSION ] ),
-      'multiop': "/".join( [ self._base_url, '%s/multiop/' % API_VERSION ] ),
-      'feedback': "/".join( [ self._base_url, '%s/feedback/' % API_VERSION ] ),
-      'token': "/".join( [ self._base_url, '%s/token/' % API_VERSION ] ),
-      'info': "/".join( [ self._base_url, '%s/info/' % API_VERSION ] ),
+      'tag': "/".join([self._base_url, '%s/tag/' % API_VERSION]),
+      'embed': "/".join([self._base_url, '%s/embed/' % API_VERSION]),
+      'multiop': "/".join([self._base_url, '%s/multiop/' % API_VERSION]),
+      'feedback': "/".join([self._base_url, '%s/feedback/' % API_VERSION]),
+      'token': "/".join([self._base_url, '%s/token/' % API_VERSION]),
+      'info': "/".join([self._base_url, '%s/info/' % API_VERSION]),
       }
     self.access_token = None
     self.api_info = None
@@ -140,7 +138,7 @@ class ClarifaiApi(object):
     if len(ops) > 1:
       return self._urls.get('multiop')
     else:
-      return self._urls.get(ops[0])
+      return self._urls.get(ops[0], self._urls.get('multiop'))
 
   def tag(self, files, model=None, local_ids=None, meta=None):
     """ Autotag a single data file from an open file object or multiples data files from a list of
@@ -470,8 +468,6 @@ class ClarifaiApi(object):
   def _multi_data_op(self, files, ops, model=None, local_ids=None, meta=None):
     """ Supports both list of tuples (data_file, name) or a list of files where a name will
     be created as the index into the list. """
-    if len(set(ops).intersection(SUPPORTED_OPS)) != len(ops):
-      raise Exception('Unsupported op: %s, ops available: %s' % (str(ops), str(SUPPORTED_OPS)))
     media = self._process_files(files)
     data = {'op': ','.join(ops)}
     if model:
@@ -511,8 +507,6 @@ class ClarifaiApi(object):
                          payload=None):
     """ If sending image_url or image_file strings, then we can send as json directly instead of the
     multipart form. """
-    if len(set(ops).intersection(SUPPORTED_OPS)) != len(ops):
-      raise Exception('Unsupported op: %s, ops available: %s' % (str(ops), str(SUPPORTED_OPS)))
     data =  {'op': ','.join(ops)}
     if urls is not None: # for feedback, this might not be required.
       if not isinstance(urls, list):
@@ -646,8 +640,6 @@ class ClarifaiApi(object):
 
   def _base64_encoded_data_op(self, data, op):
     """NOTE: _multi_data_op is more efficient, it avoids the overhead of base64 encoding."""
-    if op not in SUPPORTED_OPS:
-      raise Exception('Unsupported op: %s, ops available: %s' % (op, str(SUPPORTED_OPS)))
     data['op'] =  op
     access_token = self.get_access_token()
     url = self._url_for_op(data['op'])
