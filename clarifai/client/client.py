@@ -477,8 +477,9 @@ class ClarifaiApi(object):
     if local_ids:
       self._insert_local_ids(data, local_ids, len(media))
       data['local_id'] = ','.join(data['local_id'])
-    # if meta:
-    #   data['meta'] = self._sanitize_param(meta)
+    if meta:
+      assert isinstance(meta, basestring), "meta arg must be a string or json string"
+      data['meta'] = self._sanitize_param(meta)
     url = self._url_for_op(ops)
     kwargs = {
       'media': media,
