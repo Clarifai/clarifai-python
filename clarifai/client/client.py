@@ -500,7 +500,7 @@ class ClarifaiApi(object):
     be created as the index into the list. """
     media = self._process_files(files)
     url = self._url_for_op(ops)
-    data = self._setup_multi_data(ops, len(files), model, local_ids, meta)
+    data = self._setup_multi_data(ops, len(media), model, local_ids, meta)
     kwargs = {
       'media': media,
       'form_data': data,
