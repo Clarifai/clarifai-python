@@ -465,22 +465,38 @@ class ClarifaiApi(object):
                       'status_msg':"request with %d images exceeds max batch size of %d" % (
                         len(data_list), MAX_BATCH_SIZE)})
 
-  def _multi_data_op(self, files, ops, model=None, local_ids=None, meta=None):
-    """ Supports both list of tuples (data_file, name) or a list of files where a name will
-    be created as the index into the list. """
-    media = self._process_files(files)
-    data = {'op': ','.join(ops)}
+  def _sanitize_param(self, param):
+    """Convert parameters into a form ready for the wire."""
+    if param:
+      # Can't send unicode.
+      param = str(param)
+    return param
+
+  def _setup_multi_data(self, ops, num_cases, model=None, local_ids=None, meta=None):
+    """ Setup the data dict to POST to the server. """
+    data =  {'op': ','.join(ops)}
     if model:
       data['model'] = self._sanitize_param(model)
     elif self._model:
       data['model'] = self._model
     if local_ids:
-      self._insert_local_ids(data, local_ids, len(media))
-      data['local_id'] = ','.join(data['local_id'])
+      if not isinstance(local_ids, list):
+        local_ids = [local_ids]
+      assert isinstance(local_ids, list)
+      assert isinstance(local_ids[0], basestring), "local_ids must each be strings"
+      assert len(local_ids) == num_cases, "Number of local_ids must match data"
+      data['local_id'] = ','.join(local_ids)
     if meta:
       assert isinstance(meta, basestring), "meta arg must be a string or json string"
       data['meta'] = self._sanitize_param(meta)
+    return data
+
+  def _multi_data_op(self, files, ops, model=None, local_ids=None, meta=None):
+    """ Supports both list of tuples (data_file, name) or a list of files where a name will
+    be created as the index into the list. """
+    media = self._process_files(files)
     url = self._url_for_op(ops)
+    data = self._setup_multi_data(ops, len(files), model, local_ids, meta)
     kwargs = {
       'media': media,
       'form_data': data,
@@ -489,40 +505,20 @@ class ClarifaiApi(object):
         self._get_multipart_headers, post_data_multipart, url, kwargs)
     return self._parse_response(raw_response, ops)
 
-  def _sanitize_param(self, param):
-    """Convert parameters into a form ready for the wire."""
-    if param:
-      # Can't send unicode.
-      param = str(param)
-    return param
-
-  def _insert_local_ids(self, data, local_ids, batch_size):
-    if not isinstance(local_ids, list):
-      local_ids = [local_ids]
-    assert isinstance(local_ids, list)
-    assert isinstance(local_ids[0], basestring), "local_ids must each be strings"
-    assert len(local_ids) == batch_size, "Number of local_ids must match data"
-    data['local_id'] = local_ids
-
   def _multi_dataurl_op(self, urls, ops, model=None, local_ids=None, meta=None,
                          payload=None):
     """ If sending image_url or image_file strings, then we can send as json directly instead of the
     multipart form. """
-    data =  {'op': ','.join(ops)}
     if urls is not None: # for feedback, this might not be required.
       if not isinstance(urls, list):
         urls = [urls]
       self._check_batch_size(urls)
       if not isinstance(urls[0], basestring):
         raise Exception("urls must be strings")
+    data = self._setup_multi_data(ops, len(urls), model, local_ids, meta)
+    # Add some addition url specific stuff to data dict:
+    if urls is not None:
       data['url'] = urls
-    if model:
-      data['model'] = self._sanitize_param(model)
-    elif self._model:
-      data['model'] = self._model
-    if local_ids:
-      self._insert_local_ids(data, local_ids, len(urls))
-      data['local_id'] = ','.join(data['local_id'])
     if payload:
       assert isinstance(payload, dict), "Addition payload must be a dict"
       for k, v in payload.iteritems():
