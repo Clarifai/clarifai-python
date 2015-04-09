@@ -468,8 +468,8 @@ class ClarifaiApi(object):
   def _sanitize_param(self, param):
     """Convert parameters into a form ready for the wire."""
     if param:
-      # Can't send unicode.
-      param = str(param)
+      # Can't send unicode. If it can't encode it as ascii something is wrong with this string
+      param = param.encode('ascii')
     return param
 
   def _setup_multi_data(self, ops, num_cases, model=None, local_ids=None, meta=None):
@@ -487,8 +487,12 @@ class ClarifaiApi(object):
       assert len(local_ids) == num_cases, "Number of local_ids must match data"
       data['local_id'] = ','.join(local_ids)
     if meta:
-      assert isinstance(meta, basestring), "meta arg must be a string or json string"
-      data['meta'] = self._sanitize_param(meta)
+      if isinstance(meta, dict):
+        meta_mapped_ascii = json.dumps(meta, ensure_ascii=True)
+      else:
+        assert isinstance(meta, basestring), "meta arg must be a string or json string"
+        meta_mapped_ascii = self._sanitize_param(meta)
+      data['meta'] = meta_mapped_ascii
     return data
 
   def _multi_data_op(self, files, ops, model=None, local_ids=None, meta=None):
