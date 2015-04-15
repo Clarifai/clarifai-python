@@ -44,6 +44,7 @@ class ApiBadRequestError(ApiError, ValueError):
 
 
 IM_QUALITY = 95
+IGNORE_RESIZE_FORMATS = ['GIF']  # these formats will not be resized.
 API_VERSION = 'v1'
 
 
@@ -396,32 +397,33 @@ class ClarifaiApi(object):
       MAX_SIZE = self.api_info['max_image_size']
       # Will fail here if PIL does not work or is not an image.
       img = Image.open(image_tup[0])
-      min_dimension = min(img.size)
-      max_dimension = max(img.size)
-      min_ratio = float(MIN_SIZE) / min_dimension
-      max_ratio = float(MAX_SIZE) / max_dimension
-      im_changed = False
-      # Only resample if min size is > 512 or < 256
-      if max_ratio < 1.0:  # downsample to MAX_SIZE
-        newsize = (int(round(max_ratio * img.size[0])), int(round(max_ratio * img.size[1])))
-        img = img.resize(newsize, Image.BILINEAR)
-        im_changed = True
-      elif min_ratio > 1.0:  # upsample to MIN_SIZE
-        newsize = (int(round(min_ratio * img.size[0])), int(round(min_ratio * img.size[1])))
-        img = img.resize(newsize, Image.BICUBIC)
-        im_changed = True
-      else:  # no changes needed so rewind file-object.
-        img.verify()
-        image_tup[0].seek(0)
-        img = Image.open(image_tup[0])
-      # Finally make sure we have RGB images.
-      if img.mode != "RGB":
-        img = img.convert("RGB")
-        im_changed = True
-      if im_changed:
-        io = StringIO()
-        img.save(io, 'jpeg', quality=IM_QUALITY)
-        image_tup = (io, image_tup[1])
+      if img.format not in IGNORE_RESIZE_FORMATS:
+        min_dimension = min(img.size)
+        max_dimension = max(img.size)
+        min_ratio = float(MIN_SIZE) / min_dimension
+        max_ratio = float(MAX_SIZE) / max_dimension
+        im_changed = False
+        # Only resample if min size is > 512 or < 256
+        if max_ratio < 1.0:  # downsample to MAX_SIZE
+          newsize = (int(round(max_ratio * img.size[0])), int(round(max_ratio * img.size[1])))
+          img = img.resize(newsize, Image.BILINEAR)
+          im_changed = True
+        elif min_ratio > 1.0:  # upsample to MIN_SIZE
+          newsize = (int(round(min_ratio * img.size[0])), int(round(min_ratio * img.size[1])))
+          img = img.resize(newsize, Image.BICUBIC)
+          im_changed = True
+        else:  # no changes needed so rewind file-object.
+          img.verify()
+          image_tup[0].seek(0)
+          img = Image.open(image_tup[0])
+        # Finally make sure we have RGB images.
+        if img.mode != "RGB":
+          img = img.convert("RGB")
+          im_changed = True
+        if im_changed:
+          io = StringIO()
+          img.save(io, 'jpeg', quality=IM_QUALITY)
+          image_tup = (io, image_tup[1])
     except IOError, e:
       logger.warning('Could not open image file: %s, still sending to server.', image_tup[1])
     finally:
