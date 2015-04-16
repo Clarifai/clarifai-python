@@ -239,7 +239,7 @@ class ClarifaiApi(object):
 
   tag_and_embed_images = tag_and_embed
 
-  def tag_urls(self, urls, model=None, local_ids=None, meta=None, select_classe=None):
+  def tag_urls(self, urls, model=None, local_ids=None, meta=None, select_classes=None):
     """ Tag data from a url or data from a list of urls.
 
     Args:
