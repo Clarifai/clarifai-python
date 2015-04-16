@@ -141,7 +141,7 @@ class ClarifaiApi(object):
     else:
       return self._urls.get(ops[0], self._urls.get('multiop'))
 
-  def tag(self, files, model=None, local_ids=None, meta=None):
+  def tag(self, files, model=None, local_ids=None, meta=None, select_classes=None):
     """ Autotag a single data file from an open file object or multiples data files from a list of
     open file objects.
 
@@ -169,7 +169,8 @@ class ClarifaiApi(object):
       clarifai_api.tag([open('/path/to/local/image.jpeg'),
                         open('/path/to/local/image2.jpeg')])
     """
-    return self._multi_data_op(files, ['tag'], model=model, local_ids=local_ids, meta=meta)
+    return self._multi_data_op(files, ['tag'], model=model, local_ids=local_ids, meta=meta, 
+                               select_classes=select_classes)
 
   tag_images = tag
 
@@ -205,7 +206,7 @@ class ClarifaiApi(object):
 
   embed_images = embed
 
-  def tag_and_embed(self, files, model=None, local_ids=None, meta=None):
+  def tag_and_embed(self, files, model=None, local_ids=None, meta=None, select_classes=None):
     """ Tag AND embed data files in one request. Note: each operation is treated separate for
     billing purposes.
 
@@ -233,11 +234,12 @@ class ClarifaiApi(object):
       clarifai_api.tag_and_embed([open('/path/to/local/image.jpeg'),
                                          open('/path/to/local/image2.jpeg')])
     """
-    return self._multi_data_op(files, ['tag','embed'], model=model, local_ids=local_ids, meta=meta)
+    return self._multi_data_op(files, ['tag','embed'], model=model, local_ids=local_ids, meta=meta,
+                               select_classes=select_classes)
 
   tag_and_embed_images = tag_and_embed
 
-  def tag_urls(self, urls, model=None, local_ids=None, meta=None):
+  def tag_urls(self, urls, model=None, local_ids=None, meta=None, select_classe=None):
     """ Tag data from a url or data from a list of urls.
 
     Args:
@@ -261,7 +263,8 @@ class ClarifaiApi(object):
                                   'http://www.clarifai.com/img/metro-north.jpg'])
 
     """
-    return self._multi_dataurl_op(urls, ['tag'], model=model, local_ids=local_ids, meta=meta)
+    return self._multi_dataurl_op(urls, ['tag'], model=model, local_ids=local_ids, meta=meta,
+                                  select_classes=select_classes)
 
   tag_image_urls = tag_urls
 
@@ -293,7 +296,7 @@ class ClarifaiApi(object):
 
   embed_image_urls = embed_urls
 
-  def tag_and_embed_urls(self, urls, model=None, local_ids=None, meta=None):
+  def tag_and_embed_urls(self, urls, model=None, local_ids=None, meta=None, select_classes=None):
     """ Tag AND Embed data from a url or data from a list of urls.
 
     Args:
@@ -317,7 +320,7 @@ class ClarifaiApi(object):
                                             'http://www.clarifai.com/img/metro-north.jpg'])
     """
     return self._multi_dataurl_op(urls, ['tag','embed'], model=model, local_ids=local_ids,
-                                   meta=meta)
+                                  meta=meta, select_classes=select_classes)
 
   tag_and_embed_image_urls = tag_and_embed_urls
 
@@ -474,7 +477,7 @@ class ClarifaiApi(object):
       param = param.encode('ascii')
     return param
 
-  def _setup_multi_data(self, ops, num_cases, model=None, local_ids=None, meta=None):
+  def _setup_multi_data(self, ops, num_cases, model=None, local_ids=None, meta=None, **kwargs):
     """ Setup the data dict to POST to the server. """
     data =  {'op': ','.join(ops)}
     if model:
@@ -495,14 +498,17 @@ class ClarifaiApi(object):
         assert isinstance(meta, basestring), "meta arg must be a string or json string"
         meta_mapped_ascii = self._sanitize_param(meta)
       data['meta'] = meta_mapped_ascii
+    for k, v in kwargs.iteritems():
+      if v is not None:
+        data[k] = self._sanitize_param(v)
     return data
 
-  def _multi_data_op(self, files, ops, model=None, local_ids=None, meta=None):
+  def _multi_data_op(self, files, ops, model=None, local_ids=None, meta=None, **kwargs):
     """ Supports both list of tuples (data_file, name) or a list of files where a name will
     be created as the index into the list. """
     media = self._process_files(files)
     url = self._url_for_op(ops)
-    data = self._setup_multi_data(ops, len(media), model, local_ids, meta)
+    data = self._setup_multi_data(ops, len(media), model, local_ids, meta, **kwargs)
     kwargs = {
       'media': media,
       'form_data': data,
@@ -512,7 +518,7 @@ class ClarifaiApi(object):
     return self._parse_response(raw_response, ops)
 
   def _multi_dataurl_op(self, urls, ops, model=None, local_ids=None, meta=None,
-                         payload=None):
+                         payload=None, **kwargs):
     """ If sending image_url or image_file strings, then we can send as json directly instead of the
     multipart form. """
     if urls is not None: # for feedback, this might not be required.
@@ -521,7 +527,7 @@ class ClarifaiApi(object):
       self._check_batch_size(urls)
       if not isinstance(urls[0], basestring):
         raise Exception("urls must be strings")
-    data = self._setup_multi_data(ops, len(urls), model, local_ids, meta)
+    data = self._setup_multi_data(ops, len(urls), model, local_ids, meta, **kwargs)
     # Add some addition url specific stuff to data dict:
     if urls is not None:
       data['url'] = urls
