@@ -1,15 +1,25 @@
-import base64, json, logging, os, time, urllib2, urllib
+import sys
+import base64, json, logging, os, time, urllib
+from io import StringIO
+from future.utils import iteritems
+from .mime_util import post_data_multipart, RequestWithMethod
+
 try:
   from PIL import Image
   CAN_RESIZE = True
-except Exception, e:
+except ImportError:
   CAN_RESIZE = False
   print ('It is recommended to install PIL/Pillow with the desired image format support so that '
          'image resizing to the correct dimesions will be handled for you. '
          'If using pip, try "pip install Pillow"')
-from cStringIO import StringIO
 
-from mime_util import post_data_multipart, RequestWithMethod
+if sys.version_info >= (3,0):
+  import urllib.request as urllib2
+  from urllib.parse import urlencode
+else:
+  import urlib2
+  from urllib import urlencode
+
 
 #logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -87,7 +97,7 @@ class ClarifaiApi(object):
     self.api_info = None
 
   def set_model(self, model):
-    self._model = self._sanitize_param(model)
+    self._model = self._sanitize_param(model, 'default')
 
   def get_access_token(self, renew=False):
     """ Get an access token using your app_id and app_secret.
@@ -103,16 +113,17 @@ class ClarifaiApi(object):
     if self.access_token is None or renew:
       headers = {}  # don't use json here, juse urlencode.
       url = self._url_for_op('token')
-      data = urllib.urlencode({'grant_type': 'client_credentials',
+      data = urlencode({'grant_type': 'client_credentials',
                                'client_id':self.CLIENT_ID,
                                'client_secret':self.CLIENT_SECRET})
+      data = data.encode('utf-8')
       req = urllib2.Request(url, data, headers)
       try:
         response = urllib2.urlopen(req).read()
-        response = json.loads(response)
+        response = json.loads(response.decode('utf-8'))
       except urllib2.HTTPError as e:
         raise ApiError(e.reason)
-      except Exception, e:
+      except Exception as e:
         raise ApiError(e)
       self.access_token = response['access_token']
     return self.access_token
@@ -129,7 +140,7 @@ class ClarifaiApi(object):
     kwargs = {}
     response = self._get_raw_response(
         self._get_json_headers, self._get_json_response, url, kwargs)
-    response = json.loads(response)
+    response = json.loads(response.decode('utf-8'))
     self.api_info = response['results']
     return self.api_info
 
@@ -427,7 +438,7 @@ class ClarifaiApi(object):
           io = StringIO()
           img.save(io, 'jpeg', quality=IM_QUALITY)
           image_tup = (io, image_tup[1])
-    except IOError, e:
+    except IOError as e:
       logger.warning('Could not open image file: %s, still sending to server.', image_tup[1])
     finally:
       image_tup[0].seek(0)  # rewind file-object to read() below is good to go.
@@ -470,35 +481,42 @@ class ClarifaiApi(object):
                       'status_msg':"request with %d images exceeds max batch size of %d" % (
                         len(data_list), MAX_BATCH_SIZE)})
 
-  def _sanitize_param(self, param):
+  def _sanitize_param(self, param, default=''):
     """Convert parameters into a form ready for the wire."""
     if param:
       # Can't send unicode. If it can't encode it as ascii something is wrong with this string
-      param = param.encode('ascii')
+      try:
+        param = param.encode('ascii')
+      except UnicodeDecodeError:
+        return default
+
+      # convert it back to str
+      param = param.decode('ascii')
+
     return param
 
   def _setup_multi_data(self, ops, num_cases, model=None, local_ids=None, meta=None, **kwargs):
     """ Setup the data dict to POST to the server. """
     data =  {'op': ','.join(ops)}
     if model:
-      data['model'] = self._sanitize_param(model)
+      data['model'] = self._sanitize_param(model, 'default')
     elif self._model:
       data['model'] = self._model
     if local_ids:
       if not isinstance(local_ids, list):
         local_ids = [local_ids]
       assert isinstance(local_ids, list)
-      assert isinstance(local_ids[0], basestring), "local_ids must each be strings"
+      assert isinstance(local_ids[0], str), "local_ids must each be strings"
       assert len(local_ids) == num_cases, "Number of local_ids must match data"
       data['local_id'] = ','.join(local_ids)
     if meta:
       if isinstance(meta, dict):
         meta_mapped_ascii = json.dumps(meta, ensure_ascii=True)
       else:
-        assert isinstance(meta, basestring), "meta arg must be a string or json string"
+        assert isinstance(meta, str), "meta arg must be a string or json string"
         meta_mapped_ascii = self._sanitize_param(meta)
       data['meta'] = meta_mapped_ascii
-    for k, v in kwargs.iteritems():
+    for k, v in iteritems(kwargs):
       if v is not None:
         data[k] = self._sanitize_param(v)
     return data
@@ -525,7 +543,7 @@ class ClarifaiApi(object):
       if not isinstance(urls, list):
         urls = [urls]
       self._check_batch_size(urls)
-      if not isinstance(urls[0], basestring):
+      if not isinstance(urls[0], str):
         raise Exception("urls must be strings")
     data = self._setup_multi_data(ops, len(urls), model, local_ids, meta, **kwargs)
     # Add some addition url specific stuff to data dict:
@@ -533,7 +551,7 @@ class ClarifaiApi(object):
       data['url'] = urls
     if payload:
       assert isinstance(payload, dict), "Addition payload must be a dict"
-      for k, v in payload.iteritems():
+      for k, v in iteritems(payload):
         data[k] = v
     url = self._url_for_op(ops)
     kwargs = {'data': data}
@@ -543,9 +561,10 @@ class ClarifaiApi(object):
 
   def _parse_response(self, response, all_ops):
     """ Get the raw response form the API and convert into nice Python objects. """
+    response = response.decode('utf-8')
     try:
       parsed_response = json.loads(response)
-    except Exception, e:
+    except Exception as e:
       raise ApiError(e)
     if 'error' in parsed_response:  # needed anymore?
       raise ApiError(parsed_response['error'])
@@ -620,7 +639,7 @@ class ClarifaiApi(object):
               is present, otherwise GET.
     """
     if data:
-      data = json.dumps(data)
+      data = json.dumps(data).encode('utf-8')
     req = RequestWithMethod(url, method, data, headers)
     response = urllib2.urlopen(req)
     raw_response = response.read()

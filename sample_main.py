@@ -31,6 +31,7 @@ def main(argv):
       response = api.tag_images(image_file)
   else:
     raise Exception("Must input url, directory path, or file path")
+
   print(response)
 
 
