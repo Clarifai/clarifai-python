@@ -19,6 +19,16 @@ else:
   import urllib2
   from urllib import urlencode
 
+try:
+  dict.iteritems
+except AttributeError:
+  # Python 3
+  def iteritems(d):
+    return iter(d.items())
+else:
+  # Python 2
+  def iteritems(d):
+    return d.iteritems()
 
 #logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -515,7 +525,7 @@ class ClarifaiApi(object):
         assert isinstance(meta, str), "meta arg must be a string or json string"
         meta_mapped_ascii = self._sanitize_param(meta)
       data['meta'] = meta_mapped_ascii
-    for (k, v) in kwargs.items():
+    for (k, v) in iteritems(kwargs):
       if v is not None:
         data[k] = self._sanitize_param(v)
     return data
@@ -550,7 +560,7 @@ class ClarifaiApi(object):
       data['url'] = urls
     if payload:
       assert isinstance(payload, dict), "Addition payload must be a dict"
-      for (k, v) in payload.items():
+      for (k, v) in iteritems(payload):
         data[k] = v
     url = self._url_for_op(ops)
     kwargs = {'data': data}
