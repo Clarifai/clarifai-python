@@ -15,19 +15,14 @@ if sys.version_info >= (3,0):
   import urllib.request as urllib2
   from urllib.parse import urlencode
   from io import StringIO
+
+  def iteritems(d):
+    return iter(d.items())
 else:
   import urllib2
   from urllib import urlencode
   from cStringIO import StringIO
 
-try:
-  dict.iteritems
-except AttributeError:
-  # Python 3
-  def iteritems(d):
-    return iter(d.items())
-else:
-  # Python 2
   def iteritems(d):
     return d.iteritems()
 
@@ -127,11 +122,12 @@ class ClarifaiApi(object):
                                'client_id':self.CLIENT_ID,
                                'client_secret':self.CLIENT_SECRET})
       #data = data.encode('utf-8')
+      data = bytearray(data, 'utf-8')
       req = urllib2.Request(url, data, headers)
       try:
         response = urllib2.urlopen(req).read()
-        #response = self._parse_response(response)
-        response = json.loads(response)
+        response = self._parse_response(response)
+        #response = json.loads(response)
       except urllib2.HTTPError as e:
         raise ApiError(e.reason)
       except Exception as e:
@@ -151,8 +147,8 @@ class ClarifaiApi(object):
     kwargs = {}
     response = self._get_raw_response(
         self._get_json_headers, self._get_json_response, url, kwargs)
-    #response = self._parse_response(response)
-    response = json.loads(response)
+    response = self._parse_response(response)
+    #response = json.loads(response)
     self.api_info = response['results']
     return self.api_info
 
@@ -503,7 +499,7 @@ class ClarifaiApi(object):
         return default.encode('ascii')
 
       # convert it back to str
-      #param = param.decode('ascii')
+      param = param.decode('ascii')
 
     return param
 
@@ -653,6 +649,7 @@ class ClarifaiApi(object):
     if data:
       #data = json.dumps(data).encode('utf-8')
       data = json.dumps(data)
+      data = bytearray(data, 'utf-8')
     req = RequestWithMethod(url, method, data, headers)
     response = urllib2.urlopen(req)
     raw_response = response.read()
