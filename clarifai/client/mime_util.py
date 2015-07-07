@@ -1,11 +1,17 @@
+import sys
+import urllib
 from email.encoders import encode_noop
 from email.message import Message
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
-import urllib
-import urllib2
-from urlparse import urlparse
 from uuid import uuid4
+
+if sys.version_info >= (3,0):
+  import urllib.request as urllib2
+  from urllib.parse import urlparse
+else:
+  import urllib2
+  from urlparse import urlparse
 
 
 class RequestWithMethod(urllib2.Request):
@@ -93,7 +99,6 @@ def message_as_post_data(message, headers):
   headers['Content-Length'] = str(len(post_data))
   headers['Content-Type'] = 'multipart/form-data; boundary=%s' % boundary
   return post_data, headers
-
 
 def multipart_form_message(media, form_data={}):
   """Return a MIMEMultipart message to upload encoded media via an HTTP form POST request.
