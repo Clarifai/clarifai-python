@@ -120,7 +120,7 @@ class ClarifaiApi(object):
       req = urllib2.Request(url, data, headers)
       try:
         response = urllib2.urlopen(req).read()
-        response = json.loads(response.decode('utf-8'))
+        response = self._parse_response(response, None)
       except urllib2.HTTPError as e:
         raise ApiError(e.reason)
       except Exception as e:
@@ -140,7 +140,7 @@ class ClarifaiApi(object):
     kwargs = {}
     response = self._get_raw_response(
         self._get_json_headers, self._get_json_response, url, kwargs)
-    response = json.loads(response.decode('utf-8'))
+    response = self._parse_response(response, None)
     self.api_info = response['results']
     return self.api_info
 
