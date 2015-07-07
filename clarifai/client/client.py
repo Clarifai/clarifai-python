@@ -1,7 +1,6 @@
 import sys
 import base64, json, logging, os, time, urllib
 from io import StringIO
-from future.utils import iteritems
 from .mime_util import post_data_multipart, RequestWithMethod
 
 try:
@@ -516,7 +515,7 @@ class ClarifaiApi(object):
         assert isinstance(meta, str), "meta arg must be a string or json string"
         meta_mapped_ascii = self._sanitize_param(meta)
       data['meta'] = meta_mapped_ascii
-    for k, v in iteritems(kwargs):
+    for (k, v) in kwargs.items():
       if v is not None:
         data[k] = self._sanitize_param(v)
     return data
@@ -551,7 +550,7 @@ class ClarifaiApi(object):
       data['url'] = urls
     if payload:
       assert isinstance(payload, dict), "Addition payload must be a dict"
-      for k, v in iteritems(payload):
+      for (k, v) in payload.items():
         data[k] = v
     url = self._url_for_op(ops)
     kwargs = {'data': data}
