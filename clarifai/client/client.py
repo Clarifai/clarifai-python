@@ -17,7 +17,7 @@ if sys.version_info >= (3,0):
   import urllib.request as urllib2
   from urllib.parse import urlencode
 else:
-  import urlib2
+  import urllib2
   from urllib import urlencode
 
 
