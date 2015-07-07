@@ -120,7 +120,7 @@ class ClarifaiApi(object):
       req = urllib2.Request(url, data, headers)
       try:
         response = urllib2.urlopen(req).read()
-        response = self._parse_response(response, None)
+        response = self._parse_response(response)
       except urllib2.HTTPError as e:
         raise ApiError(e.reason)
       except Exception as e:
@@ -140,7 +140,7 @@ class ClarifaiApi(object):
     kwargs = {}
     response = self._get_raw_response(
         self._get_json_headers, self._get_json_response, url, kwargs)
-    response = self._parse_response(response, None)
+    response = self._parse_response(response)
     self.api_info = response['results']
     return self.api_info
 
@@ -533,7 +533,7 @@ class ClarifaiApi(object):
     }
     raw_response = self._get_raw_response(
         self._get_multipart_headers, post_data_multipart, url, kwargs)
-    return self._parse_response(raw_response, ops)
+    return self._parse_response(raw_response)
 
   def _multi_dataurl_op(self, urls, ops, model=None, local_ids=None, meta=None,
                          payload=None, **kwargs):
@@ -557,9 +557,9 @@ class ClarifaiApi(object):
     kwargs = {'data': data}
     raw_response = self._get_raw_response(
         self._get_json_headers, self._get_json_response, url, kwargs)
-    return self._parse_response(raw_response, ops)
+    return self._parse_response(raw_response)
 
-  def _parse_response(self, response, all_ops):
+  def _parse_response(self, response):
     """ Get the raw response form the API and convert into nice Python objects. """
     response = response.decode('utf-8')
     try:
@@ -673,4 +673,4 @@ class ClarifaiApi(object):
     url = self._url_for_op(data['op'])
     headers = self._get_json_headers()
     response = self._get_json_response(url, data=data, headers=headers)
-    return self._parse_response(response, op)
+    return self._parse_response(response)
