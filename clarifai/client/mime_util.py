@@ -9,10 +9,15 @@ from uuid import uuid4
 if sys.version_info >= (3,0):
   import urllib.request as urllib2
   from urllib.parse import urlparse
+
+  def iteritems(d):
+    return iter(d.items())
 else:
   import urllib2
   from urlparse import urlparse
 
+  def iteritems(d):
+    return d.iteritems()
 
 class RequestWithMethod(urllib2.Request):
   """Extend urllib2.Request to support methods beyond GET and POST."""
@@ -90,9 +95,9 @@ def message_as_post_data(message, headers):
   for part in message.get_payload():
     lines.append('--' + boundary)
     for k, v in part.items():
-      lines.append('%s: %s' % (k, v))
+      lines.append('%s: %s' % (str(k), str(v)))
     lines.append('')
-    lines.append(part.get_payload())
+    lines.append(str(part.get_payload()))
   lines.append('--%s--' % boundary)
   crlf = '\r\n'
   post_data = crlf.join(lines)
@@ -109,7 +114,7 @@ def multipart_form_message(media, form_data={}):
   """
   message = MIMEMultipart('form-data', None)
   if form_data:
-    for name, val in form_data.iteritems():
+    for (name, val) in iteritems(form_data):
       part = Message()
       part.add_header('Content-Disposition', 'form-data', name=name)
       part.set_payload(val)
