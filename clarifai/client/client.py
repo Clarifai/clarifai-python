@@ -121,13 +121,11 @@ class ClarifaiApi(object):
       data = urlencode({'grant_type': 'client_credentials',
                                'client_id':self.CLIENT_ID,
                                'client_secret':self.CLIENT_SECRET})
-      #data = data.encode('utf-8')
       data = bytearray(data, 'utf-8')
       req = urllib2.Request(url, data, headers)
       try:
         response = urllib2.urlopen(req).read()
         response = self._parse_response(response)
-        #response = json.loads(response)
       except urllib2.HTTPError as e:
         raise ApiError(e.reason)
       except Exception as e:
@@ -148,7 +146,6 @@ class ClarifaiApi(object):
     response = self._get_raw_response(
         self._get_json_headers, self._get_json_response, url, kwargs)
     response = self._parse_response(response)
-    #response = json.loads(response)
     self.api_info = response['results']
     return self.api_info
 
@@ -496,7 +493,7 @@ class ClarifaiApi(object):
       try:
         param = param.encode('ascii')
       except UnicodeDecodeError:
-        return default.encode('ascii')
+        return default
 
       # convert it back to str
       param = param.decode('ascii')
@@ -647,7 +644,6 @@ class ClarifaiApi(object):
               is present, otherwise GET.
     """
     if data:
-      #data = json.dumps(data).encode('utf-8')
       data = json.dumps(data)
       data = bytearray(data, 'utf-8')
     req = RequestWithMethod(url, method, data, headers)
