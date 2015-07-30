@@ -61,6 +61,19 @@ def post_multipart_request(url, multipart_message, headers={}):
   f.close()
   return response
 
+def crlf_mixed_join(lines):
+  """ This handles the mix of 'str' and 'unicode' in the data,
+  encode 'unicode' lines into 'utf-8' so the lines will be joinable
+  otherwise, the non-unicode lines will be auto converted into unicode
+  and triggers exception because the MIME data is not unicode convertible
+  """
+  # set default encoding to 'utf-8'
+  encoding = 'utf-8'
+  uniformed_lines = [line.encode(encoding) if type(line) == unicode else line for line in lines]
+  crlf = '\r\n'
+  post_data = crlf.join(uniformed_lines)
+  return post_data
+
 def form_data_media(encoded_data, filename, field_name='encoded_data', headers={}):
   """From raw encoded media return a MIME part for POSTing as form data."""
   message = MIMEApplication(encoded_data, 'application/octet-stream', encode_noop, **headers)
@@ -94,8 +107,7 @@ def message_as_post_data(message, headers):
     lines.append('')
     lines.append(part.get_payload())
   lines.append('--%s--' % boundary)
-  crlf = '\r\n'
-  post_data = crlf.join(lines)
+  post_data = crlf_mixed_join(lines)
   headers['Content-Length'] = str(len(post_data))
   headers['Content-Type'] = 'multipart/form-data; boundary=%s' % boundary
   return post_data, headers
