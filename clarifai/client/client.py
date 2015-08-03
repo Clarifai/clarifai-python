@@ -668,7 +668,7 @@ class ClarifaiApi(object):
 
     Example:
       clarifai_api = ClarifaiApi()
-      clarifai_api.tag_image(open('/path/to/local/image.jpeg'))
+      clarifai_api.tag_image_base64(open('/path/to/local/image.jpeg'))
     """
     data = {'encoded_data': base64.encodestring(image_file.read())}
     return self._base64_encoded_data_op(data, 'tag')
