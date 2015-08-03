@@ -38,7 +38,7 @@ class TestClarifaiApi(unittest.TestCase):
     image_file = 'tests/data/toddler-flowers.jpeg'
     api = ClarifaiApi()
     if os.path.exists(image_file):
-      response = api.tag_images(open(image_file))
+      response = api.tag_images(open(image_file, 'rb'))
       self.assertTrue(response)
 
   def test_tag_images(self):
