@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-unittest code for Clarifai API Python Client
+unittest for Clarifai API Python Client
 """
 
 import os
@@ -26,20 +26,41 @@ class TestClarifaiApi(unittest.TestCase):
     self.assertTrue(len(response) > 0)
 
   def test_tag_one_image(self):
+    """ tag one image, from url and disk """
+    # tag image from online URL
     image_url = 'http://clarifai-img.s3.amazonaws.com/test/toddler-flowers.jpeg'
     api = ClarifaiApi()
     response = api.tag_image_urls(image_url)
     self.assertTrue(response)
     self.assertTrue(response['results'][0]['url'] == image_url)
 
+    # tag image from local fs
+    image_file = 'tests/data/toddler-flowers.jpeg'
+    api = ClarifaiApi()
+    if os.path.exists(image_file):
+      response = api.tag_images(open(image_file))
+      self.assertTrue(response)
+
   def test_tag_images(self):
+    """ tag multiple images, from url and disk """
+    # tag images from online URL
     image_url_base = 'http://clarifai-img.s3.amazonaws.com/test'
-    image_files = [ 'metro-north.jpg', 'octopus.jpg', 'tahoe.jpg', 'thai-market.jpg', 'toddler-flowers.jpeg' ]
-    image_urls = [ os.path.join(image_url_base, one_file) for one_file in image_files ]
+    image_files = ['metro-north.jpg', 'octopus.jpg', 'tahoe.jpg', 'thai-market.jpg']
+    image_urls = [os.path.join(image_url_base, one_file) for one_file in image_files]
 
     api = ClarifaiApi()
     response = api.tag_image_urls(image_urls)
     self.assertTrue(response)
+
+    # tag images frmo local fs
+    image_dir = 'tests/data'
+    image_files = ['metro-north.jpg', 'octopus.jpg', 'tahoe.jpg', 'thai-market.jpg']
+
+    api = ClarifaiApi()
+    if os.path.exists(image_dir):
+      image_files = [open(os.path.join(image_dir, one_file)) for one_file in image_files]
+      response = api.tag_images(image_files)
+      self.assertTrue(response)
 
   def test_unicode_urls(self):
     image_url = u'http://www.alvaronoboa.com/wp-content/uploads/2013/02/Álvaro-Noboa-y-Annabella-Azín-Votaciones-41-1024x682.jpg'
@@ -49,24 +70,9 @@ class TestClarifaiApi(unittest.TestCase):
     self.assertTrue(response)
     self.assertTrue(response['results'][0]['url'] == image_url)
 
-  def test_tag_one_image_from_localfs(self):
-    image_file = 'tests/data/toddler-flowers.jpeg'
-    api = ClarifaiApi()
-    if os.path.exists(image_file):
-      response = api.tag_images(open(image_file))
-      self.assertTrue(response)
-
-  def test_tag_images_from_localfs(self):
-    image_dir = 'tests/data'
-    image_files = [ 'metro-north.jpg', 'octopus.jpg', 'tahoe.jpg', 'thai-market.jpg', 'toddler-flowers.jpeg' ]
-
-    api = ClarifaiApi()
-    if os.path.exists(image_dir):
-      image_files = [ open(os.path.join(image_dir, one_file)) for one_file in image_files ]
-      response = api.tag_images(image_files)
-      self.assertTrue(response)
-
-  def test_tag_one_gif(self):
+  def test_tag_gif(self):
+    """ tag one GIF animation file """
+    # source: http://media.giphy.com/media/fRZn2vraBGiA0/giphy.gif
     image_url = 'http://media.giphy.com/media/fRZn2vraBGiA0/giphy.gif'
 
     api = ClarifaiApi()
@@ -74,8 +80,6 @@ class TestClarifaiApi(unittest.TestCase):
     self.assertTrue(response)
     self.assertTrue(response['results'][0]['url'] == image_url)
 
-  def test_tag_one_gif_from_localfs(self):
-    # source: http://media.giphy.com/media/fRZn2vraBGiA0/giphy.gif
     image_file = 'tests/data/water-ocean-turtle.gif'
     api = ClarifaiApi()
     if os.path.exists(image_file):
@@ -115,8 +119,8 @@ class TestClarifaiApi(unittest.TestCase):
 
   def test_tag_n_embed_one_image(self):
     image_url_base = 'http://clarifai-img.s3.amazonaws.com/test'
-    image_files = [ 'metro-north.jpg', 'octopus.jpg', 'tahoe.jpg', 'thai-market.jpg', 'toddler-flowers.jpeg' ]
-    image_urls = [ os.path.join(image_url_base, one_file) for one_file in image_files ]
+    image_files = ['metro-north.jpg', 'octopus.jpg', 'tahoe.jpg', 'thai-market.jpg']
+    image_urls = [os.path.join(image_url_base, one_file) for one_file in image_files]
 
     api = ClarifaiApi()
     response = api.tag_and_embed_image_urls(image_urls)
@@ -124,43 +128,41 @@ class TestClarifaiApi(unittest.TestCase):
 
   def test_tag_n_embed_from_localfs(self):
     image_dir = 'tests/data'
-    image_files = [ 'metro-north.jpg', 'octopus.jpg', 'tahoe.jpg', 'thai-market.jpg', 'toddler-flowers.jpeg' ]
+    image_files = ['metro-north.jpg', 'octopus.jpg', 'tahoe.jpg', 'thai-market.jpg']
 
     api = ClarifaiApi()
     if os.path.exists(image_dir):
-      image_files = [ open(os.path.join(image_dir, one_file)) for one_file in image_files ]
+      image_files = [open(os.path.join(image_dir, one_file)) for one_file in image_files]
       response = api.tag_and_embed_images(image_files)
       self.assertTrue(response)
 
   def test_send_feedback(self):
-    image_url1 = 'http://clarifai-img.s3.amazonaws.com/test/metro-north.jpg'
-    image_url2 = 'http://clarifai-img.s3.amazonaws.com/test/metro-north.jpg'
-    image_url3 = 'http://clarifai-img.s3.amazonaws.com/test/octopus.jpg'
+    """ test sending various feedback """
+
+    urls = ['http://clarifai-img.s3.amazonaws.com/test/metro-north.jpg', \
+            'http://clarifai-img.s3.amazonaws.com/test/metro-north.jpg', \
+            'http://clarifai-img.s3.amazonaws.com/test/octopus.jpg']
 
     api = ClarifaiApi()
 
-    response = api.feedback(urls = image_url1, add_tags = 'train')
+    response = api.feedback(urls=urls[0], add_tags='train')
     self.assertTrue(response)
 
-    response = api.feedback(urls = image_url1, remove_tags='speed,test')
+    response = api.feedback(urls=urls[0], remove_tags='speed,test')
     self.assertTrue(response)
 
-    response = api.feedback(urls = image_url1, add_tags = 'train', remove_tags='speed,test')
+    response = api.feedback(urls=urls[0], add_tags='train', remove_tags='speed,test')
     self.assertTrue(response)
 
-    docid1 = hashlib.md5(image_url1).hexdigest()
-    docid2 = hashlib.md5(image_url2).hexdigest()
-    docid3 = hashlib.md5(image_url3).hexdigest()
+    docids = [hashlib.md5(url).hexdigest() for url in urls]
 
-    response = api.feedback(urls = [image_url1, image_url2], similar_docids = [docid1, docid2])
+    response = api.feedback(urls=urls[:2], similar_docids=docids[:2])
     self.assertTrue(response)
 
-    response = api.feedback(urls = [image_url1, image_url3], dissimilar_docids = [docid1, docid3])
+    response = api.feedback(urls=urls[1:], dissimilar_docids=docids[1:])
     self.assertTrue(response)
 
-    response = api.feedback(urls = [image_url1, image_url2, image_url3], \
-                            similar_docids = [docid1, docid2], \
-                            dissimilar_docids = [docid2, docid3])
+    response = api.feedback(urls=urls, similar_docids=docids[:2], dissimilar_docids=docids[1:])
     self.assertTrue(response)
 
 if __name__ == '__main__':
