@@ -154,7 +154,7 @@ class TestClarifaiApi(unittest.TestCase):
     response = api.feedback(urls=urls[0], add_tags='train', remove_tags='speed,test')
     self.assertTrue(response)
 
-    docids = [hashlib.md5(url).hexdigest() for url in urls]
+    docids = [hashlib.md5(url.encode('utf-8')).hexdigest() for url in urls]
 
     response = api.feedback(urls=urls[:2], similar_docids=docids[:2])
     self.assertTrue(response)
