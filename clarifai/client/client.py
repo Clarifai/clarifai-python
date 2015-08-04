@@ -622,7 +622,7 @@ class ClarifaiApi(object):
             time.sleep(wait_secs)
           raise ApiThrottledError(response, wait_secs)
         try:
-          response = json.loads(response)
+          response = self._parse_response(response)
           if response['status_code'] == 'TOKEN_EXPIRED':
             logger.info('Getting new access token.')
             self.get_access_token(renew=True)
@@ -648,8 +648,7 @@ class ClarifaiApi(object):
       data = json.dumps(data)
       data = bytearray(data, 'utf-8')
     req = RequestWithMethod(url, method, data, headers)
-    response = urllib2.urlopen(req)
-    raw_response = response.read()
+    raw_response = urllib2.urlopen(req).read()
     return raw_response
 
   def tag_image_base64(self, image_file):
