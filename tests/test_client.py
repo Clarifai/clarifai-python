@@ -38,8 +38,9 @@ class TestClarifaiApi(unittest.TestCase):
     image_file = 'tests/data/toddler-flowers.jpeg'
     api = ClarifaiApi()
     if os.path.exists(image_file):
-      response = api.tag_images(open(image_file, 'rb'))
-      self.assertTrue(response)
+      with open(image_file, 'rb') as fb:
+        response = api.tag_images(fb)
+        self.assertTrue(response)
 
   def test_tag_images(self):
     """ tag multiple images, from url and disk """
@@ -61,6 +62,8 @@ class TestClarifaiApi(unittest.TestCase):
       image_files = [open(os.path.join(image_dir, one_file), 'rb') for one_file in image_files]
       response = api.tag_images(image_files)
       self.assertTrue(response)
+      for fd in image_files:
+        fd.close()
 
   def test_unicode_urls(self):
     image_url = u'http://www.alvaronoboa.com/wp-content/uploads/2013/02/Álvaro-Noboa-y-Annabella-Azín-Votaciones-41-1024x682.jpg'
@@ -138,6 +141,8 @@ class TestClarifaiApi(unittest.TestCase):
       image_files = [open(os.path.join(image_dir, one_file), 'rb') for one_file in image_files]
       response = api.tag_and_embed_images(image_files)
       self.assertTrue(response)
+      for fd in image_files:
+        fd.close()
 
   def test_send_feedback(self):
     """ test sending various feedback """
