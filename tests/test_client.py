@@ -58,7 +58,7 @@ class TestClarifaiApi(unittest.TestCase):
 
     api = ClarifaiApi()
     if os.path.exists(image_dir):
-      image_files = [open(os.path.join(image_dir, one_file)) for one_file in image_files]
+      image_files = [open(os.path.join(image_dir, one_file), 'rb') for one_file in image_files]
       response = api.tag_images(image_files)
       self.assertTrue(response)
 
@@ -83,7 +83,7 @@ class TestClarifaiApi(unittest.TestCase):
     image_file = 'tests/data/water-ocean-turtle.gif'
     api = ClarifaiApi()
     if os.path.exists(image_file):
-      response = api.tag_images(open(image_file))
+      response = api.tag_images(open(image_file, 'rb'))
       self.assertTrue(response)
 
   def test_tag_one_video(self):
@@ -100,7 +100,7 @@ class TestClarifaiApi(unittest.TestCase):
     video_file = 'tests/data/small.mp4'
     api = ClarifaiApi()
     if os.path.exists(video_file):
-      response = api.tag_images(open(video_file))
+      response = api.tag_images(open(video_file, 'rb'))
       self.assertTrue(response)
 
   def test_embed_one_image(self):
@@ -114,7 +114,7 @@ class TestClarifaiApi(unittest.TestCase):
     image_file = 'tests/data/toddler-flowers.jpeg'
     api = ClarifaiApi()
     if os.path.exists(image_file):
-      response = api.embed_images(open(image_file))
+      response = api.embed_images(open(image_file, 'rb'))
       self.assertTrue(response)
 
   def test_tag_n_embed_one_image(self):
@@ -132,7 +132,7 @@ class TestClarifaiApi(unittest.TestCase):
 
     api = ClarifaiApi()
     if os.path.exists(image_dir):
-      image_files = [open(os.path.join(image_dir, one_file)) for one_file in image_files]
+      image_files = [open(os.path.join(image_dir, one_file), 'rb') for one_file in image_files]
       response = api.tag_and_embed_images(image_files)
       self.assertTrue(response)
 
