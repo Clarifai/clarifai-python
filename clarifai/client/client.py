@@ -16,11 +16,16 @@ if sys.version_info >= (3,0):
   import urllib.request as urllib2
   from urllib.parse import urlencode
   from io import StringIO
+
+  def iteritems(d):
+    return iter(d.items())
 else:
   import urllib2
   from urllib import urlencode
   from cStringIO import StringIO
 
+  def iteritems(d):
+    return d.iteritems()
 
 #logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -117,12 +122,11 @@ class ClarifaiApi(object):
       data = urlencode({'grant_type': 'client_credentials',
                                'client_id':self.CLIENT_ID,
                                'client_secret':self.CLIENT_SECRET})
-      #data = data.encode('utf-8')
+      data = bytearray(data, 'utf-8')
       req = urllib2.Request(url, data, headers)
       try:
         response = urllib2.urlopen(req).read()
-        #response = self._parse_response(response)
-        response = json.loads(response)
+        response = self._parse_response(response)
       except urllib2.HTTPError as e:
         raise ApiError(e.reason)
       except Exception as e:
@@ -142,8 +146,7 @@ class ClarifaiApi(object):
     kwargs = {}
     response = self._get_raw_response(
         self._get_json_headers, self._get_json_response, url, kwargs)
-    #response = self._parse_response(response)
-    response = json.loads(response)
+    response = self._parse_response(response)
     self.api_info = response['results']
     return self.api_info
 
@@ -491,10 +494,10 @@ class ClarifaiApi(object):
       try:
         param = param.encode('ascii')
       except UnicodeDecodeError:
-        return default.encode('ascii')
+        return default
 
       # convert it back to str
-      #param = param.decode('ascii')
+      param = param.decode('ascii')
 
     return param
 
@@ -519,7 +522,7 @@ class ClarifaiApi(object):
         assert isinstance(meta, string_types), "meta arg must be a string or json string"
         meta_mapped_ascii = self._sanitize_param(meta)
       data['meta'] = meta_mapped_ascii
-    for (k, v) in kwargs.items():
+    for (k, v) in iteritems(kwargs):
       if v is not None:
         data[k] = self._sanitize_param(v)
     return data
@@ -554,7 +557,7 @@ class ClarifaiApi(object):
       data['url'] = urls
     if payload:
       assert isinstance(payload, dict), "Addition payload must be a dict"
-      for (k, v) in payload.items():
+      for (k, v) in iteritems(payload):
         data[k] = v
     url = self._url_for_op(ops)
     kwargs = {'data': data}
@@ -619,7 +622,7 @@ class ClarifaiApi(object):
             time.sleep(wait_secs)
           raise ApiThrottledError(response, wait_secs)
         try:
-          response = json.loads(response)
+          response = self._parse_response(response)
           if response['status_code'] == 'TOKEN_EXPIRED':
             logger.info('Getting new access token.')
             self.get_access_token(renew=True)
@@ -642,11 +645,10 @@ class ClarifaiApi(object):
               is present, otherwise GET.
     """
     if data:
-      #data = json.dumps(data).encode('utf-8')
       data = json.dumps(data)
+      data = bytearray(data, 'utf-8')
     req = RequestWithMethod(url, method, data, headers)
-    response = urllib2.urlopen(req)
-    raw_response = response.read()
+    raw_response = urllib2.urlopen(req).read()
     return raw_response
 
   def tag_image_base64(self, image_file):
@@ -665,7 +667,7 @@ class ClarifaiApi(object):
 
     Example:
       clarifai_api = ClarifaiApi()
-      clarifai_api.tag_image(open('/path/to/local/image.jpeg'))
+      clarifai_api.tag_image_base64(open('/path/to/local/image.jpeg'))
     """
     data = {'encoded_data': base64.encodestring(image_file.read())}
     return self._base64_encoded_data_op(data, 'tag')

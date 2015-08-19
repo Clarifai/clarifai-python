@@ -10,7 +10,7 @@ def tag_images_in_directory(path, api):
   images = []
   path = path.rstrip(os.sep)
   for fname in os.listdir(path):
-    images.append((open(os.path.join(path, fname)), fname))
+    images.append((open(os.path.join(path, fname), 'rb'), fname))
   return api.tag_images(images)
 
 

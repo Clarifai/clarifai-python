@@ -9,10 +9,17 @@ from uuid import uuid4
 if sys.version_info >= (3,0):
   import urllib.request as urllib2
   from urllib.parse import urlparse
+  from urllib.parse import quote
+
+  def iteritems(d):
+    return iter(d.items())
 else:
   import urllib2
   from urlparse import urlparse
+  from urllib import quote
 
+  def iteritems(d):
+    return d.iteritems()
 
 class RequestWithMethod(urllib2.Request):
   """Extend urllib2.Request to support methods beyond GET and POST."""
@@ -66,12 +73,34 @@ def crlf_mixed_join(lines):
   encode 'unicode' lines into 'utf-8' so the lines will be joinable
   otherwise, the non-unicode lines will be auto converted into unicode
   and triggers exception because the MIME data is not unicode convertible
+
+  Also, Python3 makes this even more complicated.
   """
   # set default encoding to 'utf-8'
   encoding = 'utf-8'
-  uniformed_lines = [line.encode(encoding) if type(line) == unicode else line for line in lines]
-  crlf = '\r\n'
-  post_data = crlf.join(uniformed_lines)
+
+  post_data = bytearray()
+
+  idx = 0
+  for line in lines:
+    if sys.version_info < (3,0):
+      if isinstance(line, unicode):
+        line = line.encode(encoding)
+      # turn to bytearray
+      line_bytes = bytearray(line)
+
+    if sys.version_info >= (3,0):
+      if isinstance(line, str):
+        line_bytes = bytearray(line, encoding)
+      else:
+        line_bytes = bytearray(line)
+
+    if idx > 0:
+      post_data.extend(b'\r\n')
+
+    post_data.extend(line_bytes)
+    idx += 1
+    
   return post_data
 
 def form_data_media(encoded_data, filename, field_name='encoded_data', headers={}):
@@ -80,7 +109,7 @@ def form_data_media(encoded_data, filename, field_name='encoded_data', headers={
 
   disposition_headers = {
     'name': '%s' % field_name,
-    'filename': urllib.quote(filename.encode('utf-8')),
+    'filename': quote(filename.encode('utf-8')),
   }
   message.add_header('Content-Disposition', 'form-data', **disposition_headers)
   # Django seems fussy and doesn't like the MIME-Version header in multipart POSTs.
@@ -105,7 +134,8 @@ def message_as_post_data(message, headers):
     for k, v in part.items():
       lines.append('%s: %s' % (k, v))
     lines.append('')
-    lines.append(part.get_payload())
+    data = part.get_payload(decode=True)
+    lines.append(data)
   lines.append('--%s--' % boundary)
   post_data = crlf_mixed_join(lines)
   headers['Content-Length'] = str(len(post_data))
@@ -121,7 +151,7 @@ def multipart_form_message(media, form_data={}):
   """
   message = MIMEMultipart('form-data', None)
   if form_data:
-    for name, val in form_data.iteritems():
+    for (name, val) in iteritems(form_data):
       part = Message()
       part.add_header('Content-Disposition', 'form-data', name=name)
       part.set_payload(val)
