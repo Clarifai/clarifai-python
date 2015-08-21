@@ -28,7 +28,7 @@ export CLARIFAI_APP_SECRET=&lt;an_application_secret_from_your_account&gt;
 Usage
 ---------------------
 
-An complete example of using this Python client is as follows. Suppose you want to tag an image on
+A complete example of using this Python client is as follows. Suppose you want to tag an image on
 your local drive:
 
 <pre>
