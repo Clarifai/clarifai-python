@@ -130,8 +130,7 @@ class ClarifaiApi(object):
       'multiop': "/".join([self._base_url, '%s/multiop/' % API_VERSION]),
       'feedback': "/".join([self._base_url, '%s/feedback/' % API_VERSION]),
       'token': "/".join([self._base_url, '%s/token/' % API_VERSION]),
-      'info': "/".join([self._base_url, '%s/info/' % API_VERSION]),
-      'languages': "/".join([self._base_url, '%s/info' % API_VERSION, 'languages'])
+      'info': "/".join([self._base_url, '%s/info/' % API_VERSION])
       }
     self.access_token = None
     self.api_info = None
@@ -211,13 +210,6 @@ class ClarifaiApi(object):
     return self.api_info
 
   def get_languages(self):
-    response = self._parse_response(self._get_raw_response(
-      self._get_json_headers,
-      self._get_json_response,
-      self._url_for_op('languages'),
-      {}
-    ))
-    self._SUPPORTED_LANGUAGES = response['languages']
     return self._SUPPORTED_LANGUAGES
 
   def _url_for_op(self, ops):
