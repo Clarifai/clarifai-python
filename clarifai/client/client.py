@@ -44,6 +44,10 @@ class ApiError(Exception):
     return "Error: '%s'" % str(self.msg)
 
 
+class ApiClientError(ApiError):
+  """Thrown when client side validation fails"""
+  pass
+
 class ApiThrottledError(Exception):
   """The usage limit throttle was hit.  Client should wait for wait_seconds before retrying."""
 
@@ -73,12 +77,40 @@ class ClarifaiApi(object):
     app_id: the client_id for an application you've created in your Clarifai account.
     app_secret: the client_secret for the same application.
     base_url: Base URL of the API endpoints.
-    model: Name of the recognition model to query. Use the default if None.
+    model: Name of the recognition model to query. Defaults to None so that server side defaults 
+  in your app settings are used. 
     wait_on_throttle: When the API returns a 429 throttled error, sleep for the amount of time
         reported in the X-Throttle-Wait-Seconds HTTP response header.
+    language: set the default language using it's two letter (with options -XX variant) ISO 639-1
+  code to use for all requests. Defaults to None so that server side defaults in your app settings
+  are used.
   """
+  _SUPPORTED_LANGUAGES = {
+    'ar': 'Arabic',
+    'bn': 'Bengali',
+    'da': 'Danish',
+    'de': 'German',
+    'en': 'English',
+    'es': 'Spanish',
+    'fi': 'Finnish',
+    'fr': 'French',
+    'hi': 'Hindi',
+    'it': 'Italian',
+    'ja': 'Japanese',
+    'nl': 'Dutch',
+    'no': 'Norwegian',
+    'pa': 'Punjabi',
+    'pl': 'Polish',
+    'pt': 'Portuguese',
+    'ru': 'Russian',
+    'sv': 'Swedish',
+    'tr': 'Turkish',
+    'zh': 'Chinese (Simplified)',
+    'zh-TW': 'Chinese (Traditional)'
+  }
+
   def __init__(self, app_id=None, app_secret=None, base_url='https://api.clarifai.com',
-               model='default', wait_on_throttle=True):
+               model=None, wait_on_throttle=True, language=None):
     if not app_id:
       self.CLIENT_ID = os.environ.get('CLARIFAI_APP_ID', None)
     else:
@@ -91,19 +123,46 @@ class ClarifaiApi(object):
 
     self._base_url = base_url
     self.set_model(model)
+    self.language = language
     self._urls = {
       'tag': "/".join([self._base_url, '%s/tag/' % API_VERSION]),
       'embed': "/".join([self._base_url, '%s/embed/' % API_VERSION]),
       'multiop': "/".join([self._base_url, '%s/multiop/' % API_VERSION]),
       'feedback': "/".join([self._base_url, '%s/feedback/' % API_VERSION]),
       'token': "/".join([self._base_url, '%s/token/' % API_VERSION]),
-      'info': "/".join([self._base_url, '%s/info/' % API_VERSION]),
+      'info': "/".join([self._base_url, '%s/info/' % API_VERSION])
       }
     self.access_token = None
     self.api_info = None
 
   def set_model(self, model):
     self._model = self._sanitize_param(model, 'default')
+
+  @property
+  def language(self):
+    return self._language
+
+  @language.setter
+  def language(self, lang_code):
+    self._language = self._parse_language(lang_code)
+
+  def _parse_language(self, lang_code):
+    """
+    Checks to see if the language code is supported and sanitizes it.
+
+    Args:
+      lang_code: language code
+
+    Returns:
+      lang_code: validated and sanitized language code
+
+    Raises:
+      ApiClientError: if the language code that was provided is not supported
+    """
+    if lang_code is not None and lang_code not in self._SUPPORTED_LANGUAGES:
+      raise ApiClientError('Invalid language code {code}. Should be one of {supported}'
+                           .format(code=lang_code, supported=self._SUPPORTED_LANGUAGES.items()))
+    return self._sanitize_param(lang_code, default=None)
 
   def get_access_token(self, renew=False):
     """ Get an access token using your app_id and app_secret.
@@ -150,6 +209,9 @@ class ClarifaiApi(object):
     self.api_info = response['results']
     return self.api_info
 
+  def get_languages(self):
+    return self._SUPPORTED_LANGUAGES
+
   def _url_for_op(self, ops):
     if not isinstance(ops, list):
       ops = [ops]
@@ -158,7 +220,8 @@ class ClarifaiApi(object):
     else:
       return self._urls.get(ops[0], self._urls.get('multiop'))
 
-  def tag(self, files, model=None, local_ids=None, meta=None, select_classes=None):
+  def tag(self, files, model=None, local_ids=None, meta=None, select_classes=None,
+          language=None):
     """ Autotag a single data file from an open file object or multiples data files from a list of
     open file objects.
 
@@ -175,6 +238,10 @@ class ClarifaiApi(object):
     back in order).
       meta: a string of any extra information to accompany the request. This has to be a string, so
     if passing structured data, pass a json.dumps(meta) string.
+      select_classes: to select only a subset of all possible classes, enter a comma separated list 
+    of classes you want to predict. Ex: "dog,cat,tree,car,boat"
+      language: set the default language using it's two letter (with options -XX variant) ISO 639-1
+    code to use for all requests.
 
     Returns:
       results: an API reponse including the generated tags. See the docs at
@@ -187,7 +254,8 @@ class ClarifaiApi(object):
                         open('/path/to/local/image2.jpeg')])
     """
     return self._multi_data_op(files, ['tag'], model=model, local_ids=local_ids, meta=meta, 
-                               select_classes=select_classes)
+                               select_classes=select_classes,
+                               language=language)
 
   tag_images = tag
 
@@ -223,7 +291,8 @@ class ClarifaiApi(object):
 
   embed_images = embed
 
-  def tag_and_embed(self, files, model=None, local_ids=None, meta=None, select_classes=None):
+  def tag_and_embed(self, files, model=None, local_ids=None, meta=None, select_classes=None,
+                    language=None):
     """ Tag AND embed data files in one request. Note: each operation is treated separate for
     billing purposes.
 
@@ -240,6 +309,10 @@ class ClarifaiApi(object):
     back in order).
       meta: a string of any extra information to accompany the request. This has to be a string, so
     if passing structured data, pass a json.dumps(meta) string.
+      select_classes: to select only a subset of all possible classes, enter a comma separated list 
+    of classes you want to predict. Ex: "dog,cat,tree,car,boat"
+      language: set the default language using it's two letter (with options -XX variant) ISO 639-1
+    code to use for all requests.
 
      Returns:
       results: an API reponse including the generated tags and embeddings. See the docs at
@@ -252,11 +325,13 @@ class ClarifaiApi(object):
                                          open('/path/to/local/image2.jpeg')])
     """
     return self._multi_data_op(files, ['tag','embed'], model=model, local_ids=local_ids, meta=meta,
-                               select_classes=select_classes)
+                               select_classes=select_classes,
+                               language=language)
 
   tag_and_embed_images = tag_and_embed
 
-  def tag_urls(self, urls, model=None, local_ids=None, meta=None, select_classes=None):
+  def tag_urls(self, urls, model=None, local_ids=None, meta=None, select_classes=None,
+               language=None):
     """ Tag data from a url or data from a list of urls.
 
     Args:
@@ -268,6 +343,10 @@ class ClarifaiApi(object):
     back in order).
       meta: a string of any extra information to accompany the request. This has to be a string, so
     if passing structured data, pass a json.dumps(meta) string.
+      select_classes: to select only a subset of all possible classes, enter a comma separated list 
+    of classes you want to predict. Ex: "dog,cat,tree,car,boat"
+      language: set the default language using it's two letter (with options -XX variant) ISO 639-1
+    code to use for all requests.
 
     Returns:
       results: an API reponse including the generated tags. See the docs at
@@ -281,7 +360,8 @@ class ClarifaiApi(object):
 
     """
     return self._multi_dataurl_op(urls, ['tag'], model=model, local_ids=local_ids, meta=meta,
-                                  select_classes=select_classes)
+                                  select_classes=select_classes,
+                                  language=language)
 
   tag_image_urls = tag_urls
 
@@ -313,7 +393,8 @@ class ClarifaiApi(object):
 
   embed_image_urls = embed_urls
 
-  def tag_and_embed_urls(self, urls, model=None, local_ids=None, meta=None, select_classes=None):
+  def tag_and_embed_urls(self, urls, model=None, local_ids=None, meta=None, select_classes=None,
+                         language=None):
     """ Tag AND Embed data from a url or data from a list of urls.
 
     Args:
@@ -325,6 +406,10 @@ class ClarifaiApi(object):
     back in order).
       meta: a string of any extra information to accompany the request. This has to be a string, so
     if passing structured data, pass a json.dumps(meta) string.
+      select_classes: to select only a subset of all possible classes, enter a comma separated list 
+    of classes you want to predict. Ex: "dog,cat,tree,car,boat"
+      language: set the default language using it's two letter (with options -XX variant) ISO 639-1
+    code to use for all requests.
 
     Returns:
       results: an API reponse including the generated tags and embeddings. See the docs at
@@ -337,7 +422,8 @@ class ClarifaiApi(object):
                                             'http://www.clarifai.com/img/metro-north.jpg'])
     """
     return self._multi_dataurl_op(urls, ['tag','embed'], model=model, local_ids=local_ids,
-                                  meta=meta, select_classes=select_classes)
+                                  meta=meta, select_classes=select_classes,
+                                  language=language)
 
   tag_and_embed_image_urls = tag_and_embed_urls
 
@@ -501,13 +587,18 @@ class ClarifaiApi(object):
 
     return param
 
-  def _setup_multi_data(self, ops, num_cases, model=None, local_ids=None, meta=None, **kwargs):
+  def _setup_multi_data(self, ops, num_cases, model=None, local_ids=None, meta=None, language=None,
+                        **kwargs):
     """ Setup the data dict to POST to the server. """
     data =  {'op': ','.join(ops)}
-    if model:
+    if model:  # use the variable passed into method
       data['model'] = self._sanitize_param(model, 'default')
-    elif self._model:
+    elif self._model:  # use the variable passed into __init__
       data['model'] = self._model
+    if language:  # use the variable passed into method
+      data['language'] = self._parse_language(language)
+    elif self.language:  # use the variable passed into __init__
+      data['language'] = self.language
     if local_ids:
       if not isinstance(local_ids, list):
         local_ids = [local_ids]
