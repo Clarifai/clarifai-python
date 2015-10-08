@@ -136,7 +136,7 @@ class ClarifaiApi(object):
     self.api_info = None
 
   def set_model(self, model):
-    self._model = self._sanitize_param(model, 'default')
+    self._model = self._sanitize_param(model)
 
   @property
   def language(self):
@@ -162,7 +162,7 @@ class ClarifaiApi(object):
     if lang_code is not None and lang_code not in self._SUPPORTED_LANGUAGES:
       raise ApiClientError('Invalid language code {code}. Should be one of {supported}'
                            .format(code=lang_code, supported=self._SUPPORTED_LANGUAGES.items()))
-    return self._sanitize_param(lang_code, default=None)
+    return self._sanitize_param(lang_code)
 
   def get_access_token(self, renew=False):
     """ Get an access token using your app_id and app_secret.
@@ -573,26 +573,21 @@ class ClarifaiApi(object):
                       'status_msg':"request with %d images exceeds max batch size of %d" % (
                         len(data_list), MAX_BATCH_SIZE)})
 
-  def _sanitize_param(self, param, default=''):
-    """Convert parameters into a form ready for the wire."""
-    if param:
-      # Can't send unicode. If it can't encode it as ascii something is wrong with this string
-      try:
-        param = param.encode('ascii')
-      except UnicodeDecodeError:
-        return default
+  def _sanitize_param(self, param):
+    """Convert parameters into a form ready for the wire.
 
-      # convert it back to str
-      param = param.decode('ascii')
-
-    return param
+    Raises:
+      UnicodeDecodeError: when the param can't be encoded as ascii
+    """
+    if param is not None:
+      return param.encode('ascii').decode('ascii')
 
   def _setup_multi_data(self, ops, num_cases, model=None, local_ids=None, meta=None, language=None,
                         **kwargs):
     """ Setup the data dict to POST to the server. """
     data =  {'op': ','.join(ops)}
     if model:  # use the variable passed into method
-      data['model'] = self._sanitize_param(model, 'default')
+      data['model'] = self._sanitize_param(model)
     elif self._model:  # use the variable passed into __init__
       data['model'] = self._model
     if language:  # use the variable passed into method
