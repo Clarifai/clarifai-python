@@ -8,12 +8,18 @@ unittest for Clarifai API Python Client
 import os
 import hashlib
 import unittest
-from clarifai.client import ClarifaiApi
+from clarifai.client import ClarifaiApi, ApiError
 
 class TestClarifaiApi(unittest.TestCase):
   """
   test the Clarifai API Python client with all supported features
   """
+
+  image_url = 'http://clarifai-img.s3.amazonaws.com/test/toddler-flowers.jpeg'
+  video_url = 'http://techslides.com/demos/sample-videos/small.mp4'
+
+  def get_client(self, *args, **kwargs):
+    return ClarifaiApi()
 
   def test_api_connection(self):
     api = ClarifaiApi()
@@ -108,41 +114,60 @@ class TestClarifaiApi(unittest.TestCase):
         response = api.tag_images(fb)
         self.assertTrue(response)
 
+  def check_unauth(self, error):
+    """ Some users can't use some features, so check that message. """
+    self.assertEqual(error.msg['status_code'], 'ALL_ERROR')
+    self.assertEqual(error.msg['status_msg'], u'Not authorized to use argument. If you believe this is should not be the case, please contact support: ')
+
+  # You need special permission to run these tests.
   def test_embed_one_image(self):
     image_url = 'http://clarifai-img.s3.amazonaws.com/test/toddler-flowers.jpeg'
-    api = ClarifaiApi()
-    response = api.embed_image_urls(image_url)
-    self.assertTrue(response)
-    self.assertTrue(response['results'][0]['url'] == image_url)
+    api = self.get_client()
+    try:
+      response = api.embed_image_urls(image_url)
+      self.assertTrue(response)
+      self.assertTrue(response['results'][0]['url'] == image_url)
+    except ApiError, e: # User does not have permission.
+      self.check_unauth(e)
 
   def test_embed_one_image_from_localfs(self):
     image_file = 'tests/data/toddler-flowers.jpeg'
-    api = ClarifaiApi()
+    api = self.get_client()
     if os.path.exists(image_file):
       with open(image_file, 'rb') as fb:
-        response = api.embed_images(fb)
-        self.assertTrue(response)
+        try:
+          response = api.embed_images(fb)
+          self.assertTrue(response)
+        except ApiError, e:
+          self.check_unauth(e)
 
   def test_tag_n_embed_one_image(self):
     image_url_base = 'http://clarifai-img.s3.amazonaws.com/test'
     image_files = ['metro-north.jpg', 'octopus.jpg', 'tahoe.jpg', 'thai-market.jpg']
     image_urls = [os.path.join(image_url_base, one_file) for one_file in image_files]
 
-    api = ClarifaiApi()
-    response = api.tag_and_embed_image_urls(image_urls)
-    self.assertTrue(response)
+    api = self.get_client()
+    try:
+      response = api.tag_and_embed_image_urls(image_urls)
+      self.assertTrue(response)
+    except ApiError, e:
+      self.check_unauth(e)
 
   def test_tag_n_embed_from_localfs(self):
     image_dir = 'tests/data'
     image_files = ['metro-north.jpg', 'octopus.jpg', 'tahoe.jpg', 'thai-market.jpg']
 
-    api = ClarifaiApi()
+    api = self.get_client()
     if os.path.exists(image_dir):
       image_files = [open(os.path.join(image_dir, one_file), 'rb') for one_file in image_files]
-      response = api.tag_and_embed_images(image_files)
-      self.assertTrue(response)
-      for fd in image_files:
-        fd.close()
+      try:
+        response = api.tag_and_embed_images(image_files)
+        self.assertTrue(response)
+      except ApiError, e:
+        self.check_unauth(e)
+      finally:
+        for fd in image_files:
+          fd.close()
 
   def test_send_feedback(self):
     """ test sending various feedback """
@@ -173,6 +198,41 @@ class TestClarifaiApi(unittest.TestCase):
     response = api.feedback(urls=urls, similar_docids=docids[:2], dissimilar_docids=docids[1:])
     self.assertTrue(response)
 
+  def test_i18n(self):
+    api = ClarifaiApi(language='aaa')
+
+    api = self.get_client()
+    request_body = api._setup_multi_data([], ['urls'], language='en')
+    self.assertEqual(request_body['language'], 'en', 'language field was not set')
+
+    languages = api.get_languages()
+    self.assertTrue(len(languages), 'did not return any languages')
+    self.assertTrue('en' in languages, 'english code not included in languages')
+
+  def test_concept_ids(self):
+    """new models should return concept_ids"""
+    api = self.get_client()
+
+    api.set_model('general-v1.3')
+    response = api.tag_image_urls(self.image_url)
+    tag = response['results'][0]['result']['tag']
+    self.assertTrue('concept_ids' in tag, 'concept_ids not included in new model')
+    self.assertTrue(tag['concept_ids'][0].startswith('ai_'), 'concept id doesn\'t start with ai_')
+
+    response = api.tag_image_urls(self.video_url)
+    self.assertTrue(response['results'][0]['result']['tag']['concept_ids'][0][0].startswith('ai_'),
+                    "video concept_ids didn't start wit ai_")
+
+
+    api.set_model('general-v1.1')
+    response = api.tag_image_urls(self.image_url)
+    tag = response['results'][0]['result']['tag']
+    self.assertTrue('concept_ids' not in tag, 'concept_ids included in old model')
+
+    response = api.tag_image_urls(self.video_url)
+    tag = response['results'][0]['result']['tag']
+    self.assertTrue('concept_ids' not in tag, 'concept_ids included in old model')
+
+
 if __name__ == '__main__':
   unittest.main()
-
