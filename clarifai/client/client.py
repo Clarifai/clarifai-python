@@ -42,10 +42,10 @@ class ApiError(Exception):
   def __repr__(self):
     return "Error: '%s'" % str(self.msg)
 
-
 class ApiClientError(ApiError):
   """Thrown when client side validation fails"""
   pass
+
 
 class ApiThrottledError(Exception):
   """The usage limit throttle was hit.  Client should wait for wait_seconds before retrying."""
