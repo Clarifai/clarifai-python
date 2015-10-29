@@ -8,24 +8,19 @@ unittest for Clarifai API Python Client
 import os
 import hashlib
 import unittest
-from clarifai.client import ClarifaiApi, ApiClientError
+from clarifai.client import ClarifaiApi
 
 class TestClarifaiApi(unittest.TestCase):
   """
   test the Clarifai API Python client with all supported features
   """
-  image_url = 'http://clarifai-img.s3.amazonaws.com/test/toddler-flowers.jpeg'
-  video_url = 'http://techslides.com/demos/sample-videos/small.mp4'
-
-  def get_client(self, *args, **kwargs):
-    return ClarifaiApi()
 
   def test_api_connection(self):
-    api = self.get_client()
+    api = ClarifaiApi()
     self.assertTrue(api)
 
   def test_get_info(self):
-    api = self.get_client()
+    api = ClarifaiApi()
     response = api.get_info()
     self.assertTrue(response.get('api_version'))
     self.assertTrue(len(response) > 0)
@@ -34,20 +29,14 @@ class TestClarifaiApi(unittest.TestCase):
     """ tag one image, from url and disk """
     # tag image from online URL
     image_url = 'http://clarifai-img.s3.amazonaws.com/test/toddler-flowers.jpeg'
-    api = self.get_client()
+    api = ClarifaiApi()
     response = api.tag_image_urls(image_url)
     self.assertTrue(response)
-    result = response['results'][0]
-    self.assertTrue(result['url'] == image_url)
-
-    tag = result['result']['tag']
-    self.assertTrue('probs' in tag, 'probs not included in response')
-    self.assertTrue('classes' in tag, 'classes not included in response')
-    self.assertTrue(len(tag['probs']) == len(tag['classes']), 'lengths of tag fields did not match')
+    self.assertTrue(response['results'][0]['url'] == image_url)
 
     # tag image from local fs
     image_file = 'tests/data/toddler-flowers.jpeg'
-    api = self.get_client()
+    api = ClarifaiApi()
     if os.path.exists(image_file):
       with open(image_file, 'rb') as fb:
         response = api.tag_images(fb)
@@ -60,7 +49,7 @@ class TestClarifaiApi(unittest.TestCase):
     image_files = ['metro-north.jpg', 'octopus.jpg', 'tahoe.jpg', 'thai-market.jpg']
     image_urls = [os.path.join(image_url_base, one_file) for one_file in image_files]
 
-    api = self.get_client()
+    api = ClarifaiApi()
     response = api.tag_image_urls(image_urls)
     self.assertTrue(response)
 
@@ -68,7 +57,7 @@ class TestClarifaiApi(unittest.TestCase):
     image_dir = 'tests/data'
     image_files = ['metro-north.jpg', 'octopus.jpg', 'tahoe.jpg', 'thai-market.jpg']
 
-    api = self.get_client()
+    api = ClarifaiApi()
     if os.path.exists(image_dir):
       image_files = [open(os.path.join(image_dir, one_file), 'rb') for one_file in image_files]
       response = api.tag_images(image_files)
@@ -79,7 +68,7 @@ class TestClarifaiApi(unittest.TestCase):
   def test_unicode_urls(self):
     image_url = u'http://www.alvaronoboa.com/wp-content/uploads/2013/02/Álvaro-Noboa-y-Annabella-Azín-Votaciones-41-1024x682.jpg'
 
-    api = self.get_client()
+    api = ClarifaiApi()
     response = api.tag_image_urls(image_url)
     self.assertTrue(response)
     self.assertTrue(response['results'][0]['url'] == image_url)
@@ -89,13 +78,13 @@ class TestClarifaiApi(unittest.TestCase):
     # source: http://media.giphy.com/media/fRZn2vraBGiA0/giphy.gif
     image_url = 'http://media.giphy.com/media/fRZn2vraBGiA0/giphy.gif'
 
-    api = self.get_client()
+    api = ClarifaiApi()
     response = api.tag_image_urls(image_url)
     self.assertTrue(response)
     self.assertTrue(response['results'][0]['url'] == image_url)
 
     image_file = 'tests/data/water-ocean-turtle.gif'
-    api = self.get_client()
+    api = ClarifaiApi()
     if os.path.exists(image_file):
       with open(image_file, 'rb') as fb:
         response = api.tag_images(fb)
@@ -105,7 +94,7 @@ class TestClarifaiApi(unittest.TestCase):
     # video source: http://techslides.com/demos/sample-videos/small.mp4
     video_url = 'http://techslides.com/demos/sample-videos/small.mp4'
 
-    api = self.get_client()
+    api = ClarifaiApi()
     response = api.tag_image_urls(video_url)
     self.assertTrue(response)
     self.assertTrue(response['results'][0]['url'] == video_url)
@@ -113,7 +102,7 @@ class TestClarifaiApi(unittest.TestCase):
   def test_tag_one_video_from_localfs(self):
     # video source: http://techslides.com/demos/sample-videos/small.mp4
     video_file = 'tests/data/small.mp4'
-    api = self.get_client()
+    api = ClarifaiApi()
     if os.path.exists(video_file):
       with open(video_file, 'rb') as fb:
         response = api.tag_images(fb)
@@ -121,14 +110,14 @@ class TestClarifaiApi(unittest.TestCase):
 
   def test_embed_one_image(self):
     image_url = 'http://clarifai-img.s3.amazonaws.com/test/toddler-flowers.jpeg'
-    api = self.get_client()
+    api = ClarifaiApi()
     response = api.embed_image_urls(image_url)
     self.assertTrue(response)
     self.assertTrue(response['results'][0]['url'] == image_url)
 
   def test_embed_one_image_from_localfs(self):
     image_file = 'tests/data/toddler-flowers.jpeg'
-    api = self.get_client()
+    api = ClarifaiApi()
     if os.path.exists(image_file):
       with open(image_file, 'rb') as fb:
         response = api.embed_images(fb)
@@ -139,7 +128,7 @@ class TestClarifaiApi(unittest.TestCase):
     image_files = ['metro-north.jpg', 'octopus.jpg', 'tahoe.jpg', 'thai-market.jpg']
     image_urls = [os.path.join(image_url_base, one_file) for one_file in image_files]
 
-    api = self.get_client()
+    api = ClarifaiApi()
     response = api.tag_and_embed_image_urls(image_urls)
     self.assertTrue(response)
 
@@ -147,7 +136,7 @@ class TestClarifaiApi(unittest.TestCase):
     image_dir = 'tests/data'
     image_files = ['metro-north.jpg', 'octopus.jpg', 'tahoe.jpg', 'thai-market.jpg']
 
-    api = self.get_client()
+    api = ClarifaiApi()
     if os.path.exists(image_dir):
       image_files = [open(os.path.join(image_dir, one_file), 'rb') for one_file in image_files]
       response = api.tag_and_embed_images(image_files)
@@ -162,7 +151,7 @@ class TestClarifaiApi(unittest.TestCase):
             'http://clarifai-img.s3.amazonaws.com/test/metro-north.jpg', \
             'http://clarifai-img.s3.amazonaws.com/test/octopus.jpg']
 
-    api = self.get_client()
+    api = ClarifaiApi()
 
     response = api.feedback(urls=urls[0], add_tags='train')
     self.assertTrue(response)
@@ -184,42 +173,6 @@ class TestClarifaiApi(unittest.TestCase):
     response = api.feedback(urls=urls, similar_docids=docids[:2], dissimilar_docids=docids[1:])
     self.assertTrue(response)
 
-  def test_i18n(self):
-    with self.assertRaises(ApiClientError):
-      api = ClarifaiApi(language='aaa')
-
-    api = self.get_client()
-    request_body = api._setup_multi_data([], ['urls'], language='en')
-    self.assertEqual(request_body['language'], 'en', 'language field was not set')
-
-    languages = api.get_languages()
-    self.assertTrue(len(languages), 'did not return any languages')
-    self.assertTrue('en' in languages, 'english code not included in languages')
-
-  def test_concept_ids(self):
-    """new models should return concept_ids"""
-    api = self.get_client()
-
-    api.set_model('general-v1.3')
-    response = api.tag_image_urls(self.image_url)
-    tag = response['results'][0]['result']['tag']
-    self.assertTrue('concept_ids' in tag, 'concept_ids not included in new model')
-    self.assertTrue(tag['concept_ids'][0].startswith('ai_'), 'concept id doesn\'t start with ai_')
-
-    response = api.tag_image_urls(self.video_url)
-    self.assertTrue(response['results'][0]['result']['tag']['concept_ids'][0][0].startswith('ai_'),
-                    "video concept_ids didn't start wit ai_")
-
-
-    api.set_model('general-v1.1')
-    response = api.tag_image_urls(self.image_url)
-    tag = response['results'][0]['result']['tag']
-    self.assertTrue('concept_ids' not in tag, 'concept_ids included in old model')
-
-    response = api.tag_image_urls(self.video_url)
-    tag = response['results'][0]['result']['tag']
-    self.assertTrue('concept_ids' not in tag, 'concept_ids included in old model')
-
-
 if __name__ == '__main__':
   unittest.main()
+
