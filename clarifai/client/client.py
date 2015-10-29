@@ -77,37 +77,14 @@ class ClarifaiApi(object):
     app_id: the client_id for an application you've created in your Clarifai account.
     app_secret: the client_secret for the same application.
     base_url: Base URL of the API endpoints.
-    model: Name of the recognition model to query. Defaults to None so that server side defaults 
-  in your app settings are used. 
+    model: Name of the recognition model to query. Defaults to None so that server side defaults
+  in your app settings are used.
     wait_on_throttle: When the API returns a 429 throttled error, sleep for the amount of time
         reported in the X-Throttle-Wait-Seconds HTTP response header.
     language: set the default language using it's two letter (with options -XX variant) ISO 639-1
   code to use for all requests. Defaults to None so that server side defaults in your app settings
   are used.
   """
-  _SUPPORTED_LANGUAGES = {
-    'ar': 'Arabic',
-    'bn': 'Bengali',
-    'da': 'Danish',
-    'de': 'German',
-    'en': 'English',
-    'es': 'Spanish',
-    'fi': 'Finnish',
-    'fr': 'French',
-    'hi': 'Hindi',
-    'it': 'Italian',
-    'ja': 'Japanese',
-    'nl': 'Dutch',
-    'no': 'Norwegian',
-    'pa': 'Punjabi',
-    'pl': 'Polish',
-    'pt': 'Portuguese',
-    'ru': 'Russian',
-    'sv': 'Swedish',
-    'tr': 'Turkish',
-    'zh': 'Chinese (Simplified)',
-    'zh-TW': 'Chinese (Traditional)'
-  }
 
   def __init__(self, app_id=None, app_secret=None, base_url='https://api.clarifai.com',
                model=None, wait_on_throttle=True, language=None):
@@ -130,7 +107,8 @@ class ClarifaiApi(object):
       'multiop': "/".join([self._base_url, '%s/multiop/' % API_VERSION]),
       'feedback': "/".join([self._base_url, '%s/feedback/' % API_VERSION]),
       'token': "/".join([self._base_url, '%s/token/' % API_VERSION]),
-      'info': "/".join([self._base_url, '%s/info/' % API_VERSION])
+      'info': "/".join([self._base_url, '%s/info/' % API_VERSION]),
+      'languages': "/".join([self._base_url, '%s/info/languages' % API_VERSION])
       }
     self.access_token = None
     self.api_info = None
@@ -144,25 +122,7 @@ class ClarifaiApi(object):
 
   @language.setter
   def language(self, lang_code):
-    self._language = self._parse_language(lang_code)
-
-  def _parse_language(self, lang_code):
-    """
-    Checks to see if the language code is supported and sanitizes it.
-
-    Args:
-      lang_code: language code
-
-    Returns:
-      lang_code: validated and sanitized language code
-
-    Raises:
-      ApiClientError: if the language code that was provided is not supported
-    """
-    if lang_code is not None and lang_code not in self._SUPPORTED_LANGUAGES:
-      raise ApiClientError('Invalid language code {code}. Should be one of {supported}'
-                           .format(code=lang_code, supported=self._SUPPORTED_LANGUAGES.items()))
-    return self._sanitize_param(lang_code, default=None)
+    self._language = self._sanitize_param(lang_code, default=None)
 
   def get_access_token(self, renew=False):
     """ Get an access token using your app_id and app_secret.
@@ -210,7 +170,13 @@ class ClarifaiApi(object):
     return self.api_info
 
   def get_languages(self):
-    return self._SUPPORTED_LANGUAGES
+    response = self._parse_response(self._get_raw_response(
+          self._get_json_headers,
+          self._get_json_response,
+          self._url_for_op('languages'),
+          {}
+        ))
+    return response['languages']
 
   def _url_for_op(self, ops):
     if not isinstance(ops, list):
@@ -238,7 +204,7 @@ class ClarifaiApi(object):
     back in order).
       meta: a string of any extra information to accompany the request. This has to be a string, so
     if passing structured data, pass a json.dumps(meta) string.
-      select_classes: to select only a subset of all possible classes, enter a comma separated list 
+      select_classes: to select only a subset of all possible classes, enter a comma separated list
     of classes you want to predict. Ex: "dog,cat,tree,car,boat"
       language: set the default language using it's two letter (with options -XX variant) ISO 639-1
     code to use for all requests.
@@ -253,7 +219,7 @@ class ClarifaiApi(object):
       clarifai_api.tag([open('/path/to/local/image.jpeg'),
                         open('/path/to/local/image2.jpeg')])
     """
-    return self._multi_data_op(files, ['tag'], model=model, local_ids=local_ids, meta=meta, 
+    return self._multi_data_op(files, ['tag'], model=model, local_ids=local_ids, meta=meta,
                                select_classes=select_classes,
                                language=language)
 
@@ -309,7 +275,7 @@ class ClarifaiApi(object):
     back in order).
       meta: a string of any extra information to accompany the request. This has to be a string, so
     if passing structured data, pass a json.dumps(meta) string.
-      select_classes: to select only a subset of all possible classes, enter a comma separated list 
+      select_classes: to select only a subset of all possible classes, enter a comma separated list
     of classes you want to predict. Ex: "dog,cat,tree,car,boat"
       language: set the default language using it's two letter (with options -XX variant) ISO 639-1
     code to use for all requests.
@@ -343,7 +309,7 @@ class ClarifaiApi(object):
     back in order).
       meta: a string of any extra information to accompany the request. This has to be a string, so
     if passing structured data, pass a json.dumps(meta) string.
-      select_classes: to select only a subset of all possible classes, enter a comma separated list 
+      select_classes: to select only a subset of all possible classes, enter a comma separated list
     of classes you want to predict. Ex: "dog,cat,tree,car,boat"
       language: set the default language using it's two letter (with options -XX variant) ISO 639-1
     code to use for all requests.
@@ -406,7 +372,7 @@ class ClarifaiApi(object):
     back in order).
       meta: a string of any extra information to accompany the request. This has to be a string, so
     if passing structured data, pass a json.dumps(meta) string.
-      select_classes: to select only a subset of all possible classes, enter a comma separated list 
+      select_classes: to select only a subset of all possible classes, enter a comma separated list
     of classes you want to predict. Ex: "dog,cat,tree,car,boat"
       language: set the default language using it's two letter (with options -XX variant) ISO 639-1
     code to use for all requests.
@@ -596,7 +562,7 @@ class ClarifaiApi(object):
     elif self._model:  # use the variable passed into __init__
       data['model'] = self._model
     if language:  # use the variable passed into method
-      data['language'] = self._parse_language(language)
+      data['language'] = self._sanitize_param(language, default=None)
     elif self.language:  # use the variable passed into __init__
       data['language'] = self.language
     if local_ids:
