@@ -9,7 +9,7 @@ setup(
     url='https://github.com/clarifai/clarifai_py',
     author_email='support@clarifai.com',
     version='0.2',
-    install_requires=[],
+    install_requires=['six'],
     namespace_packages=['clarifai'],
     packages=['clarifai.client'],
     scripts=[],
