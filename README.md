@@ -35,7 +35,7 @@ your local drive:
 
 from clarifai.client import ClarifaiApi
 clarifai_api = ClarifaiApi() # assumes environment variables are set.
-result = clarifai_api.tag_images(open('/path/to/local/image.jpeg'))
+result = clarifai_api.tag_images(open('/path/to/local/image.jpeg', 'rb'))
 </pre>
 
 This will return the tagging result for the given image read off your local storage system (see the
@@ -44,8 +44,8 @@ supported by the client can all handle batches of images. Keeping tagging as the
 this would look like:
 
 <pre>
-result = clarifai_api.tag_images([open('/path/to/local/image.jpeg'),
-                                  open('/path/to/local/image2.jpeg')])
+result = clarifai_api.tag_images([open('/path/to/local/image.jpeg', 'rb'),
+                                  open('/path/to/local/image2.jpeg', 'rb')])
 </pre>
 The result will now contain all the results of the tagging for each image in the batch. When
 sending large batches of images, you must adhere to your application limits for the maximum batch
@@ -58,6 +58,15 @@ from clarifai.client import ClarifaiApi
 clarifai_api = ClarifaiApi()  # assumes environment variables are set.
 result = clarifai_api.tag_image_urls('http://www.clarifai.com/img/metro-north.jpg')
 </pre>
+
+If you have multiple urls to tag, you can also call tag_image_urls with an array of urls:
+<pre>
+from clarifai.client import ClarifaiApi
+clarifai_api = ClarifaiApi()  # assumes environment variables are set.
+result = clarifai_api.tag_image_urls(['http://www.clarifai.com/static/img_ours/autotag_examples/metro-north.jpg',
+                                      'http://www.clarifai.com/static/img_ours/autotag_examples/dog.jpg'])
+</pre>
+
 The same result format is returned whether provided image bytes or urls.
 
 Please check out the full documentation for our API at <a href="https://developer.clarifai.com/docs">developer.clarifai.com</a>.
