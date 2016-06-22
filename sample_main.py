@@ -21,7 +21,7 @@ def main(argv):
   else:
     imageurl = 'http://clarifai-img.s3.amazonaws.com/test/toddler-flowers.jpeg'
 
-  api = ClarifaiApi(model='general-v1.3')
+  api = ClarifaiApi()
 
   if imageurl.startswith('http'):
     response = api.tag_image_urls(imageurl)
