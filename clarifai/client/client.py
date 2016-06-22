@@ -386,7 +386,7 @@ class ClarifaiApi(object):
     Example:
       from py.client import ClarifaiApi
       clarifai_api = ClarifaiApi()
-      clarifai_api.tag_and_embed_url(['http://www.clarifai.com/img/metro-north.jpg',
+      clarifai_api.tag_and_embed_urls(['http://www.clarifai.com/img/metro-north.jpg',
                                             'http://www.clarifai.com/img/metro-north.jpg'])
     """
     return self._multi_dataurl_op(urls, ['tag','embed'], model=model, local_ids=local_ids,
