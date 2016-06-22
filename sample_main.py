@@ -2,6 +2,7 @@
 
 import os
 import sys
+import json
 
 from clarifai.client import ClarifaiApi
 
@@ -20,7 +21,7 @@ def main(argv):
   else:
     imageurl = 'http://clarifai-img.s3.amazonaws.com/test/toddler-flowers.jpeg'
 
-  api = ClarifaiApi()
+  api = ClarifaiApi(model='general-v1.3')
 
   if imageurl.startswith('http'):
     response = api.tag_image_urls(imageurl)
@@ -32,7 +33,7 @@ def main(argv):
   else:
     raise Exception("Must input url, directory path, or file path")
 
-  print(response)
+  print(json.dumps(response))
 
 
 if __name__ == '__main__':
