@@ -741,10 +741,8 @@ class ClarifaiApi(object):
     response = self._get_json_response(url, data=data, headers=headers)
     return self._parse_response(response)
 
-  def tag_color(self, files, model=None, local_ids=None, meta=None,
-                select_classes=None, language=None):
-    """ Autotag a single data file from an open file object or multiples data
-        files from a list of open file objects.
+  def color(self, files, local_ids=None, meta=None):
+    """Get color from file or list of files.
 
     The only method used on the file object is read() to get the bytes of the
     compressed data representation. Ensure that all file objects are pointing
@@ -754,7 +752,6 @@ class ClarifaiApi(object):
       files: a single (file, name) tuple or a list of (file, name) tuples,
              where file is an open file-like object containing the encoded data
              bytes.
-      model: specifies the desired model to use for processing of the data.
       local_ids: a single string identifier or list of string identifies that
                  are useful client side. These will be returned in the request
                  to match up results (even though results to come back in
@@ -762,30 +759,27 @@ class ClarifaiApi(object):
       meta: a string of any extra information to accompany the request. This
             has to be a string, so if passing structured data, pass a
             json.dumps(meta) string.
-      select_classes: to select only a subset of all possible classes, enter a
-                      comma separated list of classes you want to predict.
-                      Ex: "dog,cat,tree,car,boat"
-      language: set the default language using it's two letter (with options
-                -XX variant) ISO 639-1 code to use for all requests.
 
     Returns:
       results: an API reponse including the generated tags. See the docs at
       https://developer.clarifai.com/docs/ for more detais.
 
-    Example:
-      from py.client import ClarifaiApi
-      clarifai_api = ClarifaiApi()
-      clarifai_api.tag_color([open('/path/to/local/image.jpeg'),
-                              open('/path/to/local/image2.jpeg')])
+    ## Example:
+    ```
+    from py.client import ClarifaiApi
+    clarifai_api = ClarifaiApi()
+    clarifai_api.color([open('/path/to/local/image.jpeg'),
+                        open('/path/to/local/image2.jpeg')])
+    ```
     """
-    return self._multi_data_op(files, ['color'], model=model,
+    return self._multi_data_op(files, ['color'], model=None,
                                local_ids=local_ids, meta=meta,
-                               select_classes=select_classes,
-                               language=language)
+                               select_classes=None,
+                               language=None)
 
-  def tag_color_urls(self, urls, model=None, local_ids=None, meta=None,
-                     select_classes=None, language=None):
-    """ Tag colour from a url or data from a list of urls.
+  def color_urls(self, urls, local_ids=None, meta=None):
+    """Get color from a url or list of urls.
+
     Args:
       urls: a single url for the input data to be processed or a list of urls
       for a set of data to be processed. Note: all urls must be publically
@@ -811,11 +805,10 @@ class ClarifaiApi(object):
     ```
     from py.client import ClarifaiApi
     clarifai_api = ClarifaiApi()
-    clarifai_api.tag_color_urls(['http://www.clarifai.com/img/metro-north.jpg',
-                                   'http://www.clarifai.com/img/metro-north.jpg'])
+    clarifai_api.color_urls(['http://www.clarifai.com/img/metro-north.jpg',
+                             'http://www.clarifai.com/img/metro-north.jpg'])
     ```
     """
-    return self._multi_dataurl_op(urls, ['color'], model=model,
+    return self._multi_dataurl_op(urls, ['color'], model=None,
                                   local_ids=local_ids, meta=meta,
-                                  select_classes=select_classes,
-                                  language=language)
+                                  select_classes=None, language=None)
