@@ -6,6 +6,7 @@ unittest for Clarifai API Python Client
 """
 
 import os
+import glob
 import hashlib
 import unittest
 from clarifai.client import ClarifaiApi, ApiError
@@ -208,6 +209,27 @@ class TestClarifaiApi(unittest.TestCase):
     languages = api.get_languages()
     self.assertTrue(len(languages), 'did not return any languages')
     self.assertTrue('en' in languages, 'english code not included in languages')
+
+  def test_color(self):
+    """ test color api """
+
+    api = ClarifaiApi()
+
+    # test color api with image urls
+    urls = ['http://clarifai-img.s3.amazonaws.com/test/metro-north.jpg', \
+            'http://clarifai-img.s3.amazonaws.com/test/metro-north.jpg', \
+            'http://clarifai-img.s3.amazonaws.com/test/octopus.jpg']
+    for url in urls:
+      response = api.color_urls(url)
+      self.assertTrue(response)
+      self.assertTrue(response['results'][0]['colors'])
+
+    # test color api with local files
+    files = glob.glob('tests/data/*.jpg')
+    for onefile in files:
+      response = api.color(open(onefile, 'rb'))
+      self.assertTrue(response)
+      self.assertTrue(response['results'][0]['colors'])
 
   def test_concept_ids(self):
     """new models should return concept_ids"""

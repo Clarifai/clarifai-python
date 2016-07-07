@@ -24,7 +24,7 @@ def main(argv):
   api = ClarifaiApi()
 
   if imageurl.startswith('http'):
-    response = api.tag_image_urls(imageurl)
+    response = api.color_urls(imageurl)
   elif os.path.isdir(imageurl):
     response = tag_images_in_directory(imageurl, api)
   elif os.path.isfile(imageurl):
