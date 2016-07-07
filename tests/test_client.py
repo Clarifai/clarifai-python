@@ -227,11 +227,11 @@ class TestClarifaiApi(unittest.TestCase):
     api.set_model('general-v1.1')
     response = api.tag_image_urls(self.image_url)
     tag = response['results'][0]['result']['tag']
-    self.assertTrue('concept_ids' not in tag, 'concept_ids included in old model')
+    self.assertTrue('concept_ids' in tag, 'concept_ids not included in v1.1 model')
 
     response = api.tag_image_urls(self.video_url)
     tag = response['results'][0]['result']['tag']
-    self.assertTrue('concept_ids' not in tag, 'concept_ids included in old model')
+    self.assertTrue('concept_ids' in tag, 'concept_ids not included in v1.1 model')
 
 
 if __name__ == '__main__':
