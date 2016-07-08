@@ -764,13 +764,11 @@ class ClarifaiApi(object):
       results: an API reponse including the generated tags. See the docs at
       https://developer.clarifai.com/docs/ for more detais.
 
-    ## Example:
-    ```
+    Example:
     from py.client import ClarifaiApi
     clarifai_api = ClarifaiApi()
     clarifai_api.color([open('/path/to/local/image.jpeg'),
                         open('/path/to/local/image2.jpeg')])
-    ```
     """
     return self._multi_data_op(files, ['color'], model=None,
                                local_ids=local_ids, meta=meta,
@@ -801,13 +799,11 @@ class ClarifaiApi(object):
       results: an API reponse including the generated tags. See the docs at
       https://developer.clarifai.com/docs/ for more detais.
 
-    ## Example:
-    ```
+    Example:
     from py.client import ClarifaiApi
     clarifai_api = ClarifaiApi()
     clarifai_api.color_urls(['http://www.clarifai.com/img/metro-north.jpg',
                              'http://www.clarifai.com/img/metro-north.jpg'])
-    ```
     """
     return self._multi_dataurl_op(urls, ['color'], model=None,
                                   local_ids=local_ids, meta=meta,
