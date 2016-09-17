@@ -231,6 +231,26 @@ class TestClarifaiApi(unittest.TestCase):
       self.assertTrue(response)
       self.assertTrue(response['results'][0]['colors'])
 
+  def test_face(self):
+    """ test face detection api """
+
+    api = ClarifaiApi()
+
+    # test color api with image urls
+    urls = ['http://clarifai-img.s3.amazonaws.com/test/metro-north.jpg', \
+            'http://clarifai-img.s3.amazonaws.com/test/octopus.jpg']
+    for url in urls:
+      response = api.face_urls(url)
+      self.assertTrue(response)
+      self.assertTrue(response['results'][0]['result']['facedet'])
+
+    # test color api with local files
+    files = glob.glob('tests/data/*.jpg')
+    for onefile in files:
+      response = api.face(open(onefile, 'rb'))
+      self.assertTrue(response)
+      self.assertTrue(response['results'][0]['result']['facedet'])
+
   def test_concept_ids(self):
     """new models should return concept_ids"""
     api = self.get_client()
