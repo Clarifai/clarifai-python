@@ -806,5 +806,67 @@ class ClarifaiApi(object):
                              'http://www.clarifai.com/img/metro-north.jpg'])
     """
     return self._multi_dataurl_op(urls, ['color'], model=None,
+                                  local_ids=local_ids, meta=meta)
+
+  def face(self, files, local_ids=None, meta=None):
+    """Get face detections from file or list of files.
+
+    The only method used on the file object is read() to get the bytes of the
+    compressed data representation. Ensure that all file objects are pointing
+    to the beginning of a valid data file.
+
+    Args:
+      files: a single (file, name) tuple or a list of (file, name) tuples,
+             where file is an open file-like object containing the encoded data
+             bytes.
+      local_ids: a single string identifier or list of string identifies that
+                 are useful client side. These will be returned in the request
+                 to match up results (even though results to come back in
+                 order).
+      meta: a string of any extra information to accompany the request. This
+            has to be a string, so if passing structured data, pass a
+            json.dumps(meta) string.
+
+    Returns:
+      results: an API reponse including the generated tags. See the docs at
+      https://developer.clarifai.com/docs/ for more detais.
+
+    Example:
+    from py.client import ClarifaiApi
+    clarifai_api = ClarifaiApi()
+    clarifai_api.face([open('/path/to/local/image.jpeg'),
+                      open('/path/to/local/image2.jpeg')])
+    """
+    return self._multi_data_op(files, ['facedet'], model=None,
+                               local_ids=local_ids, meta=meta,
+                               select_classes=None,
+                               language=None)
+
+  def face_urls(self, urls, local_ids=None, meta=None):
+    """Get face detections from a url or list of urls.
+
+    Args:
+      urls: a single url for the input data to be processed or a list of urls
+      for a set of data to be processed. Note: all urls must be publically
+      accessible.
+    model: specifies the desired model to use for processing of the data.
+    local_ids: a single string identifier or list of string identifies that
+               are useful client side. These will be returned in the request
+               to match up results (even though results to come back in order).
+    meta: a string of any extra information to accompany the request. This has
+          to be a string, so if passing structured data, pass a
+          json.dumps(meta) string.
+
+    Returns:
+      results: an API reponse including the generated tags. See the docs at
+      https://developer.clarifai.com/docs/ for more detais.
+
+    Example:
+    from py.client import ClarifaiApi
+    clarifai_api = ClarifaiApi()
+    clarifai_api.face_urls(['http://www.clarifai.com/img/metro-north.jpg',
+                            'http://www.clarifai.com/img/metro-north.jpg'])
+    """
+    return self._multi_dataurl_op(urls, ['facedet'], model=None,
                                   local_ids=local_ids, meta=meta,
                                   select_classes=None, language=None)
