@@ -55,6 +55,7 @@ def main(argv):
   parser = argparse.ArgumentParser()
   parser.add_argument("-t", "--tag", help="tag images", action='store_true')
   parser.add_argument("-c", "--color", help="color images", action='store_true')
+  parser.add_argument("-u", "--usage", help="usage", action='store_true')
 
   args, argv = parser.parse_known_args()
 
@@ -65,7 +66,9 @@ def main(argv):
 
   api = ClarifaiApi()
 
-  if not args.color:
+  if args.usage:
+    response = api.get_usage()
+  elif not args.color:
     response = tag_images(api, imageurl)
   elif args.color and not args.tag:
     response = color_images(api, imageurl)

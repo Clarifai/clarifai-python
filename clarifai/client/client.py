@@ -111,7 +111,8 @@ class ClarifaiApi(object):
       'feedback': "/".join([self._base_url, '%s/feedback/' % API_VERSION]),
       'token': "/".join([self._base_url, '%s/token/' % API_VERSION]),
       'info': "/".join([self._base_url, '%s/info/' % API_VERSION]),
-      'languages': "/".join([self._base_url, '%s/info/languages' % API_VERSION])
+      'languages': "/".join([self._base_url, '%s/info/languages' % API_VERSION]),
+      'usage': "/".join([self._base_url, '%s/usage' % API_VERSION])
       }
     self.access_token = None
     self.api_info = None
@@ -180,6 +181,15 @@ class ClarifaiApi(object):
           {}
         ))
     return response['languages']
+
+  def get_usage(self):
+    response = self._parse_response(self._get_raw_response(
+          self._get_json_headers,
+          self._get_json_response,
+          self._url_for_op('usage'),
+          {}
+        ))
+    return response['results']
 
   def _url_for_op(self, ops):
     if not isinstance(ops, list):
