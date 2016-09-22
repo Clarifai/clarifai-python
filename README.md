@@ -59,15 +59,15 @@ If your images live remotely at a public url, you can also use tag_image_urls:
 <pre>
 from clarifai.client import ClarifaiApi
 clarifai_api = ClarifaiApi()  # assumes environment variables are set.
-result = clarifai_api.tag_image_urls('http://www.clarifai.com/img/metro-north.jpg')
+result = clarifai_api.tag_image_urls('https://samples.clarifai.com/metro-north.jpgg')
 </pre>
 
 If you have multiple urls to tag, you can also call tag_image_urls with an array of urls:
 <pre>
 from clarifai.client import ClarifaiApi
 clarifai_api = ClarifaiApi()  # assumes environment variables are set.
-result = clarifai_api.tag_image_urls(['http://www.clarifai.com/static/img_ours/autotag_examples/metro-north.jpg',
-                                      'http://www.clarifai.com/static/img_ours/autotag_examples/dog.jpg'])
+result = clarifai_api.tag_image_urls(['https://samples.clarifai.com/metro-north.jpg',
+                                      'https://samples.clarifai.com/car.jpeg'])
 </pre>
 
 
@@ -105,15 +105,15 @@ If your images live remotely at a public url, you can also use color_urls:
 <pre>
 from clarifai.client import ClarifaiApi
 clarifai_api = ClarifaiApi()  # assumes environment variables are set.
-result = clarifai_api.color_urls('http://www.clarifai.com/img/metro-north.jpg')
+result = clarifai_api.color_urls('https://samples.clarifai.com/metro-north.jpg')
 </pre>
 
 If you have multiple urls to color, you can also call color_urls with an array of urls:
 <pre>
 from clarifai.client import ClarifaiApi
 clarifai_api = ClarifaiApi()  # assumes environment variables are set.
-result = clarifai_api.color_urls(['http://www.clarifai.com/static/img_ours/autotag_examples/metro-north.jpg',
-                                  'http://www.clarifai.com/static/img_ours/autotag_examples/dog.jpg'])
+result = clarifai_api.color_urls(['https://samples.clarifai.com/metro-north.jpg',
+                                  'https://samples.clarifai.com/car.jpeg'])
 </pre>
 
 The same result format is returned whether provided image bytes or urls.
