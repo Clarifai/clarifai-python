@@ -210,6 +210,13 @@ class TestClarifaiApi(unittest.TestCase):
     self.assertTrue(len(languages), 'did not return any languages')
     self.assertTrue('en' in languages, 'english code not included in languages')
 
+  def test_usage(self):
+    api = ClarifaiApi()
+
+    response = api.get_usage()
+    self.assertTrue(response)
+    self.assertTrue(len(response['user_throttles']) == 2)
+
   def test_color(self):
     """ test color api """
 
