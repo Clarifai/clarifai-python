@@ -59,7 +59,7 @@ If your images live remotely at a public url, you can also use tag_image_urls:
 <pre>
 from clarifai.client import ClarifaiApi
 clarifai_api = ClarifaiApi()  # assumes environment variables are set.
-result = clarifai_api.tag_image_urls('https://samples.clarifai.com/metro-north.jpgg')
+result = clarifai_api.tag_image_urls('https://samples.clarifai.com/metro-north.jpg')
 </pre>
 
 If you have multiple urls to tag, you can also call tag_image_urls with an array of urls:
