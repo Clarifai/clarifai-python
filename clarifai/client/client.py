@@ -88,7 +88,7 @@ class ClarifaiApi(object):
   are used.
   """
 
-  def __init__(self, app_id=None, app_secret=None, base_url='https://api.clarifai.com',
+  def __init__(self, app_id=None, app_secret=None, base_url=None,
                model=None, wait_on_throttle=True, language=None):
     if not app_id:
       self.CLIENT_ID = os.environ.get('CLARIFAI_APP_ID', None)
@@ -98,6 +98,8 @@ class ClarifaiApi(object):
       self.CLIENT_SECRET = os.environ.get('CLARIFAI_APP_SECRET', None)
     else:
       self.CLIENT_SECRET = app_secret
+    if base_url is None:
+      base_url = os.environ.get('CLARIFAI_API_BASE', "https://api.clarifai.com")
     self.wait_on_throttle = wait_on_throttle
 
     self._base_url = base_url

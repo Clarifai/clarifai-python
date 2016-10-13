@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import sys
 import urllib
 from email.encoders import encode_noop
