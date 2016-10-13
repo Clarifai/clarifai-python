@@ -44,5 +44,5 @@ print model.predict_by_url('https://samples.clarifai.com/metro-north.jpg')
 
 Features
 ---------------------
-Read the documentation for more code examples and references at https://sdk.clarifai.com/python/docs/2.0.0/index.html
+Read the documentation for more code examples and references at https://sdk.clarifai.com/python/docs/2.0.4/index.html
 
