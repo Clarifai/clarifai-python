@@ -10,9 +10,10 @@ import json
 import logging
 import os
 import requests
-import urlparse
-from StringIO import StringIO
+from configparser import ConfigParser
+from io import BytesIO
 from posixpath import join as urljoin
+from future.moves.urllib.parse import urlparse
 
 logger = logging.getLogger('clarifai')
 logger.handlers = []
@@ -21,7 +22,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.4'
+CLIENT_VERSION = '2.0.6'
 
 
 class ClarifaiApp(object):
@@ -731,7 +732,7 @@ class Inputs(object):
       >>> app.inputs.create_image_bytes(img_bytes="raw image bytes...")
     '''
 
-    fileio = StringIO(img_bytes)
+    fileio = BytesIO(img_bytes)
     image = Image(file_obj=fileio, image_id=image_id, concepts=concepts, not_concepts=not_concepts, crop=crop, allow_dup_url=allow_duplicate_url)
     return self.create_image(image)
 
@@ -986,7 +987,7 @@ class Inputs(object):
       img = Image(file_obj=fileobj, crop=crop)
       res = self.search_by_image(image=img, page=page, per_page=per_page)
     elif imgbytes:
-      fileio = StringIO(imgbytes)
+      fileio = BytesIO(imgbytes)
       img = Image(file_obj=fileio, crop=crop)
       res = self.search_by_image(image=img, page=page, per_page=per_page)
     elif filename:
@@ -1693,30 +1694,65 @@ class ApiClient(object):
 
   update_model_action_options = ['merge_concepts', 'delete_concepts']
 
-  def __init__(self, app_id=None, app_secret=None,
-               base_url=None, quiet=True):
+  def __init__(self, app_id=None, app_secret=None, base_url=None, quiet=True):
+
+    CONF_FILE=os.path.join(os.environ['HOME'], '.clarifai', 'config')
+
     if app_id is None:
-      logger.info("Using env variables for id and secret")
-      app_id = os.environ['CLARIFAI_APP_ID']
-      app_secret = os.environ['CLARIFAI_APP_SECRET']
+      if os.environ.get('CLARIFAI_APP_ID') and os.environ.get('CLARIFAI_APP_SECRET'):
+        logger.debug("Using env variables for id and secret")
+        app_id = os.environ['CLARIFAI_APP_ID']
+        app_secret = os.environ['CLARIFAI_APP_SECRET']
+      elif os.path.exists(CONF_FILE):
+        parser = ConfigParser()
+        parser.optionxform = str
+
+        with open(CONF_FILE, 'r') as fdr:
+          parser.readfp(fdr)
+
+        if parser.has_option('clarifai', 'CLARIFAI_APP_ID') and parser.has_option('clarifai', 'CLARIFAI_APP_SECRET'):
+          app_id = parser.get('clarifai', 'CLARIFAI_APP_ID')
+          app_secret = parser.get('clarifai', 'CLARIFAI_APP_SECRET')
+        else:
+          app_id = api_secret = ''
+      else:
+        app_id = api_secret = ''
+
     if base_url is None:
-      base_url = os.environ.get('CLARIFAI_API_BASE', "api.clarifai.com")
+      if os.environ.get('CLARIFAI_API_BASE'):
+        base_url = os.environ.get('CLARIFAI_API_BASE')
+      elif os.path.exists(CONF_FILE):
+        parser = ConfigParser()
+        parser.optionxform = str
+
+        with open(CONF_FILE, 'r') as fdr:
+          parser.readfp(fdr)
+
+        if parser.has_option('clarifai', 'CLARIFAI_API_BASE'):
+          base_url = parser.get('clarifai', 'CLARIFAI_API_BASE')
+        else:
+          base_url = 'api.clarifai.com'
+      else:
+        base_url = 'api.clarifai.com'
+
     self.app_id = app_id
     self.app_secret = app_secret
+
     if quiet:
       logger.setLevel(logging.INFO)
     else:
       logger.setLevel(logging.DEBUG)
 
-    parsed = urlparse.urlparse(base_url)
+    parsed = urlparse(base_url)
     scheme = 'https' if parsed.scheme == '' else parsed.scheme
     base_url = parsed.path if not parsed.netloc else parsed.netloc
-    self.scheme = scheme
     self.base_url = base_url
+    self.scheme = scheme
     self.basev2 = urljoin(scheme + '://', base_url)
     logger.debug("Base url: %s", self.basev2)
     self.token = None
     self.headers = None
+
     # Make sure when you create a client, it's ready for requests.
     self.get_token()
 
@@ -1735,7 +1771,7 @@ class ApiClient(object):
     authurl = urljoin(self.scheme + '://', self.base_url, 'v2', 'token')
     res = requests.post(authurl, auth=auth, data=data)
     if res.status_code == 200:
-      logger.info("Got V2 token: %s", res.json())
+      logger.debug("Got V2 token: %s", res.json())
       self.token = res.json()['access_token']
       self.headers = {'Authorization': "Bearer %s" % self.token}
     else:

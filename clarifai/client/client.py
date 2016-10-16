@@ -1,7 +1,7 @@
 import sys
 import base64, json, logging, os, time, urllib
 from .mime_util import post_data_multipart, RequestWithMethod
-from six import string_types
+from past.builtins import basestring
 
 try:
   from PIL import Image
@@ -584,14 +584,14 @@ class ClarifaiApi(object):
       if not isinstance(local_ids, list):
         local_ids = [local_ids]
       assert isinstance(local_ids, list)
-      assert isinstance(local_ids[0], string_types), "local_ids must each be strings"
+      assert isinstance(local_ids[0], basestring), "local_ids must each be strings"
       assert len(local_ids) == num_cases, "Number of local_ids must match data"
       data['local_id'] = ','.join(local_ids)
     if meta:
       if isinstance(meta, dict):
         meta_mapped_ascii = json.dumps(meta, ensure_ascii=True)
       else:
-        assert isinstance(meta, string_types), "meta arg must be a string or json string"
+        assert isinstance(meta, basestring), "meta arg must be a string or json string"
         meta_mapped_ascii = self._sanitize_param(meta)
       data['meta'] = meta_mapped_ascii
     for (k, v) in iteritems(kwargs):
@@ -621,7 +621,7 @@ class ClarifaiApi(object):
       if not isinstance(urls, list):
         urls = [urls]
       self._check_batch_size(urls)
-      if not isinstance(urls[0], string_types):
+      if not isinstance(urls[0], basestring):
         raise Exception("urls must be strings")
     data = self._setup_multi_data(ops, len(urls), model, local_ids, meta, **kwargs)
     # Add some addition url specific stuff to data dict:
