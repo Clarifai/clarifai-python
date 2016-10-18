@@ -22,7 +22,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.6'
+CLIENT_VERSION = '2.0.7'
 
 
 class ClarifaiApp(object):
@@ -78,7 +78,7 @@ class Input(object):
   """ The Clarifai Input object
   """
 
-  def __init__(self, input_id=None, concepts=None, not_concepts=None):
+  def __init__(self, input_id=None, concepts=None, not_concepts=None, metadata=None):
     ''' Construct an Image/Video object. it must have one of url or file_obj set.
     Args:
       input_id: unique id to set for the image. If None then the server will create and return one for
@@ -97,6 +97,7 @@ class Input(object):
 
     self.concepts = concepts
     self.not_concepts = not_concepts
+    self.metadata = metadata
 
   def dict(self):
     ''' Return the data of the Input as a dict ready to be input to json.dumps. '''
@@ -120,6 +121,9 @@ class Input(object):
     if terms:
       data['data']['concepts'] = [{'id':name, 'value':value} for name, value in terms]
 
+    if self.metadata:
+      data['data']['metadata'] = self.metadata
+
     return data
 
 
@@ -127,7 +131,7 @@ class Image(Input):
 
   def __init__(self, url=None, file_obj=None, base64=None, crop=None, \
                image_id=None, concepts=None, not_concepts=None, \
-               allow_dup_url=False):
+               metadata=None, allow_dup_url=False):
     '''
       url: the url to a publically accessible image.
       file_obj: a file-like object in which read() will give you the bytes.
@@ -135,7 +139,7 @@ class Image(Input):
             the asset before use.
     '''
 
-    super(Image, self).__init__(image_id, concepts, not_concepts)
+    super(Image, self).__init__(image_id, concepts, not_concepts, metadata=metadata)
 
     if ((url is not None and file_obj is not None) or
         (url is not None and base64 is not None) or
@@ -232,14 +236,17 @@ class InputSearchTerm(SearchTerm):
     >>> InputSearchTerm(concept='tag1')
     >>> # search for not the annotated concept
     >>> InputSearchTerm(concept='tag1', value=False)
+    >>> # search for metadata
+    >>> InputSearchTerm(metadata={'key':'value'})
   """
 
-  def __init__(self, url=None, input_id=None, concept=None, concept_id=None, value=True):
+  def __init__(self, url=None, input_id=None, concept=None, concept_id=None, value=True, metadata=None):
     self.url = url
     self.input_id = input_id
     self.concept = concept
     self.concept_id = concept_id
     self.value = value
+    self.metadata = metadata
 
   def dict(self): 
     if self.url:
@@ -270,6 +277,13 @@ class InputSearchTerm(SearchTerm):
       obj = { "input": {
                 "data": {
                     "concepts": [ {"id":self.concept_id, "value":self.value} ]
+                }
+              }
+            }
+    elif self.metadata:
+      obj = { "input": {
+                "data": {
+                    "metadata": self.metadata
                 }
               }
             }
@@ -672,7 +686,7 @@ class Inputs(object):
     img = self._to_obj(ret['inputs'][0])
     return img
 
-  def create_image_from_url(self, url, image_id=None, concepts=None, not_concepts=None, crop=None, allow_duplicate_url=False):
+  def create_image_from_url(self, url, image_id=None, concepts=None, not_concepts=None, crop=None, metadata=None, allow_duplicate_url=False):
     ''' create an image from Image url
 
     Args:
@@ -681,6 +695,7 @@ class Inputs(object):
       concepts: a list of concepts
       not_concepts: a list of concepts
       crop: crop information, with four corner coordinates
+      metadata: meta data with a dictionary
       allow_duplicate_url: True of False, the flag to allow duplicate url to be imported
 
     Returns:
@@ -690,11 +705,11 @@ class Inputs(object):
       >>> app.inputs.create_image_url(url='https://samples.clarifai.com/metro-north.jpg')
     '''
 
-    image = Image(url=url, image_id=image_id, concepts=concepts, not_concepts=not_concepts, crop=crop, allow_dup_url=allow_duplicate_url)
+    image = Image(url=url, image_id=image_id, concepts=concepts, not_concepts=not_concepts, crop=crop, metadata=metadata, allow_dup_url=allow_duplicate_url)
 
     return self.create_image(image)
 
-  def create_image_from_filename(self, filename, image_id=None, concepts=None, not_concepts=None, crop=None, allow_duplicate_url=False):
+  def create_image_from_filename(self, filename, image_id=None, concepts=None, not_concepts=None, crop=None, metadata=None, allow_duplicate_url=False):
     ''' create an image by local filename
 
     Args:
@@ -703,6 +718,8 @@ class Inputs(object):
       concepts: a list of concepts
       not_concepts: a list of concepts
       crop: crop information, with four corner coordinates
+      metadata: meta data with a dictionary
+      allow_duplicate_url: True of False, the flag to allow duplicate url to be imported
 
     Returns:
       the image object just got created and uploaded
@@ -712,10 +729,10 @@ class Inputs(object):
     '''
 
     fileio = open(filename, 'rb')
-    image = Image(file_obj=fileio, image_id=image_id, concepts=concepts, not_concepts=not_concepts, crop=crop, allow_dup_url=allow_duplicate_url)
+    image = Image(file_obj=fileio, image_id=image_id, concepts=concepts, not_concepts=not_concepts, crop=crop, metadata=metadata, allow_dup_url=allow_duplicate_url)
     return self.create_image(image)
 
-  def create_image_from_bytes(self, img_bytes, image_id=None, concepts=None, not_concepts=None, crop=None, allow_duplicate_url=False):
+  def create_image_from_bytes(self, img_bytes, image_id=None, concepts=None, not_concepts=None, crop=None, metadata=None, allow_duplicate_url=False):
     ''' create an image by image bytes
 
     Args:
@@ -724,6 +741,8 @@ class Inputs(object):
       concepts: a list of concepts
       not_concepts: a list of concepts
       crop: crop information, with four corner coordinates
+      metadata: meta data with a dictionary
+      allow_duplicate_url: True of False, the flag to allow duplicate url to be imported
 
     Returns:
       the image object just got created and uploaded
@@ -733,10 +752,10 @@ class Inputs(object):
     '''
 
     fileio = BytesIO(img_bytes)
-    image = Image(file_obj=fileio, image_id=image_id, concepts=concepts, not_concepts=not_concepts, crop=crop, allow_dup_url=allow_duplicate_url)
+    image = Image(file_obj=fileio, image_id=image_id, concepts=concepts, not_concepts=not_concepts, crop=crop, metadata=metadata, allow_dup_url=allow_duplicate_url)
     return self.create_image(image)
 
-  def create_image_from_base64(self, base64_bytes, image_id=None, concepts=None, not_concepts=None, crop=None, allow_duplicate_url=False):
+  def create_image_from_base64(self, base64_bytes, image_id=None, concepts=None, not_concepts=None, crop=None, metadata=None, allow_duplicate_url=False):
     ''' create an image by base64 bytes
 
     Args:
@@ -745,6 +764,8 @@ class Inputs(object):
       concepts: a list of concepts
       not_concepts: a list of concepts
       crop: crop information, with four corner coordinates
+      metadata: meta data with a dictionary
+      allow_duplicate_url: True of False, the flag to allow duplicate url to be imported
 
     Returns:
       the image object just got created and uploaded
@@ -753,7 +774,7 @@ class Inputs(object):
       >>> app.inputs.create_image_bytes(base64_bytes="base64 encoded image bytes...")
     '''
 
-    image = Image(base64=base64_bytes, image_id=image_id, concepts=concepts, not_concepts=not_concepts, crop=crop, allow_dup_url=allow_duplicate_url)
+    image = Image(base64=base64_bytes, image_id=image_id, concepts=concepts, not_concepts=not_concepts, crop=crop, metadata=metadata, allow_dup_url=allow_duplicate_url)
     return self.create_image(image)
 
   def bulk_create_images(self, images):
@@ -1000,12 +1021,11 @@ class Inputs(object):
 
     return res
 
-  def search_by_metadata(self, meta, page=1, per_page=20):
-    ''' search by other meta data of the image rather than concept
-        currently only the url string match is supported
+  def search_by_original_url(self, url, page=1, per_page=20):
+    ''' search by original url of the imported images
 
     Args:
-      meta: is a dictionary for meta data search, with key the search key and the value for string match
+      url: url of the image
       page: page number
       per_page: the number of images to return per page
 
@@ -1013,17 +1033,43 @@ class Inputs(object):
       a list of Image object
 
     Examples:
-      >>> app.inputs.search_by_metadata(meta={'url':'bla'})
+      >>> app.inputs.search_by_metadata(url='http://bla')
     '''
 
-    if meta.get('url'):
+    qb = SearchQueryBuilder()
+
+    term = InputSearchTerm(url=url)
+    qb.add_term(term)
+    res = self.search(qb, page, per_page)
+
+    return res
+
+  def search_by_metadata(self, metadata, page=1, per_page=20):
+    ''' search by other meta data of the image rather than concept
+
+    Args:
+      metadata: is a dictionary for meta data search.
+            The dictionary could be a simple one with only one key and value,
+            Or a nested dictionary with multi levels.
+      page: page number
+      per_page: the number of images to return per page
+
+    Returns:
+      a list of Image object
+
+    Examples:
+      >>> app.inputs.search_by_metadata(metadata={'name':'bla'})
+      >>> app.inputs.search_by_metadata(metadata={'my_class1': { 'name' : 'bla' }})
+    '''
+
+    if isinstance(metadata, dict):
       qb = SearchQueryBuilder()
 
-      term = InputSearchTerm(url=meta['url'])
+      term = InputSearchTerm(metadata=metadata)
       qb.add_term(term)
       res = self.search(qb, page, per_page)
     else:
-      raise UserError('Metadata query type not supported. Please double check.')
+      raise UserError('Metadata must be a valid dictionary. Please double check.')
 
     return res
 
@@ -1275,12 +1321,15 @@ class Inputs(object):
     if not not_concepts:
       not_concepts = None
 
+    # get metadata
+    metadata=one['data'].get('metadata', None)
+
     input_id = one['id']
     if one['data'].get('image'):
       if one['data']['image'].get('url'):
-        one_input = Image(image_id=input_id, url=one['data']['image']['url'], concepts=concepts, not_concepts=not_concepts)
+        one_input = Image(image_id=input_id, url=one['data']['image']['url'], concepts=concepts, not_concepts=not_concepts, metadata=metadata)
       elif one['data']['image'].get('base64'):
-        one_input = Image(image_id=input_id, base64=one['data']['image']['base64'], concepts=concepts, not_concepts=not_concepts)
+        one_input = Image(image_id=input_id, base64=one['data']['image']['base64'], concepts=concepts, not_concepts=not_concepts, metadata=metadata)
     elif one['data'].get('video'):
       raise UserError('Not supported yet')
     else:
@@ -2007,11 +2056,9 @@ class ApiClient(object):
     '''
 
     resource = "inputs"
-    data = {"inputs": [{"id":input_id} for input_id in input_ids],
-            "action":"delete_inputs"
-           }
+    data = {"ids": [input_id for input_id in input_ids]}
 
-    res = self.patch(resource, data)
+    res = self.delete(resource, data)
     return res.json()
 
   def delete_all_inputs(self):
@@ -2022,7 +2069,9 @@ class ApiClient(object):
     '''
 
     resource = "inputs"
-    res = self.delete(resource)
+    data = {"delete_all":True}
+
+    res = self.delete(resource, data)
     return res.json()
 
   def update_input(self, input_id, action="merge_concepts", concepts=None, not_concepts=None):
@@ -2289,7 +2338,9 @@ class ApiClient(object):
     ''' delete all models '''
 
     resource = "models"
-    res = self.delete(resource)
+    data = {"delete_all":True}
+
+    res = self.delete(resource, data)
     return res.json()
 
   def get_model_inputs(self, model_id, version_id=None, page=1, per_page=20):

@@ -1,0 +1,131 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+from clarifai.rest import ApiClient, TokenError
+
+"""
+the clarifai command line utility
+
+Basically it helps to setup the environmental variables for the API Clients
+"""
+
+import os
+import sys
+from configparser import ConfigParser
+from builtins import input
+
+
+def setup(app_id, app_secret):
+  ''' write back CLARIFAI_APP_ID and CLARIFAI_APP_SECRET to config file
+      config file is at ~/.clarifai/config
+  '''
+
+  os.environ['CLARIFAI_APP_ID'] = app_id
+  os.environ['CLARIFAI_APP_SECRET'] = app_secret
+
+  CONF_DIR=os.path.join(os.environ['HOME'], '.clarifai')
+  if not os.path.exists(CONF_DIR):
+    os.mkdir(CONF_DIR)
+  elif not os.path.isdir(CONF_DIR):
+    raise Exception('%s should be a directory for configurations' % CONF_DIR)
+
+  CONF_FILE=os.path.join(os.environ['HOME'], '.clarifai', 'config')
+
+  parser = ConfigParser()
+  parser.optionxform = str
+
+  if os.path.exists(CONF_FILE):
+    parser.readfp(open(CONF_FILE, 'r'))
+
+  if not parser.has_section('clarifai'):
+    parser.add_section('clarifai')
+
+  parser.set('clarifai', 'CLARIFAI_APP_ID', app_id)
+  parser.set('clarifai', 'CLARIFAI_APP_SECRET', app_secret)
+
+  with open(CONF_FILE, 'w') as fdw:
+    parser.write(fdw)
+
+def configure():
+  ''' configure clarifai related environmental variables
+  '''
+
+  CONF_FILE=os.path.join(os.environ['HOME'], '.clarifai', 'config')
+
+  if os.environ.get('CLARIFAI_APP_ID') and os.environ.get('CLARIFAI_APP_SECRET'):
+    print('Clarifai environmental variables are already set. ')
+    app_id = os.environ['CLARIFAI_APP_ID']
+    app_secret = os.environ['CLARIFAI_APP_SECRET']
+
+    masked_app_id = (len(app_id) - 4) * '*' + app_id[-4:]
+    masked_app_secret = (len(app_secret) - 4) * '*' + app_secret[-4:]
+  elif os.path.exists(CONF_FILE):
+    parser = ConfigParser()
+    parser.optionxform = str
+
+    with open(CONF_FILE, 'r') as fdr:
+      parser.readfp(fdr) 
+
+    if parser.has_option('clarifai', 'CLARIFAI_APP_ID') and parser.has_option('clarifai', 'CLARIFAI_APP_SECRET'):
+      app_id = parser.get('clarifai', 'CLARIFAI_APP_ID')
+      app_secret = parser.get('clarifai', 'CLARIFAI_APP_SECRET')
+
+      masked_app_id = (len(app_id) - 4) * '*' + app_id[-4:]
+      masked_app_secret = (len(app_secret) - 4) * '*' + app_secret[-4:]
+    else:
+      masked_app_id = ''
+      masked_app_secret = ''
+  else:
+    masked_app_id = ''
+    masked_app_secret = ''
+
+  # setup the APP_ID and APP_SECRET
+
+  app_id_input = input('CLARIFAI_APP_ID: [%s]: ' % masked_app_id)
+  app_secret_input = input('CLARIFAI_APP_SECRET: [%s]: ' % masked_app_secret)
+
+  if app_id_input and app_secret_input:
+    setup(app_id_input, app_secret_input)
+
+  # test the id and secret
+  try:
+    api = ApiClient()
+  except TokenError:
+    print('Invalid id/secret to get the token, please verify and try again.')
+
+def print_help():
+  ''' print help of this command '''
+
+  print("""
+NAME
+       clarifai -
+
+DESCRIPTION
+       The clarifai Command Line is a tool to manage your api client setup, like
+       the environmental variables
+
+SYNOPSIS
+          clarifai <command> [parameters]
+
+EXAMPELS
+          clarifai config
+          clarifai help
+""")
+
+  exit(1)
+
+def main():
+
+  if len(sys.argv) < 2:
+    print_help()
+
+  command = sys.argv[1]
+  if command == 'configure' or command == 'config':
+    configure()
+  else:
+    print_help()
+
+
+if __name__ == '__main__':
+  main()
+
