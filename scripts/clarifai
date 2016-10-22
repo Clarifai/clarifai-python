@@ -11,6 +11,7 @@ Basically it helps to setup the environmental variables for the API Clients
 
 import os
 import sys
+import platform
 from configparser import ConfigParser
 from builtins import input
 
@@ -23,13 +24,14 @@ def setup(app_id, app_secret):
   os.environ['CLARIFAI_APP_ID'] = app_id
   os.environ['CLARIFAI_APP_SECRET'] = app_secret
 
-  CONF_DIR=os.path.join(os.environ['HOME'], '.clarifai')
+  homedir = os.environ['HOMEPATH'] if platform.system() == 'Windows' else os.environ['HOME']
+  CONF_DIR=os.path.join(homedir, '.clarifai')
   if not os.path.exists(CONF_DIR):
     os.mkdir(CONF_DIR)
   elif not os.path.isdir(CONF_DIR):
     raise Exception('%s should be a directory for configurations' % CONF_DIR)
 
-  CONF_FILE=os.path.join(os.environ['HOME'], '.clarifai', 'config')
+  CONF_FILE=os.path.join(CONF_DIR, 'config')
 
   parser = ConfigParser()
   parser.optionxform = str

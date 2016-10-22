@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import requests
+import platform
 from configparser import ConfigParser
 from io import BytesIO
 from posixpath import join as urljoin
@@ -22,7 +23,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.7'
+CLIENT_VERSION = '2.0.8'
 
 
 class ClarifaiApp(object):
@@ -1033,7 +1034,7 @@ class Inputs(object):
       a list of Image object
 
     Examples:
-      >>> app.inputs.search_by_metadata(url='http://bla')
+      >>> app.inputs.search_by_original_url(url='http://bla')
     '''
 
     qb = SearchQueryBuilder()
@@ -1745,7 +1746,8 @@ class ApiClient(object):
 
   def __init__(self, app_id=None, app_secret=None, base_url=None, quiet=True):
 
-    CONF_FILE=os.path.join(os.environ['HOME'], '.clarifai', 'config')
+    homedir = os.environ['HOMEPATH'] if platform.system() == 'Windows' else os.environ['HOME']
+    CONF_FILE=os.path.join(homedir, '.clarifai', 'config')
 
     if app_id is None:
       if os.environ.get('CLARIFAI_APP_ID') and os.environ.get('CLARIFAI_APP_SECRET'):
