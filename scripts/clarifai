@@ -52,7 +52,8 @@ def configure():
   ''' configure clarifai related environmental variables
   '''
 
-  CONF_FILE=os.path.join(os.environ['HOME'], '.clarifai', 'config')
+  homedir = os.environ['HOMEPATH'] if platform.system() == 'Windows' else os.environ['HOME']
+  CONF_FILE=os.path.join(homedir, '.clarifai', 'config')
 
   if os.environ.get('CLARIFAI_APP_ID') and os.environ.get('CLARIFAI_APP_SECRET'):
     print('Clarifai environmental variables are already set. ')
