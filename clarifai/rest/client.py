@@ -3,7 +3,7 @@
 """
 Clarifai API Python Client
 """
- 
+
 import base64
 import time
 import json
@@ -23,7 +23,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.9'
+CLIENT_VERSION = '2.0.10'
 
 
 class ClarifaiApp(object):
@@ -130,7 +130,7 @@ class Input(object):
 
 class Image(Input):
 
-  def __init__(self, url=None, file_obj=None, base64=None, crop=None, \
+  def __init__(self, url=None, file_obj=None, base64=None, filename=None, crop=None, \
                image_id=None, concepts=None, not_concepts=None, \
                metadata=None, allow_dup_url=False):
     '''
@@ -142,29 +142,38 @@ class Image(Input):
 
     super(Image, self).__init__(image_id, concepts, not_concepts, metadata=metadata)
 
-    if ((url is not None and file_obj is not None) or
-        (url is not None and base64 is not None) or
-        (file_obj is not None and base64 is not None) or
-        (url is None and file_obj is None and base64 is None)):
-      raise UserError("You must only set one of: [url, file_obj, base64] argumets.")
+    file_options = [url, file_obj, base64, filename]
+    if not any(file_options) or \
+        file_options.count(None) != len(file_options) - 1:
+      raise UserError("You must only set one of: [url, file_obj, base64, filename] argumets.")
 
     if crop is not None and (not isinstance(crop, list) or len(crop) != 4):
       raise UserError("crop arg must be list of 4 floats or None")
 
     self.url = url
+    self.filename = filename
     self.file_obj = file_obj
     self.base64 = base64
     self.crop = crop
     self.allow_dup_url = allow_dup_url
 
+    # override the filename with the fileobj as fileobj
+    if self.filename is not None:
+      if not os.path.exists(filename):
+        raise UserError("Invalid file path %s. Please check!")
+      elif not os.path.isfile(filename):
+        raise UserError("Not a regular file %s. Please check!")
+
+      self.file_obj = open(filename, 'rb')
+      self.filename = None
+
     if self.file_obj is not None:
-      if not hasattr(self.file_obj, 'getvalue') and not hasattr(self.file_obj, 'read'): 
+      if not hasattr(self.file_obj, 'getvalue') and not hasattr(self.file_obj, 'read'):
         raise UserError("Not sure how to read your file_obj")
 
       if hasattr(self.file_obj, 'mode') and self.file_obj.mode != 'rb':
         raise UserError(("If you're using open(), then you need to read bytes using the 'rb' mode. "
                          "For example: open(filename, 'rb')"))
-
 
   def dict(self):
 
@@ -214,7 +223,7 @@ class SearchTerm(object):
   It is used to build SearchQueryBuilder
   """
 
-  def __init__(self): 
+  def __init__(self):
     pass
 
   def dict(self):
@@ -249,7 +258,7 @@ class InputSearchTerm(SearchTerm):
     self.value = value
     self.metadata = metadata
 
-  def dict(self): 
+  def dict(self):
     if self.url:
       obj = { "input": {
                 "data": {
@@ -295,7 +304,7 @@ class OutputSearchTerm(SearchTerm):
   """
   Clarifai Image Search Output search term
   For output search, you can specify search term for url, base64, and input_id for
-  visual search, 
+  visual search,
   or specify concept and concept_id for string match
   value indicates whether the concept search is a NOT search
 
@@ -446,7 +455,7 @@ class Models(object):
     self.api = api
 
     # the cache of the model name -> model id mapping
-    # to avoid an extra model query on every prediction by model name 
+    # to avoid an extra model query on every prediction by model name
     self.model_id_cache = {}
 
   def clear_model_cache(self):
@@ -605,13 +614,13 @@ class Models(object):
 
     Returns:
       the Model object
- 
+
     Examples:
       >>> # get general-v1.3 model
       >>> app.models.get('general-v1.3')
     '''
 
-    if self.model_id_cache.get(model_id): 
+    if self.model_id_cache.get(model_id):
       model_id = self.model_id_cache[model_id]
 
     try:
@@ -703,7 +712,7 @@ class Inputs(object):
       the image object just got created and uploaded
 
     Examples::
-      >>> app.inputs.create_image_url(url='https://samples.clarifai.com/metro-north.jpg')
+      >>> app.inputs.create_image_from_url(url='https://samples.clarifai.com/metro-north.jpg')
     '''
 
     image = Image(url=url, image_id=image_id, concepts=concepts, not_concepts=not_concepts, crop=crop, metadata=metadata, allow_dup_url=allow_duplicate_url)
@@ -859,7 +868,7 @@ class Inputs(object):
       a list of Input object
 
     Examples:
-      >>> for image in app.inputs.get_by_page(2, 10): 
+      >>> for image in app.inputs.get_by_page(2, 10):
       >>>   print image.input_id
     '''
 
@@ -1459,10 +1468,9 @@ class Concepts(object):
     concept_name = item['name']
     app_id = item['app_id']
     created_at = item['created_at']
-    updated_at = item['updated_at']
 
     return Concept(concept_name, concept_id, app_id, \
-                   created_at, updated_at)
+                   created_at)
 
 
 class Model(object):
@@ -1620,10 +1628,10 @@ class Model(object):
     ''' predict with multiple images
 
     Args:
-      inputs: a list of Image object 
+      inputs: a list of Image object
 
     Returns:
-      the prediction of the model in JSON format 
+      the prediction of the model in JSON format
     '''
 
     res = self.api.predict_model(self.model_id, inputs, self.model_version)
@@ -1720,12 +1728,11 @@ class Concept(object):
   """ Clarifai Concept
   """
 
-  def __init__(self, concept_name, concept_id=None, app_id=None, created_at=None, updated_at=None):
+  def __init__(self, concept_name, concept_id=None, app_id=None, created_at=None):
     self.concept_name = concept_name
     self.concept_id = concept_id
     self.app_id = app_id
     self.created_at = created_at
-    self.updated_at = updated_at
 
 
 class ApiClient(object):
@@ -2569,4 +2576,3 @@ class InputCounts(object):
                    }
         }
     return d
-
