@@ -23,7 +23,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.10'
+CLIENT_VERSION = '2.0.11'
 
 
 class ClarifaiApp(object):
@@ -159,12 +159,12 @@ class Image(Input):
 
     # override the filename with the fileobj as fileobj
     if self.filename is not None:
-      if not os.path.exists(filename):
+      if not os.path.exists(self.filename):
         raise UserError("Invalid file path %s. Please check!")
-      elif not os.path.isfile(filename):
+      elif not os.path.isfile(self.filename):
         raise UserError("Not a regular file %s. Please check!")
 
-      self.file_obj = open(filename, 'rb')
+      self.file_obj = open(self.filename, 'rb')
       self.filename = None
 
     if self.file_obj is not None:
@@ -1237,8 +1237,10 @@ class Inputs(object):
       an Image object
     '''
 
-    ret = self.api.update_input(input_id, 'delete_concepts', concepts)
-    one = ret['input']
+    ret = self.api.update_inputs('delete_concepts', [input_id], [concepts])
+
+    res = self.api.get_input(input_id)
+    one = res['input']
     return self._to_obj(one)
 
   def bulk_merge_concepts(self, input_ids, concept_lists):
@@ -1290,8 +1292,17 @@ class Inputs(object):
       >>> app.inputs.merge_concepts('id', ['cat', 'kitty'], ['dog'])
     '''
 
-    ret = self.api.update_input(input_id, 'merge_concepts', concepts, not_concepts)
-    one = ret['input']
+    # fill label_list
+    label_list = []
+    for one in concepts:
+      label_list.append((one, True))
+    for one in not_concepts:
+      label_list.append((one, False))
+
+    ret = self.api.update_inputs('merge_concepts', [input_id], [label_list])
+
+    res = self.api.get_input(input_id)
+    one = res['input']
     return self._to_obj(one)
 
   def add_concepts(self, input_id, concepts, not_concepts):
@@ -1337,9 +1348,17 @@ class Inputs(object):
     input_id = one['id']
     if one['data'].get('image'):
       if one['data']['image'].get('url'):
-        one_input = Image(image_id=input_id, url=one['data']['image']['url'], concepts=concepts, not_concepts=not_concepts, metadata=metadata)
+        if one['data']['image'].get('crop'):
+          crop = one['data']['image']['crop']
+          one_input = Image(image_id=input_id, url=one['data']['image']['url'], concepts=concepts, not_concepts=not_concepts, crop=crop, metadata=metadata)
+        else:
+          one_input = Image(image_id=input_id, url=one['data']['image']['url'], concepts=concepts, not_concepts=not_concepts, metadata=metadata)
       elif one['data']['image'].get('base64'):
-        one_input = Image(image_id=input_id, base64=one['data']['image']['base64'], concepts=concepts, not_concepts=not_concepts, metadata=metadata)
+        if one['data']['image'].get('crop'):
+          crop = one['data']['image']['crop']
+          one_input = Image(image_id=input_id, base64=one['data']['image']['base64'], concepts=concepts, not_concepts=not_concepts, crop=crop, metadata=metadata)
+        else:
+          one_input = Image(image_id=input_id, base64=one['data']['image']['base64'], concepts=concepts, not_concepts=not_concepts, metadata=metadata)
     elif one['data'].get('video'):
       raise UserError('Not supported yet')
     else:
@@ -1486,6 +1505,7 @@ class Model(object):
       self.model_version = item['model_version']['id']
 
       self.output_info = item.get('output_info', {})
+      self.concepts = []
 
       if self.output_info.get('output_config'):
         self.concepts_mutually_exclusive = self.output_info['output_config']['concepts_mutually_exclusive']
@@ -1494,8 +1514,26 @@ class Model(object):
         self.concepts_mutually_exclusive = False
         self.closed_environment = False
 
+      if self.output_info.get('data', {}).get('concepts'):
+        for concept in self.output_info['data']['concepts']:
+          concept = Concept(concept_name=concept['name'], concept_id=concept['id'], app_id=concept['app_id'], created_at=concept['created_at'])
+          self.concepts.add(concept)
+
   def get_info(self, verbose=False):
-    ''' get model info '''
+    ''' get model info, with or without concepts info
+
+    Args:
+      verbose: default is False. True will yield output_info, with concepts of the model
+
+    Returns:
+      raw json of the response
+
+    Examples:
+      >>> # with basic model info
+      >>> model.get_info()
+      >>> # model info with concepts
+      >>> model.get_info(verbose=True)
+    '''
 
     if verbose is False:
       ret = self.api.get_model(self.model_id)
@@ -1503,6 +1541,27 @@ class Model(object):
       ret = self.api.get_model_output_info(self.model_id)
 
     return ret
+
+  def get_concept_ids(self):
+    ''' get concepts IDs associated with the model
+
+    Args:
+      Void
+
+    Returns:
+      a list of concept IDs
+
+    Examples:
+      >>> ids = model.get_concept_ids()
+    '''
+
+    if self.concepts:
+      concepts = [c.dict() for c in self.concepts]
+    else:
+      res = self.get_info(verbose=True)
+      concepts = res['model']['output_info'].get('data', {}).get('concepts', [])
+
+    return [c['id'] for c in concepts]
 
   def dict(self):
 
@@ -1650,7 +1709,7 @@ class Model(object):
       the Model object
     '''
 
-    res = self.api.update_model(self.model_id, 'merge_concepts', concept_ids)
+    res = self.api.update_model_concepts(self.model_id, 'merge_concepts', concept_ids)
     return self._to_obj(res['model'])
 
   def add_concepts(self, concept_ids):
@@ -1668,6 +1727,57 @@ class Model(object):
 
     return self.merge_concepts(concept_ids)
 
+  def update(self, model_name=None, concepts_mutually_exclusive=None, closed_environment=None, concept_ids=None):
+    ''' update the model attributes
+
+    This is to update the model attributes. The name of the model, and list of concepts could be changed.
+    Also the training attributes concepts_mutually_exclusive and closed_environment could be changed.
+    Note this is a overwriting change. For a valid call, at least one or more attributes should be specified.
+    Otherwise the call will be just skipped without error.
+
+    Args:
+      model_name: name of the model
+      concepts_mutually_exclusive: whether it's multually exclusive model
+      closed_environment: whether it's closed environment training
+      concept_ids: a list of concept ids
+
+    Returns:
+      the Model object
+
+    Examples:
+      >>> model = self.app.models.get('model_id')
+      >>> model.update(model_name="new_model_name")
+      >>> model.update(concepts_mutually_exclusive=False)
+      >>> model.update(closed_environment=True)
+      >>> model.update(concept_ids=["bird", "hurd"])
+      >>> model.update(concepts_mutually_exclusive=True, concept_ids=["bird", "hurd"])
+    '''
+
+    if not any([model_name, concepts_mutually_exclusive, closed_environment, concept_ids]):
+      return
+
+    model = {"id": self.model_id,
+             "output_info": {
+               "output_config": {},
+               "data": {}
+             }
+            }
+
+    if model_name:
+      model["name"] = model_name
+
+    if concepts_mutually_exclusive is not None:
+      model["output_info"]["output_config"]["concepts_mutually_exclusive"] = concepts_mutually_exclusive
+
+    if closed_environment is not None:
+      model["output_info"]["output_config"]["closed_environment"] = closed_environment
+
+    if concept_ids is not None:
+      model["output_info"]["data"]["concepts"] = [{"id": concept_id} for concept_id in concept_ids]
+
+    ret = self.api.update_model(self.model_id, model)
+    return ret
+
   def delete_concepts(self, concept_ids):
     ''' delete concepts from a model
 
@@ -1677,7 +1787,7 @@ class Model(object):
     Returns:
       the Model object
     '''
-    res = self.api.update_model(self.model_id, 'delete_concepts', concept_ids)
+    res = self.api.update_model_concepts(self.model_id, 'delete_concepts', concept_ids)
     return self._to_obj(res['model'])
 
   def list_versions(self):
@@ -1734,6 +1844,15 @@ class Concept(object):
     self.app_id = app_id
     self.created_at = created_at
 
+  def dict(self):
+    c = {'id': self.concept_id,
+         'name': self.concept_name,
+         'created_at': self.created_at,
+         'app_id': self.app_id
+        }
+
+    return c
+
 
 class ApiClient(object):
   """ Handles auth and making requests for you.
@@ -1749,7 +1868,7 @@ class ApiClient(object):
     quiet: if True then silence debug prints.
   """
 
-  update_model_action_options = ['merge_concepts', 'delete_concepts']
+  update_model_concepts_action_options = ['merge_concepts', 'delete_concepts']
 
   def __init__(self, app_id=None, app_secret=None, base_url=None, quiet=True):
 
@@ -1877,13 +1996,18 @@ class ApiClient(object):
     Returns:
       JSON from user request
     '''
+
     self._check_token()
     url = urljoin(self.basev2, version, resource)
-    # If 200 return, otherwise see if we need another token then retry.
+
+    # only retry under when status_code is non-200, under max-tries
+    # and under some circustances
     status_code = 199
-    attempts = 1
+    retry = True
+    attempts = 3
     headers = {}
-    while status_code != 200 and attempts > 0:
+
+    while status_code != 200 and attempts > 0 and retry is True:
       if method == 'GET':
         headers = {'Content-Type': 'application/json',
                    'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
@@ -1915,21 +2039,39 @@ class ApiClient(object):
         res = requests.patch(url, data=json.dumps(params), headers=headers)
       else:
         raise UserError("Unsupported request type: '%s'" % method)
+
       logger.debug("\n%s:\n url: %s\n headers: %s\n data: %s",
                    method, url, str(headers), str(params))
       logger.debug("\nRESULT:\n%s", str(res.content))
+
       try:
         js = res.json()
       except Exception:
-        logger.exception("Could not get json from non-200 response.")
+        logger.exception("Could not get valid JSON from server response.")
         return res
-      if isinstance(js, dict) and js.get('status_code', None) == "TOKEN_EXPIRED":
-        self.get_token()
+
       status_code = res.status_code
       attempts -= 1
+
+      # allow retry when token expires
+      if isinstance(js, dict) and js.get('status_code', None) == "TOKEN_EXPIRED":
+        self.get_token()
+        retry = True
+        continue
+
+      # handle Gateway Error, normally retry will solve the problem
+      if js['status']['code'] == 10020 and js['status']['description'] == 'Bad gateway':
+        print 'bbbbbbbbbbbbbbbbbbbbbbb'
+        retry = True
+        continue
+
+      # in other cases, error out without retrying
+      retry = False
+
     if res.status_code != 200:
       raise ApiError(resource, params, method, res)
-    return res
+
+    return res.json()
 
   def get(self, resource, params=None, version="v2"):
     ''' Authorized get from Clarifai's API. '''
@@ -1968,7 +2110,7 @@ class ApiClient(object):
     resource = "inputs"
     data = {"inputs": [obj.dict() for obj in objs]}
     res = self.post(resource, data)
-    return res.json()
+    return res
 
   def search_inputs(self, query, page=1, per_page=20):
     ''' Search an application and get predictions (optional)
@@ -1990,7 +2132,7 @@ class ApiClient(object):
         }
 
     res = self.post(resource, d)
-    return res.json()
+    return res
 
   def get_input(self, input_id):
     ''' Get a single image by it's id.
@@ -2008,7 +2150,7 @@ class ApiClient(object):
 
     resource = "inputs/%s" % input_id
     res = self.get(resource)
-    return res.json()
+    return res
 
   def get_inputs(self, page=1, per_page=20):
     ''' List all images for the Application, with pagination
@@ -2024,7 +2166,7 @@ class ApiClient(object):
     resource = "inputs"
     d = {'page': page, 'per_page': per_page}
     res = self.get(resource, d)
-    return res.json()
+    return res
 
   def get_inputs_status(self):
     ''' Get counts of inputs in the Application.
@@ -2035,7 +2177,7 @@ class ApiClient(object):
 
     resource = "inputs/status"
     res = self.get(resource)
-    return res.json()
+    return res
 
   def delete_input(self, input_id):
     ''' Delete a single input by its id.
@@ -2052,7 +2194,7 @@ class ApiClient(object):
 
     resource = "inputs/%s" % input_id
     res = self.delete(resource)
-    return res.json()
+    return res
 
   def delete_inputs(self, input_ids):
     ''' bulk delete inputs with a list of input IDs
@@ -2068,7 +2210,7 @@ class ApiClient(object):
     data = {"ids": [input_id for input_id in input_ids]}
 
     res = self.delete(resource, data)
-    return res.json()
+    return res
 
   def delete_all_inputs(self):
     ''' delete all inputs from the application
@@ -2081,43 +2223,7 @@ class ApiClient(object):
     data = {"delete_all":True}
 
     res = self.delete(resource, data)
-    return res.json()
-
-  def update_input(self, input_id, action="merge_concepts", concepts=None, not_concepts=None):
-    ''' update the concepts for a given image
-
-    Args:
-      input_id: unique identifier of the input
-      action: "merge_concepts" or "delete_concepts"
-      concepts: a list of concept names indicating the input is associated with
-      not_concepts: a list of concept names indicating the input is not associated with
-
-    Returns:
-      status of the deletion, in JSON format.
-    '''
-
-    # query by AND and NOT terms
-    if concepts is not None:
-      pos_terms = [(term, True) for term in concepts]
-    else:
-      pos_terms = []
-
-    if not_concepts is not None:
-      neg_terms = [(term, False) for term in not_concepts]
-    else:
-      neg_terms = []
-
-    terms = pos_terms + neg_terms
-
-    resource = "inputs/%s/data/concepts" % input_id
-
-    data = {
-             'concepts': [{'id': name, 'value': val} for name, val in terms],
-             'action': action
-           }
-
-    res = self.patch(resource, data)
-    return res.json()
+    return res
 
   def update_inputs(self, action, input_ids, concept_ids_pairs):
     ''' bulk update inputs, to delete or modify concepts
@@ -2135,7 +2241,10 @@ class ApiClient(object):
     '''
 
     resource = "inputs"
-    data = {"inputs":[]}
+    data = {
+            "action":action,
+            "inputs":[]
+           }
 
     assert(len(input_ids) == len(concept_ids_pairs))
 
@@ -2153,9 +2262,11 @@ class ApiClient(object):
                         }
                 }
         data["inputs"].append(entry)
+    else:
+      raise UserError("action not supported. Only merge_concepts and delete_concepts are allowed")
 
     res = self.patch(resource, data)
-    return res.json()
+    return res
 
   def get_concept(self, concept_id):
     ''' Get a single concept by it's id.
@@ -2170,7 +2281,7 @@ class ApiClient(object):
 
     resource = "concepts/%s" % concept_id
     res = self.get(resource)
-    return res.json()
+    return res
 
   def get_concepts(self, page=1, per_page=20):
     ''' List all concepts for the Application.
@@ -2186,7 +2297,7 @@ class ApiClient(object):
     resource = "concepts"
     d = {'page': page, 'per_page': per_page}
     res = self.get(resource, d)
-    return res.json()
+    return res
 
   def add_concepts(self, concept_ids, concept_names):
     ''' Add a list of concepts
@@ -2218,7 +2329,7 @@ class ApiClient(object):
       d['concepts'].append(concept)
 
     res = self.post(resource, d)
-    return res.json()
+    return res
 
   def search_concepts(self, term, page=1, per_page=20):
     ''' Search concepts
@@ -2245,7 +2356,7 @@ class ApiClient(object):
              })
 
     res = self.post(resource, d)
-    return res.json()
+    return res
 
   def get_models(self, page=1, per_page=20):
     ''' get all models with pagination
@@ -2264,7 +2375,7 @@ class ApiClient(object):
              }
 
     res = self.get(resource, params)
-    return res.json()
+    return res
 
   def get_model(self, model_id=None):
     ''' get model basic info by model id
@@ -2279,7 +2390,7 @@ class ApiClient(object):
     resource = "models/%s" % model_id
 
     res = self.get(resource)
-    return res.json()
+    return res
 
   def get_model_output_info(self, model_id=None):
     ''' get model output info by model id
@@ -2294,7 +2405,7 @@ class ApiClient(object):
     resource = "models/%s/output_info" % model_id
 
     res = self.get(resource)
-    return res.json()
+    return res
 
   def get_model_versions(self, model_id, page=1, per_page=20):
     ''' get model vesions
@@ -2314,7 +2425,7 @@ class ApiClient(object):
              }
 
     res = self.get(resource, params)
-    return res.json()
+    return res
 
   def get_model_version(self, model_id, version_id):
     ''' get model info for a specific model version
@@ -2327,21 +2438,21 @@ class ApiClient(object):
     resource = "models/%s/versions/%s" % (model_id, version_id)
 
     res = self.get(resource)
-    return res.json()
+    return res
 
   def delete_model_version(self, model_id, model_version):
     ''' delete a model version '''
 
     resource = "models/%s/versions/%s" % (model_id, model_version)
     res = self.delete(resource)
-    return res.json()
+    return res
 
   def delete_model(self, model_id):
     ''' delete a model '''
 
     resource = "models/%s" % model_id
     res = self.delete(resource)
-    return res.json()
+    return res
 
   def delete_all_models(self):
     ''' delete all models '''
@@ -2350,7 +2461,7 @@ class ApiClient(object):
     data = {"delete_all":True}
 
     res = self.delete(resource, data)
-    return res.json()
+    return res
 
   def get_model_inputs(self, model_id, version_id=None, page=1, per_page=20):
     ''' get inputs for the latest model or a specific model version '''
@@ -2363,7 +2474,7 @@ class ApiClient(object):
                  (model_id, version_id, page, per_page)
 
     res = self.get(resource)
-    return res.json()
+    return res
 
   def search_models(self, name=None, model_type=None):
     ''' search model by name and type '''
@@ -2390,7 +2501,7 @@ class ApiClient(object):
       data = {}
 
     res = self.post(resource, data)
-    return res.json()
+    return res
 
   def create_model(self, model_id, model_name=None, concepts=None, \
                    concepts_mutually_exclusive=False, \
@@ -2404,6 +2515,7 @@ class ApiClient(object):
 
     data = {
              "model": {
+               "id": model_id,
                "name": model_name,
                "output_info": {
                  "output_config": {
@@ -2414,21 +2526,18 @@ class ApiClient(object):
              }
            }
 
-    if model_id:
-      data['model']['id'] = model_id
-
     if concepts:
       data['model']['output_info']['data'] = { "concepts": [{"id": concept} for concept in concepts] }
 
     res = self.post(resource, data)
-    return res.json()
+    return res
 
-  def update_model(self, model_id, action, concept_ids):
+  def update_model_concepts(self, model_id, action, concept_ids):
 
     if not model_id:
       raise UserError('model_id could not be empty')
 
-    if action not in self.update_model_action_options:
+    if action not in self.update_model_concepts_action_options:
       raise UserError('action not allowed')
 
     resource = "models/%s/output_info/data/concepts" % model_id
@@ -2438,7 +2547,20 @@ class ApiClient(object):
            }
 
     res = self.patch(resource, data)
-    return res.json()
+    return res
+
+  def update_model(self, model_id, model):
+
+    if not model_id:
+      raise UserError('model_id could not be empty')
+
+    resource = "models"
+    data = {
+             "models": [model]
+           }
+
+    res = self.patch(resource, data)
+    return res
 
   def create_model_version(self, model_id):
     ''' train for a model '''
@@ -2446,8 +2568,7 @@ class ApiClient(object):
     resource = "models/%s/versions" % model_id
 
     res = self.post(resource)
-
-    return res.json()
+    return res
 
   def predict_model(self, model_id, objs, version_id=None):
 
@@ -2463,7 +2584,7 @@ class ApiClient(object):
 
     data = {"inputs": [obj.dict() for obj in objs]}
     res = self.post(resource, data)
-    return res.json()
+    return res
 
   def predict_concepts(self, objs):
 
@@ -2513,7 +2634,7 @@ class ApiError(Exception):
     self.response = response
     msg = "%s %s FAILED. code: %d, reason: %s, response:%s" % (
       method, resource, response.status_code, response.reason,
-      str(response.json()))
+      str(response))
     super(ApiError, self).__init__(msg)
 
   # def __str__(self):
