@@ -2061,7 +2061,6 @@ class ApiClient(object):
 
       # handle Gateway Error, normally retry will solve the problem
       if js['status']['code'] == 10020 and js['status']['description'] == 'Bad gateway':
-        print 'bbbbbbbbbbbbbbbbbbbbbbb'
         retry = True
         continue
 
