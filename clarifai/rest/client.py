@@ -4,16 +4,18 @@
 Clarifai API Python Client
 """
 
-import base64
+import os
 import time
 import json
+import base64
+from pprint import pformat
 import logging
-import os
 import requests
 import platform
-from configparser import ConfigParser
 from io import BytesIO
+from configparser import ConfigParser
 from posixpath import join as urljoin
+from past.builtins import basestring
 from future.moves.urllib.parse import urlparse
 
 logger = logging.getLogger('clarifai')
@@ -23,7 +25,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.11'
+CLIENT_VERSION = '2.0.12'
 
 
 class ClarifaiApp(object):
@@ -43,7 +45,7 @@ class ClarifaiApp(object):
 
   def __init__(self, app_id=None, app_secret=None, base_url=None, quiet=False):
 
-    self.api = ApiClient(app_id, app_secret, base_url)
+    self.api = ApiClient(app_id=app_id, app_secret=app_secret, base_url=base_url, quiet=quiet)
     self.auth = Auth(self.api)
 
     self.concepts = Concepts(self.api)
@@ -82,8 +84,8 @@ class Input(object):
   def __init__(self, input_id=None, concepts=None, not_concepts=None, metadata=None):
     ''' Construct an Image/Video object. it must have one of url or file_obj set.
     Args:
-      input_id: unique id to set for the image. If None then the server will create and return one for
-    you.
+      input_id: unique id to set for the image. If None then the server will create and return 
+      one for you.
       concepts: a list of concepts this asset associate with
       not_concepts: a list of concepts this asset does not associate with
     '''
@@ -141,11 +143,6 @@ class Image(Input):
     '''
 
     super(Image, self).__init__(image_id, concepts, not_concepts, metadata=metadata)
-
-    file_options = [url, file_obj, base64, filename]
-    if not any(file_options) or \
-        file_options.count(None) != len(file_options) - 1:
-      raise UserError("You must only set one of: [url, file_obj, base64, filename] argumets.")
 
     if crop is not None and (not isinstance(crop, list) or len(crop) != 4):
       raise UserError("crop arg must be list of 4 floats or None")
@@ -250,7 +247,8 @@ class InputSearchTerm(SearchTerm):
     >>> InputSearchTerm(metadata={'key':'value'})
   """
 
-  def __init__(self, url=None, input_id=None, concept=None, concept_id=None, value=True, metadata=None):
+  def __init__(self, url=None, input_id=None, concept=None, concept_id=None, value=True, \
+               metadata=None):
     self.url = url
     self.input_id = input_id
     self.concept = concept
@@ -321,7 +319,8 @@ class OutputSearchTerm(SearchTerm):
     >>> OutputSearchTerm(concept='tag1', value=False)
   """
 
-  def __init__(self, url=None, base64=None, input_id=None, concept=None, concept_id=None, value=True, crop=None):
+  def __init__(self, url=None, base64=None, input_id=None, concept=None, concept_id=None, \
+               value=True, crop=None):
     self.url = url
     self.base64 = base64
     self.input_id = input_id
@@ -506,7 +505,8 @@ class Models(object):
       model = self._to_obj(res['model'])
     elif res.get('status'):
       status = res['status']
-      raise UserError('code: %d, desc: %s, details: %s' % (status['code'], status['description'], status['details']))
+      raise UserError('code: %d, desc: %s, details: %s' % \
+                      (status['code'], status['description'], status['details']))
 
     return model
 
@@ -696,7 +696,8 @@ class Inputs(object):
     img = self._to_obj(ret['inputs'][0])
     return img
 
-  def create_image_from_url(self, url, image_id=None, concepts=None, not_concepts=None, crop=None, metadata=None, allow_duplicate_url=False):
+  def create_image_from_url(self, url, image_id=None, concepts=None, not_concepts=None, crop=None, \
+                            metadata=None, allow_duplicate_url=False):
     ''' create an image from Image url
 
     Args:
@@ -715,11 +716,13 @@ class Inputs(object):
       >>> app.inputs.create_image_from_url(url='https://samples.clarifai.com/metro-north.jpg')
     '''
 
-    image = Image(url=url, image_id=image_id, concepts=concepts, not_concepts=not_concepts, crop=crop, metadata=metadata, allow_dup_url=allow_duplicate_url)
+    image = Image(url=url, image_id=image_id, concepts=concepts, not_concepts=not_concepts, \
+                  crop=crop, metadata=metadata, allow_dup_url=allow_duplicate_url)
 
     return self.create_image(image)
 
-  def create_image_from_filename(self, filename, image_id=None, concepts=None, not_concepts=None, crop=None, metadata=None, allow_duplicate_url=False):
+  def create_image_from_filename(self, filename, image_id=None, concepts=None, not_concepts=None, \
+                                 crop=None, metadata=None, allow_duplicate_url=False):
     ''' create an image by local filename
 
     Args:
@@ -739,10 +742,13 @@ class Inputs(object):
     '''
 
     fileio = open(filename, 'rb')
-    image = Image(file_obj=fileio, image_id=image_id, concepts=concepts, not_concepts=not_concepts, crop=crop, metadata=metadata, allow_dup_url=allow_duplicate_url)
+    image = Image(file_obj=fileio, image_id=image_id, concepts=concepts, \
+                  not_concepts=not_concepts, crop=crop, metadata=metadata, \
+                  allow_dup_url=allow_duplicate_url)
     return self.create_image(image)
 
-  def create_image_from_bytes(self, img_bytes, image_id=None, concepts=None, not_concepts=None, crop=None, metadata=None, allow_duplicate_url=False):
+  def create_image_from_bytes(self, img_bytes, image_id=None, concepts=None, not_concepts=None, \
+                              crop=None, metadata=None, allow_duplicate_url=False):
     ''' create an image by image bytes
 
     Args:
@@ -762,10 +768,14 @@ class Inputs(object):
     '''
 
     fileio = BytesIO(img_bytes)
-    image = Image(file_obj=fileio, image_id=image_id, concepts=concepts, not_concepts=not_concepts, crop=crop, metadata=metadata, allow_dup_url=allow_duplicate_url)
+    image = Image(file_obj=fileio, image_id=image_id, concepts=concepts, \
+                  not_concepts=not_concepts, crop=crop, metadata=metadata, \
+                  allow_dup_url=allow_duplicate_url)
     return self.create_image(image)
 
-  def create_image_from_base64(self, base64_bytes, image_id=None, concepts=None, not_concepts=None, crop=None, metadata=None, allow_duplicate_url=False):
+  def create_image_from_base64(self, base64_bytes, image_id=None, concepts=None, \
+                               not_concepts=None, crop=None, metadata=None, \
+                               allow_duplicate_url=False):
     ''' create an image by base64 bytes
 
     Args:
@@ -784,7 +794,9 @@ class Inputs(object):
       >>> app.inputs.create_image_bytes(base64_bytes="base64 encoded image bytes...")
     '''
 
-    image = Image(base64=base64_bytes, image_id=image_id, concepts=concepts, not_concepts=not_concepts, crop=crop, metadata=metadata, allow_dup_url=allow_duplicate_url)
+    image = Image(base64=base64_bytes, image_id=image_id, concepts=concepts, \
+                  not_concepts=not_concepts, crop=crop, metadata=metadata, \
+                  allow_dup_url=allow_duplicate_url)
     return self.create_image(image)
 
   def bulk_create_images(self, images):
@@ -986,7 +998,7 @@ class Inputs(object):
       >>> app.inputs.search_by_image(fileobj=open('file'))
     '''
 
-    not_nones = filter(lambda x: x, [image_id, image, url, imgbytes, base64bytes, fileobj, filename])
+    not_nones = [x for x in [image_id, image, url, imgbytes, base64bytes, fileobj, filename] if x is not None]
     if len(not_nones) != 1:
       raise UserError('Unable to construct an image')
 
@@ -1226,6 +1238,50 @@ class Inputs(object):
 
     return self.search(qb, page, per_page)
 
+  def update(self, image, action='merge'):
+    ''' update the input
+    update the information of an input/image
+
+    Args:
+      image: an Image() object that has concepts, metadata, etc.
+      method: one of ['merge', 'overwrite']
+              'merge' is to merge the info into the exising info, for either concept or metadata
+              'overwrite' is to overwrite the metadata, concepts with the existing ones
+
+    Returns:
+      an Image object
+
+    Examples:
+      >>> new_img = Image(image_id="abc", concepts=['c1', 'c2'], not_concepts=['c3'], metadata={'key':'val'})
+      >>> app.inputs.update(new_img, action='overwrite')
+    '''
+    res = self.api.patch_inputs(action=action, inputs=[image])
+
+    one = res['inputs'][0]
+    return self._to_obj(one)
+
+  def bulk_update(self, images, action='merge'):
+    ''' update the input
+    update the information of an input/image
+
+    Args:
+      images: a list of Image() objects that have concepts, metadata, etc.
+      method: one of ['merge', 'overwrite']
+              'merge' is to merge the info into the exising info, for either concept or metadata
+              'overwrite' is to overwrite the metadata, concepts with the existing ones
+
+    Returns:
+      an Image object
+
+    Examples:
+      >>> new_img1 = Image(image_id="abc1", concepts=['c1', 'c2'], not_concepts=['c3'], metadata={'key':'val'})
+      >>> new_img2 = Image(image_id="abc2", concepts=['c1', 'c2'], not_concepts=['c3'], metadata={'key':'val'})
+      >>> app.inputs.update([new_img1, new_img2], action='overwrite')
+    '''
+    ret = self.api.patch_inputs(action=action, inputs=images)
+    objs = [self._to_obj(item) for item in ret['inputs']]
+    return objs
+
   def delete_concepts(self, input_id, concepts):
     ''' delete concepts from an input/image
 
@@ -1237,18 +1293,15 @@ class Inputs(object):
       an Image object
     '''
 
-    ret = self.api.update_inputs('delete_concepts', [input_id], [concepts])
-
-    res = self.api.get_input(input_id)
-    one = res['input']
-    return self._to_obj(one)
+    res = self.update(Image(image_id=input_id, concepts=concepts), action='remove')
+    return res
 
   def bulk_merge_concepts(self, input_ids, concept_lists):
     ''' bulk merge concepts from a list of input ids
 
     Args:
       input_ids: a list of input IDs
-      label_lists: a list of concept list
+      concept_lists: a list of concept list
 
     Returns:
       an Input object
@@ -1257,15 +1310,31 @@ class Inputs(object):
       >>> app.inputs.bulk_merge_concepts('id', [[('cat',True), ('dog',False)]])
     '''
 
-    ret = self.api.update_inputs('merge_concepts', input_ids, label_lists)
-    return self._to_obj(ret['input'])
+    if len(input_ids) != len(concept_lists):
+      raise UserError('Argument error. please check')
 
-  def bulk_delete_concepts(self, input_ids, label_lists):
+    inputs = []
+    for input_id, concept_list in zip(input_ids, concept_lists):
+      concepts = []
+      not_concepts = []
+      for concept_id, value in concept_list:
+        if value is True:
+          concepts.append(concept_id)
+        else:
+          not_concepts.append(concept_id)
+
+      image = Image(image_id=input_id, concepts=concepts, not_concepts=not_concepts)
+      inputs.append(image)
+
+    res = self.bulk_update(inputs, action='merge')
+    return res
+
+  def bulk_delete_concepts(self, input_ids, concept_lists):
     ''' bulk delete concepts from a list of input ids
 
     Args:
       input_ids: a list of input IDs
-      label_lists: a list of concept list
+      concept_lists: a list of concept list
 
     Returns:
       an Input object
@@ -1274,10 +1343,16 @@ class Inputs(object):
       >>> app.inputs.bulk_delete_concepts(['id'], [['cat', 'dog']])
     '''
 
-    ret = self.api.update_inputs('delete_concepts', input_ids, label_lists)
-    return self._to_obj(ret['input'])
+    # the reason list comprehension is not used is it breaks the 100 chars width
+    inputs = []
+    for input_id, concepts in zip(input_ids, concept_lists):
+      one_input = Image(image_id=input_id, concepts=concepts)
+      inputs.append(one_input)
 
-  def merge_concepts(self, input_id, concepts, not_concepts):
+    res = self.bulk_update(inputs, action='remove')
+    return res
+
+  def merge_concepts(self, input_id, concepts, not_concepts, overwrite=False):
     ''' merge concepts for one input
 
     Args:
@@ -1292,18 +1367,15 @@ class Inputs(object):
       >>> app.inputs.merge_concepts('id', ['cat', 'kitty'], ['dog'])
     '''
 
-    # fill label_list
-    label_list = []
-    for one in concepts:
-      label_list.append((one, True))
-    for one in not_concepts:
-      label_list.append((one, False))
+    image = Image(image_id=input_id, concepts=concepts, not_concepts=not_concepts)
 
-    ret = self.api.update_inputs('merge_concepts', [input_id], [label_list])
+    if overwrite is True:
+      action='overwrite'
+    else:
+      action='merge'
 
-    res = self.api.get_input(input_id)
-    one = res['input']
-    return self._to_obj(one)
+    res = self.update(image, action=action)
+    return res
 
   def add_concepts(self, input_id, concepts, not_concepts):
     ''' add concepts for one input
@@ -1323,6 +1395,22 @@ class Inputs(object):
       >>> app.inputs.add_concepts('id', ['cat', 'kitty'], ['dog'])
     '''
     return self.merge_concepts(input_id, concepts, not_concepts)
+
+  def merge_metadata(self, input_id, metadata):
+    ''' merge metadata for the image
+
+    This is to merge/update the metadata of the given image
+
+    Args:
+      input_id: the unique ID of the input
+      metadata: the metadata dictionary
+
+    Examples:
+      >>> app.inputs.merge_metadata('id', {'key1':'value1', 'key2':'value2'})
+    '''
+    image = Image(image_id=input_id, metadata=metadata)
+    res = self.update([image], action='merge')
+    return res
 
   def _to_obj(self, one):
 
@@ -1350,15 +1438,21 @@ class Inputs(object):
       if one['data']['image'].get('url'):
         if one['data']['image'].get('crop'):
           crop = one['data']['image']['crop']
-          one_input = Image(image_id=input_id, url=one['data']['image']['url'], concepts=concepts, not_concepts=not_concepts, crop=crop, metadata=metadata)
+          one_input = Image(image_id=input_id, url=one['data']['image']['url'], \
+                            concepts=concepts, not_concepts=not_concepts, crop=crop, \
+                            metadata=metadata)
         else:
-          one_input = Image(image_id=input_id, url=one['data']['image']['url'], concepts=concepts, not_concepts=not_concepts, metadata=metadata)
+          one_input = Image(image_id=input_id, url=one['data']['image']['url'], \
+                            concepts=concepts, not_concepts=not_concepts, metadata=metadata)
       elif one['data']['image'].get('base64'):
         if one['data']['image'].get('crop'):
           crop = one['data']['image']['crop']
-          one_input = Image(image_id=input_id, base64=one['data']['image']['base64'], concepts=concepts, not_concepts=not_concepts, crop=crop, metadata=metadata)
+          one_input = Image(image_id=input_id, base64=one['data']['image']['base64'], \
+                            concepts=concepts, not_concepts=not_concepts, crop=crop, \
+                            metadata=metadata)
         else:
-          one_input = Image(image_id=input_id, base64=one['data']['image']['base64'], concepts=concepts, not_concepts=not_concepts, metadata=metadata)
+          one_input = Image(image_id=input_id, base64=one['data']['image']['base64'], \
+                            concepts=concepts, not_concepts=not_concepts, metadata=metadata)
     elif one['data'].get('video'):
       raise UserError('Not supported yet')
     else:
@@ -1503,20 +1597,23 @@ class Model(object):
       self.created_at = item['created_at']
       self.app_id = item['app_id']
       self.model_version = item['model_version']['id']
+      self.model_status_code = item['model_version']['status']['code']
 
       self.output_info = item.get('output_info', {})
       self.concepts = []
 
       if self.output_info.get('output_config'):
-        self.concepts_mutually_exclusive = self.output_info['output_config']['concepts_mutually_exclusive']
-        self.closed_environment = self.output_info['output_config']['closed_environment']
+        output_config = self.output_info['output_config']
+        self.concepts_mutually_exclusive = output_config['concepts_mutually_exclusive']
+        self.closed_environment = output_config['closed_environment']
       else:
         self.concepts_mutually_exclusive = False
         self.closed_environment = False
 
       if self.output_info.get('data', {}).get('concepts'):
         for concept in self.output_info['data']['concepts']:
-          concept = Concept(concept_name=concept['name'], concept_id=concept['id'], app_id=concept['app_id'], created_at=concept['created_at'])
+          concept = Concept(concept_name=concept['name'], concept_id=concept['id'], \
+                            app_id=concept['app_id'], created_at=concept['created_at'])
           self.concepts.add(concept)
 
   def get_info(self, verbose=False):
@@ -1580,12 +1677,13 @@ class Model(object):
     if self.model_id:
       data['model']['id'] = self.model_id
 
-    if self.concept_ids:
-      data['model']['output_info']['data'] = { "concepts": [{"id": concept_id} for concept_id in self.concept_ids] }
+    if self.concepts:
+      ids = [{"id": concept_id} for concept_id in self.concepts]
+      data['model']['output_info']['data'] = { "concepts": ids }
 
     return data
 
-  def train(self, sync=True):
+  def train(self, sync=True, timeout=60):
     ''' train a model
 
     train the model in synchronous or asynchronous mode
@@ -1615,8 +1713,17 @@ class Model(object):
     # will loop until the model is trained
     # 21103: queued for training
     # 21101: being trained
+
+    wait_interval = 1
+    time_start = time.time()
+
     while model_status_code == 21103 or model_status_code == 21101:
-      time.sleep(2)
+
+      elapsed = time.time() - time_start
+      if elapsed > timeout:
+        break
+
+      time.sleep(wait_interval)
       res_ver = self.api.get_model_version(model_id, model_version)
       model_status_code = res_ver['model_version']['status']['code']
 
@@ -1696,7 +1803,7 @@ class Model(object):
     res = self.api.predict_model(self.model_id, inputs, self.model_version)
     return res
 
-  def merge_concepts(self, concept_ids):
+  def merge_concepts(self, concept_ids, overwrite=False):
     ''' merge concepts in a model
 
     If the concept does not exist in the model, it will be appended,
@@ -1704,13 +1811,19 @@ class Model(object):
 
     Args:
       concept_ids: a list of concept id
+      overwrite: True of False. If True, the concepts will be overwritten
 
     Returns:
       the Model object
     '''
 
-    res = self.api.update_model_concepts(self.model_id, 'merge_concepts', concept_ids)
-    return self._to_obj(res['model'])
+    if overwrite is True:
+      action = 'overwrite'
+    else:
+      action = 'merge'
+
+    model = self.update(action=action, concept_ids=concept_ids)
+    return model
 
   def add_concepts(self, concept_ids):
     ''' merge concepts in a model
@@ -1723,19 +1836,26 @@ class Model(object):
 
     Returns:
       the Model object
+
+    Examples:
+      >>> model = self.app.models.get('model_id')
+      >>> model.add_concepts(['cat', 'dog'])
     '''
 
     return self.merge_concepts(concept_ids)
 
-  def update(self, model_name=None, concepts_mutually_exclusive=None, closed_environment=None, concept_ids=None):
+  def update(self, action='merge', model_name=None, concepts_mutually_exclusive=None, \
+             closed_environment=None, concept_ids=None):
     ''' update the model attributes
 
-    This is to update the model attributes. The name of the model, and list of concepts could be changed.
-    Also the training attributes concepts_mutually_exclusive and closed_environment could be changed.
-    Note this is a overwriting change. For a valid call, at least one or more attributes should be specified.
-    Otherwise the call will be just skipped without error.
+    This is to update the model attributes. The name of the model, and list of concepts could be
+    changed. Also the training attributes concepts_mutually_exclusive and closed_environment could
+    be changed.
+    Note this is a overwriting change. For a valid call, at least one or more attributes should be
+    specified. Otherwise the call will be just skipped without error.
 
     Args:
+      action: the way to patch the model: ['merge', 'remove', 'overwrite']
       model_name: name of the model
       concepts_mutually_exclusive: whether it's multually exclusive model
       closed_environment: whether it's closed environment training
@@ -1753,8 +1873,9 @@ class Model(object):
       >>> model.update(concepts_mutually_exclusive=True, concept_ids=["bird", "hurd"])
     '''
 
-    if not any([model_name, concepts_mutually_exclusive, closed_environment, concept_ids]):
-      return
+    args = [model_name, concepts_mutually_exclusive, closed_environment, concept_ids]
+    if not any(map(lambda x: x is not None, args)):
+      return self
 
     model = {"id": self.model_id,
              "output_info": {
@@ -1775,8 +1896,9 @@ class Model(object):
     if concept_ids is not None:
       model["output_info"]["data"]["concepts"] = [{"id": concept_id} for concept_id in concept_ids]
 
-    ret = self.api.update_model(self.model_id, model)
-    return ret
+    res = self.api.patch_model(model, action)
+    model = res['models'][0]
+    return self._to_obj(model)
 
   def delete_concepts(self, concept_ids):
     ''' delete concepts from a model
@@ -1786,21 +1908,62 @@ class Model(object):
 
     Returns:
       the Model object
+
+    Examples:
+      >>> model = self.app.models.get('model_id')
+      >>> model.delete_concepts(['cat', 'dog'])
     '''
-    res = self.api.update_model_concepts(self.model_id, 'delete_concepts', concept_ids)
-    return self._to_obj(res['model'])
+
+    model = self.update(action='remove', concept_ids=concept_ids)
+    return model
 
   def list_versions(self):
+    ''' list all model versions
+
+    Args:
+      void
+
+    Returns:
+      the JSON response
+
+    Examples:
+      >>> model = self.app.models.get('model_id')
+      >>> model.list_versions()
+    '''
+
     res = self.api.get_model_versions(self.model_id)
     return res
 
   def get_version(self, version_id):
+    ''' get model version info for a particular version
+
+    Args:
+      version_id: version id of the model version
+
+    Returns:
+      the JSON response
+
+    Examples:
+      >>> model = self.app.models.get('model_id')
+      >>> model.get_version('model_version_id')
+    '''
 
     res = self.api.get_model_version(self.model_id, version_id)
     return res
 
   def delete_version(self, version_id):
-    ''' delete model version by version_id '''
+    ''' delete model version by version_id
+
+    Args:
+      version_id: version id of the model version
+
+    Returns:
+      the JSON response
+
+    Examples:
+      >>> model = self.app.models.get('model_id')
+      >>> model.delete_version('model_version_id')
+    '''
 
     res = self.api.delete_model_version(self.model_id, version_id)
     return res
@@ -1868,7 +2031,7 @@ class ApiClient(object):
     quiet: if True then silence debug prints.
   """
 
-  update_model_concepts_action_options = ['merge_concepts', 'delete_concepts']
+  patch_actions = ['merge', 'remove', 'overwrite']
 
   def __init__(self, app_id=None, app_secret=None, base_url=None, quiet=True):
 
@@ -1887,7 +2050,8 @@ class ApiClient(object):
         with open(CONF_FILE, 'r') as fdr:
           parser.readfp(fdr)
 
-        if parser.has_option('clarifai', 'CLARIFAI_APP_ID') and parser.has_option('clarifai', 'CLARIFAI_APP_SECRET'):
+        if parser.has_option('clarifai', 'CLARIFAI_APP_ID') and \
+           parser.has_option('clarifai', 'CLARIFAI_APP_SECRET'):
           app_id = parser.get('clarifai', 'CLARIFAI_APP_ID')
           app_secret = parser.get('clarifai', 'CLARIFAI_APP_SECRET')
         else:
@@ -2008,6 +2172,11 @@ class ApiClient(object):
     headers = {}
 
     while status_code != 200 and attempts > 0 and retry is True:
+
+      logger.debug("=" * 100)
+      logger.debug("%s %s\nHEADERS:\n%s\nPAYLOAD:\n%s",
+                   method, url, pformat(headers), pformat(params))
+
       if method == 'GET':
         headers = {'Content-Type': 'application/json',
                    'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
@@ -2040,15 +2209,14 @@ class ApiClient(object):
       else:
         raise UserError("Unsupported request type: '%s'" % method)
 
-      logger.debug("\n%s:\n url: %s\n headers: %s\n data: %s",
-                   method, url, str(headers), str(params))
-      logger.debug("\nRESULT:\n%s", str(res.content))
-
       try:
         js = res.json()
       except Exception:
         logger.exception("Could not get valid JSON from server response.")
+        logger.debug("\nRESULT:\n%s", str(res.content))
         return res
+
+      logger.debug("\nRESULT:\n%s", pformat(json.loads(res.content)))
 
       status_code = res.status_code
       attempts -= 1
@@ -2189,7 +2357,8 @@ class ApiClient(object):
     '''
 
     if not input_id:
-      raise UserError('cannot delete with empty input_id. use delete_all_inputs if you want to delete all')
+      raise UserError('cannot delete with empty input_id. \
+                       use delete_all_inputs if you want to delete all')
 
     resource = "inputs/%s" % input_id
     res = self.delete(resource)
@@ -2224,11 +2393,11 @@ class ApiClient(object):
     res = self.delete(resource, data)
     return res
 
-  def update_inputs(self, action, input_ids, concept_ids_pairs):
+  def patch_inputs(self, action, inputs):
     ''' bulk update inputs, to delete or modify concepts
 
     Args:
-      action: "merge_concepts" or "delete_concepts"
+      action: "merge" or "remove" or "overwrite"
       input_ids: list of input IDs
       concept_ids_pairs: For "merge_concepts", this is a list of (concept_id, value) tuples
                            where value is either True or False
@@ -2239,30 +2408,28 @@ class ApiClient(object):
 
     '''
 
+    if action not in self.patch_actions:
+      raise UserError("action not supported.")
+
     resource = "inputs"
     data = {
-            "action":action,
-            "inputs":[]
+             "action": action,
+             "inputs": []
            }
 
-    assert(len(input_ids) == len(concept_ids_pairs))
+    images = []
+    for img in inputs:
+      item = img.dict()
+      if not item.get('data'):
+        continue
 
-    if action == 'merge_concepts':
-      for idx, input_id in enumerate(input_ids):
-        entry = {"id":input_id,
-                 "data":{"concepts":[{"id":concept_id, "value":val} for concept_id, val in concept_ids_pairs[idx]]
-                        }
-                }
-        data["inputs"].append(entry)
-    elif action == 'delete_concepts':
-      for idx, input_id in enumerate(input_ids):
-        entry = {"id":input_id,
-                 "data":{"concepts":[{"id":concept_id} for concept_id in concept_ids_pairs[idx]]
-                        }
-                }
-        data["inputs"].append(entry)
-    else:
-      raise UserError("action not supported. Only merge_concepts and delete_concepts are allowed")
+      for key in item['data'].keys():
+        if key not in ['concepts', 'metadata']:
+          del item['data'][key]
+
+      images.append(item)
+
+    data["inputs"] = images
 
     res = self.patch(resource, data)
     return res
@@ -2526,35 +2693,21 @@ class ApiClient(object):
            }
 
     if concepts:
-      data['model']['output_info']['data'] = { "concepts": [{"id": concept} for concept in concepts] }
+      data['model']['output_info']['data'] = { "concepts": 
+                                                 [{"id": concept} for concept in concepts]
+                                             }
 
     res = self.post(resource, data)
     return res
 
-  def update_model_concepts(self, model_id, action, concept_ids):
+  def patch_model(self, model, action='merge'):
 
-    if not model_id:
-      raise UserError('model_id could not be empty')
-
-    if action not in self.update_model_concepts_action_options:
-      raise UserError('action not allowed')
-
-    resource = "models/%s/output_info/data/concepts" % model_id
-    data = {
-             "concepts": [{"id": concept_id} for concept_id in concept_ids],
-             "action": action
-           }
-
-    res = self.patch(resource, data)
-    return res
-
-  def update_model(self, model_id, model):
-
-    if not model_id:
-      raise UserError('model_id could not be empty')
+    if action not in self.patch_actions:
+      raise UserError("action not supported.")
 
     resource = "models"
     data = {
+             "action": action,
              "models": [model]
            }
 
@@ -2696,3 +2849,4 @@ class InputCounts(object):
                    }
         }
     return d
+
