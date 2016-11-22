@@ -25,7 +25,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.12'
+CLIENT_VERSION = '2.0.13'
 
 
 class ClarifaiApp(object):
@@ -43,7 +43,7 @@ class ClarifaiApp(object):
 
   """
 
-  def __init__(self, app_id=None, app_secret=None, base_url=None, quiet=False):
+  def __init__(self, app_id=None, app_secret=None, base_url=None, quiet=True):
 
     self.api = ApiClient(app_id=app_id, app_secret=app_secret, base_url=base_url, quiet=quiet)
     self.auth = Auth(self.api)
@@ -1406,10 +1406,14 @@ class Inputs(object):
       metadata: the metadata dictionary
 
     Examples:
+      >>> # merge the metadata
+      >>> # metadata will be merged along with the existing key/value
       >>> app.inputs.merge_metadata('id', {'key1':'value1', 'key2':'value2'})
     '''
     image = Image(image_id=input_id, metadata=metadata)
-    res = self.update([image], action='merge')
+
+    action = 'merge'
+    res = self.update(image, action=action)
     return res
 
   def _to_obj(self, one):
