@@ -7,6 +7,7 @@ Clarifai API Python Client
 import os
 import time
 import json
+import copy
 import base64
 from pprint import pformat
 import logging
@@ -25,7 +26,9 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.13'
+CLIENT_VERSION = '2.0.14'
+
+DEFAULT_TAG_MODEL = 'general-v1.3'
 
 
 class ClarifaiApp(object):
@@ -52,6 +55,76 @@ class ClarifaiApp(object):
     self.inputs = Inputs(self.api)
     self.models = Models(self.api)
 
+  """
+  Below are the shortcut functions for a more smoothy transition of the v1 users
+  Also they are convenient functions for the tag only users so they do not have
+  to know the extra concepts of Inputs, Models, etc.
+  """
+  def tag_urls(self, urls, model=DEFAULT_TAG_MODEL):
+    ''' tag urls with user specified models
+        by default tagged by 'general-v1.3' model
+
+    Args:
+      urls: a list of URLs for tagging
+            the max lens of the list is 128, which is the max batch size
+
+      model: the model name to tag with
+             default model is general model for general tagging purpose
+
+    Returns:
+      the JSON string from the predict call
+
+    Examples:
+      >>> urls = ['https://samples.clarifai.com/metro-north.jpg', \
+      >>>         'https://samples.clarifai.com/dog2.jpeg']
+      >>> app.tag_urls(urls)
+    '''
+
+    # validate input
+    if not isinstance(urls, list) or (len(urls) > 1 and not isinstance(urls[0], basestring)):
+      raise UserError('urls must be a list of string urls')
+
+    if len(urls) > 128:
+      raise UserError('max batch size is 128')
+
+    images = [Image(url=url) for url in urls]
+
+    model = self.models.get(model)
+    res = model.predict(images)
+    return res
+
+  def tag_files(self, files, model=DEFAULT_TAG_MODEL):
+    ''' tag files on disk with user specified models
+        by default tagged by 'general-v1.3' model
+
+    Args:
+      files: a list of local file names for tagging
+             the max lens of the list is 128, which is the max batch size
+
+      model: the model name to tag with
+             default model is general model for general tagging purpose
+
+    Returns:
+      the JSON string from the predict call
+
+    Examples:
+      >>> files = ['/tmp/metro-north.jpg', \
+      >>>          '/tmp/dog2.jpeg']
+      >>> app.tag_urls(files)
+    '''
+
+    # validate input
+    if not isinstance(files, list) or (len(files) > 1 and not isinstance(files[0], basestring)):
+      raise UserError('files must be a list of string file names')
+
+    if len(files) > 128:
+      raise UserError('max batch size is 128')
+
+    images = [Image(filename=filename) for filename in files]
+
+    model = self.models.get(model)
+    res = model.predict(images)
+    return res
 
 class Auth(object):
 
@@ -190,7 +263,7 @@ class Image(Input):
 
       image['image']['base64'] = base64_imgstr
     elif self.base64 is not None:
-      image['image']['base64'] = self.base64
+      image['image']['base64'] = self.base64.decode('UTF-8')
     else:
       image['image']['url'] = self.url
 
@@ -1014,10 +1087,10 @@ class Inputs(object):
       if image.url:
         term = OutputSearchTerm(url=image.url)
       elif image.base64:
-        term = OutputSearchTerm(base64=image.base64)
+        term = OutputSearchTerm(base64=image.base64.decode('UTF-8'))
       elif image.file_obj:
         imgbytes = image.file_obj.read()
-        base64_bytes = base64.b64encode(imgbytes)
+        base64_bytes = base64.b64encode(imgbytes).decode('UTF-8')
         term = OutputSearchTerm(base64=base64_bytes)
 
       qb.add_term(term)
@@ -2178,8 +2251,21 @@ class ApiClient(object):
     while status_code != 200 and attempts > 0 and retry is True:
 
       logger.debug("=" * 100)
+
+      # mangle the base64 because it is too long
+      if params and params.get('inputs') and len(params['inputs']) > 0:
+        params_copy = copy.deepcopy(params)
+        for data in params_copy['inputs']:
+          data = data['data']
+          if data.get('image') and data['image'].get('base64'):
+            base64_bytes = data['image']['base64'][:10] + '......' + data['image']['base64'][-10:]
+            data['image']['base64'] = base64_bytes
+      else:
+        params_copy = params
+      # mangle the base64 because it is too long
+
       logger.debug("%s %s\nHEADERS:\n%s\nPAYLOAD:\n%s",
-                   method, url, pformat(headers), pformat(params))
+                   method, url, pformat(headers), pformat(params_copy))
 
       if method == 'GET':
         headers = {'Content-Type': 'application/json',
@@ -2220,7 +2306,7 @@ class ApiClient(object):
         logger.debug("\nRESULT:\n%s", str(res.content))
         return res
 
-      logger.debug("\nRESULT:\n%s", pformat(json.loads(res.content)))
+      logger.debug("\nRESULT:\n%s", pformat(json.loads(res.content.decode('utf-8'))))
 
       status_code = res.status_code
       attempts -= 1
@@ -2427,11 +2513,12 @@ class ApiClient(object):
       if not item.get('data'):
         continue
 
+      new_item = copy.deepcopy(item)
       for key in item['data'].keys():
         if key not in ['concepts', 'metadata']:
-          del item['data'][key]
+          del new_item['data'][key]
 
-      images.append(item)
+      images.append(new_item)
 
     data["inputs"] = images
 

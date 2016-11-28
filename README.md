@@ -17,7 +17,7 @@ Installation
 ---------------------
 Unzip the package to somewhere then run setup.py to install:
 ```
-pip install clarifai==2.0.13
+pip install clarifai==2.0.14
 ```
 
 
@@ -56,5 +56,5 @@ print model.predict_by_url('https://samples.clarifai.com/metro-north.jpg')
 
 Documentations
 ---------------------
-Read more code examples and references at https://sdk.clarifai.com/python/docs/2.0.13/index.html
+Read more code examples and references at https://sdk.clarifai.com/python/docs/2.0.14/index.html
 

@@ -89,7 +89,7 @@ class ClarifaiApi(object):
   """
 
   def __init__(self, app_id=None, app_secret=None, base_url=None,
-               model=None, wait_on_throttle=True, language=None):
+               model=None, wait_on_throttle=True, language=None, resize=True):
     if not app_id:
       self.CLIENT_ID = os.environ.get('CLARIFAI_APP_ID', None)
     else:
@@ -105,6 +105,7 @@ class ClarifaiApi(object):
     self._base_url = base_url
     self.set_model(model)
     self.language = language
+    self.resize = resize
     self._urls = {
       'tag': "/".join([self._base_url, '%s/tag/' % API_VERSION]),
       'color': "/".join([self._base_url, '%s/color/' % API_VERSION]),
@@ -535,7 +536,7 @@ class ClarifaiApi(object):
       else:  # already tuples passed in.
         files.append(tup)
     # Resize any images such that the min dimension is in range.
-    if CAN_RESIZE:
+    if CAN_RESIZE and self.resize is True:
       for i, image_tup in enumerate(files):
         files[i] = self._resize_image_tuple(image_tup)
     # Return a list of (bytes, name) tuples of the encoded data bytes.
