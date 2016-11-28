@@ -48,10 +48,7 @@ The following example will setup the client and predict from our general model
 from clarifai.rest import ClarifaiApp
 
 app = ClarifaiApp()
-
-model = app.models.get('general-v1.3')
-
-print model.predict_by_url('https://samples.clarifai.com/metro-north.jpg')
+app.tag_urls(['https://samples.clarifai.com/metro-north.jpg'])
 ```
 
 Documentations
