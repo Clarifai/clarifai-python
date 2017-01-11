@@ -17,7 +17,9 @@ from io import BytesIO
 from configparser import ConfigParser
 from posixpath import join as urljoin
 from past.builtins import basestring
+from jsonschema import validate
 from future.moves.urllib.parse import urlparse
+from .geo import GeoPoint, GeoBox, GeoLimit, Geo
 
 logger = logging.getLogger('clarifai')
 logger.handlers = []
@@ -26,7 +28,10 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.14'
+CLIENT_VERSION = '2.0.16'
+OS_VER = os.sys.platform
+PYTHON_VERSION = '.'.join(map(str, [os.sys.version_info.major, os.sys.version_info.minor, \
+                                    os.sys.version_info.micro]))
 
 DEFAULT_TAG_MODEL = 'general-v1.3'
 
@@ -48,12 +53,26 @@ class ClarifaiApp(object):
 
   def __init__(self, app_id=None, app_secret=None, base_url=None, quiet=True):
 
+    # check upgrade
+    self.check_upgrade()
+
     self.api = ApiClient(app_id=app_id, app_secret=app_secret, base_url=base_url, quiet=quiet)
     self.auth = Auth(self.api)
 
     self.concepts = Concepts(self.api)
     self.inputs = Inputs(self.api)
     self.models = Models(self.api)
+
+  def check_upgrade(self):
+    ''' check client upgrade
+        if the clinet has been installed for more than one week, the check will be
+        triggered.
+        If the newer version is available, a prompt message will be poped up as a
+        warning message in STDERR. The API call will not be paused or interrupted.
+    '''
+    # check the latest version
+    # compare
+    pass
 
   """
   Below are the shortcut functions for a more smoothy transition of the v1 users
@@ -148,19 +167,20 @@ class Auth(object):
     token = res['access_token']
     return token
 
-
 class Input(object):
 
   """ The Clarifai Input object
   """
 
-  def __init__(self, input_id=None, concepts=None, not_concepts=None, metadata=None):
+  def __init__(self, input_id=None, concepts=None, not_concepts=None, metadata=None, geo=None):
     ''' Construct an Image/Video object. it must have one of url or file_obj set.
     Args:
       input_id: unique id to set for the image. If None then the server will create and return 
       one for you.
       concepts: a list of concepts this asset associate with
       not_concepts: a list of concepts this asset does not associate with
+      metadata: metadata as a JSON object to associate arbitrary info with the input
+      geo: geographical info for the input, as a Geo() object
     '''
 
     self.input_id = input_id
@@ -171,9 +191,17 @@ class Input(object):
     if not isinstance(not_concepts, (list, tuple)) and not_concepts is not None:
       raise UserError('not_concepts should be a list or tuple')
 
+    if not isinstance(metadata, dict) and metadata is not None:
+      raise UserError('metadata should be a dictionary')
+
+    # validate geo
+    if not isinstance(geo, Geo) and geo is not None:
+      raise UserError('geo should be a Geo object')
+
     self.concepts = concepts
     self.not_concepts = not_concepts
     self.metadata = metadata
+    self.geo = geo
 
   def dict(self):
     ''' Return the data of the Input as a dict ready to be input to json.dumps. '''
@@ -200,6 +228,9 @@ class Input(object):
     if self.metadata:
       data['data']['metadata'] = self.metadata
 
+    if self.geo:
+      data['data'].update(self.geo.dict())
+
     return data
 
 
@@ -207,7 +238,7 @@ class Image(Input):
 
   def __init__(self, url=None, file_obj=None, base64=None, filename=None, crop=None, \
                image_id=None, concepts=None, not_concepts=None, \
-               metadata=None, allow_dup_url=False):
+               metadata=None, geo=None, allow_dup_url=False):
     '''
       url: the url to a publically accessible image.
       file_obj: a file-like object in which read() will give you the bytes.
@@ -215,7 +246,7 @@ class Image(Input):
             the asset before use.
     '''
 
-    super(Image, self).__init__(image_id, concepts, not_concepts, metadata=metadata)
+    super(Image, self).__init__(image_id, concepts, not_concepts, metadata=metadata, geo=geo)
 
     if crop is not None and (not isinstance(crop, list) or len(crop) != 4):
       raise UserError("crop arg must be list of 4 floats or None")
@@ -318,16 +349,19 @@ class InputSearchTerm(SearchTerm):
     >>> InputSearchTerm(concept='tag1', value=False)
     >>> # search for metadata
     >>> InputSearchTerm(metadata={'key':'value'})
+    >>> # search for geo
+    >>> InputSearchTerm(geo=Geo(geo_point=GeoPoint(-40, 30), geo_limit=GeoLimit('withinMiles', 10)))
   """
 
   def __init__(self, url=None, input_id=None, concept=None, concept_id=None, value=True, \
-               metadata=None):
+               metadata=None, geo=None):
     self.url = url
     self.input_id = input_id
     self.concept = concept
     self.concept_id = concept_id
     self.value = value
     self.metadata = metadata
+    self.geo = geo
 
   def dict(self):
     if self.url:
@@ -368,6 +402,13 @@ class InputSearchTerm(SearchTerm):
                 }
               }
             }
+    elif self.geo:
+      obj = { "input": {
+                "data": {
+                }
+              }
+            }
+      obj['input']['data'].update(self.geo.dict())
 
     return obj
 
@@ -678,7 +719,7 @@ class Models(object):
     res = self.api.delete_all_models()
     return res
 
-  def get(self, model_id, model_type='concept'):
+  def get(self, model_id, model_type=None):
     ''' get a model, by ID or name
 
     Args:
@@ -693,8 +734,8 @@ class Models(object):
       >>> app.models.get('general-v1.3')
     '''
 
-    if self.model_id_cache.get(model_id):
-      model_id = self.model_id_cache[model_id]
+    if self.model_id_cache.get((model_id, model_type)):
+      model_id = self.model_id_cache[(model_id, model_type)]
 
     try:
       res = self.api.get_model(model_id)
@@ -703,16 +744,24 @@ class Models(object):
       model_name = model_id
       if e.response.status_code == 404:
         res = self.search(model_name, model_type)
-        if res is None or len(res) > 1:
+
+        if res is None:
+          raise e
+        elif len(res) > 0:
+          # exclude embed and cluster model when it's not explicitly searched for
+          if model_type is None:
+            res = list(filter(lambda one: (one.output_info['type'] != u'embed') & (one.output_info['type'] != u'cluster'), res))
+
+        if len(res) > 1:
           raise e
         else:
           model = res[0]
           model_id = model.model_id
-          self.model_id_cache.update({model_name:model_id})
+          self.model_id_cache.update({(model_name, model_type):model_id})
 
     return model
 
-  def search(self, model_name, model_type='concept'):
+  def search(self, model_name, model_type=None):
     ''' search model by name and type
 
         search the model by name, default is to search concept model
@@ -720,17 +769,20 @@ class Models(object):
 
         Args:
           model_name: name of the model. name is not unique.
-          model_type: default to 'concept'
+          model_type: default to None, equivalent to wildcards search
 
         Returns:
           a list of Model objects or None
 
         Examples:
-          >>> # search for general-v1.3 concept model
+          >>> # search for general-v1.3 models
           >>> app.models.search('general-v1.3')
           >>>
           >>> # search for color model
           >>> app.models.search('color', model_type='color')
+          >>>
+          >>> # search for face model
+          >>> app.models.search('face-v1.3', model_type='facedetect')
     '''
 
     res = self.api.search_models(model_name, model_type)
@@ -770,7 +822,7 @@ class Inputs(object):
     return img
 
   def create_image_from_url(self, url, image_id=None, concepts=None, not_concepts=None, crop=None, \
-                            metadata=None, allow_duplicate_url=False):
+                            metadata=None, geo=None, allow_duplicate_url=False):
     ''' create an image from Image url
 
     Args:
@@ -780,6 +832,7 @@ class Inputs(object):
       not_concepts: a list of concepts
       crop: crop information, with four corner coordinates
       metadata: meta data with a dictionary
+      geo: geo info with a dictionary
       allow_duplicate_url: True of False, the flag to allow duplicate url to be imported
 
     Returns:
@@ -790,12 +843,12 @@ class Inputs(object):
     '''
 
     image = Image(url=url, image_id=image_id, concepts=concepts, not_concepts=not_concepts, \
-                  crop=crop, metadata=metadata, allow_dup_url=allow_duplicate_url)
+                  crop=crop, metadata=metadata, geo=geo, allow_dup_url=allow_duplicate_url)
 
     return self.create_image(image)
 
   def create_image_from_filename(self, filename, image_id=None, concepts=None, not_concepts=None, \
-                                 crop=None, metadata=None, allow_duplicate_url=False):
+                                 crop=None, metadata=None, geo=None, allow_duplicate_url=False):
     ''' create an image by local filename
 
     Args:
@@ -805,6 +858,7 @@ class Inputs(object):
       not_concepts: a list of concepts
       crop: crop information, with four corner coordinates
       metadata: meta data with a dictionary
+      geo: geo info with a dictionary
       allow_duplicate_url: True of False, the flag to allow duplicate url to be imported
 
     Returns:
@@ -816,12 +870,12 @@ class Inputs(object):
 
     fileio = open(filename, 'rb')
     image = Image(file_obj=fileio, image_id=image_id, concepts=concepts, \
-                  not_concepts=not_concepts, crop=crop, metadata=metadata, \
+                  not_concepts=not_concepts, crop=crop, metadata=metadata, geo=geo, \
                   allow_dup_url=allow_duplicate_url)
     return self.create_image(image)
 
   def create_image_from_bytes(self, img_bytes, image_id=None, concepts=None, not_concepts=None, \
-                              crop=None, metadata=None, allow_duplicate_url=False):
+                              crop=None, metadata=None, geo=None, allow_duplicate_url=False):
     ''' create an image by image bytes
 
     Args:
@@ -831,6 +885,7 @@ class Inputs(object):
       not_concepts: a list of concepts
       crop: crop information, with four corner coordinates
       metadata: meta data with a dictionary
+      geo: geo info with a dictionary
       allow_duplicate_url: True of False, the flag to allow duplicate url to be imported
 
     Returns:
@@ -842,12 +897,12 @@ class Inputs(object):
 
     fileio = BytesIO(img_bytes)
     image = Image(file_obj=fileio, image_id=image_id, concepts=concepts, \
-                  not_concepts=not_concepts, crop=crop, metadata=metadata, \
+                  not_concepts=not_concepts, crop=crop, metadata=metadata, geo=geo, \
                   allow_dup_url=allow_duplicate_url)
     return self.create_image(image)
 
   def create_image_from_base64(self, base64_bytes, image_id=None, concepts=None, \
-                               not_concepts=None, crop=None, metadata=None, \
+                               not_concepts=None, crop=None, metadata=None, geo=None, \
                                allow_duplicate_url=False):
     ''' create an image by base64 bytes
 
@@ -858,6 +913,7 @@ class Inputs(object):
       not_concepts: a list of concepts
       crop: crop information, with four corner coordinates
       metadata: meta data with a dictionary
+      geo: geo info with a dictionary
       allow_duplicate_url: True of False, the flag to allow duplicate url to be imported
 
     Returns:
@@ -868,7 +924,7 @@ class Inputs(object):
     '''
 
     image = Image(base64=base64_bytes, image_id=image_id, concepts=concepts, \
-                  not_concepts=not_concepts, crop=crop, metadata=metadata, \
+                  not_concepts=not_concepts, crop=crop, metadata=metadata, geo=geo, \
                   allow_dup_url=allow_duplicate_url)
     return self.create_image(image)
 
@@ -1244,6 +1300,49 @@ class Inputs(object):
 
     return self.search(qb, page, per_page)
 
+  def search_by_geo(self, geo_point=None, geo_limit=None, geo_box=None, page=1, per_page=20):
+    ''' search by geo point and geo limit
+
+    Args:
+      geo_point: A GeoPoint object, which represents the (longitude, latitude) of a location
+      geo_limit: A GeoLimit object, which represents a range to a GeoPoint
+      geo_box: A GeoBox object, wihch represents a box area
+
+    Returns:
+      a list of Image object
+
+    Examples:
+      >>> app.inputs.search_by_geo(GeoPoint(30, 40), GeoLimit("mile", 10))
+    '''
+    if geo_limit is None:
+      geo_limit = GeoLimit("mile", 10)
+
+    if geo_point and not isinstance(geo_point, GeoPoint):
+      raise UserError('geo_point type not match GeoPoint. Please check data type.')
+
+    if not isinstance(geo_limit, GeoLimit):
+      raise UserError('geo_limit type not match GeoLimit. Please check data type.')
+
+    if geo_box and not isinstance(geo_box, GeoBox):
+      raise UserError('geo_box type not match GeoBox. Please check data type.')
+
+    if geo_point is None and geo_box is None:
+      raise UserError('at least geo_point or geo_box needs to be specified for the geo search.')
+
+    if geo_point and geo_box:
+      raise UserError('confusing. you cannot search by geo_point and geo_box together.')
+
+    qb = SearchQueryBuilder()
+
+    if geo_point is not None:
+      term = InputSearchTerm(geo=Geo(geo_point=geo_point, geo_limit=geo_limit))
+    elif geo_box is not None:
+      term = InputSearchTerm(geo=Geo(geo_box=geo_box))
+
+    qb.add_term(term)
+
+    return self.search(qb, page, per_page)
+
   def search_by_predicted_concepts(self, concept=None, concepts=None, \
                                          value=True, values=None,\
                                          concept_id=None, concept_ids=None, \
@@ -1508,7 +1607,28 @@ class Inputs(object):
       not_concepts = None
 
     # get metadata
-    metadata=one['data'].get('metadata', None)
+    metadata = one['data'].get('metadata', None)
+
+    # get geo
+    geo = geo_json = one['data'].get('geo', None)
+
+    if geo_json is not None:
+      geo_schema = {
+                    'additionalProperties': False,
+                    'type': 'object',
+                    'properties': {
+                        'geo_point': {
+                            'type': 'object',
+                            'properties': {
+                                'longitude': { 'type': 'number' },
+                                'latitude': {'type': 'number'}
+                                }
+                            }
+                        }
+                   }
+
+      validate(geo_json, geo_schema)
+      geo = Geo(GeoPoint(geo_json['geo_point']['longitude'], geo_json['geo_point']['latitude']))
 
     input_id = one['id']
     if one['data'].get('image'):
@@ -1517,19 +1637,21 @@ class Inputs(object):
           crop = one['data']['image']['crop']
           one_input = Image(image_id=input_id, url=one['data']['image']['url'], \
                             concepts=concepts, not_concepts=not_concepts, crop=crop, \
-                            metadata=metadata)
+                            metadata=metadata, geo=geo)
         else:
           one_input = Image(image_id=input_id, url=one['data']['image']['url'], \
-                            concepts=concepts, not_concepts=not_concepts, metadata=metadata)
+                            concepts=concepts, not_concepts=not_concepts, \
+                            metadata=metadata, geo=geo)
       elif one['data']['image'].get('base64'):
         if one['data']['image'].get('crop'):
           crop = one['data']['image']['crop']
           one_input = Image(image_id=input_id, base64=one['data']['image']['base64'], \
                             concepts=concepts, not_concepts=not_concepts, crop=crop, \
-                            metadata=metadata)
+                            metadata=metadata, geo=geo)
         else:
           one_input = Image(image_id=input_id, base64=one['data']['image']['base64'], \
-                            concepts=concepts, not_concepts=not_concepts, metadata=metadata)
+                            concepts=concepts, not_concepts=not_concepts, \
+                            metadata=metadata, geo=geo)
     elif one['data'].get('video'):
       raise UserError('Not supported yet')
     else:
@@ -2113,6 +2235,11 @@ class ApiClient(object):
   def __init__(self, app_id=None, app_secret=None, base_url=None, quiet=True):
 
     homedir = os.environ['HOMEPATH'] if platform.system() == 'Windows' else os.environ['HOME']
+    if platform.system() == 'Windows':
+      homedir = os.environ.get('HOMEPATH', '.')
+    else:
+      homedir = os.environ.get('HOME', '.')
+
     CONF_FILE=os.path.join(homedir, '.clarifai', 'config')
 
     if app_id is None:
@@ -2270,12 +2397,14 @@ class ApiClient(object):
       if method == 'GET':
         headers = {'Content-Type': 'application/json',
                    'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
+                   'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
                    'Authorization': self.headers['Authorization']}
         res = requests.get(url, params=params, headers=headers)
       elif method == "POST":
         if files:
           headers = {'Authorization': self.headers['Authorization'],
                      'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
+                     'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
                     }
           # Seek back to the start.
           for f in files.itervalues():
@@ -2284,16 +2413,19 @@ class ApiClient(object):
         else:
           headers = {'Content-Type': 'application/json',
                      'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
+                     'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
                      'Authorization': self.headers['Authorization']}
           res = requests.post(url, data=json.dumps(params), headers=headers)
       elif method == "DELETE":
         headers = {'Content-Type': 'application/json',
                    'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
+                   'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
                    'Authorization': self.headers['Authorization']}
         res = requests.delete(url, data=json.dumps(params), headers=headers)
       elif method == "PATCH":
         headers = {'Content-Type': 'application/json',
                    'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
+                   'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
                    'Authorization': self.headers['Authorization']}
         res = requests.patch(url, data=json.dumps(params), headers=headers)
       else:
@@ -2303,7 +2435,7 @@ class ApiClient(object):
         js = res.json()
       except Exception:
         logger.exception("Could not get valid JSON from server response.")
-        logger.debug("\nRESULT:\n%s", str(res.content))
+        logger.debug("\nRESULT:\n%s", pformat(json.loads(res.content.decode('utf-8'))))
         return res
 
       logger.debug("\nRESULT:\n%s", pformat(json.loads(res.content.decode('utf-8'))))
