@@ -28,7 +28,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.16'
+CLIENT_VERSION = '2.0.17'
 OS_VER = os.sys.platform
 PYTHON_VERSION = '.'.join(map(str, [os.sys.version_info.major, os.sys.version_info.minor, \
                                     os.sys.version_info.micro]))
@@ -2234,7 +2234,6 @@ class ApiClient(object):
 
   def __init__(self, app_id=None, app_secret=None, base_url=None, quiet=True):
 
-    homedir = os.environ['HOMEPATH'] if platform.system() == 'Windows' else os.environ['HOME']
     if platform.system() == 'Windows':
       homedir = os.environ.get('HOMEPATH', '.')
     else:

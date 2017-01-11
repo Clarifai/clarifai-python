@@ -17,7 +17,7 @@ Installation
 ---------------------
 Unzip the package to somewhere then run setup.py to install:
 ```
-pip install clarifai==2.0.16
+pip install clarifai==2.0.17
 ```
 
 
@@ -53,5 +53,5 @@ app.tag_urls(['https://samples.clarifai.com/metro-north.jpg'])
 
 Documentations
 ---------------------
-Read more code examples and references at https://sdk.clarifai.com/python/docs/2.0.16/index.html
+Read more code examples and references at https://sdk.clarifai.com/python/docs/2.0.17/index.html
 
