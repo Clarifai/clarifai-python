@@ -9,11 +9,11 @@ import time
 import json
 import copy
 import base64
-from pprint import pformat
 import logging
 import requests
 import platform
 from io import BytesIO
+from pprint import pformat
 from configparser import ConfigParser
 from posixpath import join as urljoin
 from past.builtins import basestring
@@ -28,7 +28,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.17'
+CLIENT_VERSION = '2.0.18'
 OS_VER = os.sys.platform
 PYTHON_VERSION = '.'.join(map(str, [os.sys.version_info.major, os.sys.version_info.minor, \
                                     os.sys.version_info.micro]))
@@ -534,11 +534,19 @@ class SearchQueryBuilder(object):
     >>> qb.add_term(term2)
     >>>
     >>> app.inputs.search(qb)
+    >>>
+    >>> # for search over translated output concepts
+    >>> qb = SearchQueryBuilder(language='zh')
+    >>> qb.add_term(term1)
+    >>> qb.add_term(term2)
+    >>>
+    >>> app.inputs.search(qb)
 
   """
 
-  def __init__(self):
+  def __init__(self, language=None):
     self.terms = []
+    self.language = language
 
   def add_term(self, term):
     ''' add search term to the query
@@ -558,6 +566,9 @@ class SearchQueryBuilder(object):
     query = { "ands":
                 [term.dict() for term in self.terms]
             }
+
+    if self.language is not None:
+      query.update({'language':self.language})
 
     return query
 
@@ -624,8 +635,12 @@ class Models(object):
 
     return model
 
-  def get_all(self):
+  def get_all(self, public_only=False, private_only=False):
     ''' get all models in the application
+
+    Args:
+      public_only: only yield public models
+      private_only: only yield private models that tie to your own account
 
     Returns:
       a generator that yields Model object
@@ -646,29 +661,43 @@ class Models(object):
 
       for one in res['models']:
         model = self._to_obj(one)
+
+        if public_only is True and model.app_id:
+          continue
+
+        if private_only is True and not model.app_id:
+          continue
+
         yield model
 
       page += 1
 
-  def get_by_page(self, page=1, per_page=20):
+  def get_by_page(self, public_only=False, private_only=False, page=1, per_page=20):
     ''' get paginated models from the application
 
         When the number of models get high, you may want to get
         the paginated results from all the models
 
-        Args:
-          page: page number
-          per_page: number of models returned in one page
+    Args:
+      public_only: only yield public models
+      private_only: only yield private models that tie to your own account
+      page: page number
+      per_page: number of models returned in one page
 
-        Returns:
-          a list of Model objects
+    Returns:
+      a list of Model objects
 
-        Examples:
-          >>> models = app.models.get_by_page(2, 20)
+    Examples:
+      >>> models = app.models.get_by_page(2, 20)
     '''
 
     res = self.api.get_models(page, per_page)
     results = [self._to_obj(one) for one in res['models']]
+
+    if public_only is True:
+      results = filter(lambda m: not m.app_id, results)
+    elif private_only is True:
+      results = filter(lambda m: m.app_id, results)
 
     return results
 
@@ -1346,7 +1375,7 @@ class Inputs(object):
   def search_by_predicted_concepts(self, concept=None, concepts=None, \
                                          value=True, values=None,\
                                          concept_id=None, concept_ids=None, \
-                                         page=1, per_page=20):
+                                         page=1, per_page=20, lang=None):
     ''' search over the predicted concepts
 
     Args:
@@ -1358,12 +1387,15 @@ class Inputs(object):
       values: the list of values corresponding to the concepts
       page: page number
       per_page: number of images to return per page
+      lang: language to search over for translated concepts
 
     Returns:
       a list of Image object
 
     Examples:
       >>> app.inputs.search_by_predicted_concepts(concept='cat')
+      >>> # search over simplified Chinese label
+      >>> app.inputs.search_by_predicted_concepts(concept=u'狗', lang='zh')
     '''
     if not concept and not concepts and concept_id and concept_ids:
       raise UserError('concept could not be null.')
@@ -1385,7 +1417,7 @@ class Inputs(object):
       if not values:
         values = [value]
 
-      qb = SearchQueryBuilder()
+      qb = SearchQueryBuilder(language=lang)
 
       for concept, value in zip(concepts, values):
         term = OutputSearchTerm(concept=concept, value=value)
@@ -1711,24 +1743,27 @@ class Concepts(object):
 
     return concept
 
-  def search(self, term):
+  def search(self, term, lang=None):
     ''' search concepts by concept name with wildcards
 
     Args:
       term: search term with wildcards
+      lang: language to search
 
     Returns:
       a list concept in a generator
 
     Examples:
       >>> app.concepts.search('cat')
+      >>> # search for Chinese label name
+      >>> app.concepts.search(u'狗*')
     '''
 
     page = 1
     per_page = 20
 
     while True:
-      res = self.api.search_concepts(term, page, per_page)
+      res = self.api.search_concepts(term, page, per_page, lang)
 
       if not res['concepts']:
         break
@@ -1931,25 +1966,28 @@ class Model(object):
     model = self._to_obj(res['model'])
     return model
 
-  def predict_by_url(self, url):
+  def predict_by_url(self, url, lang=None):
     ''' predict a model with url
 
     Args:
       url: url of an image
+      lang: language to predict, if the translation is available
 
     Returns:
       the prediction of the model in JSON format
     '''
 
     image = Image(url=url)
-    res = self.predict([image])
+    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang))
+    res = self.predict([image], model_output_info)
     return res
 
-  def predict_by_filename(self, filename):
+  def predict_by_filename(self, filename, lang=None):
     ''' predict a model with a local filename
 
     Args:
       filename: filename on local filesystem
+      lang: language to predict, if the translation is available
 
     Returns:
       the prediction of the model in JSON format
@@ -1957,14 +1995,17 @@ class Model(object):
 
     fileio = open(filename, 'rb')
     image = Image(file_obj=fileio)
-    res = self.predict([image])
+    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang))
+
+    res = self.predict([image], model_output_info)
     return res
 
-  def predict_by_bytes(self, raw_bytes):
+  def predict_by_bytes(self, raw_bytes, lang=None):
     ''' predict a model with image raw bytes
 
     Args:
       raw_bytes: raw bytes of an image
+      lang: language to predict, if the translation is available
 
     Returns:
       the prediction of the model in JSON format
@@ -1972,24 +2013,27 @@ class Model(object):
 
     base64_bytes = base64.b64encode(raw_bytes)
     image = Image(base64=base64_bytes)
-    res = self.predict([image])
+    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang))
+    res = self.predict([image], model_output_info)
     return res
 
-  def predict_by_base64(self, base64_bytes):
+  def predict_by_base64(self, base64_bytes, lang=None):
     ''' predict a model with base64 encoded image bytes
 
     Args:
       base64_bytes: base64 encoded image bytes
+      lang: language to predict, if the translation is available
 
     Returns:
       the prediction of the model in JSON format
     '''
 
     image = Image(base64=base64_bytes)
-    res = self.predict([image])
+    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang))
+    res = self.predict([image], model_output_info)
     return res
 
-  def predict(self, inputs):
+  def predict(self, inputs, model_output_info=None):
     ''' predict with multiple images
 
     Args:
@@ -1999,7 +2043,7 @@ class Model(object):
       the prediction of the model in JSON format
     '''
 
-    res = self.api.predict_model(self.model_id, inputs, self.model_version)
+    res = self.api.predict_model(self.model_id, inputs, self.model_version, model_output_info)
     return res
 
   def merge_concepts(self, concept_ids, overwrite=False):
@@ -2351,7 +2395,7 @@ class ApiClient(object):
     if self.token is None:
       self.get_token()
 
-  def _requester(self, resource, params, method, version="v2", files=None):
+  def _requester(self, resource, params, method, version="v2"):
     ''' Obtains info and verifies user via Token Decorator
 
     Args:
@@ -2400,21 +2444,11 @@ class ApiClient(object):
                    'Authorization': self.headers['Authorization']}
         res = requests.get(url, params=params, headers=headers)
       elif method == "POST":
-        if files:
-          headers = {'Authorization': self.headers['Authorization'],
-                     'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
-                     'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
-                    }
-          # Seek back to the start.
-          for f in files.itervalues():
-            f.seek(0)
-          res = requests.post(url, data=params, headers=headers, files=files)
-        else:
-          headers = {'Content-Type': 'application/json',
-                     'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
-                     'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
-                     'Authorization': self.headers['Authorization']}
-          res = requests.post(url, data=json.dumps(params), headers=headers)
+        headers = {'Content-Type': 'application/json',
+                   'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
+                   'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
+                   'Authorization': self.headers['Authorization']}
+        res = requests.post(url, data=json.dumps(params), headers=headers)
       elif method == "DELETE":
         headers = {'Content-Type': 'application/json',
                    'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
@@ -2457,6 +2491,7 @@ class ApiClient(object):
       retry = False
 
     if res.status_code != 200:
+      logger.warn("\nRESULT:\n%s", pformat(json.loads(res.content.decode('utf-8'))))
       raise ApiError(resource, params, method, res)
 
     return res.json()
@@ -2468,10 +2503,6 @@ class ApiClient(object):
   def post(self, resource, params=None, version="v2"):
     ''' Authorized post to Clarifai's API. '''
     return self._requester(resource, params, 'POST', version)
-
-  def post_form(self, resource, params=None, version="v2"):
-    ''' Authorized post to Clarifai's API. '''
-    return self._requester(resource, params=None, method='POST', version=version, files=params)
 
   def delete(self, resource, params=None, version="v2"):
     ''' Authorized get from Clarifai's API. '''
@@ -2719,13 +2750,14 @@ class ApiClient(object):
     res = self.post(resource, d)
     return res
 
-  def search_concepts(self, term, page=1, per_page=20):
+  def search_concepts(self, term, page=1, per_page=20, language=None):
     ''' Search concepts
 
     Args:
       term: search term with wildcards
       page: the page of results to get, starts at 1.
       per_page: number of results returned per page
+      language: language to search for the translation
 
     Returns:
       a list of concepts in JSON format along with the status code
@@ -2742,6 +2774,9 @@ class ApiClient(object):
                  "name":term
                }
              })
+
+    if language is not None:
+      d['concept_query']['language'] = language
 
     res = self.post(resource, d)
     return res
@@ -2944,7 +2979,7 @@ class ApiClient(object):
     res = self.post(resource)
     return res
 
-  def predict_model(self, model_id, objs, version_id=None):
+  def predict_model(self, model_id, objs, version_id=None, model_output_info=None):
 
     if version_id is None:
       resource = "models/%s/outputs" % model_id
@@ -2957,16 +2992,21 @@ class ApiClient(object):
       raise UserError("Not valid type of content to add. Must be Image or Video")
 
     data = {"inputs": [obj.dict() for obj in objs]}
+
+    if model_output_info is not None:
+      data.update({'model':model_output_info.dict()})
+
     res = self.post(resource, data)
     return res
 
-  def predict_concepts(self, objs):
+  def predict_concepts(self, objs, lang=None):
 
     models = self.search_models(name='general-v1.3', model_type='concept')
     model = models['models'][0]
     model_id = model['id']
 
-    return self.predict_model(model_id, objs)
+    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang))
+    return self.predict_model(model_id, objs, model_output_info=model_output_info)
 
   def predict_colors(self, objs):
 
@@ -3071,4 +3111,42 @@ class InputCounts(object):
                    }
         }
     return d
+
+
+class ModelOutputInfo(object):
+
+  def __init__(self, concepts=None, output_config=None):
+    self.concepts = concepts
+    self.output_config = output_config
+
+  def dict(self):
+    data = {'output_info':{}}
+
+    if self.output_config:
+      data['output_info'].update(self.output_config.dict())
+
+    if self.concepts:
+      data = {'data':{'concepts':[concept.dict() for concept in self.concepts]}}
+      data['output_info'].update()
+
+    return data
+
+
+class ModelOutputConfig(object):
+
+  def __init__(self, mutually_exclusive=False, closed_environment=False, language=None):
+    self.concepts_mutually_exclusive = mutually_exclusive
+    self.closed_environment = closed_environment
+    self.language = language
+
+  def dict(self):
+    data = {'output_config':{
+      'concepts_mutually_exclusive':self.concepts_mutually_exclusive,
+      'closed_environment':self.closed_environment
+    }}
+
+    if self.language is not None:
+      data['output_config']['language'] = self.language
+
+    return data
 

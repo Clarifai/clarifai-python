@@ -5,3 +5,4 @@ from .client import ClarifaiApp
 from .client import Model, Image, Concept
 from .client import InputSearchTerm, OutputSearchTerm, SearchQueryBuilder
 from .client import Geo, GeoPoint, GeoBox, GeoLimit
+from .client import ApiStatus
