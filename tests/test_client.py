@@ -41,7 +41,7 @@ class TestClarifaiApi(unittest.TestCase):
     self.assertTrue(response['results'][0]['url'] == image_url)
 
     # tag image from local fs
-    image_file = 'tests/v1_tests/data/toddler-flowers.jpeg'
+    image_file = 'tests/data/toddler-flowers.jpeg'
     api = ClarifaiApi()
     if os.path.exists(image_file):
       with open(image_file, 'rb') as fb:
@@ -60,7 +60,7 @@ class TestClarifaiApi(unittest.TestCase):
     self.assertTrue(response)
 
     # tag images frmo local fs
-    image_dir = 'tests/v1_tests/data'
+    image_dir = 'tests/data'
     image_files = ['metro-north.jpg', 'tahoe.jpg', 'thai-market.jpg']
 
     api = ClarifaiApi()
@@ -95,7 +95,7 @@ class TestClarifaiApi(unittest.TestCase):
     self.assertTrue(response)
     self.assertTrue(response['results'][0]['url'] == image_url)
 
-    image_file = 'tests/v1_tests/data/water-ocean-turtle.gif'
+    image_file = 'tests/data/water-ocean-turtle.gif'
     api = ClarifaiApi()
     if os.path.exists(image_file):
       with open(image_file, 'rb') as fb:
@@ -111,7 +111,7 @@ class TestClarifaiApi(unittest.TestCase):
 
   def test_tag_one_video_from_localfs(self):
     # video source: http://techslides.com/demos/sample-videos/small.mp4
-    video_file = 'tests/v1_tests/data/small.mp4'
+    video_file = 'tests/data/small.mp4'
     api = ClarifaiApi()
     if os.path.exists(video_file):
       with open(video_file, 'rb') as fb:
@@ -135,7 +135,7 @@ class TestClarifaiApi(unittest.TestCase):
       self.check_unauth(e)
 
   def test_embed_one_image_from_localfs(self):
-    image_file = 'tests/v1_tests/data/toddler-flowers.jpeg'
+    image_file = 'tests/data/toddler-flowers.jpeg'
     api = ClarifaiApi()
     if os.path.exists(image_file):
       with open(image_file, 'rb') as fb:
@@ -158,7 +158,7 @@ class TestClarifaiApi(unittest.TestCase):
       self.check_unauth(e)
 
   def test_tag_n_embed_from_localfs(self):
-    image_dir = 'tests/v1_tests/data'
+    image_dir = 'tests/data'
     image_files = ['metro-north.jpg', 'tahoe.jpg', 'thai-market.jpg']
 
     api = ClarifaiApi()
@@ -277,7 +277,7 @@ class TestClarifaiApi(unittest.TestCase):
   def test_pil_resizing(self):
     """ test with image resizing """
 
-    image_file = 'tests/v1_tests/data/toddler-flowers.jpeg'
+    image_file = 'tests/data/toddler-flowers.jpeg'
     api = ClarifaiApi(resize=True)
     orig = api._resize_image_tuple
 
@@ -293,12 +293,12 @@ class TestClarifaiApi(unittest.TestCase):
           response = api.tag_images(fb)
           self.assertTrue(response)
 
-      self.assertTrue(mock_some_method.called)
+        self.assertTrue(mock_some_method.called)
 
   @mock.patch('clarifai.client.ClarifaiApi')
   def test_no_resizing(self, mock_api):
     """ test with no image resizing """
-    image_file = 'tests/v1_tests/data/toddler-flowers.jpeg'
+    image_file = 'tests/data/toddler-flowers.jpeg'
     api = ClarifaiApi(resize=False)
 
     self.assertFalse(api.resize)
