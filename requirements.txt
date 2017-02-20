@@ -1,0 +1,4 @@
+future==0.15.2
+requests==2.11.1
+configparser==3.5.0
+jsonschema==2.5.1
