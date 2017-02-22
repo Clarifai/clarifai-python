@@ -12,8 +12,10 @@ Basically it helps to setup the environmental variables for the API Clients
 import os
 import sys
 import platform
+from pprint import pprint
 from configparser import ConfigParser
 from builtins import input
+from subprocess import call
 
 
 def setup(app_id, app_secret):
@@ -96,6 +98,35 @@ def configure():
   except TokenError:
     print('Invalid id/secret to get the token, please verify and try again.')
 
+def diagnose():
+  ''' diagnose function
+      this will print out essential library and system level info
+      to facilitate the troubleshooting when issue occurs
+  '''
+
+  print('Clarifai API Diagnosis Info')
+  print('-' * 85)
+
+  print('>>>>> OS Version')
+  pprint(os.uname())
+  print('')
+
+  print('>>>>> Python Version')
+  pprint(sys.version)
+  print('')
+
+  print('>>>>> Environmental Variables')
+  pprint(os.environ)
+  print('')
+
+  print('>>>>> Pip Package Info')
+  call(['pip', 'freeze'])
+  print('')
+
+  print('>>>>> Clarifai Pip Package Info')
+  call(['pip', 'show', '-f', 'clarifai'])
+  print('')
+
 def print_help():
   ''' print help of this command '''
 
@@ -112,6 +143,7 @@ SYNOPSIS
 
 EXAMPELS
           clarifai config
+          clarifai diagnose
           clarifai help
 """)
 
@@ -125,6 +157,8 @@ def main():
   command = sys.argv[1]
   if command == 'configure' or command == 'config':
     configure()
+  elif command == 'diagnose':
+    diagnose()
   else:
     print_help()
 

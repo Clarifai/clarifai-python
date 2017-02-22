@@ -19,6 +19,7 @@ from posixpath import join as urljoin
 from past.builtins import basestring
 from jsonschema import validate
 from future.moves.urllib.parse import urlparse
+from distutils.version import StrictVersion
 from .geo import GeoPoint, GeoBox, GeoLimit, Geo
 
 logger = logging.getLogger('clarifai')
@@ -28,10 +29,11 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.18'
+CLIENT_VERSION = '2.0.19'
 OS_VER = os.sys.platform
 PYTHON_VERSION = '.'.join(map(str, [os.sys.version_info.major, os.sys.version_info.minor, \
                                     os.sys.version_info.micro]))
+GITHUB_TAG_ENDPOINT = 'https://api.github.com/repos/clarifai/clarifai-python/git/refs/tags'
 
 DEFAULT_TAG_MODEL = 'general-v1.3'
 
@@ -71,8 +73,25 @@ class ClarifaiApp(object):
         warning message in STDERR. The API call will not be paused or interrupted.
     '''
     # check the latest version
-    # compare
-    pass
+    res = requests.get(GITHUB_TAG_ENDPOINT)
+
+    # ignore the rare github api outage because this is noncritical check
+    if res.status_code != 200:
+      return
+
+    try:
+      tags = res.json()
+      tag_latest = tags[-1]
+      tag_latest_release = tag_latest['ref'].split('/')[-1]
+      if tag_latest_release.startswith('v'):
+        tag_latest_release = tag_latest_release[1:]
+
+      # compare and warn
+      if StrictVersion(CLIENT_VERSION) < StrictVersion(tag_latest_release):
+        logger.warn("Hey! Clarifai Python Client v%s upgrade available.", tag_latest_release)
+    except Exception:
+      # as this is non critical check, ignore all exceptions that occur
+      pass
 
   """
   Below are the shortcut functions for a more smoothy transition of the v1 users
@@ -869,6 +888,10 @@ class Inputs(object):
 
     Examples::
       >>> app.inputs.create_image_from_url(url='https://samples.clarifai.com/metro-north.jpg')
+      >>>
+      >>> # create image with geo point
+      >>> app.inputs.create_image_from_url(url='https://samples.clarifai.com/metro-north.jpg', \
+      >>>   geo=Geo(geo_point=GeoPoint(22.22, 44.44))
     '''
 
     image = Image(url=url, image_id=image_id, concepts=concepts, not_concepts=not_concepts, \
@@ -1691,6 +1714,42 @@ class Inputs(object):
 
     return one_input
 
+  def get_outputs(self, input_id):
+    ''' get output predictions for a particular input
+
+    Args:
+      input_id: the unique identifier of the input
+
+    Returns:
+      the input with the output predictions
+    '''
+    return self.api.get_outputs(input_id)
+
+  def remove_outputs_concepts(self, input_id, concept_ids):
+    ''' remove concepts from the outputs predictions
+        the concept ids must be present in your app
+
+    Args:
+      input_id: the unique identifier of the input
+      concept_ids: the list of concept ids that are present in your app
+
+    Returns:
+      the patched input in JSON object
+    '''
+    return self.api.patch_outputs(input_id, action='remove', concept_ids=concept_ids)
+
+  def merge_outputs_concepts(self, input_id, concept_ids):
+    ''' merge new concepts into the outputs predictions
+        the concept ids must be present in your app
+
+    Args:
+      input_id: the unique identifier of the input
+      concept_ids: the list of concept ids that are present in your app
+
+    Returns:
+      the patched input in JSON object
+    '''
+    return self.api.patch_outputs(input_id, action='merge', concept_ids=concept_ids)
 
 class Concepts(object):
 
@@ -1956,6 +2015,19 @@ class Model(object):
       elapsed = time.time() - time_start
       if elapsed > timeout:
         break
+
+      if elapsed < 10:
+        wait_interval = 1
+      elif elapsed < 60:
+        wait_interval = 5
+      elif elapsed < 120:
+        wait_interval = 10
+      elif elapsed < 180:
+        wait_interval = 20
+      elif elapsed < 240:
+        wait_interval = 30
+      else:
+        wait_interval = 60
 
       time.sleep(wait_interval)
       res_ver = self.api.get_model_version(model_id, model_version)
@@ -2430,6 +2502,19 @@ class ApiClient(object):
           if data.get('image') and data['image'].get('base64'):
             base64_bytes = data['image']['base64'][:10] + '......' + data['image']['base64'][-10:]
             data['image']['base64'] = base64_bytes
+      elif params and params.get('query') and params['query'].get('ands'):
+        params_copy = copy.deepcopy(params)
+
+        queries = params_copy['query']['ands']
+
+        for query in queries:
+          if query.get('output') and query['output'].get('input') and \
+                  query['output']['input'].get('data') and \
+                  query['output']['input']['data'].get('image') and \
+                  query['output']['input']['data']['image'].get('base64'):
+            data = query['output']['input']['data']
+            base64_bytes = data['image']['base64'][:10] + '......' + data['image']['base64'][-10:]
+            data['image']['base64'] = base64_bytes
       else:
         params_copy = params
       # mangle the base64 because it is too long
@@ -2491,7 +2576,7 @@ class ApiClient(object):
       retry = False
 
     if res.status_code != 200:
-      logger.warn("\nRESULT:\n%s", pformat(json.loads(res.content.decode('utf-8'))))
+      logger.debug("\nRESULT:\n%s", pformat(json.loads(res.content.decode('utf-8'))))
       raise ApiError(resource, params, method, res)
 
     return res.json()
@@ -2683,6 +2768,53 @@ class ApiClient(object):
       images.append(new_item)
 
     data["inputs"] = images
+
+    res = self.patch(resource, data)
+    return res
+
+  def get_outputs(self, input_id):
+    ''' Get output predictions for an input
+
+    Args:
+      input_id: the unique identifier for an input
+
+    Returns:
+      the input with output predictions in a json object
+    '''
+
+    resource = "inputs/%s/outputs" % input_id
+
+    res = self.get(resource)
+    return res
+
+  def patch_outputs(self, input_id, action, concept_ids):
+    ''' Patch predictions
+
+    Args:
+      input_id: the unique identifier of the input
+      action: 'remove' or 'merge'
+      concept_ids: the list of concept ids that will be removed or merged
+
+    Returns:
+      the patched input
+    '''
+
+    resource = "inputs/%s/outputs" % input_id
+    patch_value = 1 if action == 'merge' else 0
+
+    data = {
+             "outputs": [
+              {
+                "data": {
+                  "concepts": [ { "id": cid, "value": patch_value } for cid in concept_ids]
+                },
+                "model": {
+                  "id": "aa9ca48295b37401f8af92ad1af0d91d"
+                }
+              }
+             ],
+             "action": action
+           }
 
     res = self.patch(resource, data)
     return res
