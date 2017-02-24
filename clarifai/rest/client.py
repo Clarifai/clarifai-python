@@ -29,7 +29,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.19'
+CLIENT_VERSION = '2.0.20'
 OS_VER = os.sys.platform
 PYTHON_VERSION = '.'.join(map(str, [os.sys.version_info.major, os.sys.version_info.minor, \
                                     os.sys.version_info.micro]))
@@ -77,6 +77,7 @@ class ClarifaiApp(object):
 
     # ignore the rare github api outage because this is noncritical check
     if res.status_code != 200:
+      logger.debug("github.com or network might be down. Please check connectivity.")
       return
 
     try:
@@ -89,8 +90,9 @@ class ClarifaiApp(object):
       # compare and warn
       if StrictVersion(CLIENT_VERSION) < StrictVersion(tag_latest_release):
         logger.warn("Hey! Clarifai Python Client v%s upgrade available.", tag_latest_release)
-    except Exception:
+    except Exception as e:
       # as this is non critical check, ignore all exceptions that occur
+      logger.debug(str(e))
       pass
 
   """
@@ -221,6 +223,7 @@ class Input(object):
     self.not_concepts = not_concepts
     self.metadata = metadata
     self.geo = geo
+    self.score = 0
 
   def dict(self):
     ''' Return the data of the Input as a dict ready to be input to json.dumps. '''
@@ -1136,7 +1139,7 @@ class Inputs(object):
     '''
 
     res = self.api.search_inputs(qb.dict(), page, per_page)
-    hits = [self._to_obj(one['input']) for one in res['hits']]
+    hits = [self._to_search_obj(one) for one in res['hits']]
     return hits
 
   def search_by_image(self, image_id=None, \
@@ -1642,6 +1645,13 @@ class Inputs(object):
     action = 'merge'
     res = self.update(image, action=action)
     return res
+
+  def _to_search_obj(self, one):
+    ''' convert the search candidate to input object '''
+    score = one['score']
+    one_input = self._to_obj(one['input'])
+    one_input.score = score
+    return one_input
 
   def _to_obj(self, one):
 
@@ -2474,7 +2484,7 @@ class ApiClient(object):
       resource:
       params: parameters passed to the request
       version: v1 or v2
-      method: GET or POST
+      method: GET or POST or DELETE or PATCH
 
     Returns:
       JSON from user request
@@ -2562,7 +2572,7 @@ class ApiClient(object):
       attempts -= 1
 
       # allow retry when token expires
-      if isinstance(js, dict) and js.get('status_code', None) == "TOKEN_EXPIRED":
+      if isinstance(js, dict) and js.get('status', {}).get('details', '') == "expired token":
         self.get_token()
         retry = True
         continue
@@ -3178,9 +3188,15 @@ class ApiError(Exception):
     self.params = params
     self.method = method
     self.response = response
-    msg = "%s %s FAILED. code: %d, reason: %s, response:%s" % (
+
+    self.error_code = response.json().get('status', {}).get('code', None)
+    self.error_desc = response.json().get('status', {}).get('description', None)
+    self.error_details = response.json().get('status', {}).get('details', None)
+
+    msg = "%s %s FAILED. code: %d, reason: %s, error_code: %s, error_description: %s, error_details: %s" % (
       method, resource, response.status_code, response.reason,
-      str(response))
+      self.error_code, self.error_desc, self.error_details)
+
     super(ApiError, self).__init__(msg)
 
   # def __str__(self):
