@@ -108,7 +108,7 @@ def diagnose():
   print('-' * 85)
 
   print('>>>>> OS Version')
-  pprint(os.uname())
+  pprint(platform.system())
   print('')
 
   print('>>>>> Python Version')

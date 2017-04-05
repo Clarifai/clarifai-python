@@ -29,7 +29,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.20'
+CLIENT_VERSION = '2.0.21'
 OS_VER = os.sys.platform
 PYTHON_VERSION = '.'.join(map(str, [os.sys.version_info.major, os.sys.version_info.minor, \
                                     os.sys.version_info.micro]))
@@ -602,7 +602,28 @@ class Models(object):
 
     # the cache of the model name -> model id mapping
     # to avoid an extra model query on every prediction by model name
-    self.model_id_cache = {}
+    self.model_id_cache = self.init_model_cache()
+
+  def init_model_cache(self):
+    ''' initialize the model cache for the public models
+
+        This will go through all public models and cache them
+    '''
+
+    model_cache = {}
+
+    models = self.get_all(public_only=True)
+    for m in models:
+      model_name = m.model_name
+      model_type = m.output_info['type']
+      model_id = m.model_id
+      model_cache.update({(model_name, model_type):model_id})
+
+      # for general-v1.3 concept model, make an extra cache entry
+      if model_name == 'general-v1.3' and model_type == 'concept':
+        model_cache.update({(model_name, None):model_id})
+
+    return model_cache
 
   def clear_model_cache(self):
     ''' clear model_name -> model_id cache
@@ -809,6 +830,8 @@ class Models(object):
           model = res[0]
           model_id = model.model_id
           self.model_id_cache.update({(model_name, model_type):model_id})
+      else:
+        raise e
 
     return model
 
@@ -2494,10 +2517,10 @@ class ApiClient(object):
     url = urljoin(self.basev2, version, resource)
 
     # only retry under when status_code is non-200, under max-tries
-    # and under some circustances
+    # and under some circumstances
     status_code = 199
     retry = True
-    attempts = 3
+    max_attempts = attempts = 3
     headers = {}
 
     while status_code != 200 and attempts > 0 and retry is True:
@@ -2572,14 +2595,23 @@ class ApiClient(object):
       attempts -= 1
 
       # allow retry when token expires
-      if isinstance(js, dict) and js.get('status', {}).get('details', '') == "expired token":
+      # normally, this should be solved in one retry
+      if status_code == 401 and isinstance(js, dict) and js.get('status', {}).get('details', '') == "expired token":
         self.get_token()
         retry = True
         continue
 
       # handle Gateway Error, normally retry will solve the problem
-      if js['status']['code'] == 10020 and js['status']['description'] == 'Bad gateway':
+      if status_code == 502 or status_code == 503 or status_code == 500:
         retry = True
+        continue
+
+      # handle throttling
+      # back off with 2/4/8 seconds
+      # normally, this will be settled in 1 or 2 retries
+      if status_code == 429:
+        retry = True
+        time.sleep(pow(2, max_attempts - attempts - 1))
         continue
 
       # in other cases, error out without retrying

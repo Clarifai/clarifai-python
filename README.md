@@ -17,7 +17,7 @@ Installation
 ---------------------
 Unzip the package to somewhere then run setup.py to install:
 ```
-pip install clarifai==2.0.20
+pip install clarifai==2.0.21
 ```
 
 
@@ -40,6 +40,8 @@ The config will be stored under ~/.clarifai/config for client's use
 
 Environmental variable CLARIFAI_APP_ID and CLARIFAI_APP_SECRET will override the settings in the config file.
 
+For AWS or Windows users, please refer to https://clarifai-python.readthedocs.io/en/v2.0.21/install.html for more instructions.
+
 
 Getting Started
 ---------------------
@@ -53,5 +55,5 @@ app.tag_urls(['https://samples.clarifai.com/metro-north.jpg'])
 
 Documentations
 ---------------------
-Read more code examples and references at https://sdk.clarifai.com/python/docs/2.0.20/index.html
+Read more code examples and references at https://clarifai-python.readthedocs.io/en/v2.0.21/index.html
 
