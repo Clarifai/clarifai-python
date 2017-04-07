@@ -1,3 +1,6 @@
+
+[![Build Status](https://travis-ci.org/Clarifai/clarifai-python.svg?branch=master)](https://travis-ci.org/Clarifai/clarifai-python)
+
 Clarifai API Python Client
 ====================
 
