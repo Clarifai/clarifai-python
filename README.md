@@ -15,11 +15,12 @@ below.
 
 Installation
 ---------------------
-Unzip the package to somewhere then run setup.py to install:
+The API client is available on Pip. You can simply install it with a `pip install`
 ```
 pip install clarifai==2.0.21
 ```
 
+For more details on the installation, please refer to https://clarifai-python.readthedocs.io/en/v2.0.21/install/
 
 Setup
 ---------------------
