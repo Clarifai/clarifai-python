@@ -10,7 +10,7 @@ Install the package
 You can install the latest stable clarifai using pip (which is the canonical way to install Python
 packages). To install using ``pip`` run::
 
-   pip install clarifai==2.0.21
+   pip install clarifai==2.0.22
 
 You can also install from git using latest source::
 
@@ -39,8 +39,8 @@ In order to run the command, you may want to launch it with the python interpret
 .. code-block:: bash
 
     C:\Python27>python.exe Scripts\clarifai config
-    CLARIFAI_APP_ID: [************************************abkE]:
-    CLARIFAI_APP_SECRET: [************************************w5LL]:
+    CLARIFAI_APP_ID: []: ************************************YQEd
+    CLARIFAI_APP_SECRET: []: ************************************gCqT
 
 AWS Lambda Users
 ================

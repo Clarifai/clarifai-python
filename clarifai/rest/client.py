@@ -29,7 +29,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.21'
+CLIENT_VERSION = '2.0.22'
 OS_VER = os.sys.platform
 PYTHON_VERSION = '.'.join(map(str, [os.sys.version_info.major, os.sys.version_info.minor, \
                                     os.sys.version_info.micro]))
@@ -53,12 +53,12 @@ class ClarifaiApp(object):
 
   """
 
-  def __init__(self, app_id=None, app_secret=None, base_url=None, quiet=True):
+  def __init__(self, app_id=None, app_secret=None, base_url=None, api_key=None, quiet=True):
 
     # check upgrade
     self.check_upgrade()
 
-    self.api = ApiClient(app_id=app_id, app_secret=app_secret, base_url=base_url, quiet=quiet)
+    self.api = ApiClient(app_id=app_id, app_secret=app_secret, base_url=base_url, api_key=api_key, quiet=quiet)
     self.auth = Auth(self.api)
 
     self.concepts = Concepts(self.api)
@@ -72,15 +72,17 @@ class ClarifaiApp(object):
         If the newer version is available, a prompt message will be poped up as a
         warning message in STDERR. The API call will not be paused or interrupted.
     '''
-    # check the latest version
-    res = requests.get(GITHUB_TAG_ENDPOINT)
-
-    # ignore the rare github api outage because this is noncritical check
-    if res.status_code != 200:
-      logger.debug("github.com or network might be down. Please check connectivity.")
-      return
 
     try:
+      # check the latest version
+      res = requests.get(GITHUB_TAG_ENDPOINT)
+
+      # ignore the rare github api outage because this is noncritical check
+      if res.status_code != 200:
+        logger.debug("github.com or network might be down. Please check connectivity.")
+        logger.debug("HTTP %d: %s" % (res.status_code, res.content))
+        return
+
       tags = res.json()
       tag_latest = tags[-1]
       tag_latest_release = tag_latest['ref'].split('/')[-1]
@@ -165,6 +167,43 @@ class ClarifaiApp(object):
     model = self.models.get(model)
     res = model.predict(images)
     return res
+
+  def wait_until_inputs_delete_finish(self):
+    """ block until the inputs deletion finishes
+    
+    The criteria of inputs deletion finish is 0 inputs from GET /inputs
+    
+    Args:
+      void
+      
+    Returns:
+      void
+    """
+
+    inputs = self.inputs.get_by_page()
+
+    while len(inputs) > 0:
+      time.sleep(0.2)
+      inputs = self.inputs.get_by_page()
+
+  def wait_until_models_delete_finish(self):
+    """ block until the inputs deletion finishes
+    
+    The criteria of models deletion finish is 0 private models from GET /models
+    
+    Args:
+      void
+      
+    Returns:
+      void
+    """
+
+    private_models = list(self.models.get_all(private_only=True))
+
+    while len(private_models) > 0:
+      time.sleep(0.2)
+      private_models = list(self.models.get_all(private_only=True))
+
 
 class Auth(object):
 
@@ -307,6 +346,10 @@ class Image(Input):
     if self.file_obj is not None:
       # DO NOT put 'read' as first condition
       # as io.BytesIO() has both read() and getvalue() and read() gives you an empty buffer...
+
+      # rewind the fileobj first
+      self.file_obj.seek(0)
+
       if hasattr(self.file_obj, 'getvalue'):
         base64_imgstr = base64.b64encode(self.file_obj.getvalue()).decode('UTF-8')
       elif hasattr(self.file_obj, 'read'):
@@ -331,11 +374,64 @@ class Image(Input):
 
 class Video(Input):
 
-  def __init__(self):
-    raise Exception('Not supported yet.')
+  def __init__(self, url=None, file_obj=None, base64=None, filename=None, video_id=None):
+    '''
+      url: the url to a publicly accessible video.
+      file_obj: a file-like object in which read() will give you the bytes.
+      base64: base64 encoded string for the video
+      filename: a local file name
+      video_id: user-defined identifier of this video
+    '''
+
+    super(Video, self).__init__(input_id=video_id)
+
+    self.url = url
+    self.filename = filename
+    self.file_obj = file_obj
+    self.base64 = base64
+
+    # override the filename with the fileobj as fileobj
+    if self.filename is not None:
+      if not os.path.exists(self.filename):
+        raise UserError("Invalid file path %s. Please check!")
+      elif not os.path.isfile(self.filename):
+        raise UserError("Not a regular file %s. Please check!")
+
+      self.file_obj = open(self.filename, 'rb')
+      self.filename = None
+
+    if self.file_obj is not None:
+      if not hasattr(self.file_obj, 'getvalue') and not hasattr(self.file_obj, 'read'):
+        raise UserError("Not sure how to read your file_obj")
+
+      if hasattr(self.file_obj, 'mode') and self.file_obj.mode != 'rb':
+        raise UserError(("If you're using open(), then you need to read bytes using the 'rb' mode. "
+                         "For example: open(filename, 'rb')"))
 
   def dict(self):
-    pass
+
+    data = super(Video, self).dict()
+
+    video = {'video':{}}
+
+    if self.file_obj is not None:
+      # DO NOT put 'read' as first condition
+      # as io.BytesIO() has both read() and getvalue() and read() gives you an empty buffer...
+      if hasattr(self.file_obj, 'getvalue'):
+        base64_imgstr = base64.b64encode(self.file_obj.getvalue()).decode('UTF-8')
+      elif hasattr(self.file_obj, 'read'):
+        base64_imgstr = base64.b64encode(self.file_obj.read()).decode('UTF-8')
+      else:
+        raise UserError("Not sure how to read your file_obj")
+
+      video['video']['base64'] = base64_imgstr
+    elif self.base64 is not None:
+      video['video']['base64'] = self.base64.decode('UTF-8')
+    else:
+      video['video']['url'] = self.url
+
+    data['data'].update(video)
+    return data
 
 
 class SearchTerm(object):
@@ -643,7 +739,8 @@ class Models(object):
 
   def create(self, model_id, model_name=None, concepts=None, \
              concepts_mutually_exclusive=False, \
-             closed_environment=False):
+             closed_environment=False, \
+             hyper_parameters=None):
 
     ''' create a new model
 
@@ -653,6 +750,7 @@ class Models(object):
       concepts: optional concepts to associated with this model
       concepts_mutually_exclusive: True or False, whether concepts are mutually exclusive
       closed_environment: True or False, whether use negatives for prediction
+      hyper_parameters: hyper parameters for the model, with a json object
 
     Returns:
       Model object
@@ -662,12 +760,14 @@ class Models(object):
       >>> app.models.create('my_model1')
       >>> # create a model with a few concepts
       >>> app.models.create('my_model2', concepts=['bird', 'fish'])
+      >>> # create a model with closed environment
+      >>> app.models.create('my_model3', closed_environment=True)
     '''
     if not model_name:
       model_name = model_id
 
     res = self.api.create_model(model_id, model_name, concepts, \
-                                concepts_mutually_exclusive, closed_environment)
+                                concepts_mutually_exclusive, closed_environment, hyper_parameters)
 
     if res.get('model'):
       model = self._to_obj(res['model'])
@@ -677,6 +777,19 @@ class Models(object):
                       (status['code'], status['description'], status['details']))
 
     return model
+
+  def _is_public(self, model):
+    ''' use app_id to determine whether it is a public model
+
+        For public model, the app_id is either '' or 'main'
+        For private model, the app_id is not empty but not 'main'
+    '''
+    app_id = model.app_id
+
+    if app_id == '' or app_id == 'main':
+      return True
+    else:
+      return False
 
   def get_all(self, public_only=False, private_only=False):
     ''' get all models in the application
@@ -705,10 +818,10 @@ class Models(object):
       for one in res['models']:
         model = self._to_obj(one)
 
-        if public_only is True and model.app_id:
+        if public_only is True and not self._is_public(model):
           continue
 
-        if private_only is True and not model.app_id:
+        if private_only is True and self._is_public(model):
           continue
 
         yield model
@@ -738,9 +851,9 @@ class Models(object):
     results = [self._to_obj(one) for one in res['models']]
 
     if public_only is True:
-      results = filter(lambda m: not m.app_id, results)
+      results = filter(lambda m: self._is_public(m), results)
     elif private_only is True:
-      results = filter(lambda m: m.app_id, results)
+      results = filter(lambda m: not self._is_public(m), results)
 
     return results
 
@@ -1223,8 +1336,15 @@ class Inputs(object):
       elif image.base64:
         term = OutputSearchTerm(base64=image.base64.decode('UTF-8'))
       elif image.file_obj:
-        imgbytes = image.file_obj.read()
-        base64_bytes = base64.b64encode(imgbytes).decode('UTF-8')
+        base64_bytes = ''
+
+        if hasattr(image.file_obj, 'getvalue'):
+          base64_bytes = base64.b64encode(image.file_obj.getvalue()).decode('UTF-8')
+        elif hasattr(image.file_obj, 'read'):
+          base64_bytes = base64.b64encode(image.file_obj.read()).decode('UTF-8')
+        else:
+          raise UserError("Not sure how to read your file_obj")
+
         term = OutputSearchTerm(base64=base64_bytes)
 
       qb.add_term(term)
@@ -1720,26 +1840,34 @@ class Inputs(object):
 
     input_id = one['id']
     if one['data'].get('image'):
+
+      # get allow_dup_url
+      allow_dup_url = one['data']['image'].get('allow_duplicate_url', False)
+
       if one['data']['image'].get('url'):
         if one['data']['image'].get('crop'):
           crop = one['data']['image']['crop']
           one_input = Image(image_id=input_id, url=one['data']['image']['url'], \
                             concepts=concepts, not_concepts=not_concepts, crop=crop, \
-                            metadata=metadata, geo=geo)
+                            metadata=metadata, geo=geo, \
+                            allow_dup_url=allow_dup_url)
         else:
           one_input = Image(image_id=input_id, url=one['data']['image']['url'], \
                             concepts=concepts, not_concepts=not_concepts, \
-                            metadata=metadata, geo=geo)
+                            metadata=metadata, geo=geo, \
+                            allow_dup_url=allow_dup_url)
       elif one['data']['image'].get('base64'):
         if one['data']['image'].get('crop'):
           crop = one['data']['image']['crop']
           one_input = Image(image_id=input_id, base64=one['data']['image']['base64'], \
                             concepts=concepts, not_concepts=not_concepts, crop=crop, \
-                            metadata=metadata, geo=geo)
+                            metadata=metadata, geo=geo, \
+                            allow_dup_url=allow_dup_url)
         else:
           one_input = Image(image_id=input_id, base64=one['data']['image']['base64'], \
                             concepts=concepts, not_concepts=not_concepts, \
-                            metadata=metadata, geo=geo)
+                            metadata=metadata, geo=geo, \
+                            allow_dup_url=allow_dup_url)
     elif one['data'].get('video'):
       raise UserError('Not supported yet')
     else:
@@ -1813,6 +1941,26 @@ class Concepts(object):
 
       page += 1
 
+  def get_by_page(self, page=1, per_page=20):
+    ''' get concept with pagination
+
+    Args:
+      page: page number
+      per_page: number of inputs to retrieve per page
+
+    Returns:
+      a list of Concept object
+
+    Examples:
+      >>> for concept in app.concepts.get_by_page(2, 10):
+      >>>   print concept.concept_id
+    '''
+
+    res = self.api.get_concepts(page, per_page)
+    results = [self._to_obj(one) for one in res['concepts']]
+
+    return results
+
   def get(self, concept_id):
     ''' get a concept by id
 
@@ -1864,6 +2012,44 @@ class Concepts(object):
         yield self._to_obj(one)
 
       page += 1
+
+  def update(self, concept_id, concept_name, action='overwrite'):
+    ''' patch concept
+    
+    Args:
+      concept_id: id of the concept
+      concept_name: name of the concept that you want to change to
+      
+    Returns:
+      the new concept object
+      
+    Examples:
+      >>> app.concepts.update(concept_id='myid1', concept_name='new_concept_name2')
+    '''
+
+    c = Concept(concept_name=concept_name, concept_id=concept_id)
+    res = self.api.patch_concepts(action=action, concepts=[c])
+
+    return self._to_obj(res['concepts'][0])
+
+  def bulk_update(self, concept_ids, concept_names, action='overwrite'):
+    ''' patch multiple concepts
+    
+    Args:
+      concept_ids: a list of concept_id, in sequence
+      concept_names: a list of corresponding concept names, in the same sequence
+      
+    Returns:
+      the new concept object
+      
+    Examples:
+      >>> app.concepts.bulk_update(concept_ids=['myid1', 'myid2'], concept_names=['name2', 'name3'])
+    '''
+
+    concepts = [Concept(concept_name=concept_name, concept_id=concept_id) for concept_name, concept_id in zip(concept_names, concept_ids)]
+    res = self.api.patch_concepts(action=action, concepts=concepts)
+
+    return [self._to_obj(c) for c in res['concepts']]
 
   def create(self, concept_id, concept_name=None):
     ''' create a new concept
@@ -1932,6 +2118,9 @@ class Model(object):
         output_config = self.output_info['output_config']
         self.concepts_mutually_exclusive = output_config['concepts_mutually_exclusive']
         self.closed_environment = output_config['closed_environment']
+
+        if output_config.get('hyper_parameters'):
+          self.hyper_parameters = json.loads(output_config['hyper_parameters'])
       else:
         self.concepts_mutually_exclusive = False
         self.closed_environment = False
@@ -2071,71 +2260,96 @@ class Model(object):
     model = self._to_obj(res['model'])
     return model
 
-  def predict_by_url(self, url, lang=None):
+  def predict_by_url(self, url, lang=None, is_video=False):
     ''' predict a model with url
 
     Args:
       url: url of an image
       lang: language to predict, if the translation is available
+      is_video: whether this is a video
 
     Returns:
       the prediction of the model in JSON format
     '''
 
-    image = Image(url=url)
+    if is_video is True:
+      input = Video(url=url)
+    else:
+      input = Image(url=url)
+
     model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang))
-    res = self.predict([image], model_output_info)
+
+    res = self.predict([input], model_output_info)
     return res
 
-  def predict_by_filename(self, filename, lang=None):
+  def predict_by_filename(self, filename, lang=None, is_video=False):
     ''' predict a model with a local filename
 
     Args:
       filename: filename on local filesystem
       lang: language to predict, if the translation is available
+      is_video: whether this is a video
 
     Returns:
       the prediction of the model in JSON format
     '''
 
     fileio = open(filename, 'rb')
-    image = Image(file_obj=fileio)
+
+    if is_video is True:
+      input = Video(file_obj=fileio)
+    else:
+      input = Image(file_obj=fileio)
+
     model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang))
 
-    res = self.predict([image], model_output_info)
+    res = self.predict([input], model_output_info)
     return res
 
-  def predict_by_bytes(self, raw_bytes, lang=None):
+  def predict_by_bytes(self, raw_bytes, lang=None, is_video=False):
     ''' predict a model with image raw bytes
 
     Args:
       raw_bytes: raw bytes of an image
       lang: language to predict, if the translation is available
+      is_video: whether this is a video
 
     Returns:
       the prediction of the model in JSON format
     '''
 
     base64_bytes = base64.b64encode(raw_bytes)
-    image = Image(base64=base64_bytes)
+
+    if is_video is True:
+      input = Video(base64=base64_bytes)
+    else:
+      input = Image(base64=base64_bytes)
+
     model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang))
-    res = self.predict([image], model_output_info)
+
+    res = self.predict([input], model_output_info)
     return res
 
-  def predict_by_base64(self, base64_bytes, lang=None):
+  def predict_by_base64(self, base64_bytes, lang=None, is_video=False):
     ''' predict a model with base64 encoded image bytes
 
     Args:
       base64_bytes: base64 encoded image bytes
       lang: language to predict, if the translation is available
+      is_video: whether this is a video
 
     Returns:
       the prediction of the model in JSON format
     '''
 
-    image = Image(base64=base64_bytes)
+    if is_video is True:
+      input = Video(base64=base64_bytes)
+    else:
+      input = Image(base64=base64_bytes)
+
     model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang))
-    res = self.predict([image], model_output_info)
+
+    res = self.predict([input], model_output_info)
     return res
 
   def predict(self, inputs, model_output_info=None):
@@ -2380,8 +2594,9 @@ class ApiClient(object):
   """
 
   patch_actions = ['merge', 'remove', 'overwrite']
+  concepts_patch_actions = ['overwrite']
 
-  def __init__(self, app_id=None, app_secret=None, base_url=None, quiet=True):
+  def __init__(self, app_id=None, app_secret=None, base_url=None, api_key=None, quiet=True):
 
     if platform.system() == 'Windows':
       homedir = os.environ.get('HOMEPATH', '.')
@@ -2389,6 +2604,24 @@ class ApiClient(object):
       homedir = os.environ.get('HOME', '.')
 
     CONF_FILE=os.path.join(homedir, '.clarifai', 'config')
+
+    if api_key is None:
+      if os.environ.get('CLARIFAI_API_KEY'):
+        logger.debug("Using env variables for api_key")
+        api_key = os.environ['CLARIFAI_API_KEY']
+      elif os.path.exists(CONF_FILE):
+        parser = ConfigParser()
+        parser.optionxform = str
+
+        with open(CONF_FILE, 'r') as fdr:
+          parser.readfp(fdr)
+
+        if parser.has_option('clarifai', 'CLARIFAI_API_KEY'):
+          api_key = parser.get('clarifai', 'CLARIFAI_API_KEY')
+        else:
+          api_key = ''
+      else:
+        api_key = ''
 
     if app_id is None:
       if os.environ.get('CLARIFAI_APP_ID') and os.environ.get('CLARIFAI_APP_SECRET'):
@@ -2407,9 +2640,9 @@ class ApiClient(object):
           app_id = parser.get('clarifai', 'CLARIFAI_APP_ID')
           app_secret = parser.get('clarifai', 'CLARIFAI_APP_SECRET')
         else:
-          app_id = api_secret = ''
+          app_id = app_secret = ''
       else:
-        app_id = api_secret = ''
+        app_id = app_secret = ''
 
     if base_url is None:
       if os.environ.get('CLARIFAI_API_BASE'):
@@ -2430,6 +2663,7 @@ class ApiClient(object):
 
     self.app_id = app_id
     self.app_secret = app_secret
+    self.api_key = api_key
 
     if quiet:
       logger.setLevel(logging.INFO)
@@ -2457,6 +2691,12 @@ class ApiClient(object):
     be called to renew the token.
 
     '''
+
+    if self.api_key:
+      self.token = None
+      self.headers = {'Authorization': "Key %s" % self.api_key}
+      return {}
+
     data = {'grant_type': 'client_credentials'}
     auth = (self.app_id, self.app_secret)
     logger.debug("get_token: %s data: %s", self.basev2 + '/v2/token', data)
@@ -2535,6 +2775,9 @@ class ApiClient(object):
           if data.get('image') and data['image'].get('base64'):
             base64_bytes = data['image']['base64'][:10] + '......' + data['image']['base64'][-10:]
             data['image']['base64'] = base64_bytes
+          if data.get('video') and data['video'].get('base64'):
+            base64_bytes = data['video']['base64'][:10] + '......' + data['video']['base64'][-10:]
+            data['video']['base64'] = base64_bytes
       elif params and params.get('query') and params['query'].get('ands'):
         params_copy = copy.deepcopy(params)
 
@@ -2955,6 +3198,45 @@ class ApiClient(object):
     res = self.post(resource, d)
     return res
 
+  def patch_concepts(self, action, concepts):
+    ''' bulk update concepts, to delete or modify concepts
+
+    Args:
+      action: only "overwrite" is supported
+      concepts: a list of Concept(concept_name='', concept_id='')
+
+    Returns:
+      the update status, in JSON format
+
+    '''
+
+    if action not in self.concepts_patch_actions:
+      raise UserError("action not supported.")
+
+    resource = "concepts"
+    data = {
+      "action": action,
+      "concepts": []
+    }
+
+    concepts_items = []
+    for concept in concepts:
+      item = concept.dict()
+      if not item.get('id') or not item.get('name'):
+        continue
+
+      new_item = copy.deepcopy(item)
+      for key in item.keys():
+        if key not in ['id', 'name']:
+          del new_item[key]
+
+      concepts_items.append(new_item)
+
+    data["concepts"] = concepts_items
+
+    res = self.patch(resource, data)
+    return res
+
   def get_models(self, page=1, per_page=20):
     ''' get all models with pagination
 
@@ -3005,7 +3287,7 @@ class ApiClient(object):
     return res
 
   def get_model_versions(self, model_id, page=1, per_page=20):
-    ''' get model vesions
+    ''' get model versions
 
     Args:
       model_id: the unique identifier of the model
@@ -3102,7 +3384,8 @@ class ApiClient(object):
 
   def create_model(self, model_id, model_name=None, concepts=None, \
                    concepts_mutually_exclusive=False, \
-                   closed_environment=False):
+                   closed_environment=False, \
+                   hyper_parameters=None):
     ''' create custom model '''
 
     if not model_name:
@@ -3127,6 +3410,11 @@ class ApiClient(object):
       data['model']['output_info']['data'] = { "concepts": 
                                                  [{"id": concept} for concept in concepts]
                                              }
+    if hyper_parameters:
+      try:
+        data['model']['output_info']['output_config']['hyper_parameters'] = json.dumps(hyper_parameters)
+      except ValueError:
+        pass
 
     res = self.post(resource, data)
     return res
