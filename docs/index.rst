@@ -21,7 +21,7 @@ First steps
    Getting started with Clarifai API using python client
 
 :doc:`basics`
-   Getting familir with basic concepts used in Clarifai API
+   Getting familiar with basic concepts used in Clarifai API
 
 
 .. toctree::
