@@ -5,13 +5,10 @@ try:
 except ImportError:
     from distutils.core import setup
 
-with open('requirements.txt') as f:
-    required = f.read().splitlines()
-
 setup(
     name="clarifai",
     description='Clarifai API Python Client',
-    version='2.0.23',
+    version='2.0.24',
     author='Clarifai',
     maintainer='Robert Wen',
     maintainer_email='robert@clarifai.com',

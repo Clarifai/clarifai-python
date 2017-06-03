@@ -17,10 +17,10 @@ Installation
 ---------------------
 The API client is available on Pip. You can simply install it with a `pip install`
 ```
-pip install clarifai==2.0.23
+pip install clarifai==2.0.24
 ```
 
-For more details on the installation, please refer to https://clarifai-python.readthedocs.io/en/v2.0.23/install/
+For more details on the installation, please refer to https://clarifai-python.readthedocs.io/en/v2.0.24/install/
 
 Setup
 ---------------------
@@ -41,7 +41,7 @@ The config will be stored under ~/.clarifai/config for client's use
 
 Environmental variable CLARIFAI_APP_ID and CLARIFAI_APP_SECRET will override the settings in the config file.
 
-For AWS or Windows users, please refer to https://clarifai-python.readthedocs.io/en/v2.0.23/install/ for more instructions.
+For AWS or Windows users, please refer to https://clarifai-python.readthedocs.io/en/v2.0.24/install/ for more instructions.
 
 
 Getting Started
@@ -56,5 +56,5 @@ app.tag_urls(['https://samples.clarifai.com/metro-north.jpg'])
 
 Documentations
 ---------------------
-Read more code examples and references at https://clarifai-python.readthedocs.io/en/v2.0.23/index.html
+Read more code examples and references at https://clarifai-python.readthedocs.io/en/v2.0.24/index.html
 
