@@ -20,7 +20,12 @@ Configuration
 =============
 
 The client uses CLARIFAI_APP_ID and CLARIFAI_APP_SECRET for authentication and token generation.
-You can get those values from https://developer.clarifai.com and then run::
+Each application you create uses its own unique ID and secret to authenticate requests.
+The client will use the authentication information passed to it by three methods with the following precedence order::
++ Passed in to the constructor through the `app_id` and `app_secret` parameters.
++ Set as the CLARIFAI_APP_ID and CLARIFAI_APP_SECRET environment variables
++ Placed in the .clarifai/config file using the command below.  
+You can get these values from https://developer.clarifai.com/account/applications and then run::
 
    $ clarifai config
    CLARIFAI_APP_ID: []: ************************************YQEd
