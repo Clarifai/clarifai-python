@@ -29,7 +29,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.24'
+CLIENT_VERSION = '2.0.25'
 OS_VER = os.sys.platform
 PYTHON_VERSION = '.'.join(map(str, [os.sys.version_info.major, os.sys.version_info.minor, \
                                     os.sys.version_info.micro]))
@@ -170,12 +170,12 @@ class ClarifaiApp(object):
 
   def wait_until_inputs_delete_finish(self):
     """ block until the inputs deletion finishes
-    
+
     The criteria of inputs deletion finish is 0 inputs from GET /inputs
-    
+
     Args:
       void
-      
+
     Returns:
       void
     """
@@ -188,12 +188,12 @@ class ClarifaiApp(object):
 
   def wait_until_models_delete_finish(self):
     """ block until the inputs deletion finishes
-    
+
     The criteria of models deletion finish is 0 private models from GET /models
-    
+
     Args:
       void
-      
+
     Returns:
       void
     """
@@ -224,7 +224,11 @@ class Auth(object):
     '''
 
     res = self.api.get_token()
-    token = res['access_token']
+    if res.get('access_token'):
+      token = res['access_token']
+    else:
+      token = None
+
     return token
 
 class Input(object):
@@ -235,7 +239,7 @@ class Input(object):
   def __init__(self, input_id=None, concepts=None, not_concepts=None, metadata=None, geo=None):
     ''' Construct an Image/Video object. it must have one of url or file_obj set.
     Args:
-      input_id: unique id to set for the image. If None then the server will create and return 
+      input_id: unique id to set for the image. If None then the server will create and return
       one for you.
       concepts: a list of concepts this asset associate with
       not_concepts: a list of concepts this asset does not associate with
@@ -415,6 +419,9 @@ class Video(Input):
     video = {'video':{}}
 
     if self.file_obj is not None:
+      # rewind the fileobj first
+      self.file_obj.seek(0)
+      
       # DO NOT put 'read' as first condition
       # as io.BytesIO() has both read() and getvalue() and read() gives you an empty buffer...
       if hasattr(self.file_obj, 'getvalue'):
@@ -708,16 +715,26 @@ class Models(object):
 
     model_cache = {}
 
+    # this is a generator, will NOT raise Exception
     models = self.get_all(public_only=True)
-    for m in models:
-      model_name = m.model_name
-      model_type = m.output_info['type']
-      model_id = m.model_id
-      model_cache.update({(model_name, model_type):model_id})
 
-      # for general-v1.3 concept model, make an extra cache entry
-      if model_name == 'general-v1.3' and model_type == 'concept':
-        model_cache.update({(model_name, None):model_id})
+    try:
+      for m in models:
+        model_name = m.model_name
+        model_type = m.output_info['type']
+        model_id = m.model_id
+        model_cache.update({(model_name, model_type):model_id})
+
+        # for general-v1.3 concept model, make an extra cache entry
+        if model_name == 'general-v1.3' and model_type == 'concept':
+          model_cache.update({(model_name, None):model_id})
+    except ApiError as e:
+      if e.error_code == 11007:
+        logger.debug("not authorized to call GET /models. Unable to catch models")
+        models = []
+        pass
+      else:
+        raise e
 
     return model_cache
 
@@ -2015,14 +2032,14 @@ class Concepts(object):
 
   def update(self, concept_id, concept_name, action='overwrite'):
     ''' patch concept
-    
+
     Args:
       concept_id: id of the concept
       concept_name: name of the concept that you want to change to
-      
+
     Returns:
       the new concept object
-      
+
     Examples:
       >>> app.concepts.update(concept_id='myid1', concept_name='new_concept_name2')
     '''
@@ -2034,14 +2051,14 @@ class Concepts(object):
 
   def bulk_update(self, concept_ids, concept_names, action='overwrite'):
     ''' patch multiple concepts
-    
+
     Args:
       concept_ids: a list of concept_id, in sequence
       concept_names: a list of corresponding concept names, in the same sequence
-      
+
     Returns:
       the new concept object
-      
+
     Examples:
       >>> app.concepts.bulk_update(concept_ids=['myid1', 'myid2'], concept_names=['name2', 'name3'])
     '''
@@ -2080,7 +2097,7 @@ class Concepts(object):
       A list of Concept() object
 
     Examples::
-      >>> bulk_create(['id1', 'id2'], ['cute cat', 'cute dog'])
+      >>> app.inputs.bulk_create(['id1', 'id2'], ['cute cat', 'cute dog'])
     '''
 
     res = self.api.add_concepts(concept_ids, concept_names)
@@ -3407,7 +3424,7 @@ class ApiClient(object):
            }
 
     if concepts:
-      data['model']['output_info']['data'] = { "concepts": 
+      data['model']['output_info']['data'] = { "concepts":
                                                  [{"id": concept} for concept in concepts]
                                              }
     if hyper_parameters:
@@ -3617,4 +3634,3 @@ class ModelOutputConfig(object):
       data['output_config']['language'] = self.language
 
     return data
-
