@@ -115,9 +115,9 @@ Train the Model
 Predict with Model
 ==================
 
-.. note:: This assumes you follow through the tutorial and finished the "Upload Images"
-          and "Create a Model" to create a model.
-          Otherwise you may not be able to train the model.
+.. note:: This assumes you follow through the tutorial and finished the "Upload Images",
+           "Create a Model", and "Train the Model".
+          Otherwise you may not be able to make predictions with the model.
 
 .. code-block:: python
    :linenos:

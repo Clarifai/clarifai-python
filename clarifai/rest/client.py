@@ -42,14 +42,14 @@ class ClarifaiApp(object):
 
   """ Clarifai Application Object
 
-      The is the entry point of the Clarifai Client API
+      This is the entry point of the Clarifai Client API
       With authentication to an application, you can access
       all the models, concepts, inputs in this application through
       the attributes of this class.
 
-      To access the models: use app.models
-      To access the inputs: use app.inputs
-      To access the concepts: use app.concepts
+      To access the models: use app.models  
+      To access the inputs: use app.inputs  
+      To access the concepts: use app.concepts  
 
   """
 
@@ -67,7 +67,7 @@ class ClarifaiApp(object):
 
   def check_upgrade(self):
     ''' check client upgrade
-        if the clinet has been installed for more than one week, the check will be
+        if the client has been installed for more than one week, the check will be
         triggered.
         If the newer version is available, a prompt message will be poped up as a
         warning message in STDERR. The API call will not be paused or interrupted.
@@ -98,7 +98,7 @@ class ClarifaiApp(object):
       pass
 
   """
-  Below are the shortcut functions for a more smoothy transition of the v1 users
+  Below are the shortcut functions for a more smooth transition of the v1 users
   Also they are convenient functions for the tag only users so they do not have
   to know the extra concepts of Inputs, Models, etc.
   """
@@ -209,7 +209,7 @@ class Auth(object):
 
   """ Clarifai Authentication
 
-      This class is initialized as an attirbute of the clarifai application object
+      This class is initialized as an attribute of the clarifai application object
       with app.auth
   """
 
