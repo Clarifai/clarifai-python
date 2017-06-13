@@ -102,7 +102,7 @@ def crlf_mixed_join(lines):
 
     post_data.extend(line_bytes)
     idx += 1
-    
+
   return post_data
 
 def form_data_media(encoded_data, filename, field_name='encoded_data', headers={}):

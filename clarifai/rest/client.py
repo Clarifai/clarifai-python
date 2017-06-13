@@ -29,7 +29,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.25'
+CLIENT_VERSION = '2.0.26'
 OS_VER = os.sys.platform
 PYTHON_VERSION = '.'.join(map(str, [os.sys.version_info.major, os.sys.version_info.minor, \
                                     os.sys.version_info.micro]))
@@ -42,7 +42,7 @@ class ClarifaiApp(object):
 
   """ Clarifai Application Object
 
-      The is the entry point of the Clarifai Client API
+      This is the entry point of the Clarifai Client API
       With authentication to an application, you can access
       all the models, concepts, inputs in this application through
       the attributes of this class.
@@ -67,7 +67,7 @@ class ClarifaiApp(object):
 
   def check_upgrade(self):
     ''' check client upgrade
-        if the clinet has been installed for more than one week, the check will be
+        if the client has been installed for more than one week, the check will be
         triggered.
         If the newer version is available, a prompt message will be poped up as a
         warning message in STDERR. The API call will not be paused or interrupted.
@@ -98,7 +98,7 @@ class ClarifaiApp(object):
       pass
 
   """
-  Below are the shortcut functions for a more smoothy transition of the v1 users
+  Below are the shortcut functions for a more smooth transition of the v1 users
   Also they are convenient functions for the tag only users so they do not have
   to know the extra concepts of Inputs, Models, etc.
   """
@@ -209,7 +209,7 @@ class Auth(object):
 
   """ Clarifai Authentication
 
-      This class is initialized as an attirbute of the clarifai application object
+      This class is initialized as an attribute of the clarifai application object
       with app.auth
   """
 
@@ -316,7 +316,7 @@ class Image(Input):
     if crop is not None and (not isinstance(crop, list) or len(crop) != 4):
       raise UserError("crop arg must be list of 4 floats or None")
 
-    self.url = url
+    self.url = url.strip() if url else url
     self.filename = filename
     self.file_obj = file_obj
     self.base64 = base64
@@ -389,7 +389,7 @@ class Video(Input):
 
     super(Video, self).__init__(input_id=video_id)
 
-    self.url = url
+    self.url = url.strip() if url else url
     self.filename = filename
     self.file_obj = file_obj
     self.base64 = base64
@@ -421,7 +421,7 @@ class Video(Input):
     if self.file_obj is not None:
       # rewind the fileobj first
       self.file_obj.seek(0)
-      
+
       # DO NOT put 'read' as first condition
       # as io.BytesIO() has both read() and getvalue() and read() gives you an empty buffer...
       if hasattr(self.file_obj, 'getvalue'):
@@ -1049,6 +1049,8 @@ class Inputs(object):
       >>> app.inputs.create_image_from_url(url='https://samples.clarifai.com/metro-north.jpg', \
       >>>   geo=Geo(geo_point=GeoPoint(22.22, 44.44))
     '''
+
+    url = url.strip() if url else url
 
     image = Image(url=url, image_id=image_id, concepts=concepts, not_concepts=not_concepts, \
                   crop=crop, metadata=metadata, geo=geo, allow_dup_url=allow_duplicate_url)
@@ -2288,6 +2290,8 @@ class Model(object):
     Returns:
       the prediction of the model in JSON format
     '''
+
+    url = url.strip()
 
     if is_video is True:
       input = Video(url=url)
@@ -3530,9 +3534,22 @@ class ApiError(Exception):
     self.error_desc = response.json().get('status', {}).get('description', None)
     self.error_details = response.json().get('status', {}).get('details', None)
 
-    msg = "%s %s FAILED. code: %d, reason: %s, error_code: %s, error_description: %s, error_details: %s" % (
-      method, resource, response.status_code, response.reason,
-      self.error_code, self.error_desc, self.error_details)
+    current_ts_str = str(time.time())
+
+    msg = """%(method)s /%(resource)s FAILED(%(time_ts)s). status_code: %(status_code)d, reason: %(reason)s, error_code: %(error_code)s, error_description: %(error_desc)s, error_details: %(error_details)s
+ >> REQUEST(%(time_ts)s) %(request)s
+ >> RESPONSE(%(time_ts)s) %(response)s""" % {
+        'method': method,
+        'resource': resource,
+        'status_code': response.status_code,
+        'reason': response.reason,
+        'error_code': self.error_code,
+        'error_desc': self.error_desc,
+        'error_details': self.error_details,
+        'request': json.dumps(params),
+        'response': json.dumps(response.json()),
+        'time_ts': current_ts_str
+    }
 
     super(ApiError, self).__init__(msg)
 

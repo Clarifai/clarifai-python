@@ -19,6 +19,7 @@ class GeoPoint(object):
            }
     return data
 
+
 class GeoBox(object):
   """ define a Geo box
       which is defined with a pair of GeoPoint
@@ -34,6 +35,7 @@ class GeoBox(object):
              }
       return data
 
+
 class GeoLimit(object):
 
   convert_table = {
@@ -43,7 +45,7 @@ class GeoLimit(object):
           'radian':'withinRadians'
   }
 
-  def __init__(self, limit_type='mile', limit_range=10): 
+  def __init__(self, limit_type='mile', limit_range=10):
 
     if limit_type not in self.convert_table:
       raise ValueError("limit_type could be within %s" % str(self.convert_table.keys()))
@@ -58,6 +60,7 @@ class GeoLimit(object):
             }
            }
     return data
+
 
 class Geo(object):
 
