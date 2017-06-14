@@ -29,7 +29,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.26'
+CLIENT_VERSION = '2.0.27'
 OS_VER = os.sys.platform
 PYTHON_VERSION = '.'.join(map(str, [os.sys.version_info.major, os.sys.version_info.minor, \
                                     os.sys.version_info.micro]))
@@ -267,6 +267,7 @@ class Input(object):
     self.metadata = metadata
     self.geo = geo
     self.score = 0
+    self.status = None
 
   def dict(self):
     ''' Return the data of the Input as a dict ready to be input to json.dumps. '''
@@ -1180,11 +1181,11 @@ class Inputs(object):
     counts = InputCounts(ret)
     return counts
 
-  def get_all(self):
+  def get_all(self, ignore_error=False):
     ''' get all inputs in a generator
 
     Args:
-      Void
+      ignore_error: ignore errored inputs. For example some images may fail to be imported due to bad url
 
     Returns:
       a generator that yields Input object
@@ -1198,22 +1199,34 @@ class Inputs(object):
     per_page = 20
 
     while True:
-      res = self.api.get_inputs(page, per_page)
+      try:
+        res = self.api.get_inputs(page, per_page)
+      except ApiError as e:
+        if e.response.status_code == 207 and e.error_code == 10010:
+          res = e.response.json()
+        else:
+          raise e
 
       if not res['inputs']:
         break
 
       for one in res['inputs']:
-        yield self._to_obj(one)
+        input = self._to_obj(one)
+
+        if ignore_error is True and input.status.code != 30000:
+          continue
+
+        yield input
 
       page += 1
 
-  def get_by_page(self, page=1, per_page=20):
+  def get_by_page(self, page=1, per_page=20, ignore_error=False):
     ''' get input with pagination
 
     Args:
       page: page number
       per_page: number of inputs to retrieve per page
+      ignore_error: ignore errored inputs. For example some images may fail to be imported due to bad url
 
     Returns:
       a list of Input object
@@ -1223,8 +1236,22 @@ class Inputs(object):
       >>>   print image.input_id
     '''
 
-    res = self.api.get_inputs(page, per_page)
-    results = [self._to_obj(one) for one in res['inputs']]
+    try:
+      res = self.api.get_inputs(page, per_page)
+    except ApiError as e:
+      if e.response.status_code == 207 and e.error_code == 10010:
+        res = e.response.json()
+      else:
+        raise e
+
+    results = []
+    for one in res['inputs']:
+      input = self._to_obj(one)
+
+      if ignore_error is True and input.status.code != 30000:
+        continue
+
+      results.append(input)
 
     return results
 
@@ -1891,6 +1918,9 @@ class Inputs(object):
       raise UserError('Not supported yet')
     else:
       raise UserError('Unknown input type')
+
+    if one.get('status'):
+      one_input.status = ApiStatus(one['status'])
 
     return one_input
 
