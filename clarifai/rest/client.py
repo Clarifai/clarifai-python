@@ -14,11 +14,9 @@ import requests
 import platform
 from io import BytesIO
 from pprint import pformat
-from configparser import ConfigParser
+from ConfigParser import ConfigParser
 from posixpath import join as urljoin
-from past.builtins import basestring
-from jsonschema import validate
-from future.moves.urllib.parse import urlparse
+from urlparse import urlparse
 from distutils.version import StrictVersion
 from .geo import GeoPoint, GeoBox, GeoLimit, Geo
 
@@ -1881,7 +1879,6 @@ class Inputs(object):
                         }
                    }
 
-      validate(geo_json, geo_schema)
       geo = Geo(GeoPoint(geo_json['geo_point']['longitude'], geo_json['geo_point']['latitude']))
 
     input_id = one['id']
