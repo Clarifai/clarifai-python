@@ -29,7 +29,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.28'
+CLIENT_VERSION = '2.0.29'
 OS_VER = os.sys.platform
 PYTHON_VERSION = '.'.join(map(str, [os.sys.version_info.major, os.sys.version_info.minor, \
                                     os.sys.version_info.micro]))
@@ -509,12 +509,13 @@ class FeedbackInfo(object):
 
   def dict(self):
 
-    data = {"feedback_info":{
-      "end_user_id": self.end_user_id,
-      "session_id":  self.session_id,
-      "event_type":  self.event_type,
-      "output_id":   self.output_id
-    }
+    data = {
+      "feedback_info":{
+        "end_user_id": self.end_user_id,
+        "session_id":  self.session_id,
+        "event_type":  self.event_type,
+        "output_id":   self.output_id
+      }
     }
 
     return data
@@ -2889,6 +2890,8 @@ class ApiClient(object):
           base_url_str = 'api.clarifai.com'
       else:
         base_url_str = 'api.clarifai.com'
+    else:
+      base_url_str = base_url
 
     if app_id and app_secret:
       self.app_id = app_id
