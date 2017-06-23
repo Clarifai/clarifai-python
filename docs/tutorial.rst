@@ -4,76 +4,91 @@
 Tutorial
 ==============
 
-Each of the examples below is a small independent code snippet within 10 lines that could work by copy and paste to a python source code file. By playing with them, you should be getting started with Clarifai API. For more usages about the API, check the API Reference.
+Each of the examples below is a small independent code snippet within 10 lines that could work by copy and paste to a python source code file. By playing with them, you should be getting started with Clarifai API. For more information about the API, check the API Reference.
 
 
-Predict with general model
+Predict with Public Models
 ==========================
 
+For more information on any of the public models, visit https://developer.clarifai.com/models
+
 .. code-block:: python
-   :linenos:
 
    from clarifai.rest import ClarifaiApp
 
    app = ClarifaiApp()
 
-   app.tag_urls(['https://samples.clarifai.com/metro-north.jpg'])
+   #General model
+   model = app.models.get('general-v1.3')
+
+   response = model.predict_by_url(url='https://samples.clarifai.com/metro-north.jpg')
 
 
-Predict with travel model
-==========================
+   #Travel model
+   model = app.models.get('travel-v1.0')
 
-.. code-block:: python
-   :linenos:
-
-   from clarifai.rest import ClarifaiApp
-
-   app = ClarifaiApp()
-
-   app.tag_urls(urls=['https://samples.clarifai.com/wedding.jpg'], model='travel-v1.0')
+   response = model.predict_by_url(url='https://samples.clarifai.com/travel.jpg')
 
 
-Predict with food model
-==========================
+   #Food model
+   model = app.models.get('food-items-v1.0')
 
-.. code-block:: python
-   :linenos:
-
-   from clarifai.rest import ClarifaiApp
-
-   app = ClarifaiApp()
-
-   app.tag_urls(urls=['https://samples.clarifai.com/wedding.jpg'], model='food-items-v1.0')
+   response = model.predict_by_url(url='https://samples.clarifai.com/food.jpg')
 
 
-Predict with NSFW model
-=======================
+   #NSFW model
+   model = app.models.get('nsfw-v1.0')
 
-.. code-block:: python
-   :linenos:
-
-   from clarifai.rest import ClarifaiApp
-
-   app = ClarifaiApp()
-
-   app.tag_urls(urls=['https://samples.clarifai.com/wedding.jpg'], model='nsfw-v1.0')
+   response = model.predict_by_url(url='https://samples.clarifai.com/nsfw.jpg')
 
 
-Predict with color model
-========================
+   #Apparel model
+   model = app.models.get('apparel')
 
-.. code-block:: python
-   :linenos:
+   response = model.predict_by_url(url='https://samples.clarifai.com/apparel.jpg')
 
-   from clarifai.rest import ClarifaiApp
 
-   app = ClarifaiApp()
+   #Celebrity model
+   model = app.models.get('celeb-v1.3')
 
+   response = model.predict_by_url(url='https://samples.clarifai.com/celebrity.jpg')
+
+
+   #Demographics model
+   model = app.models.get('demographics')
+
+   response = model.predict_by_url(url='https://samples.clarifai.com/demographics.jpg')
+
+
+   #Face Detection model
+   model = app.models.get('face-v1.3')
+
+   response = model.predict_by_url(url='https://developer.clarifai.com/static/images/model-samples/face-001.jpg')
+
+
+   #Focus Detection model
+   model = app.models.get('focus')
+
+   response = model.predict_by_url(url='https://samples.clarifai.com/focus.jpg')
+
+
+   #General Embedding model
+   model = app.models.get('general-v1.3', model_type='embed')
+
+   response = model.predict_by_url(url='https://samples.clarifai.com/metro-north.jpg')
+
+
+   #Logo model
+   model = app.models.get('logo')
+
+   response = model.predict_by_url(url='https://samples.clarifai.com/logo.jpg')
+
+
+   #Color model
    model = app.models.get('color', model_type='color')
 
-   image2 = ClImage(url='https://samples.clarifai.com/wedding.jpg')
+   response = model.predict_by_url(url='https://samples.clarifai.com/wedding.jpg')
 
-   model.predict([image1, image2])
 
 
 Upload Images
@@ -83,9 +98,9 @@ Upload Images
    :linenos:
 
    from clarifai.rest import ClarifaiApp
-      
+
    app = ClarifaiApp()
-      
+
    app.inputs.create_image_from_url(url='https://samples.clarifai.com/puppy.jpeg', concepts=['my puppy'])
    app.inputs.create_image_from_url(url='https://samples.clarifai.com/wedding.jpg', not_concepts=['my puppy'])
 
@@ -116,7 +131,7 @@ Predict with Model
 ==================
 
 .. note:: This assumes you follow through the tutorial and finished the "Upload Images",
-           "Create a Model", and "Train the Model".
+          "Create a Model", and "Train the Model".
           Otherwise you may not be able to make predictions with the model.
 
 .. code-block:: python
@@ -127,7 +142,7 @@ Predict with Model
    app = ClarifaiApp()
 
    model = app.models.get('puppy')
-   model.predict_by_url('https://samples.clarifai.com/metro-north.jpg') 
+   model.predict_by_url('https://samples.clarifai.com/metro-north.jpg')
 
 Instantiate an Image
 ====================

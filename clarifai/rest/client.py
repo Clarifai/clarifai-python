@@ -29,7 +29,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.27'
+CLIENT_VERSION = '2.0.28'
 OS_VER = os.sys.platform
 PYTHON_VERSION = '.'.join(map(str, [os.sys.version_info.major, os.sys.version_info.minor, \
                                     os.sys.version_info.micro]))
@@ -42,14 +42,15 @@ class ClarifaiApp(object):
 
   """ Clarifai Application Object
 
-      This is the entry point of the Clarifai Client API
+      This is the entry point of the Clarifai Client API.
       With authentication to an application, you can access
-      all the models, concepts, inputs in this application through
+      all the models, concepts, and inputs in this application through
       the attributes of this class.
 
-      To access the models: use app.models
-      To access the inputs: use app.inputs
-      To access the concepts: use app.concepts
+    |  To access the models: use ``app.models``
+    |  To access the inputs: use ``app.inputs``
+    |  To access the concepts: use ``app.concepts``
+    |
 
   """
 
@@ -66,10 +67,10 @@ class ClarifaiApp(object):
     self.models = Models(self.api)
 
   def check_upgrade(self):
-    ''' check client upgrade
-        if the client has been installed for more than one week, the check will be
+    ''' Check for a client upgrade.
+        If the client has been installed for more than one week, the check will be
         triggered.
-        If the newer version is available, a prompt message will be poped up as a
+        If the newer version is available, a prompt message will pop up as a
         warning message in STDERR. The API call will not be paused or interrupted.
     '''
 
@@ -102,24 +103,25 @@ class ClarifaiApp(object):
   Also they are convenient functions for the tag only users so they do not have
   to know the extra concepts of Inputs, Models, etc.
   """
-  def tag_urls(self, urls, model=DEFAULT_TAG_MODEL):
+  def tag_urls(self, urls, model_name=DEFAULT_TAG_MODEL, model_id=None):
     ''' tag urls with user specified models
         by default tagged by 'general-v1.3' model
 
     Args:
-      urls: a list of URLs for tagging
-            the max lens of the list is 128, which is the max batch size
+      urls: a list of URLs for tagging.
+            The max length of the list is 128, which is the max batch size.
 
-      model: the model name to tag with
-             default model is general model for general tagging purpose
+      model: the model name to tag with.
+             The default model is general model for general tagging purpose
 
     Returns:
       the JSON string from the predict call
 
     Examples:
-      >>> urls = ['https://samples.clarifai.com/metro-north.jpg', \
+      >>> urls = ['https://samples.clarifai.com/metro-north.jpg',
       >>>         'https://samples.clarifai.com/dog2.jpeg']
       >>> app.tag_urls(urls)
+
     '''
 
     # validate input
@@ -131,26 +133,30 @@ class ClarifaiApp(object):
 
     images = [Image(url=url) for url in urls]
 
-    model = self.models.get(model)
+    if model_id is not None:
+      model = Model(self.api, model_id=model_id)
+    else:
+      model = self.models.get(model_name)
+
     res = model.predict(images)
     return res
 
-  def tag_files(self, files, model=DEFAULT_TAG_MODEL):
+  def tag_files(self, files, model_name=DEFAULT_TAG_MODEL, model_id=None):
     ''' tag files on disk with user specified models
         by default tagged by 'general-v1.3' model
 
     Args:
-      files: a list of local file names for tagging
-             the max lens of the list is 128, which is the max batch size
+      files: a list of local file names for tagging.
+             The max length of the list is 128, which is the max batch size
 
-      model: the model name to tag with
-             default model is general model for general tagging purpose
+      model: the model name to tag with.
+             The default model is general model for general tagging purpose
 
     Returns:
       the JSON string from the predict call
 
     Examples:
-      >>> files = ['/tmp/metro-north.jpg', \
+      >>> files = ['/tmp/metro-north.jpg',
       >>>          '/tmp/dog2.jpeg']
       >>> app.tag_urls(files)
     '''
@@ -164,20 +170,24 @@ class ClarifaiApp(object):
 
     images = [Image(filename=filename) for filename in files]
 
-    model = self.models.get(model)
+    if model_id is not None:
+      model = Model(model_id=model_id)
+    else:
+      model = self.models.get(model_name)
+
     res = model.predict(images)
     return res
 
   def wait_until_inputs_delete_finish(self):
-    """ block until the inputs deletion finishes
+    """ Block until a current inputs deletion operation finishes
 
-    The criteria of inputs deletion finish is 0 inputs from GET /inputs
+    The criteria for unblocking is 0 inputs returned from GET /inputs
 
     Args:
       void
 
     Returns:
-      void
+      None
     """
 
     inputs = self.inputs.get_by_page()
@@ -186,16 +196,38 @@ class ClarifaiApp(object):
       time.sleep(0.2)
       inputs = self.inputs.get_by_page()
 
-  def wait_until_models_delete_finish(self):
-    """ block until the inputs deletion finishes
+  def wait_until_inputs_upload_finish(self, max_wait=666666):
+    """ Block until the inputs upload finishes
 
-    The criteria of models deletion finish is 0 private models from GET /models
+    The criteria for unblocking is 0 "to_process" inputs
+    from GET /inputs/status
 
     Args:
       void
 
     Returns:
+      None
+    """
+    to_process = 1
+    elapsed = 0
+    time_start = time.time()
+
+    while to_process != 0 and elapsed > max_wait:
+      status = self.inputs.check_status()
+      to_process = status.to_process
+      elapsed = time.time() - time_start
+      time.sleep(1)
+
+  def wait_until_models_delete_finish(self):
+    """ Block until the inputs deletion finishes
+
+    The criteria for unblocking is 0 models returned from GET /models
+
+    Args:
       void
+
+    Returns:
+      None
     """
 
     private_models = list(self.models.get_all(private_only=True))
@@ -209,8 +241,8 @@ class Auth(object):
 
   """ Clarifai Authentication
 
-      This class is initialized as an attribute of the clarifai application object
-      with app.auth
+      This class is initialized as an attribute of the clarifai application object,
+      accessed with app.auth
   """
 
   def __init__(self, api):
@@ -236,15 +268,18 @@ class Input(object):
   """ The Clarifai Input object
   """
 
-  def __init__(self, input_id=None, concepts=None, not_concepts=None, metadata=None, geo=None):
+  def __init__(self, input_id=None, concepts=None, not_concepts=None, metadata=None, geo=None,
+               regions=None, feedback_info=None):
     ''' Construct an Image/Video object. it must have one of url or file_obj set.
     Args:
       input_id: unique id to set for the image. If None then the server will create and return
       one for you.
-      concepts: a list of concepts this asset associate with
-      not_concepts: a list of concepts this asset does not associate with
+      concepts: a list of concept names this asset is associated with
+      not_concepts: a list of concept names this asset does not associate with
       metadata: metadata as a JSON object to associate arbitrary info with the input
       geo: geographical info for the input, as a Geo() object
+      regions: regions of Region object
+      feedback_info: FeedbackInfo object
     '''
 
     self.input_id = input_id
@@ -262,10 +297,19 @@ class Input(object):
     if not isinstance(geo, Geo) and geo is not None:
       raise UserError('geo should be a Geo object')
 
+    # validate more
+    if not isinstance(regions, list) and regions is not None and not isinstance(regions[0], Region):
+      raise UserError('regions should be a list of Region')
+
+    if not isinstance(feedback_info, FeedbackInfo) and feedback_info is not None:
+      raise UserError('feedback_info should be a FeedbackInfo object')
+
     self.concepts = concepts
     self.not_concepts = not_concepts
     self.metadata = metadata
     self.geo = geo
+    self.feedback_info = feedback_info
+    self.regions = regions
     self.score = 0
     self.status = None
 
@@ -297,14 +341,21 @@ class Input(object):
     if self.geo:
       data['data'].update(self.geo.dict())
 
+    if self.feedback_info:
+      data.update(self.feedback_info.dict())
+
+    if self.regions:
+      data['data']['regions'] = [r.dict() for r in self.regions]
+
     return data
 
 
 class Image(Input):
 
-  def __init__(self, url=None, file_obj=None, base64=None, filename=None, crop=None, \
-               image_id=None, concepts=None, not_concepts=None, \
-               metadata=None, geo=None, allow_dup_url=False):
+  def __init__(self, url=None, file_obj=None, base64=None, filename=None, crop=None,
+               image_id=None, concepts=None, not_concepts=None,
+               regions=None,
+               metadata=None, geo=None, feedback_info=None, allow_dup_url=False):
     '''
       url: the url to a publically accessible image.
       file_obj: a file-like object in which read() will give you the bytes.
@@ -312,7 +363,9 @@ class Image(Input):
             the asset before use.
     '''
 
-    super(Image, self).__init__(image_id, concepts, not_concepts, metadata=metadata, geo=geo)
+    super(Image, self).__init__(image_id, concepts, not_concepts, metadata=metadata, geo=geo,
+                                regions=regions,
+                                feedback_info=feedback_info)
 
     if crop is not None and (not isinstance(crop, list) or len(crop) != 4):
       raise UserError("crop arg must be list of 4 floats or None")
@@ -442,10 +495,34 @@ class Video(Input):
     return data
 
 
+class FeedbackInfo(object):
+  """
+  FeedbackInfo holds the metadata of a feedback
+  """
+
+  def __init__(self, end_user_id=None, session_id=None, event_type=None, output_id=None):
+
+    self.end_user_id = end_user_id
+    self.session_id = session_id
+    self.event_type = event_type
+    self.output_id = output_id
+
+  def dict(self):
+
+    data = {"feedback_info":{
+      "end_user_id": self.end_user_id,
+      "session_id":  self.session_id,
+      "event_type":  self.event_type,
+      "output_id":   self.output_id
+    }
+    }
+
+    return data
+
+
 class SearchTerm(object):
   """
-  Clarifai search term interface
-  the base class for InputSearchTerm and OutputSearchTerm
+|  Clarifai search term interface. This is the base class for InputSearchTerm and OutputSearchTerm
 
   It is used to build SearchQueryBuilder
   """
@@ -459,10 +536,10 @@ class SearchTerm(object):
 
 class InputSearchTerm(SearchTerm):
   """
-  Clarifai Image Search Input search term
-  For input search, you can specify search term for url string match, input_id string match,
-  concept string match, and concept_id string match
-  value indicates whether the concept search is a NOT search
+  Clarifai Input Search Term for an image search.
+  For input search, you can specify search terms for url string match, input_id string match,
+  concept string match, concept_id string match, and geographic information.
+  Value indicates whether the concept search is a NOT search
 
   Examples:
     >>> # search for url, string match
@@ -540,11 +617,11 @@ class InputSearchTerm(SearchTerm):
 
 class OutputSearchTerm(SearchTerm):
   """
-  Clarifai Image Search Output search term
+  Clarifai Output Search Term for image search.
   For output search, you can specify search term for url, base64, and input_id for
   visual search,
-  or specify concept and concept_id for string match
-  value indicates whether the concept search is a NOT search
+  or specify concept and concept_id for string match.
+  Value indicates whether the concept search is a NOT search
 
   Examples:
     >>> # search for visual similarity from url
@@ -648,11 +725,11 @@ class SearchQueryBuilder(object):
   This builder is for advanced search use ONLY.
 
   If you are looking for simple concept search, or simple image similarity search,
-  you should use the existing function search_by_annotated_concepts, search_by_predicted_concepts,
-  or search_by_image and search_by_metadata
+  you should use one of the existing functions ``search_by_annotated_concepts``, ``search_by_predicted_concepts``,
+  ``search_by_image`` or ``search_by_metadata``
 
-  Currently the query builder only supports a list of query terms with AND
-  InputSearchTerm and OutputSearchTerm are the only term supported by the query builder
+  Currently the query builder only supports a list of query terms with AND.
+  InputSearchTerm and OutputSearchTerm are the only terms supported by the query builder
 
   Examples:
     >>> qb = SearchQueryBuilder()
@@ -675,10 +752,10 @@ class SearchQueryBuilder(object):
     self.language = language
 
   def add_term(self, term):
-    ''' add search term to the query
-        this could be search by input or output
-        construct the search_term with InputSearchTerm()
-        and OutputSearchTerm()
+    ''' add a search term to the query.
+        This can search by input or by output.
+        Construct the term argument with an InputSearchTerm
+        or OutputSearchTerm object.
     '''
     if not isinstance(term, InputSearchTerm) and \
        not isinstance(term, OutputSearchTerm):
@@ -709,9 +786,12 @@ class Models(object):
     self.model_id_cache = self.init_model_cache()
 
   def init_model_cache(self):
-    ''' initialize the model cache for the public models
+    ''' Initialize the model cache for the public models
 
         This will go through all public models and cache them
+
+        Returns:
+          JSON object containing the name, type, and id of all cached models
     '''
 
     model_cache = {}
@@ -731,7 +811,7 @@ class Models(object):
           model_cache.update({(model_name, None):model_id})
     except ApiError as e:
       if e.error_code == 11007:
-        logger.debug("not authorized to call GET /models. Unable to catch models")
+        logger.debug("not authorized to call GET /models. Unable to cache models")
         models = []
         pass
       else:
@@ -744,13 +824,13 @@ class Models(object):
 
         WARNING: This is an internal function, user should not call this
 
-        We cache model_name to model_id mapping for API efficiency
-        At the first time you call a models.get() by name, the name to ID
+        We cache model_name to model_id mapping for API efficiency.
+        The first time you call a models.get() by name, the name to ID
         mapping is saved so next time there is no query. Then user does not
         have to query the model ID every time when they want to work on it.
 
         Returns:
-          There is no return result for this call
+          None
     '''
 
     self.model_id_cache = {}
@@ -760,14 +840,14 @@ class Models(object):
              closed_environment=False, \
              hyper_parameters=None):
 
-    ''' create a new model
+    ''' Create a new model
 
     Args:
       model_id: ID of the model
       model_name: optional name of the model
-      concepts: optional concepts to associated with this model
+      concepts: optional concepts to be associated with this model
       concepts_mutually_exclusive: True or False, whether concepts are mutually exclusive
-      closed_environment: True or False, whether use negatives for prediction
+      closed_environment: True or False, whether to use negatives for prediction
       hyper_parameters: hyper parameters for the model, with a json object
 
     Returns:
@@ -810,14 +890,14 @@ class Models(object):
       return False
 
   def get_all(self, public_only=False, private_only=False):
-    ''' get all models in the application
+    ''' Get all models in the application
 
     Args:
       public_only: only yield public models
       private_only: only yield private models that tie to your own account
 
     Returns:
-      a generator that yields Model object
+      a generator function that yields Model objects
 
     Examples:
       >>> for model in app.models.get_all():
@@ -849,8 +929,8 @@ class Models(object):
   def get_by_page(self, public_only=False, private_only=False, page=1, per_page=20):
     ''' get paginated models from the application
 
-        When the number of models get high, you may want to get
-        the paginated results from all the models
+    When the number of models gets high, you may want to get
+    the paginated results from all the models
 
     Args:
       public_only: only yield public models
@@ -878,11 +958,10 @@ class Models(object):
   def delete(self, model_id, version_id=None):
     ''' delete the model, or a specific version of the model
 
-        Without model version id specified, it is to delete a
-        model. Then all the versions associated with this model
+        Without model version id specified, all the versions associated with this model
         will be deleted as well.
 
-        With model version id specified, it is to delete a
+        With model version id specified, it will delete a
         particular model version from the model
 
         Args:
@@ -907,9 +986,9 @@ class Models(object):
     return res
 
   def delete_all(self):
-    ''' delete all models and the versions associated with each one
+    ''' Delete all models and the versions associated with each one
 
-        After this operation, you will have no model in the
+        After this operation, you will have no models in the
         application
 
         Returns:
@@ -922,11 +1001,12 @@ class Models(object):
     res = self.api.delete_all_models()
     return res
 
-  def get(self, model_id, model_type=None):
-    ''' get a model, by ID or name
+  def get(self, model_name=None, model_id=None, model_type=None):
+    ''' Get a model, by ID or name
 
     Args:
-      model_id: unique identifier of a model
+      model_name: name of the model
+      model_id: unique identifier of the model
       model_type: type of the model
 
     Returns:
@@ -937,40 +1017,49 @@ class Models(object):
       >>> app.models.get('general-v1.3')
     '''
 
-    if self.model_id_cache.get((model_id, model_type)):
-      model_id = self.model_id_cache[(model_id, model_type)]
+    # if the model ID is specified, just make the Model
+    if model_id:
+      model = Model(self.api, model_id=model_id)
+      return model
+
+    # search for the model_name together with the model_type
+    if self.model_id_cache.get((model_name, model_type)):
+      model_id = self.model_id_cache[(model_name, model_type)]
+      model = Model(self.api, model_id=model_id)
+      return model
 
     try:
-      res = self.api.get_model(model_id)
+      res = self.api.get_model(model_name)
       model = self._to_obj(res['model'])
     except ApiError as e:
-      model_name = model_id
+
+      if e.response.status_code == 401:
+        raise e
+
       if e.response.status_code == 404:
         res = self.search(model_name, model_type)
 
         if res is None:
           raise e
-        elif len(res) > 0:
+
+        if len(res) > 0:
           # exclude embed and cluster model when it's not explicitly searched for
           if model_type is None:
             res = list(filter(lambda one: (one.output_info['type'] != u'embed') & (one.output_info['type'] != u'cluster'), res))
 
         if len(res) > 1:
-          raise e
-        else:
-          model = res[0]
-          model_id = model.model_id
-          self.model_id_cache.update({(model_name, model_type):model_id})
-      else:
-        raise e
+          logging.error('Model search results with multiple models. Please refine your search')
+          return None
+
+        model = res[0]
+        self.model_id_cache.update({(model_name, model_type):model.model_id})
 
     return model
 
   def search(self, model_name, model_type=None):
-    ''' search model by name and type
-
-        search the model by name, default is to search concept model
-        only. All the custom model trained are concept model.
+    '''
+        Search the model by name and optionally type. Default is to search concept models
+        only. All the custom model trained are concept models.
 
         Args:
           model_name: name of the model. name is not unique.
@@ -1015,9 +1104,9 @@ class Inputs(object):
       image: a Clarifai Image object
 
     Returns:
-      the image object just got created and uploaded
+      the Image object that just got created and uploaded
 
-    Examples::
+    Examples:
       >>> app.inputs.create_image(Image(url='https://samples.clarifai.com/metro-north.jpg'))
     '''
 
@@ -1033,21 +1122,21 @@ class Inputs(object):
     Args:
       url: image url
       image_id: ID of the image
-      concepts: a list of concepts
-      not_concepts: a list of concepts
+      concepts: a list of concept names this image is associated with
+      not_concepts: a list of concept names this image is not associated with
       crop: crop information, with four corner coordinates
       metadata: meta data with a dictionary
       geo: geo info with a dictionary
-      allow_duplicate_url: True of False, the flag to allow duplicate url to be imported
+      allow_duplicate_url: True or False, the flag to allow a duplicate url to be imported
 
     Returns:
-      the image object just got created and uploaded
+      the Image object that just got created and uploaded
 
-    Examples::
+    Examples:
       >>> app.inputs.create_image_from_url(url='https://samples.clarifai.com/metro-north.jpg')
       >>>
       >>> # create image with geo point
-      >>> app.inputs.create_image_from_url(url='https://samples.clarifai.com/metro-north.jpg', \
+      >>> app.inputs.create_image_from_url(url='https://samples.clarifai.com/metro-north.jpg',
       >>>   geo=Geo(geo_point=GeoPoint(22.22, 44.44))
     '''
 
@@ -1065,17 +1154,17 @@ class Inputs(object):
     Args:
       filename: local filename
       image_id: ID of the image
-      concepts: a list of concepts
-      not_concepts: a list of concepts
+      concepts: a list of concept names this image is associated with
+      not_concepts: a list of concept names this image is not associated with
       crop: crop information, with four corner coordinates
       metadata: meta data with a dictionary
       geo: geo info with a dictionary
-      allow_duplicate_url: True of False, the flag to allow duplicate url to be imported
+      allow_duplicate_url: True or False, the flag to allow a duplicate url to be imported
 
     Returns:
-      the image object just got created and uploaded
+      the Image object that just got created and uploaded
 
-    Examples::
+    Examples:
       >>> app.inputs.create_image_filename(filename="a.jpeg")
     '''
 
@@ -1092,17 +1181,17 @@ class Inputs(object):
     Args:
       img_bytes: raw bytes of an image
       image_id: ID of the image
-      concepts: a list of concepts
-      not_concepts: a list of concepts
+      concepts: a list of concept names this image is associated with
+      not_concepts: a list of concept names this image is not associated with
       crop: crop information, with four corner coordinates
       metadata: meta data with a dictionary
       geo: geo info with a dictionary
-      allow_duplicate_url: True of False, the flag to allow duplicate url to be imported
+      allow_duplicate_url: True or False, the flag to allow a duplicate url to be imported
 
     Returns:
-      the image object just got created and uploaded
+      the Image object that just got created and uploaded
 
-    Examples::
+    Examples:
       >>> app.inputs.create_image_bytes(img_bytes="raw image bytes...")
     '''
 
@@ -1120,17 +1209,17 @@ class Inputs(object):
     Args:
       base64_bytes: base64 encoded image bytes
       image_id: ID of the image
-      concepts: a list of concepts
-      not_concepts: a list of concepts
+      concepts: a list of concept names this image is associated with
+      not_concepts: a list of concept names this image is not associated with
       crop: crop information, with four corner coordinates
       metadata: meta data with a dictionary
       geo: geo info with a dictionary
-      allow_duplicate_url: True of False, the flag to allow duplicate url to be imported
+      allow_duplicate_url: True or False, the flag to allow a duplicate url to be imported
 
     Returns:
-      the image object just got created and uploaded
+      the Image object that just got created and uploaded
 
-    Examples::
+    Examples:
       >>> app.inputs.create_image_bytes(base64_bytes="base64 encoded image bytes...")
     '''
 
@@ -1140,13 +1229,13 @@ class Inputs(object):
     return self.create_image(image)
 
   def bulk_create_images(self, images):
-    ''' bulk create images
+    ''' Create images in bulk
 
     Args:
-      images: a list of Image object
+      images: a list of Image objects
 
     Returns:
-      a list of Image object just got created
+      a list of the Image objects that were just created
 
     Examples:
       >>> img1 = Image(url="", concepts=['cat', 'kitty'])
@@ -1181,14 +1270,16 @@ class Inputs(object):
     counts = InputCounts(ret)
     return counts
 
+
   def get_all(self, ignore_error=False):
-    ''' get all inputs in a generator
+    ''' Get all inputs
+
 
     Args:
       ignore_error: ignore errored inputs. For example some images may fail to be imported due to bad url
 
     Returns:
-      a generator that yields Input object
+      a generator function that yields Input objects
 
     Examples:
       >>> for image in app.inputs.get_all():
@@ -1220,8 +1311,9 @@ class Inputs(object):
 
       page += 1
 
+
   def get_by_page(self, page=1, per_page=20, ignore_error=False):
-    ''' get input with pagination
+    ''' Get inputs with pagination
 
     Args:
       page: page number
@@ -1229,7 +1321,7 @@ class Inputs(object):
       ignore_error: ignore errored inputs. For example some images may fail to be imported due to bad url
 
     Returns:
-      a list of Input object
+      a list of Input objects
 
     Examples:
       >>> for image in app.inputs.get_by_page(2, 10):
@@ -1307,7 +1399,7 @@ class Inputs(object):
         WARNING: this is the advanced search function. You will need to build a query builder
         in order to use this.
 
-        There are a few simple search functions:
+      There are a few simple search functions:
           search_by_annotated_concepts()
           search_by_predicted_concepts()
           search_by_image()
@@ -1329,13 +1421,13 @@ class Inputs(object):
                             imgbytes=None, base64bytes=None, \
                             fileobj=None, filename=None, \
                             crop=None, page=1, per_page=20):
-    ''' search for visually similar images
+    ''' Search for visually similar images
 
     By passing image_id, raw image bytes, base64 encoded bytes, image file io stream,
     image filename, or Clarifai Image object, you can use the visual search power of
     the Clarifai API.
 
-    Also you can specify crop of the image to search over
+    You can specify a crop of the image to search over
 
     Args:
       image_id: unique ID of the image for search
@@ -1344,7 +1436,7 @@ class Inputs(object):
       base64bytes: base63 encoded image bytes
       fileobj: file io stream, like open(file)
       filename: filename on local filesystem
-      crop: crop of the image
+      crop: crop of the image as a list of four floats representing the corner coordinates
       page: page number
       per_page: number of images returned per page
 
@@ -1417,7 +1509,7 @@ class Inputs(object):
     return res
 
   def search_by_original_url(self, url, page=1, per_page=20):
-    ''' search by original url of the imported images
+    ''' search by the original url of the uploaded images
 
     Args:
       url: url of the image
@@ -1425,7 +1517,7 @@ class Inputs(object):
       per_page: the number of images to return per page
 
     Returns:
-      a list of Image object
+      a list of Image objects
 
     Examples:
       >>> app.inputs.search_by_original_url(url='http://bla')
@@ -1440,17 +1532,17 @@ class Inputs(object):
     return res
 
   def search_by_metadata(self, metadata, page=1, per_page=20):
-    ''' search by other meta data of the image rather than concept
+    ''' search by meta data of the image rather than concept
 
     Args:
-      metadata: is a dictionary for meta data search.
+      metadata: a dictionary for meta data search.
             The dictionary could be a simple one with only one key and value,
             Or a nested dictionary with multi levels.
       page: page number
       per_page: the number of images to return per page
 
     Returns:
-      a list of Image object
+      a list of Image objects
 
     Examples:
       >>> app.inputs.search_by_metadata(metadata={'name':'bla'})
@@ -1472,20 +1564,20 @@ class Inputs(object):
                                    value=True, values=None, \
                                    concept_id=None, concept_ids=None, \
                                    page=1, per_page=20):
-    ''' search over the user annotated concepts
+    ''' search using the concepts the user has manually specified
 
     Args:
       concept: concept name to search
       concepts: a list of concept name to search
-      concept_id: concept id to search
-      concept_ids: a list of concept id to search
-      value: whether the concept should exist or NOT
+      concept_id: concept IDs to search
+      concept_ids: a list of concept IDs to search
+      value: whether the concept should be a positive tag or negative
       values: the list of values corresponding to the concepts
       page: page number
       per_page: number of images to return per page
 
     Returns:
-      a list of Image object
+      a list of Image objects
 
     Examples:
       >>> app.inputs.search_by_annotated_concepts(concept='cat')
@@ -1550,10 +1642,10 @@ class Inputs(object):
     Args:
       geo_point: A GeoPoint object, which represents the (longitude, latitude) of a location
       geo_limit: A GeoLimit object, which represents a range to a GeoPoint
-      geo_box: A GeoBox object, wihch represents a box area
+      geo_box: A GeoBox object, which represents a box area
 
     Returns:
-      a list of Image object
+      a list of Image objects
 
     Examples:
       >>> app.inputs.search_by_geo(GeoPoint(30, 40), GeoLimit("mile", 10))
@@ -1595,17 +1687,17 @@ class Inputs(object):
 
     Args:
       concept: concept name to search
-      concepts: a list of concept name to search
+      concepts: a list of concept names to search
       concept_id: concept id to search
-      concept_ids: a list of concept id to search
-      value: whether the concept should exist or NOT
+      concept_ids: a list of concept ids to search
+      value: whether the concept should be a positive tag or negative
       values: the list of values corresponding to the concepts
       page: page number
       per_page: number of images to return per page
       lang: language to search over for translated concepts
 
     Returns:
-      a list of Image object
+      a list of Image objects
 
     Examples:
       >>> app.inputs.search_by_predicted_concepts(concept='cat')
@@ -1658,14 +1750,16 @@ class Inputs(object):
     return self.search(qb, page, per_page)
 
   def update(self, image, action='merge'):
-    ''' update the input
-    update the information of an input/image
+    '''
+    Update the information of an input/image
 
     Args:
-      image: an Image() object that has concepts, metadata, etc.
+      image: an Image object that has concepts, metadata, etc.
       method: one of ['merge', 'overwrite']
-              'merge' is to merge the info into the exising info, for either concept or metadata
-              'overwrite' is to overwrite the metadata, concepts with the existing ones
+
+              'merge' is to append the info onto the existing info, for either concept or metadata
+
+              'overwrite' is to overwrite the existing metadata and concepts with the existing ones
 
     Returns:
       an Image object
@@ -1680,14 +1774,16 @@ class Inputs(object):
     return self._to_obj(one)
 
   def bulk_update(self, images, action='merge'):
-    ''' update the input
+    ''' Update the input
     update the information of an input/image
 
     Args:
-      images: a list of Image() objects that have concepts, metadata, etc.
-      method: one of ['merge', 'overwrite']
-              'merge' is to merge the info into the exising info, for either concept or metadata
-              'overwrite' is to overwrite the metadata, concepts with the existing ones
+      images: a list of Image objects that have concepts, metadata, etc.
+      action: one of ['merge', 'overwrite']
+
+              'merge' is to append the info onto the exising info, for either concept or metadata
+
+              'overwrite' is to overwrite the existing metadata and concepts with the existing ones
 
     Returns:
       an Image object
@@ -1706,7 +1802,7 @@ class Inputs(object):
 
     Args:
       input_id: unique ID of the input
-      concepts: a list of concept name
+      concepts: a list of concept names
 
     Returns:
       an Image object
@@ -1720,7 +1816,7 @@ class Inputs(object):
 
     Args:
       input_ids: a list of input IDs
-      concept_lists: a list of concept list
+      concept_lists: a list of concept lists, each one corresponding to a listed input ID and filled with concepts to be added to that input
 
     Returns:
       an Input object
@@ -1753,7 +1849,7 @@ class Inputs(object):
 
     Args:
       input_ids: a list of input IDs
-      concept_lists: a list of concept list
+      concept_lists: a list of concept lists, each one corresponding to a listed input ID and filled with concepts to be deleted from that input
 
     Returns:
       an Input object
@@ -1772,12 +1868,14 @@ class Inputs(object):
     return res
 
   def merge_concepts(self, input_id, concepts, not_concepts, overwrite=False):
-    ''' merge concepts for one input
+    ''' Merge concepts for one input
 
     Args:
       input_id: the unique ID of the input
       concepts: the list of concepts
       not_concepts: the list of negative concepts
+      overwrite: if True, this operation will replace the previous concepts. If False, it will append them.
+
 
     Returns:
       an Input object
@@ -1797,7 +1895,7 @@ class Inputs(object):
     return res
 
   def add_concepts(self, input_id, concepts, not_concepts):
-    ''' add concepts for one input
+    ''' Add concepts for one input
 
     This is just an alias of `merge_concepts` for easier understanding
     when you try to add some new concepts to an image
@@ -1826,7 +1924,7 @@ class Inputs(object):
 
     Examples:
       >>> # merge the metadata
-      >>> # metadata will be merged along with the existing key/value
+      >>> # metadata will be appended to the existing key/value pairs
       >>> app.inputs.merge_metadata('id', {'key1':'value1', 'key2':'value2'})
     '''
     image = Image(image_id=input_id, metadata=metadata)
@@ -1925,7 +2023,7 @@ class Inputs(object):
     return one_input
 
   def get_outputs(self, input_id):
-    ''' get output predictions for a particular input
+    ''' get the output predictions for a particular input
 
     Args:
       input_id: the unique identifier of the input
@@ -1936,12 +2034,13 @@ class Inputs(object):
     return self.api.get_outputs(input_id)
 
   def remove_outputs_concepts(self, input_id, concept_ids):
-    ''' remove concepts from the outputs predictions
-        the concept ids must be present in your app
+    '''
+    Remove concepts from the outputs predictions.
+    The concept ids must be present in your app
 
     Args:
       input_id: the unique identifier of the input
-      concept_ids: the list of concept ids that are present in your app
+      concept_ids: the list of concept ids to be removed
 
     Returns:
       the patched input in JSON object
@@ -1949,12 +2048,13 @@ class Inputs(object):
     return self.api.patch_outputs(input_id, action='remove', concept_ids=concept_ids)
 
   def merge_outputs_concepts(self, input_id, concept_ids):
-    ''' merge new concepts into the outputs predictions
-        the concept ids must be present in your app
+    '''
+    Merge new concepts into the outputs predictions.
+    The concept ids must be present in your app
 
     Args:
       input_id: the unique identifier of the input
-      concept_ids: the list of concept ids that are present in your app
+      concept_ids: the list of concept ids to be merged
 
     Returns:
       the patched input in JSON object
@@ -1967,13 +2067,13 @@ class Concepts(object):
     self.api = api
 
   def get_all(self):
-    ''' get all concepts in a generator
+    ''' Get all concepts associated with the application
 
     Args:
       void
 
     Returns:
-      all concepts in a generator
+      all concepts in a generator function
     '''
 
     page = 1
@@ -1995,10 +2095,10 @@ class Concepts(object):
 
     Args:
       page: page number
-      per_page: number of inputs to retrieve per page
+      per_page: number of concepts to retrieve per page
 
     Returns:
-      a list of Concept object
+      a list of Concept objects
 
     Examples:
       >>> for concept in app.concepts.get_by_page(2, 10):
@@ -2011,13 +2111,13 @@ class Concepts(object):
     return results
 
   def get(self, concept_id):
-    ''' get a concept by id
+    ''' Get a concept by id
 
     Args:
       concept_id: concept ID, the unique identifier of the concept
 
     Returns:
-      If found, return the Concept object
+      If found, return the Concept object.
       Otherwise, return None
 
     Examples:
@@ -2036,16 +2136,16 @@ class Concepts(object):
     ''' search concepts by concept name with wildcards
 
     Args:
-      term: search term with wildcards
-      lang: language to search
+      term: search term with wildcards allowed
+      lang: language to search, if none is specified the default for the application will be used
 
     Returns:
-      a list concept in a generator
+      a generator function with all concepts pertaining to the search term
 
     Examples:
       >>> app.concepts.search('cat')
       >>> # search for Chinese label name
-      >>> app.concepts.search(u'狗*')
+      >>> app.concepts.search(u'狗*', lang='zh')
     '''
 
     page = 1
@@ -2063,14 +2163,14 @@ class Concepts(object):
       page += 1
 
   def update(self, concept_id, concept_name, action='overwrite'):
-    ''' patch concept
+    ''' Patch concept
 
     Args:
       concept_id: id of the concept
-      concept_name: name of the concept that you want to change to
+      concept_name: the new name for the concept
 
     Returns:
-      the new concept object
+      the new Concept object
 
     Examples:
       >>> app.concepts.update(concept_id='myid1', concept_name='new_concept_name2')
@@ -2082,14 +2182,14 @@ class Concepts(object):
     return self._to_obj(res['concepts'][0])
 
   def bulk_update(self, concept_ids, concept_names, action='overwrite'):
-    ''' patch multiple concepts
+    ''' Patch multiple concepts
 
     Args:
-      concept_ids: a list of concept_id, in sequence
+      concept_ids: a list of concept IDs, in sequence
       concept_names: a list of corresponding concept names, in the same sequence
 
     Returns:
-      the new concept object
+      the new Concept object
 
     Examples:
       >>> app.concepts.bulk_update(concept_ids=['myid1', 'myid2'], concept_names=['name2', 'name3'])
@@ -2101,12 +2201,12 @@ class Concepts(object):
     return [self._to_obj(c) for c in res['concepts']]
 
   def create(self, concept_id, concept_name=None):
-    ''' create a new concept
+    ''' Create a new concept
 
     Args:
       concept_id: concept ID, the unique identifier of the concept
-      concept_name: name of the concept
-                    If name is not specified, it will be set to the same as concept ID
+      concept_name: name of the concept.
+                    If name is not specified, it will be set to the same as the concept ID
 
     Returns:
       the new Concept object
@@ -2117,19 +2217,19 @@ class Concepts(object):
     return concept
 
   def bulk_create(self, concept_ids, concept_names=None):
-    ''' bulk create concepts
+    ''' Bulk create concepts
 
-        When the concept name is not set, it will be set as the same as concept ID.
+    When the concept name is not set, it will be set as the same as concept ID.
 
     Args:
-      concept_ids: a list of concept IDs
-      concept_names: a list of concept name
+      concept_ids: a list of concept IDs, in sequence
+      concept_names: a list of corresponding concept names, in the same sequence
 
     Returns:
-      A list of Concept() object
+      A list of Concept objects
 
-    Examples::
-      >>> app.inputs.bulk_create(['id1', 'id2'], ['cute cat', 'cute dog'])
+    Examples:
+      >>> app.concepts.bulk_create(['id1', 'id2'], ['cute cat', 'cute dog'])
     '''
 
     res = self.api.add_concepts(concept_ids, concept_names)
@@ -2143,16 +2243,18 @@ class Concepts(object):
     app_id = item['app_id']
     created_at = item['created_at']
 
-    return Concept(concept_name, concept_id, app_id, \
-                   created_at)
+    return Concept(concept_name=concept_name, concept_id=concept_id, app_id=app_id, created_at=created_at)
 
 
 class Model(object):
 
-  def __init__(self, api, item=None):
+  def __init__(self, api, item=None, model_id=None):
     self.api = api
 
-    if item:
+    if model_id is not None:
+      self.model_id = model_id
+      self.model_version = None
+    elif item:
       self.model_id = item['id']
       self.model_name = item['name']
       self.created_at = item['created_at']
@@ -2176,12 +2278,14 @@ class Model(object):
 
       if self.output_info.get('data', {}).get('concepts'):
         for concept in self.output_info['data']['concepts']:
-          concept = Concept(concept_name=concept['name'], concept_id=concept['id'], \
-                            app_id=concept['app_id'], created_at=concept['created_at'])
+          concept = Concept(concept_name=concept['name'],
+                            concept_id=concept['id'],
+                            app_id=concept['app_id'],
+                            created_at=concept['created_at'])
           self.concepts.add(concept)
 
   def get_info(self, verbose=False):
-    ''' get model info, with or without concepts info
+    ''' get model info, with or without the concepts associated with the model.
 
     Args:
       verbose: default is False. True will yield output_info, with concepts of the model
@@ -2248,9 +2352,8 @@ class Model(object):
     return data
 
   def train(self, sync=True, timeout=60):
-    ''' train a model
-
-    train the model in synchronous or asynchronous mode
+    '''
+    train the model in synchronous or asynchronous mode. Synchronous will block until the model is trained, async will not.
 
     Args:
       sync: indicating synchronous or asynchronous, default is True
@@ -2309,13 +2412,17 @@ class Model(object):
     model = self._to_obj(res['model'])
     return model
 
-  def predict_by_url(self, url, lang=None, is_video=False):
+  def predict_by_url(self, url, lang=None, is_video=False,
+                     min_value=None, max_concepts=None, select_concepts=None):
     ''' predict a model with url
 
     Args:
-      url: url of an image
+      url: publicly accessible url of an image
       lang: language to predict, if the translation is available
       is_video: whether this is a video
+      min_value: threshold to cut the predictions, 0-1.0
+      max_concepts: max concepts to keep in the predictions, 0-200
+      select_concepts: a list of concepts that are selected to be exposed
 
     Returns:
       the prediction of the model in JSON format
@@ -2328,18 +2435,25 @@ class Model(object):
     else:
       input = Image(url=url)
 
-    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang))
+    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang,
+                                                                        min_value=min_value,
+                                                                        max_concepts=max_concepts,
+                                                                        select_concepts=select_concepts))
 
     res = self.predict([input], model_output_info)
     return res
 
-  def predict_by_filename(self, filename, lang=None, is_video=False):
+  def predict_by_filename(self, filename, lang=None, is_video=False,
+                          min_value=None, max_concepts=None, select_concepts=None):
     ''' predict a model with a local filename
 
     Args:
       filename: filename on local filesystem
       lang: language to predict, if the translation is available
       is_video: whether this is a video
+      min_value: threshold to cut the predictions, 0-1.0
+      max_concepts: max concepts to keep in the predictions, 0-200
+      select_concepts: a list of concepts that are selected to be exposed
 
     Returns:
       the prediction of the model in JSON format
@@ -2352,18 +2466,25 @@ class Model(object):
     else:
       input = Image(file_obj=fileio)
 
-    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang))
+    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang,
+                                                                        min_value=min_value,
+                                                                        max_concepts=max_concepts,
+                                                                        select_concepts=select_concepts))
 
     res = self.predict([input], model_output_info)
     return res
 
-  def predict_by_bytes(self, raw_bytes, lang=None, is_video=False):
+  def predict_by_bytes(self, raw_bytes, lang=None, is_video=False,
+                       min_value=None, max_concepts=None, select_concepts=None):
     ''' predict a model with image raw bytes
 
     Args:
       raw_bytes: raw bytes of an image
       lang: language to predict, if the translation is available
       is_video: whether this is a video
+      min_value: threshold to cut the predictions, 0-1.0
+      max_concepts: max concepts to keep in the predictions, 0-200
+      select_concepts: a list of concepts that are selected to be exposed
 
     Returns:
       the prediction of the model in JSON format
@@ -2376,18 +2497,25 @@ class Model(object):
     else:
       input = Image(base64=base64_bytes)
 
-    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang))
+    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang,
+                                                                        min_value=min_value,
+                                                                        max_concepts=max_concepts,
+                                                                        select_concepts=select_concepts))
 
     res = self.predict([input], model_output_info)
     return res
 
-  def predict_by_base64(self, base64_bytes, lang=None, is_video=False):
+  def predict_by_base64(self, base64_bytes, lang=None, is_video=False,
+                        min_value=None, max_concepts=None, select_concepts=None):
     ''' predict a model with base64 encoded image bytes
 
     Args:
       base64_bytes: base64 encoded image bytes
       lang: language to predict, if the translation is available
       is_video: whether this is a video
+      min_value: threshold to cut the predictions, 0-1.0
+      max_concepts: max concepts to keep in the predictions, 0-200
+      select_concepts: a list of concepts that are selected to be exposed
 
     Returns:
       the prediction of the model in JSON format
@@ -2398,7 +2526,10 @@ class Model(object):
     else:
       input = Image(base64=base64_bytes)
 
-    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang))
+    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang,
+                                                                        min_value=min_value,
+                                                                        max_concepts=max_concepts,
+                                                                        select_concepts=select_concepts))
 
     res = self.predict([input], model_output_info)
     return res
@@ -2407,7 +2538,7 @@ class Model(object):
     ''' predict with multiple images
 
     Args:
-      inputs: a list of Image object
+      inputs: a list of Image objectsg
 
     Returns:
       the prediction of the model in JSON format
@@ -2419,12 +2550,12 @@ class Model(object):
   def merge_concepts(self, concept_ids, overwrite=False):
     ''' merge concepts in a model
 
-    If the concept does not exist in the model, it will be appended,
-    otherwise, the original one will be kept
+    When overwrite is False, if the concept does not exist in the model it will be appended.
+    Otherwise, the original one will be kept.
 
     Args:
       concept_ids: a list of concept id
-      overwrite: True of False. If True, the concepts will be overwritten
+      overwrite: True or False. If True, the existing concepts will be replaced
 
     Returns:
       the Model object
@@ -2439,13 +2570,13 @@ class Model(object):
     return model
 
   def add_concepts(self, concept_ids):
-    ''' merge concepts in a model
+    ''' merge concepts into a model
 
     This is just an alias of `merge_concepts`, for easier understanding of adding new concepts
     to the model without overwritting them
 
     Args:
-      concept_ids: a list of concept id
+      concept_ids: a list of concept IDs
 
     Returns:
       the Model object
@@ -2459,10 +2590,9 @@ class Model(object):
 
   def update(self, action='merge', model_name=None, concepts_mutually_exclusive=None, \
              closed_environment=None, concept_ids=None):
-    ''' update the model attributes
-
-    This is to update the model attributes. The name of the model, and list of concepts could be
-    changed. Also the training attributes concepts_mutually_exclusive and closed_environment could
+    '''
+    Update the model attributes. The name of the model, list of concepts, and
+    the attributes ``concepts_mutually_exclusive`` and ``closed_environment`` can
     be changed.
     Note this is a overwriting change. For a valid call, at least one or more attributes should be
     specified. Otherwise the call will be just skipped without error.
@@ -2470,8 +2600,8 @@ class Model(object):
     Args:
       action: the way to patch the model: ['merge', 'remove', 'overwrite']
       model_name: name of the model
-      concepts_mutually_exclusive: whether it's multually exclusive model
-      closed_environment: whether it's closed environment training
+      concepts_mutually_exclusive: whether the concepts are mutually exclusive
+      closed_environment: whether negative concepts should be taken into account during training
       concept_ids: a list of concept ids
 
     Returns:
@@ -2517,7 +2647,7 @@ class Model(object):
     ''' delete concepts from a model
 
     Args:
-      concept_ids: a list of concept id
+      concept_ids: a list of concept IDs to be removed
 
     Returns:
       the Model object
@@ -2587,8 +2717,9 @@ class Model(object):
     return res
 
   def get_inputs(self, version_id=None, page=1, per_page=20):
-    ''' get all the inputs from the model or a specific model version
-        Without specifying model version id, this will yield the inputs
+    '''
+    Get all the inputs from the model or a specific model version.
+    Without specifying a model version id, this will yield all inputs
 
     Args:
       version_id: model version id
@@ -2604,6 +2735,40 @@ class Model(object):
 
     return res
 
+  def send_concept_feedback(self, input_id, url, concepts=None, not_concepts=None, feedback_info=None):
+    '''
+    Send feedback for this model
+
+    Args:
+      input: input for the feedback
+
+    Returns:
+      None
+    '''
+
+    feedback_input = Image(url=url, image_id=input_id, concepts=concepts, not_concepts=not_concepts, feedback_info=feedback_info)
+    res = self.api.send_model_feedback(self.model_id, self.model_version, feedback_input)
+
+    return res
+
+  def send_region_feedback(self, input_id, url, concepts=None, not_concepts=None, regions=None, feedback_info=None):
+    '''
+    Send feedback for this model
+
+    Args:
+      input: input for the feedback
+
+    Returns:
+      None
+    '''
+
+    feedback_input = Image(url=url, image_id=input_id, concepts=concepts, not_concepts=not_concepts,
+                           regions=regions,
+                           feedback_info=feedback_info)
+    res = self.api.send_model_feedback(self.model_id, self.model_version, feedback_input)
+
+    return res
+
   def _to_obj(self, item):
     ''' convert a model json object to Model object '''
     return Model(self.api, item)
@@ -2614,20 +2779,33 @@ class Concept(object):
   """ Clarifai Concept
   """
 
-  def __init__(self, concept_name, concept_id=None, app_id=None, created_at=None):
+  def __init__(self, concept_name=None, concept_id=None, app_id=None, created_at=None, value=None):
     self.concept_name = concept_name
     self.concept_id = concept_id
     self.app_id = app_id
     self.created_at = created_at
+    self.value = value
 
   def dict(self):
-    c = {'id': self.concept_id,
-         'name': self.concept_name,
-         'created_at': self.created_at,
-         'app_id': self.app_id
-        }
 
-    return c
+    data = {}
+
+    if self.concept_name is not None:
+      data['name'] = self.concept_name
+
+    if self.concept_id is not None:
+      data['id'] = self.concept_id
+
+    if self.app_id is not None:
+      data['app_id'] = self.app_id
+
+    if self.created_at is not None:
+      data['created_at'] = self.created_at
+
+    if self.value is not None:
+      data['value'] = self.value
+
+    return data
 
 
 class ApiClient(object):
@@ -2659,7 +2837,7 @@ class ApiClient(object):
     if api_key is None:
       if os.environ.get('CLARIFAI_API_KEY'):
         logger.debug("Using env variables for api_key")
-        api_key = os.environ['CLARIFAI_API_KEY']
+        api_key_str = os.environ['CLARIFAI_API_KEY']
       elif os.path.exists(CONF_FILE):
         parser = ConfigParser()
         parser.optionxform = str
@@ -2668,17 +2846,17 @@ class ApiClient(object):
           parser.readfp(fdr)
 
         if parser.has_option('clarifai', 'CLARIFAI_API_KEY'):
-          api_key = parser.get('clarifai', 'CLARIFAI_API_KEY')
+          api_key_str = parser.get('clarifai', 'CLARIFAI_API_KEY')
         else:
-          api_key = ''
+          api_key_str = ''
       else:
-        api_key = ''
+        api_key_str = ''
 
     if app_id is None:
       if os.environ.get('CLARIFAI_APP_ID') and os.environ.get('CLARIFAI_APP_SECRET'):
         logger.debug("Using env variables for id and secret")
-        app_id = os.environ['CLARIFAI_APP_ID']
-        app_secret = os.environ['CLARIFAI_APP_SECRET']
+        app_id_str = os.environ['CLARIFAI_APP_ID']
+        app_secret_str = os.environ['CLARIFAI_APP_SECRET']
       elif os.path.exists(CONF_FILE):
         parser = ConfigParser()
         parser.optionxform = str
@@ -2688,16 +2866,16 @@ class ApiClient(object):
 
         if parser.has_option('clarifai', 'CLARIFAI_APP_ID') and \
            parser.has_option('clarifai', 'CLARIFAI_APP_SECRET'):
-          app_id = parser.get('clarifai', 'CLARIFAI_APP_ID')
-          app_secret = parser.get('clarifai', 'CLARIFAI_APP_SECRET')
+          app_id_str = parser.get('clarifai', 'CLARIFAI_APP_ID')
+          app_secret_str = parser.get('clarifai', 'CLARIFAI_APP_SECRET')
         else:
-          app_id = app_secret = ''
+          app_id_str = app_secret_str = ''
       else:
-        app_id = app_secret = ''
+        app_id_str = app_secret_str = ''
 
     if base_url is None:
       if os.environ.get('CLARIFAI_API_BASE'):
-        base_url = os.environ.get('CLARIFAI_API_BASE')
+        base_url_str = os.environ.get('CLARIFAI_API_BASE')
       elif os.path.exists(CONF_FILE):
         parser = ConfigParser()
         parser.optionxform = str
@@ -2706,27 +2884,35 @@ class ApiClient(object):
           parser.readfp(fdr)
 
         if parser.has_option('clarifai', 'CLARIFAI_API_BASE'):
-          base_url = parser.get('clarifai', 'CLARIFAI_API_BASE')
+          base_url_str = parser.get('clarifai', 'CLARIFAI_API_BASE')
         else:
-          base_url = 'api.clarifai.com'
+          base_url_str = 'api.clarifai.com'
       else:
-        base_url = 'api.clarifai.com'
+        base_url_str = 'api.clarifai.com'
 
-    self.app_id = app_id
-    self.app_secret = app_secret
-    self.api_key = api_key
+    if app_id and app_secret:
+      self.app_id = app_id
+      self.app_secret = app_secret
+      self.api_key = ''
+    elif api_key:
+      self.api_key = api_key
+      self.app_id = self.app_secret = ''
+    else:
+      self.app_id = app_id_str
+      self.app_secret = app_secret_str
+      self.api_key = api_key_str
 
     if quiet:
       logger.setLevel(logging.INFO)
     else:
       logger.setLevel(logging.DEBUG)
 
-    parsed = urlparse(base_url)
+    parsed = urlparse(base_url_str)
     scheme = 'https' if parsed.scheme == '' else parsed.scheme
-    base_url = parsed.path if not parsed.netloc else parsed.netloc
-    self.base_url = base_url
+    base_url_parsed = parsed.path if not parsed.netloc else parsed.netloc
+    self.base_url = base_url_parsed
     self.scheme = scheme
-    self.basev2 = urljoin(scheme + '://', base_url)
+    self.basev2 = urljoin(scheme + '://', base_url_parsed)
     logger.debug("Base url: %s", self.basev2)
     self.token = None
     self.headers = None
@@ -2944,8 +3130,16 @@ class ApiClient(object):
     '''
     if not isinstance(objs, list):
       raise UserError("objs must be a list")
-    if not isinstance(objs[0], (Image, Video)):
-      raise UserError("Not valid type of content to add. Must be Image or Video")
+
+    for obj in objs:
+      if not isinstance(obj, (Image, Video)):
+        raise UserError("Not valid type of content to add. Must be Image or Video")
+      if obj.input_id is not None and not isinstance(obj.input_id, basestring):
+        raise UserError("Not valid input ID. Must be a string or None")
+      if obj.input_id is not None and '/' in obj.input_id:
+        raise UserError("Not valid input ID. Cannot contain character: \"/\"")
+
+
 
     resource = "inputs"
     data = {"inputs": [obj.dict() for obj in objs]}
@@ -3512,6 +3706,18 @@ class ApiClient(object):
     res = self.post(resource, data)
     return res
 
+  def send_model_feedback(self, model_id, version_id, obj):
+
+    if version_id is None:
+      resource = "models/%s/feedback" % model_id
+    else:
+      resource = "models/%s/versions/%s/feedback" % (model_id, version_id)
+
+    data = {"input": obj.dict()}
+
+    res = self.post(resource, data)
+    return res
+
   def predict_concepts(self, objs, lang=None):
 
     models = self.search_models(name='general-v1.3', model_type='concept')
@@ -3666,10 +3872,14 @@ class ModelOutputInfo(object):
 
 class ModelOutputConfig(object):
 
-  def __init__(self, mutually_exclusive=False, closed_environment=False, language=None):
+  def __init__(self, mutually_exclusive=False, closed_environment=False, language=None,
+               min_value=None, max_concepts=None, select_concepts=None):
     self.concepts_mutually_exclusive = mutually_exclusive
     self.closed_environment = closed_environment
     self.language = language
+    self.min_value = min_value
+    self.max_concepts = max_concepts
+    self.select_concepts = select_concepts
 
   def dict(self):
     data = {'output_config':{
@@ -3680,4 +3890,150 @@ class ModelOutputConfig(object):
     if self.language is not None:
       data['output_config']['language'] = self.language
 
+    if self.min_value is not None:
+      data['output_config']['min_value'] = self.min_value
+
+    if self.max_concepts is not None:
+      data['output_config']['max_concepts'] = self.max_concepts
+
+    if self.select_concepts is not None:
+      data['output_config']['select_concepts'] = [c.dict() for c in self.select_concepts]
+
     return data
+
+
+class BoundingBox(object):
+
+  def __init__(self, top_row, left_col, bottom_row, right_col):
+    self.top_row = top_row
+    self.left_col = left_col
+    self.bottom_row = bottom_row
+    self.right_col = right_col
+
+  def dict(self):
+
+    data = {'bounding_box': {
+      'top_row': self.top_row,
+      'left_col': self.left_col,
+      'bottom_row': self.bottom_row,
+      'right_col': self.right_col
+    }}
+
+    return data
+
+
+class RegionInfo(object):
+
+  def __init__(self, bbox=None, feedback_type=None):
+    self.bbox = bbox
+    self.feedback_type = feedback_type
+
+  def dict(self):
+
+    data = {"region_info": {}}
+
+    if self.bbox:
+      data['region_info'].update(self.bbox.dict())
+
+    if self.feedback_type:
+      data['feedback'] = self.feedback_type
+
+    return data
+
+
+class Region(object):
+
+  def __init__(self, region_info, concepts=None, face=None):
+
+    self.region_info = region_info
+    self.concepts = concepts
+    self.face = face
+
+  def dict(self):
+
+    data = {}
+    data.update(self.region_info.dict())
+
+    if self.concepts:
+      data['data'] = {'concepts':[c.dict() for c in self.concepts]}
+
+    if self.face:
+      data['data'] = self.face.dict()
+
+    return data
+
+
+class Face(object):
+
+  def __init__(self, identity=None, age_appearance=None, gender_appearance=None, multicultural_appearance=None):
+
+    self.identity = identity
+    self.age_appearance = age_appearance
+    self.gender_appearance = gender_appearance
+    self.multicultural_appearance = multicultural_appearance
+
+  def dict(self):
+
+    data = {'face':{}}
+
+    if self.identity:
+      data['face'].update(self.identity.dict())
+
+    if self.age_appearance:
+      data['face'].update(self.age_appearance.dict())
+
+    if self.gender_appearance:
+      data['face'].update(self.gender_appearance.dict())
+
+    if self.multicultural_appearance:
+      data['face'].update(self.multicultural_appearance.dict())
+
+    return data
+
+class FaceIdentity(object):
+
+  def __init__(self, concepts):
+    self.concepts = concepts
+
+  def dict(self):
+    data = {'identity': {
+      'concepts': [c.dict() for c in self.concepts]
+    }}
+    return data
+
+
+class FaceAgeAppearance(object):
+
+  def __init__(self, concepts):
+    self.concepts = concepts
+
+  def dict(self):
+    data = {'age_appearance': {
+      'concepts': [c.dict() for c in self.concepts]
+    }}
+    return data
+
+
+class FaceGenderAppearance(object):
+
+  def __init__(self, concepts):
+    self.concepts = concepts
+
+  def dict(self):
+    data = {'gender_appearance': {
+      'concepts': [c.dict() for c in self.concepts]
+    }}
+    return data
+
+
+class FaceMulticulturalAppearance(object):
+
+  def __init__(self, concepts):
+    self.concepts = concepts
+
+  def dict(self):
+    data = {'multicultural_appearance': {
+      'concepts': [c.dict() for c in self.concepts]
+    }}
+    return data
+
