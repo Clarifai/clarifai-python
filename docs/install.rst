@@ -10,7 +10,7 @@ Install the package
 You can install the latest stable clarifai using pip (which is the canonical way to install Python
 packages). To install using ``pip`` run::
 
-   pip install clarifai==2.0.27
+   pip install clarifai==2.0.28
 
 You can also install from git using latest source::
 
@@ -21,10 +21,12 @@ Configuration
 
 The client uses CLARIFAI_APP_ID and CLARIFAI_APP_SECRET for authentication and token generation.
 Each application you create uses its own unique ID and secret to authenticate requests.
-The client will use the authentication information passed to it by three methods with the following precedence order::
-+ Passed in to the constructor through the `app_id` and `app_secret` parameters.
-+ Set as the CLARIFAI_APP_ID and CLARIFAI_APP_SECRET environment variables
-+ Placed in the .clarifai/config file using the command below.
+The client will use the authentication information passed to it by one of three methods with the following precedence order:
+
+1. Passed in to the constructor through the ``app_id`` and ``app_secret`` parameters.
+2. Set as the CLARIFAI_APP_ID and CLARIFAI_APP_SECRET environment variables
+3. Placed in the .clarifai/config file using the command below.
+
 You can get these values from https://developer.clarifai.com/account/applications and then run::
 
    $ clarifai config
@@ -37,8 +39,8 @@ Windows Users
 =============
 
 For Windows users, you may fail running the ``clarifai config`` when you try to configure the runtime environment.
-This is because Windows uses file extension to determine executables and by default file ``clarifai`` without file
-extension is nonexecutables.
+This is because Windows uses the file extension to determine executables and by default file ``clarifai`` without file
+extension is nonexecutable.
 In order to run the command, you may want to launch it with the python interpreter.
 
 .. code-block:: bash

@@ -6,3 +6,7 @@ from .client import Model, Image, Video, Concept
 from .client import InputSearchTerm, OutputSearchTerm, SearchQueryBuilder
 from .client import Geo, GeoPoint, GeoBox, GeoLimit
 from .client import ApiStatus
+from .client import FeedbackInfo
+from .client import Region, RegionInfo, BoundingBox
+from .client import Concept
+from .client import Face, FaceAgeAppearance, FaceIdentity, FaceGenderAppearance, FaceMulticulturalAppearance
