@@ -20,7 +20,7 @@ The API client is available on Pip. You can simply install it with a `pip instal
 pip install clarifai==2.0.29
 ```
 
-For more details on the installation, please refer to https://clarifai-python.readthedocs.io/en/latest/index.html
+For more details on the installation, please refer to https://clarifai-python.readthedocs.io/en/latest/install/
 
 Setup
 ---------------------
