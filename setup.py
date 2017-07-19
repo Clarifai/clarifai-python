@@ -8,7 +8,7 @@ except ImportError:
 setup(
     name="clarifai",
     description='Clarifai API Python Client',
-    version='2.0.29',
+    version='2.0.30',
     author='Clarifai',
     maintainer='Robert Wen',
     maintainer_email='robert@clarifai.com',
