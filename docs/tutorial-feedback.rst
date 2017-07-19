@@ -50,7 +50,7 @@ Detection model prediction
 
    from clarifai.rest import ClarifaiApp
    from clarifai.rest import FeedbackInfo
-   from clarifai.rest import Region, RegionInfo, BoundingBox, ConceptInput
+   from clarifai.rest import Region, RegionInfo, BoundingBox, Concept
 
    app = ClarifaiApp()
 
@@ -59,8 +59,8 @@ Detection model prediction
                                                                                   left_col=0.2,
                                                                                   bottom_row=0.5,
                                                                                   right_col=0.5)),
-                                          concepts=[ConceptInput(id='people', value=True),
-                                                    ConceptInput(id='portrait', value=True)])],
+                                          concepts=[Concept(concept_id='people', value=True),
+                                                    Concept(concept_id='portrait', value=True)])],
                           feedback_info=FeedbackInfo(output_id='OID',
                                                      session_id='SID',
                                                      end_user_id='UID',
@@ -79,7 +79,7 @@ Face detection model prediction
 
    from clarifai.rest import ClarifaiApp
    from clarifai.rest import FeedbackInfo
-   from clarifai.rest import Region, RegionInfo, BoundingBox, ConceptInput
+   from clarifai.rest import Region, RegionInfo, BoundingBox, Concept
    from clarifai.rest import Face, FaceIdentity
    from clarifai.rest import FaceAgeAppearance, FaceGenderAppearance, FaceMulticulturalAppearance
 
@@ -93,7 +93,7 @@ Face detection model prediction
                                                                                   left_col=0.2,
                                                                                   bottom_row=0.5,
                                                                                   right_col=0.5)),
-                                          face=Face(identity=FaceIdentity([ConceptInput(id='celeb1', value=True)]))
+                                          face=Face(identity=FaceIdentity([Concept(concept_id='celeb1', value=True)]))
                                           )
                                    ],
                           feedback_info=FeedbackInfo(output_id='OID',
@@ -110,11 +110,11 @@ Face detection model prediction
                                                                                   left_col=0.2,
                                                                                   bottom_row=0.5,
                                                                                   right_col=0.5)),
-                                          face=Face(age_appearance=FaceAgeAppearance([ConceptInput(id='20', value=True),
-                                                                                      ConceptInput(id='30', value=False)
+                                          face=Face(age_appearance=FaceAgeAppearance([Concept(concept_id='20', value=True),
+                                                                                      Concept(concept_id='30', value=False)
                                                                                       ]),
-                                                    gender_appearance=FaceGenderAppearance([ConceptInput(id='male', value=True)]),
-                                                    multicultural_appearance=FaceMulticulturalAppearance([ConceptInput(id='asian', value=True)])
+                                                    gender_appearance=FaceGenderAppearance([Concept(concept_id='male', value=True)]),
+                                                    multicultural_appearance=FaceMulticulturalAppearance([Concept(concept_id='asian', value=True)])
                                                    )
                                           )
                                    ],

@@ -10,8 +10,10 @@ import json
 import copy
 import base64
 import logging
+
 import requests
 import platform
+from enum import Enum
 from io import BytesIO
 from pprint import pformat
 from configparser import ConfigParser
@@ -29,7 +31,7 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.29'
+CLIENT_VERSION = '2.0.30'
 OS_VER = os.sys.platform
 PYTHON_VERSION = '.'.join(map(str, [os.sys.version_info.major, os.sys.version_info.minor, \
                                     os.sys.version_info.micro]))
@@ -495,17 +497,28 @@ class Video(Input):
     return data
 
 
+class FeedbackType(Enum):
+  """ Enum class for feedback type """
+
+  accurate = 1
+  misplaced = 2
+  not_detected = 3
+  false_positive = 4
+
+
 class FeedbackInfo(object):
   """
   FeedbackInfo holds the metadata of a feedback
   """
 
-  def __init__(self, end_user_id=None, session_id=None, event_type=None, output_id=None):
+  def __init__(self, end_user_id=None, session_id=None, event_type=None,
+                output_id=None, search_id=None):
 
     self.end_user_id = end_user_id
     self.session_id = session_id
     self.event_type = event_type
     self.output_id = output_id
+    self.search_id = search_id
 
   def dict(self):
 
@@ -514,9 +527,14 @@ class FeedbackInfo(object):
         "end_user_id": self.end_user_id,
         "session_id":  self.session_id,
         "event_type":  self.event_type,
-        "output_id":   self.output_id
       }
     }
+
+    if self.output_id:
+      data['feedback_info']['output_id'] = self.output_id
+
+    if self.search_id:
+      data['feedback_info']['search_id'] = self.search_id
 
     return data
 
@@ -1092,6 +1110,9 @@ class Models(object):
     ''' convert a model json object to Model object '''
     return Model(self.api, item)
 
+def _escape(param):
+  return param.replace('/', '%2F')
+
 
 class Inputs(object):
 
@@ -1394,7 +1415,7 @@ class Inputs(object):
     one = res['input']
     return self._to_obj(one)
 
-  def search(self, qb, page=1, per_page=20):
+  def search(self, qb, page=1, per_page=20, raw=False):
     ''' search with a clarifai image query builder
 
         WARNING: this is the advanced search function. You will need to build a query builder
@@ -1408,12 +1429,18 @@ class Inputs(object):
 
     Args:
       qb: clarifai query builder
+      raw: raw result indicator
 
     Returns:
       a list of Input/Image object
     '''
 
     res = self.api.search_inputs(qb.dict(), page, per_page)
+
+    # output raw result when the flag is set
+    if raw is True:
+      return res
+
     hits = [self._to_search_obj(one) for one in res['hits']]
     return hits
 
@@ -1421,7 +1448,7 @@ class Inputs(object):
                             image=None, url=None, \
                             imgbytes=None, base64bytes=None, \
                             fileobj=None, filename=None, \
-                            crop=None, page=1, per_page=20):
+                            crop=None, page=1, per_page=20, raw=False):
     ''' Search for visually similar images
 
     By passing image_id, raw image bytes, base64 encoded bytes, image file io stream,
@@ -1440,6 +1467,7 @@ class Inputs(object):
       crop: crop of the image as a list of four floats representing the corner coordinates
       page: page number
       per_page: number of images returned per page
+      raw: raw result indicator
 
     Returns:
       a list of Image object
@@ -1488,34 +1516,35 @@ class Inputs(object):
 
       qb.add_term(term)
 
-      res = self.search(qb, page, per_page)
+      res = self.search(qb, page, per_page, raw)
     elif url:
       img = Image(url=url, crop=crop)
-      res = self.search_by_image(image=img, page=page, per_page=per_page)
+      res = self.search_by_image(image=img, page=page, per_page=per_page, raw=raw)
     elif fileobj:
       img = Image(file_obj=fileobj, crop=crop)
-      res = self.search_by_image(image=img, page=page, per_page=per_page)
+      res = self.search_by_image(image=img, page=page, per_page=per_page, raw=raw)
     elif imgbytes:
       fileio = BytesIO(imgbytes)
       img = Image(file_obj=fileio, crop=crop)
-      res = self.search_by_image(image=img, page=page, per_page=per_page)
+      res = self.search_by_image(image=img, page=page, per_page=per_page, raw=raw)
     elif filename:
       fileio = open(filename, 'rb')
       img = Image(file_obj=fileio, crop=crop)
-      res = self.search_by_image(image=img, page=page, per_page=per_page)
+      res = self.search_by_image(image=img, page=page, per_page=per_page, raw=raw)
     elif base64:
       img = Image(base64=base64bytes, crop=crop)
-      res = self.search_by_image(image=img, page=page, per_page=per_page)
+      res = self.search_by_image(image=img, page=page, per_page=per_page, raw=raw)
 
     return res
 
-  def search_by_original_url(self, url, page=1, per_page=20):
+  def search_by_original_url(self, url, page=1, per_page=20, raw=False):
     ''' search by the original url of the uploaded images
 
     Args:
       url: url of the image
       page: page number
       per_page: the number of images to return per page
+      raw: raw result indicator
 
     Returns:
       a list of Image objects
@@ -1528,11 +1557,11 @@ class Inputs(object):
 
     term = InputSearchTerm(url=url)
     qb.add_term(term)
-    res = self.search(qb, page, per_page)
+    res = self.search(qb, page, per_page, raw)
 
     return res
 
-  def search_by_metadata(self, metadata, page=1, per_page=20):
+  def search_by_metadata(self, metadata, page=1, per_page=20, raw=False):
     ''' search by meta data of the image rather than concept
 
     Args:
@@ -1541,6 +1570,7 @@ class Inputs(object):
             Or a nested dictionary with multi levels.
       page: page number
       per_page: the number of images to return per page
+      raw: raw result indicator
 
     Returns:
       a list of Image objects
@@ -1555,7 +1585,7 @@ class Inputs(object):
 
       term = InputSearchTerm(metadata=metadata)
       qb.add_term(term)
-      res = self.search(qb, page, per_page)
+      res = self.search(qb, page, per_page, raw)
     else:
       raise UserError('Metadata must be a valid dictionary. Please double check.')
 
@@ -1564,7 +1594,7 @@ class Inputs(object):
   def search_by_annotated_concepts(self, concept=None, concepts=None, \
                                    value=True, values=None, \
                                    concept_id=None, concept_ids=None, \
-                                   page=1, per_page=20):
+                                   page=1, per_page=20, raw=False):
     ''' search using the concepts the user has manually specified
 
     Args:
@@ -1576,6 +1606,7 @@ class Inputs(object):
       values: the list of values corresponding to the concepts
       page: page number
       per_page: number of images to return per page
+      raw: raw result indicator
 
     Returns:
       a list of Image objects
@@ -1635,15 +1666,19 @@ class Inputs(object):
         term = InputSearchTerm(concept_id=concept_id, value=value)
         qb.add_term(term)
 
-    return self.search(qb, page, per_page)
+    return self.search(qb, page, per_page, raw)
 
-  def search_by_geo(self, geo_point=None, geo_limit=None, geo_box=None, page=1, per_page=20):
+  def search_by_geo(self, geo_point=None, geo_limit=None, geo_box=None, page=1, per_page=20,
+                     raw=False):
     ''' search by geo point and geo limit
 
     Args:
       geo_point: A GeoPoint object, which represents the (longitude, latitude) of a location
       geo_limit: A GeoLimit object, which represents a range to a GeoPoint
       geo_box: A GeoBox object, which represents a box area
+      page: page number
+      per_page: number of images to return per page
+      raw: raw result indicator
 
     Returns:
       a list of Image objects
@@ -1678,12 +1713,12 @@ class Inputs(object):
 
     qb.add_term(term)
 
-    return self.search(qb, page, per_page)
+    return self.search(qb, page, per_page, raw)
 
   def search_by_predicted_concepts(self, concept=None, concepts=None, \
                                          value=True, values=None,\
                                          concept_id=None, concept_ids=None, \
-                                         page=1, per_page=20, lang=None):
+                                         page=1, per_page=20, lang=None, raw=False):
     ''' search over the predicted concepts
 
     Args:
@@ -1696,6 +1731,7 @@ class Inputs(object):
       page: page number
       per_page: number of images to return per page
       lang: language to search over for translated concepts
+      raw: raw result indicator
 
     Returns:
       a list of Image objects
@@ -1748,7 +1784,23 @@ class Inputs(object):
         term = OutputSearchTerm(concept_id=concept_id, value=value)
         qb.add_term(term)
 
-    return self.search(qb, page, per_page)
+    return self.search(qb, page, per_page, raw)
+
+  def send_search_feedback(self, input_id, feedback_info=None):
+    '''
+    Send feedback for search
+
+    Args:
+      input_id: unique identifier for the input
+
+    Returns:
+      None
+    '''
+
+    feedback_input = Image(image_id=input_id, feedback_info=feedback_info)
+    res = self.api.send_search_feedback(feedback_input)
+
+    return res
 
   def update(self, image, action='merge'):
     '''
@@ -3069,7 +3121,7 @@ class ApiClient(object):
         js = res.json()
       except Exception:
         logger.exception("Could not get valid JSON from server response.")
-        logger.debug("\nRESULT:\n%s", pformat(json.loads(res.content.decode('utf-8'))))
+        logger.debug("\nRESULT:\n%s", pformat(res.content.decode('utf-8')))
         return res
 
       logger.debug("\nRESULT:\n%s", pformat(json.loads(res.content.decode('utf-8'))))
@@ -3514,8 +3566,7 @@ class ApiClient(object):
       the model info in JSON format
     '''
 
-    resource = "models/%s" % model_id
-
+    resource = "models/%s" % _escape(model_id)
     res = self.get(resource)
     return res
 
@@ -3529,7 +3580,7 @@ class ApiClient(object):
       the model info with output_info in JSON format
     '''
 
-    resource = "models/%s/output_info" % model_id
+    resource = "models/%s/output_info" % _escape(model_id)
 
     res = self.get(resource)
     return res
@@ -3546,7 +3597,7 @@ class ApiClient(object):
       a list of model versions in JSON format
     '''
 
-    resource = "models/%s/versions" % model_id
+    resource = "models/%s/versions" % _escape(model_id)
     params = {'page': page,
               'per_page': per_page
              }
@@ -3570,14 +3621,14 @@ class ApiClient(object):
   def delete_model_version(self, model_id, model_version):
     ''' delete a model version '''
 
-    resource = "models/%s/versions/%s" % (model_id, model_version)
+    resource = "models/%s/versions/%s" % (_escape(model_id), model_version)
     res = self.delete(resource)
     return res
 
   def delete_model(self, model_id):
     ''' delete a model '''
 
-    resource = "models/%s" % model_id
+    resource = "models/%s" % _escape(model_id)
     res = self.delete(resource)
     return res
 
@@ -3595,10 +3646,10 @@ class ApiClient(object):
 
     if not version_id:
       resource = "models/%s/inputs?page=%d&per_page=%d" % \
-                 (model_id, page, per_page)
+                 (_escape(model_id), page, per_page)
     else:
       resource = "models/%s/version/%s/inputs?page=%d&per_page=%d" % \
-                 (model_id, version_id, page, per_page)
+                 (_escape(model_id), version_id, page, per_page)
 
     res = self.get(resource)
     return res
@@ -3684,7 +3735,7 @@ class ApiClient(object):
   def create_model_version(self, model_id):
     ''' train for a model '''
 
-    resource = "models/%s/versions" % model_id
+    resource = "models/%s/versions" % _escape(model_id)
 
     res = self.post(resource)
     return res
@@ -3692,9 +3743,9 @@ class ApiClient(object):
   def predict_model(self, model_id, objs, version_id=None, model_output_info=None):
 
     if version_id is None:
-      resource = "models/%s/outputs" % model_id
+      resource = "models/%s/outputs" % _escape(model_id)
     else:
-      resource = "models/%s/versions/%s/outputs" % (model_id, version_id)
+      resource = "models/%s/versions/%s/outputs" % (_escape(model_id), version_id)
 
     if not isinstance(objs, list):
       raise UserError("objs must be a list")
@@ -3712,9 +3763,18 @@ class ApiClient(object):
   def send_model_feedback(self, model_id, version_id, obj):
 
     if version_id is None:
-      resource = "models/%s/feedback" % model_id
+      resource = "models/%s/feedback" % _escape(model_id)
     else:
-      resource = "models/%s/versions/%s/feedback" % (model_id, version_id)
+      resource = "models/%s/versions/%s/feedback" % (_escape(model_id), version_id)
+
+    data = {"input": obj.dict()}
+
+    res = self.post(resource, data)
+    return res
+
+  def send_search_feedback(self, obj):
+
+    resource = "searches/feedback"
 
     data = {"input": obj.dict()}
 
@@ -3939,7 +3999,10 @@ class RegionInfo(object):
       data['region_info'].update(self.bbox.dict())
 
     if self.feedback_type:
-      data['feedback'] = self.feedback_type
+      if isinstance(self.feedback_type, FeedbackType):
+        data['region_info']['feedback'] = self.feedback_type.name
+      else:
+        data['region_info']['feedback'] = self.feedback_type
 
     return data
 

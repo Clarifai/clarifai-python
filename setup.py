@@ -8,7 +8,7 @@ except ImportError:
 setup(
     name="clarifai",
     description='Clarifai API Python Client',
-    version='2.0.29',
+    version='2.0.30',
     author='Clarifai',
     maintainer='Robert Wen',
     maintainer_email='robert@clarifai.com',
@@ -18,6 +18,7 @@ setup(
                        'requests==2.13.0',
                        'configparser==3.5.0',
                        'jsonschema==2.5.1',
+                       'enum34==1.1.6',
                        'Pillow==2.9.0'],
     packages=find_packages(),
     license="Apache 2.0",
