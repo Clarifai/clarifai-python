@@ -27,11 +27,11 @@ from .geo import GeoPoint, GeoBox, GeoLimit, Geo
 logger = logging.getLogger('clarifai')
 logger.handlers = []
 logger.addHandler(logging.StreamHandler())
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.ERROR)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.30'
+CLIENT_VERSION = '2.0.31'
 OS_VER = os.sys.platform
 PYTHON_VERSION = '.'.join(map(str, [os.sys.version_info.major, os.sys.version_info.minor, \
                                     os.sys.version_info.micro]))
@@ -56,12 +56,14 @@ class ClarifaiApp(object):
 
   """
 
-  def __init__(self, app_id=None, app_secret=None, base_url=None, api_key=None, quiet=True):
+  def __init__(self, app_id=None, app_secret=None, base_url=None, api_key=None,
+               quiet=True, log_level=None):
 
     # check upgrade
     self.check_upgrade()
 
-    self.api = ApiClient(app_id=app_id, app_secret=app_secret, base_url=base_url, api_key=api_key, quiet=quiet)
+    self.api = ApiClient(app_id=app_id, app_secret=app_secret, base_url=base_url, api_key=api_key,
+                         quiet=quiet, log_level=log_level)
     self.auth = Auth(self.api)
 
     self.concepts = Concepts(self.api)
@@ -94,7 +96,7 @@ class ClarifaiApp(object):
 
       # compare and warn
       if StrictVersion(CLIENT_VERSION) < StrictVersion(tag_latest_release):
-        logger.warn("Hey! Clarifai Python Client v%s upgrade available.", tag_latest_release)
+        print("Hey! Clarifai Python Client v%s upgrade available.", tag_latest_release)
     except Exception as e:
       # as this is non critical check, ignore all exceptions that occur
       logger.debug(str(e))
@@ -2873,12 +2875,14 @@ class ApiClient(object):
     app_secret: the app_secret for the same application.
     base_url: Base URL of the API endpoints.
     quiet: if True then silence debug prints.
+    log_level: log level from logging module
   """
 
   patch_actions = ['merge', 'remove', 'overwrite']
   concepts_patch_actions = ['overwrite']
 
-  def __init__(self, app_id=None, app_secret=None, base_url=None, api_key=None, quiet=True):
+  def __init__(self, app_id=None, app_secret=None, base_url=None, api_key=None,
+               quiet=True, log_level=None):
 
     if platform.system() == 'Windows':
       homedir = os.environ.get('HOMEPATH', '.')
@@ -2958,9 +2962,12 @@ class ApiClient(object):
       self.api_key = api_key_str
 
     if quiet:
-      logger.setLevel(logging.INFO)
+      logger.setLevel(logging.ERROR)
     else:
       logger.setLevel(logging.DEBUG)
+
+    if log_level is not None:
+      logger.setLevel(log_level)
 
     parsed = urlparse(base_url_str)
     scheme = 'https' if parsed.scheme == '' else parsed.scheme
@@ -3132,12 +3139,14 @@ class ApiClient(object):
       # allow retry when token expires
       # normally, this should be solved in one retry
       if status_code == 401 and isinstance(js, dict) and js.get('status', {}).get('details', '') == "expired token":
+        logger.warn("%s", str(ApiError(resource, params, method, res, self)))
         self.get_token()
         retry = True
         continue
 
       # handle Gateway Error, normally retry will solve the problem
-      if status_code == 502 or status_code == 503 or status_code == 500:
+      if int(status_code / 100)== 5:
+        logger.warn("%s", str(ApiError(resource, params, method, res, self)))
         retry = True
         continue
 
@@ -3145,6 +3154,7 @@ class ApiClient(object):
       # back off with 2/4/8 seconds
       # normally, this will be settled in 1 or 2 retries
       if status_code == 429:
+        logger.warn("%s", str(ApiError(resource, params, method, res, self)))
         retry = True
         time.sleep(pow(2, max_attempts - attempts - 1))
         continue
@@ -3153,8 +3163,8 @@ class ApiClient(object):
       retry = False
 
     if res.status_code != 200:
-      logger.debug("\nRESULT:\n%s", pformat(json.loads(res.content.decode('utf-8'))))
-      raise ApiError(resource, params, method, res)
+      logger.debug("Failed after %d retrie(s)" % (max_attempts - attempts))
+      raise ApiError(resource, params, method, res, self)
 
     return res.json()
 
@@ -3823,11 +3833,12 @@ class TokenError(Exception):
 class ApiError(Exception):
   """ API Server error """
 
-  def __init__(self, resource, params, method, response):
+  def __init__(self, resource, params, method, response, api):
     self.resource = resource
     self.params = params
     self.method = method
     self.response = response
+    self.api = api
 
     self.error_code = response.json().get('status', {}).get('code', None)
     self.error_desc = response.json().get('status', {}).get('description', None)
@@ -3835,9 +3846,12 @@ class ApiError(Exception):
 
     current_ts_str = str(time.time())
 
-    msg = """%(method)s /%(resource)s FAILED(%(time_ts)s). status_code: %(status_code)d, reason: %(reason)s, error_code: %(error_code)s, error_description: %(error_desc)s, error_details: %(error_details)s
+    msg = """%(method)s %(baseurl)s%(resource)s FAILED(%(time_ts)s). status_code: %(status_code)d, reason: %(reason)s, error_code: %(error_code)s, error_description: %(error_desc)s, error_details: %(error_details)s
+ >> Python client %(client_version)s with Python %(python_version)s on %(os_version)s
+ >> %(method)s %(baseurl)s%(resource)s
  >> REQUEST(%(time_ts)s) %(request)s
  >> RESPONSE(%(time_ts)s) %(response)s""" % {
+        'baseurl': '%s/v2/' % self.api.basev2,
         'method': method,
         'resource': resource,
         'status_code': response.status_code,
@@ -3845,9 +3859,12 @@ class ApiError(Exception):
         'error_code': self.error_code,
         'error_desc': self.error_desc,
         'error_details': self.error_details,
-        'request': json.dumps(params),
-        'response': json.dumps(response.json()),
-        'time_ts': current_ts_str
+        'request': json.dumps(params, indent=2),
+        'response': json.dumps(response.json(), indent=2),
+        'time_ts': current_ts_str,
+        'client_version': CLIENT_VERSION,
+        'python_version': PYTHON_VERSION,
+        'os_version': OS_VER
     }
 
     super(ApiError, self).__init__(msg)
