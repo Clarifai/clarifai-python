@@ -10,7 +10,7 @@ Install the package
 You can install the latest stable clarifai using pip (which is the canonical way to install Python
 packages). To install using ``pip`` run::
 
-   pip install clarifai==2.0.30
+   pip install clarifai==2.0.31
 
 You can also install from git using latest source::
 
