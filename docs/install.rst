@@ -10,7 +10,7 @@ Install the package
 You can install the latest stable clarifai using pip (which is the canonical way to install Python
 packages). To install using ``pip`` run::
 
-   pip install clarifai==2.0.31
+   pip install clarifai --upgrade
 
 You can also install from git using latest source::
 
@@ -19,19 +19,18 @@ You can also install from git using latest source::
 Configuration
 =============
 
-The client uses CLARIFAI_APP_ID and CLARIFAI_APP_SECRET for authentication and token generation.
+The client uses CLARIFAI_API_KEY for authentication.
 Each application you create uses its own unique ID and secret to authenticate requests.
 The client will use the authentication information passed to it by one of three methods with the following precedence order:
 
-1. Passed in to the constructor through the ``app_id`` and ``app_secret`` parameters.
-2. Set as the CLARIFAI_APP_ID and CLARIFAI_APP_SECRET environment variables
+1. Passed in to the constructor through the ``api_key`` parameter.
+2. Set as the CLARIFAI_API_KEY environment variable.
 3. Placed in the .clarifai/config file using the command below.
 
 You can get these values from https://developer.clarifai.com/account/applications and then run::
 
    $ clarifai config
-   CLARIFAI_APP_ID: []: ************************************YQEd
-   CLARIFAI_APP_SECRET: []: ************************************gCqT
+   CLARIFAI_API_KEY: []: ************************************YQEd
 
 If you do not see any error message after this, you are all set and can proceed with using the client.
 
@@ -46,13 +45,12 @@ In order to run the command, you may want to launch it with the python interpret
 .. code-block:: bash
 
     C:\Python27>python.exe Scripts\clarifai config
-    CLARIFAI_APP_ID: []: ************************************YQEd
-    CLARIFAI_APP_SECRET: []: ************************************gCqT
+    CLARIFAI_API_KEY: []: ************************************YQEd
 
 AWS Lambda Users
 ================
 
 For AWS Lambda users, in order to use the library correctly, you are recommended to set two
-environmental variables `CLARIFAI_APP_ID` and `CLARIFAI_APP_SECRET` in the lambda function
+environmental variables `CLARIFAI_API_KEY` in the lambda function
 configuration, or hardcode the APP_ID and APP_SECRET in the API instantiation.
 

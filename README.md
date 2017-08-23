@@ -17,29 +17,28 @@ Installation
 ---------------------
 The API client is available on Pip. You can simply install it with a `pip install`
 ```
-pip install clarifai==2.0.31
+pip install clarifai --upgrade
 ```
 
 For more details on the installation, please refer to https://clarifai-python.readthedocs.io/en/latest/install/
 
 Setup
 ---------------------
-The client uses your "CLARIFAI_APP_ID" and "CLARIFAI_APP_SECRET" to get an access token. Since this
+The client uses your "CLARIFAI_API_KEY" to get an access token. Since this
 expires every so often, the client is setup to renew the token for you automatically using your
 credentials so you don't have to worry about it.
 
-You can get the `id` and `secret` from https://developer.clarifai.com and config them for client's use by
+You can get the `api_key` from https://developer.clarifai.com and config them for client's use by
 
 ```bash
 $ clarifai config
-CLARIFAI_APP_ID: []: ************************************YQEd
-CLARIFAI_APP_SECRET: []: ************************************gCqT
+CLARIFAI_API_KEY: []: ************************************YQEd
 
 ```
 
 The config will be stored under ~/.clarifai/config for client's use
 
-Environmental variable CLARIFAI_APP_ID and CLARIFAI_APP_SECRET will override the settings in the config file.
+Environmental variable CLARIFAI_API_KEY will override the settings in the config file.
 
 For AWS or Windows users, please refer to https://clarifai-python.readthedocs.io/en/latest/install/ for more instructions.
 
@@ -51,10 +50,20 @@ The following example will setup the client and predict from our general model
 from clarifai.rest import ClarifaiApp
 
 app = ClarifaiApp()
-app.tag_urls(['https://samples.clarifai.com/metro-north.jpg'])
+model = app.models.get('general-v1.3')
+response = model.predict_by_url(url='https://samples.clarifai.com/metro-north.jpg')
+```
+
+If wanting to predict a local file, use `predict_by_filename`.
+
+The response is a JSON structure. Here's how to print all the predicted concepts associated with the image, together with their confidence values.
+
+```python
+concepts = response['outputs'][0]['data']['concepts']
+for concept in concepts:
+    print(concept['name'], concept['value'])
 ```
 
 Documentations
 ---------------------
 Read more code examples and references at https://clarifai-python.readthedocs.io/en/latest/
-

@@ -31,7 +31,7 @@ logger.setLevel(logging.ERROR)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.0.31'
+CLIENT_VERSION = '2.0.32'
 OS_VER = os.sys.platform
 PYTHON_VERSION = '.'.join(map(str, [os.sys.version_info.major, os.sys.version_info.minor, \
                                     os.sys.version_info.micro]))
@@ -69,6 +69,7 @@ class ClarifaiApp(object):
     self.concepts = Concepts(self.api)
     self.inputs = Inputs(self.api)
     self.models = Models(self.api)
+    self.workflows = Workflows(self.api)
 
   def check_upgrade(self):
     ''' Check for a client upgrade.
@@ -795,6 +796,267 @@ class SearchQueryBuilder(object):
       query.update({'language':self.language})
 
     return query
+
+
+class Workflow(object):
+  """ the workflow class
+      has the workflow attributes and a list of models associated with it
+  """
+
+  def __init__(self, api, workflow=None, workflow_id=None):
+
+    self.api = api
+
+    if workflow is not None:
+      self.wf_id = workflow['id']
+      if workflow.get('nodes'):
+        self.nodes = [WorkflowNode(node) for node in workflow['nodes']]
+      else:
+        self.nodes = []
+    elif workflow_id is not None:
+      self.wf_id = workflow_id
+      self.nodes = []
+
+  def dict(self):
+    obj = {
+      'id': self.wf_id,
+    }
+
+    if self.nodes:
+      obj['nodes'] = [node.dict() for node in self.nodes]
+
+    return obj
+
+  def predict_by_url(self, url, lang=None, is_video=False,
+                     min_value=None, max_concepts=None, select_concepts=None):
+    ''' predict a model with url
+
+    Args:
+      url: publicly accessible url of an image
+      lang: language to predict, if the translation is available
+      is_video: whether this is a video
+      min_value: threshold to cut the predictions, 0-1.0
+      max_concepts: max concepts to keep in the predictions, 0-200
+      select_concepts: a list of concepts that are selected to be exposed
+
+    Returns:
+      the prediction of the model in JSON format
+    '''
+
+    url = url.strip()
+
+    if is_video is True:
+      input = Video(url=url)
+    else:
+      input = Image(url=url)
+
+    output_config=ModelOutputConfig(language=lang,
+                                    min_value=min_value,
+                                    max_concepts=max_concepts,
+                                    select_concepts=select_concepts)
+
+    res = self.predict([input], output_config)
+    return res
+
+  def predict_by_filename(self, filename, lang=None, is_video=False,
+                          min_value=None, max_concepts=None, select_concepts=None):
+    ''' predict a model with a local filename
+
+    Args:
+      filename: filename on local filesystem
+      lang: language to predict, if the translation is available
+      is_video: whether this is a video
+      min_value: threshold to cut the predictions, 0-1.0
+      max_concepts: max concepts to keep in the predictions, 0-200
+      select_concepts: a list of concepts that are selected to be exposed
+
+    Returns:
+      the prediction of the model in JSON format
+    '''
+
+    fileio = open(filename, 'rb')
+
+    if is_video is True:
+      input = Video(file_obj=fileio)
+    else:
+      input = Image(file_obj=fileio)
+
+    output_config=ModelOutputConfig(language=lang,
+                                    min_value=min_value,
+                                    max_concepts=max_concepts,
+                                    select_concepts=select_concepts)
+
+    res = self.predict([input], output_config)
+    return res
+
+  def predict_by_bytes(self, raw_bytes, lang=None, is_video=False,
+                       min_value=None, max_concepts=None, select_concepts=None):
+    ''' predict a model with image raw bytes
+
+    Args:
+      raw_bytes: raw bytes of an image
+      lang: language to predict, if the translation is available
+      is_video: whether this is a video
+      min_value: threshold to cut the predictions, 0-1.0
+      max_concepts: max concepts to keep in the predictions, 0-200
+      select_concepts: a list of concepts that are selected to be exposed
+
+    Returns:
+      the prediction of the model in JSON format
+    '''
+
+    base64_bytes = base64.b64encode(raw_bytes)
+
+    if is_video is True:
+      input = Video(base64=base64_bytes)
+    else:
+      input = Image(base64=base64_bytes)
+
+    output_config=ModelOutputConfig(language=lang,
+                                    min_value=min_value,
+                                    max_concepts=max_concepts,
+                                    select_concepts=select_concepts)
+
+    res = self.predict([input], output_config)
+    return res
+
+  def predict_by_base64(self, base64_bytes, lang=None, is_video=False,
+                        min_value=None, max_concepts=None, select_concepts=None):
+    ''' predict a model with base64 encoded image bytes
+
+    Args:
+      base64_bytes: base64 encoded image bytes
+      lang: language to predict, if the translation is available
+      is_video: whether this is a video
+      min_value: threshold to cut the predictions, 0-1.0
+      max_concepts: max concepts to keep in the predictions, 0-200
+      select_concepts: a list of concepts that are selected to be exposed
+
+    Returns:
+      the prediction of the model in JSON format
+    '''
+
+    if is_video is True:
+      input = Video(base64=base64_bytes)
+    else:
+      input = Image(base64=base64_bytes)
+
+    output_config = ModelOutputConfig(language=lang,
+                                      min_value=min_value,
+                                      max_concepts=max_concepts,
+                                      select_concepts=select_concepts)
+
+    res = self.predict([input], model_output_info)
+    return res
+
+  def predict(self, inputs, output_config=None):
+    ''' predict with multiple images
+
+    Args:
+      inputs: a list of Image objectsg
+      output_config: output_config for more prediction parameters
+
+    Returns:
+      the prediction of the model in JSON format
+    '''
+
+    res = self.api.predict_workflow(self.wf_id, inputs, output_config)
+    return res
+
+
+class WorkflowNode(object):
+  """ the node in the workflow
+  """
+
+  def __init__(self, wf_node):
+    self.node_id = wf_node['id']
+    self.model_id = wf_node['model']['id']
+    self.model_version_id = wf_node['model']['model_version']['id']
+
+  def dict(self):
+    node = {
+      'id': self.node_id,
+      'model': {
+        'id': self.model_id,
+        'model_version': {
+          'id': self.model_version_id
+        }
+      }
+    }
+    return node
+
+
+class Workflows(object):
+
+  def __init__(self, api):
+    self.api = api
+
+  def get_all(self, public_only=False):
+    ''' get all workflows in the application
+
+    Args:
+      public_only: whether to get public workflow
+
+    Returns:
+      a generator that yields Workflow object
+
+    Examples:
+      >>> for workflow in app.workflows.get_all():
+      >>>   print workflow.id
+    '''
+
+    res = self.api.get_workflows(public_only)
+
+    # FIXME(robert): hack to correct the empty workflow
+    if not res.get('workflows'):
+      res['workflows'] = []
+
+    if not res['workflows']:
+      return
+
+    for one in res['workflows']:
+      workflow = Workflow(self.api, one)
+      yield workflow
+
+  def get_by_page(self, public_only=False, page=1, per_page=20):
+    ''' get paginated workflows from the application
+
+        When the number of workflows get high, you may want to get
+        the paginated results from all the models
+
+    Args:
+      public_only: whether to get public workflow
+      page: page number
+      per_page: number of models returned in one page
+
+    Returns:
+      a list of Workflow objects
+
+    Examples:
+      >>> workflows = app.workflows.get_by_page(2, 20)
+    '''
+
+    res = self.api.get_workflows(public_only)
+    results = [Workflow(self.api, one) for one in res['workflows']]
+
+    return results
+
+  def get(self, workflow_id):
+    ''' get workflow by id
+
+    Args:
+      workflow_id: ID of the workflow
+
+    Returns:
+      A Workflow object or None
+
+    Examples:
+      >>> workflow = app.workflows.get('General')
+    '''
+
+    res = self.api.get_workflow(workflow_id)
+    workflow = Workflow(self.api, res['workflow'])
+    return workflow
 
 
 class Models(object):
@@ -3766,6 +4028,56 @@ class ApiClient(object):
 
     if model_output_info is not None:
       data.update({'model':model_output_info.dict()})
+
+    res = self.post(resource, data)
+    return res
+
+  def get_workflows(self, public_only=False):
+    ''' get all workflows with pagination
+
+    Args:
+      public_only: whether to get public workflow
+
+    Returns:
+      a list of workflows in JSON format
+    '''
+
+    if public_only is True:
+      resource = "public_workflows"
+    else:
+      resource = "workflows"
+
+    res = self.get(resource)
+    return res
+
+  def get_workflow(self, workflow_id=None):
+    ''' get workflow basic info by workflow id
+
+    Args:
+      workflow_id: the unique identifier of the workflow
+
+    Returns:
+      the workflow info in JSON format
+    '''
+
+    resource = "workflows/%s" % workflow_id
+
+    res = self.get(resource)
+    return res
+
+  def predict_workflow(self, workflow_id, objs, output_config=None):
+
+    resource = "workflows/%s/results" % _escape(workflow_id)
+
+    if not isinstance(objs, list):
+      raise UserError("objs must be a list")
+    if not isinstance(objs[0], (Image, Video)):
+      raise UserError("Not valid type of content to add. Must be Image or Video")
+
+    data = {"inputs": [obj.dict() for obj in objs]}
+
+    if output_config is not None:
+      data.update(output_config.dict())
 
     res = self.post(resource, data)
     return res

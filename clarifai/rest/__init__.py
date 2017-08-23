@@ -11,3 +11,4 @@ from .client import FeedbackInfo, FeedbackType
 from .client import Region, RegionInfo, BoundingBox
 from .client import Concept
 from .client import Face, FaceAgeAppearance, FaceIdentity, FaceGenderAppearance, FaceMulticulturalAppearance
+from .client import Workflow

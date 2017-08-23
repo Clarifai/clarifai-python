@@ -18,13 +18,12 @@ from builtins import input
 from subprocess import call
 
 
-def setup(app_id, app_secret):
-  ''' write back CLARIFAI_APP_ID and CLARIFAI_APP_SECRET to config file
+def setup(api_key):
+  ''' write back CLARIFAI_API_KEY to config file
       config file is at ~/.clarifai/config
   '''
 
-  os.environ['CLARIFAI_APP_ID'] = app_id
-  os.environ['CLARIFAI_APP_SECRET'] = app_secret
+  os.environ['CLARIFAI_API_KEY'] = api_key
 
   homedir = os.environ['HOMEPATH'] if platform.system() == 'Windows' else os.environ['HOME']
   CONF_DIR=os.path.join(homedir, '.clarifai')
@@ -44,8 +43,15 @@ def setup(app_id, app_secret):
   if not parser.has_section('clarifai'):
     parser.add_section('clarifai')
 
-  parser.set('clarifai', 'CLARIFAI_APP_ID', app_id)
-  parser.set('clarifai', 'CLARIFAI_APP_SECRET', app_secret)
+  # remove CLARIFAI_APP_ID
+  if parser.has_option('clarifai', 'CLARIFAI_APP_ID'):
+    parser.remove_option('clarifai', 'CLARIFAI_APP_ID')
+
+  # remove CLARIFAI_APP_SECRET
+  if parser.has_option('clarifai', 'CLARIFAI_APP_SECRET'):
+    parser.remove_option('clarifai', 'CLARIFAI_APP_SECRET')
+
+  parser.set('clarifai', 'CLARIFAI_API_KEY', api_key)
 
   with open(CONF_FILE, 'w') as fdw:
     parser.write(fdw)
@@ -57,13 +63,10 @@ def configure():
   homedir = os.environ['HOMEPATH'] if platform.system() == 'Windows' else os.environ['HOME']
   CONF_FILE=os.path.join(homedir, '.clarifai', 'config')
 
-  if os.environ.get('CLARIFAI_APP_ID') and os.environ.get('CLARIFAI_APP_SECRET'):
+  if os.environ.get('CLARIFAI_API_KEY'):
     print('Clarifai environmental variables are already set. ')
-    app_id = os.environ['CLARIFAI_APP_ID']
-    app_secret = os.environ['CLARIFAI_APP_SECRET']
-
-    masked_app_id = (len(app_id) - 4) * '*' + app_id[-4:]
-    masked_app_secret = (len(app_secret) - 4) * '*' + app_secret[-4:]
+    api_key = os.environ['CLARIFAI_API_KEY']
+    masked_api_key = (len(api_key) - 4) * '*' + api_key[-4:]
   elif os.path.exists(CONF_FILE):
     parser = ConfigParser()
     parser.optionxform = str
@@ -71,26 +74,22 @@ def configure():
     with open(CONF_FILE, 'r') as fdr:
       parser.readfp(fdr) 
 
-    if parser.has_option('clarifai', 'CLARIFAI_APP_ID') and parser.has_option('clarifai', 'CLARIFAI_APP_SECRET'):
-      app_id = parser.get('clarifai', 'CLARIFAI_APP_ID')
-      app_secret = parser.get('clarifai', 'CLARIFAI_APP_SECRET')
-
-      masked_app_id = (len(app_id) - 4) * '*' + app_id[-4:]
-      masked_app_secret = (len(app_secret) - 4) * '*' + app_secret[-4:]
+    if parser.has_option('clarifai', 'CLARIFAI_API_KEY'):
+      api_key = parser.get('clarifai', 'CLARIFAI_API_KEY')
+      masked_api_key = (len(api_key) - 4) * '*' + api_key[-4:]
     else:
-      masked_app_id = ''
-      masked_app_secret = ''
+      masked_api_key = ''
   else:
-    masked_app_id = ''
-    masked_app_secret = ''
+    masked_api_key = ''
 
   # setup the APP_ID and APP_SECRET
 
-  app_id_input = input('CLARIFAI_APP_ID: [%s]: ' % masked_app_id)
-  app_secret_input = input('CLARIFAI_APP_SECRET: [%s]: ' % masked_app_secret)
+  api_key_input = input('CLARIFAI_API_KEY: [%s]: ' % masked_api_key)
 
-  if app_id_input and app_secret_input:
-    setup(app_id_input, app_secret_input)
+  if api_key_input:
+    setup(api_key_input)
+  elif masked_api_key:
+    setup(api_key)
 
   # test the id and secret
   try:
