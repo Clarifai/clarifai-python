@@ -52,10 +52,6 @@ class ClarifaiApp(object):
   """
 
   def __init__(self, app_id=None, app_secret=None, base_url=None, api_key=None, quiet=True):
-
-    # check upgrade
-    self.check_upgrade()
-
     self.api = ApiClient(app_id=app_id, app_secret=app_secret, base_url=base_url, api_key=api_key, quiet=quiet)
     self.auth = Auth(self.api)
 
