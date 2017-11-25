@@ -1337,6 +1337,9 @@ class Models(object):
         model = res[0]
         self.model_id_cache.update({(model_name, model_type):model.model_id})
 
+      # some other type of error
+      raise e
+
     return model
 
   def search(self, model_name, model_type=None):
@@ -4431,4 +4434,3 @@ class FaceMulticulturalAppearance(object):
       'concepts': [c.dict() for c in self.concepts]
     }}
     return data
-
