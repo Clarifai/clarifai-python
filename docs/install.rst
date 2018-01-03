@@ -52,5 +52,5 @@ AWS Lambda Users
 
 For AWS Lambda users, in order to use the library correctly, you are recommended to set two
 environmental variables `CLARIFAI_API_KEY` in the lambda function
-configuration, or hardcode the APP_ID and APP_SECRET in the API instantiation.
+configuration, or hardcode the `CLARIFAI_API_KEY` in the API instantiation.
 
