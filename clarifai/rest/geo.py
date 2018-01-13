@@ -2,6 +2,7 @@
 Geo support for clarifai api
 """
 
+
 class GeoPoint(object):
   """ define a Geo point
       which is a (longitude, latitude) tuple
@@ -12,11 +13,12 @@ class GeoPoint(object):
     self.latitude = float(latitude)
 
   def dict(self):
-    data = {'geo_point': {
-              'longitude': self.longitude,
-              'latitude': self.latitude
-            }
-           }
+    data = {
+      'geo_point': {
+        'longitude': self.longitude,
+        'latitude': self.latitude
+      }
+    }
     return data
 
 
@@ -31,22 +33,20 @@ class GeoBox(object):
     self.point2 = point2
 
   def dict(self):
-      data = {'geo_box':[self.point1.dict(), self.point2.dict()]
-             }
-      return data
+    data = {'geo_box': [self.point1.dict(), self.point2.dict()]
+            }
+    return data
 
 
 class GeoLimit(object):
-
   convert_table = {
-          'mile':'withinMiles',
-          'kilometer':'withinKilometers',
-          'degree':'withinDegrees',
-          'radian':'withinRadians'
+    'mile': 'withinMiles',
+    'kilometer': 'withinKilometers',
+    'degree': 'withinDegrees',
+    'radian': 'withinRadians'
   }
 
   def __init__(self, limit_type='mile', limit_range=10):
-
     if limit_type not in self.convert_table:
       raise ValueError("limit_type could be within %s" % str(self.convert_table.keys()))
 
@@ -54,16 +54,16 @@ class GeoLimit(object):
     self.limit_range = float(limit_range)
 
   def dict(self):
-    data = {'geo_limit': {
-              'type':self.limit_type,
-              'value':self.limit_range
-            }
-           }
+    data = {
+      'geo_limit': {
+        'type': self.limit_type,
+        'value': self.limit_range
+      }
+    }
     return data
 
 
 class Geo(object):
-
   def __init__(self, geo_point=None, geo_limit=None, geo_box=None):
 
     self.geo_point = geo_point
@@ -86,16 +86,15 @@ class Geo(object):
 
     # only geo_point for input
     if self.geo_point is not None and self.geo_limit is None and self.geo_box is None:
-      data = {'geo':self.geo_point.dict()}
+      data = {'geo': self.geo_point.dict()}
     # geo_point and geo_limit for search within range
     elif self.geo_point is not None and self.geo_limit is not None and self.geo_box is None:
-      data = {'geo':self.geo_point.dict()}
+      data = {'geo': self.geo_point.dict()}
       data['geo'].update(self.geo_limit.dict())
     # only geo_box for search
     elif self.geo_point is None and self.geo_limit is None and self.geo_box is not None:
-      data = {'geo':self.geo_box.dict()}
+      data = {'geo': self.geo_box.dict()}
     else:
       raise Exception('Invalid Geo object')
 
     return data
-
