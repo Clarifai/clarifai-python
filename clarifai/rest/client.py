@@ -3272,7 +3272,10 @@ class ApiClient(object):
       self.token = res.json()['access_token']
       self.headers = {'Authorization': "Bearer %s" % self.token}
     else:
-      raise TokenError("Could not get a new token for v2: %s", str(res.json()))
+      try:
+        raise TokenError("Could not get a new token for v2: %s", str(res.json()))
+      except ValueError:
+        raise TokenError("Could not get a new token for v2: %s", str(res.content))
     return res.json()
 
   def set_token(self, token):
