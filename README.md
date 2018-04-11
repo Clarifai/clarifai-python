@@ -50,7 +50,7 @@ The following example will setup the client and predict from our general model
 from clarifai.rest import ClarifaiApp
 
 app = ClarifaiApp()
-model = app.models.get('general-v1.3')
+model = app.public_models.general_model
 response = model.predict_by_url(url='https://samples.clarifai.com/metro-north.jpg')
 ```
 
@@ -64,6 +64,7 @@ for concept in concepts:
     print(concept['name'], concept['value'])
 ```
 
-Documentations
+Documentation
 ---------------------
 Read more code examples and references at https://clarifai-python.readthedocs.io/en/latest/
+
