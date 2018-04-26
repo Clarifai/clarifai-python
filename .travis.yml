@@ -7,7 +7,15 @@ python:
   - "3.6-dev"
   - "3.7-dev"
   - "nightly"
+
 # command to install dependencies
-install: "pip install -r requirements.txt"
+install:
+  - pip install -r requirements.txt
+  - pip install -r tests/requirements.txt
+
+# command to run before tests start
+before_script:
+  - PYTHONPATH=. python tests/rest_tests/prepare.py
+
 # command to run tests
-script: nosetests
+script: nosetests -s -v -x --with-xunit --processes=8 --process-restartworker --process-timeout=900
