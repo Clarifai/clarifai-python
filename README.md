@@ -1,6 +1,9 @@
 Clarifai API Python Client
 ====================
 
+[![PyPi version](https://pypip.in/v/clarifai/badge.png)](https://pypi.python.org/pypi/clarifai)
+[![Build Status](https://travis-ci.org/Clarifai/clarifai-python.svg?branch=master)](https://travis-ci.org/Clarifai/clarifai-python)
+
 
 Overview
 ---------------------
@@ -12,6 +15,9 @@ The client also uses Applications to store images and visually search across the
 a simple visual search or also add predictions for any, all or none, as noted in the directions
 below.
 
+* Try the Clarifai demo at: https://clarifai.com/demo
+* Sign up for a free account at: https://clarifai.com/developer/account/signup/
+* Read the developer guide at: https://clarifai.com/developer/guide/
 
 Installation
 ---------------------
