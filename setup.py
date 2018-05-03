@@ -12,7 +12,7 @@ has_enum = sys.version_info >= (3, 4)
 setup(
     name="clarifai",
     description='Clarifai API Python Client',
-    version='2.2.1',
+    version='2.2.2',
     author='Clarifai',
     maintainer='Robert Wen',
     maintainer_email='robert@clarifai.com',
@@ -22,7 +22,7 @@ setup(
                       'requests>=2.13, <3',
                       'configparser>=3.5, <4',
                       'jsonschema>=2.5, <3'] +
-                     [] if has_enum else ['enum34>=1.1, <2'],
+                     ([] if has_enum else ['enum34>=1.1, <2']),
     packages=find_packages(),
     license="Apache 2.0",
     scripts=['scripts/clarifai'],

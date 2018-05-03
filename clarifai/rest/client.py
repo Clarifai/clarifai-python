@@ -31,7 +31,7 @@ logger.setLevel(logging.ERROR)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.2.1'
+CLIENT_VERSION = '2.2.2'
 OS_VER = os.sys.platform
 PYTHON_VERSION = '.'.join(map(str, [os.sys.version_info.major, os.sys.version_info.minor,
                                     os.sys.version_info.micro]))
