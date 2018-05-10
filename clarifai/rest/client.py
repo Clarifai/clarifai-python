@@ -1,28 +1,27 @@
 # -*- coding: utf-8 -*-
-
 """
 Clarifai API Python Client
 """
 
-import os
-import time
-import json
-import copy
 import base64 as base64_lib
+import copy
+import json
 import logging
-
-import requests
+import os
 import platform
+import time
+from configparser import ConfigParser
 from enum import Enum
 from io import BytesIO
-from pprint import pformat
-from configparser import ConfigParser
 from posixpath import join as urljoin
-from past.builtins import basestring
-from jsonschema import validate
+from pprint import pformat
+
+import requests
 from future.moves.urllib.parse import urlparse
-from distutils.version import StrictVersion
-from .geo import GeoPoint, GeoBox, GeoLimit, Geo
+from jsonschema import validate
+from past.builtins import basestring
+
+from .geo import Geo, GeoBox, GeoLimit, GeoPoint
 
 logger = logging.getLogger('clarifai')
 logger.handlers = []
@@ -31,13 +30,16 @@ logger.setLevel(logging.ERROR)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.2.2'
+CLIENT_VERSION = '2.2.3'
 OS_VER = os.sys.platform
-PYTHON_VERSION = '.'.join(map(str, [os.sys.version_info.major, os.sys.version_info.minor,
-                                    os.sys.version_info.micro]))
+PYTHON_VERSION = '.'.join(
+    map(str, [os.sys.version_info.major, os.sys.version_info.minor, os.sys.version_info.micro]))
 GITHUB_TAG_ENDPOINT = 'https://api.github.com/repos/clarifai/clarifai-python/git/refs/tags'
 
 DEFAULT_TAG_MODEL = 'general-v1.3'
+
+RETRIES = 2  # if connections fail retry a couple times.
+CONNECTIONS = 20  # number of connections to maintain in pool.
 
 
 class ClarifaiApp(object):
@@ -55,11 +57,21 @@ class ClarifaiApp(object):
 
   """
 
-  def __init__(self, app_id=None, app_secret=None, base_url=None, api_key=None, quiet=True,
+  def __init__(self,
+               app_id=None,
+               app_secret=None,
+               base_url=None,
+               api_key=None,
+               quiet=True,
                log_level=None):
 
-    self.api = ApiClient(app_id=app_id, app_secret=app_secret, base_url=base_url,
-                         api_key=api_key, quiet=quiet, log_level=log_level)
+    self.api = ApiClient(
+        app_id=app_id,
+        app_secret=app_secret,
+        base_url=base_url,
+        api_key=api_key,
+        quiet=quiet,
+        log_level=log_level)
     self.auth = Auth(self.api)
     self.public_models = PublicModels(self.api)
 
@@ -229,8 +241,14 @@ class Input(object):
   """ The Clarifai Input object
   """
 
-  def __init__(self, input_id=None, concepts=None, not_concepts=None, metadata=None, geo=None,
-               regions=None, feedback_info=None):
+  def __init__(self,
+               input_id=None,
+               concepts=None,
+               not_concepts=None,
+               metadata=None,
+               geo=None,
+               regions=None,
+               feedback_info=None):
     """ Construct an Image/Video object. it must have one of url or file_obj set.
     Args:
       input_id: unique id to set for the image. If None then the server will create and return
@@ -259,8 +277,8 @@ class Input(object):
       raise UserError('geo should be a Geo object')
 
     # validate more
-    if not isinstance(regions, list) and regions is not None and not isinstance(regions[0],
-                                                                                Region):
+    if not isinstance(regions, list) and regions is not None and not isinstance(
+        regions[0], Region):
       raise UserError('regions should be a list of Region')
 
     if not isinstance(feedback_info, FeedbackInfo) and feedback_info is not None:
@@ -313,9 +331,21 @@ class Input(object):
 
 
 class Image(Input):
-  def __init__(self, url=None, file_obj=None, base64=None, filename=None, crop=None,
-               image_id=None, concepts=None, not_concepts=None, regions=None, metadata=None,
-               geo=None, feedback_info=None, allow_dup_url=False):
+
+  def __init__(self,
+               url=None,
+               file_obj=None,
+               base64=None,
+               filename=None,
+               crop=None,
+               image_id=None,
+               concepts=None,
+               not_concepts=None,
+               regions=None,
+               metadata=None,
+               geo=None,
+               feedback_info=None,
+               allow_dup_url=False):
     """
       url: the url to a publically accessible image.
       file_obj: a file-like object in which read() will give you the bytes.
@@ -324,8 +354,14 @@ class Image(Input):
             the asset before use.
     """
 
-    super(Image, self).__init__(image_id, concepts, not_concepts, metadata=metadata, geo=geo,
-                                regions=regions, feedback_info=feedback_info)
+    super(Image, self).__init__(
+        image_id,
+        concepts,
+        not_concepts,
+        metadata=metadata,
+        geo=geo,
+        regions=regions,
+        feedback_info=feedback_info)
 
     if crop is not None and (not isinstance(crop, list) or len(crop) != 4):
       raise UserError("crop arg must be list of 4 floats or None")
@@ -353,8 +389,9 @@ class Image(Input):
 
     if self.file_obj is not None:
       if hasattr(self.file_obj, 'mode') and self.file_obj.mode != 'rb':
-        raise UserError(("If you're using open(), then you need to read bytes using the 'rb' mode. "
-                         "For example: open(filename, 'rb')"))
+        raise UserError(
+            ("If you're using open(), then you need to read bytes using the 'rb' mode. "
+             "For example: open(filename, 'rb')"))
 
       # DO NOT put 'read' as first condition
       # as io.BytesIO() has both read() and getvalue() and read() gives you an empty buffer...
@@ -370,7 +407,7 @@ class Image(Input):
     # Only close the file if we opened it. The users are responsible for closing
     # their open files.
     if we_opened_file:
-        self.file_obj.close()
+      self.file_obj.close()
 
   def dict(self):
 
@@ -393,6 +430,7 @@ class Image(Input):
 
 
 class Video(Input):
+
   def __init__(self, url=None, file_obj=None, base64=None, filename=None, video_id=None):
     """
       url: the url to a publicly accessible video.
@@ -425,8 +463,9 @@ class Video(Input):
 
     if self.file_obj is not None:
       if hasattr(self.file_obj, 'mode') and self.file_obj.mode != 'rb':
-        raise UserError(("If you're using open(), then you need to read bytes using the 'rb' mode. "
-                         "For example: open(filename, 'rb')"))
+        raise UserError(
+            ("If you're using open(), then you need to read bytes using the 'rb' mode. "
+             "For example: open(filename, 'rb')"))
 
       # DO NOT put 'read' as first condition
       # as io.BytesIO() has both read() and getvalue() and read() gives you an empty buffer...
@@ -473,8 +512,12 @@ class FeedbackInfo(object):
   FeedbackInfo holds the metadata of a feedback
   """
 
-  def __init__(self, end_user_id=None, session_id=None, event_type=None,
-               output_id=None, search_id=None):
+  def __init__(self,
+               end_user_id=None,
+               session_id=None,
+               event_type=None,
+               output_id=None,
+               search_id=None):
 
     self.end_user_id = end_user_id
     self.session_id = session_id
@@ -485,11 +528,11 @@ class FeedbackInfo(object):
   def dict(self):
 
     data = {
-      "feedback_info": {
-        "end_user_id": self.end_user_id,
-        "session_id": self.session_id,
-        "event_type": self.event_type,
-      }
+        "feedback_info": {
+            "end_user_id": self.end_user_id,
+            "session_id": self.session_id,
+            "event_type": self.event_type,
+        }
     }
 
     if self.output_id:
@@ -538,8 +581,14 @@ class InputSearchTerm(SearchTerm):
     >>>                 geo_limit=GeoLimit('withinMiles', 10)))
   """
 
-  def __init__(self, url=None, input_id=None, concept=None, concept_id=None, value=True,
-               metadata=None, geo=None):
+  def __init__(self,
+               url=None,
+               input_id=None,
+               concept=None,
+               concept_id=None,
+               value=True,
+               metadata=None,
+               geo=None):
     self.url = url
     self.input_id = input_id
     self.concept = concept
@@ -550,55 +599,17 @@ class InputSearchTerm(SearchTerm):
 
   def dict(self):
     if self.url:
-      obj = {
-        "input": {
-          "data": {
-            "image": {
-              "url": self.url
-            }
-          }
-        }
-      }
+      obj = {"input": {"data": {"image": {"url": self.url}}}}
     elif self.input_id:
-      obj = {
-        "input": {
-          "id": self.input_id,
-          "data": {
-            "image": {}
-          }
-        }
-      }
+      obj = {"input": {"id": self.input_id, "data": {"image": {}}}}
     elif self.concept:
-      obj = {
-        "input": {
-          "data": {
-            "concepts": [{"name": self.concept, "value": self.value}]
-          }
-        }
-      }
+      obj = {"input": {"data": {"concepts": [{"name": self.concept, "value": self.value}]}}}
     elif self.concept_id:
-      obj = {
-        "input": {
-          "data": {
-            "concepts": [{"id": self.concept_id, "value": self.value}]
-          }
-        }
-      }
+      obj = {"input": {"data": {"concepts": [{"id": self.concept_id, "value": self.value}]}}}
     elif self.metadata:
-      obj = {
-        "input": {
-          "data": {
-            "metadata": self.metadata
-          }
-        }
-      }
+      obj = {"input": {"data": {"metadata": self.metadata}}}
     elif self.geo:
-      obj = {
-        "input": {
-          "data": {
-          }
-        }
-      }
+      obj = {"input": {"data": {}}}
       obj['input']['data'].update(self.geo.dict())
 
     return obj
@@ -625,8 +636,14 @@ class OutputSearchTerm(SearchTerm):
     >>> OutputSearchTerm(concept='tag1', value=False)
   """
 
-  def __init__(self, url=None, base64=None, input_id=None, concept=None, concept_id=None,
-               value=True, crop=None):
+  def __init__(self,
+               url=None,
+               base64=None,
+               input_id=None,
+               concept=None,
+               concept_id=None,
+               value=True,
+               crop=None):
     self.url = url
     self.base64 = base64
     self.input_id = input_id
@@ -637,76 +654,31 @@ class OutputSearchTerm(SearchTerm):
 
   def dict(self):
     if self.url:
-      obj = {
-        "output": {
-          "input": {
-            "data": {
-              "image": {
-                "url": self.url
-              }
-            }
-          }
-        }
-      }
+      obj = {"output": {"input": {"data": {"image": {"url": self.url}}}}}
 
       # add crop as needed
       if self.crop:
         obj['output']['input']['data']['image']['crop'] = self.crop
 
     if self.base64:
-      obj = {
-        "output": {
-          "input": {
-            "data": {
-              "image": {
-                "base64": self.base64
-              }
-            }
-          }
-        }
-      }
+      obj = {"output": {"input": {"data": {"image": {"base64": self.base64}}}}}
 
       # add crop as needed
       if self.crop:
         obj['output']['input']['data']['image']['crop'] = self.crop
 
     elif self.input_id:
-      obj = {
-        "output": {
-          "input": {
-            "id": self.input_id,
-            "data": {
-              "image": {}
-            }
-          }
-        }
-      }
+      obj = {"output": {"input": {"id": self.input_id, "data": {"image": {}}}}}
 
       # add crop as needed
       if self.crop:
         obj['output']['input']['data']['image']['crop'] = self.crop
 
     elif self.concept:
-      obj = {
-        "output": {
-          "data": {
-            "concepts": [
-              {"name": self.concept, "value": self.value}
-            ]
-          }
-        }
-      }
+      obj = {"output": {"data": {"concepts": [{"name": self.concept, "value": self.value}]}}}
 
     elif self.concept_id:
-      obj = {
-        "output": {
-          "data": {
-            "concepts": [
-              {"id": self.concept_id, "value": self.value}
-            ]
-          }
-        }
-      }
+      obj = {"output": {"data": {"concepts": [{"id": self.concept_id, "value": self.value}]}}}
 
     return obj
 
@@ -753,17 +725,14 @@ class SearchQueryBuilder(object):
     """
     if not isinstance(term, InputSearchTerm) and \
         not isinstance(term, OutputSearchTerm):
-      raise UserError(
-        'first level search term could be only InputSearchTerm, OutputSearchTerm')
+      raise UserError('first level search term could be only InputSearchTerm, OutputSearchTerm')
 
     self.terms.append(term)
 
   def dict(self):
     """ construct the raw query for the RESTful API """
 
-    query = {"ands":
-               [term.dict() for term in self.terms]
-             }
+    query = {"ands": [term.dict() for term in self.terms]}
 
     if self.language is not None:
       query.update({'language': self.language})
@@ -792,7 +761,7 @@ class Workflow(object):
 
   def dict(self):
     obj = {
-      'id': self.wf_id,
+        'id': self.wf_id,
     }
 
     if self.nodes:
@@ -800,8 +769,13 @@ class Workflow(object):
 
     return obj
 
-  def predict_by_url(self, url, lang=None, is_video=False,
-                     min_value=None, max_concepts=None, select_concepts=None):
+  def predict_by_url(self,
+                     url,
+                     lang=None,
+                     is_video=False,
+                     min_value=None,
+                     max_concepts=None,
+                     select_concepts=None):
     """ predict a model with url
 
     Args:
@@ -823,16 +797,22 @@ class Workflow(object):
     else:
       input = Image(url=url)
 
-    output_config=ModelOutputConfig(language=lang,
-                                    min_value=min_value,
-                                    max_concepts=max_concepts,
-                                    select_concepts=select_concepts)
+    output_config = ModelOutputConfig(
+        language=lang,
+        min_value=min_value,
+        max_concepts=max_concepts,
+        select_concepts=select_concepts)
 
     res = self.predict([input], output_config)
     return res
 
-  def predict_by_filename(self, filename, lang=None, is_video=False,
-                          min_value=None, max_concepts=None, select_concepts=None):
+  def predict_by_filename(self,
+                          filename,
+                          lang=None,
+                          is_video=False,
+                          min_value=None,
+                          max_concepts=None,
+                          select_concepts=None):
     """ predict a model with a local filename
 
     Args:
@@ -854,16 +834,22 @@ class Workflow(object):
     else:
       input = Image(file_obj=fileio)
 
-    output_config=ModelOutputConfig(language=lang,
-                                    min_value=min_value,
-                                    max_concepts=max_concepts,
-                                    select_concepts=select_concepts)
+    output_config = ModelOutputConfig(
+        language=lang,
+        min_value=min_value,
+        max_concepts=max_concepts,
+        select_concepts=select_concepts)
 
     res = self.predict([input], output_config)
     return res
 
-  def predict_by_bytes(self, raw_bytes, lang=None, is_video=False,
-                       min_value=None, max_concepts=None, select_concepts=None):
+  def predict_by_bytes(self,
+                       raw_bytes,
+                       lang=None,
+                       is_video=False,
+                       min_value=None,
+                       max_concepts=None,
+                       select_concepts=None):
     """ predict a model with image raw bytes
 
     Args:
@@ -885,16 +871,22 @@ class Workflow(object):
     else:
       input = Image(base64=base64_bytes)
 
-    output_config=ModelOutputConfig(language=lang,
-                                    min_value=min_value,
-                                    max_concepts=max_concepts,
-                                    select_concepts=select_concepts)
+    output_config = ModelOutputConfig(
+        language=lang,
+        min_value=min_value,
+        max_concepts=max_concepts,
+        select_concepts=select_concepts)
 
     res = self.predict([input], output_config)
     return res
 
-  def predict_by_base64(self, base64_bytes, lang=None, is_video=False,
-                        min_value=None, max_concepts=None, select_concepts=None):
+  def predict_by_base64(self,
+                        base64_bytes,
+                        lang=None,
+                        is_video=False,
+                        min_value=None,
+                        max_concepts=None,
+                        select_concepts=None):
     """ predict a model with base64 encoded image bytes
 
     Args:
@@ -914,10 +906,11 @@ class Workflow(object):
     else:
       input = Image(base64=base64_bytes)
 
-    model_output_config = ModelOutputConfig(language=lang,
-                                      min_value=min_value,
-                                      max_concepts=max_concepts,
-                                      select_concepts=select_concepts)
+    model_output_config = ModelOutputConfig(
+        language=lang,
+        min_value=min_value,
+        max_concepts=max_concepts,
+        select_concepts=select_concepts)
 
     res = self.predict([input], model_output_info)
     return res
@@ -948,13 +941,13 @@ class WorkflowNode(object):
 
   def dict(self):
     node = {
-      'id': self.node_id,
-      'model': {
-        'id': self.model_id,
-        'model_version': {
-          'id': self.model_version_id
+        'id': self.node_id,
+        'model': {
+            'id': self.model_id,
+            'model_version': {
+                'id': self.model_version_id
+            }
         }
-      }
     }
     return node
 
@@ -1033,6 +1026,7 @@ class Workflows(object):
 
 
 class Models(object):
+
   def __init__(self, api):
     self.api = api
 
@@ -1068,7 +1062,6 @@ class Models(object):
       if e.error_code == 11007:
         logger.debug("not authorized to call GET /models. Unable to cache models")
         models = []
-        pass
       else:
         raise e
 
@@ -1087,9 +1080,13 @@ class Models(object):
 
     self.model_id_cache = {}
 
-  def create(self, model_id, model_name=None, concepts=None, concepts_mutually_exclusive=False,
-             closed_environment=False, hyper_parameters=None):
-
+  def create(self,
+             model_id,
+             model_name=None,
+             concepts=None,
+             concepts_mutually_exclusive=False,
+             closed_environment=False,
+             hyper_parameters=None):
     """ Create a new model
 
     Args:
@@ -1121,8 +1118,8 @@ class Models(object):
       model = self._to_obj(res['model'])
     elif res.get('status'):
       status = res['status']
-      raise UserError('code: %d, desc: %s, details: %s' %
-                      (status['code'], status['description'], status['details']))
+      raise UserError('code: %d, desc: %s, details: %s' % (status['code'], status['description'],
+                                                           status['details']))
 
     return model
 
@@ -1311,12 +1308,13 @@ class Models(object):
         if len(res) > 0:
           # exclude embed and cluster model when it's not explicitly searched for
           if model_type is None:
-            res = list(filter(lambda one: (one.output_info['type'] != u'embed') & (
-              one.output_info['type'] != u'cluster'), res))
+            res = list(
+                filter(
+                    lambda one: (one.output_info['type'] != u'embed') & (one.output_info['type'] != u'cluster'),
+                    res))
 
         if len(res) > 1:
-          logging.error(
-            'Model search results with multiple models. Please refine your search')
+          logging.error('Model search results with multiple models. Please refine your search')
           return None
 
         model = res[0]
@@ -1365,6 +1363,7 @@ def _escape(param):
 
 
 class Inputs(object):
+
   def __init__(self, api):
     self.api = api
 
@@ -1386,8 +1385,15 @@ class Inputs(object):
     img = self._to_obj(ret['inputs'][0])
     return img
 
-  def create_image_from_url(self, url, image_id=None, concepts=None, not_concepts=None, crop=None,
-                            metadata=None, geo=None, allow_duplicate_url=False):
+  def create_image_from_url(self,
+                            url,
+                            image_id=None,
+                            concepts=None,
+                            not_concepts=None,
+                            crop=None,
+                            metadata=None,
+                            geo=None,
+                            allow_duplicate_url=False):
     """ create an image from Image url
 
     Args:
@@ -1413,13 +1419,27 @@ class Inputs(object):
 
     url = url.strip() if url else url
 
-    image = Image(url=url, image_id=image_id, concepts=concepts, not_concepts=not_concepts,
-                  crop=crop, metadata=metadata, geo=geo, allow_dup_url=allow_duplicate_url)
+    image = Image(
+        url=url,
+        image_id=image_id,
+        concepts=concepts,
+        not_concepts=not_concepts,
+        crop=crop,
+        metadata=metadata,
+        geo=geo,
+        allow_dup_url=allow_duplicate_url)
 
     return self.create_image(image)
 
-  def create_image_from_filename(self, filename, image_id=None, concepts=None, not_concepts=None,
-                                 crop=None, metadata=None, geo=None, allow_duplicate_url=False):
+  def create_image_from_filename(self,
+                                 filename,
+                                 image_id=None,
+                                 concepts=None,
+                                 not_concepts=None,
+                                 crop=None,
+                                 metadata=None,
+                                 geo=None,
+                                 allow_duplicate_url=False):
     """ create an image by local filename
 
     Args:
@@ -1440,13 +1460,26 @@ class Inputs(object):
     """
 
     with open(filename, 'rb') as fileio:
-      image = Image(file_obj=fileio, image_id=image_id, concepts=concepts,
-                    not_concepts=not_concepts, crop=crop, metadata=metadata, geo=geo,
-                    allow_dup_url=allow_duplicate_url)
+      image = Image(
+          file_obj=fileio,
+          image_id=image_id,
+          concepts=concepts,
+          not_concepts=not_concepts,
+          crop=crop,
+          metadata=metadata,
+          geo=geo,
+          allow_dup_url=allow_duplicate_url)
     return self.create_image(image)
 
-  def create_image_from_bytes(self, img_bytes, image_id=None, concepts=None, not_concepts=None,
-                              crop=None, metadata=None, geo=None, allow_duplicate_url=False):
+  def create_image_from_bytes(self,
+                              img_bytes,
+                              image_id=None,
+                              concepts=None,
+                              not_concepts=None,
+                              crop=None,
+                              metadata=None,
+                              geo=None,
+                              allow_duplicate_url=False):
     """ create an image by image bytes
 
     Args:
@@ -1467,13 +1500,25 @@ class Inputs(object):
     """
 
     fileio = BytesIO(img_bytes)
-    image = Image(file_obj=fileio, image_id=image_id, concepts=concepts,
-                  not_concepts=not_concepts, crop=crop, metadata=metadata, geo=geo,
-                  allow_dup_url=allow_duplicate_url)
+    image = Image(
+        file_obj=fileio,
+        image_id=image_id,
+        concepts=concepts,
+        not_concepts=not_concepts,
+        crop=crop,
+        metadata=metadata,
+        geo=geo,
+        allow_dup_url=allow_duplicate_url)
     return self.create_image(image)
 
-  def create_image_from_base64(self, base64_bytes, image_id=None, concepts=None,
-                               not_concepts=None, crop=None, metadata=None, geo=None,
+  def create_image_from_base64(self,
+                               base64_bytes,
+                               image_id=None,
+                               concepts=None,
+                               not_concepts=None,
+                               crop=None,
+                               metadata=None,
+                               geo=None,
                                allow_duplicate_url=False):
     """ create an image by base64 bytes
 
@@ -1494,9 +1539,15 @@ class Inputs(object):
       >>> app.inputs.create_image_bytes(base64_bytes="base64 encoded image bytes...")
     """
 
-    image = Image(base64=base64_bytes, image_id=image_id, concepts=concepts,
-                  not_concepts=not_concepts, crop=crop, metadata=metadata, geo=geo,
-                  allow_dup_url=allow_duplicate_url)
+    image = Image(
+        base64=base64_bytes,
+        image_id=image_id,
+        concepts=concepts,
+        not_concepts=not_concepts,
+        crop=crop,
+        metadata=metadata,
+        geo=geo,
+        allow_dup_url=allow_duplicate_url)
     return self.create_image(image)
 
   def bulk_create_images(self, images):
@@ -1690,8 +1741,18 @@ class Inputs(object):
     hits = [self._to_search_obj(one) for one in res['hits']]
     return hits
 
-  def search_by_image(self, image_id=None, image=None, url=None, imgbytes=None, base64bytes=None,
-                      fileobj=None, filename=None, crop=None, page=1, per_page=20, raw=False):
+  def search_by_image(self,
+                      image_id=None,
+                      image=None,
+                      url=None,
+                      imgbytes=None,
+                      base64bytes=None,
+                      fileobj=None,
+                      filename=None,
+                      crop=None,
+                      page=1,
+                      per_page=20,
+                      raw=False):
     """ Search for visually similar images
 
     By passing image_id, raw image bytes, base64 encoded bytes, image file io stream,
@@ -1728,8 +1789,10 @@ class Inputs(object):
       >>> app.inputs.search_by_image(fileobj=open('file'))
     """
 
-    not_nones = [x for x in [image_id, image, url, imgbytes, base64bytes, fileobj, filename] if
-                 x is not None]
+    not_nones = [
+        x for x in [image_id, image, url, imgbytes, base64bytes, fileobj, filename]
+        if x is not None
+    ]
     if len(not_nones) != 1:
       raise UserError('Unable to construct an image')
 
@@ -1835,8 +1898,15 @@ class Inputs(object):
 
     return res
 
-  def search_by_annotated_concepts(self, concept=None, concepts=None, value=True, values=None,
-                                   concept_id=None, concept_ids=None, page=1, per_page=20,
+  def search_by_annotated_concepts(self,
+                                   concept=None,
+                                   concepts=None,
+                                   value=True,
+                                   values=None,
+                                   concept_id=None,
+                                   concept_ids=None,
+                                   page=1,
+                                   per_page=20,
                                    raw=False):
     """ search using the concepts the user has manually specified
 
@@ -1911,7 +1981,12 @@ class Inputs(object):
 
     return self.search(qb, page, per_page, raw)
 
-  def search_by_geo(self, geo_point=None, geo_limit=None, geo_box=None, page=1, per_page=20,
+  def search_by_geo(self,
+                    geo_point=None,
+                    geo_limit=None,
+                    geo_box=None,
+                    page=1,
+                    per_page=20,
                     raw=False):
     """ search by geo point and geo limit
 
@@ -1942,8 +2017,7 @@ class Inputs(object):
       raise UserError('geo_box type not match GeoBox. Please check data type.')
 
     if geo_point is None and geo_box is None:
-      raise UserError(
-        'at least geo_point or geo_box needs to be specified for the geo search.')
+      raise UserError('at least geo_point or geo_box needs to be specified for the geo search.')
 
     if geo_point and geo_box:
       raise UserError('confusing. you cannot search by geo_point and geo_box together.')
@@ -1959,9 +2033,17 @@ class Inputs(object):
 
     return self.search(qb, page, per_page, raw)
 
-  def search_by_predicted_concepts(self, concept=None, concepts=None, value=True, values=None,
-                                   concept_id=None, concept_ids=None, page=1, per_page=20,
-                                   lang=None, raw=False):
+  def search_by_predicted_concepts(self,
+                                   concept=None,
+                                   concepts=None,
+                                   value=True,
+                                   values=None,
+                                   concept_id=None,
+                                   concept_ids=None,
+                                   page=1,
+                                   per_page=20,
+                                   lang=None,
+                                   raw=False):
     """ search over the predicted concepts
 
     Args:
@@ -2272,35 +2354,41 @@ class Inputs(object):
 
     if geo_json is not None:
       geo_schema = {
-        'additionalProperties': False,
-        'type': 'object',
-        'properties': {
-          'geo_point': {
-            'type': 'object',
-            'properties': {
-              'longitude': {'type': 'number'},
-              'latitude': {'type': 'number'}
-            }
+          'additionalProperties': False,
+          'type': 'object',
+          'properties': {
+              'geo_point': {
+                  'type': 'object',
+                  'properties': {
+                      'longitude': {
+                          'type': 'number'
+                      },
+                      'latitude': {
+                          'type': 'number'
+                      }
+                  }
+              }
           }
-        }
       }
 
       validate(geo_json, geo_schema)
-      geo = Geo(
-        GeoPoint(geo_json['geo_point']['longitude'], geo_json['geo_point']['latitude']))
+      geo = Geo(GeoPoint(geo_json['geo_point']['longitude'], geo_json['geo_point']['latitude']))
 
     # get regions
     regions = None
     regions_json = one['data'].get('regions', None)
     if regions_json:
-      regions = [Region(
-        region_id=r['id'],
-        region_info=RegionInfo(bbox=BoundingBox(top_row=r['region_info']['bounding_box']['top_row'],
-                                                left_col=r['region_info']['bounding_box']['left_col'],
-                                                bottom_row=r['region_info']['bounding_box']['bottom_row'],
-                                                right_col=r['region_info']['bounding_box']['right_col'])),
-        face=Face(FaceIdentity([c for c in r['data']['face']['identity']['concepts']])) if 'data' in r else None)
-        for r in regions_json]
+      regions = [
+          Region(
+              region_id=r['id'],
+              region_info=RegionInfo(bbox=BoundingBox(
+                  top_row=r['region_info']['bounding_box']['top_row'],
+                  left_col=r['region_info']['bounding_box']['left_col'],
+                  bottom_row=r['region_info']['bounding_box']['bottom_row'],
+                  right_col=r['region_info']['bounding_box']['right_col'])),
+              face=Face(FaceIdentity([c for c in r['data']['face']['identity']['concepts']]))
+              if 'data' in r else None) for r in regions_json
+      ]
 
     input_id = one['id']
     if one['data'].get('image'):
@@ -2311,27 +2399,49 @@ class Inputs(object):
       if one['data']['image'].get('url'):
         if one['data']['image'].get('crop'):
           crop = one['data']['image']['crop']
-          one_input = Image(image_id=input_id, url=one['data']['image']['url'],
-                            concepts=concepts, not_concepts=not_concepts, crop=crop,
-                            metadata=metadata, geo=geo, regions=regions,
-                            allow_dup_url=allow_dup_url)
+          one_input = Image(
+              image_id=input_id,
+              url=one['data']['image']['url'],
+              concepts=concepts,
+              not_concepts=not_concepts,
+              crop=crop,
+              metadata=metadata,
+              geo=geo,
+              regions=regions,
+              allow_dup_url=allow_dup_url)
         else:
-          one_input = Image(image_id=input_id, url=one['data']['image']['url'],
-                            concepts=concepts, not_concepts=not_concepts,
-                            metadata=metadata, geo=geo, regions=regions,
-                            allow_dup_url=allow_dup_url)
+          one_input = Image(
+              image_id=input_id,
+              url=one['data']['image']['url'],
+              concepts=concepts,
+              not_concepts=not_concepts,
+              metadata=metadata,
+              geo=geo,
+              regions=regions,
+              allow_dup_url=allow_dup_url)
       elif one['data']['image'].get('base64'):
         if one['data']['image'].get('crop'):
           crop = one['data']['image']['crop']
-          one_input = Image(image_id=input_id, base64=one['data']['image']['base64'],
-                            concepts=concepts, not_concepts=not_concepts, crop=crop,
-                            metadata=metadata, geo=geo, regions=regions,
-                            allow_dup_url=allow_dup_url)
+          one_input = Image(
+              image_id=input_id,
+              base64=one['data']['image']['base64'],
+              concepts=concepts,
+              not_concepts=not_concepts,
+              crop=crop,
+              metadata=metadata,
+              geo=geo,
+              regions=regions,
+              allow_dup_url=allow_dup_url)
         else:
-          one_input = Image(image_id=input_id, base64=one['data']['image']['base64'],
-                            concepts=concepts, not_concepts=not_concepts,
-                            metadata=metadata, geo=geo, regions=regions,
-                            allow_dup_url=allow_dup_url)
+          one_input = Image(
+              image_id=input_id,
+              base64=one['data']['image']['base64'],
+              concepts=concepts,
+              not_concepts=not_concepts,
+              metadata=metadata,
+              geo=geo,
+              regions=regions,
+              allow_dup_url=allow_dup_url)
     elif one['data'].get('video'):
       raise UserError('Not supported yet')
     else:
@@ -2383,6 +2493,7 @@ class Inputs(object):
 
 
 class Concepts(object):
+
   def __init__(self, api):
     self.api = api
 
@@ -2514,8 +2625,10 @@ class Concepts(object):
       >>>                          concept_names=['name2', 'name3'])
     """
 
-    concepts = [Concept(concept_name=concept_name, concept_id=concept_id) for
-                concept_name, concept_id in zip(concept_names, concept_ids)]
+    concepts = [
+        Concept(concept_name=concept_name, concept_id=concept_id)
+        for concept_name, concept_id in zip(concept_names, concept_ids)
+    ]
     res = self.api.patch_concepts(action=action, concepts=concepts)
 
     return [self._to_obj(c) for c in res['concepts']]
@@ -2563,11 +2676,12 @@ class Concepts(object):
     app_id = item['app_id']
     created_at = item['created_at']
 
-    return Concept(concept_name=concept_name, concept_id=concept_id, app_id=app_id,
-                   created_at=created_at)
+    return Concept(
+        concept_name=concept_name, concept_id=concept_id, app_id=app_id, created_at=created_at)
 
 
 class Model(object):
+
   def __init__(self, api, item=None, model_id=None):
     self.api = api
 
@@ -2598,10 +2712,11 @@ class Model(object):
 
       if self.output_info.get('data', {}).get('concepts'):
         for concept in self.output_info['data']['concepts']:
-          concept = Concept(concept_name=concept['name'],
-                            concept_id=concept['id'],
-                            app_id=concept['app_id'],
-                            created_at=concept['created_at'])
+          concept = Concept(
+              concept_name=concept['name'],
+              concept_id=concept['id'],
+              app_id=concept['app_id'],
+              created_at=concept['created_at'])
           self.concepts.add(concept)
 
   def get_info(self, verbose=False):
@@ -2648,15 +2763,15 @@ class Model(object):
   def dict(self):
 
     data = {
-      "model": {
-        "name": self.model_name,
-        "output_info": {
-          "output_config": {
-            "concepts_mutually_exclusive": self.concepts_mutually_exclusive,
-            "closed_environment": self.closed_environment
-          }
+        "model": {
+            "name": self.model_name,
+            "output_info": {
+                "output_config": {
+                    "concepts_mutually_exclusive": self.concepts_mutually_exclusive,
+                    "closed_environment": self.closed_environment
+                }
+            }
         }
-      }
     }
 
     if self.model_id:
@@ -2730,8 +2845,13 @@ class Model(object):
     model = self._to_obj(res['model'])
     return model
 
-  def predict_by_url(self, url, lang=None, is_video=False,
-                     min_value=None, max_concepts=None, select_concepts=None):
+  def predict_by_url(self,
+                     url,
+                     lang=None,
+                     is_video=False,
+                     min_value=None,
+                     max_concepts=None,
+                     select_concepts=None):
     """ predict a model with url
 
     Args:
@@ -2753,17 +2873,22 @@ class Model(object):
     else:
       input = Image(url=url)
 
-    model_output_info = ModelOutputInfo(
-      output_config=ModelOutputConfig(language=lang,
-                                      min_value=min_value,
-                                      max_concepts=max_concepts,
-                                      select_concepts=select_concepts))
+    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(
+        language=lang,
+        min_value=min_value,
+        max_concepts=max_concepts,
+        select_concepts=select_concepts))
 
     res = self.predict([input], model_output_info)
     return res
 
-  def predict_by_filename(self, filename, lang=None, is_video=False,
-                          min_value=None, max_concepts=None, select_concepts=None):
+  def predict_by_filename(self,
+                          filename,
+                          lang=None,
+                          is_video=False,
+                          min_value=None,
+                          max_concepts=None,
+                          select_concepts=None):
     """ predict a model with a local filename
 
     Args:
@@ -2779,21 +2904,27 @@ class Model(object):
     """
 
     with open(filename, 'rb') as fileio:
-        if is_video is True:
-          input = Video(file_obj=fileio)
-        else:
-          input = Image(file_obj=fileio)
+      if is_video is True:
+        input = Video(file_obj=fileio)
+      else:
+        input = Image(file_obj=fileio)
 
-    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang,
-                                                                        min_value=min_value,
-                                                                        max_concepts=max_concepts,
-                                                                        select_concepts=select_concepts))
+    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(
+        language=lang,
+        min_value=min_value,
+        max_concepts=max_concepts,
+        select_concepts=select_concepts))
 
     res = self.predict([input], model_output_info)
     return res
 
-  def predict_by_bytes(self, raw_bytes, lang=None, is_video=False,
-                       min_value=None, max_concepts=None, select_concepts=None):
+  def predict_by_bytes(self,
+                       raw_bytes,
+                       lang=None,
+                       is_video=False,
+                       min_value=None,
+                       max_concepts=None,
+                       select_concepts=None):
     """ predict a model with image raw bytes
 
     Args:
@@ -2815,17 +2946,22 @@ class Model(object):
     else:
       input = Image(base64=base64_bytes)
 
-    model_output_info = ModelOutputInfo(
-      output_config=ModelOutputConfig(language=lang,
-                                      min_value=min_value,
-                                      max_concepts=max_concepts,
-                                      select_concepts=select_concepts))
+    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(
+        language=lang,
+        min_value=min_value,
+        max_concepts=max_concepts,
+        select_concepts=select_concepts))
 
     res = self.predict([input], model_output_info)
     return res
 
-  def predict_by_base64(self, base64_bytes, lang=None, is_video=False,
-                        min_value=None, max_concepts=None, select_concepts=None):
+  def predict_by_base64(self,
+                        base64_bytes,
+                        lang=None,
+                        is_video=False,
+                        min_value=None,
+                        max_concepts=None,
+                        select_concepts=None):
     """ predict a model with base64 encoded image bytes
 
     Args:
@@ -2845,11 +2981,11 @@ class Model(object):
     else:
       input = Image(base64=base64_bytes)
 
-    model_output_info = ModelOutputInfo(
-      output_config=ModelOutputConfig(language=lang,
-                                      min_value=min_value,
-                                      max_concepts=max_concepts,
-                                      select_concepts=select_concepts))
+    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(
+        language=lang,
+        min_value=min_value,
+        max_concepts=max_concepts,
+        select_concepts=select_concepts))
 
     res = self.predict([input], model_output_info)
     return res
@@ -2908,8 +3044,12 @@ class Model(object):
 
     return self.merge_concepts(concept_ids)
 
-  def update(self, action='merge', model_name=None, concepts_mutually_exclusive=None,
-             closed_environment=None, concept_ids=None):
+  def update(self,
+             action='merge',
+             model_name=None,
+             concepts_mutually_exclusive=None,
+             closed_environment=None,
+             concept_ids=None):
     """
     Update the model attributes. The name of the model, list of concepts, and
     the attributes ``concepts_mutually_exclusive`` and ``closed_environment`` can
@@ -2939,27 +3079,20 @@ class Model(object):
     if not any(map(lambda x: x is not None, args)):
       return self
 
-    model = {
-      "id": self.model_id,
-      "output_info": {
-        "output_config": {},
-        "data": {}
-      }
-    }
+    model = {"id": self.model_id, "output_info": {"output_config": {}, "data": {}}}
 
     if model_name:
       model["name"] = model_name
 
     if concepts_mutually_exclusive is not None:
       model["output_info"]["output_config"][
-        "concepts_mutually_exclusive"] = concepts_mutually_exclusive
+          "concepts_mutually_exclusive"] = concepts_mutually_exclusive
 
     if closed_environment is not None:
       model["output_info"]["output_config"]["closed_environment"] = closed_environment
 
     if concept_ids is not None:
-      model["output_info"]["data"]["concepts"] = [{"id": concept_id} for concept_id in
-                                                  concept_ids]
+      model["output_info"]["data"]["concepts"] = [{"id": concept_id} for concept_id in concept_ids]
 
     res = self.api.patch_model(model, action)
     model = res['models'][0]
@@ -3049,12 +3182,15 @@ class Model(object):
       A list of Input objects
     """
 
-    res = self.api.get_model_inputs(self.model_id, version_id,
-                                    page, per_page)
+    res = self.api.get_model_inputs(self.model_id, version_id, page, per_page)
 
     return res
 
-  def send_concept_feedback(self, input_id, url, concepts=None, not_concepts=None,
+  def send_concept_feedback(self,
+                            input_id,
+                            url,
+                            concepts=None,
+                            not_concepts=None,
                             feedback_info=None):
     """
     Send feedback for this model
@@ -3066,13 +3202,22 @@ class Model(object):
       None
     """
 
-    feedback_input = Image(url=url, image_id=input_id, concepts=concepts,
-                           not_concepts=not_concepts, feedback_info=feedback_info)
+    feedback_input = Image(
+        url=url,
+        image_id=input_id,
+        concepts=concepts,
+        not_concepts=not_concepts,
+        feedback_info=feedback_info)
     res = self.api.send_model_feedback(self.model_id, self.model_version, feedback_input)
 
     return res
 
-  def send_region_feedback(self, input_id, url, concepts=None, not_concepts=None, regions=None,
+  def send_region_feedback(self,
+                           input_id,
+                           url,
+                           concepts=None,
+                           not_concepts=None,
+                           regions=None,
                            feedback_info=None):
     """
     Send feedback for this model
@@ -3085,10 +3230,13 @@ class Model(object):
       None
     """
 
-    feedback_input = Image(url=url, image_id=input_id, concepts=concepts,
-                           not_concepts=not_concepts,
-                           regions=regions,
-                           feedback_info=feedback_info)
+    feedback_input = Image(
+        url=url,
+        image_id=input_id,
+        concepts=concepts,
+        not_concepts=not_concepts,
+        regions=regions,
+        feedback_info=feedback_info)
     res = self.api.send_model_feedback(self.model_id, self.model_version, feedback_input)
 
     return res
@@ -3112,8 +3260,7 @@ class Concept(object):
   """ Clarifai Concept
   """
 
-  def __init__(self, concept_name=None, concept_id=None, app_id=None, created_at=None,
-               value=None):
+  def __init__(self, concept_name=None, concept_id=None, app_id=None, created_at=None, value=None):
     self.concept_name = concept_name
     self.concept_id = concept_id
     self.app_id = app_id
@@ -3149,58 +3296,40 @@ class PublicModels:
 
   def __init__(self, api):
     """ Ctor. """
-
     """ Apparel model recognizes clothing, accessories, and other fashion-related items. """
     self.apparel_model = Model(api, model_id='e0be3b9d6a454f0493ac3a30784001ff')
-
     """ Celebrity model identifies celebrities that closely resemble detected faces. """
     self.celebrity_model = Model(api, model_id='e466caa0619f444ab97497640cefc4dc')
-
     """ Color model recognizes dominant colors on an input. """
     self.color_model = Model(api, model_id='eeed0b6733a644cea07cf4c60f87ebb7')
-
     """ Demographics model predics the age, gender, and cultural appearance. """
     self.demographics_model = Model(api, model_id='c0c0ac362b03416da06ab3fa36fb58e3')
-
     """ Face detection model detects the presence and location of human faces. """
     self.face_detection_model = Model(api, model_id='a403429f2ddf4b49b307e318f00e528b')
-
     """ Face embedding model computes numerical embedding vectors using our Face detection model."""
     self.face_embedding_model = Model(api, model_id='d02b4508df58432fbb84e800597b8959')
-
     """ Focus model returs overall focus and identifies in-focus regions. """
     self.focus_model = Model(api, model_id='c2cf7cecd8a6427da375b9f35fcd2381')
-
     """ Food model recognizes food items and dishes, down to the ingredient level. """
     self.food_model = Model(api, model_id='bd367be194cf45149e75f01d59f77ba7')
-
     """ General embedding model computes numerical embedding vectors using our General model. """
     self.general_embedding_model = Model(api, model_id='bbb5f41425b8468d9b7a554ff10f8581')
-
     """ General model predicts most generally. """
     self.general_model = Model(api, model_id='aaa03c23b3724a16a56b629203edc62c')
-
     """ Landscape quality model predicts the quality of a landscape image. """
     self.landscape_quality_model = Model(api, model_id='bec14810deb94c40a05f1f0eb3c91403')
-
     """ Logo model detects and identifies brand logos. """
     self.logo_model = Model(api, model_id='c443119bf2ed4da98487520d01a0b1e3')
-
     """ Moderation model predicts inputs such as safety, gore, nudity, etc. """
     self.moderation_model = Model(api, model_id='d16f390eb32cad478c7ae150069bd2c6')
-
     """ NSFW model identifies different levels of nudity. """
     self.nsfw_model = Model(api, model_id='e9576d86d2004ed1a38ba0cf39ecb4b1')
-
     """ Portrait quality model predicts the quality of a portrait image. """
     self.portrait_quality_model = Model(api, model_id='de9bd05cfdbf4534af151beb2a5d0953')
-
     """ Textures & Patterns model predicts textures and patterns on an image. """
     self.textures_and_patterns_model = Model(api, model_id='fbefb47f9fdb410e8ce14f24f54b47ff')
-
     """ Travel model recognizes travel and hospitality-related concepts. """
     self.travel_model = Model(api, model_id='eee28c313d69466f836ab83287a54ed9')
-
     """ Wedding model recognizes wedding-related concepts bride, groom, flowers, and more. """
     self.wedding_model = Model(api, model_id='c386b7a870114f4a87477c0824499348')
 
@@ -3223,8 +3352,13 @@ class ApiClient(object):
   patch_actions = ['merge', 'remove', 'overwrite']
   concepts_patch_actions = ['overwrite']
 
-  def __init__(self, app_id=None, app_secret=None, base_url=None, api_key=None,
-               quiet=True, log_level=None):
+  def __init__(self,
+               app_id=None,
+               app_secret=None,
+               base_url=None,
+               api_key=None,
+               quiet=True,
+               log_level=None):
 
     if platform.system() == 'Windows':
       homedir = os.environ.get('HOMEPATH', '.')
@@ -3321,6 +3455,12 @@ class ApiClient(object):
     self.token = None
     self.headers = None
 
+    self.session = requests.Session()
+    a = requests.adapters.HTTPAdapter(
+        max_retries=RETRIES, pool_connections=CONNECTIONS, pool_maxsize=CONNECTIONS)
+    self.session.mount('http://', a)
+    self.session.mount('https://', a)
+
     # Make sure when you create a client, it's ready for requests.
     self.get_token()
 
@@ -3342,7 +3482,7 @@ class ApiClient(object):
     logger.debug("get_token: %s data: %s", self.basev2 + '/v2/token', data)
 
     authurl = urljoin(self.scheme + '://', self.base_url, 'v2', 'token')
-    res = requests.post(authurl, auth=auth, data=data)
+    res = self.session.post(authurl, auth=auth, data=data)
     if res.status_code == 200:
       logger.debug("Got V2 token: %s", res.json())
       self.token = res.json()['access_token']
@@ -3417,12 +3557,10 @@ class ApiClient(object):
         for data in params_copy['inputs']:
           data = data['data']
           if data.get('image') and data['image'].get('base64'):
-            base64_bytes = data['image']['base64'][:10] + '......' + data['image'][
-                                                                       'base64'][-10:]
+            base64_bytes = data['image']['base64'][:10] + '......' + data['image']['base64'][-10:]
             data['image']['base64'] = base64_bytes
           if data.get('video') and data['video'].get('base64'):
-            base64_bytes = data['video']['base64'][:10] + '......' + data['video'][
-                                                                       'base64'][-10:]
+            base64_bytes = data['video']['base64'][:10] + '......' + data['video']['base64'][-10:]
             data['video']['base64'] = base64_bytes
       elif params and params.get('query') and params['query'].get('ands'):
         params_copy = copy.deepcopy(params)
@@ -3435,40 +3573,47 @@ class ApiClient(object):
               query['output']['input']['data'].get('image') and \
               query['output']['input']['data']['image'].get('base64'):
             data = query['output']['input']['data']
-            base64_bytes = data['image']['base64'][:10] + '......' + data['image'][
-                                                                       'base64'][-10:]
+            base64_bytes = data['image']['base64'][:10] + '......' + data['image']['base64'][-10:]
             data['image']['base64'] = base64_bytes
       else:
         params_copy = params
       # mangle the base64 because it is too long
 
-      logger.debug("%s %s\nHEADERS:\n%s\nPAYLOAD:\n%s",
-                   method, url, pformat(headers), pformat(params_copy))
+      logger.debug("%s %s\nHEADERS:\n%s\nPAYLOAD:\n%s", method, url,
+                   pformat(headers), pformat(params_copy))
 
       if method == 'GET':
-        headers = {'Content-Type': 'application/json',
-                   'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
-                   'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
-                   'Authorization': self.headers['Authorization']}
-        res = requests.get(url, params=params, headers=headers)
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
+            'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
+            'Authorization': self.headers['Authorization']
+        }
+        res = self.session.get(url, params=params, headers=headers)
       elif method == "POST":
-        headers = {'Content-Type': 'application/json',
-                   'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
-                   'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
-                   'Authorization': self.headers['Authorization']}
-        res = requests.post(url, data=json.dumps(params), headers=headers)
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
+            'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
+            'Authorization': self.headers['Authorization']
+        }
+        res = self.session.post(url, data=json.dumps(params), headers=headers)
       elif method == "DELETE":
-        headers = {'Content-Type': 'application/json',
-                   'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
-                   'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
-                   'Authorization': self.headers['Authorization']}
-        res = requests.delete(url, data=json.dumps(params), headers=headers)
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
+            'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
+            'Authorization': self.headers['Authorization']
+        }
+        res = self.session.delete(url, data=json.dumps(params), headers=headers)
       elif method == "PATCH":
-        headers = {'Content-Type': 'application/json',
-                   'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
-                   'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
-                   'Authorization': self.headers['Authorization']}
-        res = requests.patch(url, data=json.dumps(params), headers=headers)
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
+            'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
+            'Authorization': self.headers['Authorization']
+        }
+        res = self.session.patch(url, data=json.dumps(params), headers=headers)
       else:
         raise UserError("Unsupported request type: '%s'" % method)
 
@@ -3576,9 +3721,7 @@ class ApiClient(object):
     resource = "searches/"
 
     # Similar image search and predictions
-    d = {'pagination': pagination(page, per_page).dict(),
-         'query': query
-         }
+    d = {'pagination': pagination(page, per_page).dict(), 'query': query}
 
     res = self.post(resource, d)
     return res
@@ -3692,10 +3835,7 @@ class ApiClient(object):
       raise UserError("action not supported.")
 
     resource = "inputs"
-    data = {
-      "action": action,
-      "inputs": []
-    }
+    data = {"action": action, "inputs": []}
 
     images = []
     for img in inputs:
@@ -3746,17 +3886,19 @@ class ApiClient(object):
     patch_value = 1 if action == 'merge' else 0
 
     data = {
-      "outputs": [
-        {
-          "data": {
-            "concepts": [{"id": cid, "value": patch_value} for cid in concept_ids]
-          },
-          "model": {
-            "id": "aa9ca48295b37401f8af92ad1af0d91d"
-          }
-        }
-      ],
-      "action": action
+        "outputs": [{
+            "data": {
+                "concepts": [{
+                    "id": cid,
+                    "value": patch_value
+                } for cid in concept_ids]
+            },
+            "model": {
+                "id": "aa9ca48295b37401f8af92ad1af0d91d"
+            }
+        }],
+        "action":
+            action
     }
 
     res = self.patch(resource, data)
@@ -3809,8 +3951,7 @@ class ApiClient(object):
       raise UserError('concept_ids and concept_names should be both be list ')
 
     if len(concept_ids) != len(concept_names):
-      raise UserError(
-        'length of concept id list should match length of the concept name list')
+      raise UserError('length of concept id list should match length of the concept name list')
 
     resource = "concepts"
     d = {'concepts': []}
@@ -3845,11 +3986,7 @@ class ApiClient(object):
     # Similar image search and predictions
     d = {'pagination': pagination(page, per_page).dict()}
 
-    d.update({
-      "concept_query": {
-        "name": term
-      }
-    })
+    d.update({"concept_query": {"name": term}})
 
     if language is not None:
       d['concept_query']['language'] = language
@@ -3873,10 +4010,7 @@ class ApiClient(object):
       raise UserError("action not supported.")
 
     resource = "concepts"
-    data = {
-      "action": action,
-      "concepts": []
-    }
+    data = {"action": action, "concepts": []}
 
     concepts_items = []
     for concept in concepts:
@@ -3908,10 +4042,7 @@ class ApiClient(object):
     """
 
     resource = "models"
-    params = {
-      'page': page,
-      'per_page': per_page
-    }
+    params = {'page': page, 'per_page': per_page}
 
     res = self.get(resource, params)
     return res
@@ -3958,10 +4089,7 @@ class ApiClient(object):
     """
 
     resource = "models/%s/versions" % _escape(model_id)
-    params = {
-      'page': page,
-      'per_page': per_page
-    }
+    params = {'page': page, 'per_page': per_page}
 
     res = self.get(resource, params)
     return res
@@ -4030,28 +4158,21 @@ class ApiClient(object):
     resource = "models/searches"
 
     if name is not None and model_type is not None:
-      data = {"model_query": {
-        "name": name,
-        "type": model_type
-      }
-      }
+      data = {"model_query": {"name": name, "type": model_type}}
     elif name is None and model_type is not None:
-      data = {"model_query": {
-        "type": model_type
-      }
-      }
+      data = {"model_query": {"type": model_type}}
     elif name is not None and model_type is None:
-      data = {"model_query": {
-        "name": name
-      }
-      }
+      data = {"model_query": {"name": name}}
     else:
       data = {}
 
     res = self.post(resource, data)
     return res
 
-  def create_model(self, model_id, model_name=None, concepts=None,
+  def create_model(self,
+                   model_id,
+                   model_name=None,
+                   concepts=None,
                    concepts_mutually_exclusive=False,
                    closed_environment=False,
                    hyper_parameters=None):
@@ -4063,26 +4184,28 @@ class ApiClient(object):
     resource = "models"
 
     data = {
-      "model": {
-        "id": model_id,
-        "name": model_name,
-        "output_info": {
-          "output_config": {
-            "concepts_mutually_exclusive": concepts_mutually_exclusive,
-            "closed_environment": closed_environment
-          }
+        "model": {
+            "id": model_id,
+            "name": model_name,
+            "output_info": {
+                "output_config": {
+                    "concepts_mutually_exclusive": concepts_mutually_exclusive,
+                    "closed_environment": closed_environment
+                }
+            }
         }
-      }
     }
 
     if concepts:
       data['model']['output_info']['data'] = {
-        "concepts": [{"id": concept} for concept in concepts]
+          "concepts": [{
+              "id": concept
+          } for concept in concepts]
       }
     if hyper_parameters:
       try:
         data['model']['output_info']['output_config']['hyper_parameters'] = json.dumps(
-          hyper_parameters)
+            hyper_parameters)
       except ValueError:
         pass
 
@@ -4095,10 +4218,7 @@ class ApiClient(object):
       raise UserError("action not supported.")
 
     resource = "models"
-    data = {
-      "action": action,
-      "models": [model]
-    }
+    data = {"action": action, "models": [model]}
 
     res = self.patch(resource, data)
     return res
@@ -4122,7 +4242,9 @@ class ApiClient(object):
       raise UserError("objs must be a list")
     for i, obj in enumerate(objs):
       if not isinstance(obj, (Image, Video)):
-        raise UserError("Object at position %d is not a valid type of content to add. Must be Image or Video" % i)
+        raise UserError(
+            "Object at position %d is not a valid type of content to add. Must be Image or Video" %
+            i)
 
     data = {"inputs": [obj.dict() for obj in objs]}
 
@@ -4173,7 +4295,9 @@ class ApiClient(object):
       raise UserError("objs must be a list")
     for i, obj in enumerate(objs):
       if not isinstance(obj, (Image, Video)):
-        raise UserError("Object at position %d is not a valid type of content to add. Must be Image or Video" % i)
+        raise UserError(
+            "Object at position %d is not a valid type of content to add. Must be Image or Video" %
+            i)
 
     data = {"inputs": [obj.dict() for obj in objs]}
 
@@ -4247,6 +4371,7 @@ class ApiClient(object):
 
 
 class pagination(object):
+
   def __init__(self, page=1, per_page=20):
     self.page = page
     self.per_page = per_page
@@ -4280,20 +4405,20 @@ class ApiError(Exception):
  >> %(method)s %(baseurl)s%(resource)s
  >> REQUEST(%(time_ts)s) %(request)s
  >> RESPONSE(%(time_ts)s) %(response)s""" % {
-      'baseurl': '%s/v2/' % self.api.basev2,
-      'method': method,
-      'resource': resource,
-      'status_code': response.status_code,
-      'reason': response.reason,
-      'error_code': self.error_code,
-      'error_desc': self.error_desc,
-      'error_details': self.error_details,
-      'request': json.dumps(params, indent=2),
-      'response': json.dumps(response.json(), indent=2),
-      'time_ts': current_ts_str,
-      'client_version': CLIENT_VERSION,
-      'python_version': PYTHON_VERSION,
-      'os_version': OS_VER
+        'baseurl': '%s/v2/' % self.api.basev2,
+        'method': method,
+        'resource': resource,
+        'status_code': response.status_code,
+        'reason': response.reason,
+        'error_code': self.error_code,
+        'error_desc': self.error_desc,
+        'error_details': self.error_details,
+        'request': json.dumps(params, indent=2),
+        'response': json.dumps(response.json(), indent=2),
+        'time_ts': current_ts_str,
+        'client_version': CLIENT_VERSION,
+        'python_version': PYTHON_VERSION,
+        'os_version': OS_VER
     }
 
     super(ApiError, self).__init__(msg)
@@ -4305,12 +4430,10 @@ class ApiError(Exception):
 
 class ApiClientError(Exception):
   """ API Client Error """
-  pass
 
 
 class UserError(Exception):
   """ User Error """
-  pass
 
 
 class ApiStatus(object):
@@ -4321,9 +4444,7 @@ class ApiStatus(object):
     self.description = item['description']
 
   def dict(self):
-    d = {
-      'status': {'code': self.code, 'description': self.description}
-    }
+    d = {'status': {'code': self.code, 'description': self.description}}
 
     return d
 
@@ -4350,16 +4471,17 @@ class InputCounts(object):
 
   def dict(self):
     d = {
-      'counts': {
-        'processed': self.processed,
-        'to_process': self.to_process,
-        'errors': self.errors
-      }
+        'counts': {
+            'processed': self.processed,
+            'to_process': self.to_process,
+            'errors': self.errors
+        }
     }
     return d
 
 
 class ModelOutputInfo(object):
+
   def __init__(self, concepts=None, output_config=None):
     self.concepts = concepts
     self.output_config = output_config
@@ -4378,8 +4500,14 @@ class ModelOutputInfo(object):
 
 
 class ModelOutputConfig(object):
-  def __init__(self, mutually_exclusive=False, closed_environment=False, language=None,
-               min_value=None, max_concepts=None, select_concepts=None):
+
+  def __init__(self,
+               mutually_exclusive=False,
+               closed_environment=False,
+               language=None,
+               min_value=None,
+               max_concepts=None,
+               select_concepts=None):
     self.concepts_mutually_exclusive = mutually_exclusive
     self.closed_environment = closed_environment
     self.language = language
@@ -4389,10 +4517,10 @@ class ModelOutputConfig(object):
 
   def dict(self):
     data = {
-      'output_config': {
-        'concepts_mutually_exclusive': self.concepts_mutually_exclusive,
-        'closed_environment': self.closed_environment
-      }
+        'output_config': {
+            'concepts_mutually_exclusive': self.concepts_mutually_exclusive,
+            'closed_environment': self.closed_environment
+        }
     }
 
     if self.language is not None:
@@ -4411,6 +4539,7 @@ class ModelOutputConfig(object):
 
 
 class BoundingBox(object):
+
   def __init__(self, top_row, left_col, bottom_row, right_col):
     self.top_row = top_row
     self.left_col = left_col
@@ -4419,18 +4548,19 @@ class BoundingBox(object):
 
   def dict(self):
     data = {
-      'bounding_box': {
-        'top_row': self.top_row,
-        'left_col': self.left_col,
-        'bottom_row': self.bottom_row,
-        'right_col': self.right_col
-      }
+        'bounding_box': {
+            'top_row': self.top_row,
+            'left_col': self.left_col,
+            'bottom_row': self.bottom_row,
+            'right_col': self.right_col
+        }
     }
 
     return data
 
 
 class RegionInfo(object):
+
   def __init__(self, bbox=None, feedback_type=None):
     self.bbox = bbox
     self.feedback_type = feedback_type
@@ -4452,6 +4582,7 @@ class RegionInfo(object):
 
 
 class Region(object):
+
   def __init__(self, region_info=None, concepts=None, face=None, region_id=None):
 
     self.region_info = region_info
@@ -4478,7 +4609,11 @@ class Region(object):
 
 
 class Face(object):
-  def __init__(self, identity=None, age_appearance=None, gender_appearance=None,
+
+  def __init__(self,
+               identity=None,
+               age_appearance=None,
+               gender_appearance=None,
                multicultural_appearance=None):
 
     self.identity = identity
@@ -4506,52 +4641,40 @@ class Face(object):
 
 
 class FaceIdentity(object):
+
   def __init__(self, concepts):
     self.concepts = concepts
 
   def dict(self):
-    data = {
-      'identity': {
-        'concepts': [c.dict() for c in self.concepts]
-      }
-    }
+    data = {'identity': {'concepts': [c.dict() for c in self.concepts]}}
     return data
 
 
 class FaceAgeAppearance(object):
+
   def __init__(self, concepts):
     self.concepts = concepts
 
   def dict(self):
-    data = {
-      'age_appearance': {
-        'concepts': [c.dict() for c in self.concepts]
-      }
-    }
+    data = {'age_appearance': {'concepts': [c.dict() for c in self.concepts]}}
     return data
 
 
 class FaceGenderAppearance(object):
+
   def __init__(self, concepts):
     self.concepts = concepts
 
   def dict(self):
-    data = {
-      'gender_appearance': {
-        'concepts': [c.dict() for c in self.concepts]
-      }
-    }
+    data = {'gender_appearance': {'concepts': [c.dict() for c in self.concepts]}}
     return data
 
 
 class FaceMulticulturalAppearance(object):
+
   def __init__(self, concepts):
     self.concepts = concepts
 
   def dict(self):
-    data = {
-      'multicultural_appearance': {
-        'concepts': [c.dict() for c in self.concepts]
-      }
-    }
+    data = {'multicultural_appearance': {'concepts': [c.dict() for c in self.concepts]}}
     return data

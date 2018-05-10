@@ -1,22 +1,21 @@
 # -*- coding: utf-8 -*-
 
-import os
+import base64
 import logging
+import os
+import tempfile
 import unittest
 import uuid
-import base64
-import requests
-import tempfile
-from clarifai.rest import ClarifaiApp
-from clarifai.rest import Geo, GeoPoint, GeoBox, GeoLimit
+
 import clarifai.rest
+from clarifai.rest import ClarifaiApp, Geo, GeoBox, GeoLimit, GeoPoint
 
 urls = [
-  "https://samples.clarifai.com/metro-north.jpg",
-  "https://samples.clarifai.com/wedding.jpg",
-  "https://samples.clarifai.com/facebook.png",
-  "https://samples.clarifai.com/dog.tiff",
-  "https://samples.clarifai.com/penguin.bmp",
+    "https://samples.clarifai.com/metro-north.jpg",
+    "https://samples.clarifai.com/wedding.jpg",
+    "https://samples.clarifai.com/facebook.png",
+    "https://samples.clarifai.com/dog.tiff",
+    "https://samples.clarifai.com/penguin.bmp",
 ]
 
 
@@ -31,7 +30,6 @@ class TestSearch(unittest.TestCase):
   @classmethod
   def tearDownClass(cls):
     """ Cleanup """
-    pass
 
   def test_search_annotated_concepts(self):
     """ test search by annotated concepts only """
@@ -70,12 +68,12 @@ class TestSearch(unittest.TestCase):
 
     # search with NOT
     self.app.inputs.search_by_predicted_concepts(concept='train', value=False)
-    self.app.inputs.search_by_predicted_concepts(concepts=['train', 'railway'],
-                                                 values=[False, False])
-    self.app.inputs.search_by_predicted_concepts(concepts=['train', 'railway'],
-                                                 values=[True, False])
-    self.app.inputs.search_by_predicted_concepts(concepts=['train', 'railway'],
-                                                 values=[False, True])
+    self.app.inputs.search_by_predicted_concepts(
+        concepts=['train', 'railway'], values=[False, False])
+    self.app.inputs.search_by_predicted_concepts(
+        concepts=['train', 'railway'], values=[True, False])
+    self.app.inputs.search_by_predicted_concepts(
+        concepts=['train', 'railway'], values=[False, True])
 
     # clean up
     self.app.inputs.delete(img1.input_id)
@@ -134,21 +132,21 @@ class TestSearch(unittest.TestCase):
     """ test search by image bytes """
 
     # search by raw bytes
-    data = requests.get(urls[0]).content
+    data = self.app.api.session.get(urls[0]).content
     self.app.inputs.search_by_image(imgbytes=data)
 
   def test_search_by_image_base64(self):
     """ test search by image base64 bytes """
 
     # search by base64 bytes
-    data = requests.get(urls[0]).content
+    data = self.app.api.session.get(urls[0]).content
     base64_data = base64.b64encode(data)
     self.app.inputs.search_by_image(base64bytes=base64_data)
 
   def test_search_by_image_file(self):
     """ test search by image filename and fileobj"""
 
-    data = requests.get(urls[0]).content
+    data = self.app.api.session.get(urls[0]).content
     f = tempfile.NamedTemporaryFile(delete=False)
     filename = f.name
     f.write(data)
@@ -173,8 +171,8 @@ class TestSearch(unittest.TestCase):
     # upload image
     image_id = uuid.uuid4().hex
     meta = {'key': 'value'}
-    res = self.app.inputs.create_image_from_url(image_id=image_id, url=urls[0], metadata=meta,
-                                                allow_duplicate_url=True)
+    res = self.app.inputs.create_image_from_url(
+        image_id=image_id, url=urls[0], metadata=meta, allow_duplicate_url=True)
 
     # simple meta search
     search_res = self.app.inputs.search_by_metadata({"key": "value"})
@@ -185,8 +183,7 @@ class TestSearch(unittest.TestCase):
     self.assertEqual(len(search_res), 0)
 
     # nested meta search
-    search_res = self.app.inputs.search_by_metadata(
-      {"key1": {"key2": {"key3": "value_level34"}}})
+    search_res = self.app.inputs.search_by_metadata({"key1": {"key2": {"key3": "value_level34"}}})
     self.assertEqual(len(search_res), 0)
 
     self.app.inputs.delete(image_id)
@@ -197,9 +194,8 @@ class TestSearch(unittest.TestCase):
     # upload image
     image_id = uuid.uuid4().hex
     meta = {'key': 'value', 'key2': 'value2', 'key3': 'value3'}
-    img1 = self.app.inputs.create_image_from_url(image_id=image_id, url=urls[0],
-                                                 metadata=meta,
-                                                 allow_duplicate_url=True)
+    img1 = self.app.inputs.create_image_from_url(
+        image_id=image_id, url=urls[0], metadata=meta, allow_duplicate_url=True)
 
     # simple meta search
     search_res = self.app.inputs.search_by_metadata({"key": "value", "key2": "value2"})
@@ -207,8 +203,7 @@ class TestSearch(unittest.TestCase):
     # self.assertGreater(len(search_res), 0)
 
     # nested meta search
-    search_res = self.app.inputs.search_by_metadata(
-      {"key1": {"key2": {"key3": "value_level3"}}})
+    search_res = self.app.inputs.search_by_metadata({"key1": {"key2": {"key3": "value_level3"}}})
     self.assertEqual(len(search_res), 0)
 
     # delete first test image
@@ -216,22 +211,12 @@ class TestSearch(unittest.TestCase):
 
     # upload 2nd image
     image_id = uuid.uuid4().hex
-    meta = {
-      "key1": {
-        "key2": {
-          "key3": "value_level3",
-          "key3.2": "value3.2"
-        },
-        "key2.2": "value2.2"
-      }
-    }
-    img2 = self.app.inputs.create_image_from_url(image_id=image_id, url=urls[0],
-                                                 metadata=meta,
-                                                 allow_duplicate_url=True)
+    meta = {"key1": {"key2": {"key3": "value_level3", "key3.2": "value3.2"}, "key2.2": "value2.2"}}
+    img2 = self.app.inputs.create_image_from_url(
+        image_id=image_id, url=urls[0], metadata=meta, allow_duplicate_url=True)
 
     # nested meta search
-    search_res = self.app.inputs.search_by_metadata(
-      {"key1": {"key2": {"key3": "value_level3"}}})
+    search_res = self.app.inputs.search_by_metadata({"key1": {"key2": {"key3": "value_level3"}}})
     # disable this until citus migration fully finishes
     # self.assertGreater(len(search_res), 0)
 
@@ -244,8 +229,8 @@ class TestSearch(unittest.TestCase):
     # upload image
     image_id = uuid.uuid4().hex
     geo = Geo(GeoPoint(40.7128, 74.0059))
-    img1 = self.app.inputs.create_image_from_url(image_id=image_id, url=urls[0], geo=geo,
-                                                 allow_duplicate_url=True)
+    img1 = self.app.inputs.create_image_from_url(
+        image_id=image_id, url=urls[0], geo=geo, allow_duplicate_url=True)
 
     # simple geo search
     search_res = self.app.inputs.search_by_geo(GeoPoint(40.7128, 74.0059))
@@ -262,11 +247,11 @@ class TestSearch(unittest.TestCase):
     # upload 2nd image
     image_id = uuid.uuid4().hex
     geo = Geo(GeoPoint(40.7129, 74.0058))
-    img2 = self.app.inputs.create_image_from_url(image_id=image_id, url=urls[0], geo=geo,
-                                                 allow_duplicate_url=True)
+    img2 = self.app.inputs.create_image_from_url(
+        image_id=image_id, url=urls[0], geo=geo, allow_duplicate_url=True)
 
-    search_res = self.app.inputs.search_by_geo(GeoPoint(40.7128, 74.0059),
-                                               GeoLimit("kilometer", 9))
+    search_res = self.app.inputs.search_by_geo(
+        GeoPoint(40.7128, 74.0059), GeoLimit("kilometer", 9))
     # disable this until citus migration fully finishes
     # self.assertGreater(len(search_res), 0)
 
@@ -279,8 +264,8 @@ class TestSearch(unittest.TestCase):
     # upload an image
     image_id = uuid.uuid4().hex
     geo = Geo(GeoPoint(40.7129, 74.0058))
-    img2 = self.app.inputs.create_image_from_url(image_id=image_id, url=urls[0], geo=geo,
-                                                 allow_duplicate_url=True)
+    img2 = self.app.inputs.create_image_from_url(
+        image_id=image_id, url=urls[0], geo=geo, allow_duplicate_url=True)
 
     geo_box = GeoBox(GeoPoint(40.7028, 74.0009), GeoPoint(40.7328, 74.0359))
     search_res = self.app.inputs.search_by_geo(geo_box=geo_box)
@@ -296,8 +281,8 @@ class TestSearch(unittest.TestCase):
     # upload an image
     image_id = uuid.uuid4().hex
     geo = Geo(GeoPoint(40.7129, 74.0058))
-    img2 = self.app.inputs.create_image_from_url(image_id=image_id, url=urls[0], geo=geo,
-                                                 allow_duplicate_url=True)
+    img2 = self.app.inputs.create_image_from_url(
+        image_id=image_id, url=urls[0], geo=geo, allow_duplicate_url=True)
 
     term1 = clarifai.rest.InputSearchTerm(url=urls[0])
     geo_box = GeoBox(GeoPoint(40.7028, 74.0009), GeoPoint(40.7328, 74.0359))
@@ -325,9 +310,8 @@ class TestSearch(unittest.TestCase):
     # upload an image
     image_id = uuid.uuid4().hex
     geo = Geo(GeoPoint(40.7129, 74.0058))
-    img2 = self.app.inputs.create_image_from_url(image_id=image_id, url=urls[0], geo=geo,
-                                                 concepts=["train"],
-                                                 allow_duplicate_url=True)
+    img2 = self.app.inputs.create_image_from_url(
+        image_id=image_id, url=urls[0], geo=geo, concepts=["train"], allow_duplicate_url=True)
 
     geo_box = GeoBox(GeoPoint(40.7028, 74.0009), GeoPoint(40.7328, 74.0359))
     term1 = clarifai.rest.InputSearchTerm(geo=Geo(geo_box=geo_box))
@@ -376,14 +360,12 @@ class TestSearch(unittest.TestCase):
 
     # upload an image
     image_id = uuid.uuid4().hex
-    img1 = self.app.inputs.create_image_from_url(image_id=image_id, url=urls[0],
-                                                 concepts=["train"],
-                                                 allow_duplicate_url=True)
+    img1 = self.app.inputs.create_image_from_url(
+        image_id=image_id, url=urls[0], concepts=["train"], allow_duplicate_url=True)
 
     image_id = uuid.uuid4().hex
-    img2 = self.app.inputs.create_image_from_url(image_id=image_id, url=urls[1],
-                                                 concepts=["train"],
-                                                 allow_duplicate_url=True)
+    img2 = self.app.inputs.create_image_from_url(
+        image_id=image_id, url=urls[1], concepts=["train"], allow_duplicate_url=True)
 
     # search input term and verify the scores are always 1
     term1 = clarifai.rest.InputSearchTerm(concept="train")
@@ -416,8 +398,8 @@ class TestSearch(unittest.TestCase):
     """ more complex query, with both input and output concept search """
 
     # upload some cat and dog
-    img1 = self.app.inputs.create_image_from_url(urls[0], concepts=['trains'],
-                                                 allow_duplicate_url=True)
+    img1 = self.app.inputs.create_image_from_url(
+        urls[0], concepts=['trains'], allow_duplicate_url=True)
 
     term1 = clarifai.rest.InputSearchTerm(concept='trains')
     term2 = clarifai.rest.OutputSearchTerm(concept='platform', value=False)
@@ -434,8 +416,8 @@ class TestSearch(unittest.TestCase):
     """ with more complex queries """
 
     # upload some cat and dog
-    img1 = self.app.inputs.create_image_from_url(urls[1], concepts=['cat'],
-                                                 allow_duplicate_url=True)
+    img1 = self.app.inputs.create_image_from_url(
+        urls[1], concepts=['cat'], allow_duplicate_url=True)
     img2 = self.app.inputs.create_image_from_url(urls[3], allow_duplicate_url=True)
 
     term1 = clarifai.rest.InputSearchTerm(concept='cat')

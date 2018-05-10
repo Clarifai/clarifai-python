@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 
-import logging
-import unittest
-import os
 import base64
-import requests
+import logging
+import os
 import tempfile
+import unittest
+
 from clarifai.rest import Video as ClVideo
 from clarifai.rest import ClarifaiApp
 
@@ -53,7 +53,7 @@ class TestVideo(unittest.TestCase):
     v3 = ClVideo(base64=toddler_flowers_base64_bytes)
 
     with open(video_path, 'rb') as f:
-        v4 = ClVideo(file_obj=f)
+      v4 = ClVideo(file_obj=f)
 
   def _verify_video_response(self, video):
     """ validate if the response is a video """
@@ -81,14 +81,14 @@ class TestVideo(unittest.TestCase):
     url = 'https://s3.amazonaws.com/samples.clarifai.com/D7qTae7IQLKSI.gif'
 
     # predict by file raw bytes
-    raw_bytes = requests.get(url).content
+    raw_bytes = self.app.api.session.get(url).content
     res = self.m.predict_by_bytes(raw_bytes, is_video=True)
     self._verify_video_response(res)
 
   def test_predict_with_base64_bytes(self):
     url = 'https://s3.amazonaws.com/samples.clarifai.com/D7qTae7IQLKSI.gif'
 
-    raw_bytes = requests.get(url).content
+    raw_bytes = self.app.api.session.get(url).content
     base64_bytes = base64.b64encode(raw_bytes)
     res = self.m.predict_by_base64(base64_bytes, is_video=True)
     self._verify_video_response(res)
@@ -96,7 +96,7 @@ class TestVideo(unittest.TestCase):
   def test_predict_with_file(self):
     url = 'https://s3.amazonaws.com/samples.clarifai.com/D7qTae7IQLKSI.gif'
 
-    raw_bytes = requests.get(url).content
+    raw_bytes = self.app.api.session.get(url).content
     # predict by local filename
     f = tempfile.NamedTemporaryFile(delete=False)
     filename = f.name

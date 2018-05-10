@@ -1,3 +1,9 @@
+## [[2.2.3]](https://github.com/Clarifai/clarifai-python/releases/tag/2.2.3) - [PyPI](https://pypi.org/project/clarifai/2.2.3/) - 2018-05-10
+
+### Changed
+- Use requests.Session to persist and retry connections
+
+
 ## [[2.2.2]](https://github.com/Clarifai/clarifai-python/releases/tag/2.2.2) - [PyPI](https://pypi.org/project/clarifai/2.2.2/) - 2018-05-03
 
 ### Fixed

@@ -1,22 +1,20 @@
-import os
-import requests
-import unittest
-import uuid
-import time
 import base64
 import logging
+import os
+import time
+import unittest
+import uuid
 from io import BytesIO
+
 from clarifai.rest import Image as ClarifaiImage
-from clarifai.rest import ApiClient, UserError, ApiError
-from clarifai.rest import ClarifaiApp
-from clarifai.rest import Geo, GeoPoint
+from clarifai.rest import ApiClient, ApiError, ClarifaiApp, Geo, GeoPoint, UserError
 
 urls = [
-  "https://samples.clarifai.com/metro-north.jpg",
-  "https://samples.clarifai.com/wedding.jpg",
-  "https://samples.clarifai.com/facebook.png",
-  "https://samples.clarifai.com/dog.tiff",
-  "https://samples.clarifai.com/penguin.bmp",
+    "https://samples.clarifai.com/metro-north.jpg",
+    "https://samples.clarifai.com/wedding.jpg",
+    "https://samples.clarifai.com/facebook.png",
+    "https://samples.clarifai.com/dog.tiff",
+    "https://samples.clarifai.com/penguin.bmp",
 ]
 
 
@@ -36,7 +34,6 @@ class TestImages(unittest.TestCase):
   @classmethod
   def tearDownClass(cls):
     """ Cleanup """
-    pass
 
   def test_init_images(self):
     """ initialize Image object in different ways """
@@ -44,11 +41,11 @@ class TestImages(unittest.TestCase):
 
     img1 = ClarifaiImage(url=urls[2])
     with open(toddler_flowers_file_path, 'rb') as f:
-        img2 = ClarifaiImage(file_obj=f)
+      img2 = ClarifaiImage(file_obj=f)
     img3 = ClarifaiImage(filename=toddler_flowers_file_path)
 
     with open(toddler_flowers_file_path, 'rb') as f:
-        toddler_flowers_file_bytes = f.read()
+      toddler_flowers_file_bytes = f.read()
     toddler_flowers_base64_bytes = base64.b64encode(toddler_flowers_file_bytes)
     img4 = ClarifaiImage(base64=toddler_flowers_base64_bytes)
 
@@ -165,8 +162,8 @@ class TestImages(unittest.TestCase):
   def test_post_bulk_images(self):
     """ post bulk post images """
     img1 = ClarifaiImage(url=urls[0], concepts=['train', 'railway'], allow_dup_url=True)
-    img2 = ClarifaiImage(url=urls[1], concepts=['wedding'], not_concepts=['food'],
-                         allow_dup_url=True)
+    img2 = ClarifaiImage(
+        url=urls[1], concepts=['wedding'], not_concepts=['food'], allow_dup_url=True)
     ret_imgs = self.app.inputs.bulk_create_images([img1, img2])
 
     self.assertEqual(len(list(ret_imgs)), 2)
@@ -183,13 +180,13 @@ class TestImages(unittest.TestCase):
   def test_post_dup_url_with_check(self):
     """ by default the dup url check is enabled, the dup url will be rejected """
     image_id = uuid.uuid4().hex
-    img1 = self.app.inputs.create_image_from_url(image_id=image_id, url=urls[0],
-                                                 allow_duplicate_url=True)
+    img1 = self.app.inputs.create_image_from_url(
+        image_id=image_id, url=urls[0], allow_duplicate_url=True)
 
     with self.assertRaises(ApiError):
       image_id = uuid.uuid4().hex
-      img2 = self.app.inputs.create_image_from_url(image_id=image_id, url=urls[0],
-                                                   allow_duplicate_url=False)
+      img2 = self.app.inputs.create_image_from_url(
+          image_id=image_id, url=urls[0], allow_duplicate_url=False)
 
     self.app.inputs.delete(img1.input_id)
 
@@ -197,16 +194,16 @@ class TestImages(unittest.TestCase):
     """ we can skip the dup checking """
 
     image_id = uuid.uuid4().hex
-    img1 = self.app.inputs.create_image_from_url(image_id=image_id, url=urls[0],
-                                                 allow_duplicate_url=True)
+    img1 = self.app.inputs.create_image_from_url(
+        image_id=image_id, url=urls[0], allow_duplicate_url=True)
 
     image_id = uuid.uuid4().hex
-    img2 = self.app.inputs.create_image_from_url(image_id=image_id, url=urls[0],
-                                                 allow_duplicate_url=True)
+    img2 = self.app.inputs.create_image_from_url(
+        image_id=image_id, url=urls[0], allow_duplicate_url=True)
 
     image_id = uuid.uuid4().hex
-    img3 = self.app.inputs.create_image_from_url(image_id=image_id, url=urls[0],
-                                                 allow_duplicate_url=True)
+    img3 = self.app.inputs.create_image_from_url(
+        image_id=image_id, url=urls[0], allow_duplicate_url=True)
 
     self.app.inputs.delete(img1.input_id)
     self.app.inputs.delete(img2.input_id)
@@ -215,8 +212,8 @@ class TestImages(unittest.TestCase):
   def test_post_cropped_image(self):
     """ add cropped image """
 
-    image = self.app.inputs.create_image_from_url(url=urls[0], crop=[0.2, 0.4, 0.3, 0.6],
-                                                  allow_duplicate_url=True)
+    image = self.app.inputs.create_image_from_url(
+        url=urls[0], crop=[0.2, 0.4, 0.3, 0.6], allow_duplicate_url=True)
     self.assertEqual(image.url, urls[0])
     self.assertEqual(len(image.input_id) in [22, 32], True)
 
@@ -229,9 +226,8 @@ class TestImages(unittest.TestCase):
     """ add image with id """
 
     image_id = uuid.uuid4().hex
-    res = self.app.inputs.create_image_from_url(image_id=image_id, url=urls[0],
-                                                crop=[0.2, 0.4, 0.3, 0.6],
-                                                allow_duplicate_url=True)
+    res = self.app.inputs.create_image_from_url(
+        image_id=image_id, url=urls[0], crop=[0.2, 0.4, 0.3, 0.6], allow_duplicate_url=True)
 
     self.assertTrue(isinstance(res, ClarifaiImage))
     self.assertEqual(res.input_id, image_id)
@@ -246,11 +242,12 @@ class TestImages(unittest.TestCase):
 
     image_id = uuid.uuid4().hex
 
-    img = self.app.inputs.create_image_from_url(url=urls[0],
-                                                concepts=['aa1', 'aa2'],
-                                                not_concepts=['bb1', 'bb2'],
-                                                image_id=image_id,
-                                                allow_duplicate_url=True)
+    img = self.app.inputs.create_image_from_url(
+        url=urls[0],
+        concepts=['aa1', 'aa2'],
+        not_concepts=['bb1', 'bb2'],
+        image_id=image_id,
+        allow_duplicate_url=True)
 
     res = self.app.inputs.get(image_id)
     self.assertTrue(isinstance(res, ClarifaiImage))
@@ -264,10 +261,8 @@ class TestImages(unittest.TestCase):
     image_id = uuid.uuid4().hex
     meta = {'myid': image_id, 'key_id': 'test_meta'}
 
-    img = self.app.inputs.create_image_from_url(url=urls[0],
-                                                metadata=meta,
-                                                image_id=image_id,
-                                                allow_duplicate_url=True)
+    img = self.app.inputs.create_image_from_url(
+        url=urls[0], metadata=meta, image_id=image_id, allow_duplicate_url=True)
 
     res = self.app.inputs.get(image_id)
     self.assertTrue(isinstance(res, ClarifaiImage))
@@ -281,10 +276,8 @@ class TestImages(unittest.TestCase):
 
     image_id = uuid.uuid4().hex
     geo = Geo(GeoPoint(-30, 40))
-    img = self.app.inputs.create_image_from_url(url=urls[0],
-                                                geo=geo,
-                                                image_id=image_id,
-                                                allow_duplicate_url=True)
+    img = self.app.inputs.create_image_from_url(
+        url=urls[0], geo=geo, image_id=image_id, allow_duplicate_url=True)
 
     res = self.app.inputs.get(image_id)
     self.assertTrue(isinstance(res, ClarifaiImage))
@@ -303,11 +296,8 @@ class TestImages(unittest.TestCase):
     geo = Geo(GeoPoint(-30, 40))
     meta = {'myid': image_id, 'key_id': 'test_meta'}
 
-    img = self.app.inputs.create_image_from_url(url=urls[0],
-                                                geo=geo,
-                                                metadata=meta,
-                                                image_id=image_id,
-                                                allow_duplicate_url=True)
+    img = self.app.inputs.create_image_from_url(
+        url=urls[0], geo=geo, metadata=meta, image_id=image_id, allow_duplicate_url=True)
 
     res = self.app.inputs.get(image_id)
     self.assertTrue(isinstance(res, ClarifaiImage))
@@ -347,7 +337,7 @@ class TestImages(unittest.TestCase):
 
     # upload by bytes
     with open(_data_filename('tahoe.jpg'), 'rb') as f:
-        file_bytes = f.read()
+      file_bytes = f.read()
     img = self.app.inputs.create_image_from_bytes(file_bytes)
     self.assertTrue(img.url.startswith("https://s3.amazonaws.com/clarifai-api/img"))
     img_ret = self.app.inputs.get(input_id=img.input_id)
@@ -359,7 +349,7 @@ class TestImages(unittest.TestCase):
 
     # upload by base64 bytes
     with open(_data_filename('tahoe.jpg'), 'rb') as f:
-        file_bytes = f.read()
+      file_bytes = f.read()
     base64_bytes = base64.b64encode(file_bytes)
     img = self.app.inputs.create_image_from_base64(base64_bytes)
     self.assertTrue(img.url.startswith("https://s3.amazonaws.com/clarifai-api/img"))
@@ -377,7 +367,6 @@ class TestImages(unittest.TestCase):
     # ret = self.app.inputs.delete_all()
     # time.sleep(5)
     # FIXME(robert): this has to be tested in a separate app
-    pass
 
   def test_patch_metadata(self):
     """ test patching metadata """
@@ -388,19 +377,28 @@ class TestImages(unittest.TestCase):
     self.assertEqual(img.url, urls[0])
 
     # patch with metadata (adding first)
-    img_res = self.app.inputs.merge_metadata(input_id=img.input_id,
-                                             metadata={u'key1': 123, u'key2': 234})
+    img_res = self.app.inputs.merge_metadata(
+        input_id=img.input_id, metadata={
+            u'key1': 123,
+            u'key2': 234
+        })
     self.assertDictEqual(img_res.metadata, {u'key1': 123, u'key2': 234})
 
     # patch with metadata (merge)
-    img_res = self.app.inputs.merge_metadata(input_id=img.input_id,
-                                             metadata={u'key3': 345, u'key4': 456})
+    img_res = self.app.inputs.merge_metadata(
+        input_id=img.input_id, metadata={
+            u'key3': 345,
+            u'key4': 456
+        })
     self.assertDictContainsSubset({u'key1': 123, u'key2': 234}, img_res.metadata)
     self.assertDictContainsSubset({u'key3': 345, u'key4': 456}, img_res.metadata)
 
     # patch with metadata (merge)
-    img_res = self.app.inputs.merge_metadata(input_id=img.input_id,
-                                             metadata={u'key3': 345, u'key4': 456})
+    img_res = self.app.inputs.merge_metadata(
+        input_id=img.input_id, metadata={
+            u'key3': 345,
+            u'key4': 456
+        })
     self.assertDictContainsSubset({u'key1': 123, u'key2': 234}, img_res.metadata)
     self.assertDictContainsSubset({u'key3': 345, u'key4': 456}, img_res.metadata)
 
@@ -423,31 +421,30 @@ class TestImages(unittest.TestCase):
     self.assertEqual(img3.url, urls[1])
 
     # add tags
-    res3 = self.app.inputs.merge_concepts(input_id=img.input_id,
-                                          concepts=['cat', 'animal'],
-                                          not_concepts=['vehicle'])
+    res3 = self.app.inputs.merge_concepts(
+        input_id=img.input_id, concepts=['cat', 'animal'], not_concepts=['vehicle'])
     self.assertTrue(isinstance(res3, ClarifaiImage))
     self.assertSetEqual(set(res3.concepts), {'cat', 'animal'})
 
     # overwrite tags
-    res3 = self.app.inputs.merge_concepts(input_id=img.input_id,
-                                          concepts=['dog', 'animal'],
-                                          not_concepts=['vehicle'],
-                                          overwrite=True)
+    res3 = self.app.inputs.merge_concepts(
+        input_id=img.input_id,
+        concepts=['dog', 'animal'],
+        not_concepts=['vehicle'],
+        overwrite=True)
     self.assertTrue(isinstance(res3, ClarifaiImage))
     # input_new = self.app.inputs.get(res3.input_id)
     # self.assertSetEqual(set(input_new.concepts), {'dog', 'animal'})
 
     # delete tags
-    res3 = self.app.inputs.delete_concepts(input_id=img.input_id,
-                                           concepts=['animal'])
+    res3 = self.app.inputs.delete_concepts(input_id=img.input_id, concepts=['animal'])
     self.assertTrue(isinstance(res3, ClarifaiImage))
     # self.assertSetEqual(set(res3.concepts), {'dog'})
 
     # bulk merge tags
     res3 = self.app.inputs.bulk_merge_concepts([img.input_id, img3.input_id],
-                                               [[('cat', True), ('animal', False)],
-                                                [('vehicle', False)]])
+                                               [[('cat', True),
+                                                 ('animal', False)], [('vehicle', False)]])
     self.assertTrue(isinstance(res3, list))
     self.assertTrue(all([isinstance(one, ClarifaiImage) for one in res3]))
     # self.assertSetEqual(set(res3[0].concepts), {'cat', 'dog'})
@@ -473,7 +470,7 @@ class TestImages(unittest.TestCase):
   def test_base64_from_fileobj(self):
 
     # send it from a remote url
-    data = requests.get(urls[0]).content
+    data = self.app.api.session.get(urls[0]).content
 
     image = self.app.inputs.create_image(ClarifaiImage(file_obj=BytesIO(data)))
     self.assertEqual(len(image.input_id) in [22, 32], True)
@@ -486,7 +483,7 @@ class TestImages(unittest.TestCase):
 
     # Send it from PIL image buffer
     imgurl = 'https://samples.clarifai.com/metro-north.jpg'
-    imgbytes = requests.get(imgurl).content
+    imgbytes = self.app.api.session.get(imgurl).content
 
     res = self.app.inputs.create_image_from_bytes(imgbytes)
     self.assertTrue(isinstance(res, ClarifaiImage))
@@ -498,9 +495,10 @@ class TestImages(unittest.TestCase):
 
   def not_TSET_csv_images(self):
     """ Test csv image """
-    res = self.api.add_inputs_file(BytesIO(
-      'https://samples.clarifai.com/metro-north.jpg\nhttps://samples.clarifai.com/logo.jpg'),
-      'csv')
+    res = self.api.add_inputs_file(
+        BytesIO(
+            'https://samples.clarifai.com/metro-north.jpg\nhttps://samples.clarifai.com/logo.jpg'),
+        'csv')
     self.assertEqual(len(res['inputs']), 2)
     self.assertEqual(res['inputs'][0]['url'], 'https://samples.clarifai.com/metro-north.jpg')
     self.assertEqual(res['inputs'][1]['url'], 'https://samples.clarifai.com/logo.jpg')

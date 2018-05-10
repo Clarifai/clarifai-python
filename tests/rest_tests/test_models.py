@@ -1,24 +1,22 @@
 # -*- coding: utf-8 -*-
 
-import os
-import time
-import uuid
 import base64
 import logging
-import requests
-import unittest
+import os
 import tempfile
+import time
+import unittest
+import uuid
+
+from clarifai.rest import ApiError, ClarifaiApp, Image, Model
 from mock import Mock
-from clarifai.rest import ApiClient, Image, UserError, ApiError
-from clarifai.rest import ClarifaiApp
-from clarifai.rest import Model
 
 urls = [
-  "https://samples.clarifai.com/metro-north.jpg",
-  "https://samples.clarifai.com/wedding.jpg",
-  "https://samples.clarifai.com/facebook.png",
-  "https://samples.clarifai.com/dog.tiff",
-  "https://samples.clarifai.com/penguin.bmp",
+    "https://samples.clarifai.com/metro-north.jpg",
+    "https://samples.clarifai.com/wedding.jpg",
+    "https://samples.clarifai.com/facebook.png",
+    "https://samples.clarifai.com/dog.tiff",
+    "https://samples.clarifai.com/penguin.bmp",
 ]
 
 
@@ -33,7 +31,6 @@ class TestModels(unittest.TestCase):
   @classmethod
   def tearDownClass(cls):
     """ Cleanup """
-    pass
 
   def test_get_all_models(self):
     """ test get the list of models """
@@ -239,7 +236,7 @@ class TestModels(unittest.TestCase):
     model.predict_by_url('  ' + urls[0] + ' ')
 
     # predict by file raw bytes
-    raw_bytes = requests.get(urls[0]).content
+    raw_bytes = self.app.api.session.get(urls[0]).content
     model.predict_by_bytes(raw_bytes)
 
     # predict by base64 bytes
@@ -289,7 +286,7 @@ class TestModels(unittest.TestCase):
     # predict by url
     f = tempfile.NamedTemporaryFile(delete=False)
     filename = f.name
-    raw_bytes = requests.get(urls[0]).content
+    raw_bytes = self.app.api.session.get(urls[0]).content
     f.write(raw_bytes)
     f.close()
 
@@ -326,14 +323,13 @@ class TestModels(unittest.TestCase):
 
     # create a model with concepts
 
-    img1 = self.app.inputs.create_image_from_url(url=urls[0], concepts=['cat', 'animal'],
-                                                 allow_duplicate_url=True)
-    img2 = self.app.inputs.create_image_from_url(url=urls[1], concepts=['dog'],
-                                                 allow_duplicate_url=True)
+    img1 = self.app.inputs.create_image_from_url(
+        url=urls[0], concepts=['cat', 'animal'], allow_duplicate_url=True)
+    img2 = self.app.inputs.create_image_from_url(
+        url=urls[1], concepts=['dog'], allow_duplicate_url=True)
 
     model_id = uuid.uuid4().hex
-    model = self.app.models.create(model_id=model_id,
-                                   concepts=['cat', 'dog', 'animal'])
+    model = self.app.models.create(model_id=model_id, concepts=['cat', 'dog', 'animal'])
 
     model_id_retrieved = model.model_id
     self.assertEqual(model_id, model_id_retrieved)
@@ -352,12 +348,13 @@ class TestModels(unittest.TestCase):
 
     # create a model with hyper parameters
     model_id = uuid.uuid4().hex
-    parameters = {'MAX_NITEMS': 1000000.0,
-                  'MIN_NITEMS': 1000,
-                  'N_EPOCHS': 5,
-                  'custom_training_cfg': 'custom_training_1layer',
-                  'custom_training_cfg_args': {}
-                  }
+    parameters = {
+        'MAX_NITEMS': 1000000.0,
+        'MIN_NITEMS': 1000,
+        'N_EPOCHS': 5,
+        'custom_training_cfg': 'custom_training_1layer',
+        'custom_training_cfg_args': {}
+    }
 
     model2 = self.app.models.create(model_id, hyper_parameters=parameters)
 
@@ -373,12 +370,13 @@ class TestModels(unittest.TestCase):
 
     # create a model with hyper parameters
     model_id = uuid.uuid4().hex
-    parameters = {'MAX_NITEMS': 300000,
-                  'MIN_NITEMS': 2000,
-                  'N_EPOCHS': 10,
-                  'custom_training_cfg': 'custom_training_1layer',
-                  'custom_training_cfg_args': {}
-                  }
+    parameters = {
+        'MAX_NITEMS': 300000,
+        'MIN_NITEMS': 2000,
+        'N_EPOCHS': 10,
+        'custom_training_cfg': 'custom_training_1layer',
+        'custom_training_cfg_args': {}
+    }
 
     model3 = self.app.models.create(model_id, hyper_parameters=parameters)
 
@@ -399,10 +397,10 @@ class TestModels(unittest.TestCase):
 
   def test_get_model_concepts(self):
     """ test get concepts from the model """
-    img1 = self.app.inputs.create_image_from_url(url=urls[0], concepts=['cat', 'animal'],
-                                                 allow_duplicate_url=True)
-    img2 = self.app.inputs.create_image_from_url(url=urls[1], concepts=['dog'],
-                                                 allow_duplicate_url=True)
+    img1 = self.app.inputs.create_image_from_url(
+        url=urls[0], concepts=['cat', 'animal'], allow_duplicate_url=True)
+    img2 = self.app.inputs.create_image_from_url(
+        url=urls[1], concepts=['dog'], allow_duplicate_url=True)
 
     model_id = uuid.uuid4().hex
     model = self.app.models.create(model_id=model_id, concepts=['cat', 'animal', 'dog'])
@@ -457,10 +455,10 @@ class TestModels(unittest.TestCase):
     self.app.models.delete(model_id)
 
     # train a good model
-    img1 = self.app.inputs.create_image_from_url(urls[0], concepts=['cat'],
-                                                 allow_duplicate_url=True)
-    img2 = self.app.inputs.create_image_from_url(urls[1], concepts=['dog'],
-                                                 allow_duplicate_url=True)
+    img1 = self.app.inputs.create_image_from_url(
+        urls[0], concepts=['cat'], allow_duplicate_url=True)
+    img2 = self.app.inputs.create_image_from_url(
+        urls[1], concepts=['dog'], allow_duplicate_url=True)
 
     model_id = uuid.uuid4().hex
     model4 = self.app.models.create(model_id=model_id, concepts=['cat', 'dog'])
@@ -473,10 +471,10 @@ class TestModels(unittest.TestCase):
   def test_train_timeout(self):
     ''' train(sync=True) timeout handling '''
 
-    img1 = self.app.inputs.create_image_from_url(urls[0], concepts=['cat'],
-                                                 allow_duplicate_url=True)
-    img2 = self.app.inputs.create_image_from_url(urls[1], concepts=['dog'],
-                                                 allow_duplicate_url=True)
+    img1 = self.app.inputs.create_image_from_url(
+        urls[0], concepts=['cat'], allow_duplicate_url=True)
+    img2 = self.app.inputs.create_image_from_url(
+        urls[1], concepts=['dog'], allow_duplicate_url=True)
 
     model_id = uuid.uuid4().hex
     model = self.app.models.create(model_id)
@@ -491,21 +489,9 @@ class TestModels(unittest.TestCase):
       # 21101: being trained
       # 21100: trained
 
-      ret_training = {'model_version': {
-        'id': 'xxxx',
-        'status': {
-          'code': 21103
-        }
-      }
-      }
+      ret_training = {'model_version': {'id': 'xxxx', 'status': {'code': 21103}}}
 
-      ret_trained = {'model_version': {
-        'id': 'xxxx',
-        'status': {
-          'code': 21100
-        }
-      }
-      }
+      ret_trained = {'model_version': {'id': 'xxxx', 'status': {'code': 21100}}}
 
       time_now_ts = time.time()
       if time_now_ts - start_ts > timeout:
@@ -573,10 +559,10 @@ class TestModels(unittest.TestCase):
   def test_patch_model_concepts(self):
     """ create a model, add ,delete, and overwrite concepts """
 
-    img1 = self.app.inputs.create_image_from_url(urls[0], concepts=['cat'],
-                                                 allow_duplicate_url=True)
-    img2 = self.app.inputs.create_image_from_url(urls[1], concepts=['dog'],
-                                                 allow_duplicate_url=True)
+    img1 = self.app.inputs.create_image_from_url(
+        urls[0], concepts=['cat'], allow_duplicate_url=True)
+    img2 = self.app.inputs.create_image_from_url(
+        urls[1], concepts=['dog'], allow_duplicate_url=True)
 
     model_id = uuid.uuid4().hex
     model = self.app.models.create(model_id)
@@ -595,10 +581,10 @@ class TestModels(unittest.TestCase):
   def test_create_and_update_model(self):
     """ add a model with no concept, and then add two concepts, verify with get_model """
 
-    img1 = self.app.inputs.create_image_from_url(urls[0], concepts=['cat', 'animal'],
-                                                 allow_duplicate_url=True)
-    img2 = self.app.inputs.create_image_from_url(urls[1], concepts=['dog'],
-                                                 allow_duplicate_url=True)
+    img1 = self.app.inputs.create_image_from_url(
+        urls[0], concepts=['cat', 'animal'], allow_duplicate_url=True)
+    img2 = self.app.inputs.create_image_from_url(
+        urls[1], concepts=['dog'], allow_duplicate_url=True)
 
     model_id = uuid.uuid4().hex
     model = self.app.models.create(model_id)
@@ -641,8 +627,8 @@ class TestModels(unittest.TestCase):
     model = model.update(action='overwrite', concept_ids=[])
     self.assertTrue(isinstance(model, Model))
 
-    model = model.update(model_name="new_model_name3", concepts_mutually_exclusive=False,
-                         concept_ids=['cat'])
+    model = model.update(
+        model_name="new_model_name3", concepts_mutually_exclusive=False, concept_ids=['cat'])
     self.assertTrue(isinstance(model, Model))
 
     model = model.update()
@@ -763,12 +749,10 @@ class TestModels(unittest.TestCase):
     model_id = uuid.uuid4().hex
     try:
       # Create inputs.
-      img1 = self.app.inputs.create_image_from_url(url=urls[0],
-                                                   concepts=['cat', 'animal'],
-                                                   allow_duplicate_url=True)
-      img2 = self.app.inputs.create_image_from_url(url=urls[1],
-                                                   concepts=['dog'],
-                                                   allow_duplicate_url=True)
+      img1 = self.app.inputs.create_image_from_url(
+          url=urls[0], concepts=['cat', 'animal'], allow_duplicate_url=True)
+      img2 = self.app.inputs.create_image_from_url(
+          url=urls[1], concepts=['dog'], allow_duplicate_url=True)
 
       # Create and train a model.
       model = self.app.models.create(model_id=model_id, concepts=['cat', 'dog', 'animal'])
