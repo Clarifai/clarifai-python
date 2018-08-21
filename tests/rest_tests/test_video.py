@@ -6,8 +6,8 @@ import os
 import tempfile
 import unittest
 
-from clarifai.rest import Video as ClVideo
 from clarifai.rest import ClarifaiApp
+from clarifai.rest import Video as ClVideo
 
 video_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'small.mp4')
 

@@ -1,3 +1,15 @@
+## [[2.3.0]](https://github.com/Clarifai/clarifai-python/releases/tag/2.3.0) - [PyPI](https://pypi.org/project/clarifai/2.3.0/) - 2018-08-20
+
+### Changed
+- Use Protobuf/gRPC to help with request/response JSON (de)serialization
+- Add `assert-code-quality.sh` for static analysis and run it on Travis, fix code style
+- Add AppVeyor
+
+### Removed
+
+- Remove unsupported patch outputs and get outputs on inputs
+
+
 ## [[2.2.3]](https://github.com/Clarifai/clarifai-python/releases/tag/2.2.3) - [PyPI](https://pypi.org/project/clarifai/2.2.3/) - 2018-05-10
 
 ### Changed

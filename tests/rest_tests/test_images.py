@@ -6,8 +6,9 @@ import unittest
 import uuid
 from io import BytesIO
 
+from clarifai.rest import ApiClient, ApiError, ClarifaiApp, Geo, GeoPoint
 from clarifai.rest import Image as ClarifaiImage
-from clarifai.rest import ApiClient, ApiError, ClarifaiApp, Geo, GeoPoint, UserError
+from clarifai.rest import UserError
 
 urls = [
     "https://samples.clarifai.com/metro-north.jpg",
@@ -85,12 +86,8 @@ class TestImages(unittest.TestCase):
 
     self.assertGreaterEqual(ccount, 0)
 
-  def test_get_images(self):
+  def test_get_inputs_by_page(self):
     """ test get all images """
-
-    # test the generator
-    for image in self.app.inputs.get_all():
-      self.assertTrue(isinstance(image, ClarifaiImage))
 
     # test the by_page() fetcher on first page
     for image in self.app.inputs.get_by_page():
@@ -174,7 +171,7 @@ class TestImages(unittest.TestCase):
       self.assertTrue(isinstance(img, ClarifaiImage))
       try:
         self.app.inputs.delete(img.input_id)
-      except ApiError as e:
+      except ApiError:
         pass
 
   def test_post_dup_url_with_check(self):
@@ -259,17 +256,24 @@ class TestImages(unittest.TestCase):
     """ add image with meta data, retrieve it and compare the meta data """
 
     image_id = uuid.uuid4().hex
-    meta = {'myid': image_id, 'key_id': 'test_meta'}
+    meta = {
+        'myid': image_id,
+        'key2': {
+            'key3': 4,
+            'key4#$!': True,
+        }
+    }
 
-    img = self.app.inputs.create_image_from_url(
+    self.app.inputs.create_image_from_url(
         url=urls[0], metadata=meta, image_id=image_id, allow_duplicate_url=True)
+    try:
+      res = self.app.inputs.get(image_id)
+    finally:
+      self.app.inputs.delete(image_id)
 
-    res = self.app.inputs.get(image_id)
     self.assertTrue(isinstance(res, ClarifaiImage))
     self.assertEqual(image_id, res.input_id)
     self.assertEqual(meta, res.metadata)
-
-    self.app.inputs.delete(image_id)
 
   def test_post_image_with_geo(self):
     """ add image with geo info, retrieve it and compare the meta data """
@@ -360,7 +364,7 @@ class TestImages(unittest.TestCase):
   def test_check_status(self):
     """ check process status """
     counts = self.app.inputs.check_status()
-    item = counts.dict()
+    counts.dict()
 
   def test_delete_all_images(self):
     """ test delete all images and verify the input count """
@@ -403,6 +407,19 @@ class TestImages(unittest.TestCase):
     self.assertDictContainsSubset({u'key3': 345, u'key4': 456}, img_res.metadata)
 
     # delete image
+    self.app.inputs.delete(img.input_id)
+
+  def test_image_concepts_applied_correctly(self):
+    """ concepts and not_concepts should be applied correctly in create_image """
+
+    img = self.app.inputs.create_image_from_url(
+        url=urls[0],
+        concepts=['cat', 'animal'],
+        not_concepts=['vehicle'],
+        allow_duplicate_url=True)
+    self.assertSetEqual(set(img.concepts), {'cat', 'animal'})
+    self.assertSetEqual(set(img.not_concepts), {'vehicle'})
+
     self.app.inputs.delete(img.input_id)
 
   def test_patch_image(self):
@@ -512,58 +529,6 @@ class TestImages(unittest.TestCase):
     self.assertEqual(res['inputs'][0]['id'], res2['image']['id'])
     res2 = self.api.get_input(input_id=res['inputs'][1]['id'])
     self.assertEqual(res['inputs'][1]['id'], res2['image']['id'])
-
-  def test_get_inputs_outputs(self):
-    """ test GET /inputs/:id/outputs """
-    res = self.app.inputs.create_image_from_url(url=urls[0], allow_duplicate_url=True)
-
-    res_outputs = self.app.inputs.get_outputs(res.input_id)
-    self.assertIn('outputs', res_outputs)
-    self.assertEqual(len(res_outputs['outputs'][0]['data']['concepts']), 20)
-
-    self.app.inputs.delete(res.input_id)
-
-  def test_patch_inputs_outputs(self):
-    """ test PATCH /inputs/:id/outputs """
-    res = self.app.inputs.create_image_from_url(url=urls[0], allow_duplicate_url=True)
-
-    res_outputs = self.app.inputs.get_outputs(res.input_id)
-    self.assertIn('outputs', res_outputs)
-    self.assertEqual(len(res_outputs['outputs'][0]['data']['concepts']), 20)
-
-    concept1 = res_outputs['outputs'][0]['data']['concepts'][1]
-    concept2 = res_outputs['outputs'][0]['data']['concepts'][2]
-
-    # remove two concepts
-    cid1 = concept1['id']
-    cid2 = concept2['id']
-
-    self.app.inputs.remove_outputs_concepts(res.input_id, [cid1, cid2])
-
-    # verify there are 18 concepts left
-    res_outputs = self.app.inputs.get_outputs(res.input_id)
-    self.assertIn('outputs', res_outputs)
-    self.assertEqual(len(res_outputs['outputs'][0]['data']['concepts']), 18)
-
-    # merge those two back
-    self.app.inputs.merge_outputs_concepts(res.input_id, [cid1, cid2])
-
-    # verify there are 20 concepts again
-    res_outputs = self.app.inputs.get_outputs(res.input_id)
-    self.assertIn('outputs', res_outputs)
-    self.assertEqual(len(res_outputs['outputs'][0]['data']['concepts']), 20)
-
-    # remove all of them
-    all_ids = [c['id'] for c in res_outputs['outputs'][0]['data']['concepts']]
-    self.app.inputs.remove_outputs_concepts(res.input_id, all_ids)
-
-    # verify there are 0 concept left
-    res_outputs = self.app.inputs.get_outputs(res.input_id)
-    self.assertIn('outputs', res_outputs)
-    if res_outputs['outputs'][0]['data'].get('concepts'):
-      self.assertIsNone(res_outputs['outputs'][0]['data']['concepts'])
-
-    self.app.inputs.delete(res.input_id)
 
   def test_partial_errors(self):
     """ upload a few failed urls and fetch by pages

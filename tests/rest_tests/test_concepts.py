@@ -1,18 +1,17 @@
 # -*- coding: utf-8 -*-
 
+import logging
 import unittest
 import uuid
-import logging
-from clarifai.rest import ClarifaiApp
-from clarifai.rest import ApiError
-from clarifai.rest import Concept
+
+from clarifai.rest import ApiError, ClarifaiApp, Concept
 
 urls = [
-  "https://samples.clarifai.com/metro-north.jpg",
-  "https://samples.clarifai.com/wedding.jpg",
-  "https://samples.clarifai.com/facebook.png",
-  "https://samples.clarifai.com/dog.tiff",
-  "https://samples.clarifai.com/penguin.bmp",
+    "https://samples.clarifai.com/metro-north.jpg",
+    "https://samples.clarifai.com/wedding.jpg",
+    "https://samples.clarifai.com/facebook.png",
+    "https://samples.clarifai.com/dog.tiff",
+    "https://samples.clarifai.com/penguin.bmp",
 ]
 
 # number of retries when adding concept with random id hits random collision
@@ -88,12 +87,8 @@ class TestConcepts(unittest.TestCase):
   def test_get_concept(self):
     """ test get one concept by id """
 
-    # try to get a few public model concepts
     concept = self.app.concepts.get('ai_vhvTrLRT')
     self.assertEqual(concept.concept_name, 'affection')
-
-    concept = self.app.concepts.get('ai_7SpG1937')
-    self.assertEqual(concept.concept_name, 'crocodile')
 
   def test_get_concept_multi_lang(self):
     """ test get one concept by id when it's not English """
@@ -130,55 +125,40 @@ class TestConcepts(unittest.TestCase):
     concept = self.app.concepts.get(new_cid)
     self.assertEqual(concept.concept_name, new_cid)
 
-  def test_add_concept(self):
-    """ test add a concept """
+  def test_add_concept_with_id(self):
+    """ test add a concept with only ID"""
 
-    # add a concept with only ID
-    # retry if random id happens to be duplicate
-    for i in range(concept_retry):
-      try:
-        new_cid = 'test_' + uuid.uuid4().hex
-        concept = self.app.concepts.create(concept_id=new_cid)
-        self.assertEqual(concept.concept_id, new_cid)
-        break
-      except ApiError as e:
-        if e.response.status_code == 400 and e.error_code == 40003:
-          pass
-        else:
-          raise e
-      self.assertGreater(concept_retry, i + 1,
-                         "We are on last retry, fail to create concept with random id due "
-                         "to collision")
+    new_cid = 'test_' + uuid.uuid4().hex
+    concept = self.app.concepts.create(concept_id=new_cid)
+    self.assertEqual(concept.concept_id, new_cid)
 
     cnew = self.app.concepts.get(new_cid)
     self.assertEqual(cnew.concept_id, new_cid)
     self.assertEqual(cnew.concept_name, new_cid)
 
+  def test_add_concept_with_id_and_name(self):
+    """ test add a concept with ID and name"""
+
     # add a concept with ID and name
-    # retry if random id happens to be duplicate
-    for i in range(concept_retry):
-      try:
-        new_cid = 'test_' + uuid.uuid4().hex
-        new_cname = 'test_name_' + uuid.uuid4().hex
-        concept = self.app.concepts.create(concept_id=new_cid, concept_name=new_cname)
-        self.assertEqual(concept.concept_id, new_cid)
-        break
-      except ApiError as e:
-        if e.response.status_code == 400 and e.error_code == 40003:
-          pass
-        else:
-          raise e
-      self.assertGreater(concept_retry, i + 1,
-                         "We are on last retry, fail to create concept with random id due "
-                         "to collision")
+    new_cid = 'test_' + uuid.uuid4().hex
+    new_cname = 'test_name_' + uuid.uuid4().hex
+    concept = self.app.concepts.create(concept_id=new_cid, concept_name=new_cname)
+    self.assertEqual(concept.concept_id, new_cid)
 
     cnew = self.app.concepts.get(new_cid)
     self.assertEqual(cnew.concept_id, new_cid)
     self.assertEqual(cnew.concept_name, new_cname)
 
+  def test_add_concept_should_raise_on_duplicate_id(self):
+    """ test raise on duplicate ID """
+
+    new_cid = 'test_' + uuid.uuid4().hex
+
+    self.app.concepts.create(concept_id=new_cid)
+
     # ERROR: add a duplicate concept id
     with self.assertRaises(ApiError):
-      concept = self.app.concepts.create(concept_id=new_cid, concept_name=new_cname)
+      self.app.concepts.create(concept_id=new_cid)
 
   def test_add_concepts(self):
     """ test add a few concepts """
@@ -196,22 +176,22 @@ class TestConcepts(unittest.TestCase):
       self.assertTrue(concept.concept_name.startswith('name_'))
 
   def test_search_concepts(self):
-    """ test search concept
-    """
+    """ test search concept """
     concepts = self.app.concepts.search('dog*')
     self.assertGreaterEqual(len(list(concepts)), 2)
 
+  def test_search_concepts_with_explicit_en_lang(self):
+    """ test search concepts with English language set explicitly """
     concepts = self.app.concepts.search('dog*', lang='en')
     self.assertGreaterEqual(len(list(concepts)), 2)
 
-  def test_search_concepts_with_multi_lang(self):
-    """ test search concepts using non-English language
-    """
+  def test_search_concepts_with_zh_lang(self):
+    """ test search concepts using non-English language """
     concepts = self.app.concepts.search(u'狗*', lang='zh')
     self.assertGreaterEqual(len(list(concepts)), 3)
 
   def test_update_one_concept(self):
-    """ patch one concept """
+    """ update one concept """
 
     # add a concept with only ID
     try:
@@ -232,7 +212,7 @@ class TestConcepts(unittest.TestCase):
     self.assertEqual(concept.concept_name, new_name)
 
   def test_update_more_concepts(self):
-    """ patch more than one concept """
+    """ update more than one concept """
 
     # add a concept with only ID
     try:
@@ -258,16 +238,16 @@ class TestConcepts(unittest.TestCase):
         raise e
 
     new_name = 'test_new_name' + uuid.uuid4().hex
-    concepts = self.app.concepts.bulk_update(concept_ids=[new_cid1, new_cid2],
-                                             concept_names=[new_name] * 2)
+    concepts = self.app.concepts.bulk_update(
+        concept_ids=[new_cid1, new_cid2], concept_names=[new_name] * 2)
 
     self.assertEqual(concepts[0].concept_id, new_cid1)
     self.assertEqual(concepts[0].concept_name, new_name)
     self.assertEqual(concepts[1].concept_id, new_cid2)
     self.assertEqual(concepts[1].concept_name, new_name)
 
-  def test_update_public_concept(self):
-    """ update public concept should fail """
+  def test_updating_public_concept_should_raise(self):
+    """ updating a public concept should raise """
     cid = 'ai_98Xb0K3q'
     new_name = 'does_not_matter'
 

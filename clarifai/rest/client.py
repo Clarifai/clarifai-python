@@ -10,6 +10,7 @@ import logging
 import os
 import platform
 import time
+import warnings
 from configparser import ConfigParser
 from enum import Enum
 from io import BytesIO
@@ -21,7 +22,38 @@ from future.moves.urllib.parse import urlparse
 from jsonschema import validate
 from past.builtins import basestring
 
-from .geo import Geo, GeoBox, GeoLimit, GeoPoint
+from clarifai.errors import ApiClientError, ApiError, TokenError, UserError  # noqa
+from clarifai.rest.geo import Geo, GeoBox, GeoLimit, GeoPoint
+from clarifai.rest.grpc.grpc_json_channel import GRPCJSONChannel, dict_to_protobuf, protobuf_to_dict
+from clarifai.versions import CLIENT_VERSION, OS_VER, PYTHON_VERSION  # noqa
+from proto.clarifai.api.concept_pb2 import Concept as ConceptPB
+from proto.clarifai.api.concept_pb2 import (ConceptQuery, GetConceptRequest, ListConceptsRequest,
+                                            PatchConceptsRequest, PostConceptsRequest,
+                                            PostConceptsSearchesRequest)
+from proto.clarifai.api.data_pb2 import Data as DataPB
+from proto.clarifai.api.endpoint_pb2 import _V2
+from proto.clarifai.api.endpoint_pb2_grpc import V2Stub
+from proto.clarifai.api.input_pb2 import (DeleteInputRequest, DeleteInputsRequest,
+                                          GetInputCountRequest, GetInputRequest)
+from proto.clarifai.api.input_pb2 import Input as InputPB
+from proto.clarifai.api.input_pb2 import (ListInputsRequest, ListModelInputsRequest,
+                                          PatchInputsRequest, PostInputsRequest,
+                                          PostModelFeedbackRequest, PostModelOutputsRequest)
+from proto.clarifai.api.model_pb2 import (DeleteModelRequest, DeleteModelsRequest, GetModelRequest,
+                                          ListModelsRequest)
+from proto.clarifai.api.model_pb2 import Model as ModelPB
+from proto.clarifai.api.model_pb2 import ModelQuery
+from proto.clarifai.api.model_pb2 import OutputConfig as OutputConfigPB
+from proto.clarifai.api.model_pb2 import OutputInfo as OutputInfoPB
+from proto.clarifai.api.model_pb2 import (PatchModelsRequest, PostModelsRequest,
+                                          PostModelsSearchesRequest)
+from proto.clarifai.api.model_version_pb2 import (
+    DeleteModelVersionRequest, GetModelVersionRequest, ListModelVersionsRequest,
+    PostModelVersionMetricsRequest, PostModelVersionsRequest)
+from proto.clarifai.api.search_pb2 import PostSearchesRequest, PostSearchFeedbackRequest, Query
+from proto.clarifai.api.workflow_pb2 import (GetWorkflowRequest, ListPublicWorkflowsRequest,
+                                             ListWorkflowsRequest, PostWorkflowResultsRequest)
+from proto.clarifai.utils.pagination.pagination_pb2 import Pagination
 
 logger = logging.getLogger('clarifai')
 logger.handlers = []
@@ -30,16 +62,16 @@ logger.setLevel(logging.ERROR)
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 
-CLIENT_VERSION = '2.2.3'
-OS_VER = os.sys.platform
-PYTHON_VERSION = '.'.join(
-    map(str, [os.sys.version_info.major, os.sys.version_info.minor, os.sys.version_info.micro]))
 GITHUB_TAG_ENDPOINT = 'https://api.github.com/repos/clarifai/clarifai-python/git/refs/tags'
 
 DEFAULT_TAG_MODEL = 'general-v1.3'
 
 RETRIES = 2  # if connections fail retry a couple times.
 CONNECTIONS = 20  # number of connections to maintain in pool.
+
+TOKENS_DEPRECATED_MESSAGE = (
+    "App ID/secret are deprecated, please switch to API keys. See here how: "
+    "http://help.clarifai.com/api/account-related/all-about-api-keys")
 
 
 class ClarifaiApp(object):
@@ -72,7 +104,6 @@ class ClarifaiApp(object):
         api_key=api_key,
         quiet=quiet,
         log_level=log_level)
-    self.auth = Auth(self.api)
     self.public_models = PublicModels(self.api)
 
     self.concepts = Concepts(self.api)
@@ -211,32 +242,6 @@ class ClarifaiApp(object):
       private_models = list(self.models.get_all(private_only=True))
 
 
-class Auth(object):
-  """ Clarifai Authentication
-
-      This class is initialized as an attribute of the clarifai application object,
-      accessed with app.auth
-  """
-
-  def __init__(self, api):
-    self.api = api
-
-  def get_token(self):
-    """ get token string
-
-    Returns:
-      The token as a string
-    """
-
-    res = self.api.get_token()
-    if res.get('access_token'):
-      token = res['access_token']
-    else:
-      token = None
-
-    return token
-
-
 class Input(object):
   """ The Clarifai Input object
   """
@@ -263,25 +268,25 @@ class Input(object):
 
     self.input_id = input_id
 
-    if not isinstance(concepts, (list, tuple)) and concepts is not None:
+    if concepts and not isinstance(concepts, (list, tuple)) and concepts:
       raise UserError('concepts should be a list or tuple')
 
-    if not isinstance(not_concepts, (list, tuple)) and not_concepts is not None:
+    if not_concepts and not isinstance(not_concepts, (list, tuple)):
       raise UserError('not_concepts should be a list or tuple')
 
-    if not isinstance(metadata, dict) and metadata is not None:
+    if metadata and not isinstance(metadata, dict):
       raise UserError('metadata should be a dictionary')
 
     # validate geo
-    if not isinstance(geo, Geo) and geo is not None:
+    if geo and not isinstance(geo, Geo):
       raise UserError('geo should be a Geo object')
 
     # validate more
-    if not isinstance(regions, list) and regions is not None and not isinstance(
-        regions[0], Region):
+    if (regions and not isinstance(regions, list) and
+        not all(isinstance(r, Region) for r in regions)):
       raise UserError('regions should be a list of Region')
 
-    if not isinstance(feedback_info, FeedbackInfo) and feedback_info is not None:
+    if feedback_info and not isinstance(feedback_info, FeedbackInfo):
       raise UserError('feedback_info should be a FeedbackInfo object')
 
     self.concepts = concepts
@@ -297,16 +302,16 @@ class Input(object):
     """ Return the data of the Input as a dict ready to be input to json.dumps. """
     data = {'data': {}}
 
-    if self.input_id is not None:
+    if self.input_id:
       data['id'] = self.input_id
 
     # fill the tags
-    if self.concepts is not None:
+    if self.concepts:
       pos_terms = [(term, True) for term in self.concepts]
     else:
       pos_terms = []
 
-    if self.not_concepts is not None:
+    if self.not_concepts:
       neg_terms = [(term, False) for term in self.not_concepts]
     else:
       neg_terms = []
@@ -346,12 +351,21 @@ class Image(Input):
                geo=None,
                feedback_info=None,
                allow_dup_url=False):
-    """
+    """ construct an image
+
+    Args:
       url: the url to a publically accessible image.
       file_obj: a file-like object in which read() will give you the bytes.
-      crop: a list of float in the range 0-1.0 in the order [top, left, bottom, right] to
-      crop out
+      crop: a list of float in the range 0-1.0 in the order [top, left, bottom, right] to crop out
             the asset before use.
+      image_id: the image ID
+      concepts: the concepts associated with the image
+      not_concepts: the concepts not associated with the image
+      regions: regions of an image
+      metadata: the metadata attached to the image
+      geo: geographical information about the image
+      feedback_info: feedback information
+      allow_dup_url: whether to allow duplicate URLs
     """
 
     super(Image, self).__init__(
@@ -363,7 +377,7 @@ class Image(Input):
         regions=regions,
         feedback_info=feedback_info)
 
-    if crop is not None and (not isinstance(crop, list) or len(crop) != 4):
+    if crop and (not isinstance(crop, list) or len(crop) != 4):
       raise UserError("crop arg must be list of 4 floats or None")
 
     self.url = url.strip() if url else url
@@ -387,7 +401,7 @@ class Image(Input):
 
       we_opened_file = True
 
-    if self.file_obj is not None:
+    if self.file_obj:
       if hasattr(self.file_obj, 'mode') and self.file_obj.mode != 'rb':
         raise UserError(
             ("If you're using open(), then you need to read bytes using the 'rb' mode. "
@@ -415,12 +429,12 @@ class Image(Input):
 
     image = {'image': {}}
 
-    if self.base64 is not None:
+    if self.base64:
       image['image']['base64'] = self.base64.decode('UTF-8')
     else:
       image['image']['url'] = self.url
 
-    if self.crop is not None:
+    if self.crop:
       image['image']['crop'] = self.crop
 
     image['image']['allow_duplicate_url'] = self.allow_dup_url
@@ -912,7 +926,7 @@ class Workflow(object):
         max_concepts=max_concepts,
         select_concepts=select_concepts)
 
-    res = self.predict([input], model_output_info)
+    res = self.predict([input], model_output_config)
     return res
 
   def predict(self, inputs, output_config=None):
@@ -968,7 +982,7 @@ class Workflows(object):
 
     Examples:
       >>> for workflow in app.workflows.get_all():
-      >>>   print workflow.id
+      >>>   print(workflow.id)
     """
 
     res = self.api.get_workflows(public_only)
@@ -1061,7 +1075,6 @@ class Models(object):
     except ApiError as e:
       if e.error_code == 11007:
         logger.debug("not authorized to call GET /models. Unable to cache models")
-        models = []
       else:
         raise e
 
@@ -1120,6 +1133,9 @@ class Models(object):
       status = res['status']
       raise UserError('code: %d, desc: %s, details: %s' % (status['code'], status['description'],
                                                            status['details']))
+    else:
+      raise NotImplementedError('The response returned no model and no status, unable to handle'
+                                'such response in the client')
 
     return model
 
@@ -1129,12 +1145,7 @@ class Models(object):
         For public model, the app_id is either '' or 'main'
         For private model, the app_id is not empty but not 'main'
     """
-    app_id = model.app_id
-
-    if app_id == '' or app_id == 'main':
-      return True
-    else:
-      return False
+    return model.app_id == '' or model.app_id == 'main'
 
   def get_all(self, public_only=False, private_only=False):
     """ Get all models in the application
@@ -1148,7 +1159,7 @@ class Models(object):
 
     Examples:
       >>> for model in app.models.get_all():
-      >>>     print model.model_name
+      >>>     print(model.model_name)
     """
 
     page = 1
@@ -1195,9 +1206,9 @@ class Models(object):
     res = self.api.get_models(page, per_page)
     results = [self._to_obj(one) for one in res['models']]
 
-    if public_only is True:
+    if public_only:
       results = filter(lambda m: self._is_public(m), results)
-    elif private_only is True:
+    elif private_only:
       results = filter(lambda m: not self._is_public(m), results)
 
     return results
@@ -1225,7 +1236,7 @@ class Models(object):
           >>> app.models.delete('model_id1', version_id='version1')
     """
 
-    if version_id is None:
+    if not version_id:
       res = self.api.delete_model(model_id)
     else:
       res = self.api.delete_model_version(model_id, version_id)
@@ -1305,20 +1316,23 @@ class Models(object):
         if res is None:
           raise e
 
-        if len(res) > 0:
-          # exclude embed and cluster model when it's not explicitly searched for
-          if model_type is None:
-            res = list(
-                filter(
-                    lambda one: (one.output_info['type'] != u'embed') & (one.output_info['type'] != u'cluster'),
-                    res))
-
+        # exclude embed and cluster model when it's not explicitly searched for
+        if not model_type:
+          res = [
+              found_model for found_model in res
+              if found_model.output_info['type'] not in (u'embed', u'cluster')
+          ]
         if len(res) > 1:
-          logging.error('Model search results with multiple models. Please refine your search')
+          logging.error('A model by the name of %s or a single similarly-named model could not be '
+                        'found' % model_name)
           return None
 
+        # TODO(Rok) HIGH: This sets the return value to a dict, but previous return values are Model
+        #                 objects.
         model = res[0]
         self.model_id_cache.update({(model_name, model_type): model.model_id})
+      else:
+        model = None
 
     return model
 
@@ -1581,8 +1595,8 @@ class Inputs(object):
 
     Examples:
       >>> status = app.inputs.check_status()
-      >>> print status.code
-      >>> print status.description
+      >>> print(status.code)
+      >>> print(status.description)
     """
 
     ret = self.api.get_inputs_status()
@@ -1602,7 +1616,7 @@ class Inputs(object):
 
     Examples:
       >>> for image in app.inputs.get_all():
-      >>>     print image.input_id
+      >>>     print(image.input_id)
     """
 
     page = 1
@@ -1644,7 +1658,7 @@ class Inputs(object):
 
     Examples:
       >>> for image in app.inputs.get_by_page(2, 10):
-      >>>     print image.input_id
+      >>>     print(image.input_id)
     """
 
     try:
@@ -1677,7 +1691,7 @@ class Inputs(object):
 
     Examples:
       >>> ret = app.inputs.delete('id1')
-      >>> print ret.code
+      >>> print(ret.code)
     """
 
     if isinstance(input_id, list):
@@ -1704,7 +1718,7 @@ class Inputs(object):
 
     Examples:
       >>> image = app.inputs.get('id1')
-      >>> print image.input_id
+      >>> print(image.input_id)
 
     """
 
@@ -1735,7 +1749,7 @@ class Inputs(object):
     res = self.api.search_inputs(qb.dict(), page, per_page)
 
     # output raw result when the flag is set
-    if raw is True:
+    if raw:
       return res
 
     hits = [self._to_search_obj(one) for one in res['hits']]
@@ -1810,8 +1824,6 @@ class Inputs(object):
       elif image.base64:
         term = OutputSearchTerm(base64=image.base64.decode('UTF-8'))
       elif image.file_obj:
-        base64_bytes = ''
-
         if hasattr(image.file_obj, 'getvalue'):
           base64_bytes = base64_lib.b64encode(image.file_obj.getvalue()).decode('UTF-8')
         elif hasattr(image.file_obj, 'read'):
@@ -1820,6 +1832,8 @@ class Inputs(object):
           raise UserError("Not sure how to read your file_obj")
 
         term = OutputSearchTerm(base64=base64_bytes)
+      else:
+        raise UserError('Unrecognized image object')
 
       qb.add_term(term)
 
@@ -1841,6 +1855,8 @@ class Inputs(object):
     elif base64bytes:
       img = Image(base64=base64bytes, crop=crop)
       res = self.search_by_image(image=img, page=page, per_page=per_page, raw=raw)
+    else:
+      raise UserError('None of the arguments was passed in')
 
     return res
 
@@ -2333,12 +2349,11 @@ class Inputs(object):
     # get concepts
     concepts = []
     not_concepts = []
-    if one['data'].get('concepts'):
-      for concept in one['data']['concepts']:
-        if concept['value'] == 1:
-          concepts.append(concept['name'])
-        else:
-          not_concepts.append(concept['name'])
+    for concept in one['data'].get('concepts', []):
+      if concept.get('value', 1) == 1:
+        concepts.append(concept['name'])
+      else:
+        not_concepts.append(concept['name'])
 
     if not concepts:
       concepts = None
@@ -2347,12 +2362,12 @@ class Inputs(object):
       not_concepts = None
 
     # get metadata
-    metadata = one['data'].get('metadata', None)
+    metadata = one['data'].get('metadata')
 
     # get geo
-    geo = geo_json = one['data'].get('geo', None)
+    geo = geo_json = one['data'].get('geo')
 
-    if geo_json is not None:
+    if geo_json:
       geo_schema = {
           'additionalProperties': False,
           'type': 'object',
@@ -2376,24 +2391,23 @@ class Inputs(object):
 
     # get regions
     regions = None
-    regions_json = one['data'].get('regions', None)
+    regions_json = one['data'].get('regions')
     if regions_json:
       regions = [
           Region(
               region_id=r['id'],
-              region_info=RegionInfo(bbox=BoundingBox(
-                  top_row=r['region_info']['bounding_box']['top_row'],
-                  left_col=r['region_info']['bounding_box']['left_col'],
-                  bottom_row=r['region_info']['bounding_box']['bottom_row'],
-                  right_col=r['region_info']['bounding_box']['right_col'])),
+              region_info=RegionInfo(
+                  bbox=BoundingBox(
+                      top_row=r['region_info']['bounding_box']['top_row'],
+                      left_col=r['region_info']['bounding_box']['left_col'],
+                      bottom_row=r['region_info']['bounding_box']['bottom_row'],
+                      right_col=r['region_info']['bounding_box']['right_col'])),
               face=Face(FaceIdentity([c for c in r['data']['face']['identity']['concepts']]))
               if 'data' in r else None) for r in regions_json
       ]
 
     input_id = one['id']
     if one['data'].get('image'):
-
-      # get allow_dup_url
       allow_dup_url = one['data']['image'].get('allow_duplicate_url', False)
 
       if one['data']['image'].get('url'):
@@ -2442,6 +2456,8 @@ class Inputs(object):
               geo=geo,
               regions=regions,
               allow_dup_url=allow_dup_url)
+      else:
+        raise UserError('Unknown input type')
     elif one['data'].get('video'):
       raise UserError('Not supported yet')
     else:
@@ -2451,45 +2467,6 @@ class Inputs(object):
       one_input.status = ApiStatus(one['status'])
 
     return one_input
-
-  def get_outputs(self, input_id):
-    """ get the output predictions for a particular input
-
-    Args:
-      input_id: the unique identifier of the input
-
-    Returns:
-      the input with the output predictions
-    """
-    return self.api.get_outputs(input_id)
-
-  def remove_outputs_concepts(self, input_id, concept_ids):
-    """
-    Remove concepts from the outputs predictions.
-    The concept ids must be present in your app
-
-    Args:
-      input_id: the unique identifier of the input
-      concept_ids: the list of concept ids to be removed
-
-    Returns:
-      the patched input in JSON object
-    """
-    return self.api.patch_outputs(input_id, action='remove', concept_ids=concept_ids)
-
-  def merge_outputs_concepts(self, input_id, concept_ids):
-    """
-    Merge new concepts into the outputs predictions.
-    The concept ids must be present in your app
-
-    Args:
-      input_id: the unique identifier of the input
-      concept_ids: the list of concept ids to be merged
-
-    Returns:
-      the patched input in JSON object
-    """
-    return self.api.patch_outputs(input_id, action='merge', concept_ids=concept_ids)
 
 
 class Concepts(object):
@@ -2530,11 +2507,11 @@ class Concepts(object):
 
     Examples:
       >>> for concept in app.concepts.get_by_page(2, 10):
-      >>>     print concept.concept_id
+      >>>     print(concept.concept_id)
     """
 
     res = self.api.get_concepts(page, per_page)
-    results = [self._to_obj(one) for one in res['concepts']]
+    results = [self._to_obj(one) for one in res.get('concepts', [])]
 
     return results
 
@@ -2583,7 +2560,7 @@ class Concepts(object):
     while True:
       res = self.api.search_concepts(term, page, per_page, lang)
 
-      if not res['concepts']:
+      if not res.get('concepts'):
         break
 
       for one in res['concepts']:
@@ -2616,6 +2593,7 @@ class Concepts(object):
     Args:
       concept_ids: a list of concept IDs, in sequence
       concept_names: a list of corresponding concept names, in the same sequence
+      action: the type of update
 
     Returns:
       the new Concept object
@@ -2697,19 +2675,15 @@ class Model(object):
       self.model_status_code = item['model_version']['status']['code']
 
       self.output_info = item.get('output_info', {})
+
+      output_config = self.output_info.get('output_config', {})
+      self.concepts_mutually_exclusive = output_config.get('concepts_mutually_exclusive', False)
+      self.closed_environment = output_config.get('closed_environment', False)
+
+      hyper_parameters = output_config.get('hyper_parameters', None)
+      self.hyper_parameters = json.loads(hyper_parameters) if hyper_parameters else None
+
       self.concepts = []
-
-      if self.output_info.get('output_config'):
-        output_config = self.output_info['output_config']
-        self.concepts_mutually_exclusive = output_config['concepts_mutually_exclusive']
-        self.closed_environment = output_config['closed_environment']
-
-        if output_config.get('hyper_parameters'):
-          self.hyper_parameters = json.loads(output_config['hyper_parameters'])
-      else:
-        self.concepts_mutually_exclusive = False
-        self.closed_environment = False
-
       if self.output_info.get('data', {}).get('concepts'):
         for concept in self.output_info['data']['concepts']:
           concept = Concept(
@@ -2735,7 +2709,7 @@ class Model(object):
       >>> model.get_info(verbose=True)
     """
 
-    if verbose is False:
+    if not verbose:
       ret = self.api.get_model(self.model_id)
     else:
       ret = self.api.get_model_output_info(self.model_id)
@@ -2790,6 +2764,7 @@ class Model(object):
 
     Args:
       sync: indicating synchronous or asynchronous, default is True
+      timeout: Used when sync=True. Num. of seconds we should wait for training to complete.
 
     Returns:
       the Model object
@@ -2814,9 +2789,9 @@ class Model(object):
     # 21103: queued for training
     # 21101: being trained
 
-    wait_interval = 1
     time_start = time.time()
 
+    res_ver = None
     while model_status_code == 21103 or model_status_code == 21101:
 
       elapsed = time.time() - time_start
@@ -2840,10 +2815,10 @@ class Model(object):
       res_ver = self.api.get_model_version(model_id, model_version)
       model_status_code = res_ver['model_version']['status']['code']
 
-    res['model']['model_version'] = res_ver['model_version']
+    if res_ver:
+      res['model']['model_version'] = res_ver['model_version']
 
-    model = self._to_obj(res['model'])
-    return model
+    return self._to_obj(res['model'])
 
   def predict_by_url(self,
                      url,
@@ -2873,11 +2848,12 @@ class Model(object):
     else:
       input = Image(url=url)
 
-    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(
-        language=lang,
-        min_value=min_value,
-        max_concepts=max_concepts,
-        select_concepts=select_concepts))
+    model_output_info = ModelOutputInfo(
+        output_config=ModelOutputConfig(
+            language=lang,
+            min_value=min_value,
+            max_concepts=max_concepts,
+            select_concepts=select_concepts))
 
     res = self.predict([input], model_output_info)
     return res
@@ -2909,11 +2885,12 @@ class Model(object):
       else:
         input = Image(file_obj=fileio)
 
-    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(
-        language=lang,
-        min_value=min_value,
-        max_concepts=max_concepts,
-        select_concepts=select_concepts))
+    model_output_info = ModelOutputInfo(
+        output_config=ModelOutputConfig(
+            language=lang,
+            min_value=min_value,
+            max_concepts=max_concepts,
+            select_concepts=select_concepts))
 
     res = self.predict([input], model_output_info)
     return res
@@ -2946,11 +2923,12 @@ class Model(object):
     else:
       input = Image(base64=base64_bytes)
 
-    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(
-        language=lang,
-        min_value=min_value,
-        max_concepts=max_concepts,
-        select_concepts=select_concepts))
+    model_output_info = ModelOutputInfo(
+        output_config=ModelOutputConfig(
+            language=lang,
+            min_value=min_value,
+            max_concepts=max_concepts,
+            select_concepts=select_concepts))
 
     res = self.predict([input], model_output_info)
     return res
@@ -2981,11 +2959,12 @@ class Model(object):
     else:
       input = Image(base64=base64_bytes)
 
-    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(
-        language=lang,
-        min_value=min_value,
-        max_concepts=max_concepts,
-        select_concepts=select_concepts))
+    model_output_info = ModelOutputInfo(
+        output_config=ModelOutputConfig(
+            language=lang,
+            min_value=min_value,
+            max_concepts=max_concepts,
+            select_concepts=select_concepts))
 
     res = self.predict([input], model_output_info)
     return res
@@ -3197,6 +3176,10 @@ class Model(object):
 
     Args:
       input_id: input id for the feedback
+      url: the url of the input
+      concepts: concepts that are present
+      not_concepts: concepts that aren't present
+      feedback_info: feedback info
 
     Returns:
       None
@@ -3342,9 +3325,10 @@ class ApiClient(object):
 
   Args:
     self: instance of ApiClient
-    app_id: the app_id for an application you've created in your Clarifai account.
-    app_secret: the app_secret for the same application.
-    base_url: Base URL of the API endpoints.
+    app_id: (DEPRECATED) the app_id for an application you've created in your Clarifai account.
+    app_secret: (DEPRECATED) the app_secret for the same application.
+    base_url: base URL of the API endpoints.
+    api_key: the API key, used for authentication.
     quiet: if True then silence debug prints.
     log_level: log level from logging module
   """
@@ -3360,92 +3344,24 @@ class ApiClient(object):
                quiet=True,
                log_level=None):
 
-    if platform.system() == 'Windows':
-      homedir = os.environ.get('HOMEPATH', '.')
-    else:
-      homedir = os.environ.get('HOME', '.')
+    if app_id or app_secret:
+      warnings.warn('Tokens deprecated', DeprecationWarning)
+      raise DeprecationWarning(TOKENS_DEPRECATED_MESSAGE)
 
-    conf_file = os.path.join(homedir, '.clarifai', 'config')
-
-    if api_key is None:
-      if os.environ.get('CLARIFAI_API_KEY'):
-        logger.debug("Using env variables for api_key")
-        api_key_str = os.environ['CLARIFAI_API_KEY']
-      elif os.path.exists(conf_file):
-        parser = ConfigParser()
-        parser.optionxform = str
-
-        with open(conf_file, 'r') as fdr:
-          parser.readfp(fdr)
-
-        if parser.has_option('clarifai', 'CLARIFAI_API_KEY'):
-          api_key_str = parser.get('clarifai', 'CLARIFAI_API_KEY')
-        else:
-          api_key_str = ''
+    if not log_level:
+      if quiet:
+        log_level = logging.ERROR
       else:
-        api_key_str = ''
+        log_level = logging.DEBUG
+    logger.setLevel(log_level)
 
-    if app_id is None:
-      if os.environ.get('CLARIFAI_APP_ID') and os.environ.get('CLARIFAI_APP_SECRET'):
-        logger.debug("Using env variables for id and secret")
-        app_id_str = os.environ['CLARIFAI_APP_ID']
-        app_secret_str = os.environ['CLARIFAI_APP_SECRET']
-      elif os.path.exists(conf_file):
-        parser = ConfigParser()
-        parser.optionxform = str
+    if not api_key:
+      api_key = self._read_key_from_env_or_os()
+    self.api_key = api_key
 
-        with open(conf_file, 'r') as fdr:
-          parser.readfp(fdr)
-
-        if parser.has_option('clarifai', 'CLARIFAI_APP_ID') and \
-            parser.has_option('clarifai', 'CLARIFAI_APP_SECRET'):
-          app_id_str = parser.get('clarifai', 'CLARIFAI_APP_ID')
-          app_secret_str = parser.get('clarifai', 'CLARIFAI_APP_SECRET')
-        else:
-          app_id_str = app_secret_str = ''
-      else:
-        app_id_str = app_secret_str = ''
-
-    if base_url is None:
-      if os.environ.get('CLARIFAI_API_BASE'):
-        base_url_str = os.environ.get('CLARIFAI_API_BASE')
-      elif os.path.exists(conf_file):
-        parser = ConfigParser()
-        parser.optionxform = str
-
-        with open(conf_file, 'r') as fdr:
-          parser.readfp(fdr)
-
-        if parser.has_option('clarifai', 'CLARIFAI_API_BASE'):
-          base_url_str = parser.get('clarifai', 'CLARIFAI_API_BASE')
-        else:
-          base_url_str = 'api.clarifai.com'
-      else:
-        base_url_str = 'api.clarifai.com'
-    else:
-      base_url_str = base_url
-
-    if app_id and app_secret:
-      self.app_id = app_id
-      self.app_secret = app_secret
-      self.api_key = ''
-    elif api_key:
-      self.api_key = api_key
-      self.app_id = self.app_secret = ''
-    else:
-      self.app_id = app_id_str
-      self.app_secret = app_secret_str
-      self.api_key = api_key_str
-
-    if quiet:
-      logger.setLevel(logging.ERROR)
-    else:
-      logger.setLevel(logging.DEBUG)
-
-    if log_level is not None:
-      logger.setLevel(log_level)
-
-    parsed = urlparse(base_url_str)
+    if not base_url:
+      base_url = self._read_base_from_env_or_os()
+    parsed = urlparse(base_url)
     scheme = 'https' if parsed.scheme == '' else parsed.scheme
     base_url_parsed = parsed.path if not parsed.netloc else parsed.netloc
     self.base_url = base_url_parsed
@@ -3456,228 +3372,118 @@ class ApiClient(object):
     self.headers = None
 
     self.session = requests.Session()
-    a = requests.adapters.HTTPAdapter(
+    http_adapter = requests.adapters.HTTPAdapter(
         max_retries=RETRIES, pool_connections=CONNECTIONS, pool_maxsize=CONNECTIONS)
-    self.session.mount('http://', a)
-    self.session.mount('https://', a)
+    self.session.mount('http://', http_adapter)
+    self.session.mount('https://', http_adapter)
 
-    # Make sure when you create a client, it's ready for requests.
-    self.get_token()
+  def _read_key_from_env_or_os(self):
+    conf_file = self._config_file_path()
+    env_api_key = os.environ.get('CLARIFAI_API_KEY')
+    if env_api_key:
+      logger.debug("Using env. variable CLARIFAI_API_KEY for API key")
+      return env_api_key
+    elif os.path.exists(conf_file):
+      parser = ConfigParser()
+      parser.optionxform = str
+
+      with open(conf_file, 'r') as fdr:
+        parser.readfp(fdr)
+
+      if parser.has_option('clarifai', 'CLARIFAI_API_KEY'):
+        return parser.get('clarifai', 'CLARIFAI_API_KEY')
+    return None
+
+  def _read_base_from_env_or_os(self):
+    conf_file = self._config_file_path()
+    env_clarifai_api_base = os.environ.get('CLARIFAI_API_BASE')
+    if env_clarifai_api_base:
+      base_url = env_clarifai_api_base
+    elif os.path.exists(conf_file):
+      parser = ConfigParser()
+      parser.optionxform = str
+
+      with open(conf_file, 'r') as fdr:
+        parser.readfp(fdr)
+
+      if parser.has_option('clarifai', 'CLARIFAI_API_BASE'):
+        base_url = parser.get('clarifai', 'CLARIFAI_API_BASE')
+      else:
+        base_url = 'api.clarifai.com'
+    else:
+      base_url = 'api.clarifai.com'
+    return base_url
+
+  def _config_file_path(self):
+    if platform.system() == 'Windows':
+      home_dir = os.environ.get('HOMEPATH', '.')
+    else:
+      home_dir = os.environ.get('HOME', '.')
+    conf_file = os.path.join(home_dir, '.clarifai', 'config')
+    return conf_file
 
   def get_token(self):
-    """ Get an access token using your app_id and app_secret.
-
-    You shouldn't need to call this method yourself. If there is no access token yet, this
-    method will be called when a request is made. If a token expires, this method will also
-    automatically be called to renew the token.
     """
-
-    if self.api_key:
-      self.token = None
-      self.headers = {'Authorization': "Key %s" % self.api_key}
-      return {}
-
-    data = {'grant_type': 'client_credentials'}
-    auth = (self.app_id, self.app_secret)
-    logger.debug("get_token: %s data: %s", self.basev2 + '/v2/token', data)
-
-    authurl = urljoin(self.scheme + '://', self.base_url, 'v2', 'token')
-    res = self.session.post(authurl, auth=auth, data=data)
-    if res.status_code == 200:
-      logger.debug("Got V2 token: %s", res.json())
-      self.token = res.json()['access_token']
-      self.headers = {'Authorization': "Bearer %s" % self.token}
-    else:
-      try:
-        res_failed = res.json()
-      except ValueError as ex:
-        logger.warning("Unable to read server response as JSON: %s" % str(ex))
-        res_failed = res.content
-      raise TokenError("Could not get a new token for v2: %s" % str(res_failed))
-    return res.json()
+    Tokens are deprecated, please switch to API keys. See here how:
+   "http://help.clarifai.com/api/account-related/all-about-api-keys"
+    """
+    warnings.warn('Tokens deprecated', DeprecationWarning)
+    raise DeprecationWarning(TOKENS_DEPRECATED_MESSAGE)
 
   def set_token(self, token):
-    """ manually set the token to this client
-
-    You shouldn't need to call this unless you know what you are doing, because the client
-    handles the token generation and refresh for you. This is only intended for debugging
-    purpose when you want to verify the token got from somewhere else.
     """
-    self.token = token
+    Tokens are deprecated, please switch to API keys. See here how:
+   "http://help.clarifai.com/api/account-related/all-about-api-keys"
+    """
+    warnings.warn('Tokens deprecated', DeprecationWarning)
+    raise DeprecationWarning(TOKENS_DEPRECATED_MESSAGE)
 
   def delete_token(self):
-    """ manually reset the token to empty
-
-    You shouldn't need to call this unless you know what you are doing, because the client
-    handles the token generation and refresh for you. This is only intended for debugging
-    purpose when you want to reset the token.
     """
-    self.token = None
-
-  def _check_token(self):
-    """ set the token when it is empty
-
-    This function is called at every API call to check if the token is set. If it is not set,
-    a token call will be issued and the token will be refreshed.
+    Tokens are deprecated, please switch to API keys. See here how:
+   "http://help.clarifai.com/api/account-related/all-about-api-keys"
     """
+    warnings.warn('Tokens deprecated', DeprecationWarning)
+    raise DeprecationWarning(TOKENS_DEPRECATED_MESSAGE)
 
-    if self.token is None:
-      self.get_token()
+  def _grpc_stub(self):
+    return V2Stub(GRPCJSONChannel(key=self.api_key, base_url=self.basev2, service_descriptor=_V2))
 
-  def _requester(self, resource, params, method, version="v2"):
-    """ Obtains info and verifies user via Token Decorator
-
-    Args:
-      resource:
-      params: parameters passed to the request
-      version: v1 or v2
-      method: GET or POST or DELETE or PATCH
-
-    Returns:
-      JSON from user request
-    """
-
-    self._check_token()
-    url = urljoin(self.basev2, version, resource)
+  def _grpc_request(self, method, argument):
 
     # only retry under when status_code is non-200, under max-tries
     # and under some circumstances
-    status_code = 199
-    retry = True
-    max_attempts = attempts = 3
-    headers = {}
-
-    while status_code != 200 and attempts > 0 and retry is True:
-
-      logger.debug("=" * 100)
-
-      # mangle the base64 because it is too long
-      if params and params.get('inputs') and len(params['inputs']) > 0:
-        params_copy = copy.deepcopy(params)
-        for data in params_copy['inputs']:
-          data = data['data']
-          if data.get('image') and data['image'].get('base64'):
-            base64_bytes = data['image']['base64'][:10] + '......' + data['image']['base64'][-10:]
-            data['image']['base64'] = base64_bytes
-          if data.get('video') and data['video'].get('base64'):
-            base64_bytes = data['video']['base64'][:10] + '......' + data['video']['base64'][-10:]
-            data['video']['base64'] = base64_bytes
-      elif params and params.get('query') and params['query'].get('ands'):
-        params_copy = copy.deepcopy(params)
-
-        queries = params_copy['query']['ands']
-
-        for query in queries:
-          if query.get('output') and query['output'].get('input') and \
-              query['output']['input'].get('data') and \
-              query['output']['input']['data'].get('image') and \
-              query['output']['input']['data']['image'].get('base64'):
-            data = query['output']['input']['data']
-            base64_bytes = data['image']['base64'][:10] + '......' + data['image']['base64'][-10:]
-            data['image']['base64'] = base64_bytes
-      else:
-        params_copy = params
-      # mangle the base64 because it is too long
-
-      logger.debug("%s %s\nHEADERS:\n%s\nPAYLOAD:\n%s", method, url,
-                   pformat(headers), pformat(params_copy))
-
-      if method == 'GET':
-        headers = {
-            'Content-Type': 'application/json',
-            'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
-            'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
-            'Authorization': self.headers['Authorization']
-        }
-        res = self.session.get(url, params=params, headers=headers)
-      elif method == "POST":
-        headers = {
-            'Content-Type': 'application/json',
-            'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
-            'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
-            'Authorization': self.headers['Authorization']
-        }
-        res = self.session.post(url, data=json.dumps(params), headers=headers)
-      elif method == "DELETE":
-        headers = {
-            'Content-Type': 'application/json',
-            'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
-            'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
-            'Authorization': self.headers['Authorization']
-        }
-        res = self.session.delete(url, data=json.dumps(params), headers=headers)
-      elif method == "PATCH":
-        headers = {
-            'Content-Type': 'application/json',
-            'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
-            'Python-Client': '%s:%s' % (OS_VER, PYTHON_VERSION),
-            'Authorization': self.headers['Authorization']
-        }
-        res = self.session.patch(url, data=json.dumps(params), headers=headers)
-      else:
-        raise UserError("Unsupported request type: '%s'" % method)
-
+    max_attempts = 3
+    for attempt_num in range(1, max_attempts + 1):
       try:
-        js = res.json()
-      except Exception:
-        logger.exception("Could not get valid JSON from server response.")
-        logger.debug("\nRESULT:\n%s", pformat(res.content.decode('utf-8')))
-        return res
+        res = method(argument)
 
-      logger.debug("\nRESULT:\n%s", pformat(json.loads(res.content.decode('utf-8'))))
+        dict_res = protobuf_to_dict(res)
+        logger.debug("\nRESULT:\n%s", pformat(dict_res))
+        return dict_res
+      except ApiError as ex:
+        status_code = ex.response.status_code
 
-      status_code = res.status_code
-      attempts -= 1
+        if attempt_num == max_attempts:
+          logger.debug("Failed after %d retries" % max_attempts)
+          raise
 
-      # allow retry when token expires
-      # normally, this should be solved in one retry
-      if status_code == 401 and isinstance(js, dict) and js.get('status', {}).get('details',
-                                                                                  '') == \
-          "expired token":
-        logger.warn("%s", str(ApiError(resource, params, method, res, self)))
-        self.get_token()
-        retry = True
-        continue
+        # handle Gateway Error, normally retry will solve the problem
+        if int(status_code / 100) == 5:
+          continue
 
-      # handle Gateway Error, normally retry will solve the problem
-      if int(status_code / 100) == 5:
-        logger.warn("%s", str(ApiError(resource, params, method, res, self)))
-        retry = True
-        continue
+        # handle throttling
+        # back off with 2/4/8 seconds
+        # normally, this will be settled in 1 or 2 retries
+        if status_code == 429:
+          time.sleep(2**attempt_num)
+          continue
 
-      # handle throttling
-      # back off with 2/4/8 seconds
-      # normally, this will be settled in 1 or 2 retries
-      if status_code == 429:
-        logger.warn("%s", str(ApiError(resource, params, method, res, self)))
-        retry = True
-        time.sleep(pow(2, max_attempts - attempts - 1))
-        continue
+        # in other cases, error out without retrying
+        raise
 
-      # in other cases, error out without retrying
-      retry = False
-
-    if res.status_code != 200:
-      logger.debug("Failed after %d retrie(s)" % (max_attempts - attempts))
-      raise ApiError(resource, params, method, res, self)
-
-    return res.json()
-
-  def get(self, resource, params=None, version="v2"):
-    """ Authorized get from Clarifai's API. """
-    return self._requester(resource, params, 'GET', version)
-
-  def post(self, resource, params=None, version="v2"):
-    """ Authorized post to Clarifai's API. """
-    return self._requester(resource, params, 'POST', version)
-
-  def delete(self, resource, params=None, version="v2"):
-    """ Authorized get from Clarifai's API. """
-    return self._requester(resource, params, 'DELETE', version)
-
-  def patch(self, resource, params=None, version="v2"):
-    """ Authorized patch from Clarifai's API """
-    return self._requester(resource, params, 'PATCH', version)
+    # The for loop above either returns or raises.
+    raise Exception('This code is never reached')
 
   def add_inputs(self, objs):
     """ Add a list of Images or Videos to an application.
@@ -3692,18 +3498,21 @@ class ApiClient(object):
     if not isinstance(objs, list):
       raise UserError("objs must be a list")
 
+    inputs_pb = []
     for obj in objs:
       if not isinstance(obj, (Image, Video)):
         raise UserError("Not valid type of content to add. Must be Image or Video")
-      if obj.input_id is not None and not isinstance(obj.input_id, basestring):
-        raise UserError("Not valid input ID. Must be a string or None")
-      if obj.input_id is not None and '/' in obj.input_id:
-        raise UserError("Not valid input ID. Cannot contain character: \"/\"")
+      if obj.input_id:
+        if not isinstance(obj.input_id, basestring):
+          raise UserError("Not valid input ID. Must be a string or None")
+        if '/' in obj.input_id:
+          raise UserError('Not valid input ID. Cannot contain character: "/"')
 
-    resource = "inputs"
-    data = {"inputs": [obj.dict() for obj in objs]}
-    res = self.post(resource, data)
-    return res
+      resulting_protobuf = dict_to_protobuf(InputPB, obj.dict())
+
+      inputs_pb.append(resulting_protobuf)
+
+    return self._grpc_request(self._grpc_stub().PostInputs, PostInputsRequest(inputs=inputs_pb))
 
   def search_inputs(self, query, page=1, per_page=20):
     """ Search an application and get predictions (optional)
@@ -3718,13 +3527,11 @@ class ApiClient(object):
       scores
     """
 
-    resource = "searches/"
+    q = dict_to_protobuf(Query, query)
 
-    # Similar image search and predictions
-    d = {'pagination': pagination(page, per_page).dict(), 'query': query}
-
-    res = self.post(resource, d)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().PostSearches,
+        PostSearchesRequest(query=q, pagination=Pagination(page=page, per_page=per_page)))
 
   def get_input(self, input_id):
     """ Get a single image by it's id.
@@ -3740,9 +3547,7 @@ class ApiClient(object):
        404 for Not Found
     """
 
-    resource = "inputs/%s" % input_id
-    res = self.get(resource)
-    return res
+    return self._grpc_request(self._grpc_stub().GetInput, GetInputRequest(input_id=input_id))
 
   def get_inputs(self, page=1, per_page=20):
     """ List all images for the Application, with pagination
@@ -3756,10 +3561,8 @@ class ApiClient(object):
       status
     """
 
-    resource = "inputs"
-    d = {'page': page, 'per_page': per_page}
-    res = self.get(resource, d)
-    return res
+    return self._grpc_request(self._grpc_stub().ListInputs,
+                              ListInputsRequest(page=page, per_page=per_page))
 
   def get_inputs_status(self):
     """ Get counts of inputs in the Application.
@@ -3768,9 +3571,7 @@ class ApiClient(object):
       counts of the inputs, including processed, processing, etc. in JSON format.
     """
 
-    resource = "inputs/status"
-    res = self.get(resource)
-    return res
+    return self._grpc_request(self._grpc_stub().GetInputCount, GetInputCountRequest())
 
   def delete_input(self, input_id):
     """ Delete a single input by its id.
@@ -3782,13 +3583,7 @@ class ApiClient(object):
       status of the deletion, in JSON format.
     """
 
-    if not input_id:
-      raise UserError('cannot delete with empty input_id. \
-                       use delete_all_inputs if you want to delete all')
-
-    resource = "inputs/%s" % input_id
-    res = self.delete(resource)
-    return res
+    return self._grpc_request(self._grpc_stub().DeleteInput, DeleteInputRequest(input_id=input_id))
 
   def delete_inputs(self, input_ids):
     """ bulk delete inputs with a list of input IDs
@@ -3800,11 +3595,7 @@ class ApiClient(object):
       status of the bulk deletion, in JSON format.
     """
 
-    resource = "inputs"
-    data = {"ids": [input_id for input_id in input_ids]}
-
-    res = self.delete(resource, data)
-    return res
+    return self._grpc_request(self._grpc_stub().DeleteInputs, DeleteInputsRequest(ids=input_ids))
 
   def delete_all_inputs(self):
     """ delete all inputs from the application
@@ -3813,11 +3604,7 @@ class ApiClient(object):
       status of the deletion, in JSON format.
     """
 
-    resource = "inputs"
-    data = {"delete_all": True}
-
-    res = self.delete(resource, data)
-    return res
+    return self._grpc_request(self._grpc_stub().DeleteInputs, DeleteInputsRequest(delete_all=True))
 
   def patch_inputs(self, action, inputs):
     """ bulk update inputs, to delete or modify concepts
@@ -3834,75 +3621,24 @@ class ApiClient(object):
     if action not in self.patch_actions:
       raise UserError("action not supported.")
 
-    resource = "inputs"
-    data = {"action": action, "inputs": []}
+    inputs_pb = []
+    for input_ in inputs:
+      input_dict = input_.dict()
 
-    images = []
-    for img in inputs:
-      item = img.dict()
-      if not item.get('data'):
+      if 'data' not in input_dict:
         continue
 
-      new_item = copy.deepcopy(item)
-      for key in item['data'].keys():
+      reduced_input_dict = copy.deepcopy(input_dict)
+      for key in input_dict['data'].keys():
         if key not in ['concepts', 'metadata', 'regions']:
-          del new_item['data'][key]
+          del reduced_input_dict['data'][key]
 
-      images.append(new_item)
+      resulting_protobuf = dict_to_protobuf(InputPB, reduced_input_dict)
 
-    data["inputs"] = images
+      inputs_pb.append(resulting_protobuf)
 
-    res = self.patch(resource, data)
-    return res
-
-  def get_outputs(self, input_id):
-    """ Get output predictions for an input
-
-    Args:
-      input_id: the unique identifier for an input
-
-    Returns:
-      the input with output predictions in a json object
-    """
-
-    resource = "inputs/%s/outputs" % input_id
-
-    res = self.get(resource)
-    return res
-
-  def patch_outputs(self, input_id, action, concept_ids):
-    """ Patch predictions
-
-    Args:
-      input_id: the unique identifier of the input
-      action: 'remove' or 'merge'
-      concept_ids: the list of concept ids that will be removed or merged
-
-    Returns:
-      the patched input
-    """
-
-    resource = "inputs/%s/outputs" % input_id
-    patch_value = 1 if action == 'merge' else 0
-
-    data = {
-        "outputs": [{
-            "data": {
-                "concepts": [{
-                    "id": cid,
-                    "value": patch_value
-                } for cid in concept_ids]
-            },
-            "model": {
-                "id": "aa9ca48295b37401f8af92ad1af0d91d"
-            }
-        }],
-        "action":
-            action
-    }
-
-    res = self.patch(resource, data)
-    return res
+    return self._grpc_request(self._grpc_stub().PatchInputs,
+                              PatchInputsRequest(action=action, inputs=inputs_pb))
 
   def get_concept(self, concept_id):
     """ Get a single concept by it's id.
@@ -3914,10 +3650,8 @@ class ApiClient(object):
       the concept in JSON format with HTTP 200 Status
       or HTTP 404 with concept not found
     """
-
-    resource = "concepts/%s" % concept_id
-    res = self.get(resource)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().GetConcept, GetConceptRequest(concept_id=concept_id))
 
   def get_concepts(self, page=1, per_page=20):
     """ List all concepts for the Application.
@@ -3930,10 +3664,8 @@ class ApiClient(object):
       a list of concepts in JSON format
     """
 
-    resource = "concepts"
-    d = {'page': page, 'per_page': per_page}
-    res = self.get(resource, d)
-    return res
+    return self._grpc_request(self._grpc_stub().ListConcepts,
+                              ListConceptsRequest(page=page, per_page=per_page))
 
   def add_concepts(self, concept_ids, concept_names):
     """ Add a list of concepts
@@ -3953,19 +3685,16 @@ class ApiClient(object):
     if len(concept_ids) != len(concept_names):
       raise UserError('length of concept id list should match length of the concept name list')
 
-    resource = "concepts"
-    d = {'concepts': []}
-
+    concepts = []
     for cid, cname in zip(concept_ids, concept_names):
       if cname is None:
         concept = {'id': cid}
       else:
         concept = {'id': cid, 'name': cname}
+      concepts.append(dict_to_protobuf(ConceptPB, concept))
 
-      d['concepts'].append(concept)
-
-    res = self.post(resource, d)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().PostConcepts, PostConceptsRequest(concepts=concepts))
 
   def search_concepts(self, term, page=1, per_page=20, language=None):
     """ Search concepts
@@ -3981,18 +3710,11 @@ class ApiClient(object):
 
     """
 
-    resource = "concepts/searches/"
-
-    # Similar image search and predictions
-    d = {'pagination': pagination(page, per_page).dict()}
-
-    d.update({"concept_query": {"name": term}})
-
-    if language is not None:
-      d['concept_query']['language'] = language
-
-    res = self.post(resource, d)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().PostConceptsSearches,
+        PostConceptsSearchesRequest(
+            concept_query=ConceptQuery(name=term, language=language),
+            pagination=Pagination(page=page, per_page=per_page)))
 
   def patch_concepts(self, action, concepts):
     """ bulk update concepts, to delete or modify concepts
@@ -4009,26 +3731,9 @@ class ApiClient(object):
     if action not in self.concepts_patch_actions:
       raise UserError("action not supported.")
 
-    resource = "concepts"
-    data = {"action": action, "concepts": []}
-
-    concepts_items = []
-    for concept in concepts:
-      item = concept.dict()
-      if not item.get('id') or not item.get('name'):
-        continue
-
-      new_item = copy.deepcopy(item)
-      for key in item.keys():
-        if key not in ['id', 'name']:
-          del new_item[key]
-
-      concepts_items.append(new_item)
-
-    data["concepts"] = concepts_items
-
-    res = self.patch(resource, data)
-    return res
+    concepts_pb = [dict_to_protobuf(ConceptPB, c.dict()) for c in concepts]
+    return self._grpc_request(self._grpc_stub().PatchConcepts,
+                              PatchConceptsRequest(action=action, concepts=concepts_pb))
 
   def get_models(self, page=1, per_page=20):
     """ get all models with pagination
@@ -4041,13 +3746,11 @@ class ApiClient(object):
       a list of models in JSON format
     """
 
-    resource = "models"
-    params = {'page': page, 'per_page': per_page}
+    response = self._grpc_request(self._grpc_stub().ListModels,
+                                  ListModelsRequest(page=page, per_page=per_page))
+    return response
 
-    res = self.get(resource, params)
-    return res
-
-  def get_model(self, model_id=None):
+  def get_model(self, model_id):
     """ get model basic info by model id
 
     Args:
@@ -4057,9 +3760,8 @@ class ApiClient(object):
       the model info in JSON format
     """
 
-    resource = "models/%s" % _escape(model_id)
-    res = self.get(resource)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().GetModel, GetModelRequest(model_id=_escape(model_id)))
 
   def get_model_output_info(self, model_id=None):
     """ get model output info by model id
@@ -4070,11 +3772,8 @@ class ApiClient(object):
     Returns:
       the model info with output_info in JSON format
     """
-
-    resource = "models/%s/output_info" % _escape(model_id)
-
-    res = self.get(resource)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().GetModelOutputInfo, GetModelRequest(model_id=_escape(model_id)))
 
   def get_model_versions(self, model_id, page=1, per_page=20):
     """ get model versions
@@ -4088,11 +3787,9 @@ class ApiClient(object):
       a list of model versions in JSON format
     """
 
-    resource = "models/%s/versions" % _escape(model_id)
-    params = {'page': page, 'per_page': per_page}
-
-    res = self.get(resource, params)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().ListModelVersions,
+        ListModelVersionsRequest(model_id=model_id, page=page, per_page=per_page))
 
   def get_model_version(self, model_id, version_id):
     """ get model info for a specific model version
@@ -4102,72 +3799,51 @@ class ApiClient(object):
       version_id: the model version id
     """
 
-    resource = "models/%s/versions/%s" % (model_id, version_id)
-
-    res = self.get(resource)
-    return res
+    return self._grpc_request(self._grpc_stub().GetModelVersion,
+                              GetModelVersionRequest(model_id=model_id, version_id=version_id))
 
   def delete_model_version(self, model_id, model_version):
     """ delete a model version """
 
-    resource = "models/%s/versions/%s" % (_escape(model_id), model_version)
-    res = self.delete(resource)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().DeleteModelVersion,
+        DeleteModelVersionRequest(model_id=_escape(model_id), version_id=model_version))
 
   def delete_model(self, model_id):
     """ delete a model """
 
-    resource = "models/%s" % _escape(model_id)
-    res = self.delete(resource)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().DeleteModel, DeleteModelRequest(model_id=_escape(model_id)))
 
   def delete_models(self, model_ids):
     """ delete the models """
 
-    resource = "models"
-    data = {"ids": model_ids}
-
-    res = self.delete(resource, data)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().DeleteModels,
+        DeleteModelsRequest(ids=[_escape(id_) for id_ in model_ids]))
 
   def delete_all_models(self):
     """ delete all models """
 
-    resource = "models"
-    data = {"delete_all": True}
-
-    res = self.delete(resource, data)
-    return res
+    return self._grpc_request(self._grpc_stub().DeleteModels, DeleteModelsRequest(delete_all=True))
 
   def get_model_inputs(self, model_id, version_id=None, page=1, per_page=20):
     """ get inputs for the latest model or a specific model version """
 
-    if not version_id:
-      resource = "models/%s/inputs?page=%d&per_page=%d" % \
-                 (_escape(model_id), page, per_page)
-    else:
-      resource = "models/%s/version/%s/inputs?page=%d&per_page=%d" % \
-                 (_escape(model_id), version_id, page, per_page)
+    if version_id:
+      version_id = _escape(version_id)
 
-    res = self.get(resource)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().ListModelInputs,
+        ListModelInputsRequest(
+            model_id=_escape(model_id), version_id=version_id, page=page, per_page=per_page))
 
   def search_models(self, name=None, model_type=None):
     """ search model by name and type """
 
-    resource = "models/searches"
-
-    if name is not None and model_type is not None:
-      data = {"model_query": {"name": name, "type": model_type}}
-    elif name is None and model_type is not None:
-      data = {"model_query": {"type": model_type}}
-    elif name is not None and model_type is None:
-      data = {"model_query": {"name": name}}
-    else:
-      data = {}
-
-    res = self.post(resource, data)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().PostModelsSearches,
+        PostModelsSearchesRequest(model_query=ModelQuery(name=name, type=model_type)))
 
   def create_model(self,
                    model_id,
@@ -4176,83 +3852,95 @@ class ApiClient(object):
                    concepts_mutually_exclusive=False,
                    closed_environment=False,
                    hyper_parameters=None):
-    """ create custom model """
+    """
+    Create a new model.
+
+    Args:
+      model_id: The model ID
+      model_name:  The model name
+      concepts: A list of concept IDs that this model will use. A better name here would be
+                concept_ids
+      concepts_mutually_exclusive: Whether the concepts are mutually exclusive
+      closed_environment: Whether the concept environment is closed
+      hyper_parameters: The hyper parameters
+
+    Returns:
+      A model dictionary.
+    """
 
     if not model_name:
       model_name = model_id
 
-    resource = "models"
-
-    data = {
-        "model": {
-            "id": model_id,
-            "name": model_name,
-            "output_info": {
-                "output_config": {
-                    "concepts_mutually_exclusive": concepts_mutually_exclusive,
-                    "closed_environment": closed_environment
-                }
-            }
-        }
-    }
-
+    data = None
     if concepts:
-      data['model']['output_info']['data'] = {
-          "concepts": [{
-              "id": concept
-          } for concept in concepts]
-      }
-    if hyper_parameters:
-      try:
-        data['model']['output_info']['output_config']['hyper_parameters'] = json.dumps(
-            hyper_parameters)
-      except ValueError:
-        pass
+      data = dict_to_protobuf(DataPB,
+                              {'concepts': [{
+                                  'id': concept_id
+                              } for concept_id in concepts]})
 
-    res = self.post(resource, data)
-    return res
+    hyper_parameters_pb = None
+    if hyper_parameters:
+      hyper_parameters_pb = json.dumps(hyper_parameters)
+
+    output_info = OutputInfoPB(
+        data=data,
+        output_config=OutputConfigPB(
+            concepts_mutually_exclusive=concepts_mutually_exclusive,
+            closed_environment=closed_environment,
+            hyper_parameters=hyper_parameters_pb))
+
+    model = ModelPB(id=model_id, name=model_name, output_info=output_info)
+
+    return self._grpc_request(self._grpc_stub().PostModels, PostModelsRequest(model=model))
 
   def patch_model(self, model, action='merge'):
+    """
+    Args:
+      model: the model dictionary
+      action: the patch action
+
+    Returns:
+      the model object
+    """
 
     if action not in self.patch_actions:
       raise UserError("action not supported.")
 
-    resource = "models"
-    data = {"action": action, "models": [model]}
+    model_pb = dict_to_protobuf(ModelPB, model)
 
-    res = self.patch(resource, data)
-    return res
+    return self._grpc_request(self._grpc_stub().PatchModels,
+                              PatchModelsRequest(action=action, models=[model_pb]))
 
   def create_model_version(self, model_id):
     """ train for a model """
 
-    resource = "models/%s/versions" % _escape(model_id)
-
-    res = self.post(resource)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().PostModelVersions, PostModelVersionsRequest(model_id=_escape(model_id)))
 
   def predict_model(self, model_id, objs, version_id=None, model_output_info=None):
-
-    if version_id is None:
-      resource = "models/%s/outputs" % _escape(model_id)
-    else:
-      resource = "models/%s/versions/%s/outputs" % (_escape(model_id), version_id)
-
     if not isinstance(objs, list):
       raise UserError("objs must be a list")
+
     for i, obj in enumerate(objs):
       if not isinstance(obj, (Image, Video)):
         raise UserError(
             "Object at position %d is not a valid type of content to add. Must be Image or Video" %
             i)
 
-    data = {"inputs": [obj.dict() for obj in objs]}
+    inputs_pb = []
+    for input_ in objs:
+      data = dict_to_protobuf(DataPB, input_.dict()['data'])
+      inputs_pb.append(InputPB(data=data))
 
-    if model_output_info is not None:
-      data.update({'model': model_output_info.dict()})
+    model = None
+    if model_output_info:
+      output_info = dict_to_protobuf(OutputInfoPB, model_output_info.dict()['output_info'])
+      model = ModelPB(output_info=output_info)
 
-    res = self.post(resource, data)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().PostModelOutputs,
+        PostModelOutputsRequest(
+            model_id=_escape(model_id), version_id=version_id, inputs=inputs_pb, model=model))
 
   def get_workflows(self, public_only=False):
     """ get all workflows with pagination
@@ -4264,15 +3952,13 @@ class ApiClient(object):
       a list of workflows in JSON format
     """
 
-    if public_only is True:
-      resource = "public_workflows"
+    if public_only:
+      return self._grpc_request(self._grpc_stub().ListPublicWorkflows,
+                                ListPublicWorkflowsRequest())
     else:
-      resource = "workflows"
+      return self._grpc_request(self._grpc_stub().ListWorkflows, ListWorkflowsRequest())
 
-    res = self.get(resource)
-    return res
-
-  def get_workflow(self, workflow_id=None):
+  def get_workflow(self, workflow_id):
     """ get workflow basic info by workflow id
 
     Args:
@@ -4282,51 +3968,47 @@ class ApiClient(object):
       the workflow info in JSON format
     """
 
-    resource = "workflows/%s" % workflow_id
-
-    res = self.get(resource)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().GetWorkflow, GetWorkflowRequest(workflow_id=workflow_id))
 
   def predict_workflow(self, workflow_id, objs, output_config=None):
 
-    resource = "workflows/%s/results" % _escape(workflow_id)
-
     if not isinstance(objs, list):
       raise UserError("objs must be a list")
+
+    inputs_pb = []
     for i, obj in enumerate(objs):
       if not isinstance(obj, (Image, Video)):
         raise UserError(
             "Object at position %d is not a valid type of content to add. Must be Image or Video" %
             i)
 
-    data = {"inputs": [obj.dict() for obj in objs]}
+      inputs_pb.append(dict_to_protobuf(InputPB, obj.dict()))
 
-    if output_config is not None:
-      data.update(output_config.dict())
+    output_config_pb = dict_to_protobuf(OutputConfigPB, output_config.dict()['output_config'])
 
-    res = self.post(resource, data)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().PostWorkflowResults,
+        PostWorkflowResultsRequest(
+            workflow_id=_escape(workflow_id), inputs=inputs_pb, output_config=output_config_pb))
 
   def send_model_feedback(self, model_id, version_id, obj):
 
-    if version_id is None:
-      resource = "models/%s/feedback" % _escape(model_id)
-    else:
-      resource = "models/%s/versions/%s/feedback" % (_escape(model_id), version_id)
+    input_pb = dict_to_protobuf(InputPB, obj.dict())
 
-    data = {"input": obj.dict()}
-
-    res = self.post(resource, data)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().PostModelFeedback,
+        PostModelFeedbackRequest(
+            model_id=_escape(model_id), version_id=version_id, input=input_pb))
 
   def send_search_feedback(self, obj):
 
-    resource = "searches/feedback"
+    input_dict = obj.dict()
 
-    data = {"input": obj.dict()}
+    input_pb = dict_to_protobuf(InputPB, input_dict)
 
-    res = self.post(resource, data)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().PostSearchFeedback, PostSearchFeedbackRequest(input=input_pb))
 
   def predict_concepts(self, objs, lang=None):
 
@@ -4364,10 +4046,9 @@ class ApiClient(object):
       the model version data with evaluation metrics in JSON format
     """
 
-    resource = "models/%s/versions/%s/metrics" % (_escape(model_id), _escape(version_id))
-
-    res = self.post(resource)
-    return res
+    return self._grpc_request(
+        self._grpc_stub().PostModelVersionMetrics,
+        PostModelVersionMetricsRequest(model_id=_escape(model_id), version_id=version_id))
 
 
 class pagination(object):
@@ -4378,62 +4059,6 @@ class pagination(object):
 
   def dict(self):
     return {'page': self.page, 'per_page': self.per_page}
-
-
-class TokenError(Exception):
-  pass
-
-
-class ApiError(Exception):
-  """ API Server error """
-
-  def __init__(self, resource, params, method, response, api):
-    self.resource = resource
-    self.params = params
-    self.method = method
-    self.response = response
-    self.api = api
-
-    self.error_code = response.json().get('status', {}).get('code', None)
-    self.error_desc = response.json().get('status', {}).get('description', None)
-    self.error_details = response.json().get('status', {}).get('details', None)
-
-    current_ts_str = str(time.time())
-
-    msg = """%(method)s %(baseurl)s%(resource)s FAILED(%(time_ts)s). status_code: %(status_code)d, reason: %(reason)s, error_code: %(error_code)s, error_description: %(error_desc)s, error_details: %(error_details)s
- >> Python client %(client_version)s with Python %(python_version)s on %(os_version)s
- >> %(method)s %(baseurl)s%(resource)s
- >> REQUEST(%(time_ts)s) %(request)s
- >> RESPONSE(%(time_ts)s) %(response)s""" % {
-        'baseurl': '%s/v2/' % self.api.basev2,
-        'method': method,
-        'resource': resource,
-        'status_code': response.status_code,
-        'reason': response.reason,
-        'error_code': self.error_code,
-        'error_desc': self.error_desc,
-        'error_details': self.error_details,
-        'request': json.dumps(params, indent=2),
-        'response': json.dumps(response.json(), indent=2),
-        'time_ts': current_ts_str,
-        'client_version': CLIENT_VERSION,
-        'python_version': PYTHON_VERSION,
-        'os_version': OS_VER
-    }
-
-    super(ApiError, self).__init__(msg)
-
-    # def __str__(self):
-    #   parent_str = super(ApiError, self).__str__()
-    #   return parent_str + str(self.json)
-
-
-class ApiClientError(Exception):
-  """ API Client Error """
-
-
-class UserError(Exception):
-  """ User Error """
 
 
 class ApiStatus(object):
@@ -4465,6 +4090,7 @@ class InputCounts(object):
 
     counts = item['counts']
 
+    # TODO(Rok) MEDIUM: Add the "processing" field here and in dict().
     self.processed = counts['processed']
     self.to_process = counts['to_process']
     self.errors = counts['errors']
@@ -4493,8 +4119,11 @@ class ModelOutputInfo(object):
       data['output_info'].update(self.output_config.dict())
 
     if self.concepts:
-      data = {'data': {'concepts': [concept.dict() for concept in self.concepts]}}
-      data['output_info'].update()
+      data['output_info'].update({
+          'data': {
+              'concepts': [concept.dict() for concept in self.concepts]
+          }
+      })
 
     return data
 

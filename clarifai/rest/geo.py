@@ -13,13 +13,7 @@ class GeoPoint(object):
     self.latitude = float(latitude)
 
   def dict(self):
-    data = {
-      'geo_point': {
-        'longitude': self.longitude,
-        'latitude': self.latitude
-      }
-    }
-    return data
+    return {'geo_point': {'longitude': self.longitude, 'latitude': self.latitude}}
 
 
 class GeoBox(object):
@@ -33,17 +27,15 @@ class GeoBox(object):
     self.point2 = point2
 
   def dict(self):
-    data = {'geo_box': [self.point1.dict(), self.point2.dict()]
-            }
-    return data
+    return {'geo_box': [self.point1.dict(), self.point2.dict()]}
 
 
 class GeoLimit(object):
   convert_table = {
-    'mile': 'withinMiles',
-    'kilometer': 'withinKilometers',
-    'degree': 'withinDegrees',
-    'radian': 'withinRadians'
+      'mile': 'withinMiles',
+      'kilometer': 'withinKilometers',
+      'degree': 'withinDegrees',
+      'radian': 'withinRadians'
   }
 
   def __init__(self, limit_type='mile', limit_range=10):
@@ -54,16 +46,11 @@ class GeoLimit(object):
     self.limit_range = float(limit_range)
 
   def dict(self):
-    data = {
-      'geo_limit': {
-        'type': self.limit_type,
-        'value': self.limit_range
-      }
-    }
-    return data
+    return {'geo_limit': {'type': self.limit_type, 'value': self.limit_range}}
 
 
 class Geo(object):
+
   def __init__(self, geo_point=None, geo_limit=None, geo_box=None):
 
     self.geo_point = geo_point

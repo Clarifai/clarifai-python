@@ -23,6 +23,9 @@ First steps
 :doc:`basics`
    Getting familiar with basic concepts used in Clarifai API
 
+:doc:`contributing`
+   Contributing with a pull request
+
 
 .. toctree::
    :caption: References

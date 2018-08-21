@@ -88,6 +88,30 @@ class TestPublicModels(unittest.TestCase):
     res = self.app.public_models.wedding_model.predict_by_url(url=IMAGE_URL)
     self.assertEqual(10000, res['status']['code'])
 
+  def test_predict_with_segmentation_model(self):
+    # only runs this test in prod as the segmentation models only exist in prod
+    if self.app.api.base_url == 'api.clarifai.com':
+      # test people segmentation model
+      m = self.app.models.get(model_id='9bef4f02cb40e4709fa254d597b2942d')
+      m.model_version = 'db92abe2e6714d7992b359c1fc269ce5'
+      res = m.predict_by_url('https://samples.clarifai.com/metro-north.jpg')
+
+      # ensure that only 'person' concepts are returned
+      # this tests for the correct filtering of concepts in the backend
+      for region in res['outputs'][0]['data']['regions']:
+        for concept in region['data']['concepts']:
+          self.assertEqual('person', concept['name'])
+
+      # test car segmentation
+      m = self.app.models.get(model_id='b17ab715bba448228ef916caaaf8d35b')
+      m.model_version = 'fc92eca9d7cb45cc8832ab40ddc95c3c'
+      res = m.predict_by_url('https://samples.clarifai.com/metro-north.jpg')
+
+      # ensure that only 'car' concepts are returned
+      for region in res['outputs'][0]['data']['regions']:
+        for concept in region['data']['concepts']:
+          self.assertEqual('car', concept['name'])
+
 
 if __name__ == '__main__':
   unittest.main()

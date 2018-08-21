@@ -43,11 +43,6 @@ Search Syntax
 .. autoclass:: clarifai.rest.client.SearchQueryBuilder
     :members:
 
-Authentication
-==============
-.. autoclass:: clarifai.rest.client.Auth
-    :members:
-
 Exceptions
 ===========
 

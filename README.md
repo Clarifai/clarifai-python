@@ -1,27 +1,21 @@
-Clarifai API Python Client
-====================
+![Clarifai logo](docs/logo.png)
 
-[![PyPi version](https://pypip.in/v/clarifai/badge.png)](https://pypi.python.org/pypi/clarifai)
-[![Build Status](https://travis-ci.org/Clarifai/clarifai-python.svg?branch=master)](https://travis-ci.org/Clarifai/clarifai-python)
+# Clarifai API Python Client
 
-
-Overview
----------------------
 This Python client provides a simple wrapper around our powerful image recognition <a href="https://developer.clarifai.com">API</a>.
-
-The client supports basic tagging with existing models.
-
-The client also uses Applications to store images and visually search across them. You can either do
-a simple visual search or also add predictions for any, all or none, as noted in the directions
-below.
 
 * Try the Clarifai demo at: https://clarifai.com/demo
 * Sign up for a free account at: https://clarifai.com/developer/account/signup/
 * Read the developer guide at: https://clarifai.com/developer/guide/
 
+
+[![PyPi version](https://pypip.in/v/clarifai/badge.png)](https://pypi.python.org/pypi/clarifai)
+[![Build Status](https://travis-ci.org/Clarifai/clarifai-python.svg?branch=master)](https://travis-ci.org/Clarifai/clarifai-python)
+
+
 Installation
 ---------------------
-The API client is available on Pip. You can simply install it with a `pip install`
+The API client is available on Pip. Install it with:
 ```
 pip install clarifai --upgrade
 ```

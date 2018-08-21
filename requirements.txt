@@ -1,5 +1,7 @@
-future>=0.15, <2
-requests>=2.13, <3
 configparser>=3.5, <4
-jsonschema>=2.5, <3
 enum34>=1.1, <2
+future>=0.15, <2
+grpcio>=1.13.0, <2
+jsonschema>=2.5, <3
+protobuf>=3.6, <4
+requests>=2.13, <3

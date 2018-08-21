@@ -1,23 +1,23 @@
-import os
 import logging
+import os
 import unittest
-from clarifai.rest import ClarifaiApp
-from clarifai.rest import ApiClient
-from clarifai.rest import UserError, ApiError
+
+from clarifai.rest import ApiError, ClarifaiApp
 from clarifai.rest import Image as ClImage
+from clarifai.rest import UserError
 
 urls = [
-  "https://samples.clarifai.com/metro-north.jpg",
-  "https://samples.clarifai.com/wedding.jpg",
-  "https://samples.clarifai.com/facebook.png",
-  "https://samples.clarifai.com/dog.tiff",
-  "https://samples.clarifai.com/penguin.bmp",
+    "https://samples.clarifai.com/metro-north.jpg",
+    "https://samples.clarifai.com/wedding.jpg",
+    "https://samples.clarifai.com/facebook.png",
+    "https://samples.clarifai.com/dog.tiff",
+    "https://samples.clarifai.com/penguin.bmp",
 ]
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 files = [
-  os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "metro-north.jpg"),
-  os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "thai-market.jpg"),
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "metro-north.jpg"),
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "thai-market.jpg"),
 ]
 
 
@@ -88,7 +88,7 @@ class TestV2Tagging(unittest.TestCase):
     one_file = files[0]
     fs = one_file
 
-    with self.assertRaises(UserError) as ue:
+    with self.assertRaises(UserError):
       self.app.tag_files(fs)
 
   def test_tag_overloaded_files(self):
@@ -97,21 +97,26 @@ class TestV2Tagging(unittest.TestCase):
     file_one = files[0]
     fs = [file_one] * 129
 
-    with self.assertRaises(UserError) as ue:
+    with self.assertRaises(UserError):
       self.app.tag_files(fs)
 
     fs = [file_one] * 16
     self.app.tag_files(fs)
 
-  def test_shorcut_predict_functions(self):
-
+  def test_shortcut_predict_concept_function(self):
     img1 = ClImage(url=urls[0])
-    api = ApiClient()
-    api.predict_concepts([img1])
+    res = self.app.api.predict_concepts([img1])
+    self.assertEqual(10000, res['status']['code'])
 
-    api.predict_colors([img1])
+  def test_shortcut_predict_colors_function(self):
+    img1 = ClImage(url=urls[0])
+    res = self.app.api.predict_colors([img1])
+    self.assertEqual(10000, res['status']['code'])
 
-    api.predict_embed([img1])
+  def test_shortcut_predict_embed_function(self):
+    img1 = ClImage(url=urls[0])
+    res = self.app.api.predict_embed([img1])
+    self.assertEqual(10000, res['status']['code'])
 
 
 if __name__ == '__main__':

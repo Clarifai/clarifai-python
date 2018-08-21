@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 
-from .client import ApiClient, ApiError, UserError, TokenError
-from .client import ClarifaiApp
-from .client import Model, Image, Video, Concept
-from .client import ModelOutputInfo, ModelOutputConfig
-from .client import InputSearchTerm, OutputSearchTerm, SearchQueryBuilder
-from .client import Geo, GeoPoint, GeoBox, GeoLimit
-from .client import ApiStatus
-from .client import FeedbackInfo, FeedbackType
-from .client import Region, RegionInfo, BoundingBox
-from .client import Concept
-from .client import Face, FaceAgeAppearance, FaceIdentity, FaceGenderAppearance, \
-    FaceMulticulturalAppearance
-from .client import Workflow
+from clarifai.rest.client import ApiClient
+from clarifai.rest.client import ClarifaiApp
+from clarifai.rest.client import Model, Image, Video, Concept
+from clarifai.rest.client import ModelOutputInfo, ModelOutputConfig
+from clarifai.rest.client import InputSearchTerm, OutputSearchTerm, SearchQueryBuilder
+from clarifai.rest.client import Geo, GeoPoint, GeoBox, GeoLimit
+from clarifai.rest.client import ApiStatus
+from clarifai.rest.client import FeedbackInfo, FeedbackType
+from clarifai.rest.client import Region, RegionInfo, BoundingBox
+from clarifai.rest.client import Concept
+from clarifai.rest.client import (Face, FaceAgeAppearance, FaceIdentity, FaceGenderAppearance,
+                                  FaceMulticulturalAppearance)
+from clarifai.rest.client import Workflow
+from clarifai.errors import ApiError, UserError, TokenError

@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 import base64
 import logging
 import os
@@ -8,8 +7,9 @@ import time
 import unittest
 import uuid
 
-from clarifai.rest import ApiError, ClarifaiApp, Image, Model
 from mock import Mock
+
+from clarifai.rest import ApiError, ClarifaiApp, Image, Model
 
 urls = [
     "https://samples.clarifai.com/metro-north.jpg",
@@ -293,7 +293,10 @@ class TestModels(unittest.TestCase):
     img = Image(filename=filename)
 
     res = model.predict([img, img])
+    self.assertEqual(10000, res['status']['code'])
+
     res = model.predict([img, img])
+    self.assertEqual(10000, res['status']['code'])
 
     os.unlink(filename)
 
@@ -420,7 +423,6 @@ class TestModels(unittest.TestCase):
     # create a model with no concept
     model_id = uuid.uuid4().hex
     model2 = self.app.models.create(model_id=model_id)
-    model_id_retrieved = model2.model_id
 
     # train well created model with no concept
     with self.assertRaises(ApiError) as ae:
@@ -430,12 +432,12 @@ class TestModels(unittest.TestCase):
     # create a model with concepts but no samples
     try:
       self.app.concepts.get('cats1')
-    except ApiError as e:
+    except ApiError:
       self.app.concepts.create('cats1')
 
     try:
       self.app.concepts.get('dogs1')
-    except ApiError as e:
+    except ApiError:
       self.app.concepts.create('dogs1')
 
     self.app.models.delete(model_id)
@@ -572,7 +574,7 @@ class TestModels(unittest.TestCase):
     model.merge_concepts(['cat', 'dog'], overwrite=False)
     model.merge_concepts(['cat', 'dog'], overwrite=True)
 
-    model_ret = self.app.models.get(model.model_id)
+    self.app.models.get(model.model_id)
 
     self.app.models.delete(model_id)
     self.app.inputs.delete(img1.input_id)
@@ -643,9 +645,16 @@ class TestModels(unittest.TestCase):
   def test_predict_model(self):
     """ test predict with general model """
 
-    model = self.app.models.get('general-v1.3')
+    # model = self.app.models.get('general-v1.3')
+    model = self.app.models.get(model_id='aaa03c23b3724a16a56b629203edc62c')
     image = Image(url=urls[0])
-    model.predict([image])
+
+    res = model.predict([image])
+    self.assertEqual(10000, res['status']['code'])
+
+    # model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(min_value=0.96))
+    # model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(min_value=0.96))
+    # res = model.predict(inputs=[image], model_output_info=model_output_info)
 
   def test_model_name_cache(self):
     """ test model name cache
@@ -655,9 +664,7 @@ class TestModels(unittest.TestCase):
     self.app.models.clear_model_cache()
     self.assertFalse(self.app.models.model_id_cache)
 
-    time_start = time.time()
     model = self.app.models.get('general-v1.3')
-    time_elapsed1 = time.time() - time_start
 
     self.assertTrue(self.app.models.model_id_cache)
     self.assertTrue(self.app.models.model_id_cache.get('general-v1.3', 'concept'))
@@ -747,12 +754,15 @@ class TestModels(unittest.TestCase):
 
   def test_model_evaluate(self):
     model_id = uuid.uuid4().hex
+    image_id1 = uuid.uuid4().hex
+    image_id2 = uuid.uuid4().hex
+
     try:
       # Create inputs.
-      img1 = self.app.inputs.create_image_from_url(
-          url=urls[0], concepts=['cat', 'animal'], allow_duplicate_url=True)
-      img2 = self.app.inputs.create_image_from_url(
-          url=urls[1], concepts=['dog'], allow_duplicate_url=True)
+      self.app.inputs.create_image_from_url(
+          image_id=image_id1, url=urls[0], concepts=['cat', 'animal'], allow_duplicate_url=True)
+      self.app.inputs.create_image_from_url(
+          image_id=image_id2, url=urls[1], concepts=['dog'], allow_duplicate_url=True)
 
       # Create and train a model.
       model = self.app.models.create(model_id=model_id, concepts=['cat', 'dog', 'animal'])
@@ -770,8 +780,41 @@ class TestModels(unittest.TestCase):
       # Clean up.
       self.app.models.delete(model_id)
 
-      self.app.inputs.delete(img1.input_id)
-      self.app.inputs.delete(img2.input_id)
+      self.app.inputs.delete(image_id1)
+      self.app.inputs.delete(image_id2)
+
+  def test_model_inputs_are_added_and_gettable(self):
+    model_id = uuid.uuid4().hex
+
+    image_id1 = uuid.uuid4().hex
+    image_id2 = uuid.uuid4().hex
+
+    concept_id_1 = uuid.uuid4().hex
+    concept_id_2 = uuid.uuid4().hex
+
+    try:
+      # Create inputs.
+      self.app.inputs.create_image_from_url(
+          image_id=image_id1, url=urls[0], concepts=[concept_id_1], allow_duplicate_url=True)
+      self.app.inputs.create_image_from_url(
+          image_id=image_id2, url=urls[1], concepts=[concept_id_2], allow_duplicate_url=True)
+
+      # Create a model.
+      model = self.app.models.create(model_id=model_id, concepts=[concept_id_1, concept_id_2])
+
+      # Get model's inputs.
+      response = model.get_inputs()
+
+      input_ids = [input_['id'] for input_ in response['inputs']]
+      assert image_id1 in input_ids
+      assert image_id2 in input_ids
+
+    finally:
+      # Clean up.
+      self.app.models.delete(model_id)
+
+      self.app.inputs.delete(image_id1)
+      self.app.inputs.delete(image_id2)
 
 
 if __name__ == '__main__':

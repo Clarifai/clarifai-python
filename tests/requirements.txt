@@ -1,8 +1,12 @@
-nose>=1.3
-nose-timer>=0.7
+autoflake==1.2
 coverage>=3.7
-nosexcover>=1.0
-ndg-httpsclient>=0.4
+isort==4.3.4
 mock>=2.0
-requests>=2.13
+ndg-httpsclient>=0.4
+nose-timer>=0.7
+nose>=1.3
+nosexcover>=1.0
+parameterized>=0.6
+pylint==1.5.1  # Keep this version as later ones don't currently work.
 responses>=0.5
+yapf==0.22.0

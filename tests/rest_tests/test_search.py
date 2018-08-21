@@ -156,6 +156,7 @@ class TestSearch(unittest.TestCase):
 
     fio = open(filename, 'rb')
     self.app.inputs.search_by_image(fileobj=fio)
+    fio.close()
     os.unlink(filename)
 
   def test_search_input_original_url(self):
@@ -292,14 +293,13 @@ class TestSearch(unittest.TestCase):
     query.add_term(term2)
 
     search_res = self.app.inputs.search(query)
-    # disable this until citus migration fully finishes
-    # self.assertGreater(len(search_res), 0)
-    # match = False
-    # for img in search_res:
-    #  if img.input_id == image_id or img.url == img2.url:
-    #    match = True
-    #    break
-    # self.assertTrue(match)
+    self.assertGreater(len(search_res), 0)
+    match = False
+    for img in search_res:
+      if img.input_id == image_id or img.url == img2.url:
+        match = True
+        break
+    self.assertTrue(match)
 
     # delete second test image
     self.app.inputs.delete(img2.input_id)

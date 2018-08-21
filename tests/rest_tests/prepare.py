@@ -1,13 +1,14 @@
-import uuid
 import logging
+import uuid
+
 from clarifai.rest import ClarifaiApp
 
 urls = [
-  "https://samples.clarifai.com/metro-north.jpg",
-  "https://samples.clarifai.com/wedding.jpg",
-  "https://samples.clarifai.com/facebook.png",
-  "https://samples.clarifai.com/dog.tiff",
-  "https://samples.clarifai.com/penguin.bmp",
+    "https://samples.clarifai.com/metro-north.jpg",
+    "https://samples.clarifai.com/wedding.jpg",
+    "https://samples.clarifai.com/facebook.png",
+    "https://samples.clarifai.com/dog.tiff",
+    "https://samples.clarifai.com/penguin.bmp",
 ]
 
 
@@ -25,8 +26,8 @@ def main():
   app.wait_until_inputs_delete_finish()
   app.wait_until_models_delete_finish()
 
-  app.inputs.create_image_from_url(urls[0], concepts=['train', 'railway'],
-                                   allow_duplicate_url=True)
+  app.inputs.create_image_from_url(
+      urls[0], concepts=['train', 'railway'], allow_duplicate_url=True)
   app.inputs.create_image_from_url(urls[3], concepts=['dog', 'animal'], allow_duplicate_url=True)
 
   model_id = uuid.uuid4().hex
