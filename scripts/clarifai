@@ -82,7 +82,7 @@ def configure():
   else:
     masked_api_key = ''
 
-  # setup the APP_ID and APP_SECRET
+  # setup the API_KEY
 
   api_key_input = input('CLARIFAI_API_KEY: [%s]: ' % masked_api_key)
 
