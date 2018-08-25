@@ -24,11 +24,9 @@ For more details on the installation, please refer to https://clarifai-python.re
 
 Setup
 ---------------------
-The client uses your "CLARIFAI_API_KEY" to get an access token. Since this
-expires every so often, the client is setup to renew the token for you automatically using your
-credentials so you don't have to worry about it.
+The client uses your "CLARIFAI_API_KEY" to get an API key.
 
-You can get the `api_key` from https://developer.clarifai.com and config them for client's use by
+You can get the `api_key` from https://developer.clarifai.com and config it for client's use by
 
 ```bash
 $ clarifai config
