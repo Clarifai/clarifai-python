@@ -21,7 +21,7 @@ Running Tests
 
 To successfully run integration tests, you have to have a valid Clarifai API key with all required permissions.
 
-Create a new API key at the [API keys page](https://www.clarifai.com/developer/account/api-keys) and set it as an environmental variable `CLARIFAI_API_KEY`.
+Create a new API key at the `API keys page <https://www.clarifai.com/developer/account/keys>`_ and set it as an environmental variable `CLARIFAI_API_KEY`.
 
     Warning: The requests made by integration tests are run against the production system and will use your operations.
 
