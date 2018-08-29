@@ -1,6 +1,6 @@
 from google.protobuf.json_format import _Parser
 
-from proto.clarifai.api.utils import extensions_pb2
+from clarifai.rest.grpc.proto.clarifai.api.utils import extensions_pb2
 
 
 def dict_to_protobuf(protobuf_class, js_dict):

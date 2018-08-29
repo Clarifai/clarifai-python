@@ -14,10 +14,10 @@ _sym_db = _symbol_database.Default()
 
 
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
-from proto.clarifai.api import common_pb2 as proto_dot_clarifai_dot_api_dot_common__pb2
-from proto.clarifai.api import data_pb2 as proto_dot_clarifai_dot_api_dot_data__pb2
-from proto.clarifai.api import input_pb2 as proto_dot_clarifai_dot_api_dot_input__pb2
-from proto.clarifai.api.status import status_pb2 as proto_dot_clarifai_dot_api_dot_status_dot_status__pb2
+from clarifai.rest.grpc.proto.clarifai.api import common_pb2 as proto_dot_clarifai_dot_api_dot_common__pb2
+from clarifai.rest.grpc.proto.clarifai.api import data_pb2 as proto_dot_clarifai_dot_api_dot_data__pb2
+from clarifai.rest.grpc.proto.clarifai.api import input_pb2 as proto_dot_clarifai_dot_api_dot_input__pb2
+from clarifai.rest.grpc.proto.clarifai.api.status import status_pb2 as proto_dot_clarifai_dot_api_dot_status_dot_status__pb2
 
 
 DESCRIPTOR = _descriptor.FileDescriptor(

@@ -1,3 +1,9 @@
+## [[2.3.1]](https://github.com/Clarifai/clarifai-python/releases/tag/2.3.1) - [PyPI](https://pypi.org/project/clarifai/2.3.1/) - 2018-08-29
+
+### Fixed
+- Changed the location of the generated proto files to avoid a namespace conflict that appeared in certain cases
+
+
 ## [[2.3.0]](https://github.com/Clarifai/clarifai-python/releases/tag/2.3.0) - [PyPI](https://pypi.org/project/clarifai/2.3.0/) - 2018-08-20
 
 ### Changed

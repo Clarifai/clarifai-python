@@ -14,17 +14,17 @@ from google.protobuf import descriptor_pb2
 _sym_db = _symbol_database.Default()
 
 
-from proto.clarifai.api import cluster_pb2 as proto_dot_clarifai_dot_api_dot_cluster__pb2
-from proto.clarifai.api import color_pb2 as proto_dot_clarifai_dot_api_dot_color__pb2
-from proto.clarifai.api import common_pb2 as proto_dot_clarifai_dot_api_dot_common__pb2
-from proto.clarifai.api import concept_pb2 as proto_dot_clarifai_dot_api_dot_concept__pb2
-from proto.clarifai.api import embedding_pb2 as proto_dot_clarifai_dot_api_dot_embedding__pb2
-from proto.clarifai.api import face_pb2 as proto_dot_clarifai_dot_api_dot_face__pb2
-from proto.clarifai.api import focus_pb2 as proto_dot_clarifai_dot_api_dot_focus__pb2
-from proto.clarifai.api import geo_pb2 as proto_dot_clarifai_dot_api_dot_geo__pb2
-from proto.clarifai.api import image_pb2 as proto_dot_clarifai_dot_api_dot_image__pb2
-from proto.clarifai.api import video_pb2 as proto_dot_clarifai_dot_api_dot_video__pb2
-from proto.clarifai.api.utils import extensions_pb2 as proto_dot_clarifai_dot_api_dot_utils_dot_extensions__pb2
+from clarifai.rest.grpc.proto.clarifai.api import cluster_pb2 as proto_dot_clarifai_dot_api_dot_cluster__pb2
+from clarifai.rest.grpc.proto.clarifai.api import color_pb2 as proto_dot_clarifai_dot_api_dot_color__pb2
+from clarifai.rest.grpc.proto.clarifai.api import common_pb2 as proto_dot_clarifai_dot_api_dot_common__pb2
+from clarifai.rest.grpc.proto.clarifai.api import concept_pb2 as proto_dot_clarifai_dot_api_dot_concept__pb2
+from clarifai.rest.grpc.proto.clarifai.api import embedding_pb2 as proto_dot_clarifai_dot_api_dot_embedding__pb2
+from clarifai.rest.grpc.proto.clarifai.api import face_pb2 as proto_dot_clarifai_dot_api_dot_face__pb2
+from clarifai.rest.grpc.proto.clarifai.api import focus_pb2 as proto_dot_clarifai_dot_api_dot_focus__pb2
+from clarifai.rest.grpc.proto.clarifai.api import geo_pb2 as proto_dot_clarifai_dot_api_dot_geo__pb2
+from clarifai.rest.grpc.proto.clarifai.api import image_pb2 as proto_dot_clarifai_dot_api_dot_image__pb2
+from clarifai.rest.grpc.proto.clarifai.api import video_pb2 as proto_dot_clarifai_dot_api_dot_video__pb2
+from clarifai.rest.grpc.proto.clarifai.api.utils import extensions_pb2 as proto_dot_clarifai_dot_api_dot_utils_dot_extensions__pb2
 from google.protobuf import struct_pb2 as google_dot_protobuf_dot_struct__pb2
 
 

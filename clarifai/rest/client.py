@@ -25,35 +25,39 @@ from past.builtins import basestring
 from clarifai.errors import ApiClientError, ApiError, TokenError, UserError  # noqa
 from clarifai.rest.geo import Geo, GeoBox, GeoLimit, GeoPoint
 from clarifai.rest.grpc.grpc_json_channel import GRPCJSONChannel, dict_to_protobuf, protobuf_to_dict
-from clarifai.versions import CLIENT_VERSION, OS_VER, PYTHON_VERSION  # noqa
-from proto.clarifai.api.concept_pb2 import Concept as ConceptPB
-from proto.clarifai.api.concept_pb2 import (ConceptQuery, GetConceptRequest, ListConceptsRequest,
-                                            PatchConceptsRequest, PostConceptsRequest,
-                                            PostConceptsSearchesRequest)
-from proto.clarifai.api.data_pb2 import Data as DataPB
-from proto.clarifai.api.endpoint_pb2 import _V2
-from proto.clarifai.api.endpoint_pb2_grpc import V2Stub
-from proto.clarifai.api.input_pb2 import (DeleteInputRequest, DeleteInputsRequest,
-                                          GetInputCountRequest, GetInputRequest)
-from proto.clarifai.api.input_pb2 import Input as InputPB
-from proto.clarifai.api.input_pb2 import (ListInputsRequest, ListModelInputsRequest,
-                                          PatchInputsRequest, PostInputsRequest,
-                                          PostModelFeedbackRequest, PostModelOutputsRequest)
-from proto.clarifai.api.model_pb2 import (DeleteModelRequest, DeleteModelsRequest, GetModelRequest,
-                                          ListModelsRequest)
-from proto.clarifai.api.model_pb2 import Model as ModelPB
-from proto.clarifai.api.model_pb2 import ModelQuery
-from proto.clarifai.api.model_pb2 import OutputConfig as OutputConfigPB
-from proto.clarifai.api.model_pb2 import OutputInfo as OutputInfoPB
-from proto.clarifai.api.model_pb2 import (PatchModelsRequest, PostModelsRequest,
-                                          PostModelsSearchesRequest)
-from proto.clarifai.api.model_version_pb2 import (
+from clarifai.rest.grpc.proto.clarifai.api.concept_pb2 import Concept as ConceptPB
+from clarifai.rest.grpc.proto.clarifai.api.concept_pb2 import (
+    ConceptQuery, GetConceptRequest, ListConceptsRequest, PatchConceptsRequest,
+    PostConceptsRequest, PostConceptsSearchesRequest)
+from clarifai.rest.grpc.proto.clarifai.api.data_pb2 import Data as DataPB
+from clarifai.rest.grpc.proto.clarifai.api.endpoint_pb2 import _V2
+from clarifai.rest.grpc.proto.clarifai.api.endpoint_pb2_grpc import V2Stub
+from clarifai.rest.grpc.proto.clarifai.api.input_pb2 import (DeleteInputRequest,
+                                                             DeleteInputsRequest,
+                                                             GetInputCountRequest, GetInputRequest)
+from clarifai.rest.grpc.proto.clarifai.api.input_pb2 import Input as InputPB
+from clarifai.rest.grpc.proto.clarifai.api.input_pb2 import (
+    ListInputsRequest, ListModelInputsRequest, PatchInputsRequest, PostInputsRequest,
+    PostModelFeedbackRequest, PostModelOutputsRequest)
+from clarifai.rest.grpc.proto.clarifai.api.model_pb2 import (DeleteModelRequest,
+                                                             DeleteModelsRequest, GetModelRequest,
+                                                             ListModelsRequest)
+from clarifai.rest.grpc.proto.clarifai.api.model_pb2 import Model as ModelPB
+from clarifai.rest.grpc.proto.clarifai.api.model_pb2 import ModelQuery
+from clarifai.rest.grpc.proto.clarifai.api.model_pb2 import OutputConfig as OutputConfigPB
+from clarifai.rest.grpc.proto.clarifai.api.model_pb2 import OutputInfo as OutputInfoPB
+from clarifai.rest.grpc.proto.clarifai.api.model_pb2 import (PatchModelsRequest, PostModelsRequest,
+                                                             PostModelsSearchesRequest)
+from clarifai.rest.grpc.proto.clarifai.api.model_version_pb2 import (
     DeleteModelVersionRequest, GetModelVersionRequest, ListModelVersionsRequest,
     PostModelVersionMetricsRequest, PostModelVersionsRequest)
-from proto.clarifai.api.search_pb2 import PostSearchesRequest, PostSearchFeedbackRequest, Query
-from proto.clarifai.api.workflow_pb2 import (GetWorkflowRequest, ListPublicWorkflowsRequest,
-                                             ListWorkflowsRequest, PostWorkflowResultsRequest)
-from proto.clarifai.utils.pagination.pagination_pb2 import Pagination
+from clarifai.rest.grpc.proto.clarifai.api.search_pb2 import (PostSearchesRequest,
+                                                              PostSearchFeedbackRequest, Query)
+from clarifai.rest.grpc.proto.clarifai.api.workflow_pb2 import (
+    GetWorkflowRequest, ListPublicWorkflowsRequest, ListWorkflowsRequest,
+    PostWorkflowResultsRequest)
+from clarifai.rest.grpc.proto.clarifai.utils.pagination.pagination_pb2 import Pagination
+from clarifai.versions import CLIENT_VERSION, OS_VER, PYTHON_VERSION  # noqa
 
 logger = logging.getLogger('clarifai')
 logger.handlers = []

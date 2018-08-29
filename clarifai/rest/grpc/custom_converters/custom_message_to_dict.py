@@ -1,7 +1,7 @@
 from google.protobuf import descriptor
 from google.protobuf.json_format import _IsMapEntry, _Printer
 
-from proto.clarifai.api.utils import extensions_pb2
+from clarifai.rest.grpc.proto.clarifai.api.utils import extensions_pb2
 
 
 def protobuf_to_dict(object_protobuf):

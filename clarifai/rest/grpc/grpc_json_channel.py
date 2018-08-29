@@ -10,8 +10,8 @@ import requests
 from clarifai.errors import ApiError
 from clarifai.rest.grpc.custom_converters.custom_dict_to_message import dict_to_protobuf
 from clarifai.rest.grpc.custom_converters.custom_message_to_dict import protobuf_to_dict
+from clarifai.rest.grpc.proto.clarifai.api.endpoint_pb2 import _V2
 from clarifai.versions import CLIENT_VERSION, OS_VER, PYTHON_VERSION
-from proto.clarifai.api.endpoint_pb2 import _V2
 
 BASE_URL = "https://api.clarifai.com"
 URL_TEMPLATE_PARAM_REGEX = re.compile(r'\{{1}(.*?)\}{1}')
@@ -30,8 +30,8 @@ class GRPCJSONChannel(object):
     Assuming your top level endpoints are called V2 and in a proto/clarifai/api/endpoint.proto file,
     then you build those in python and can import the spec to use in GRPCJSONChannel as follows:
 
-    from proto.clarifai.api.endpoint_pb2_grpc import V2Stub
-    from proto.clarifai.api.endpoint_pb2 import _V2
+    from clarifai.rest.grpc.proto.clarifai.api.endpoint_pb2_grpc import V2Stub
+    from clarifai.rest.grpc.proto.clarifai.api.endpoint_pb2 import _V2
     channel = GRPCJSONChannel(key="api key", service_descriptor=_V2)
     stub = V2Stub(channel)
 
