@@ -35,5 +35,5 @@ before_script:
   - PYTHONPATH=. python tests/rest_tests/prepare.py
 
 # command to run tests
-script: PYTHONPATH=. nosetests -s -v -x --with-xunit --processes=8 --process-restartworker --process-timeout=900
+script: PYTHONPATH=. nosetests -s -v -x --with-xunit --processes=8 --process-restartworker --process-timeout=900 tests/
 
