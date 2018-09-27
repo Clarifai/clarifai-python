@@ -1,3 +1,9 @@
+## [[2.3.2]](https://github.com/Clarifai/clarifai-python/releases/tag/2.3.2) - [PyPI](https://pypi.org/project/clarifai/2.3.2/) - 2018-09-25
+
+### Fixed
+- Fix how Protobuf is used to allow simultaneous use of other Protobuf libraries
+
+
 ## [[2.3.1]](https://github.com/Clarifai/clarifai-python/releases/tag/2.3.1) - [PyPI](https://pypi.org/project/clarifai/2.3.1/) - 2018-08-29
 
 ### Fixed

@@ -6,8 +6,6 @@ from clarifai.rest.grpc.proto.clarifai.api import concept_graph_pb2 as proto_dot
 from clarifai.rest.grpc.proto.clarifai.api import concept_language_pb2 as proto_dot_clarifai_dot_api_dot_concept__language__pb2
 from clarifai.rest.grpc.proto.clarifai.api import concept_pb2 as proto_dot_clarifai_dot_api_dot_concept__pb2
 from clarifai.rest.grpc.proto.clarifai.api import concept_reference_pb2 as proto_dot_clarifai_dot_api_dot_concept__reference__pb2
-from clarifai.rest.grpc.proto.clarifai.api import endpoint_pb2 as proto_dot_clarifai_dot_api_dot_endpoint__pb2
-from clarifai.rest.grpc.proto.clarifai.api import healthz_pb2 as proto_dot_clarifai_dot_api_dot_healthz__pb2
 from clarifai.rest.grpc.proto.clarifai.api import input_pb2 as proto_dot_clarifai_dot_api_dot_input__pb2
 from clarifai.rest.grpc.proto.clarifai.api import model_pb2 as proto_dot_clarifai_dot_api_dot_model__pb2
 from clarifai.rest.grpc.proto.clarifai.api import model_version_pb2 as proto_dot_clarifai_dot_api_dot_model__version__pb2
@@ -30,11 +28,6 @@ class V2Stub(object):
     Args:
       channel: A grpc.Channel.
     """
-    self.Echo = channel.unary_unary(
-        '/clarifai.api.V2/Echo',
-        request_serializer=proto_dot_clarifai_dot_api_dot_endpoint__pb2.TestMessage.SerializeToString,
-        response_deserializer=proto_dot_clarifai_dot_api_dot_endpoint__pb2.TestMessage,
-        )
     self.GetConceptCounts = channel.unary_unary(
         '/clarifai.api.V2/GetConceptCounts',
         request_serializer=proto_dot_clarifai_dot_api_dot_concept__pb2.GetConceptCountsRequest.SerializeToString,
@@ -355,23 +348,11 @@ class V2Stub(object):
         request_serializer=proto_dot_clarifai_dot_api_dot_code__pb2.GetStatusCodeRequest.SerializeToString,
         response_deserializer=proto_dot_clarifai_dot_api_dot_code__pb2.SingleStatusCodeResponse,
         )
-    self.GetHealthz = channel.unary_unary(
-        '/clarifai.api.V2/GetHealthz',
-        request_serializer=proto_dot_clarifai_dot_api_dot_healthz__pb2.GetHealthzRequest.SerializeToString,
-        response_deserializer=proto_dot_clarifai_dot_api_dot_healthz__pb2.GetHealthzResponse,
-        )
 
 
 class V2Servicer(object):
   # missing associated documentation comment in .proto file
   pass
-
-  def Echo(self, request, context):
-    # missing associated documentation comment in .proto file
-    pass
-    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-    context.set_details('Method not implemented!')
-    raise NotImplementedError('Method not implemented!')
 
   def GetConceptCounts(self, request, context):
     # missing associated documentation comment in .proto file
@@ -821,21 +802,9 @@ class V2Servicer(object):
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
 
-  def GetHealthz(self, request, context):
-    # missing associated documentation comment in .proto file
-    pass
-    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-    context.set_details('Method not implemented!')
-    raise NotImplementedError('Method not implemented!')
-
 
 def add_V2Servicer_to_server(servicer, server):
   rpc_method_handlers = {
-      'Echo': grpc.unary_unary_rpc_method_handler(
-          servicer.Echo,
-          request_deserializer=proto_dot_clarifai_dot_api_dot_endpoint__pb2.TestMessage,
-          response_serializer=proto_dot_clarifai_dot_api_dot_endpoint__pb2.TestMessage.SerializeToString,
-      ),
       'GetConceptCounts': grpc.unary_unary_rpc_method_handler(
           servicer.GetConceptCounts,
           request_deserializer=proto_dot_clarifai_dot_api_dot_concept__pb2.GetConceptCountsRequest,
@@ -1155,11 +1124,6 @@ def add_V2Servicer_to_server(servicer, server):
           servicer.GetStatusCode,
           request_deserializer=proto_dot_clarifai_dot_api_dot_code__pb2.GetStatusCodeRequest,
           response_serializer=proto_dot_clarifai_dot_api_dot_code__pb2.SingleStatusCodeResponse.SerializeToString,
-      ),
-      'GetHealthz': grpc.unary_unary_rpc_method_handler(
-          servicer.GetHealthz,
-          request_deserializer=proto_dot_clarifai_dot_api_dot_healthz__pb2.GetHealthzRequest,
-          response_serializer=proto_dot_clarifai_dot_api_dot_healthz__pb2.GetHealthzResponse.SerializeToString,
       ),
   }
   generic_handler = grpc.method_handlers_generic_handler(

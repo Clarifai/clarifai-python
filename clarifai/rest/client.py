@@ -3989,7 +3989,9 @@ class ApiClient(object):
 
       inputs_pb.append(dict_to_protobuf(InputPB, obj.dict()))
 
-    output_config_pb = dict_to_protobuf(OutputConfigPB, output_config.dict()['output_config'])
+    output_config_pb = None
+    if output_config:
+      output_config_pb = dict_to_protobuf(OutputConfigPB, output_config.dict()['output_config'])
 
     return self._grpc_request(
         self._grpc_stub().PostWorkflowResults,
