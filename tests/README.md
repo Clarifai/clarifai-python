@@ -11,4 +11,4 @@ From the root directory of this repository:
 
 Again, from the root directory of this repository:
 
-    $ nosetests tests/
+    $ pytest -n auto

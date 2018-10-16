@@ -12,19 +12,31 @@ class TokenError(Exception):
 class ApiError(Exception):
   """ API Server error """
 
-  def __init__(self, resource, params, method, response):
+  def __init__(self, resource, params, method, response=None):
     self.resource = resource
     self.params = params
     self.method = method
     self.response = response
 
-    self.error_code = response.json().get('status', {}).get('code', None)
-    self.error_desc = response.json().get('status', {}).get('description', None)
-    self.error_details = response.json().get('status', {}).get('details', None)
+    self.error_code = 'N/A'
+    self.error_desc = 'N/A'
+    self.error_details = 'N/A'
+    status_code = 'N/A'
+    reason = 'N/A'
+    response_json = 'N/A'
+    if response:
+      response_json_dict = response.json()
+
+      self.error_code = response_json_dict.get('status', {}).get('code', None)
+      self.error_desc = response_json_dict.get('status', {}).get('description', None)
+      self.error_details = response_json_dict.get('status', {}).get('details', None)
+      status_code = response.status_code
+      reason = response.reason
+      response_json = json.dumps(response_json_dict, indent=2)
 
     current_ts_str = str(time.time())
 
-    msg = """%(method)s %(baseurl)s%(resource)s FAILED(%(time_ts)s). status_code: %(status_code)d, reason: %(reason)s, error_code: %(error_code)s, error_description: %(error_desc)s, error_details: %(error_details)s
+    msg = """%(method)s %(baseurl)s%(resource)s FAILED(%(time_ts)s). status_code: %(status_code)s, reason: %(reason)s, error_code: %(error_code)s, error_description: %(error_desc)s, error_details: %(error_details)s
  >> Python client %(client_version)s with Python %(python_version)s on %(os_version)s
  >> %(method)s %(baseurl)s%(resource)s
  >> REQUEST(%(time_ts)s) %(request)s
@@ -32,13 +44,13 @@ class ApiError(Exception):
         'baseurl': '%s/v2/' % _base_url(self.resource),
         'method': method,
         'resource': resource,
-        'status_code': response.status_code,
-        'reason': response.reason,
+        'status_code': status_code,
+        'reason': reason,
         'error_code': self.error_code,
         'error_desc': self.error_desc,
         'error_details': self.error_details,
         'request': json.dumps(params, indent=2),
-        'response': json.dumps(response.json(), indent=2),
+        'response': response_json,
         'time_ts': current_ts_str,
         'client_version': CLIENT_VERSION,
         'python_version': PYTHON_VERSION,

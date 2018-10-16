@@ -1,3 +1,12 @@
+## [[2.4.0]](https://github.com/Clarifai/clarifai-python/releases/tag/2.4.0) - [PyPI](https://pypi.org/project/clarifai/2.4.0/) - 2018-10-16
+
+### Added
+- Moderation solution
+
+### Fixed
+- Raise ApiError instead of requests.ConnectionError when URL not accessible
+
+
 ## [[2.3.2]](https://github.com/Clarifai/clarifai-python/releases/tag/2.3.2) - [PyPI](https://pypi.org/project/clarifai/2.3.2/) - 2018-09-25
 
 ### Fixed

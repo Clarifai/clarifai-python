@@ -57,6 +57,8 @@ from clarifai.rest.grpc.proto.clarifai.api.workflow_pb2 import (
     GetWorkflowRequest, ListPublicWorkflowsRequest, ListWorkflowsRequest,
     PostWorkflowResultsRequest)
 from clarifai.rest.grpc.proto.clarifai.utils.pagination.pagination_pb2 import Pagination
+from clarifai.rest.solutions.solutions import Solutions
+# Versions are imported here to avoid breaking existing client code.
 from clarifai.versions import CLIENT_VERSION, OS_VER, PYTHON_VERSION  # noqa
 
 logger = logging.getLogger('clarifai')
@@ -108,11 +110,13 @@ class ClarifaiApp(object):
         api_key=api_key,
         quiet=quiet,
         log_level=log_level)
+    self.solutions = Solutions(api_key)
+
     self.public_models = PublicModels(self.api)
 
     self.concepts = Concepts(self.api)
     self.inputs = Inputs(self.api)
-    self.models = Models(self.api)
+    self.models = Models(self.api, self.solutions)
     self.workflows = Workflows(self.api)
 
   """
@@ -1045,8 +1049,9 @@ class Workflows(object):
 
 class Models(object):
 
-  def __init__(self, api):
+  def __init__(self, api, solutions):
     self.api = api
+    self.solutions = solutions
 
     # the cache of the model name -> model id mapping
     # to avoid an extra model query on every prediction by model name
@@ -1297,13 +1302,13 @@ class Models(object):
 
     # if the model ID is specified, just make the Model
     if model_id:
-      model = Model(self.api, model_id=model_id)
+      model = Model(self.api, model_id=model_id, solutions=self.solutions)
       return model
 
     # search for the model_name together with the model_type
     if self.model_id_cache.get((model_name, model_type)):
       model_id = self.model_id_cache[(model_name, model_type)]
-      model = Model(self.api, model_id=model_id)
+      model = Model(self.api, model_id=model_id, solutions=self.solutions)
       return model
 
     try:
@@ -1373,7 +1378,7 @@ class Models(object):
 
   def _to_obj(self, item):
     """ convert a model json object to Model object """
-    return Model(self.api, item)
+    return Model(self.api, item, solutions=self.solutions)
 
 
 def _escape(param):
@@ -2664,8 +2669,10 @@ class Concepts(object):
 
 class Model(object):
 
-  def __init__(self, api, item=None, model_id=None):
+  def __init__(self, api, item=None, model_id=None, solutions=None):
     self.api = api
+
+    self.solutions = ModelSolutions(solutions, self)
 
     if model_id is not None:
       self.model_id = model_id
@@ -3243,6 +3250,22 @@ class Model(object):
     return res
 
 
+class ModelSolutions(object):
+
+  def __init__(self, solutions, model):
+    self.moderation = ModelSolutionsModeration(solutions, model)
+
+
+class ModelSolutionsModeration(object):
+
+  def __init__(self, solutions, model):
+    self.solutions = solutions
+    self.model = model
+
+  def predict_by_url(self, url):
+    return self.solutions.moderation.predict_model(self.model.model_id, url)
+
+
 class Concept(object):
   """ Clarifai Concept
   """
@@ -3466,22 +3489,23 @@ class ApiClient(object):
         logger.debug("\nRESULT:\n%s", pformat(dict_res))
         return dict_res
       except ApiError as ex:
-        status_code = ex.response.status_code
+        if ex.response is not None:
+          status_code = ex.response.status_code
 
-        if attempt_num == max_attempts:
-          logger.debug("Failed after %d retries" % max_attempts)
-          raise
+          if attempt_num == max_attempts:
+            logger.debug("Failed after %d retries" % max_attempts)
+            raise
 
-        # handle Gateway Error, normally retry will solve the problem
-        if int(status_code / 100) == 5:
-          continue
+          # handle Gateway Error, normally retry will solve the problem
+          if int(status_code / 100) == 5:
+            continue
 
-        # handle throttling
-        # back off with 2/4/8 seconds
-        # normally, this will be settled in 1 or 2 retries
-        if status_code == 429:
-          time.sleep(2**attempt_num)
-          continue
+          # handle throttling
+          # back off with 2/4/8 seconds
+          # normally, this will be settled in 1 or 2 retries
+          if status_code == 429:
+            time.sleep(2**attempt_num)
+            continue
 
         # in other cases, error out without retrying
         raise

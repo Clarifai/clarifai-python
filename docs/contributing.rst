@@ -32,4 +32,4 @@ Create a new API key at the `API keys page <https://www.clarifai.com/developer/a
 
 #. Run the tests:
 
-    `nosetests -s -v -x --with-xunit`
+    `pytest -n auto`

@@ -7,7 +7,7 @@ import unittest
 
 import responses
 
-from clarifai.rest import ApiClient
+from clarifai.rest import ApiClient, ApiError, ClarifaiApp
 
 urls = [
     "https://samples.clarifai.com/metro-north.jpg",
@@ -242,6 +242,15 @@ class TestApiExceptions(unittest.TestCase):
       self.assertDictContainsSubset({'status': {'code': 10000, 'description': 'Ok'}}, res)
       self.assertEqual(len(res['concepts']), 5)
       self.assertGreaterEqual(ts_elapsed, 3.000)
+
+  def test_bad_gateway_error(self):
+
+    app = ClarifaiApp()
+
+    app.api.basev2 = 'https://nonexistent-base-url.clarifai.com'
+
+    with self.assertRaises(ApiError):
+      app.public_models.general_model.predict_by_url(urls[0])
 
 
 if __name__ == '__main__':

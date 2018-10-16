@@ -36,10 +36,23 @@ install:
   - pip install -r requirements.txt
   - pip install -r tests/requirements.txt
 
-# command to run before tests start
+# run code quality checks and prepare the environment for tests
 before_script:
-  - PYTHONPATH=. python tests/rest_tests/prepare.py
+  - ./assert-code-quality.sh
+  - export PYTHONPATH=.
+  - export CLARIFAI_APP_ID="$(python scripts/app_and_key_for_tests.py --create-app python-travis)"
+  - export CLARIFAI_API_KEY="$(python scripts/app_and_key_for_tests.py --create-key ${CLARIFAI_APP_ID})"
+  - python tests/rest_tests/prepare.py
+
 
 # command to run tests
-script: PYTHONPATH=. nosetests -s -v -x --with-xunit --processes=8 --process-restartworker --process-timeout=900 tests/
+script: |
+  if [ "$TRAVIS_OS_NAME" == "osx" ]; then
+    COVERAGE_ARGS=""
+  fi
+  pytest -n 8 $COVERAGE_ARGS
+
+after_script:
+  - export PYTHONPATH=.
+  - python scripts/app_and_key_for_tests.py --delete-app $CLARIFAI_APP_ID
 
