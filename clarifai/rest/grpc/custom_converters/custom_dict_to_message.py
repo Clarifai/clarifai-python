@@ -3,9 +3,9 @@ from google.protobuf.json_format import _Parser
 from clarifai.rest.grpc.proto.clarifai.api.utils import extensions_pb2
 
 
-def dict_to_protobuf(protobuf_class, js_dict):
+def dict_to_protobuf(protobuf_class, js_dict, ignore_unknown_fields=False):
   message = protobuf_class()
-  parser = _CustomParser(ignore_unknown_fields=False)
+  parser = _CustomParser(ignore_unknown_fields=ignore_unknown_fields)
   parser.ConvertMessage(js_dict, message)
   return message
 

@@ -1,3 +1,9 @@
+## [[2.4.1]](https://github.com/Clarifai/clarifai-python/releases/tag/2.4.1) - [PyPI](https://pypi.org/project/clarifai/2.4.1/) - 2018-11-08
+
+### Fixed
+- Ignore unknown fields in the response object
+
+
 ## [[2.4.0]](https://github.com/Clarifai/clarifai-python/releases/tag/2.4.0) - [PyPI](https://pypi.org/project/clarifai/2.4.0/) - 2018-10-16
 
 ### Added

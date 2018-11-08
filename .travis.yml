@@ -15,7 +15,20 @@ matrix:
     - os: osx
       language: generic
       env: PYTHON=2.7.15
+# TODO(Rok) HIGH: Investigate and fix these environments.
+#    - os: osx
+#      language: generic
+#      env: PYTHON=3.5.6
+#    - os: osx
+#      language: generic
+#      env: PYTHON=3.6.6
 
+# environmental variables
+env:
+  global:
+    - COVERAGE_ARGS="--cov=clarifai --cov-report xml --junitxml=nosetest.xml"
+
+# TODO(Rok) LOW: Cache the Python installation, if possible.
 before_install: |
   if [ "$TRAVIS_OS_NAME" == "osx" ]; then
     brew update
@@ -55,4 +68,3 @@ script: |
 after_script:
   - export PYTHONPATH=.
   - python scripts/app_and_key_for_tests.py --delete-app $CLARIFAI_APP_ID
-

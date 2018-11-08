@@ -148,7 +148,7 @@ class JSONUnaryUnary(object):
 
     # Get the actual message object to construct
     message = self.response_deserializer
-    result = dict_to_protobuf(message, response_json)
+    result = dict_to_protobuf(message, response_json, ignore_unknown_fields=True)
 
     return result
 
