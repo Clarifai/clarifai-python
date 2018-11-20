@@ -243,7 +243,7 @@ class TestApiExceptions(unittest.TestCase):
       self.assertEqual(len(res['concepts']), 5)
       self.assertGreaterEqual(ts_elapsed, 3.000)
 
-  def test_bad_gateway_error(self):
+  def test_invalid_base_url_error(self):
 
     app = ClarifaiApp()
 
@@ -251,6 +251,15 @@ class TestApiExceptions(unittest.TestCase):
 
     with self.assertRaises(ApiError):
       app.public_models.general_model.predict_by_url(urls[0])
+
+  def test_invalid_api_key_error(self):
+    with self.assertRaises(ApiError) as ex:
+      ClarifaiApp(api_key='some-invalid-api-key')
+
+    raised_exception = ex.exception
+
+    assert raised_exception.error_code == 11009
+    assert raised_exception.error_desc == 'API key not found'
 
 
 if __name__ == '__main__':

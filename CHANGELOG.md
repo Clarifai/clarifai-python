@@ -1,3 +1,9 @@
+## [[2.4.2]](https://github.com/Clarifai/clarifai-python/releases/tag/2.4.2) - [PyPI](https://pypi.org/project/clarifai/2.4.2/) - 2018-11-20
+
+### Fixed
+- Fix setting error object fields on ApiError
+
+
 ## [[2.4.1]](https://github.com/Clarifai/clarifai-python/releases/tag/2.4.1) - [PyPI](https://pypi.org/project/clarifai/2.4.1/) - 2018-11-08
 
 ### Fixed

@@ -12,7 +12,7 @@ has_enum = sys.version_info >= (3, 4)
 setup(
     name="clarifai",
     description='Clarifai API Python Client',
-    version='2.4.1',
+    version='2.4.2',
     author='Clarifai',
     maintainer='Robert Wen',
     maintainer_email='robert@clarifai.com',

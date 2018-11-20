@@ -24,7 +24,8 @@ class ApiError(Exception):
     status_code = 'N/A'
     reason = 'N/A'
     response_json = 'N/A'
-    if response:
+
+    if response is not None and response.text:
       response_json_dict = response.json()
 
       self.error_code = response_json_dict.get('status', {}).get('code', None)
@@ -36,9 +37,9 @@ class ApiError(Exception):
 
     current_ts_str = str(time.time())
 
-    msg = """%(method)s %(baseurl)s%(resource)s FAILED(%(time_ts)s). status_code: %(status_code)s, reason: %(reason)s, error_code: %(error_code)s, error_description: %(error_desc)s, error_details: %(error_details)s
+    msg = """%(method)s %(resource)s FAILED(%(time_ts)s). status_code: %(status_code)s, reason: %(reason)s, error_code: %(error_code)s, error_description: %(error_desc)s, error_details: %(error_details)s
  >> Python client %(client_version)s with Python %(python_version)s on %(os_version)s
- >> %(method)s %(baseurl)s%(resource)s
+ >> %(method)s %(resource)s
  >> REQUEST(%(time_ts)s) %(request)s
  >> RESPONSE(%(time_ts)s) %(response)s""" % {
         'baseurl': '%s/v2/' % _base_url(self.resource),
