@@ -25,7 +25,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='proto/clarifai/api/search.proto',
   package='clarifai.api',
   syntax='proto3',
-  serialized_pb=_b('\n\x1fproto/clarifai/api/search.proto\x12\x0c\x63larifai.api\x1a\x1fproto/clarifai/api/common.proto\x1a\x1eproto/clarifai/api/input.proto\x1a\x1fproto/clarifai/api/output.proto\x1a&proto/clarifai/api/status/status.proto\x1a)proto/clarifai/api/utils/extensions.proto\x1a\x30proto/clarifai/utils/pagination/pagination.proto\"8\n\x03Hit\x12\r\n\x05score\x18\x01 \x01(\x02\x12\"\n\x05input\x18\x02 \x01(\x0b\x32\x13.clarifai.api.Input\"_\n\x03\x41nd\x12\"\n\x05input\x18\x01 \x01(\x0b\x32\x13.clarifai.api.Input\x12$\n\x06output\x18\x02 \x01(\x0b\x32\x14.clarifai.api.Output\x12\x0e\n\x06negate\x18\x03 \x01(\x08\":\n\x05Query\x12\x1f\n\x04\x61nds\x18\x01 \x03(\x0b\x32\x11.clarifai.api.And\x12\x10\n\x08language\x18\x02 \x01(\t\"\xad\x01\n\x13PostSearchesRequest\x12/\n\x0buser_app_id\x18\x01 \x01(\x0b\x32\x1a.clarifai.api.UserAppIDSet\x12\"\n\x05query\x18\x02 \x01(\x0b\x32\x13.clarifai.api.Query\x12,\n\npagination\x18\x03 \x01(\x0b\x32\x18.clarifai.api.Pagination\x12\x13\n\x0b\x62rute_force\x18\x04 \x01(\x08\"p\n\x19PostSearchFeedbackRequest\x12/\n\x0buser_app_id\x18\x01 \x01(\x0b\x32\x1a.clarifai.api.UserAppIDSet\x12\"\n\x05input\x18\x02 \x01(\x0b\x32\x13.clarifai.api.Input\"u\n\x13MultiSearchResponse\x12+\n\x06status\x18\x01 \x01(\x0b\x32\x1b.clarifai.api.status.Status\x12\n\n\x02id\x18\x02 \x01(\t\x12%\n\x04hits\x18\x03 \x03(\x0b\x32\x11.clarifai.api.HitB\x04\x80\xb5\x18\x01\x42$Z\x03\x61pi\xa2\x02\x04\x43\x41IP\xc2\x02\x01_\xca\x02\x11\x43larifai\\Internalb\x06proto3')
+  serialized_pb=_b('\n\x1fproto/clarifai/api/search.proto\x12\x0c\x63larifai.api\x1a\x1fproto/clarifai/api/common.proto\x1a\x1eproto/clarifai/api/input.proto\x1a\x1fproto/clarifai/api/output.proto\x1a&proto/clarifai/api/status/status.proto\x1a)proto/clarifai/api/utils/extensions.proto\x1a\x30proto/clarifai/utils/pagination/pagination.proto\">\n\x03Hit\x12\x13\n\x05score\x18\x01 \x01(\x02\x42\x04\x80\xb5\x18\x01\x12\"\n\x05input\x18\x02 \x01(\x0b\x32\x13.clarifai.api.Input\"_\n\x03\x41nd\x12\"\n\x05input\x18\x01 \x01(\x0b\x32\x13.clarifai.api.Input\x12$\n\x06output\x18\x02 \x01(\x0b\x32\x14.clarifai.api.Output\x12\x0e\n\x06negate\x18\x03 \x01(\x08\":\n\x05Query\x12\x1f\n\x04\x61nds\x18\x01 \x03(\x0b\x32\x11.clarifai.api.And\x12\x10\n\x08language\x18\x02 \x01(\t\"\xad\x01\n\x13PostSearchesRequest\x12/\n\x0buser_app_id\x18\x01 \x01(\x0b\x32\x1a.clarifai.api.UserAppIDSet\x12\"\n\x05query\x18\x02 \x01(\x0b\x32\x13.clarifai.api.Query\x12,\n\npagination\x18\x03 \x01(\x0b\x32\x18.clarifai.api.Pagination\x12\x13\n\x0b\x62rute_force\x18\x04 \x01(\x08\"p\n\x19PostSearchFeedbackRequest\x12/\n\x0buser_app_id\x18\x01 \x01(\x0b\x32\x1a.clarifai.api.UserAppIDSet\x12\"\n\x05input\x18\x02 \x01(\x0b\x32\x13.clarifai.api.Input\"u\n\x13MultiSearchResponse\x12+\n\x06status\x18\x01 \x01(\x0b\x32\x1b.clarifai.api.status.Status\x12\n\n\x02id\x18\x02 \x01(\t\x12%\n\x04hits\x18\x03 \x03(\x0b\x32\x11.clarifai.api.HitB\x04\x80\xb5\x18\x01\x42$Z\x03\x61pi\xa2\x02\x04\x43\x41IP\xc2\x02\x01_\xca\x02\x11\x43larifai\\Internalb\x06proto3')
   ,
   dependencies=[proto_dot_clarifai_dot_api_dot_common__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_input__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_output__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_status_dot_status__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_utils_dot_extensions__pb2.DESCRIPTOR,proto_dot_clarifai_dot_utils_dot_pagination_dot_pagination__pb2.DESCRIPTOR,])
 
@@ -45,7 +45,7 @@ _HIT = _descriptor.Descriptor(
       has_default_value=False, default_value=float(0),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None, file=DESCRIPTOR),
+      options=_descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\200\265\030\001')), file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='input', full_name='clarifai.api.Hit.input', index=1,
       number=2, type=11, cpp_type=10, label=1,
@@ -66,7 +66,7 @@ _HIT = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=280,
-  serialized_end=336,
+  serialized_end=342,
 )
 
 
@@ -110,8 +110,8 @@ _AND = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=338,
-  serialized_end=433,
+  serialized_start=344,
+  serialized_end=439,
 )
 
 
@@ -148,8 +148,8 @@ _QUERY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=435,
-  serialized_end=493,
+  serialized_start=441,
+  serialized_end=499,
 )
 
 
@@ -200,8 +200,8 @@ _POSTSEARCHESREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=496,
-  serialized_end=669,
+  serialized_start=502,
+  serialized_end=675,
 )
 
 
@@ -238,8 +238,8 @@ _POSTSEARCHFEEDBACKREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=671,
-  serialized_end=783,
+  serialized_start=677,
+  serialized_end=789,
 )
 
 
@@ -283,8 +283,8 @@ _MULTISEARCHRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=785,
-  serialized_end=902,
+  serialized_start=791,
+  serialized_end=908,
 )
 
 _HIT.fields_by_name['input'].message_type = proto_dot_clarifai_dot_api_dot_input__pb2._INPUT
@@ -351,6 +351,8 @@ _sym_db.RegisterMessage(MultiSearchResponse)
 
 DESCRIPTOR.has_options = True
 DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('Z\003api\242\002\004CAIP\302\002\001_\312\002\021Clarifai\\Internal'))
+_HIT.fields_by_name['score'].has_options = True
+_HIT.fields_by_name['score']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\200\265\030\001'))
 _MULTISEARCHRESPONSE.fields_by_name['hits'].has_options = True
 _MULTISEARCHRESPONSE.fields_by_name['hits']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\200\265\030\001'))
 # @@protoc_insertion_point(module_scope)

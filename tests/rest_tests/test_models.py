@@ -11,18 +11,10 @@ from mock import Mock
 
 from clarifai.rest import ApiError, ClarifaiApp, Image, Model
 
-urls = [
-    "https://samples.clarifai.com/metro-north.jpg",
-    "https://samples.clarifai.com/wedding.jpg",
-    "https://samples.clarifai.com/facebook.png",
-    "https://samples.clarifai.com/dog.tiff",
-    "https://samples.clarifai.com/penguin.bmp",
-]
+from . import sample_inputs
 
 
 class TestModels(unittest.TestCase):
-  _multiprocess_can_split_ = True
-  to_cleanup = []
 
   @classmethod
   def setUpClass(cls):
@@ -227,16 +219,16 @@ class TestModels(unittest.TestCase):
     model = self.app.models.get('general-v1.3')
 
     # predict by url
-    model.predict_by_url(urls[0])
+    model.predict_by_url(sample_inputs.METRO_IMAGE_URL)
 
     # predict with url with leading space
-    model.predict_by_url('  ' + urls[0])
+    model.predict_by_url('  ' + sample_inputs.METRO_IMAGE_URL)
 
     # predict with url with trailing space
-    model.predict_by_url('  ' + urls[0] + ' ')
+    model.predict_by_url('  ' + sample_inputs.METRO_IMAGE_URL + ' ')
 
     # predict by file raw bytes
-    raw_bytes = self.app.api.session.get(urls[0]).content
+    raw_bytes = self.app.api.session.get(sample_inputs.METRO_IMAGE_URL).content
     model.predict_by_bytes(raw_bytes)
 
     # predict by base64 bytes
@@ -277,7 +269,7 @@ class TestModels(unittest.TestCase):
     """ test initialize model object """
     # make model from model_id
     m = Model(self.app.api, model_id='eee28c313d69466f836ab83287a54ed9')
-    m.predict_by_url(urls[0])
+    m.predict_by_url(sample_inputs.METRO_IMAGE_URL)
 
   def test_predict_multiple_times_single_image(self):
     """ construct one image object and predict multiple times """
@@ -286,7 +278,7 @@ class TestModels(unittest.TestCase):
     # predict by url
     f = tempfile.NamedTemporaryFile(delete=False)
     filename = f.name
-    raw_bytes = self.app.api.session.get(urls[0]).content
+    raw_bytes = self.app.api.session.get(sample_inputs.METRO_IMAGE_URL).content
     f.write(raw_bytes)
     f.close()
 
@@ -327,9 +319,9 @@ class TestModels(unittest.TestCase):
     # create a model with concepts
 
     img1 = self.app.inputs.create_image_from_url(
-        url=urls[0], concepts=['cat', 'animal'], allow_duplicate_url=True)
+        url=sample_inputs.METRO_IMAGE_URL, concepts=['cat', 'animal'], allow_duplicate_url=True)
     img2 = self.app.inputs.create_image_from_url(
-        url=urls[1], concepts=['dog'], allow_duplicate_url=True)
+        url=sample_inputs.WEDDING_IMAGE_URL, concepts=['dog'], allow_duplicate_url=True)
 
     model_id = uuid.uuid4().hex
     model = self.app.models.create(model_id=model_id, concepts=['cat', 'dog', 'animal'])
@@ -401,9 +393,9 @@ class TestModels(unittest.TestCase):
   def test_get_model_concepts(self):
     """ test get concepts from the model """
     img1 = self.app.inputs.create_image_from_url(
-        url=urls[0], concepts=['cat', 'animal'], allow_duplicate_url=True)
+        url=sample_inputs.METRO_IMAGE_URL, concepts=['cat', 'animal'], allow_duplicate_url=True)
     img2 = self.app.inputs.create_image_from_url(
-        url=urls[1], concepts=['dog'], allow_duplicate_url=True)
+        url=sample_inputs.WEDDING_IMAGE_URL, concepts=['dog'], allow_duplicate_url=True)
 
     model_id = uuid.uuid4().hex
     model = self.app.models.create(model_id=model_id, concepts=['cat', 'animal', 'dog'])
@@ -458,9 +450,9 @@ class TestModels(unittest.TestCase):
 
     # train a good model
     img1 = self.app.inputs.create_image_from_url(
-        urls[0], concepts=['cat'], allow_duplicate_url=True)
+        sample_inputs.METRO_IMAGE_URL, concepts=['cat'], allow_duplicate_url=True)
     img2 = self.app.inputs.create_image_from_url(
-        urls[1], concepts=['dog'], allow_duplicate_url=True)
+        sample_inputs.WEDDING_IMAGE_URL, concepts=['dog'], allow_duplicate_url=True)
 
     model_id = uuid.uuid4().hex
     model4 = self.app.models.create(model_id=model_id, concepts=['cat', 'dog'])
@@ -474,9 +466,9 @@ class TestModels(unittest.TestCase):
     ''' train(sync=True) timeout handling '''
 
     img1 = self.app.inputs.create_image_from_url(
-        urls[0], concepts=['cat'], allow_duplicate_url=True)
+        sample_inputs.METRO_IMAGE_URL, concepts=['cat'], allow_duplicate_url=True)
     img2 = self.app.inputs.create_image_from_url(
-        urls[1], concepts=['dog'], allow_duplicate_url=True)
+        sample_inputs.WEDDING_IMAGE_URL, concepts=['dog'], allow_duplicate_url=True)
 
     model_id = uuid.uuid4().hex
     model = self.app.models.create(model_id)
@@ -562,9 +554,9 @@ class TestModels(unittest.TestCase):
     """ create a model, add ,delete, and overwrite concepts """
 
     img1 = self.app.inputs.create_image_from_url(
-        urls[0], concepts=['cat'], allow_duplicate_url=True)
+        sample_inputs.METRO_IMAGE_URL, concepts=['cat'], allow_duplicate_url=True)
     img2 = self.app.inputs.create_image_from_url(
-        urls[1], concepts=['dog'], allow_duplicate_url=True)
+        sample_inputs.WEDDING_IMAGE_URL, concepts=['dog'], allow_duplicate_url=True)
 
     model_id = uuid.uuid4().hex
     model = self.app.models.create(model_id)
@@ -584,9 +576,9 @@ class TestModels(unittest.TestCase):
     """ add a model with no concept, and then add two concepts, verify with get_model """
 
     img1 = self.app.inputs.create_image_from_url(
-        urls[0], concepts=['cat', 'animal'], allow_duplicate_url=True)
+        sample_inputs.METRO_IMAGE_URL, concepts=['cat', 'animal'], allow_duplicate_url=True)
     img2 = self.app.inputs.create_image_from_url(
-        urls[1], concepts=['dog'], allow_duplicate_url=True)
+        sample_inputs.WEDDING_IMAGE_URL, concepts=['dog'], allow_duplicate_url=True)
 
     model_id = uuid.uuid4().hex
     model = self.app.models.create(model_id)
@@ -647,7 +639,7 @@ class TestModels(unittest.TestCase):
 
     # model = self.app.models.get('general-v1.3')
     model = self.app.models.get(model_id='aaa03c23b3724a16a56b629203edc62c')
-    image = Image(url=urls[0])
+    image = Image(url=sample_inputs.METRO_IMAGE_URL)
 
     res = model.predict([image])
     self.assertEqual(10000, res['status']['code'])
@@ -664,18 +656,18 @@ class TestModels(unittest.TestCase):
     self.app.models.clear_model_cache()
     self.assertFalse(self.app.models.model_id_cache)
 
-    model = self.app.models.get('general-v1.3')
+    model = self.app.models.get('face-v1.3')
 
     self.assertTrue(self.app.models.model_id_cache)
-    self.assertTrue(self.app.models.model_id_cache.get('general-v1.3', 'concept'))
+    self.assertTrue(self.app.models.model_id_cache.get('face-v1.3', 'facedetect'))
 
-    model2 = self.app.models.get('general-v1.3', model_type='embed')
-    self.assertTrue(self.app.models.model_id_cache.get('general-v1.3', 'embed'))
+    model2 = self.app.models.get('face-v1.3', model_type='embed')
+    self.assertTrue(self.app.models.model_id_cache.get('face-v1.3', 'embed'))
     self.assertNotEqual(model.model_id, model2.model_id)
 
-    model3 = self.app.models.get('face-v1.3')
-    self.assertTrue(self.app.models.model_id_cache.get('face-v1.3', 'facedetect'))
-    self.assertEqual(model3.model_name, 'face-v1.3')
+    model3 = self.app.models.get('general-v1.3')
+    self.assertTrue(self.app.models.model_id_cache.get('general-v1.3', 'concept'))
+    self.assertEqual(model3.model_name, 'general-v1.3')
 
     # This introduces a race condition below, so the above check that it is just in the
     # cache should be good enough.
@@ -714,7 +706,7 @@ class TestModels(unittest.TestCase):
     # go with simplified Chinese
     model = self.app.models.get('general-v1.3')
 
-    res = model.predict_by_url(urls[0], lang='zh')
+    res = model.predict_by_url(sample_inputs.METRO_IMAGE_URL, lang='zh')
     concepts = res['outputs'][0]['data']['concepts']
     self.assertTrue(isinstance(concepts, list))
 
@@ -727,7 +719,7 @@ class TestModels(unittest.TestCase):
     self.assertEqual(concept2['name'], u'铁路')
 
     # go with Japanese
-    res = model.predict_by_url(urls[0], lang='ja')
+    res = model.predict_by_url(sample_inputs.METRO_IMAGE_URL, lang='ja')
     concepts = res['outputs'][0]['data']['concepts']
     self.assertTrue(isinstance(concepts, list))
 
@@ -740,7 +732,7 @@ class TestModels(unittest.TestCase):
     self.assertEqual(concept2['name'], u'鉄道')
 
     # go with Russian
-    res = model.predict_by_url(urls[0], lang='ru')
+    res = model.predict_by_url(sample_inputs.METRO_IMAGE_URL, lang='ru')
     concepts = res['outputs'][0]['data']['concepts']
     self.assertTrue(isinstance(concepts, list))
 
@@ -760,9 +752,15 @@ class TestModels(unittest.TestCase):
     try:
       # Create inputs.
       self.app.inputs.create_image_from_url(
-          image_id=image_id1, url=urls[0], concepts=['cat', 'animal'], allow_duplicate_url=True)
+          image_id=image_id1,
+          url=sample_inputs.METRO_IMAGE_URL,
+          concepts=['cat', 'animal'],
+          allow_duplicate_url=True)
       self.app.inputs.create_image_from_url(
-          image_id=image_id2, url=urls[1], concepts=['dog'], allow_duplicate_url=True)
+          image_id=image_id2,
+          url=sample_inputs.WEDDING_IMAGE_URL,
+          concepts=['dog'],
+          allow_duplicate_url=True)
 
       # Create and train a model.
       model = self.app.models.create(model_id=model_id, concepts=['cat', 'dog', 'animal'])
@@ -795,9 +793,15 @@ class TestModels(unittest.TestCase):
     try:
       # Create inputs.
       self.app.inputs.create_image_from_url(
-          image_id=image_id1, url=urls[0], concepts=[concept_id_1], allow_duplicate_url=True)
+          image_id=image_id1,
+          url=sample_inputs.METRO_IMAGE_URL,
+          concepts=[concept_id_1],
+          allow_duplicate_url=True)
       self.app.inputs.create_image_from_url(
-          image_id=image_id2, url=urls[1], concepts=[concept_id_2], allow_duplicate_url=True)
+          image_id=image_id2,
+          url=sample_inputs.WEDDING_IMAGE_URL,
+          concepts=[concept_id_2],
+          allow_duplicate_url=True)
 
       # Create a model.
       model = self.app.models.create(model_id=model_id, concepts=[concept_id_1, concept_id_2])
@@ -815,7 +819,3 @@ class TestModels(unittest.TestCase):
 
       self.app.inputs.delete(image_id1)
       self.app.inputs.delete(image_id2)
-
-
-if __name__ == '__main__':
-  unittest.main()

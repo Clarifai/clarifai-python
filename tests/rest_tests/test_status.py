@@ -8,8 +8,6 @@ class TestStatus(unittest.TestCase):
   unit test for api status
   """
 
-  _multiprocess_can_split_ = True
-
   def test_api_status(self):
     # make the status
     item = {'code': 10000, 'description': 'Ok'}

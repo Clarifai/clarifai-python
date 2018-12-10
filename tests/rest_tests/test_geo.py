@@ -10,8 +10,6 @@ class TestGeo(unittest.TestCase):
   there will be no API call out in this unittest
   """
 
-  _multiprocess_can_split_ = True
-
   def test_geo_limit(self):
     """ test geo limit """
     GeoLimit("mile", 22)

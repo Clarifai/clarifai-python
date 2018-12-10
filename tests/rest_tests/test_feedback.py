@@ -10,10 +10,10 @@ from clarifai.rest import (BoundingBox, ClarifaiApp, Concept, Face, FaceAgeAppea
                            FaceGenderAppearance, FaceIdentity, FaceMulticulturalAppearance,
                            FeedbackInfo, FeedbackType, Region, RegionInfo)
 
+from . import sample_inputs
+
 
 class TestFeedback(unittest.TestCase):
-  _multiprocess_can_split_ = True
-  to_cleanup = []
 
   @classmethod
   def setUpClass(cls):
@@ -32,7 +32,7 @@ class TestFeedback(unittest.TestCase):
 
     ret = m.send_concept_feedback(
         input_id='bb',
-        url='https://samples.clarifai.com/dog2.jpeg',
+        url=sample_inputs.DOG2_IMAGE_URL,
         concepts=['dog', 'puppy'],
         not_concepts=['cat', 'tiger'],
         feedback_info=feedback_info)
@@ -40,14 +40,14 @@ class TestFeedback(unittest.TestCase):
 
     ret = m.send_concept_feedback(
         input_id='bb',
-        url='https://samples.clarifai.com/dog2.jpeg',
+        url=sample_inputs.DOG2_IMAGE_URL,
         concepts=['dog', 'puppy'],
         feedback_info=feedback_info)
     self.assertEqual(ret['status']['code'], 10000)
 
     ret = m.send_concept_feedback(
         input_id='bb',
-        url='https://samples.clarifai.com/dog2.jpeg',
+        url=sample_inputs.DOG2_IMAGE_URL,
         not_concepts=['cat'],
         feedback_info=feedback_info)
     self.assertEqual(ret['status']['code'], 10000)
@@ -72,7 +72,7 @@ class TestFeedback(unittest.TestCase):
 
     ret = m.send_region_feedback(
         input_id='xyz',
-        url='https://samples.clarifai.com/dog.tiff',
+        url=sample_inputs.DOG_TIFF_IMAGE_URL,
         concepts=['matid2'],
         not_concepts=['lambo'],
         regions=regions,
@@ -87,7 +87,7 @@ class TestFeedback(unittest.TestCase):
 
     ret = m.send_region_feedback(
         input_id='xyz',
-        url='https://samples.clarifai.com/dog.tiff',
+        url=sample_inputs.DOG_TIFF_IMAGE_URL,
         concepts=['matid2'],
         not_concepts=['lambo'],
         regions=regions,
@@ -119,7 +119,7 @@ class TestFeedback(unittest.TestCase):
 
     ret = m.send_region_feedback(
         input_id='xyz',
-        url='https://samples.clarifai.com/dog.tiff',
+        url=sample_inputs.DOG_TIFF_IMAGE_URL,
         concepts=['matid2'],
         not_concepts=['lambo'],
         regions=regions,
@@ -135,7 +135,7 @@ class TestFeedback(unittest.TestCase):
 
     ret = m.send_region_feedback(
         input_id='xyz',
-        url='https://samples.clarifai.com/dog.tiff',
+        url=sample_inputs.DOG_TIFF_IMAGE_URL,
         concepts=['matid2'],
         not_concepts=['lambo'],
         regions=regions,
@@ -151,7 +151,7 @@ class TestFeedback(unittest.TestCase):
 
     ret = m.send_region_feedback(
         input_id='xyz',
-        url='https://samples.clarifai.com/dog.tiff',
+        url=sample_inputs.DOG_TIFF_IMAGE_URL,
         concepts=['matid2'],
         not_concepts=['lambo'],
         regions=regions,
@@ -167,7 +167,7 @@ class TestFeedback(unittest.TestCase):
 
     ret = m.send_region_feedback(
         input_id='xyz',
-        url='https://samples.clarifai.com/dog.tiff',
+        url=sample_inputs.DOG_TIFF_IMAGE_URL,
         concepts=['matid2'],
         not_concepts=['lambo'],
         regions=regions,
@@ -199,7 +199,7 @@ class TestFeedback(unittest.TestCase):
 
     ret = m.send_region_feedback(
         input_id='xyz',
-        url='https://samples.clarifai.com/dog.tiff',
+        url=sample_inputs.DOG_TIFF_IMAGE_URL,
         concepts=['matid2'],
         not_concepts=['lambo'],
         regions=regions,
@@ -215,7 +215,7 @@ class TestFeedback(unittest.TestCase):
 
     ret = m.send_region_feedback(
         input_id='xyz',
-        url='https://samples.clarifai.com/dog.tiff',
+        url=sample_inputs.DOG_TIFF_IMAGE_URL,
         concepts=['matid2'],
         not_concepts=['lambo'],
         regions=regions,
@@ -232,7 +232,7 @@ class TestFeedback(unittest.TestCase):
 
     ret = m.send_region_feedback(
         input_id='xyz',
-        url='https://samples.clarifai.com/dog.tiff',
+        url=sample_inputs.DOG_TIFF_IMAGE_URL,
         concepts=['matid2'],
         not_concepts=['lambo'],
         regions=regions,
@@ -249,7 +249,7 @@ class TestFeedback(unittest.TestCase):
 
     ret = m.send_region_feedback(
         input_id='xyz',
-        url='https://samples.clarifai.com/dog.tiff',
+        url=sample_inputs.DOG_TIFF_IMAGE_URL,
         concepts=['matid2'],
         not_concepts=['lambo'],
         regions=regions,
@@ -275,7 +275,7 @@ class TestFeedback(unittest.TestCase):
 
     ret = m.send_region_feedback(
         input_id='xyz',
-        url='https://samples.clarifai.com/dog.tiff',
+        url=sample_inputs.DOG_TIFF_IMAGE_URL,
         regions=regions,
         feedback_info=feedback_info)
     self.assertEqual(ret['status']['code'], 10000)
@@ -293,7 +293,7 @@ class TestFeedback(unittest.TestCase):
 
     ret = m.send_region_feedback(
         input_id='xyz',
-        url='https://samples.clarifai.com/dog.tiff',
+        url=sample_inputs.DOG_TIFF_IMAGE_URL,
         regions=regions,
         feedback_info=feedback_info)
     self.assertEqual(ret['status']['code'], 10000)
@@ -317,7 +317,7 @@ class TestFeedback(unittest.TestCase):
 
     ret = m.send_region_feedback(
         input_id='xyz',
-        url='https://samples.clarifai.com/dog.tiff',
+        url=sample_inputs.DOG_TIFF_IMAGE_URL,
         regions=regions,
         feedback_info=feedback_info)
     self.assertEqual(ret['status']['code'], 10000)
@@ -346,7 +346,7 @@ class TestFeedback(unittest.TestCase):
 
     ret = m.send_region_feedback(
         input_id='xyz',
-        url='https://samples.clarifai.com/dog.tiff',
+        url=sample_inputs.DOG_TIFF_IMAGE_URL,
         regions=regions,
         feedback_info=feedback_info)
     self.assertEqual(ret['status']['code'], 10000)
@@ -380,7 +380,7 @@ class TestFeedback(unittest.TestCase):
 
     ret = m.send_region_feedback(
         input_id='xyz',
-        url='https://samples.clarifai.com/dog.tiff',
+        url=sample_inputs.DOG_TIFF_IMAGE_URL,
         regions=regions,
         feedback_info=feedback_info)
     self.assertEqual(ret['status']['code'], 10000)
@@ -396,7 +396,3 @@ class TestFeedback(unittest.TestCase):
 
     ret = self.app.inputs.send_search_feedback(input_id='xyz', feedback_info=feedback_info)
     self.assertEqual(ret['status']['code'], 10000)
-
-
-if __name__ == '__main__':
-  unittest.main()

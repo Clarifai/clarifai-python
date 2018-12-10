@@ -13,14 +13,16 @@ from google.protobuf import descriptor_pb2
 _sym_db = _symbol_database.Default()
 
 
+from clarifai.rest.grpc.proto.clarifai.api.utils import extensions_pb2 as proto_dot_clarifai_dot_api_dot_utils_dot_extensions__pb2
 
 
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='proto/clarifai/api/focus.proto',
   package='clarifai.api',
   syntax='proto3',
-  serialized_pb=_b('\n\x1eproto/clarifai/api/focus.proto\x12\x0c\x63larifai.api\"\'\n\x05\x46ocus\x12\x0f\n\x07\x64\x65nsity\x18\x01 \x01(\x02\x12\r\n\x05value\x18\x02 \x01(\x02\x42$Z\x03\x61pi\xa2\x02\x04\x43\x41IP\xc2\x02\x01_\xca\x02\x11\x43larifai\\Internalb\x06proto3')
-)
+  serialized_pb=_b('\n\x1eproto/clarifai/api/focus.proto\x12\x0c\x63larifai.api\x1a)proto/clarifai/api/utils/extensions.proto\"3\n\x05\x46ocus\x12\x15\n\x07\x64\x65nsity\x18\x01 \x01(\x02\x42\x04\x80\xb5\x18\x01\x12\x13\n\x05value\x18\x02 \x01(\x02\x42\x04\x80\xb5\x18\x01\x42$Z\x03\x61pi\xa2\x02\x04\x43\x41IP\xc2\x02\x01_\xca\x02\x11\x43larifai\\Internalb\x06proto3')
+  ,
+  dependencies=[proto_dot_clarifai_dot_api_dot_utils_dot_extensions__pb2.DESCRIPTOR,])
 
 
 
@@ -38,14 +40,14 @@ _FOCUS = _descriptor.Descriptor(
       has_default_value=False, default_value=float(0),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None, file=DESCRIPTOR),
+      options=_descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\200\265\030\001')), file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='value', full_name='clarifai.api.Focus.value', index=1,
       number=2, type=2, cpp_type=6, label=1,
       has_default_value=False, default_value=float(0),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
-      options=None, file=DESCRIPTOR),
+      options=_descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\200\265\030\001')), file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -58,8 +60,8 @@ _FOCUS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=48,
-  serialized_end=87,
+  serialized_start=91,
+  serialized_end=142,
 )
 
 DESCRIPTOR.message_types_by_name['Focus'] = _FOCUS
@@ -75,4 +77,8 @@ _sym_db.RegisterMessage(Focus)
 
 DESCRIPTOR.has_options = True
 DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('Z\003api\242\002\004CAIP\302\002\001_\312\002\021Clarifai\\Internal'))
+_FOCUS.fields_by_name['density'].has_options = True
+_FOCUS.fields_by_name['density']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\200\265\030\001'))
+_FOCUS.fields_by_name['value'].has_options = True
+_FOCUS.fields_by_name['value']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\200\265\030\001'))
 # @@protoc_insertion_point(module_scope)

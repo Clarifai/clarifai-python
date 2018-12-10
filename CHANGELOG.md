@@ -1,3 +1,13 @@
+## [[2.5.0]](https://github.com/Clarifai/clarifai-python/releases/tag/2.5.0) - [PyPI](https://pypi.org/project/clarifai/2.5.0/) - 2018-12-10
+
+### Added
+- Sample milliseconds parameter for video prediction
+- Make tag_* methods deprecated
+
+### Fixed
+- Rename the embed model used in predict_embed
+
+
 ## [[2.4.2]](https://github.com/Clarifai/clarifai-python/releases/tag/2.4.2) - [PyPI](https://pypi.org/project/clarifai/2.4.2/) - 2018-11-20
 
 ### Fixed

@@ -4,18 +4,13 @@ import unittest
 
 from clarifai.rest import ClarifaiApp, Workflow
 
-urls = [
-    "https://samples.clarifai.com/metro-north.jpg",
-    "https://samples.clarifai.com/wedding.jpg",
-]
+from . import sample_inputs
 
 
 class TestWorkflows(unittest.TestCase):
   """
   unit test for workflow related calls
   """
-
-  _multiprocess_can_split_ = True
 
   @classmethod
   def setUpClass(cls):
@@ -33,16 +28,18 @@ class TestWorkflows(unittest.TestCase):
       wf_get = self.app.workflows.get(wf.wf_id)
       self.assertEqual(wf_get.wf_id, wf.wf_id)
 
-  def test_public_workflow_predict(self):
+  def test_public_workflow_predict_by_url(self):
 
     wf = self.app.workflows.get('General')
-    res = wf.predict_by_url(urls[0])
+    res = wf.predict_by_url(sample_inputs.METRO_IMAGE_URL)
+    self.assertEqual(10000, res['status']['code'])
+
+  def test_public_workflow_predict_by_filename(self):
+
+    wf = self.app.workflows.get('General')
+    res = wf.predict_by_filename(sample_inputs.METRO_IMAGE_FILE_PATH)
     self.assertEqual(10000, res['status']['code'])
 
   def test_predict_workflow(self):
     # TODO(Rok) MEDIUM: Make a custom workflow so this test can be written.
     pass
-
-
-if __name__ == '__main__':
-  unittest.main()

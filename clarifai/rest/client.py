@@ -126,25 +126,8 @@ class ClarifaiApp(object):
   """
 
   def tag_urls(self, urls, model_name=DEFAULT_TAG_MODEL, model_id=None):
-    """ tag urls with user specified models
-        by default tagged by 'general-v1.3' model
-
-    Args:
-      urls: a list of URLs for tagging.
-            The max length of the list is 128, which is the max batch size.
-
-      model_name: the model name to tag with. The default model is general model for
-                  general tagging purpose
-
-    Returns:
-      the JSON string from the predict call
-
-    Examples:
-      >>> urls = ['https://samples.clarifai.com/metro-north.jpg',
-      >>>         'https://samples.clarifai.com/dog2.jpeg']
-      >>> app.tag_urls(urls)
-
-    """
+    warnings.warn('tag_* methods are deprecated. Please switch to using model.predict_* methods.',
+                  DeprecationWarning)
 
     # validate input
     if not isinstance(urls, list) or (len(urls) > 1 and not isinstance(urls[0], basestring)):
@@ -164,24 +147,8 @@ class ClarifaiApp(object):
     return res
 
   def tag_files(self, files, model_name=DEFAULT_TAG_MODEL, model_id=None):
-    """ tag files on disk with user specified models
-        by default tagged by 'general-v1.3' model
-
-    Args:
-      files: a list of local file names for tagging.
-             The max length of the list is 128, which is the max batch size
-
-      model_name: the model name to tag with.
-                  The default model is general model for general tagging purpose
-
-    Returns:
-      the JSON string from the predict call
-
-    Examples:
-      >>> files = ['/tmp/metro-north.jpg',
-      >>>          '/tmp/dog2.jpeg']
-      >>> app.tag_urls(files)
-    """
+    warnings.warn('tag_* methods are deprecated. Please switch to using model.predict_* methods.',
+                  DeprecationWarning)
 
     # validate input
     if not isinstance(files, list) or (len(files) > 1 and not isinstance(files[0], basestring)):
@@ -193,7 +160,7 @@ class ClarifaiApp(object):
     images = [Image(filename=filename) for filename in files]
 
     if model_id is not None:
-      model = Model(model_id=model_id)
+      model = Model(self.api, model_id=model_id)
     else:
       model = self.models.get(model_name)
 
@@ -2837,7 +2804,8 @@ class Model(object):
                      is_video=False,
                      min_value=None,
                      max_concepts=None,
-                     select_concepts=None):
+                     select_concepts=None,
+                     sample_ms=None):
     """ predict a model with url
 
     Args:
@@ -2847,6 +2815,7 @@ class Model(object):
       min_value: threshold to cut the predictions, 0-1.0
       max_concepts: max concepts to keep in the predictions, 0-200
       select_concepts: a list of concepts that are selected to be exposed
+      sample_ms: video frame prediction every sample_ms milliseconds
 
     Returns:
       the prediction of the model in JSON format
@@ -2864,7 +2833,8 @@ class Model(object):
             language=lang,
             min_value=min_value,
             max_concepts=max_concepts,
-            select_concepts=select_concepts))
+            select_concepts=select_concepts,
+            sample_ms=sample_ms))
 
     res = self.predict([input], model_output_info)
     return res
@@ -2875,7 +2845,8 @@ class Model(object):
                           is_video=False,
                           min_value=None,
                           max_concepts=None,
-                          select_concepts=None):
+                          select_concepts=None,
+                          sample_ms=None):
     """ predict a model with a local filename
 
     Args:
@@ -2885,6 +2856,7 @@ class Model(object):
       min_value: threshold to cut the predictions, 0-1.0
       max_concepts: max concepts to keep in the predictions, 0-200
       select_concepts: a list of concepts that are selected to be exposed
+      sample_ms: video frame prediction every sample_ms milliseconds
 
     Returns:
       the prediction of the model in JSON format
@@ -2901,7 +2873,8 @@ class Model(object):
             language=lang,
             min_value=min_value,
             max_concepts=max_concepts,
-            select_concepts=select_concepts))
+            select_concepts=select_concepts,
+            sample_ms=sample_ms))
 
     res = self.predict([input], model_output_info)
     return res
@@ -2912,7 +2885,8 @@ class Model(object):
                        is_video=False,
                        min_value=None,
                        max_concepts=None,
-                       select_concepts=None):
+                       select_concepts=None,
+                       sample_ms=None):
     """ predict a model with image raw bytes
 
     Args:
@@ -2922,6 +2896,7 @@ class Model(object):
       min_value: threshold to cut the predictions, 0-1.0
       max_concepts: max concepts to keep in the predictions, 0-200
       select_concepts: a list of concepts that are selected to be exposed
+      sample_ms: video frame prediction every sample_ms milliseconds
 
     Returns:
       the prediction of the model in JSON format
@@ -2939,7 +2914,8 @@ class Model(object):
             language=lang,
             min_value=min_value,
             max_concepts=max_concepts,
-            select_concepts=select_concepts))
+            select_concepts=select_concepts,
+            sample_ms=sample_ms))
 
     res = self.predict([input], model_output_info)
     return res
@@ -2950,7 +2926,8 @@ class Model(object):
                         is_video=False,
                         min_value=None,
                         max_concepts=None,
-                        select_concepts=None):
+                        select_concepts=None,
+                        sample_ms=None):
     """ predict a model with base64 encoded image bytes
 
     Args:
@@ -2960,6 +2937,7 @@ class Model(object):
       min_value: threshold to cut the predictions, 0-1.0
       max_concepts: max concepts to keep in the predictions, 0-200
       select_concepts: a list of concepts that are selected to be exposed
+      sample_ms: video frame prediction every sample_ms milliseconds
 
     Returns:
       the prediction of the model in JSON format
@@ -2975,7 +2953,8 @@ class Model(object):
             language=lang,
             min_value=min_value,
             max_concepts=max_concepts,
-            select_concepts=select_concepts))
+            select_concepts=select_concepts,
+            sample_ms=sample_ms))
 
     res = self.predict([input], model_output_info)
     return res
@@ -3304,6 +3283,7 @@ class PublicModels:
   A collection of already existing models provided by the API for immediate use.
   """
 
+  # TODO(Rok) HIGH: Construct these with the solution object.
   def __init__(self, api):
     """ Ctor. """
     """ Apparel model recognizes clothing, accessories, and other fashion-related items. """
@@ -4057,7 +4037,7 @@ class ApiClient(object):
 
     return self.predict_model(model_id, objs)
 
-  def predict_embed(self, objs, model='general-v1.3'):
+  def predict_embed(self, objs, model='general*'):
 
     models = self.search_models(name=model, model_type='embed')
     model = models['models'][0]
@@ -4166,13 +4146,15 @@ class ModelOutputConfig(object):
                language=None,
                min_value=None,
                max_concepts=None,
-               select_concepts=None):
+               select_concepts=None,
+               sample_ms=None):
     self.concepts_mutually_exclusive = mutually_exclusive
     self.closed_environment = closed_environment
     self.language = language
     self.min_value = min_value
     self.max_concepts = max_concepts
     self.select_concepts = select_concepts
+    self.sample_ms = sample_ms
 
   def dict(self):
     data = {
@@ -4193,6 +4175,9 @@ class ModelOutputConfig(object):
 
     if self.select_concepts is not None:
       data['output_config']['select_concepts'] = [c.dict() for c in self.select_concepts]
+
+    if self.sample_ms is not None:
+      data['output_config']['sample_ms'] = self.sample_ms
 
     return data
 

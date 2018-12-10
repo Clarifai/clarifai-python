@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='proto/clarifai/api/status/status.proto',
   package='clarifai.api.status',
   syntax='proto3',
-  serialized_pb=_b('\n&proto/clarifai/api/status/status.proto\x12\x13\x63larifai.api.status\x1a+proto/clarifai/api/status/status_code.proto\"\xcf\x01\n\x06Status\x12-\n\x04\x63ode\x18\x01 \x01(\x0e\x32\x1f.clarifai.api.status.StatusCode\x12\x13\n\x0b\x64\x65scription\x18\x02 \x01(\t\x12\x0f\n\x07\x64\x65tails\x18\x03 \x01(\t\x12\x13\n\x0bstack_trace\x18\x04 \x03(\t\x12\x19\n\x11percent_completed\x18\x05 \x01(\r\x12\x16\n\x0etime_remaining\x18\x06 \x01(\r\x12\x0e\n\x06req_id\x18\x07 \x01(\t\x12\x18\n\x10internal_details\x18\x08 \x01(\t\";\n\x0c\x42\x61seResponse\x12+\n\x06status\x18\x01 \x01(\x0b\x32\x1b.clarifai.api.status.StatusB.Z\x06status\xa2\x02\x04\x43\x41IP\xc2\x02\x01_\xca\x02\x18\x43larifai\\Internal\\Statusb\x06proto3')
+  serialized_pb=_b('\n&proto/clarifai/api/status/status.proto\x12\x13\x63larifai.api.status\x1a+proto/clarifai/api/status/status_code.proto\"\xa0\x01\n\x06Status\x12-\n\x04\x63ode\x18\x01 \x01(\x0e\x32\x1f.clarifai.api.status.StatusCode\x12\x13\n\x0b\x64\x65scription\x18\x02 \x01(\t\x12\x0f\n\x07\x64\x65tails\x18\x03 \x01(\t\x12\x19\n\x11percent_completed\x18\x05 \x01(\r\x12\x16\n\x0etime_remaining\x18\x06 \x01(\r\x12\x0e\n\x06req_id\x18\x07 \x01(\t\";\n\x0c\x42\x61seResponse\x12+\n\x06status\x18\x01 \x01(\x0b\x32\x1b.clarifai.api.status.StatusB.Z\x06status\xa2\x02\x04\x43\x41IP\xc2\x02\x01_\xca\x02\x18\x43larifai\\Internal\\Statusb\x06proto3')
   ,
   dependencies=[proto_dot_clarifai_dot_api_dot_status_dot_status__code__pb2.DESCRIPTOR,])
 
@@ -56,36 +56,22 @@ _STATUS = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='stack_trace', full_name='clarifai.api.status.Status.stack_trace', index=3,
-      number=4, type=9, cpp_type=9, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='percent_completed', full_name='clarifai.api.status.Status.percent_completed', index=4,
+      name='percent_completed', full_name='clarifai.api.status.Status.percent_completed', index=3,
       number=5, type=13, cpp_type=3, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='time_remaining', full_name='clarifai.api.status.Status.time_remaining', index=5,
+      name='time_remaining', full_name='clarifai.api.status.Status.time_remaining', index=4,
       number=6, type=13, cpp_type=3, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='req_id', full_name='clarifai.api.status.Status.req_id', index=6,
+      name='req_id', full_name='clarifai.api.status.Status.req_id', index=5,
       number=7, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='internal_details', full_name='clarifai.api.status.Status.internal_details', index=7,
-      number=8, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -103,7 +89,7 @@ _STATUS = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=109,
-  serialized_end=316,
+  serialized_end=269,
 )
 
 
@@ -133,8 +119,8 @@ _BASERESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=318,
-  serialized_end=377,
+  serialized_start=271,
+  serialized_end=330,
 )
 
 _STATUS.fields_by_name['code'].enum_type = proto_dot_clarifai_dot_api_dot_status_dot_status__code__pb2._STATUSCODE

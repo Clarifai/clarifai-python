@@ -9,13 +9,7 @@ import responses
 
 from clarifai.rest import ApiClient, ApiError, ClarifaiApp
 
-urls = [
-    "https://samples.clarifai.com/metro-north.jpg",
-    "https://samples.clarifai.com/wedding.jpg",
-    "https://samples.clarifai.com/facebook.png",
-    "https://samples.clarifai.com/dog.tiff",
-    "https://samples.clarifai.com/penguin.bmp",
-]
+from . import sample_inputs
 
 
 class TestApiClient(unittest.TestCase):
@@ -23,8 +17,6 @@ class TestApiClient(unittest.TestCase):
 
       This test is only to test the RESTful api endpoint calls
   """
-
-  _multiprocess_can_split_ = True
 
   @classmethod
   def setUpClass(cls):
@@ -250,7 +242,7 @@ class TestApiExceptions(unittest.TestCase):
     app.api.basev2 = 'https://nonexistent-base-url.clarifai.com'
 
     with self.assertRaises(ApiError):
-      app.public_models.general_model.predict_by_url(urls[0])
+      app.public_models.general_model.predict_by_url(sample_inputs.METRO_IMAGE_URL)
 
   def test_invalid_api_key_error(self):
     with self.assertRaises(ApiError) as ex:
@@ -260,7 +252,3 @@ class TestApiExceptions(unittest.TestCase):
 
     assert raised_exception.error_code == 11009
     assert raised_exception.error_desc == 'API key not found'
-
-
-if __name__ == '__main__':
-  unittest.main()

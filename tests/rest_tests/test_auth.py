@@ -9,8 +9,6 @@ class TestAuth(unittest.TestCase):
   unit test for api auth
   """
 
-  _multiprocess_can_split_ = True
-
   def test_auth_with_invalid_key(self):
     """ instantiate with key """
 
@@ -21,7 +19,3 @@ class TestAuth(unittest.TestCase):
   def test_auth_with_id_and_secret(self):
     with self.assertRaises(DeprecationWarning):
       ClarifaiApp(app_id='aa', app_secret='bb', log_level=logging.WARN)
-
-
-if __name__ == '__main__':
-  unittest.main()

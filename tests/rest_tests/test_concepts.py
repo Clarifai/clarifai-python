@@ -6,22 +6,8 @@ import uuid
 
 from clarifai.rest import ApiError, ClarifaiApp, Concept
 
-urls = [
-    "https://samples.clarifai.com/metro-north.jpg",
-    "https://samples.clarifai.com/wedding.jpg",
-    "https://samples.clarifai.com/facebook.png",
-    "https://samples.clarifai.com/dog.tiff",
-    "https://samples.clarifai.com/penguin.bmp",
-]
-
-# number of retries when adding concept with random id hits random collision
-# we should be deleting test concepts once delete concept feature is implemented
-concept_retry = 5
-
 
 class TestConcepts(unittest.TestCase):
-  _multiprocess_can_split_ = True
-  to_cleanup = []
 
   @classmethod
   def setUpClass(cls):
@@ -253,7 +239,3 @@ class TestConcepts(unittest.TestCase):
 
     with self.assertRaises(ApiError):
       self.app.concepts.update(concept_id=cid, concept_name=new_name)
-
-
-if __name__ == '__main__':
-  unittest.main()
