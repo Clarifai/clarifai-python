@@ -4,9 +4,14 @@ Warning: This part of the client is in beta and its public interface may still c
 
 import logging
 
+import requests
+
 from clarifai.rest.http_client import HttpClient
 
 logger = logging.getLogger('clarifai')
+
+RETRIES = 2  # if connections fail retry a couple times.
+CONNECTIONS = 20  # number of connections to maintain in pool.
 
 
 class ModerationSolution(object):
@@ -14,7 +19,18 @@ class ModerationSolution(object):
   def __init__(self, api_key, base_url='https://api.clarifai-moderation.com/v2'):
     self.api_key = api_key
     self.base_url = base_url
-    self.http_client = HttpClient(api_key)
+
+    session = self._make_requests_session()
+    self.http_client = HttpClient(session, api_key)
+
+  def _make_requests_session(self):
+    http_adapter = requests.adapters.HTTPAdapter(
+        max_retries=RETRIES, pool_connections=CONNECTIONS, pool_maxsize=CONNECTIONS)
+
+    session = requests.Session()
+    session.mount('http://', http_adapter)
+    session.mount('https://', http_adapter)
+    return session
 
   def predict_model(self, model_id, url):
     endpoint_url = '%s/models/%s/outputs' % (self.base_url, model_id)

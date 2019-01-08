@@ -1,3 +1,9 @@
+## [[2.5.1]](https://github.com/Clarifai/clarifai-python/releases/tag/2.5.1) - [PyPI](https://pypi.org/project/clarifai/2.5.1/) - 2019-01-08
+
+### Fixed
+- Reintroduced requests session usage
+
+
 ## [[2.5.0]](https://github.com/Clarifai/clarifai-python/releases/tag/2.5.0) - [PyPI](https://pypi.org/project/clarifai/2.5.0/) - 2018-12-10
 
 ### Added

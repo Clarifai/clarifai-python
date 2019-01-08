@@ -1,6 +1,8 @@
 import logging
 import uuid
 
+from retrying import retry
+
 from clarifai.rest import ClarifaiApp
 
 urls = [
@@ -12,6 +14,12 @@ urls = [
 ]
 
 
+@retry(stop_max_attempt_number=6, wait_exponential_multiplier=5000, wait_exponential_max=30000)
+def delete_all_inputs(app, logger):
+  logger.error('Attempting to delete all inputs.')
+  app.inputs.delete_all()
+
+
 def main():
   logger = logging.getLogger('clarifai')
   logger.handlers = []
@@ -20,7 +28,7 @@ def main():
 
   app = ClarifaiApp()
 
-  app.inputs.delete_all()
+  delete_all_inputs(app, logger)
   app.models.delete_all()
 
   app.wait_until_inputs_delete_finish()

@@ -34,9 +34,10 @@ class GRPCJSONChannel(object):
       url="http://...")))]))
   """
 
-  def __init__(self, key, base_url=BASE_URL, service_descriptor=_V2):
+  def __init__(self, session, key, base_url=BASE_URL, service_descriptor=_V2):
     """
     Args:
+      session: a request session
       key: a string api key to use in the {"Authorization": "Key %s" % key} headers to send in each
     request.
       base_url: if you want to point at a different url than the default.
@@ -44,7 +45,7 @@ class GRPCJSONChannel(object):
     .proto results. For example if your proto defining the endpoints is in endpoint.proto then look
     in endpoint_pb2.py file for ServiceDescriptor and use that.
     """
-    self.base_url = base_url
+    self.session = session
     self.key = key
     self.name_to_resources = {}
 
@@ -88,18 +89,19 @@ class GRPCJSONChannel(object):
   def unary_unary(self, name, request_serializer, response_deserializer):
     """ Method to create the callable JSONUnaryUnary. """
     request_message_descriptor, resources = self.name_to_resources[name]
-    return JSONUnaryUnary(self.key, request_message_descriptor, resources, request_serializer,
-                          response_deserializer)
+    return JSONUnaryUnary(self.session, self.key, request_message_descriptor, resources,
+                          request_serializer, response_deserializer)
 
 
 class JSONUnaryUnary(object):
   """ This mimics the unary_unary calls and is actually the thing doing the http requests.
   """
 
-  def __init__(self, key, request_message_descriptor, resources, request_serializer,
+  def __init__(self, session, key, request_message_descriptor, resources, request_serializer,
                response_deserializer):
     """
     Args:
+      session: a request session
       key: a string api key to use in the {"Authorization": "Key %s" % key} headers to send in each
            request.
       request_message_descriptor: this is a MessageDescriptor for the input type.
@@ -116,7 +118,7 @@ class JSONUnaryUnary(object):
     self.resources = resources
     self.request_serializer = request_serializer
     self.response_deserializer = response_deserializer
-    self.http_client = HttpClient(key)
+    self.http_client = HttpClient(session, key)
 
   def __call__(self, request, metadata=None):
     """ This is where the actually calls come through when the stub is called such as

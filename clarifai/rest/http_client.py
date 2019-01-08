@@ -13,8 +13,9 @@ logger = logging.getLogger('clarifai')
 
 class HttpClient:
 
-  def __init__(self, api_key):
+  def __init__(self, session, api_key):
     self._api_key = api_key
+    self._session = session
 
   def execute_request(self, method, params, url):
     headers = {
@@ -29,15 +30,15 @@ class HttpClient:
                  pformat(succinct_payload))
     try:
       if method == 'GET':
-        res = requests.get(url, params=params, headers=headers)
+        res = self._session.get(url, params=params, headers=headers)
       elif method == "POST":
-        res = requests.post(url, data=json.dumps(params), headers=headers)
+        res = self._session.post(url, data=json.dumps(params), headers=headers)
       elif method == "DELETE":
-        res = requests.delete(url, data=json.dumps(params), headers=headers)
+        res = self._session.delete(url, data=json.dumps(params), headers=headers)
       elif method == "PATCH":
-        res = requests.patch(url, data=json.dumps(params), headers=headers)
+        res = self._session.patch(url, data=json.dumps(params), headers=headers)
       elif method == "PUT":
-        res = requests.put(url, data=json.dumps(params), headers=headers)
+        res = self._session.put(url, data=json.dumps(params), headers=headers)
       else:
         raise Exception("Unsupported request type: '%s'" % method)
     except requests.RequestException as e:

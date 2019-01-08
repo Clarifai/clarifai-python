@@ -806,8 +806,10 @@ class TestModels(unittest.TestCase):
       # Create a model.
       model = self.app.models.create(model_id=model_id, concepts=[concept_id_1, concept_id_2])
 
-      # Get model's inputs.
-      response = model.get_inputs()
+      # Get model's inputs. Note: use a large page because there we just list all inputs
+      # in app with this call and depending on which test ran before this we might not have
+      # image_id1 and image_id2 in the 20 default per_page size.
+      response = model.get_inputs(per_page=1000)
 
       input_ids = [input_['id'] for input_ in response['inputs']]
       assert image_id1 in input_ids

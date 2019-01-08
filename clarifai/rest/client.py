@@ -3378,11 +3378,16 @@ class ApiClient(object):
     self.token = None
     self.headers = None
 
-    self.session = requests.Session()
+    self.session = self._make_requests_session()
+
+  def _make_requests_session(self):
     http_adapter = requests.adapters.HTTPAdapter(
         max_retries=RETRIES, pool_connections=CONNECTIONS, pool_maxsize=CONNECTIONS)
-    self.session.mount('http://', http_adapter)
-    self.session.mount('https://', http_adapter)
+
+    session = requests.Session()
+    session.mount('http://', http_adapter)
+    session.mount('https://', http_adapter)
+    return session
 
   def _read_key_from_env_or_os(self):
     conf_file = self._config_file_path()
@@ -3454,7 +3459,9 @@ class ApiClient(object):
     raise DeprecationWarning(TOKENS_DEPRECATED_MESSAGE)
 
   def _grpc_stub(self):
-    return V2Stub(GRPCJSONChannel(key=self.api_key, base_url=self.basev2, service_descriptor=_V2))
+    return V2Stub(
+        GRPCJSONChannel(
+            session=self.session, key=self.api_key, base_url=self.basev2, service_descriptor=_V2))
 
   def _grpc_request(self, method, argument):
 
