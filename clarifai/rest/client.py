@@ -1788,17 +1788,18 @@ class Inputs(object):
 
     if image_id:
       qb = SearchQueryBuilder()
-      term = OutputSearchTerm(input_id=image_id)
+      term = OutputSearchTerm(input_id=image_id, crop=crop)
       qb.add_term(term)
 
-      res = self.search(qb, page, per_page)
+      return self.search(qb, page, per_page, raw)
     elif image:
       qb = SearchQueryBuilder()
 
       if image.url:
-        term = OutputSearchTerm(url=image.url)
+        term = OutputSearchTerm(url=image.url, crop=crop)
       elif image.base64:
-        term = OutputSearchTerm(base64=image.base64.decode('UTF-8'))
+        print(image.base64)
+        term = OutputSearchTerm(base64=image.base64.decode('UTF-8'), crop=crop)
       elif image.file_obj:
         if hasattr(image.file_obj, 'getvalue'):
           base64_bytes = base64_lib.b64encode(image.file_obj.getvalue()).decode('UTF-8')
@@ -1807,34 +1808,30 @@ class Inputs(object):
         else:
           raise UserError("Not sure how to read your file_obj")
 
-        term = OutputSearchTerm(base64=base64_bytes)
+        term = OutputSearchTerm(base64=base64_bytes, crop=crop)
       else:
         raise UserError('Unrecognized image object')
 
       qb.add_term(term)
 
-      res = self.search(qb, page, per_page, raw)
-    elif url:
-      img = Image(url=url, crop=crop)
-      res = self.search_by_image(image=img, page=page, per_page=per_page, raw=raw)
+      return self.search(qb, page, per_page, raw)
+
+    if url:
+      img = Image(url=url)
     elif fileobj:
-      img = Image(file_obj=fileobj, crop=crop)
-      res = self.search_by_image(image=img, page=page, per_page=per_page, raw=raw)
+      img = Image(file_obj=fileobj)
     elif imgbytes:
       fileio = BytesIO(imgbytes)
-      img = Image(file_obj=fileio, crop=crop)
-      res = self.search_by_image(image=img, page=page, per_page=per_page, raw=raw)
+      img = Image(file_obj=fileio)
     elif filename:
       fileio = open(filename, 'rb')
-      img = Image(file_obj=fileio, crop=crop)
-      res = self.search_by_image(image=img, page=page, per_page=per_page, raw=raw)
+      img = Image(file_obj=fileio)
     elif base64bytes:
-      img = Image(base64=base64bytes, crop=crop)
-      res = self.search_by_image(image=img, page=page, per_page=per_page, raw=raw)
+      img = Image(base64=base64bytes)
     else:
       raise UserError('None of the arguments was passed in')
 
-    return res
+    return self.search_by_image(image=img, page=page, per_page=per_page, raw=raw, crop=crop)
 
   def search_by_original_url(self, url, page=1, per_page=20, raw=False):
     """ search by the original url of the uploaded images

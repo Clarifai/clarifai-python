@@ -1,3 +1,9 @@
+## [[2.5.2]](https://github.com/Clarifai/clarifai-python/releases/tag/2.5.2) - [PyPI](https://pypi.org/project/clarifai/2.5.2/) - 2019-01-14
+
+### Fixed
+- Apply crop when searching by an image
+
+
 ## [[2.5.1]](https://github.com/Clarifai/clarifai-python/releases/tag/2.5.1) - [PyPI](https://pypi.org/project/clarifai/2.5.1/) - 2019-01-08
 
 ### Fixed

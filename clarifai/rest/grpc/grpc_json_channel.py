@@ -2,10 +2,10 @@
 import logging
 import re
 
+from clarifai.rest import http_client
 from clarifai.rest.grpc.custom_converters.custom_dict_to_message import dict_to_protobuf
 from clarifai.rest.grpc.custom_converters.custom_message_to_dict import protobuf_to_dict
 from clarifai.rest.grpc.proto.clarifai.api.endpoint_pb2 import _V2
-from clarifai.rest.http_client import HttpClient
 
 BASE_URL = "https://api.clarifai.com"
 URL_TEMPLATE_PARAM_REGEX = re.compile(r'\{{1}(.*?)\}{1}')
@@ -118,7 +118,7 @@ class JSONUnaryUnary(object):
     self.resources = resources
     self.request_serializer = request_serializer
     self.response_deserializer = response_deserializer
-    self.http_client = HttpClient(session, key)
+    self.http_client = http_client.HttpClient(session, key)
 
   def __call__(self, request, metadata=None):
     """ This is where the actually calls come through when the stub is called such as

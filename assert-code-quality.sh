@@ -25,7 +25,7 @@ echo "  Done autoflake"
 echo ""
 echo "- isort: Make sure all imports are sorted"
 # This checks only and ignores whitespace which is crucial because yapf defines the formatting.
-isort -sp .isort.cfg -ws -c $(eval ${FIND_SOURCE_FILES})
+isort -sp .isort.cfg -ws --diff -c $(eval ${FIND_SOURCE_FILES})
 
 if [ $? != 0 ]; then
   echo ""
