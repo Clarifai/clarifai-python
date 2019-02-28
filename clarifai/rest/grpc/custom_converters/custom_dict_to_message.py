@@ -1,9 +1,11 @@
 from google.protobuf.json_format import _Parser
+from google.protobuf.message import Message  # noqa
 
 from clarifai.rest.grpc.proto.clarifai.api.utils import extensions_pb2
 
 
 def dict_to_protobuf(protobuf_class, js_dict, ignore_unknown_fields=False):
+  # type: (type(Message), dict, bool) -> Message
   message = protobuf_class()
   parser = _CustomParser(ignore_unknown_fields=ignore_unknown_fields)
   parser.ConvertMessage(js_dict, message)

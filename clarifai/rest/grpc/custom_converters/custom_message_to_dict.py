@@ -1,19 +1,32 @@
+import typing  # noqa
+
 from google.protobuf import descriptor
 from google.protobuf.json_format import _IsMapEntry, _Printer
+from google.protobuf.message import Message  # noqa
 
 from clarifai.rest.grpc.proto.clarifai.api.utils import extensions_pb2
 
 
-def protobuf_to_dict(object_protobuf):
+def protobuf_to_dict(object_protobuf, use_integers_for_enums=True, ignore_show_empty=False):
+  # type: (Message, typing.Optional[bool], typing.Optional[bool]) -> dict
+
+  # printer = _CustomPrinter(
   printer = _CustomPrinter(
       including_default_value_fields=False,
       preserving_proto_field_name=True,
-      use_integers_for_enums=True)
+      use_integers_for_enums=use_integers_for_enums,
+      ignore_show_empty=ignore_show_empty)
   # pylint: disable=protected-access
   return printer._MessageToJsonObject(object_protobuf)
 
 
 class _CustomPrinter(_Printer):
+
+  def __init__(self, including_default_value_fields, preserving_proto_field_name,
+               use_integers_for_enums, ignore_show_empty):
+    super(_CustomPrinter, self).__init__(including_default_value_fields,
+                                         preserving_proto_field_name, use_integers_for_enums)
+    self._ignore_show_empty = ignore_show_empty
 
   def _RegularMessageToJsonObject(self, message, js):
     """
@@ -26,6 +39,9 @@ class _CustomPrinter(_Printer):
     message_descriptor = message.DESCRIPTOR
     for field in message_descriptor.fields:
 
+      if (self._ignore_show_empty and
+          not field.GetOptions().Extensions[extensions_pb2.cl_default_float]):
+        continue
       if not field.GetOptions().Extensions[extensions_pb2.cl_show_if_empty]:
         continue
 
@@ -39,7 +55,7 @@ class _CustomPrinter(_Printer):
       else:
         name = field.json_name
       if name in js:
-        # Skip the field which has been serailized already.
+        # Skip the field which has been serialized already.
         continue
       if _IsMapEntry(field):
         js[name] = {}

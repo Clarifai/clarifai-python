@@ -1,6 +1,7 @@
 import copy
 import json
 import logging
+import typing  # noqa
 
 from pprint import pformat
 import requests
@@ -13,11 +14,12 @@ logger = logging.getLogger('clarifai')
 
 class HttpClient:
 
-  def __init__(self, session, api_key):
+  def __init__(self, session, api_key):  # type: (requests.Session, str) -> None
     self._api_key = api_key
     self._session = session
 
   def execute_request(self, method, params, url):
+    # type: (str, typing.Optional[dict], str) -> dict
     headers = {
         'Content-Type': 'application/json',
         'X-Clarifai-Client': 'python:%s' % CLIENT_VERSION,
@@ -58,7 +60,7 @@ class HttpClient:
       raise error
     return response_json
 
-  def _mangle_base64_values(self, params):
+  def _mangle_base64_values(self, params):  # type: (dict) -> dict
     """ Mangle (shorten) the base64 values because they are too long for output. """
     inputs = (params or {}).get('inputs')
     query = (params or {}).get('query')
@@ -68,7 +70,7 @@ class HttpClient:
       return self._mangle_base64_values_in_query(params)
     return params
 
-  def _mangle_base64_values_in_inputs(self, params):
+  def _mangle_base64_values_in_inputs(self, params):  # type: (dict) -> dict
     params_copy = copy.deepcopy(params)
     for data in params_copy['inputs']:
       data = data['data']
@@ -81,7 +83,7 @@ class HttpClient:
         video['base64'] = self._shortened_base64_value(video['base64'])
     return params_copy
 
-  def _mangle_base64_values_in_query(self, params):
+  def _mangle_base64_values_in_query(self, params):  # type: (dict) -> dict
     params_copy = copy.deepcopy(params)
     queries = params_copy['query']['ands']
     for query in queries:
@@ -91,7 +93,7 @@ class HttpClient:
         image['base64'] = self._shortened_base64_value(base64_val)
     return params_copy
 
-  def _shortened_base64_value(self, original_base64):
+  def _shortened_base64_value(self, original_base64):  # type: (str) -> str
     # Shorten the value if larger than what we shorten to (10 + 6 + 10).
     if len(original_base64) > 36:
       return original_base64[:10] + '......' + original_base64[-10:]

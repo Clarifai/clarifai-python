@@ -10,7 +10,9 @@ import logging
 import os
 import platform
 import time
+import typing  # noqa
 import warnings
+
 from configparser import ConfigParser
 from enum import Enum
 from io import BytesIO
@@ -95,13 +97,16 @@ class ClarifaiApp(object):
 
   """
 
-  def __init__(self,
-               app_id=None,
-               app_secret=None,
-               base_url=None,
-               api_key=None,
-               quiet=True,
-               log_level=None):
+  def __init__(
+      self,  # type: ClarifaiApp
+      app_id=None,  # type: typing.Optional[str]
+      app_secret=None,  # type: typing.Optional[str]
+      base_url=None,  # type: typing.Optional[str]
+      api_key=None,  # type: typing.Optional[str]
+      quiet=True,  # type: bool
+      log_level=None  # type: typing.Optional[int]
+  ):
+    # type: (...) -> None
 
     self.api = ApiClient(
         app_id=app_id,
@@ -109,15 +114,15 @@ class ClarifaiApp(object):
         base_url=base_url,
         api_key=api_key,
         quiet=quiet,
-        log_level=log_level)
-    self.solutions = Solutions(api_key)
+        log_level=log_level)  # type: ApiClient
+    self.solutions = Solutions(api_key)  # type: Solutions
 
-    self.public_models = PublicModels(self.api)
+    self.public_models = PublicModels(self.api)  # type: PublicModels
 
-    self.concepts = Concepts(self.api)
-    self.inputs = Inputs(self.api)
-    self.models = Models(self.api, self.solutions)
-    self.workflows = Workflows(self.api)
+    self.concepts = Concepts(self.api)  # type: Concepts
+    self.inputs = Inputs(self.api)  # type: Inputs
+    self.models = Models(self.api, self.solutions)  # type: Models
+    self.workflows = Workflows(self.api)  # type: Workflows
 
   """
   Below are the shortcut functions for a more smooth transition of the v1 users
@@ -126,6 +131,7 @@ class ClarifaiApp(object):
   """
 
   def tag_urls(self, urls, model_name=DEFAULT_TAG_MODEL, model_id=None):
+    # type: (typing.Union[typing.List[str], str], str, typing.Optional[str]) -> dict
     warnings.warn('tag_* methods are deprecated. Please switch to using model.predict_* methods.',
                   DeprecationWarning)
 
@@ -147,6 +153,7 @@ class ClarifaiApp(object):
     return res
 
   def tag_files(self, files, model_name=DEFAULT_TAG_MODEL, model_id=None):
+    # type: (typing.Union[typing.List[str], str], str, typing.Optional[str]) -> dict
     warnings.warn('tag_* methods are deprecated. Please switch to using model.predict_* methods.',
                   DeprecationWarning)
 
@@ -167,7 +174,7 @@ class ClarifaiApp(object):
     res = model.predict(images)
     return res
 
-  def wait_until_inputs_delete_finish(self):
+  def wait_until_inputs_delete_finish(self):  # type: () -> None
     """ Block until a current inputs deletion operation finishes
 
     The criteria for unblocking is 0 inputs returned from GET /inputs
@@ -182,7 +189,7 @@ class ClarifaiApp(object):
       time.sleep(0.2)
       inputs = self.inputs.get_by_page()
 
-  def wait_until_inputs_upload_finish(self, max_wait=666666):
+  def wait_until_inputs_upload_finish(self, max_wait=666666):  # type: (int) -> None
     """ Block until the inputs upload finishes
 
     The criteria for unblocking is 0 "to_process" inputs
@@ -192,7 +199,7 @@ class ClarifaiApp(object):
       None
     """
     to_process = 1
-    elapsed = 0
+    elapsed = 0.0
     time_start = time.time()
 
     while to_process != 0 and elapsed > max_wait:
@@ -201,7 +208,7 @@ class ClarifaiApp(object):
       elapsed = time.time() - time_start
       time.sleep(1)
 
-  def wait_until_models_delete_finish(self):
+  def wait_until_models_delete_finish(self):  # type: () -> None
     """ Block until the inputs deletion finishes
 
     The criteria for unblocking is 0 models returned from GET /models
@@ -221,14 +228,17 @@ class Input(object):
   """ The Clarifai Input object
   """
 
-  def __init__(self,
-               input_id=None,
-               concepts=None,
-               not_concepts=None,
-               metadata=None,
-               geo=None,
-               regions=None,
-               feedback_info=None):
+  def __init__(
+      self,  # type: Input
+      input_id=None,  # type: typing.Optional[str]
+      concepts=None,  # type: typing.Optional[typing.List[str]]
+      not_concepts=None,  # type: typing.Optional[typing.List[str]]
+      metadata=None,  # type: typing.Optional[dict]
+      geo=None,  # type: typing.Optional[Geo]
+      regions=None,  # type: typing.Optional[typing.List[Region]]
+      feedback_info=None  # type: typing.Optional[FeedbackInfo]
+  ):
+    # type: (...) -> None
     """ Construct an Image/Video object. it must have one of url or file_obj set.
     Args:
       input_id: unique id to set for the image. If None then the server will create and return
@@ -271,61 +281,53 @@ class Input(object):
     self.feedback_info = feedback_info
     self.regions = regions
     self.score = 0
-    self.status = None
+    self.status = None  # type: ApiStatus
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     """ Return the data of the Input as a dict ready to be input to json.dumps. """
-    data = {'data': {}}
-
-    if self.input_id:
-      data['id'] = self.input_id
-
-    # fill the tags
-    if self.concepts:
-      pos_terms = [(term, True) for term in self.concepts]
-    else:
-      pos_terms = []
-
-    if self.not_concepts:
-      neg_terms = [(term, False) for term in self.not_concepts]
-    else:
-      neg_terms = []
-
-    terms = pos_terms + neg_terms
-    if terms:
-      data['data']['concepts'] = [{'id': name, 'value': value} for name, value in terms]
-
+    data = {}
+    positive_concepts = [(name, True) for name in (self.concepts or [])]
+    negative_concepts = [(name, False) for name in (self.not_concepts or [])]
+    concepts = positive_concepts + negative_concepts
+    if concepts:
+      data['concepts'] = [{'id': name, 'value': value} for name, value in concepts]
     if self.metadata:
-      data['data']['metadata'] = self.metadata
-
+      data['metadata'] = self.metadata
     if self.geo:
-      data['data'].update(self.geo.dict())
-
-    if self.feedback_info:
-      data.update(self.feedback_info.dict())
-
+      data.update(self.geo.dict())
     if self.regions:
-      data['data']['regions'] = [r.dict() for r in self.regions]
+      data['regions'] = [r.dict() for r in self.regions]
 
-    return data
+    input_ = {}
+    if self.input_id:
+      input_['id'] = self.input_id
+    if self.feedback_info:
+      input_.update(self.feedback_info.dict())
+    if data:
+      input_['data'] = data
+
+    return input_
 
 
 class Image(Input):
 
-  def __init__(self,
-               url=None,
-               file_obj=None,
-               base64=None,
-               filename=None,
-               crop=None,
-               image_id=None,
-               concepts=None,
-               not_concepts=None,
-               regions=None,
-               metadata=None,
-               geo=None,
-               feedback_info=None,
-               allow_dup_url=False):
+  def __init__(
+      self,  # type: Image
+      url=None,  # type: typing.Optional[str]
+      file_obj=None,  # type: typing.Optional[typing.Any]
+      base64=None,  # type: typing.Optional[typing.Union[str, bytes]]
+      filename=None,  # type: typing.Optional[str]
+      crop=None,  # type: typing.Optional[BoundingBox]
+      image_id=None,  # type: typing.Optional[str]
+      concepts=None,  # type: typing.Optional[typing.List[str]]
+      not_concepts=None,  # type: typing.Optional[typing.List[str]]
+      regions=None,  # type: typing.Optional[typing.List[Region]]
+      metadata=None,  # type: typing.Optional[dict]
+      geo=None,  # type: typing.Optional[Geo]
+      feedback_info=None,  # type: typing.Optional[FeedbackInfo]
+      allow_dup_url=False  # type: bool
+  ):
+    # type: (...) -> None
     """ construct an image
 
     Args:
@@ -398,29 +400,41 @@ class Image(Input):
     if we_opened_file:
       self.file_obj.close()
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
 
     data = super(Image, self).dict()
 
-    image = {'image': {}}
+    image = {}
 
     if self.base64:
-      image['image']['base64'] = self.base64.decode('UTF-8')
-    else:
-      image['image']['url'] = self.url
-
+      image['base64'] = self.base64.decode('UTF-8')
+    if self.url:
+      image['url'] = self.url
     if self.crop:
-      image['image']['crop'] = self.crop
+      image['crop'] = self.crop
+    if self.allow_dup_url:
+      image['allow_duplicate_url'] = self.allow_dup_url
 
-    image['image']['allow_duplicate_url'] = self.allow_dup_url
-
-    data['data'].update(image)
+    if image:
+      image_data = {'image': image}
+      if 'data' in data:
+        data['data'].update(image_data)
+      else:
+        data['data'] = image_data
     return data
 
 
 class Video(Input):
 
-  def __init__(self, url=None, file_obj=None, base64=None, filename=None, video_id=None):
+  def __init__(
+      self,  # type: Video
+      url=None,  # type: typing.Optional[str]
+      file_obj=None,  # type: typing.Optional[typing.Any]
+      base64=None,  # type: typing.Optional[typing.Union[str, bytes]]
+      filename=None,  # type: typing.Optional[str]
+      video_id=None  # type: typing.Optional[str]
+  ):
+    # type: (...) -> None
     """
       url: the url to a publicly accessible video.
       file_obj: a file-like object in which read() will give you the bytes.
@@ -472,7 +486,7 @@ class Video(Input):
     if we_opened_file:
       self.file_obj.close()
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
 
     data = super(Video, self).dict()
 
@@ -483,7 +497,10 @@ class Video(Input):
     else:
       video['video']['url'] = self.url
 
-    data['data'].update(video)
+    if 'data' in data:
+      data['data'].update(video)
+    else:
+      data['data'] = video
     return data
 
 
@@ -501,12 +518,15 @@ class FeedbackInfo(object):
   FeedbackInfo holds the metadata of a feedback
   """
 
-  def __init__(self,
-               end_user_id=None,
-               session_id=None,
-               event_type=None,
-               output_id=None,
-               search_id=None):
+  def __init__(
+      self,  # type: FeedbackInfo
+      end_user_id=None,  # type: typing.Optional[str]
+      session_id=None,  # type: typing.Optional[str]
+      event_type=None,  # type: typing.Optional[str]
+      output_id=None,  # type: typing.Optional[str]
+      search_id=None  # type: typing.Optional[str]
+  ):
+    # type: (...) -> None
 
     self.end_user_id = end_user_id
     self.session_id = session_id
@@ -514,7 +534,7 @@ class FeedbackInfo(object):
     self.output_id = output_id
     self.search_id = search_id
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
 
     data = {
         "feedback_info": {
@@ -570,14 +590,16 @@ class InputSearchTerm(SearchTerm):
     >>>                 geo_limit=GeoLimit('withinMiles', 10)))
   """
 
-  def __init__(self,
-               url=None,
-               input_id=None,
-               concept=None,
-               concept_id=None,
-               value=True,
-               metadata=None,
-               geo=None):
+  def __init__(
+      self,  # type: InputSearchTerm
+      url=None,  # type: typing.Optional[str]
+      input_id=None,  # type: typing.Optional[str]
+      concept=None,  # type: typing.Optional[str]
+      concept_id=None,  # type: typing.Optional[str]
+      value=True,  # type: typing.Optional[typing.Union[bool, float]]
+      metadata=None,  # type: typing.Optional[dict]
+      geo=None  # type: typing.Optional[Geo]
+  ):
     self.url = url
     self.input_id = input_id
     self.concept = concept
@@ -586,7 +608,7 @@ class InputSearchTerm(SearchTerm):
     self.metadata = metadata
     self.geo = geo
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     if self.url:
       obj = {"input": {"data": {"image": {"url": self.url}}}}
     elif self.input_id:
@@ -625,14 +647,16 @@ class OutputSearchTerm(SearchTerm):
     >>> OutputSearchTerm(concept='tag1', value=False)
   """
 
-  def __init__(self,
-               url=None,
-               base64=None,
-               input_id=None,
-               concept=None,
-               concept_id=None,
-               value=True,
-               crop=None):
+  def __init__(
+      self,  # type: OutputSearchTerm
+      url=None,  # type: typing.Optional[str]
+      base64=None,  # type: typing.Optional[typing.Union[str, bytes]]
+      input_id=None,  # type: typing.Optional[str]
+      concept=None,  # type: typing.Optional[str]
+      concept_id=None,  # type: typing.Optional[str]
+      value=True,  # type: typing.Optional[typing.Union[bool, float]]
+      crop=None  # type: typing.Optional[BoundingBox]
+  ):
     self.url = url
     self.base64 = base64
     self.input_id = input_id
@@ -641,7 +665,7 @@ class OutputSearchTerm(SearchTerm):
     self.value = value
     self.crop = crop
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     if self.url:
       obj = {"output": {"input": {"data": {"image": {"url": self.url}}}}}
 
@@ -702,23 +726,23 @@ class SearchQueryBuilder(object):
 
   """
 
-  def __init__(self, language=None):
+  def __init__(self, language=None):  # type: (typing.Optional[str]) -> None
     self.terms = []
     self.language = language
 
   def add_term(self, term):
+    # type: (typing.Optional[typing.Union[InputSearchTerm, OutputSearchTerm]]) -> None
     """ add a search term to the query.
         This can search by input or by output.
         Construct the term argument with an InputSearchTerm
         or OutputSearchTerm object.
     """
-    if not isinstance(term, InputSearchTerm) and \
-        not isinstance(term, OutputSearchTerm):
+    if not isinstance(term, InputSearchTerm) and not isinstance(term, OutputSearchTerm):
       raise UserError('first level search term could be only InputSearchTerm, OutputSearchTerm')
 
     self.terms.append(term)
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     """ construct the raw query for the RESTful API """
 
     query = {"ands": [term.dict() for term in self.terms]}
@@ -734,7 +758,10 @@ class Workflow(object):
       has the workflow attributes and a list of models associated with it
   """
 
+  api = None  # type: ApiClient
+
   def __init__(self, api, workflow=None, workflow_id=None):
+    # type: (ApiClient, dict, str) -> None
 
     self.api = api
 
@@ -748,7 +775,7 @@ class Workflow(object):
       self.wf_id = workflow_id
       self.nodes = []
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     obj = {
         'id': self.wf_id,
     }
@@ -758,13 +785,15 @@ class Workflow(object):
 
     return obj
 
-  def predict_by_url(self,
-                     url,
-                     lang=None,
-                     is_video=False,
-                     min_value=None,
-                     max_concepts=None,
-                     select_concepts=None):
+  def predict_by_url(
+      self,  # type: Workflow
+      url,  # type: str
+      lang=None,  # type: typing.Optional[str]
+      is_video=False,  # type: typing.Optional[bool]
+      min_value=None,  # type: typing.Optional[float]
+      max_concepts=None,  # type: typing.Optional[int]
+      select_concepts=None  # type: typing.Optional[typing.List[Concept]]
+  ):
     """ predict a model with url
 
     Args:
@@ -782,9 +811,9 @@ class Workflow(object):
     url = url.strip()
 
     if is_video is True:
-      input = Video(url=url)
+      input_ = Video(url=url)
     else:
-      input = Image(url=url)
+      input_ = Image(url=url)
 
     output_config = ModelOutputConfig(
         language=lang,
@@ -792,16 +821,18 @@ class Workflow(object):
         max_concepts=max_concepts,
         select_concepts=select_concepts)
 
-    res = self.predict([input], output_config)
+    res = self.predict([input_], output_config)
     return res
 
-  def predict_by_filename(self,
-                          filename,
-                          lang=None,
-                          is_video=False,
-                          min_value=None,
-                          max_concepts=None,
-                          select_concepts=None):
+  def predict_by_filename(
+      self,  # type: Workflow
+      filename,  # type: str
+      lang=None,  # type: typing.Optional[str]
+      is_video=False,  # type: typing.Optional[bool]
+      min_value=None,  # type: typing.Optional[float]
+      max_concepts=None,  # type: typing.Optional[int]
+      select_concepts=None  # type: typing.Optional[typing.List[Concept]]
+  ):
     """ predict a model with a local filename
 
     Args:
@@ -819,9 +850,9 @@ class Workflow(object):
     fileio = open(filename, 'rb')
 
     if is_video is True:
-      input = Video(file_obj=fileio)
+      input_ = Video(file_obj=fileio)
     else:
-      input = Image(file_obj=fileio)
+      input_ = Image(file_obj=fileio)
 
     output_config = ModelOutputConfig(
         language=lang,
@@ -829,16 +860,18 @@ class Workflow(object):
         max_concepts=max_concepts,
         select_concepts=select_concepts)
 
-    res = self.predict([input], output_config)
+    res = self.predict([input_], output_config)
     return res
 
-  def predict_by_bytes(self,
-                       raw_bytes,
-                       lang=None,
-                       is_video=False,
-                       min_value=None,
-                       max_concepts=None,
-                       select_concepts=None):
+  def predict_by_bytes(
+      self,  # type: Workflow
+      raw_bytes,  # type: bytes
+      lang=None,  # type: typing.Optional[str]
+      is_video=False,  # type: typing.Optional[bool]
+      min_value=None,  # type: typing.Optional[float]
+      max_concepts=None,  # type: typing.Optional[int]
+      select_concepts=None  # type: typing.Optional[typing.List[Concept]]
+  ):
     """ predict a model with image raw bytes
 
     Args:
@@ -856,9 +889,9 @@ class Workflow(object):
     base64_bytes = base64_lib.b64encode(raw_bytes)
 
     if is_video is True:
-      input = Video(base64=base64_bytes)
+      input_ = Video(base64=base64_bytes)
     else:
-      input = Image(base64=base64_bytes)
+      input_ = Image(base64=base64_bytes)
 
     output_config = ModelOutputConfig(
         language=lang,
@@ -866,16 +899,18 @@ class Workflow(object):
         max_concepts=max_concepts,
         select_concepts=select_concepts)
 
-    res = self.predict([input], output_config)
+    res = self.predict([input_], output_config)
     return res
 
-  def predict_by_base64(self,
-                        base64_bytes,
-                        lang=None,
-                        is_video=False,
-                        min_value=None,
-                        max_concepts=None,
-                        select_concepts=None):
+  def predict_by_base64(
+      self,  # type: Workflow
+      base64_bytes,  # type: str
+      lang=None,  # type: typing.Optional[str]
+      is_video=False,  # type: typing.Optional[bool]
+      min_value=None,  # type: typing.Optional[float]
+      max_concepts=None,  # type: typing.Optional[int]
+      select_concepts=None  # type: typing.Optional[typing.List[Concept]]
+  ):
     """ predict a model with base64 encoded image bytes
 
     Args:
@@ -891,9 +926,9 @@ class Workflow(object):
     """
 
     if is_video is True:
-      input = Video(base64=base64_bytes)
+      input_ = Video(base64=base64_bytes)
     else:
-      input = Image(base64=base64_bytes)
+      input_ = Image(base64=base64_bytes)
 
     model_output_config = ModelOutputConfig(
         language=lang,
@@ -901,10 +936,11 @@ class Workflow(object):
         max_concepts=max_concepts,
         select_concepts=select_concepts)
 
-    res = self.predict([input], model_output_config)
+    res = self.predict([input_], model_output_config)
     return res
 
   def predict(self, inputs, output_config=None):
+    # type: (typing.List[typing.Union[Input]], ModelOutputConfig) -> dict
     """ predict with multiple images
 
     Args:
@@ -923,12 +959,12 @@ class WorkflowNode(object):
   """ the node in the workflow
   """
 
-  def __init__(self, wf_node):
-    self.node_id = wf_node['id']
-    self.model_id = wf_node['model']['id']
-    self.model_version_id = wf_node['model']['model_version']['id']
+  def __init__(self, wf_node):  # type: (dict) -> None
+    self.node_id = wf_node['id']  # type: str
+    self.model_id = wf_node['model']['id']  # type: str
+    self.model_version_id = wf_node['model']['model_version']['id']  # type: str
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     node = {
         'id': self.node_id,
         'model': {
@@ -943,10 +979,11 @@ class WorkflowNode(object):
 
 class Workflows(object):
 
-  def __init__(self, api):
-    self.api = api
+  def __init__(self, api):  # type: (ApiClient) -> None
+    self.api = api  # type: ApiClient
 
   def get_all(self, public_only=False):
+    # type: (typing.Optional[bool]) -> typing.Generator[Workflow, None, None]
     """ get all workflows in the application
 
     Args:
@@ -974,6 +1011,7 @@ class Workflows(object):
       yield workflow
 
   def get_by_page(self, public_only=False, page=1, per_page=20):
+    # type: (bool, int, int) -> typing.List[Workflow]
     """ get paginated workflows from the application
 
         When the number of workflows get high, you may want to get
@@ -996,7 +1034,7 @@ class Workflows(object):
 
     return results
 
-  def get(self, workflow_id):
+  def get(self, workflow_id):  # type: (str) -> Workflow
     """ get workflow by id
 
     Args:
@@ -1016,15 +1054,16 @@ class Workflows(object):
 
 class Models(object):
 
-  def __init__(self, api, solutions):
-    self.api = api
-    self.solutions = solutions
+  def __init__(self, api, solutions):  # type: (ApiClient, Solutions) -> None
+    self.api = api  # type: ApiClient
+    self.solutions = solutions  # type: Solutions
 
     # the cache of the model name -> model id mapping
     # to avoid an extra model query on every prediction by model name
     self.model_id_cache = self.init_model_cache()
 
   def init_model_cache(self):
+    # type: () -> typing.Dict[typing.Tuple[typing.Optional[str], typing.Optional[str]], str]
     """ Initialize the model cache for the public models
 
         This will go through all public models and cache them
@@ -1056,7 +1095,7 @@ class Models(object):
 
     return model_cache
 
-  def clear_model_cache(self):
+  def clear_model_cache(self):  # type: () -> None
     """ clear model_name -> model_id cache
 
         WARNING: This is an internal function, user should not call this
@@ -1069,13 +1108,15 @@ class Models(object):
 
     self.model_id_cache = {}
 
-  def create(self,
-             model_id,
-             model_name=None,
-             concepts=None,
-             concepts_mutually_exclusive=False,
-             closed_environment=False,
-             hyper_parameters=None):
+  def create(
+      self,  # type: Models
+      model_id,  # type: str
+      model_name=None,  # type: typing.Optional[str]
+      concepts=None,  # type: typing.Optional[typing.List[str]]
+      concepts_mutually_exclusive=False,  # type: bool
+      closed_environment=False,  # type: bool
+      hyper_parameters=None  # type: typing.Optional[dict]
+  ):
     """ Create a new model
 
     Args:
@@ -1115,7 +1156,7 @@ class Models(object):
 
     return model
 
-  def _is_public(self, model):
+  def _is_public(self, model):  # type: (Model) -> bool
     """ use app_id to determine whether it is a public model
 
         For public model, the app_id is either '' or 'main'
@@ -1124,6 +1165,7 @@ class Models(object):
     return model.app_id == '' or model.app_id == 'main'
 
   def get_all(self, public_only=False, private_only=False):
+    # type: (bool, bool) -> typing.Generator[Model, None, None]
     """ Get all models in the application
 
     Args:
@@ -1161,6 +1203,7 @@ class Models(object):
       page += 1
 
   def get_by_page(self, public_only=False, private_only=False, page=1, per_page=20):
+    # type: (bool, bool, int, int) -> typing.List[Model]
     """ get paginated models from the application
 
     When the number of models gets high, you may want to get
@@ -1189,7 +1232,7 @@ class Models(object):
 
     return results
 
-  def delete(self, model_id, version_id=None):
+  def delete(self, model_id, version_id=None):  # type: (str, typing.Optional[str]) -> dict
     """ delete the model, or a specific version of the model
 
         Without model version id specified, all the versions associated with this model
@@ -1219,7 +1262,7 @@ class Models(object):
 
     return res
 
-  def bulk_delete(self, model_ids):
+  def bulk_delete(self, model_ids):  # type: (typing.List[str]) -> dict
     """ Delete multiple models.
 
         Args:
@@ -1235,7 +1278,7 @@ class Models(object):
     res = self.api.delete_models(model_ids)
     return res
 
-  def delete_all(self):
+  def delete_all(self):  # type: () -> dict
     """ Delete all models and the versions associated with each one
 
         After this operation, you will have no models in the
@@ -1251,7 +1294,13 @@ class Models(object):
     res = self.api.delete_all_models()
     return res
 
-  def get(self, model_name=None, model_id=None, model_type=None):
+  def get(
+      self,  # type: Models
+      model_name=None,  # type: typing.Optional[str]
+      model_id=None,  # type: typing.Optional[str]
+      model_type=None  # type:typing.Optional[str]
+  ):
+    # type: (...) -> typing.Optional[Model]
     """ Get a model, by ID or name
 
     Args:
@@ -1303,8 +1352,8 @@ class Models(object):
                         'found' % model_name)
           return None
 
-        # TODO(Rok) HIGH: This sets the return value to a dict, but previous return values are Model
-        #                 objects.
+        # TODO(Rok) HIGH: This sets the return value to a dict, but previous return values are
+        #                 Model objects.
         model = res[0]
         self.model_id_cache.update({(model_name, model_type): model.model_id})
       else:
@@ -1313,6 +1362,7 @@ class Models(object):
     return model
 
   def search(self, model_name, model_type=None):
+    # type: (typing.Optional[str], typing.Optional[str]) -> typing.Optional[typing.List[Model]]
     """
         Search the model by name and optionally type. Default is to search concept models
         only. All the custom model trained are concept models.
@@ -1332,7 +1382,7 @@ class Models(object):
           >>> app.models.search('color', model_type='color')
           >>>
           >>> # search for face model
-          >>> app.models.search('face-v1.3', model_type='facedetect')
+          >>> app.models.search('face', model_type='facedetect')
     """
 
     res = self.api.search_models(model_name, model_type)
@@ -1343,21 +1393,21 @@ class Models(object):
 
     return results
 
-  def _to_obj(self, item):
+  def _to_obj(self, item):  # type: (dict) -> Model
     """ convert a model json object to Model object """
     return Model(self.api, item, solutions=self.solutions)
 
 
-def _escape(param):
+def _escape(param):  # type: (str) -> str
   return param.replace('/', '%2F')
 
 
 class Inputs(object):
 
-  def __init__(self, api):
-    self.api = api
+  def __init__(self, api):  # type: (ApiClient) -> None
+    self.api = api  # type: ApiClient
 
-  def create_image(self, image):
+  def create_image(self, image):  # type: (Image) -> Image
     """ create an image from Image object
 
     Args:
@@ -1375,15 +1425,18 @@ class Inputs(object):
     img = self._to_obj(ret['inputs'][0])
     return img
 
-  def create_image_from_url(self,
-                            url,
-                            image_id=None,
-                            concepts=None,
-                            not_concepts=None,
-                            crop=None,
-                            metadata=None,
-                            geo=None,
-                            allow_duplicate_url=False):
+  def create_image_from_url(
+      self,  # type: Inputs
+      url,  # type: str
+      image_id=None,  # type: typing.Optional[str]
+      concepts=None,  # type: typing.Optional[typing.List[str]]
+      not_concepts=None,  # type: typing.Optional[typing.List[str]]
+      crop=None,  # type: typing.Optional[BoundingBox]
+      metadata=None,  # type: typing.Optional[dict]
+      geo=None,  # type: typing.Optional[Geo]
+      allow_duplicate_url=False  # type: bool
+  ):
+    # type: (...) -> Image
     """ create an image from Image url
 
     Args:
@@ -1421,15 +1474,18 @@ class Inputs(object):
 
     return self.create_image(image)
 
-  def create_image_from_filename(self,
-                                 filename,
-                                 image_id=None,
-                                 concepts=None,
-                                 not_concepts=None,
-                                 crop=None,
-                                 metadata=None,
-                                 geo=None,
-                                 allow_duplicate_url=False):
+  def create_image_from_filename(
+      self,  # type: Inputs
+      filename,  # type: str
+      image_id=None,  # type: typing.Optional[str]
+      concepts=None,  # type: typing.Optional[typing.List[str]]
+      not_concepts=None,  # type: typing.Optional[typing.List[str]]
+      crop=None,  # type: typing.Optional[BoundingBox]
+      metadata=None,  # type: typing.Optional[dict]
+      geo=None,  # type: typing.Optional[Geo]
+      allow_duplicate_url=False  # type: bool
+  ):
+    # type: (...) -> Image
     """ create an image by local filename
 
     Args:
@@ -1461,15 +1517,18 @@ class Inputs(object):
           allow_dup_url=allow_duplicate_url)
     return self.create_image(image)
 
-  def create_image_from_bytes(self,
-                              img_bytes,
-                              image_id=None,
-                              concepts=None,
-                              not_concepts=None,
-                              crop=None,
-                              metadata=None,
-                              geo=None,
-                              allow_duplicate_url=False):
+  def create_image_from_bytes(
+      self,  # type: Inputs
+      img_bytes,  # type: bytes
+      image_id=None,  # type: typing.Optional[str]
+      concepts=None,  # type: typing.Optional[typing.List[str]]
+      not_concepts=None,  # type: typing.Optional[typing.List[str]]
+      crop=None,  # type: typing.Optional[BoundingBox]
+      metadata=None,  # type: typing.Optional[str]
+      geo=None,  # type: typing.Optional[Geo]
+      allow_duplicate_url=False  # type: bool
+  ):
+    # type: (...) -> Image
     """ create an image by image bytes
 
     Args:
@@ -1501,15 +1560,18 @@ class Inputs(object):
         allow_dup_url=allow_duplicate_url)
     return self.create_image(image)
 
-  def create_image_from_base64(self,
-                               base64_bytes,
-                               image_id=None,
-                               concepts=None,
-                               not_concepts=None,
-                               crop=None,
-                               metadata=None,
-                               geo=None,
-                               allow_duplicate_url=False):
+  def create_image_from_base64(
+      self,  # type: Inputs
+      base64_bytes,  # type: str
+      image_id=None,  # type: typing.Optional[str]
+      concepts=None,  # type: typing.Optional[typing.List[str]]
+      not_concepts=None,  # type: typing.Optional[typing.List[str]]
+      crop=None,  # type: typing.Optional[BoundingBox]
+      metadata=None,  # type: typing.Optional[dict]
+      geo=None,  # type: typing.Optional[Geo]
+      allow_duplicate_url=False  # type: bool
+  ):
+    # type: (...) -> Image
     """ create an image by base64 bytes
 
     Args:
@@ -1540,7 +1602,7 @@ class Inputs(object):
         allow_dup_url=allow_duplicate_url)
     return self.create_image(image)
 
-  def bulk_create_images(self, images):
+  def bulk_create_images(self, images):  # type: (typing.List[Image]) -> typing.List[Image]
     """ Create images in bulk
 
     Args:
@@ -1563,7 +1625,7 @@ class Inputs(object):
     images = [self._to_obj(one) for one in res['inputs']]
     return images
 
-  def check_status(self):
+  def check_status(self):  # type: () -> InputCounts
     """ check the input upload status
 
     Returns:
@@ -1579,7 +1641,7 @@ class Inputs(object):
     counts = InputCounts(ret)
     return counts
 
-  def get_all(self, ignore_error=False):
+  def get_all(self, ignore_error=False):  # type: (bool) -> typing.Generator[Input, None, None]
     """ Get all inputs
 
 
@@ -1611,16 +1673,17 @@ class Inputs(object):
         break
 
       for one in res['inputs']:
-        input = self._to_obj(one)
+        input_ = self._to_obj(one)
 
-        if ignore_error is True and input.status.code != 30000:
+        if ignore_error is True and input_.status.code != 30000:
           continue
 
-        yield input
+        yield input_
 
       page += 1
 
   def get_by_page(self, page=1, per_page=20, ignore_error=False):
+    # type: (int, int, bool) -> typing.List[Input]
     """ Get inputs with pagination
 
     Args:
@@ -1647,16 +1710,16 @@ class Inputs(object):
 
     results = []
     for one in res['inputs']:
-      input = self._to_obj(one)
+      input_ = self._to_obj(one)
 
-      if ignore_error is True and input.status.code != 30000:
+      if ignore_error is True and input_.status.code != 30000:
         continue
 
-      results.append(input)
+      results.append(input_)
 
     return results
 
-  def delete(self, input_id):
+  def delete(self, input_id):  # type: (str) -> ApiStatus
     """ delete an input with input ID
 
     Args:
@@ -1677,13 +1740,13 @@ class Inputs(object):
 
     return ApiStatus(res['status'])
 
-  def delete_all(self):
+  def delete_all(self):  # type: () -> ApiStatus
     """ delete all inputs from the application
     """
     res = self.api.delete_all_inputs()
     return ApiStatus(res['status'])
 
-  def get(self, input_id):
+  def get(self, input_id):  # type: (str) -> Image
     """ get an Input object by input ID
 
     Args:
@@ -1703,6 +1766,7 @@ class Inputs(object):
     return self._to_obj(one)
 
   def search(self, qb, page=1, per_page=20, raw=False):
+    # type: (SearchQueryBuilder, int, int, bool) -> typing.List[Image]
     """ search with a clarifai image query builder
 
         WARNING: this is the advanced search function. You will need to build a query builder
@@ -1716,7 +1780,9 @@ class Inputs(object):
 
     Args:
       qb: clarifai query builder
-      raw: raw result indicator
+      page: the results page
+      per_page: results per page
+      raw: whether to return the original JSON object instead of a list of Image objects
 
     Returns:
       a list of Input/Image object
@@ -1731,18 +1797,21 @@ class Inputs(object):
     hits = [self._to_search_obj(one) for one in res['hits']]
     return hits
 
-  def search_by_image(self,
-                      image_id=None,
-                      image=None,
-                      url=None,
-                      imgbytes=None,
-                      base64bytes=None,
-                      fileobj=None,
-                      filename=None,
-                      crop=None,
-                      page=1,
-                      per_page=20,
-                      raw=False):
+  def search_by_image(
+      self,  # type: Inputs
+      image_id=None,  # type: typing.Optional[str]
+      image=None,  # type: typing.Optional[Image]
+      url=None,  # type: typing.Optional[str]
+      imgbytes=None,  # type: typing.Optional[bytes]
+      base64bytes=None,  # type: typing.Optional[str]
+      fileobj=None,  # type: typing.Optional[typing.Any]
+      filename=None,  # type: typing.Optional[str]
+      crop=None,  # type: typing.Optional[BoundingBox]
+      page=1,  # type: int
+      per_page=20,  # type: int
+      raw=False  # type: bool
+  ):
+    # type: (...) -> typing.List[Image]
     """ Search for visually similar images
 
     By passing image_id, raw image bytes, base64 encoded bytes, image file io stream,
@@ -1798,7 +1867,6 @@ class Inputs(object):
       if image.url:
         term = OutputSearchTerm(url=image.url, crop=crop)
       elif image.base64:
-        print(image.base64)
         term = OutputSearchTerm(base64=image.base64.decode('UTF-8'), crop=crop)
       elif image.file_obj:
         if hasattr(image.file_obj, 'getvalue'):
@@ -1834,6 +1902,7 @@ class Inputs(object):
     return self.search_by_image(image=img, page=page, per_page=per_page, raw=raw, crop=crop)
 
   def search_by_original_url(self, url, page=1, per_page=20, raw=False):
+    # type: (str, int, int, bool) -> typing.List[Image]
     """ search by the original url of the uploaded images
 
     Args:
@@ -1858,6 +1927,7 @@ class Inputs(object):
     return res
 
   def search_by_metadata(self, metadata, page=1, per_page=20, raw=False):
+    # type: (dict, int, int, bool) -> typing.List[Image]
     """ search by meta data of the image rather than concept
 
     Args:
@@ -1887,16 +1957,19 @@ class Inputs(object):
 
     return res
 
-  def search_by_annotated_concepts(self,
-                                   concept=None,
-                                   concepts=None,
-                                   value=True,
-                                   values=None,
-                                   concept_id=None,
-                                   concept_ids=None,
-                                   page=1,
-                                   per_page=20,
-                                   raw=False):
+  def search_by_annotated_concepts(
+      self,  # type: Inputs
+      concept=None,  # type: typing.Optional[str]
+      concepts=None,  # type: typing.Optional[typing.List[str]]
+      value=True,  # type: bool
+      values=None,  # type: typing.Optional[typing.List[bool]]
+      concept_id=None,  # type: typing.Optional[str]
+      concept_ids=None,  # type: typing.Optional[typing.List[str]]
+      page=1,  # type: int
+      per_page=20,  # type: int
+      raw=False  # type: bool
+  ):
+    # type: (...) -> typing.List[Image]
     """ search using the concepts the user has manually specified
 
     Args:
@@ -1970,13 +2043,16 @@ class Inputs(object):
 
     return self.search(qb, page, per_page, raw)
 
-  def search_by_geo(self,
-                    geo_point=None,
-                    geo_limit=None,
-                    geo_box=None,
-                    page=1,
-                    per_page=20,
-                    raw=False):
+  def search_by_geo(
+      self,  # type: Inputs
+      geo_point=None,  # type: typing.Optional[GeoPoint]
+      geo_limit=None,  # type: typing.Optional[GeoLimit]
+      geo_box=None,  # type: typing.Optional[GeoBox]
+      page=1,  # type: int
+      per_page=20,  # type: int
+      raw=False  # type: bool
+  ):
+    # type: (...) -> typing.List[Image]
     """ search by geo point and geo limit
 
     Args:
@@ -2022,17 +2098,20 @@ class Inputs(object):
 
     return self.search(qb, page, per_page, raw)
 
-  def search_by_predicted_concepts(self,
-                                   concept=None,
-                                   concepts=None,
-                                   value=True,
-                                   values=None,
-                                   concept_id=None,
-                                   concept_ids=None,
-                                   page=1,
-                                   per_page=20,
-                                   lang=None,
-                                   raw=False):
+  def search_by_predicted_concepts(
+      self,  # type: Inputs
+      concept=None,  # type: typing.Optional[str]
+      concepts=None,  # type: typing.Optional[typing.Optional[str]]
+      value=True,  # type: bool
+      values=None,  # type: typing.Optional[typing.List[bool]]
+      concept_id=None,  # type: typing.Optional[str]
+      concept_ids=None,  # type: typing.Optional[typing.List[str]]
+      page=1,  # type: int
+      per_page=20,  # type: int
+      lang=None,  # type: typing.Optional[str]
+      raw=False  # type: bool
+  ):
+    # type: (...) -> typing.List[Image]
     """ search over the predicted concepts
 
     Args:
@@ -2101,11 +2180,13 @@ class Inputs(object):
     return self.search(qb, page, per_page, raw)
 
   def send_search_feedback(self, input_id, feedback_info=None):
+    # type: (str, typing.Optional[FeedbackInfo]) -> dict
     """
     Send feedback for search
 
     Args:
       input_id: unique identifier for the input
+      feedback_info: the feedback information
 
     Returns:
       None
@@ -2116,7 +2197,7 @@ class Inputs(object):
 
     return res
 
-  def update(self, image, action='merge'):
+  def update(self, image, action='merge'):  # type: (Image, str) -> Image
     """
     Update the information of an input/image
 
@@ -2143,7 +2224,10 @@ class Inputs(object):
     one = res['inputs'][0]
     return self._to_obj(one)
 
+  # TODO(Rok) MEDIUM: Unconsistent name. Should be bulk_update_image. Deprecate this method
+  #                   and create a new one.
   def bulk_update(self, images, action='merge'):
+    # type: (typing.List[typing.Union[Input]], str) -> typing.List[Image]
     """ Update the input
     update the information of an input/image
 
@@ -2151,7 +2235,7 @@ class Inputs(object):
       images: a list of Image objects that have concepts, metadata, etc.
       action: one of ['merge', 'overwrite']
 
-              'merge' is to append the info onto the exising info, for either concept or
+              'merge' is to append the info onto the existing info, for either concept or
               metadata
 
               'overwrite' is to overwrite the existing metadata and concepts with the
@@ -2171,7 +2255,7 @@ class Inputs(object):
     objs = [self._to_obj(item) for item in ret['inputs']]
     return objs
 
-  def delete_concepts(self, input_id, concepts):
+  def delete_concepts(self, input_id, concepts):  # type: (str, typing.List[str]) -> Image
     """ delete concepts from an input/image
 
     Args:
@@ -2186,6 +2270,7 @@ class Inputs(object):
     return res
 
   def bulk_merge_concepts(self, input_ids, concept_lists):
+    # type: (typing.List[str], typing.List[typing.List[str]]) -> typing.List[Image]
     """ bulk merge concepts from a list of input ids
 
     Args:
@@ -2220,6 +2305,7 @@ class Inputs(object):
     return res
 
   def bulk_delete_concepts(self, input_ids, concept_lists):
+    # type: (typing.List[str], typing.List[typing.List[str]]) -> typing.List[Image]
     """ bulk delete concepts from a list of input ids
 
     Args:
@@ -2243,7 +2329,14 @@ class Inputs(object):
     res = self.bulk_update(inputs, action='remove')
     return res
 
-  def merge_concepts(self, input_id, concepts, not_concepts, overwrite=False):
+  def merge_concepts(
+      self,  # type: Inputs
+      input_id,  # type: str
+      concepts=None,  # type: typing.Optional[typing.List[str]]
+      not_concepts=None,  # type:  typing.Optional[typing.List[str]]
+      overwrite=False  # type: bool
+  ):
+    # type: (...) -> Image
     """ Merge concepts for one input
 
     Args:
@@ -2271,7 +2364,8 @@ class Inputs(object):
     res = self.update(image, action=action)
     return res
 
-  def add_concepts(self, input_id, concepts, not_concepts):
+  def add_concepts(self, input_id, concepts=None, not_concepts=None):
+    # type: (str, typing.Optional[typing.List[str]], typing.Optional[typing.List[str]]) -> Image
     """ Add concepts for one input
 
     This is just an alias of `merge_concepts` for easier understanding
@@ -2290,7 +2384,7 @@ class Inputs(object):
     """
     return self.merge_concepts(input_id, concepts, not_concepts)
 
-  def merge_metadata(self, input_id, metadata):
+  def merge_metadata(self, input_id, metadata):  # type: (str, dict) -> Image
     """ merge metadata for the image
 
     This is to merge/update the metadata of the given image
@@ -2310,23 +2404,23 @@ class Inputs(object):
     res = self.update(image, action=action)
     return res
 
-  def _to_search_obj(self, one):
+  def _to_search_obj(self, one):  # type: (dict) -> Image
     """ convert the search candidate to input object """
     score = one['score']
     one_input = self._to_obj(one['input'])
     one_input.score = score
     return one_input
 
-  def _to_obj(self, one):
+  def _to_obj(self, one):  # type: (dict) -> Image
 
     # get concepts
     concepts = []
     not_concepts = []
     for concept in one['data'].get('concepts', []):
       if concept.get('value', 1) == 1:
-        concepts.append(concept['name'])
+        concepts.append(concept.get('name') or concept['id'])
       else:
-        not_concepts.append(concept['name'])
+        not_concepts.append(concept.get('name') or concept['id'])
 
     if not concepts:
       concepts = None
@@ -2444,10 +2538,10 @@ class Inputs(object):
 
 class Concepts(object):
 
-  def __init__(self, api):
-    self.api = api
+  def __init__(self, api):  # type: (ApiClient) -> None
+    self.api = api  # type: ApiClient
 
-  def get_all(self):
+  def get_all(self):  # type: () -> typing.Generator[Concept, None, None]
     """ Get all concepts associated with the application
 
     Returns:
@@ -2468,7 +2562,7 @@ class Concepts(object):
 
       page += 1
 
-  def get_by_page(self, page=1, per_page=20):
+  def get_by_page(self, page=1, per_page=20):  # type: (int, int) -> typing.List[Concept]
     """ get concept with pagination
 
     Args:
@@ -2488,7 +2582,7 @@ class Concepts(object):
 
     return results
 
-  def get(self, concept_id):
+  def get(self, concept_id):  # type: (str) -> typing.Optional[Concept]
     """ Get a concept by id
 
     Args:
@@ -2505,12 +2599,12 @@ class Concepts(object):
     res = self.api.get_concept(concept_id)
     if res.get('concept'):
       concept = self._to_obj(res['concept'])
+      return concept
     else:
-      concept = None
-
-    return concept
+      return None
 
   def search(self, term, lang=None):
+    # type: (str, typing.Optional[str]) -> typing.Generator[Concept, None, None]
     """ search concepts by concept name with wildcards
 
     Args:
@@ -2542,11 +2636,13 @@ class Concepts(object):
       page += 1
 
   def update(self, concept_id, concept_name, action='overwrite'):
+    # type: (str, str, str) -> Concept
     """ Patch concept
 
     Args:
       concept_id: id of the concept
       concept_name: the new name for the concept
+      action: the action
 
     Returns:
       the new Concept object
@@ -2561,6 +2657,7 @@ class Concepts(object):
     return self._to_obj(res['concepts'][0])
 
   def bulk_update(self, concept_ids, concept_names, action='overwrite'):
+    # type: (typing.List[str], typing.List[str], str) -> typing.List[Concept]
     """ Patch multiple concepts
 
     Args:
@@ -2585,6 +2682,7 @@ class Concepts(object):
     return [self._to_obj(c) for c in res['concepts']]
 
   def create(self, concept_id, concept_name=None):
+    # type: (str, typing.Optional[str]) -> Concept
     """ Create a new concept
 
     Args:
@@ -2601,6 +2699,7 @@ class Concepts(object):
     return concept
 
   def bulk_create(self, concept_ids, concept_names=None):
+    # type: (typing.List[str], typing.Optional[typing.List[str]]) -> typing.List[Concept]
     """ Bulk create concepts
 
     When the concept name is not set, it will be set as the same as concept ID.
@@ -2620,7 +2719,7 @@ class Concepts(object):
     concepts = [self._to_obj(one) for one in res['concepts']]
     return concepts
 
-  def _to_obj(self, item):
+  def _to_obj(self, item):  # type: (dict) -> Concept
 
     concept_id = item['id']
     concept_name = item['name']
@@ -2633,10 +2732,17 @@ class Concepts(object):
 
 class Model(object):
 
-  def __init__(self, api, item=None, model_id=None, solutions=None):
-    self.api = api
+  def __init__(
+      self,  # type: Model
+      api,  # type: ApiClient
+      item=None,  # type: typing.Optional[dict]
+      model_id=None,  # type: typing.Optional[str]
+      solutions=None  # type: typing.Optional[Solutions]
+  ):
+    # type: (...) -> None
 
-    self.solutions = ModelSolutions(solutions, self)
+    self.api = api  # type: ApiClient
+    self.solutions = ModelSolutions(solutions, self)  # type: ModelSolutions
 
     if model_id is not None:
       self.model_id = model_id
@@ -2652,8 +2758,9 @@ class Model(object):
       self.output_info = item.get('output_info', {})
 
       output_config = self.output_info.get('output_config', {})
-      self.concepts_mutually_exclusive = output_config.get('concepts_mutually_exclusive', False)
-      self.closed_environment = output_config.get('closed_environment', False)
+      self.concepts_mutually_exclusive = output_config.get('concepts_mutually_exclusive',
+                                                           False)  # type: bool
+      self.closed_environment = output_config.get('closed_environment', False)  # type: bool
 
       hyper_parameters = output_config.get('hyper_parameters', None)
       self.hyper_parameters = json.loads(hyper_parameters) if hyper_parameters else None
@@ -2666,9 +2773,9 @@ class Model(object):
               concept_id=concept['id'],
               app_id=concept['app_id'],
               created_at=concept['created_at'])
-          self.concepts.add(concept)
+          self.concepts.append(concept)
 
-  def get_info(self, verbose=False):
+  def get_info(self, verbose=False):  # type: (bool) -> dict
     """ get model info, with or without the concepts associated with the model.
 
     Args:
@@ -2691,7 +2798,7 @@ class Model(object):
 
     return ret
 
-  def get_concept_ids(self):
+  def get_concept_ids(self):  # type: () -> typing.List[Concept]
     """ get concepts IDs associated with the model
 
     Returns:
@@ -2709,7 +2816,7 @@ class Model(object):
 
     return [c['id'] for c in concepts]
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
 
     data = {
         "model": {
@@ -2732,7 +2839,7 @@ class Model(object):
 
     return data
 
-  def train(self, sync=True, timeout=60):
+  def train(self, sync=True, timeout=60):  # type: (bool, int) -> typing.Union[Model, dict]
     """
     train the model in synchronous or asynchronous mode. Synchronous will block until the
     model is trained, async will not.
@@ -2754,9 +2861,11 @@ class Model(object):
       model_version = res['model']['model_version']['id']
       model_status_code = res['model']['model_version']['status']['code']
     else:
+      # TODO: This should probably be converted to a Model object.
       return res
 
     if sync is False:
+      # TODO: This should probably be converted to a Model object.
       return res
 
     # train in sync despite the RESTful api is always async
@@ -2795,14 +2904,17 @@ class Model(object):
 
     return self._to_obj(res['model'])
 
-  def predict_by_url(self,
-                     url,
-                     lang=None,
-                     is_video=False,
-                     min_value=None,
-                     max_concepts=None,
-                     select_concepts=None,
-                     sample_ms=None):
+  def predict_by_url(
+      self,  # type: Model
+      url,  # type: str
+      lang=None,  # type: typing.Optional[str]
+      is_video=False,  # type: bool
+      min_value=None,  # type: typing.Optional[float]
+      max_concepts=None,  # type: typing.Optional[int]
+      select_concepts=None,  # type: typing.Optional[typing.List[Concept]]
+      sample_ms=None  # type: typing.Optional[int]
+  ):
+    # type: (...) -> dict
     """ predict a model with url
 
     Args:
@@ -2821,9 +2933,9 @@ class Model(object):
     url = url.strip()
 
     if is_video is True:
-      input = Video(url=url)
+      input_ = Video(url=url)  # type: Input
     else:
-      input = Image(url=url)
+      input_ = Image(url=url)
 
     model_output_info = ModelOutputInfo(
         output_config=ModelOutputConfig(
@@ -2833,17 +2945,20 @@ class Model(object):
             select_concepts=select_concepts,
             sample_ms=sample_ms))
 
-    res = self.predict([input], model_output_info)
+    res = self.predict([input_], model_output_info)
     return res
 
-  def predict_by_filename(self,
-                          filename,
-                          lang=None,
-                          is_video=False,
-                          min_value=None,
-                          max_concepts=None,
-                          select_concepts=None,
-                          sample_ms=None):
+  def predict_by_filename(
+      self,  # type: Model
+      filename,  # type: str
+      lang=None,  # type: typing.Optional[str]
+      is_video=False,  # type: bool
+      min_value=None,  # type: typing.Optional[float]
+      max_concepts=None,  # type: typing.Optional[int]
+      select_concepts=None,  # type: typing.Optional[typing.List[Concept]]
+      sample_ms=None  # type: typing.Optional[int]
+  ):
+    # type: (...) -> dict
     """ predict a model with a local filename
 
     Args:
@@ -2861,9 +2976,9 @@ class Model(object):
 
     with open(filename, 'rb') as fileio:
       if is_video is True:
-        input = Video(file_obj=fileio)
+        input_ = Video(file_obj=fileio)  # type: Input
       else:
-        input = Image(file_obj=fileio)
+        input_ = Image(file_obj=fileio)
 
     model_output_info = ModelOutputInfo(
         output_config=ModelOutputConfig(
@@ -2873,17 +2988,20 @@ class Model(object):
             select_concepts=select_concepts,
             sample_ms=sample_ms))
 
-    res = self.predict([input], model_output_info)
+    res = self.predict([input_], model_output_info)
     return res
 
-  def predict_by_bytes(self,
-                       raw_bytes,
-                       lang=None,
-                       is_video=False,
-                       min_value=None,
-                       max_concepts=None,
-                       select_concepts=None,
-                       sample_ms=None):
+  def predict_by_bytes(
+      self,  # type: Model
+      raw_bytes,  # type: bytes
+      lang=None,  # type: typing.Optional[str]
+      is_video=False,  # type: bool
+      min_value=None,  # type: typing.Optional[float]
+      max_concepts=None,  # type: typing.Optional[int]
+      select_concepts=None,  # type: typing.Optional[typing.List[Concept]]
+      sample_ms=None  # type: typing.Optional[int]
+  ):
+    # type: (...) -> dict
     """ predict a model with image raw bytes
 
     Args:
@@ -2902,9 +3020,9 @@ class Model(object):
     base64_bytes = base64_lib.b64encode(raw_bytes)
 
     if is_video is True:
-      input = Video(base64=base64_bytes)
+      input_ = Video(base64=base64_bytes)  # type: Input
     else:
-      input = Image(base64=base64_bytes)
+      input_ = Image(base64=base64_bytes)
 
     model_output_info = ModelOutputInfo(
         output_config=ModelOutputConfig(
@@ -2914,17 +3032,20 @@ class Model(object):
             select_concepts=select_concepts,
             sample_ms=sample_ms))
 
-    res = self.predict([input], model_output_info)
+    res = self.predict([input_], model_output_info)
     return res
 
-  def predict_by_base64(self,
-                        base64_bytes,
-                        lang=None,
-                        is_video=False,
-                        min_value=None,
-                        max_concepts=None,
-                        select_concepts=None,
-                        sample_ms=None):
+  def predict_by_base64(
+      self,  # type: Model
+      base64_bytes,  # type: str
+      lang=None,  # type: typing.Optional[str]
+      is_video=False,  # type: bool
+      min_value=None,  # type: typing.Optional[float]
+      max_concepts=None,  # type: typing.Optional[int]
+      select_concepts=None,  # type: typing.Optional[typing.List[Concept]]
+      sample_ms=None  # type: typing.Optional[int]
+  ):
+    # type: (...) -> dict
     """ predict a model with base64 encoded image bytes
 
     Args:
@@ -2941,9 +3062,9 @@ class Model(object):
     """
 
     if is_video is True:
-      input = Video(base64=base64_bytes)
+      input_ = Video(base64=base64_bytes)  # type: Input
     else:
-      input = Image(base64=base64_bytes)
+      input_ = Image(base64=base64_bytes)
 
     model_output_info = ModelOutputInfo(
         output_config=ModelOutputConfig(
@@ -2953,14 +3074,17 @@ class Model(object):
             select_concepts=select_concepts,
             sample_ms=sample_ms))
 
-    res = self.predict([input], model_output_info)
+    res = self.predict([input_], model_output_info)
     return res
 
+  # TODO(Rok) MEDIUM: Add bulk_predict methods.
   def predict(self, inputs, model_output_info=None):
+    # type: (typing.List[Input], typing.Optional[ModelOutputInfo]) -> dict
     """ predict with multiple images
 
     Args:
       inputs: a list of Image objects
+      model_output_info: the model output info
 
     Returns:
       the prediction of the model in JSON format
@@ -2970,6 +3094,7 @@ class Model(object):
     return res
 
   def merge_concepts(self, concept_ids, overwrite=False):
+    # type: (typing.List[str], bool) -> Model
     """ merge concepts in a model
 
     When overwrite is False, if the concept does not exist in the model it will be appended.
@@ -2991,7 +3116,7 @@ class Model(object):
     model = self.update(action=action, concept_ids=concept_ids)
     return model
 
-  def add_concepts(self, concept_ids):
+  def add_concepts(self, concept_ids):  # type: (typing.List[str]) -> Model
     """ merge concepts into a model
 
     This is just an alias of `merge_concepts`, for easier understanding of adding new concepts
@@ -3010,12 +3135,15 @@ class Model(object):
 
     return self.merge_concepts(concept_ids)
 
-  def update(self,
-             action='merge',
-             model_name=None,
-             concepts_mutually_exclusive=None,
-             closed_environment=None,
-             concept_ids=None):
+  def update(
+      self,  # type: Model
+      action='merge',  # type: str
+      model_name=None,  # type: typing.Optional[str]
+      concepts_mutually_exclusive=None,  # type: typing.Optional[bool]
+      closed_environment=None,  # type: typing.Optional[bool]
+      concept_ids=None  # type: typing.Optional[typing.List[str]]
+  ):
+    # type: (...) -> Model
     """
     Update the model attributes. The name of the model, list of concepts, and
     the attributes ``concepts_mutually_exclusive`` and ``closed_environment`` can
@@ -3045,26 +3173,42 @@ class Model(object):
     if not any(map(lambda x: x is not None, args)):
       return self
 
-    model = {"id": self.model_id, "output_info": {"output_config": {}, "data": {}}}
+    model = {
+        "id": self.model_id,
+    }  # type: typing.Dict[str, typing.Any]
 
     if model_name:
       model["name"] = model_name
 
+    output_config = {}
     if concepts_mutually_exclusive is not None:
-      model["output_info"]["output_config"][
-          "concepts_mutually_exclusive"] = concepts_mutually_exclusive
+      # model["output_info"]["output_config"][
+      #   "concepts_mutually_exclusive"] = concepts_mutually_exclusive
+      output_config["concepts_mutually_exclusive"] = concepts_mutually_exclusive
 
     if closed_environment is not None:
-      model["output_info"]["output_config"]["closed_environment"] = closed_environment
+      # model["output_info"]["output_config"]["closed_environment"] = closed_environment
+      output_config["closed_environment"] = closed_environment
 
+    data = {}
     if concept_ids is not None:
-      model["output_info"]["data"]["concepts"] = [{"id": concept_id} for concept_id in concept_ids]
+      # model["output_info"]["data"]["concepts"] = [{"id": concept_id} for concept_id in concept_ids]
+      data["concepts"] = [{"id": concept_id} for concept_id in concept_ids]
+
+    output_info = {}
+    if output_config:
+      output_info["output_config"] = output_config
+    if data:
+      output_info["data"] = data
+
+    if output_info:
+      model["output_info"] = output_info
 
     res = self.api.patch_model(model, action)
     model = res['models'][0]
     return self._to_obj(model)
 
-  def delete_concepts(self, concept_ids):
+  def delete_concepts(self, concept_ids):  # type: (typing.List[str]) -> Model
     """ delete concepts from a model
 
     Args:
@@ -3081,7 +3225,7 @@ class Model(object):
     model = self.update(action='remove', concept_ids=concept_ids)
     return model
 
-  def list_versions(self):
+  def list_versions(self):  # type: () -> dict
     """ list all model versions
 
     Returns:
@@ -3095,7 +3239,7 @@ class Model(object):
     res = self.api.get_model_versions(self.model_id)
     return res
 
-  def get_version(self, version_id):
+  def get_version(self, version_id):  # type: (str) -> dict
     """ get model version info for a particular version
 
     Args:
@@ -3112,7 +3256,7 @@ class Model(object):
     res = self.api.get_model_version(self.model_id, version_id)
     return res
 
-  def delete_version(self, version_id):
+  def delete_version(self, version_id):  # type: (str) -> dict
     """ delete model version by version_id
 
     Args:
@@ -3129,12 +3273,13 @@ class Model(object):
     res = self.api.delete_model_version(self.model_id, version_id)
     return res
 
-  def create_version(self):
+  def create_version(self):  # type: () -> dict
 
     res = self.api.create_model_version(self.model_id)
     return res
 
   def get_inputs(self, version_id=None, page=1, per_page=20):
+    # type: (typing.Optional[str], int, int) -> dict
     """
     Get all the inputs from the model or a specific model version.
     Without specifying a model version id, this will yield all inputs
@@ -3152,12 +3297,15 @@ class Model(object):
 
     return res
 
-  def send_concept_feedback(self,
-                            input_id,
-                            url,
-                            concepts=None,
-                            not_concepts=None,
-                            feedback_info=None):
+  def send_concept_feedback(
+      self,  # type: Model
+      input_id,  # type: str
+      url,  # type: str
+      concepts=None,  # type: typing.Optional[typing.List[str]]
+      not_concepts=None,  # type: typing.Optional[typing.List[str]]
+      feedback_info=None  # type: typing.Optional[FeedbackInfo]
+  ):
+    # type: (...) -> dict
     """
     Send feedback for this model
 
@@ -3182,13 +3330,16 @@ class Model(object):
 
     return res
 
-  def send_region_feedback(self,
-                           input_id,
-                           url,
-                           concepts=None,
-                           not_concepts=None,
-                           regions=None,
-                           feedback_info=None):
+  def send_region_feedback(
+      self,  # type: Model
+      input_id,  # type: str
+      url,  # type: str
+      concepts=None,  # type: typing.Optional[typing.List[str]]
+      not_concepts=None,  # type: typing.Optional[typing.List[str]]
+      regions=None,  # type: typing.Optional[typing.List[Region]]
+      feedback_info=None  # type: typing.Optional[FeedbackInfo]
+  ):
+    # type: (...) -> dict
     """
     Send feedback for this model
 
@@ -3211,16 +3362,19 @@ class Model(object):
 
     return res
 
-  def _to_obj(self, item):
+  def _to_obj(self, item):  # type: (dict) -> Model
     """ convert a model json object to Model object """
     return Model(self.api, item)
 
-  def evaluate(self):
+  def evaluate(self):  # type: () -> dict
     """ run model evaluation
 
     Returns:
       the model version data with evaluation metrics in JSON format
     """
+
+    if self.model_version is None:
+      raise UserError('To run model evaluation, please set the model_version field')
 
     res = self.api.run_model_evaluation(self.model_id, self.model_version)
     return res
@@ -3228,17 +3382,17 @@ class Model(object):
 
 class ModelSolutions(object):
 
-  def __init__(self, solutions, model):
-    self.moderation = ModelSolutionsModeration(solutions, model)
+  def __init__(self, solutions, model):  # type: (Solutions, Model) -> None
+    self.moderation = ModelSolutionsModeration(solutions, model)  # type: ModelSolutionsModeration
 
 
 class ModelSolutionsModeration(object):
 
-  def __init__(self, solutions, model):
-    self.solutions = solutions
-    self.model = model
+  def __init__(self, solutions, model):  # type: (Solutions, Model) -> None
+    self.solutions = solutions  # type: Solutions
+    self.model = model  # type: Model
 
-  def predict_by_url(self, url):
+  def predict_by_url(self, url):  # type: (str) -> dict
     return self.solutions.moderation.predict_model(self.model.model_id, url)
 
 
@@ -3246,16 +3400,23 @@ class Concept(object):
   """ Clarifai Concept
   """
 
-  def __init__(self, concept_name=None, concept_id=None, app_id=None, created_at=None, value=None):
+  def __init__(
+      self,  # type: Concept
+      concept_name=None,  # type: typing.Optional[str]
+      concept_id=None,  # type: typing.Optional[str]
+      app_id=None,  # type: typing.Optional[str]
+      created_at=None,  # type: typing.Optional[str]
+      value=None  # type: typing.Optional[float]
+  ):
     self.concept_name = concept_name
     self.concept_id = concept_id
     self.app_id = app_id
     self.created_at = created_at
     self.value = value
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
 
-    data = {}
+    data = {}  # type: typing.Dict[str, typing.Any]
 
     if self.concept_name is not None:
       data['name'] = self.concept_name
@@ -3275,50 +3436,59 @@ class Concept(object):
     return data
 
 
-class PublicModels:
+class PublicModels(object):
   """
   A collection of already existing models provided by the API for immediate use.
   """
 
   # TODO(Rok) HIGH: Construct these with the solution object.
-  def __init__(self, api):
+  def __init__(self, api):  # type: (ApiClient) -> None
     """ Ctor. """
     """ Apparel model recognizes clothing, accessories, and other fashion-related items. """
-    self.apparel_model = Model(api, model_id='e0be3b9d6a454f0493ac3a30784001ff')
+    self.apparel_model = Model(api, model_id='e0be3b9d6a454f0493ac3a30784001ff')  # type: Model
     """ Celebrity model identifies celebrities that closely resemble detected faces. """
-    self.celebrity_model = Model(api, model_id='e466caa0619f444ab97497640cefc4dc')
+    self.celebrity_model = Model(api, model_id='e466caa0619f444ab97497640cefc4dc')  # type: Model
     """ Color model recognizes dominant colors on an input. """
-    self.color_model = Model(api, model_id='eeed0b6733a644cea07cf4c60f87ebb7')
-    """ Demographics model predics the age, gender, and cultural appearance. """
-    self.demographics_model = Model(api, model_id='c0c0ac362b03416da06ab3fa36fb58e3')
+    self.color_model = Model(api, model_id='eeed0b6733a644cea07cf4c60f87ebb7')  # type: Model
+    """ Demographics model predicts the age, gender, and cultural appearance. """
+    self.demographics_model = Model(
+        api, model_id='c0c0ac362b03416da06ab3fa36fb58e3')  # type: Model
     """ Face detection model detects the presence and location of human faces. """
-    self.face_detection_model = Model(api, model_id='a403429f2ddf4b49b307e318f00e528b')
-    """ Face embedding model computes numerical embedding vectors using our Face detection model."""
-    self.face_embedding_model = Model(api, model_id='d02b4508df58432fbb84e800597b8959')
-    """ Focus model returs overall focus and identifies in-focus regions. """
-    self.focus_model = Model(api, model_id='c2cf7cecd8a6427da375b9f35fcd2381')
+    self.face_detection_model = Model(
+        api, model_id='a403429f2ddf4b49b307e318f00e528b')  # type: Model
+    """ 
+    Face embedding model computes numerical embedding vectors using our Face detection model.
+    """
+    self.face_embedding_model = Model(
+        api, model_id='d02b4508df58432fbb84e800597b8959')  # type: Model
+    """ Focus model returns overall focus and identifies in-focus regions. """
+    self.focus_model = Model(api, model_id='c2cf7cecd8a6427da375b9f35fcd2381')  # type: Model
     """ Food model recognizes food items and dishes, down to the ingredient level. """
-    self.food_model = Model(api, model_id='bd367be194cf45149e75f01d59f77ba7')
+    self.food_model = Model(api, model_id='bd367be194cf45149e75f01d59f77ba7')  # type: Model
     """ General embedding model computes numerical embedding vectors using our General model. """
-    self.general_embedding_model = Model(api, model_id='bbb5f41425b8468d9b7a554ff10f8581')
+    self.general_embedding_model = Model(
+        api, model_id='bbb5f41425b8468d9b7a554ff10f8581')  # type: Model
     """ General model predicts most generally. """
-    self.general_model = Model(api, model_id='aaa03c23b3724a16a56b629203edc62c')
+    self.general_model = Model(api, model_id='aaa03c23b3724a16a56b629203edc62c')  # type: Model
     """ Landscape quality model predicts the quality of a landscape image. """
-    self.landscape_quality_model = Model(api, model_id='bec14810deb94c40a05f1f0eb3c91403')
+    self.landscape_quality_model = Model(
+        api, model_id='bec14810deb94c40a05f1f0eb3c91403')  # type: Model
     """ Logo model detects and identifies brand logos. """
-    self.logo_model = Model(api, model_id='c443119bf2ed4da98487520d01a0b1e3')
+    self.logo_model = Model(api, model_id='c443119bf2ed4da98487520d01a0b1e3')  # type: Model
     """ Moderation model predicts inputs such as safety, gore, nudity, etc. """
-    self.moderation_model = Model(api, model_id='d16f390eb32cad478c7ae150069bd2c6')
+    self.moderation_model = Model(api, model_id='d16f390eb32cad478c7ae150069bd2c6')  # type: Model
     """ NSFW model identifies different levels of nudity. """
-    self.nsfw_model = Model(api, model_id='e9576d86d2004ed1a38ba0cf39ecb4b1')
+    self.nsfw_model = Model(api, model_id='e9576d86d2004ed1a38ba0cf39ecb4b1')  # type: Model
     """ Portrait quality model predicts the quality of a portrait image. """
-    self.portrait_quality_model = Model(api, model_id='de9bd05cfdbf4534af151beb2a5d0953')
+    self.portrait_quality_model = Model(
+        api, model_id='de9bd05cfdbf4534af151beb2a5d0953')  # type: Model
     """ Textures & Patterns model predicts textures and patterns on an image. """
-    self.textures_and_patterns_model = Model(api, model_id='fbefb47f9fdb410e8ce14f24f54b47ff')
+    self.textures_and_patterns_model = Model(
+        api, model_id='fbefb47f9fdb410e8ce14f24f54b47ff')  # type: Model
     """ Travel model recognizes travel and hospitality-related concepts. """
-    self.travel_model = Model(api, model_id='eee28c313d69466f836ab83287a54ed9')
+    self.travel_model = Model(api, model_id='eee28c313d69466f836ab83287a54ed9')  # type: Model
     """ Wedding model recognizes wedding-related concepts bride, groom, flowers, and more. """
-    self.wedding_model = Model(api, model_id='c386b7a870114f4a87477c0824499348')
+    self.wedding_model = Model(api, model_id='c386b7a870114f4a87477c0824499348')  # type: Model
 
 
 class ApiClient(object):
@@ -3340,13 +3510,15 @@ class ApiClient(object):
   patch_actions = ['merge', 'remove', 'overwrite']
   concepts_patch_actions = ['overwrite']
 
-  def __init__(self,
-               app_id=None,
-               app_secret=None,
-               base_url=None,
-               api_key=None,
-               quiet=True,
-               log_level=None):
+  def __init__(
+      self,  # type: ApiClient
+      app_id=None,  # type: typing.Optional[str]
+      app_secret=None,  # type: typing.Optional[str]
+      base_url=None,  # type: typing.Optional[str]
+      api_key=None,  # type: typing.Optional[str]
+      quiet=True,  # type: bool
+      log_level=None  # type: typing.Optional[int]
+  ):
 
     if app_id or app_secret:
       warnings.warn('Tokens deprecated', DeprecationWarning)
@@ -3377,7 +3549,7 @@ class ApiClient(object):
 
     self.session = self._make_requests_session()
 
-  def _make_requests_session(self):
+  def _make_requests_session(self):  # type: () -> requests.Session
     http_adapter = requests.adapters.HTTPAdapter(
         max_retries=RETRIES, pool_connections=CONNECTIONS, pool_maxsize=CONNECTIONS)
 
@@ -3386,7 +3558,7 @@ class ApiClient(object):
     session.mount('https://', http_adapter)
     return session
 
-  def _read_key_from_env_or_os(self):
+  def _read_key_from_env_or_os(self):  # type: () -> typing.Optional[str]
     conf_file = self._config_file_path()
     env_api_key = os.environ.get('CLARIFAI_API_KEY')
     if env_api_key:
@@ -3394,7 +3566,7 @@ class ApiClient(object):
       return env_api_key
     elif os.path.exists(conf_file):
       parser = ConfigParser()
-      parser.optionxform = str
+      parser.optionxform = str  # type: ignore
 
       with open(conf_file, 'r') as fdr:
         parser.readfp(fdr)
@@ -3403,14 +3575,14 @@ class ApiClient(object):
         return parser.get('clarifai', 'CLARIFAI_API_KEY')
     return None
 
-  def _read_base_from_env_or_os(self):
+  def _read_base_from_env_or_os(self):  # type: () -> str
     conf_file = self._config_file_path()
     env_clarifai_api_base = os.environ.get('CLARIFAI_API_BASE')
     if env_clarifai_api_base:
       base_url = env_clarifai_api_base
     elif os.path.exists(conf_file):
       parser = ConfigParser()
-      parser.optionxform = str
+      parser.optionxform = str  # type: ignore
 
       with open(conf_file, 'r') as fdr:
         parser.readfp(fdr)
@@ -3423,7 +3595,7 @@ class ApiClient(object):
       base_url = 'api.clarifai.com'
     return base_url
 
-  def _config_file_path(self):
+  def _config_file_path(self):  # type: () -> str
     if platform.system() == 'Windows':
       home_dir = os.environ.get('HOMEPATH', '.')
     else:
@@ -3431,7 +3603,7 @@ class ApiClient(object):
     conf_file = os.path.join(home_dir, '.clarifai', 'config')
     return conf_file
 
-  def get_token(self):
+  def get_token(self):  # type: () -> None
     """
     Tokens are deprecated, please switch to API keys. See here how:
    "http://help.clarifai.com/api/account-related/all-about-api-keys"
@@ -3439,7 +3611,7 @@ class ApiClient(object):
     warnings.warn('Tokens deprecated', DeprecationWarning)
     raise DeprecationWarning(TOKENS_DEPRECATED_MESSAGE)
 
-  def set_token(self, token):
+  def set_token(self, token):  # type: (str) -> None
     """
     Tokens are deprecated, please switch to API keys. See here how:
    "http://help.clarifai.com/api/account-related/all-about-api-keys"
@@ -3447,7 +3619,7 @@ class ApiClient(object):
     warnings.warn('Tokens deprecated', DeprecationWarning)
     raise DeprecationWarning(TOKENS_DEPRECATED_MESSAGE)
 
-  def delete_token(self):
+  def delete_token(self):  # type: () -> None
     """
     Tokens are deprecated, please switch to API keys. See here how:
    "http://help.clarifai.com/api/account-related/all-about-api-keys"
@@ -3455,12 +3627,12 @@ class ApiClient(object):
     warnings.warn('Tokens deprecated', DeprecationWarning)
     raise DeprecationWarning(TOKENS_DEPRECATED_MESSAGE)
 
-  def _grpc_stub(self):
-    return V2Stub(
+  def _grpc_stub(self):  # type: () -> V2Stub
+    return V2Stub(  # type: ignore
         GRPCJSONChannel(
             session=self.session, key=self.api_key, base_url=self.basev2, service_descriptor=_V2))
 
-  def _grpc_request(self, method, argument):
+  def _grpc_request(self, method, argument):  # type: (typing.Callable, typing.Any) -> dict
 
     # only retry under when status_code is non-200, under max-tries
     # and under some circumstances
@@ -3497,7 +3669,7 @@ class ApiClient(object):
     # The for loop above either returns or raises.
     raise Exception('This code is never reached')
 
-  def add_inputs(self, objs):
+  def add_inputs(self, objs):  # type: (typing.List[Input]) -> dict
     """ Add a list of Images or Videos to an application.
 
     Args:
@@ -3526,7 +3698,7 @@ class ApiClient(object):
 
     return self._grpc_request(self._grpc_stub().PostInputs, PostInputsRequest(inputs=inputs_pb))
 
-  def search_inputs(self, query, page=1, per_page=20):
+  def search_inputs(self, query, page=1, per_page=20):  # type: (dict, int, int) -> dict
     """ Search an application and get predictions (optional)
 
     Args:
@@ -3545,7 +3717,7 @@ class ApiClient(object):
         self._grpc_stub().PostSearches,
         PostSearchesRequest(query=q, pagination=Pagination(page=page, per_page=per_page)))
 
-  def get_input(self, input_id):
+  def get_input(self, input_id):  # type: (str) -> dict
     """ Get a single image by it's id.
 
     Args:
@@ -3561,7 +3733,7 @@ class ApiClient(object):
 
     return self._grpc_request(self._grpc_stub().GetInput, GetInputRequest(input_id=input_id))
 
-  def get_inputs(self, page=1, per_page=20):
+  def get_inputs(self, page=1, per_page=20):  # type: (int, int) -> dict
     """ List all images for the Application, with pagination
 
     Args:
@@ -3576,7 +3748,7 @@ class ApiClient(object):
     return self._grpc_request(self._grpc_stub().ListInputs,
                               ListInputsRequest(page=page, per_page=per_page))
 
-  def get_inputs_status(self):
+  def get_inputs_status(self):  # type: () -> dict
     """ Get counts of inputs in the Application.
 
     Returns:
@@ -3585,7 +3757,7 @@ class ApiClient(object):
 
     return self._grpc_request(self._grpc_stub().GetInputCount, GetInputCountRequest())
 
-  def delete_input(self, input_id):
+  def delete_input(self, input_id):  # type: (str) -> dict
     """ Delete a single input by its id.
 
     Args:
@@ -3597,7 +3769,7 @@ class ApiClient(object):
 
     return self._grpc_request(self._grpc_stub().DeleteInput, DeleteInputRequest(input_id=input_id))
 
-  def delete_inputs(self, input_ids):
+  def delete_inputs(self, input_ids):  # type: (typing.List[str]) -> dict
     """ bulk delete inputs with a list of input IDs
 
     Args:
@@ -3609,7 +3781,7 @@ class ApiClient(object):
 
     return self._grpc_request(self._grpc_stub().DeleteInputs, DeleteInputsRequest(ids=input_ids))
 
-  def delete_all_inputs(self):
+  def delete_all_inputs(self):  # type: () -> dict
     """ delete all inputs from the application
 
     Returns:
@@ -3619,6 +3791,7 @@ class ApiClient(object):
     return self._grpc_request(self._grpc_stub().DeleteInputs, DeleteInputsRequest(delete_all=True))
 
   def patch_inputs(self, action, inputs):
+    # type: (str, typing.List[typing.Union[Input]]) -> dict
     """ bulk update inputs, to delete or modify concepts
 
     Args:
@@ -3652,7 +3825,7 @@ class ApiClient(object):
     return self._grpc_request(self._grpc_stub().PatchInputs,
                               PatchInputsRequest(action=action, inputs=inputs_pb))
 
-  def get_concept(self, concept_id):
+  def get_concept(self, concept_id):  # type: (str) -> dict
     """ Get a single concept by it's id.
 
     Args:
@@ -3665,7 +3838,7 @@ class ApiClient(object):
     return self._grpc_request(
         self._grpc_stub().GetConcept, GetConceptRequest(concept_id=concept_id))
 
-  def get_concepts(self, page=1, per_page=20):
+  def get_concepts(self, page=1, per_page=20):  # type: (int, int) -> dict
     """ List all concepts for the Application.
 
     Args:
@@ -3679,7 +3852,9 @@ class ApiClient(object):
     return self._grpc_request(self._grpc_stub().ListConcepts,
                               ListConceptsRequest(page=page, per_page=per_page))
 
+  # TODO(Rok) MEDIUM: Allow skipping concept_names.
   def add_concepts(self, concept_ids, concept_names):
+    # type: (typing.List[str], typing.List[typing.Optional[str]]) -> dict
     """ Add a list of concepts
 
     Args:
@@ -3709,6 +3884,7 @@ class ApiClient(object):
         self._grpc_stub().PostConcepts, PostConceptsRequest(concepts=concepts))
 
   def search_concepts(self, term, page=1, per_page=20, language=None):
+    # type: (str, int, int, typing.Optional[str]) -> dict
     """ Search concepts
 
     Args:
@@ -3728,7 +3904,7 @@ class ApiClient(object):
             concept_query=ConceptQuery(name=term, language=language),
             pagination=Pagination(page=page, per_page=per_page)))
 
-  def patch_concepts(self, action, concepts):
+  def patch_concepts(self, action, concepts):  # type: (str, typing.List[Concept]) -> dict
     """ bulk update concepts, to delete or modify concepts
 
     Args:
@@ -3747,7 +3923,7 @@ class ApiClient(object):
     return self._grpc_request(self._grpc_stub().PatchConcepts,
                               PatchConceptsRequest(action=action, concepts=concepts_pb))
 
-  def get_models(self, page=1, per_page=20):
+  def get_models(self, page=1, per_page=20):  # type: (int, int) -> dict
     """ get all models with pagination
 
     Args:
@@ -3762,7 +3938,7 @@ class ApiClient(object):
                                   ListModelsRequest(page=page, per_page=per_page))
     return response
 
-  def get_model(self, model_id):
+  def get_model(self, model_id):  # type: (str) -> dict
     """ get model basic info by model id
 
     Args:
@@ -3775,7 +3951,7 @@ class ApiClient(object):
     return self._grpc_request(
         self._grpc_stub().GetModel, GetModelRequest(model_id=_escape(model_id)))
 
-  def get_model_output_info(self, model_id=None):
+  def get_model_output_info(self, model_id):  # type: (str) -> dict
     """ get model output info by model id
 
     Args:
@@ -3787,7 +3963,7 @@ class ApiClient(object):
     return self._grpc_request(
         self._grpc_stub().GetModelOutputInfo, GetModelRequest(model_id=_escape(model_id)))
 
-  def get_model_versions(self, model_id, page=1, per_page=20):
+  def get_model_versions(self, model_id, page=1, per_page=20):  # type: (str, int, int) -> dict
     """ get model versions
 
     Args:
@@ -3803,7 +3979,7 @@ class ApiClient(object):
         self._grpc_stub().ListModelVersions,
         ListModelVersionsRequest(model_id=model_id, page=page, per_page=per_page))
 
-  def get_model_version(self, model_id, version_id):
+  def get_model_version(self, model_id, version_id):  # type: (str, str) -> dict
     """ get model info for a specific model version
 
     Args:
@@ -3814,32 +3990,33 @@ class ApiClient(object):
     return self._grpc_request(self._grpc_stub().GetModelVersion,
                               GetModelVersionRequest(model_id=model_id, version_id=version_id))
 
-  def delete_model_version(self, model_id, model_version):
+  def delete_model_version(self, model_id, model_version):  # type: (str, str) -> dict
     """ delete a model version """
 
     return self._grpc_request(
         self._grpc_stub().DeleteModelVersion,
         DeleteModelVersionRequest(model_id=_escape(model_id), version_id=model_version))
 
-  def delete_model(self, model_id):
+  def delete_model(self, model_id):  # type: (str) -> dict
     """ delete a model """
 
     return self._grpc_request(
         self._grpc_stub().DeleteModel, DeleteModelRequest(model_id=_escape(model_id)))
 
-  def delete_models(self, model_ids):
+  def delete_models(self, model_ids):  # type: (typing.List[str]) -> dict
     """ delete the models """
 
     return self._grpc_request(
         self._grpc_stub().DeleteModels,
         DeleteModelsRequest(ids=[_escape(id_) for id_ in model_ids]))
 
-  def delete_all_models(self):
+  def delete_all_models(self):  # type: () -> dict
     """ delete all models """
 
     return self._grpc_request(self._grpc_stub().DeleteModels, DeleteModelsRequest(delete_all=True))
 
   def get_model_inputs(self, model_id, version_id=None, page=1, per_page=20):
+    # type: (str, typing.Optional[str], int, int) -> dict
     """ get inputs for the latest model or a specific model version """
 
     if version_id:
@@ -3851,19 +4028,23 @@ class ApiClient(object):
             model_id=_escape(model_id), version_id=version_id, page=page, per_page=per_page))
 
   def search_models(self, name=None, model_type=None):
+    # type: (typing.Optional[str], typing.Optional[str]) -> dict
     """ search model by name and type """
 
     return self._grpc_request(
         self._grpc_stub().PostModelsSearches,
         PostModelsSearchesRequest(model_query=ModelQuery(name=name, type=model_type)))
 
-  def create_model(self,
-                   model_id,
-                   model_name=None,
-                   concepts=None,
-                   concepts_mutually_exclusive=False,
-                   closed_environment=False,
-                   hyper_parameters=None):
+  def create_model(
+      self,  # type: ApiClient
+      model_id,  # type: str
+      model_name=None,  # type: typing.Optional[str]
+      concepts=None,  # type: typing.Optional[typing.List[str]]
+      concepts_mutually_exclusive=False,  # type: bool
+      closed_environment=False,  # type: bool
+      hyper_parameters=None  # type: typing.Optional[dict]
+  ):
+    # type: (...) -> dict
     """
     Create a new model.
 
@@ -3905,7 +4086,7 @@ class ApiClient(object):
 
     return self._grpc_request(self._grpc_stub().PostModels, PostModelsRequest(model=model))
 
-  def patch_model(self, model, action='merge'):
+  def patch_model(self, model, action='merge'):  # type: (dict, str) -> dict
     """
     Args:
       model: the model dictionary
@@ -3923,13 +4104,20 @@ class ApiClient(object):
     return self._grpc_request(self._grpc_stub().PatchModels,
                               PatchModelsRequest(action=action, models=[model_pb]))
 
-  def create_model_version(self, model_id):
+  def create_model_version(self, model_id):  # type: (str) -> dict
     """ train for a model """
 
     return self._grpc_request(
         self._grpc_stub().PostModelVersions, PostModelVersionsRequest(model_id=_escape(model_id)))
 
-  def predict_model(self, model_id, objs, version_id=None, model_output_info=None):
+  def predict_model(
+      self,  # type: ApiClient
+      model_id,  # type: str
+      objs,  # type: typing.List[Input]
+      version_id=None,  # type: typing.Optional[str]
+      model_output_info=None  # type: typing.Optional[ModelOutputInfo]
+  ):
+    # type: (...) -> dict
     if not isinstance(objs, list):
       raise UserError("objs must be a list")
 
@@ -3941,20 +4129,23 @@ class ApiClient(object):
 
     inputs_pb = []
     for input_ in objs:
-      data = dict_to_protobuf(DataPB, input_.dict()['data'])
-      inputs_pb.append(InputPB(data=data))
+      data_ = input_.dict().get('data')
+      if data_:
+        inputs_pb.append(dict_to_protobuf(InputPB, input_.dict()))
 
     model = None
     if model_output_info:
-      output_info = dict_to_protobuf(OutputInfoPB, model_output_info.dict()['output_info'])
-      model = ModelPB(output_info=output_info)
+      model_output_info_dict = model_output_info.dict().get('output_info')
+      if model_output_info_dict:
+        output_info = dict_to_protobuf(OutputInfoPB, model_output_info_dict)
+        model = ModelPB(output_info=output_info)
 
     return self._grpc_request(
         self._grpc_stub().PostModelOutputs,
         PostModelOutputsRequest(
             model_id=_escape(model_id), version_id=version_id, inputs=inputs_pb, model=model))
 
-  def get_workflows(self, public_only=False):
+  def get_workflows(self, public_only=False):  # type: (bool) -> dict
     """ get all workflows with pagination
 
     Args:
@@ -3970,7 +4161,7 @@ class ApiClient(object):
     else:
       return self._grpc_request(self._grpc_stub().ListWorkflows, ListWorkflowsRequest())
 
-  def get_workflow(self, workflow_id):
+  def get_workflow(self, workflow_id):  # type: (str) -> dict
     """ get workflow basic info by workflow id
 
     Args:
@@ -3984,6 +4175,7 @@ class ApiClient(object):
         self._grpc_stub().GetWorkflow, GetWorkflowRequest(workflow_id=workflow_id))
 
   def predict_workflow(self, workflow_id, objs, output_config=None):
+    # type: (str, typing.List[Input], typing.Optional[ModelOutputConfig]) -> dict
 
     if not isinstance(objs, list):
       raise UserError("objs must be a list")
@@ -3999,7 +4191,9 @@ class ApiClient(object):
 
     output_config_pb = None
     if output_config:
-      output_config_pb = dict_to_protobuf(OutputConfigPB, output_config.dict()['output_config'])
+      output_config_ = output_config.dict().get('output_config')
+      if output_config_:
+        output_config_pb = dict_to_protobuf(OutputConfigPB, output_config_)
 
     return self._grpc_request(
         self._grpc_stub().PostWorkflowResults,
@@ -4007,6 +4201,7 @@ class ApiClient(object):
             workflow_id=_escape(workflow_id), inputs=inputs_pb, output_config=output_config_pb))
 
   def send_model_feedback(self, model_id, version_id, obj):
+    # type: (str, typing.Optional[str], Input) -> dict
 
     input_pb = dict_to_protobuf(InputPB, obj.dict())
 
@@ -4015,8 +4210,7 @@ class ApiClient(object):
         PostModelFeedbackRequest(
             model_id=_escape(model_id), version_id=version_id, input=input_pb))
 
-  def send_search_feedback(self, obj):
-
+  def send_search_feedback(self, obj):  # type: (Input) -> dict
     input_dict = obj.dict()
 
     input_pb = dict_to_protobuf(InputPB, input_dict)
@@ -4025,6 +4219,7 @@ class ApiClient(object):
         self._grpc_stub().PostSearchFeedback, PostSearchFeedbackRequest(input=input_pb))
 
   def predict_concepts(self, objs, lang=None):
+    # type: (typing.List[Input], typing.Optional[str]) -> dict
 
     models = self.search_models(name='general-v1.3', model_type='concept')
     model = models['models'][0]
@@ -4033,7 +4228,7 @@ class ApiClient(object):
     model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang))
     return self.predict_model(model_id, objs, model_output_info=model_output_info)
 
-  def predict_colors(self, objs):
+  def predict_colors(self, objs):  # type: (typing.List[Input]) -> dict
 
     models = self.search_models(name='color', model_type='color')
     model = models['models'][0]
@@ -4041,15 +4236,15 @@ class ApiClient(object):
 
     return self.predict_model(model_id, objs)
 
-  def predict_embed(self, objs, model='general*'):
+  def predict_embed(self, objs, model='general*'):  # type: (typing.List[Input], str) -> dict
 
-    models = self.search_models(name=model, model_type='embed')
-    model = models['models'][0]
-    model_id = model['id']
+    found_models = self.search_models(name=model, model_type='embed')
+    found_model = found_models['models'][0]
+    found_model_id = found_model['id']
 
-    return self.predict_model(model_id, objs)
+    return self.predict_model(found_model_id, objs)
 
-  def run_model_evaluation(self, model_id, version_id):
+  def run_model_evaluation(self, model_id, version_id):  # type: (str, str) -> dict
     """ run model evaluation by model id and by version id
 
     Args:
@@ -4067,22 +4262,22 @@ class ApiClient(object):
 
 class pagination(object):
 
-  def __init__(self, page=1, per_page=20):
+  def __init__(self, page=1, per_page=20):  # type: (int, int) -> None
     self.page = page
     self.per_page = per_page
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     return {'page': self.page, 'per_page': self.per_page}
 
 
 class ApiStatus(object):
   """ Clarifai API Status Code """
 
-  def __init__(self, item):
+  def __init__(self, item):  # type: (dict) -> None
     self.code = item['code']
     self.description = item['description']
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     d = {'status': {'code': self.code, 'description': self.description}}
 
     return d
@@ -4091,16 +4286,16 @@ class ApiStatus(object):
 class ApiResponse(object):
   """ Clarifai API Response """
 
-  def __init__(self):
+  def __init__(self):  # type: () -> None
     self.status = None
 
 
 class InputCounts(object):
   """ input counts for upload status """
 
-  def __init__(self, item):
+  def __init__(self, item):  # type: (dict) -> None
     if not item.get('counts'):
-      raise ApiClient('unable to initialize. need a dict with key=counts')
+      raise UserError('unable to initialize. need a dict with key=counts')
 
     counts = item['counts']
 
@@ -4109,7 +4304,7 @@ class InputCounts(object):
     self.to_process = counts['to_process']
     self.errors = counts['errors']
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     d = {
         'counts': {
             'processed': self.processed,
@@ -4123,35 +4318,36 @@ class InputCounts(object):
 class ModelOutputInfo(object):
 
   def __init__(self, concepts=None, output_config=None):
-    self.concepts = concepts
-    self.output_config = output_config
+    # type: (typing.Optional[typing.List[Concept]], typing.Optional[ModelOutputConfig]) -> None
+    self.concepts = concepts  # type: typing.Optional[typing.List[Concept]]
+    self.output_config = output_config  # type: typing.Optional[ModelOutputConfig]
 
-  def dict(self):
-    data = {'output_info': {}}
-
+  def dict(self):  # type: () -> dict
+    output_info = {}
     if self.output_config:
-      data['output_info'].update(self.output_config.dict())
-
+      output_info.update(self.output_config.dict())
     if self.concepts:
-      data['output_info'].update({
-          'data': {
-              'concepts': [concept.dict() for concept in self.concepts]
-          }
-      })
+      output_info.update({'data': {'concepts': [concept.dict() for concept in self.concepts]}})
 
-    return data
+    if output_info:
+      return {'output_info': output_info}
+    else:
+      return {}
 
 
 class ModelOutputConfig(object):
 
-  def __init__(self,
-               mutually_exclusive=False,
-               closed_environment=False,
-               language=None,
-               min_value=None,
-               max_concepts=None,
-               select_concepts=None,
-               sample_ms=None):
+  def __init__(
+      self,  # type: ModelOutputConfig
+      mutually_exclusive=None,  # type: typing.Optional[bool]
+      closed_environment=None,  # type: typing.Optional[bool]
+      language=None,  # type: typing.Optional[str]
+      min_value=None,  # type: typing.Optional[float]
+      max_concepts=None,  # type: typing.Optional[int]
+      select_concepts=None,  # type: typing.Optional[typing.List[Concept]]
+      sample_ms=None  # type: typing.Optional[int]
+  ):
+    # type: (...) -> None
     self.concepts_mutually_exclusive = mutually_exclusive
     self.closed_environment = closed_environment
     self.language = language
@@ -4160,41 +4356,46 @@ class ModelOutputConfig(object):
     self.select_concepts = select_concepts
     self.sample_ms = sample_ms
 
-  def dict(self):
-    data = {
-        'output_config': {
-            'concepts_mutually_exclusive': self.concepts_mutually_exclusive,
-            'closed_environment': self.closed_environment
-        }
-    }
+  def dict(self):  # type: () -> dict
+    output_config = {}
+
+    if self.concepts_mutually_exclusive is not None:
+      output_config['concepts_mutually_exclusive'] = self.concepts_mutually_exclusive
+
+    if self.closed_environment is not None:
+      output_config['closed_environment'] = self.closed_environment
 
     if self.language is not None:
-      data['output_config']['language'] = self.language
+      output_config['language'] = self.language
 
     if self.min_value is not None:
-      data['output_config']['min_value'] = self.min_value
+      output_config['min_value'] = self.min_value
 
     if self.max_concepts is not None:
-      data['output_config']['max_concepts'] = self.max_concepts
+      output_config['max_concepts'] = self.max_concepts
 
     if self.select_concepts is not None:
-      data['output_config']['select_concepts'] = [c.dict() for c in self.select_concepts]
+      output_config['select_concepts'] = [c.dict() for c in self.select_concepts]
 
     if self.sample_ms is not None:
-      data['output_config']['sample_ms'] = self.sample_ms
+      output_config['sample_ms'] = self.sample_ms
 
-    return data
+    if output_config:
+      return {'output_config': output_config}
+    else:
+      return {}
 
 
 class BoundingBox(object):
 
   def __init__(self, top_row, left_col, bottom_row, right_col):
+    # type: (float, float, float, float) -> None
     self.top_row = top_row
     self.left_col = left_col
     self.bottom_row = bottom_row
     self.right_col = right_col
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     data = {
         'bounding_box': {
             'top_row': self.top_row,
@@ -4210,10 +4411,11 @@ class BoundingBox(object):
 class RegionInfo(object):
 
   def __init__(self, bbox=None, feedback_type=None):
+    # type: (typing.Optional[BoundingBox], typing.Optional[FeedbackType]) -> None
     self.bbox = bbox
     self.feedback_type = feedback_type
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
 
     data = {"region_info": {}}
 
@@ -4231,45 +4433,54 @@ class RegionInfo(object):
 
 class Region(object):
 
-  def __init__(self, region_info=None, concepts=None, face=None, region_id=None):
+  def __init__(
+      self,  # type: Region
+      region_info=None,  # type: typing.Optional[RegionInfo]
+      concepts=None,  # type: typing.Optional[typing.List[Concept]]
+      face=None,  # type: typing.Optional[Face]
+      region_id=None  # type: typing.Optional[str]
+  ):
+    # type: (...) -> None
 
     self.region_info = region_info
     self.concepts = concepts
     self.face = face
     self.region_id = region_id
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     data = {}
-
-    if self.region_info:
-      data.update(self.region_info.dict())
-
     if self.concepts:
-      data['data'] = {'concepts': [c.dict() for c in self.concepts]}
-
+      data['concepts'] = [c.dict() for c in self.concepts]
     if self.face:
-      data['data'] = self.face.dict()
+      data.update(self.face.dict())
 
+    region = {}
+    if self.region_info:
+      region.update(self.region_info.dict())
     if self.region_id:
-      data['id'] = self.region_id
-
-    return data
+      region['id'] = self.region_id
+    if data:
+      region['data'] = data
+    return region
 
 
 class Face(object):
 
-  def __init__(self,
-               identity=None,
-               age_appearance=None,
-               gender_appearance=None,
-               multicultural_appearance=None):
+  def __init__(
+      self,  # type: Face
+      identity=None,  # type: typing.Optional[FaceIdentity]
+      age_appearance=None,  # type: typing.Optional[FaceAgeAppearance]
+      gender_appearance=None,  # type: typing.Optional[FaceGenderAppearance]
+      multicultural_appearance=None  # type: typing.Optional[FaceMulticulturalAppearance]
+  ):
+    # type: (...) -> None
 
     self.identity = identity
     self.age_appearance = age_appearance
     self.gender_appearance = gender_appearance
     self.multicultural_appearance = multicultural_appearance
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
 
     data = {'face': {}}
 
@@ -4290,39 +4501,39 @@ class Face(object):
 
 class FaceIdentity(object):
 
-  def __init__(self, concepts):
+  def __init__(self, concepts):  # type: (typing.List[Concept]) -> None
     self.concepts = concepts
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     data = {'identity': {'concepts': [c.dict() for c in self.concepts]}}
     return data
 
 
 class FaceAgeAppearance(object):
 
-  def __init__(self, concepts):
+  def __init__(self, concepts):  # type: (typing.List[Concept]) -> None
     self.concepts = concepts
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     data = {'age_appearance': {'concepts': [c.dict() for c in self.concepts]}}
     return data
 
 
 class FaceGenderAppearance(object):
 
-  def __init__(self, concepts):
+  def __init__(self, concepts):  # type: (typing.List[Concept]) -> None
     self.concepts = concepts
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     data = {'gender_appearance': {'concepts': [c.dict() for c in self.concepts]}}
     return data
 
 
 class FaceMulticulturalAppearance(object):
 
-  def __init__(self, concepts):
+  def __init__(self, concepts):  # type: (typing.List[Concept]) -> None
     self.concepts = concepts
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     data = {'multicultural_appearance': {'concepts': [c.dict() for c in self.concepts]}}
     return data

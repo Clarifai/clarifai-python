@@ -656,13 +656,13 @@ class TestModels(unittest.TestCase):
     self.app.models.clear_model_cache()
     self.assertFalse(self.app.models.model_id_cache)
 
-    model = self.app.models.get('face-v1.3')
+    model = self.app.models.get('face')
 
     self.assertTrue(self.app.models.model_id_cache)
-    self.assertTrue(self.app.models.model_id_cache.get('face-v1.3', 'facedetect'))
+    self.assertTrue(self.app.models.model_id_cache.get('face', 'facedetect'))
 
-    model2 = self.app.models.get('face-v1.3', model_type='embed')
-    self.assertTrue(self.app.models.model_id_cache.get('face-v1.3', 'embed'))
+    model2 = self.app.models.get('face', model_type='embed')
+    self.assertTrue(self.app.models.model_id_cache.get('face', 'embed'))
     self.assertNotEqual(model.model_id, model2.model_id)
 
     model3 = self.app.models.get('general-v1.3')

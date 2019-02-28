@@ -57,7 +57,7 @@ For more information on any of the public models, visit https://developer.clarif
 
 
    #Face Detection model
-   model = app.models.get('face-v1.3')
+   model = app.models.get('face')
 
    response = model.predict_by_url(url='https://developer.clarifai.com/static/images/model-samples/face-001.jpg')
 

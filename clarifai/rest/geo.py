@@ -8,11 +8,11 @@ class GeoPoint(object):
       which is a (longitude, latitude) tuple
   """
 
-  def __init__(self, longitude, latitude):
+  def __init__(self, longitude, latitude):  # type: (float, float) -> None
     self.longitude = float(longitude)
     self.latitude = float(latitude)
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     return {'geo_point': {'longitude': self.longitude, 'latitude': self.latitude}}
 
 
@@ -22,11 +22,11 @@ class GeoBox(object):
       representing the two corners of the Geo box
   """
 
-  def __init__(self, point1, point2):
+  def __init__(self, point1, point2):  # type: (GeoPoint, GeoPoint) -> None
     self.point1 = point1
     self.point2 = point2
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     return {'geo_box': [self.point1.dict(), self.point2.dict()]}
 
 
@@ -38,20 +38,21 @@ class GeoLimit(object):
       'radian': 'withinRadians'
   }
 
-  def __init__(self, limit_type='mile', limit_range=10):
+  def __init__(self, limit_type='mile', limit_range=10):  # type: (str, int) -> None
     if limit_type not in self.convert_table:
       raise ValueError("limit_type could be within %s" % str(self.convert_table.keys()))
 
     self.limit_type = self.convert_table[limit_type]
     self.limit_range = float(limit_range)
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
     return {'geo_limit': {'type': self.limit_type, 'value': self.limit_range}}
 
 
 class Geo(object):
 
   def __init__(self, geo_point=None, geo_limit=None, geo_box=None):
+    # type: (GeoPoint, GeoLimit, GeoBox) -> None
 
     self.geo_point = geo_point
     self.geo_limit = geo_limit
@@ -69,7 +70,7 @@ class Geo(object):
     else:
       raise Exception('Invalid Geo object initialization')
 
-  def dict(self):
+  def dict(self):  # type: () -> dict
 
     # only geo_point for input
     if self.geo_point is not None and self.geo_limit is None and self.geo_box is None:

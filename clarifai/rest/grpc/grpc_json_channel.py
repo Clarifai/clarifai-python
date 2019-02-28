@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 import logging
 import re
+import typing  # noqa
+
+import requests  # noqa
+from google.protobuf.descriptor import Descriptor  # noqa
+from google.protobuf.message import Message  # noqa
 
 from clarifai.rest import http_client
 from clarifai.rest.grpc.custom_converters.custom_dict_to_message import dict_to_protobuf
@@ -35,6 +40,7 @@ class GRPCJSONChannel(object):
   """
 
   def __init__(self, session, key, base_url=BASE_URL, service_descriptor=_V2):
+    # type: (requests.Session, str, str, typing.Any) -> None
     """
     Args:
       session: a request session
@@ -87,6 +93,7 @@ class GRPCJSONChannel(object):
         self.name_to_resources[protobuf_name][1].append((url_template, method))
 
   def unary_unary(self, name, request_serializer, response_deserializer):
+    # type: (str, typing.Callable, typing.Callable) -> JSONUnaryUnary
     """ Method to create the callable JSONUnaryUnary. """
     request_message_descriptor, resources = self.name_to_resources[name]
     return JSONUnaryUnary(self.session, self.key, request_message_descriptor, resources,
@@ -97,8 +104,16 @@ class JSONUnaryUnary(object):
   """ This mimics the unary_unary calls and is actually the thing doing the http requests.
   """
 
-  def __init__(self, session, key, request_message_descriptor, resources, request_serializer,
-               response_deserializer):
+  def __init__(
+      self,
+      session,  # type: requests.Session
+      key,  # type: str
+      request_message_descriptor,  # type: Descriptor
+      resources,  # type: typing.List[typing.Tuple[str, typing.Any]]
+      request_serializer,  # type: typing.Callable
+      response_deserializer  # type: typing.Callable
+  ):
+    # type: (...) -> None
     """
     Args:
       session: a request session
@@ -120,7 +135,7 @@ class JSONUnaryUnary(object):
     self.response_deserializer = response_deserializer
     self.http_client = http_client.HttpClient(session, key)
 
-  def __call__(self, request, metadata=None):
+  def __call__(self, request, metadata=None):  # type: (Message, tuple) -> Message
     """ This is where the actually calls come through when the stub is called such as
     stub.PostInputs(). They get passed to this method which actually makes the request.
 
@@ -142,9 +157,12 @@ class JSONUnaryUnary(object):
       raise Exception("The input request must be of type: %s from %s" %
                       (expected_object_name, self.request_message_descriptor.file.name))
 
-    params = protobuf_to_dict(request)
+    params = protobuf_to_dict(request, use_integers_for_enums=False, ignore_show_empty=True)
 
-    url, method = _pick_proper_endpoint(self.resources, params)
+    url, method, url_fields = _pick_proper_endpoint(self.resources, params)
+
+    for url_field in url_fields:
+      del params[url_field]
 
     response_json = self.http_client.execute_request(method, params, url)
 
@@ -155,7 +173,11 @@ class JSONUnaryUnary(object):
     return result
 
 
-def _pick_proper_endpoint(resources, request_dict):
+def _pick_proper_endpoint(
+    resources,  # type: typing.List[typing.Tuple[str, typing.Any]]
+    request_dict  # type: dict
+):
+  # type: (...) -> typing.Tuple[str, typing.Any, typing.List[str]]
   """
   Fills in the url template with the actual url params from the request body.
   Picks the most appropriate url depending on which parameters are present in the request body.
@@ -173,13 +195,14 @@ def _pick_proper_endpoint(resources, request_dict):
   best_match_count = -1
 
   all_fields = []
+  best_match_url_fields = None
   for url_template, method in resources:
     all_arguments_translated = True
 
     url = url_template
     count = 0
-    for field in re.findall(URL_TEMPLATE_PARAM_REGEX, url_template):
-      all_fields.append(field)
+    url_fields = list(re.findall(URL_TEMPLATE_PARAM_REGEX, url_template))
+    for field in url_fields:
 
       field_value = request_dict.get(field.split('.')[-1])
       if not field_value:
@@ -190,9 +213,12 @@ def _pick_proper_endpoint(resources, request_dict):
 
       url = url.replace('{' + field + '}', field_value)
 
+    all_fields.extend(url_fields)
+
     if all_arguments_translated:
       if best_match_count < count:
         best_match_url = url
+        best_match_url_fields = url_fields
         best_match_method = method
         best_match_count = count
 
@@ -200,4 +226,4 @@ def _pick_proper_endpoint(resources, request_dict):
     raise Exception("You must set one case of the following fields in your request proto: "
                     "%s" % all_fields)
 
-  return best_match_url, best_match_method
+  return best_match_url, best_match_method, best_match_url_fields

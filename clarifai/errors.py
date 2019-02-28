@@ -2,6 +2,8 @@
 import json
 import time
 
+import requests  # noqa
+
 from clarifai.versions import CLIENT_VERSION, OS_VER, PYTHON_VERSION
 
 
@@ -13,6 +15,8 @@ class ApiError(Exception):
   """ API Server error """
 
   def __init__(self, resource, params, method, response=None):
+    # type: (str, dict, str, requests.Response) -> None
+
     self.resource = resource
     self.params = params
     self.method = method
@@ -69,7 +73,7 @@ class UserError(Exception):
   """ User Error """
 
 
-def _base_url(url):
+def _base_url(url):  # type: (str) -> str
   """
   Extracts the base URL from the url, which is everything before the 4th slash character.
   https://www.clarifai.com/v2/models/1/output -> https://www.clarifai.com/v2/
@@ -80,7 +84,7 @@ def _base_url(url):
     return ''
 
 
-def _find_nth(haystack, needle, n):
+def _find_nth(haystack, needle, n):  # type: (str, str, int) -> int
   start = haystack.find(needle)
   while start >= 0 and n > 1:
     start = haystack.find(needle, start + len(needle))

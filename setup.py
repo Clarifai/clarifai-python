@@ -8,11 +8,12 @@ except ImportError:
     from distutils.core import setup
 
 has_enum = sys.version_info >= (3, 4)
+has_typing = sys.version_info >= (3, 5)
 
 setup(
     name="clarifai",
     description='Clarifai API Python Client',
-    version='2.5.2',
+    version='2.6.0',
     author='Clarifai',
     maintainer='Robert Wen',
     maintainer_email='robert@clarifai.com',
@@ -25,7 +26,8 @@ setup(
                       'grpcio>=1.13.0, <2',
                       'protobuf>=3.6, <4',
                       'googleapis-common-protos>=1.5.0, <2'] +
-                     ([] if has_enum else ['enum34>=1.1, <2']),
+                     ([] if has_enum else ['enum34>=1.1, <2']) +
+                     ([] if has_typing else ['typing>=3.6']),
     packages=find_packages(),
     license="Apache 2.0",
     scripts=['scripts/clarifai'],
