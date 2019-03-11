@@ -1300,7 +1300,7 @@ class Models(object):
       model_id=None,  # type: typing.Optional[str]
       model_type=None  # type:typing.Optional[str]
   ):
-    # type: (...) -> typing.Optional[Model]
+    # type: (...) -> Model
     """ Get a model, by ID or name
 
     Args:
@@ -1362,7 +1362,7 @@ class Models(object):
     return model
 
   def search(self, model_name, model_type=None):
-    # type: (typing.Optional[str], typing.Optional[str]) -> typing.Optional[typing.List[Model]]
+    # type: (typing.Optional[str], typing.Optional[str]) -> typing.List[Model]
     """
         Search the model by name and optionally type. Default is to search concept models
         only. All the custom model trained are concept models.
@@ -2582,7 +2582,7 @@ class Concepts(object):
 
     return results
 
-  def get(self, concept_id):  # type: (str) -> typing.Optional[Concept]
+  def get(self, concept_id):  # type: (str) -> Concept
     """ Get a concept by id
 
     Args:

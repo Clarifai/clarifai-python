@@ -1,3 +1,9 @@
+## [[2.6.1]](https://github.com/Clarifai/clarifai-python/releases/tag/2.6.1) - [PyPI](https://pypi.org/project/clarifai/2.6.1/) - 2019-03-11
+
+### Added
+- Support for Protobuf version 3.7
+
+
 ## [[2.6.0]](https://github.com/Clarifai/clarifai-python/releases/tag/2.6.0) - [PyPI](https://pypi.org/project/clarifai/2.6.0/) - 2019-02-28
 
 ### Added

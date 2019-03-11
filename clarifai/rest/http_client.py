@@ -56,7 +56,7 @@ class HttpClient:
       logger.debug("\nRESULT:\n%s", pformat(response_json))
     if int(res.status_code / 100) != 2:
       error = ApiError(url, params, method, res)
-      logger.warn("%s", str(error))
+      logger.warning("%s", str(error))
       raise error
     return response_json
 
