@@ -20,7 +20,9 @@ matrix:
       env: PYTHON=3.5.6
     - os: osx
       language: generic
-      env: PYTHON=3.7.2
+      env:
+        - PYTHON=3.7.2
+        - RELEASE_JOB=true
 
 # environmental variables
 env:
@@ -69,3 +71,25 @@ script: |
 after_script:
   - export PYTHONPATH=.
   - python scripts/app_and_key_for_tests.py --delete-app $CLARIFAI_APP_ID
+
+before_deploy:
+  - python setup.py sdist
+  - python setup.py sdist --format zip
+
+deploy:
+  - provider: pypi
+    user: ${PYPI_USERNAME}
+    password: ${PYPI_PASSWORD}
+    on:
+      condition: "$RELEASE_JOB == true"
+      tags: true
+      repo: Clarifai/clarifai-python
+  - provider: releases
+    api_key: ${GITHUB_TOKEN}
+    file:
+      - dist/clarifai-*.tar.gz
+      - dist/clarifai-*.zip
+    on:
+      condition: "$RELEASE_JOB == true"
+      tags: true
+      repo: Clarifai/clarifai-python
