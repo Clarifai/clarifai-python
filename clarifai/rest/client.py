@@ -5,7 +5,6 @@ Clarifai API Python Client
 
 import base64 as base64_lib
 import copy
-import json
 import logging
 import os
 import platform
@@ -21,6 +20,7 @@ from pprint import pformat
 
 import requests
 from future.moves.urllib.parse import urlparse
+from google.protobuf.struct_pb2 import Struct
 from jsonschema import validate
 from past.builtins import basestring
 
@@ -280,7 +280,7 @@ class Input(object):
     self.geo = geo
     self.feedback_info = feedback_info
     self.regions = regions
-    self.score = 0
+    self.score = 0  # type: int
     self.status = None  # type: ApiStatus
 
   def dict(self):  # type: () -> dict
@@ -560,11 +560,11 @@ class SearchTerm(object):
   It is used to build SearchQueryBuilder
   """
 
-  def __init__(self):
-    pass
+  def __init__(self):  # type: () -> None
+    pass  # if changed, please also change the type hint for this function
 
-  def dict(self):
-    pass
+  def dict(self):  # type: () -> None
+    pass  # if changed, please also change the type hint for this function
 
 
 class InputSearchTerm(SearchTerm):
@@ -727,7 +727,8 @@ class SearchQueryBuilder(object):
   """
 
   def __init__(self, language=None):  # type: (typing.Optional[str]) -> None
-    self.terms = []
+    self.terms = [
+    ]  # type: typing.List[typing.Optional[typing.Union[InputSearchTerm, OutputSearchTerm]]]
     self.language = language
 
   def add_term(self, term):
@@ -766,13 +767,13 @@ class Workflow(object):
     self.api = api
 
     if workflow is not None:
-      self.wf_id = workflow['id']
+      self.wf_id = workflow['id']  # type: str
       if workflow.get('nodes'):
         self.nodes = [WorkflowNode(node) for node in workflow['nodes']]
       else:
         self.nodes = []
     elif workflow_id is not None:
-      self.wf_id = workflow_id
+      self.wf_id = workflow_id  # type: str
       self.nodes = []
 
   def dict(self):  # type: () -> dict
@@ -794,6 +795,7 @@ class Workflow(object):
       max_concepts=None,  # type: typing.Optional[int]
       select_concepts=None  # type: typing.Optional[typing.List[Concept]]
   ):
+    # type: (...) -> dict
     """ predict a model with url
 
     Args:
@@ -833,6 +835,7 @@ class Workflow(object):
       max_concepts=None,  # type: typing.Optional[int]
       select_concepts=None  # type: typing.Optional[typing.List[Concept]]
   ):
+    # type: (...) -> dict
     """ predict a model with a local filename
 
     Args:
@@ -872,6 +875,7 @@ class Workflow(object):
       max_concepts=None,  # type: typing.Optional[int]
       select_concepts=None  # type: typing.Optional[typing.List[Concept]]
   ):
+    # type: (...) -> dict
     """ predict a model with image raw bytes
 
     Args:
@@ -911,6 +915,7 @@ class Workflow(object):
       max_concepts=None,  # type: typing.Optional[int]
       select_concepts=None  # type: typing.Optional[typing.List[Concept]]
   ):
+    # type: (...) -> dict
     """ predict a model with base64 encoded image bytes
 
     Args:
@@ -1117,6 +1122,7 @@ class Models(object):
       closed_environment=False,  # type: bool
       hyper_parameters=None  # type: typing.Optional[dict]
   ):
+    # type (...) -> Model
     """ Create a new model
 
     Args:
@@ -2470,7 +2476,7 @@ class Inputs(object):
                       bottom_row=r['region_info']['bounding_box']['bottom_row'],
                       right_col=r['region_info']['bounding_box']['right_col'])),
               face=Face(FaceIdentity([c for c in r['data']['face']['identity']['concepts']]))
-              if 'data' in r else None) for r in regions_json
+              if r.get('data', {}).get('face') else None) for r in regions_json
       ]
 
     input_id = one['id']
@@ -2762,10 +2768,9 @@ class Model(object):
                                                            False)  # type: bool
       self.closed_environment = output_config.get('closed_environment', False)  # type: bool
 
-      hyper_parameters = output_config.get('hyper_parameters', None)
-      self.hyper_parameters = json.loads(hyper_parameters) if hyper_parameters else None
+      self.hyper_parameters = output_config.get('hyper_params')  # type: typing.Optional[dict]
 
-      self.concepts = []
+      self.concepts = []  # type: typing.List[Concept]
       if self.output_info.get('data', {}).get('concepts'):
         for concept in self.output_info['data']['concepts']:
           concept = Concept(
@@ -2792,9 +2797,9 @@ class Model(object):
     """
 
     if not verbose:
-      ret = self.api.get_model(self.model_id)
+      ret = self.api.get_model(self.model_id, self.model_version)
     else:
-      ret = self.api.get_model_output_info(self.model_id)
+      ret = self.api.get_model_output_info(self.model_id, self.model_version)
 
     return ret
 
@@ -3541,13 +3546,13 @@ class ApiClient(object):
     scheme = 'https' if parsed.scheme == '' else parsed.scheme
     base_url_parsed = parsed.path if not parsed.netloc else parsed.netloc
     self.base_url = base_url_parsed
-    self.scheme = scheme
-    self.basev2 = urljoin(scheme + '://', base_url_parsed)
+    self.scheme = scheme  # type: typing.Optional[str]
+    self.basev2 = urljoin(scheme + '://', base_url_parsed)  # type: str
     logger.debug("Base url: %s", self.basev2)
     self.token = None
     self.headers = None
 
-    self.session = self._make_requests_session()
+    self.session = self._make_requests_session()  # type: requests.Session
 
   def _make_requests_session(self):  # type: () -> requests.Session
     http_adapter = requests.adapters.HTTPAdapter(
@@ -3938,30 +3943,36 @@ class ApiClient(object):
                                   ListModelsRequest(page=page, per_page=per_page))
     return response
 
-  def get_model(self, model_id):  # type: (str) -> dict
+  def get_model(self, model_id,
+                model_version_id=None):  # type: (str, typing.Optional[str]) -> dict
     """ get model basic info by model id
 
     Args:
       model_id: the unique identifier of the model
+      model_version_id: the unique identifier of the model version
 
     Returns:
       the model info in JSON format
     """
 
     return self._grpc_request(
-        self._grpc_stub().GetModel, GetModelRequest(model_id=_escape(model_id)))
+        self._grpc_stub().GetModel,
+        GetModelRequest(model_id=_escape(model_id), version_id=model_version_id))
 
-  def get_model_output_info(self, model_id):  # type: (str) -> dict
+  def get_model_output_info(self, model_id,
+                            model_version_id=None):  # type: (str, typing.Optional[str]) -> dict
     """ get model output info by model id
 
     Args:
       model_id: the unique identifier of the model
+      model_version_id: the unique identifier of the model version
 
     Returns:
       the model info with output_info in JSON format
     """
     return self._grpc_request(
-        self._grpc_stub().GetModelOutputInfo, GetModelRequest(model_id=_escape(model_id)))
+        self._grpc_stub().GetModelOutputInfo,
+        GetModelRequest(model_id=_escape(model_id), version_id=model_version_id))
 
   def get_model_versions(self, model_id, page=1, per_page=20):  # type: (str, int, int) -> dict
     """ get model versions
@@ -4073,14 +4084,14 @@ class ApiClient(object):
 
     hyper_parameters_pb = None
     if hyper_parameters:
-      hyper_parameters_pb = json.dumps(hyper_parameters)
+      hyper_parameters_pb = dict_to_protobuf(Struct, hyper_parameters)
 
     output_info = OutputInfoPB(
         data=data,
         output_config=OutputConfigPB(
             concepts_mutually_exclusive=concepts_mutually_exclusive,
             closed_environment=closed_environment,
-            hyper_parameters=hyper_parameters_pb))
+            hyper_params=hyper_parameters_pb))
 
     model = ModelPB(id=model_id, name=model_name, output_info=output_info)
 

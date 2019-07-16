@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='proto/clarifai/api/utils/test_proto.proto',
   package='clarifai.api.utils',
   syntax='proto3',
-  serialized_pb=_b('\n)proto/clarifai/api/utils/test_proto.proto\x12\x12\x63larifai.api.utils\x1a)proto/clarifai/api/utils/extensions.proto\"n\n\tTestProto\x12\n\n\x02id\x18\x01 \x01(\t\x12(\n\x07message\x18\x02 \x01(\tB\x17\x80\xb5\x18\x01\x8a\xb5\x18\x0fprotos are cool\x12\x16\n\x05value\x18\x03 \x01(\x01\x42\x07\xd5\xb5\x18\x00\x00\x80?\x12\x13\n\x0bimage_bytes\x18\x04 \x01(\x0c\x42,Z\x05utils\xa2\x02\x04\x43\x41IP\xc2\x02\x01_\xca\x02\x17\x43larifai\\Internal\\Utilsb\x06proto3')
+  serialized_pb=_b('\n)proto/clarifai/api/utils/test_proto.proto\x12\x12\x63larifai.api.utils\x1a)proto/clarifai/api/utils/extensions.proto\"n\n\tTestProto\x12\n\n\x02id\x18\x01 \x01(\t\x12(\n\x07message\x18\x02 \x01(\tB\x17\x80\xb5\x18\x01\x8a\xb5\x18\x0fprotos are cool\x12\x16\n\x05value\x18\x03 \x01(\x01\x42\x07\xd5\xb5\x18\x00\x00\x80?\x12\x13\n\x0bimage_bytes\x18\x04 \x01(\x0c\x42n\n!clarifai2.internal.grpc.api.utilsZ\x05utils\xa2\x02\x04\x43\x41IP\xaa\x02\x1c\x43larifai.Internal.GRPC.Utils\xc2\x02\x01_\xca\x02\x17\x43larifai\\Internal\\Utilsb\x06proto3')
   ,
   dependencies=[proto_dot_clarifai_dot_api_dot_utils_dot_extensions__pb2.DESCRIPTOR,])
 
@@ -90,7 +90,7 @@ _sym_db.RegisterMessage(TestProto)
 
 
 DESCRIPTOR.has_options = True
-DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('Z\005utils\242\002\004CAIP\302\002\001_\312\002\027Clarifai\\Internal\\Utils'))
+DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('\n!clarifai2.internal.grpc.api.utilsZ\005utils\242\002\004CAIP\252\002\034Clarifai.Internal.GRPC.Utils\302\002\001_\312\002\027Clarifai\\Internal\\Utils'))
 _TESTPROTO.fields_by_name['message'].has_options = True
 _TESTPROTO.fields_by_name['message']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\200\265\030\001\212\265\030\017protos are cool'))
 _TESTPROTO.fields_by_name['value'].has_options = True

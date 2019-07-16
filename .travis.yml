@@ -1,27 +1,26 @@
-dist: trusty
+dist: xenial
 language: python
 
 matrix:
   include:
     - os: linux
       sudo: required
-      python: 2.7
+      python: '2.7'
     - os: linux
       sudo: required
-      python: 3.5
+      python: '3.5'
     - os: linux
       sudo: required
-      python: 3.6
+      python: '3.7'
     - os: osx
       language: generic
       env: PYTHON=2.7.15
-# TODO(Rok) HIGH: Investigate and fix these environments.
-#    - os: osx
-#      language: generic
-#      env: PYTHON=3.5.6
-#    - os: osx
-#      language: generic
-#      env: PYTHON=3.6.6
+    - os: osx
+      language: generic
+      env: PYTHON=3.5.6
+    - os: osx
+      language: generic
+      env: PYTHON=3.7.2
 
 # environmental variables
 env:
@@ -45,7 +44,8 @@ before_install: |
 
 # command to install dependencies
 install:
-  - python -m pip install -U pip==18.0
+  - pip install --upgrade pip
+  - pip install --upgrade setuptools
   - pip install -r requirements.txt
   - pip install -r tests/requirements.txt
 
@@ -55,6 +55,7 @@ before_script:
   - export PYTHONPATH=.
   - export CLARIFAI_APP_ID="$(python scripts/app_and_key_for_tests.py --create-app python-travis)"
   - export CLARIFAI_API_KEY="$(python scripts/app_and_key_for_tests.py --create-key ${CLARIFAI_APP_ID})"
+  - python scripts/app_and_key_for_tests.py --create-workflow ${CLARIFAI_API_KEY}
   - python tests/rest_tests/prepare.py
 
 

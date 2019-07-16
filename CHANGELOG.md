@@ -1,3 +1,12 @@
+## [[2.6.2]](https://github.com/Clarifai/clarifai-python/releases/tag/2.6.2) - [PyPI](https://pypi.org/project/clarifai/2.6.2/) - 2019-07-16
+
+### Changed
+- Model Version is applied in get_info
+
+### Fixed
+- Construct Face only if region face is present
+
+
 ## [[2.6.1]](https://github.com/Clarifai/clarifai-python/releases/tag/2.6.1) - [PyPI](https://pypi.org/project/clarifai/2.6.1/) - 2019-03-11
 
 ### Added

@@ -41,5 +41,6 @@ class TestWorkflows(unittest.TestCase):
     self.assertEqual(10000, res['status']['code'])
 
   def test_predict_workflow(self):
-    # TODO(Rok) MEDIUM: Make a custom workflow so this test can be written.
-    pass
+    wf = self.app.workflows.get('food-and-general')
+    res = wf.predict_by_filename(sample_inputs.METRO_IMAGE_FILE_PATH)
+    self.assertEqual(10000, res['status']['code'])

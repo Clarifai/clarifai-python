@@ -65,3 +65,24 @@ class _CustomPrinter(_Printer):
         js[name] = self._FieldToJsonObject(field, field.default_value)
 
     return js
+
+  def _StructMessageToJsonObject(self, message):
+    """
+    Converts Struct message according to Proto3 JSON Specification.
+
+    However, by default, empty objects {} get converted to null. We overwrite this behavior so {}
+    get converted to {}.
+    """
+
+    fields = message.fields
+    ret = {}
+    for key in fields:
+      # When there's a Struct with an empty Struct field, this condition will hold True.
+      # Far as I know this is the only case this condition will be true. If not, this condition
+      # needs to be amended.
+      if fields[key].WhichOneof('kind') is None:
+        json_object = {}
+      else:
+        json_object = self._ValueMessageToJsonObject(fields[key])
+      ret[key] = json_object
+    return ret

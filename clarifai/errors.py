@@ -23,10 +23,10 @@ class ApiError(Exception):
     self.response = response
 
     self.error_code = 'N/A'
-    self.error_desc = 'N/A'
-    self.error_details = 'N/A'
+    self.error_desc = 'N/A'  # type: str
+    self.error_details = 'N/A'  # type: str
     status_code = 'N/A'
-    reason = 'N/A'
+    reason = 'N/A'  # type: str
     response_json = 'N/A'
 
     if response is not None and response.text:

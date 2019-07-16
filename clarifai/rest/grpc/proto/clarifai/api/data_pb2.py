@@ -14,6 +14,7 @@ from google.protobuf import descriptor_pb2
 _sym_db = _symbol_database.Default()
 
 
+from clarifai.rest.grpc.proto.clarifai.api import audio_pb2 as proto_dot_clarifai_dot_api_dot_audio__pb2
 from clarifai.rest.grpc.proto.clarifai.api import cluster_pb2 as proto_dot_clarifai_dot_api_dot_cluster__pb2
 from clarifai.rest.grpc.proto.clarifai.api import color_pb2 as proto_dot_clarifai_dot_api_dot_color__pb2
 from clarifai.rest.grpc.proto.clarifai.api import common_pb2 as proto_dot_clarifai_dot_api_dot_common__pb2
@@ -33,9 +34,9 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='proto/clarifai/api/data.proto',
   package='clarifai.api',
   syntax='proto3',
-  serialized_pb=_b('\n\x1dproto/clarifai/api/data.proto\x12\x0c\x63larifai.api\x1a proto/clarifai/api/cluster.proto\x1a\x1eproto/clarifai/api/color.proto\x1a\x1fproto/clarifai/api/common.proto\x1a proto/clarifai/api/concept.proto\x1a\"proto/clarifai/api/embedding.proto\x1a\x1dproto/clarifai/api/face.proto\x1a\x1eproto/clarifai/api/focus.proto\x1a\x1cproto/clarifai/api/geo.proto\x1a\x1eproto/clarifai/api/image.proto\x1a\x1dproto/clarifai/api/text.proto\x1a\x1eproto/clarifai/api/video.proto\x1a)proto/clarifai/api/utils/extensions.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xf1\x03\n\x04\x44\x61ta\x12\"\n\x05image\x18\x01 \x01(\x0b\x32\x13.clarifai.api.Image\x12\"\n\x05video\x18\x02 \x01(\x0b\x32\x13.clarifai.api.Video\x12\'\n\x08\x63oncepts\x18\x03 \x03(\x0b\x32\x15.clarifai.api.Concept\x12 \n\x04\x66\x61\x63\x65\x18\x04 \x01(\x0b\x32\x12.clarifai.api.Face\x12)\n\x08metadata\x18\x05 \x01(\x0b\x32\x17.google.protobuf.Struct\x12\x1e\n\x03geo\x18\x06 \x01(\x0b\x32\x11.clarifai.api.Geo\x12#\n\x06\x63olors\x18\x07 \x03(\x0b\x32\x13.clarifai.api.Color\x12\'\n\x08\x63lusters\x18\x08 \x03(\x0b\x32\x15.clarifai.api.Cluster\x12+\n\nembeddings\x18\t \x03(\x0b\x32\x17.clarifai.api.Embedding\x12\"\n\x05\x66ocus\x18\n \x01(\x0b\x32\x13.clarifai.api.Focus\x12%\n\x07regions\x18\x0b \x03(\x0b\x32\x14.clarifai.api.Region\x12#\n\x06\x66rames\x18\x0c \x03(\x0b\x32\x13.clarifai.api.Frame\x12 \n\x04text\x18\r \x01(\x0b\x32\x12.clarifai.api.Text\"e\n\x06Region\x12\n\n\x02id\x18\x01 \x01(\t\x12-\n\x0bregion_info\x18\x02 \x01(\x0b\x32\x18.clarifai.api.RegionInfo\x12 \n\x04\x64\x61ta\x18\x03 \x01(\x0b\x32\x12.clarifai.api.Data\"\xa2\x01\n\nRegionInfo\x12/\n\x0c\x62ounding_box\x18\x01 \x01(\x0b\x32\x19.clarifai.api.BoundingBox\x12\r\n\x05value\x18\x02 \x01(\x02\x12\x32\n\x08\x66\x65\x65\x64\x62\x61\x63k\x18\x03 \x01(\x0e\x32 .clarifai.api.RegionInfoFeedback\x12 \n\x04mask\x18\x04 \x01(\x0b\x32\x12.clarifai.api.Mask\"o\n\x0b\x42oundingBox\x12\x15\n\x07top_row\x18\x01 \x01(\x02\x42\x04\x80\xb5\x18\x01\x12\x16\n\x08left_col\x18\x02 \x01(\x02\x42\x04\x80\xb5\x18\x01\x12\x18\n\nbottom_row\x18\x03 \x01(\x02\x42\x04\x80\xb5\x18\x01\x12\x17\n\tright_col\x18\x04 \x01(\x02\x42\x04\x80\xb5\x18\x01\"4\n\tFrameInfo\x12\x13\n\x05index\x18\x01 \x01(\rB\x04\x80\xb5\x18\x01\x12\x12\n\x04time\x18\x02 \x01(\rB\x04\x80\xb5\x18\x01\"V\n\x05\x46rame\x12+\n\nframe_info\x18\x01 \x01(\x0b\x32\x17.clarifai.api.FrameInfo\x12 \n\x04\x64\x61ta\x18\x02 \x01(\x0b\x32\x12.clarifai.api.Data\"N\n\x04Mask\x12\"\n\x05\x63olor\x18\x01 \x01(\x0b\x32\x13.clarifai.api.Color\x12\"\n\x05image\x18\x02 \x01(\x0b\x32\x13.clarifai.api.Image*W\n\x12RegionInfoFeedback\x12\x0c\n\x08\x61\x63\x63urate\x10\x00\x12\r\n\tmisplaced\x10\x01\x12\x10\n\x0cnot_detected\x10\x02\x12\x12\n\x0e\x66\x61lse_positive\x10\x03\x42$Z\x03\x61pi\xa2\x02\x04\x43\x41IP\xc2\x02\x01_\xca\x02\x11\x43larifai\\Internalb\x06proto3')
+  serialized_pb=_b('\n\x1dproto/clarifai/api/data.proto\x12\x0c\x63larifai.api\x1a\x1eproto/clarifai/api/audio.proto\x1a proto/clarifai/api/cluster.proto\x1a\x1eproto/clarifai/api/color.proto\x1a\x1fproto/clarifai/api/common.proto\x1a proto/clarifai/api/concept.proto\x1a\"proto/clarifai/api/embedding.proto\x1a\x1dproto/clarifai/api/face.proto\x1a\x1eproto/clarifai/api/focus.proto\x1a\x1cproto/clarifai/api/geo.proto\x1a\x1eproto/clarifai/api/image.proto\x1a\x1dproto/clarifai/api/text.proto\x1a\x1eproto/clarifai/api/video.proto\x1a)proto/clarifai/api/utils/extensions.proto\x1a\x1cgoogle/protobuf/struct.proto\"\x95\x04\n\x04\x44\x61ta\x12\"\n\x05image\x18\x01 \x01(\x0b\x32\x13.clarifai.api.Image\x12\"\n\x05video\x18\x02 \x01(\x0b\x32\x13.clarifai.api.Video\x12\'\n\x08\x63oncepts\x18\x03 \x03(\x0b\x32\x15.clarifai.api.Concept\x12 \n\x04\x66\x61\x63\x65\x18\x04 \x01(\x0b\x32\x12.clarifai.api.Face\x12)\n\x08metadata\x18\x05 \x01(\x0b\x32\x17.google.protobuf.Struct\x12\x1e\n\x03geo\x18\x06 \x01(\x0b\x32\x11.clarifai.api.Geo\x12#\n\x06\x63olors\x18\x07 \x03(\x0b\x32\x13.clarifai.api.Color\x12\'\n\x08\x63lusters\x18\x08 \x03(\x0b\x32\x15.clarifai.api.Cluster\x12+\n\nembeddings\x18\t \x03(\x0b\x32\x17.clarifai.api.Embedding\x12\"\n\x05\x66ocus\x18\n \x01(\x0b\x32\x13.clarifai.api.Focus\x12%\n\x07regions\x18\x0b \x03(\x0b\x32\x14.clarifai.api.Region\x12#\n\x06\x66rames\x18\x0c \x03(\x0b\x32\x13.clarifai.api.Frame\x12 \n\x04text\x18\r \x01(\x0b\x32\x12.clarifai.api.Text\x12\"\n\x05\x61udio\x18\x0e \x01(\x0b\x32\x13.clarifai.api.Audio\"e\n\x06Region\x12\n\n\x02id\x18\x01 \x01(\t\x12-\n\x0bregion_info\x18\x02 \x01(\x0b\x32\x18.clarifai.api.RegionInfo\x12 \n\x04\x64\x61ta\x18\x03 \x01(\x0b\x32\x12.clarifai.api.Data\"\xa2\x01\n\nRegionInfo\x12/\n\x0c\x62ounding_box\x18\x01 \x01(\x0b\x32\x19.clarifai.api.BoundingBox\x12\r\n\x05value\x18\x02 \x01(\x02\x12\x32\n\x08\x66\x65\x65\x64\x62\x61\x63k\x18\x03 \x01(\x0e\x32 .clarifai.api.RegionInfoFeedback\x12 \n\x04mask\x18\x04 \x01(\x0b\x32\x12.clarifai.api.Mask\"o\n\x0b\x42oundingBox\x12\x15\n\x07top_row\x18\x01 \x01(\x02\x42\x04\x80\xb5\x18\x01\x12\x16\n\x08left_col\x18\x02 \x01(\x02\x42\x04\x80\xb5\x18\x01\x12\x18\n\nbottom_row\x18\x03 \x01(\x02\x42\x04\x80\xb5\x18\x01\x12\x17\n\tright_col\x18\x04 \x01(\x02\x42\x04\x80\xb5\x18\x01\"4\n\tFrameInfo\x12\x13\n\x05index\x18\x01 \x01(\rB\x04\x80\xb5\x18\x01\x12\x12\n\x04time\x18\x02 \x01(\rB\x04\x80\xb5\x18\x01\"V\n\x05\x46rame\x12+\n\nframe_info\x18\x01 \x01(\x0b\x32\x17.clarifai.api.FrameInfo\x12 \n\x04\x64\x61ta\x18\x02 \x01(\x0b\x32\x12.clarifai.api.Data\"N\n\x04Mask\x12\"\n\x05\x63olor\x18\x01 \x01(\x0b\x32\x13.clarifai.api.Color\x12\"\n\x05image\x18\x02 \x01(\x0b\x32\x13.clarifai.api.Image*W\n\x12RegionInfoFeedback\x12\x0c\n\x08\x61\x63\x63urate\x10\x00\x12\r\n\tmisplaced\x10\x01\x12\x10\n\x0cnot_detected\x10\x02\x12\x12\n\x0e\x66\x61lse_positive\x10\x03\x42Z\n\x1b\x63larifai2.internal.grpc.apiZ\x03\x61pi\xa2\x02\x04\x43\x41IP\xaa\x02\x16\x43larifai.Internal.GRPC\xc2\x02\x01_\xca\x02\x11\x43larifai\\Internalb\x06proto3')
   ,
-  dependencies=[proto_dot_clarifai_dot_api_dot_cluster__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_color__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_common__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_concept__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_embedding__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_face__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_focus__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_geo__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_image__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_text__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_video__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_utils_dot_extensions__pb2.DESCRIPTOR,google_dot_protobuf_dot_struct__pb2.DESCRIPTOR,])
+  dependencies=[proto_dot_clarifai_dot_api_dot_audio__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_cluster__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_color__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_common__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_concept__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_embedding__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_face__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_focus__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_geo__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_image__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_text__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_video__pb2.DESCRIPTOR,proto_dot_clarifai_dot_api_dot_utils_dot_extensions__pb2.DESCRIPTOR,google_dot_protobuf_dot_struct__pb2.DESCRIPTOR,])
 
 _REGIONINFOFEEDBACK = _descriptor.EnumDescriptor(
   name='RegionInfoFeedback',
@@ -62,8 +63,8 @@ _REGIONINFOFEEDBACK = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=1580,
-  serialized_end=1667,
+  serialized_start=1648,
+  serialized_end=1735,
 )
 _sym_db.RegisterEnumDescriptor(_REGIONINFOFEEDBACK)
 
@@ -173,6 +174,13 @@ _DATA = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='audio', full_name='clarifai.api.Data.audio', index=13,
+      number=14, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -185,8 +193,8 @@ _DATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=478,
-  serialized_end=975,
+  serialized_start=510,
+  serialized_end=1043,
 )
 
 
@@ -230,8 +238,8 @@ _REGION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=977,
-  serialized_end=1078,
+  serialized_start=1045,
+  serialized_end=1146,
 )
 
 
@@ -282,8 +290,8 @@ _REGIONINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1081,
-  serialized_end=1243,
+  serialized_start=1149,
+  serialized_end=1311,
 )
 
 
@@ -334,8 +342,8 @@ _BOUNDINGBOX = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1245,
-  serialized_end=1356,
+  serialized_start=1313,
+  serialized_end=1424,
 )
 
 
@@ -372,8 +380,8 @@ _FRAMEINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1358,
-  serialized_end=1410,
+  serialized_start=1426,
+  serialized_end=1478,
 )
 
 
@@ -410,8 +418,8 @@ _FRAME = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1412,
-  serialized_end=1498,
+  serialized_start=1480,
+  serialized_end=1566,
 )
 
 
@@ -448,8 +456,8 @@ _MASK = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1500,
-  serialized_end=1578,
+  serialized_start=1568,
+  serialized_end=1646,
 )
 
 _DATA.fields_by_name['image'].message_type = proto_dot_clarifai_dot_api_dot_image__pb2._IMAGE
@@ -465,6 +473,7 @@ _DATA.fields_by_name['focus'].message_type = proto_dot_clarifai_dot_api_dot_focu
 _DATA.fields_by_name['regions'].message_type = _REGION
 _DATA.fields_by_name['frames'].message_type = _FRAME
 _DATA.fields_by_name['text'].message_type = proto_dot_clarifai_dot_api_dot_text__pb2._TEXT
+_DATA.fields_by_name['audio'].message_type = proto_dot_clarifai_dot_api_dot_audio__pb2._AUDIO
 _REGION.fields_by_name['region_info'].message_type = _REGIONINFO
 _REGION.fields_by_name['data'].message_type = _DATA
 _REGIONINFO.fields_by_name['bounding_box'].message_type = _BOUNDINGBOX
@@ -535,7 +544,7 @@ _sym_db.RegisterMessage(Mask)
 
 
 DESCRIPTOR.has_options = True
-DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('Z\003api\242\002\004CAIP\302\002\001_\312\002\021Clarifai\\Internal'))
+DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('\n\033clarifai2.internal.grpc.apiZ\003api\242\002\004CAIP\252\002\026Clarifai.Internal.GRPC\302\002\001_\312\002\021Clarifai\\Internal'))
 _BOUNDINGBOX.fields_by_name['top_row'].has_options = True
 _BOUNDINGBOX.fields_by_name['top_row']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\200\265\030\001'))
 _BOUNDINGBOX.fields_by_name['left_col'].has_options = True

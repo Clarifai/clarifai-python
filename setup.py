@@ -13,7 +13,7 @@ has_typing = sys.version_info >= (3, 5)
 setup(
     name="clarifai",
     description='Clarifai API Python Client',
-    version='2.6.1',
+    version='2.6.2',
     author='Clarifai',
     maintainer='Robert Wen',
     maintainer_email='robert@clarifai.com',

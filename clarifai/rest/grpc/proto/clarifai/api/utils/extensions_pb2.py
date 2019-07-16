@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='proto/clarifai/api/utils/extensions.proto',
   package='clarifai.api.utils',
   syntax='proto3',
-  serialized_pb=_b('\n)proto/clarifai/api/utils/extensions.proto\x12\x12\x63larifai.api.utils\x1a google/protobuf/descriptor.proto:9\n\x10\x63l_show_if_empty\x12\x1d.google.protobuf.FieldOptions\x18\xd0\x86\x03 \x01(\x08:4\n\x0b\x63l_moretags\x12\x1d.google.protobuf.FieldOptions\x18\xd1\x86\x03 \x01(\t:9\n\x10\x63l_default_float\x12\x1d.google.protobuf.FieldOptions\x18\xda\x86\x03 \x01(\x02\x42,Z\x05utils\xa2\x02\x04\x43\x41IP\xc2\x02\x01_\xca\x02\x17\x43larifai\\Internal\\Utilsb\x06proto3')
+  serialized_pb=_b('\n)proto/clarifai/api/utils/extensions.proto\x12\x12\x63larifai.api.utils\x1a google/protobuf/descriptor.proto:9\n\x10\x63l_show_if_empty\x12\x1d.google.protobuf.FieldOptions\x18\xd0\x86\x03 \x01(\x08:4\n\x0b\x63l_moretags\x12\x1d.google.protobuf.FieldOptions\x18\xd1\x86\x03 \x01(\t:9\n\x10\x63l_default_float\x12\x1d.google.protobuf.FieldOptions\x18\xda\x86\x03 \x01(\x02\x42n\n!clarifai2.internal.grpc.api.utilsZ\x05utils\xa2\x02\x04\x43\x41IP\xaa\x02\x1c\x43larifai.Internal.GRPC.Utils\xc2\x02\x01_\xca\x02\x17\x43larifai\\Internal\\Utilsb\x06proto3')
   ,
   dependencies=[google_dot_protobuf_dot_descriptor__pb2.DESCRIPTOR,])
 
@@ -60,5 +60,5 @@ google_dot_protobuf_dot_descriptor__pb2.FieldOptions.RegisterExtension(cl_moreta
 google_dot_protobuf_dot_descriptor__pb2.FieldOptions.RegisterExtension(cl_default_float)
 
 DESCRIPTOR.has_options = True
-DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('Z\005utils\242\002\004CAIP\302\002\001_\312\002\027Clarifai\\Internal\\Utils'))
+DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('\n!clarifai2.internal.grpc.api.utilsZ\005utils\242\002\004CAIP\252\002\034Clarifai.Internal.GRPC.Utils\302\002\001_\312\002\027Clarifai\\Internal\\Utils'))
 # @@protoc_insertion_point(module_scope)

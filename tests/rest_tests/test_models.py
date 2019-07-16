@@ -258,12 +258,6 @@ class TestModels(unittest.TestCase):
     m = self.app.models.get('aaa03c23b3724a16a56b629203edc62c')
     self.assertTrue(isinstance(m, Model))
     self.assertEqual(m.model_id, 'aaa03c23b3724a16a56b629203edc62c')
-    self.assertEqual(m.model_version, 'aa9ca48295b37401f8af92ad1af0d91d')
-
-    m = self.app.models.get('aaa03c23b3724a16a56b629203edc62c')
-    self.assertTrue(isinstance(m, Model))
-    self.assertEqual(m.model_id, 'aaa03c23b3724a16a56b629203edc62c')
-    self.assertEqual(m.model_version, 'aa9ca48295b37401f8af92ad1af0d91d')
 
   def test_predict_with_model_id(self):
     """ test initialize model object """
@@ -582,8 +576,8 @@ class TestModels(unittest.TestCase):
 
     model_id = uuid.uuid4().hex
     model = self.app.models.create(model_id)
-    model.merge_concepts(concept_ids=['cat', 'dog'])
-    model.delete_concepts(concept_ids=['dog'])
+    model = model.merge_concepts(concept_ids=['cat', 'dog'])
+    model = model.delete_concepts(concept_ids=['dog'])
 
     self.assertEqual(model.model_id, model_id)
 
@@ -821,3 +815,11 @@ class TestModels(unittest.TestCase):
 
       self.app.inputs.delete(image_id1)
       self.app.inputs.delete(image_id2)
+
+  def test_get_info_with_version(self):
+    model = self.app.public_models.general_model
+    model.model_version = 'aa9ca48295b37401f8af92ad1af0d91d'
+
+    response = model.get_info(True)
+    model_version = response['model']['model_version']
+    assert model_version['id'] == model.model_version

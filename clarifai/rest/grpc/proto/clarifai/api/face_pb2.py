@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='proto/clarifai/api/face.proto',
   package='clarifai.api',
   syntax='proto3',
-  serialized_pb=_b('\n\x1dproto/clarifai/api/face.proto\x12\x0c\x63larifai.api\x1a proto/clarifai/api/concept.proto\"7\n\x0c\x46\x61\x63\x65Identity\x12\'\n\x08\x63oncepts\x18\x01 \x03(\x0b\x32\x15.clarifai.api.Concept\"2\n\x07\x46\x61\x63\x65\x41ge\x12\'\n\x08\x63oncepts\x18\x01 \x03(\x0b\x32\x15.clarifai.api.Concept\"=\n\x12\x46\x61\x63\x65GenderIdentity\x12\'\n\x08\x63oncepts\x18\x01 \x03(\x0b\x32\x15.clarifai.api.Concept\"9\n\x0e\x46\x61\x63\x65MCAffinity\x12\'\n\x08\x63oncepts\x18\x01 \x03(\x0b\x32\x15.clarifai.api.Concept\"\xe0\x01\n\x04\x46\x61\x63\x65\x12,\n\x08identity\x18\x01 \x01(\x0b\x32\x1a.clarifai.api.FaceIdentity\x12-\n\x0e\x61ge_appearance\x18\x02 \x01(\x0b\x32\x15.clarifai.api.FaceAge\x12;\n\x11gender_appearance\x18\x03 \x01(\x0b\x32 .clarifai.api.FaceGenderIdentity\x12>\n\x18multicultural_appearance\x18\x04 \x01(\x0b\x32\x1c.clarifai.api.FaceMCAffinityB$Z\x03\x61pi\xa2\x02\x04\x43\x41IP\xc2\x02\x01_\xca\x02\x11\x43larifai\\Internalb\x06proto3')
+  serialized_pb=_b('\n\x1dproto/clarifai/api/face.proto\x12\x0c\x63larifai.api\x1a proto/clarifai/api/concept.proto\"7\n\x0c\x46\x61\x63\x65Identity\x12\'\n\x08\x63oncepts\x18\x01 \x03(\x0b\x32\x15.clarifai.api.Concept\"2\n\x07\x46\x61\x63\x65\x41ge\x12\'\n\x08\x63oncepts\x18\x01 \x03(\x0b\x32\x15.clarifai.api.Concept\"=\n\x12\x46\x61\x63\x65GenderIdentity\x12\'\n\x08\x63oncepts\x18\x01 \x03(\x0b\x32\x15.clarifai.api.Concept\"9\n\x0e\x46\x61\x63\x65MCAffinity\x12\'\n\x08\x63oncepts\x18\x01 \x03(\x0b\x32\x15.clarifai.api.Concept\"\xe0\x01\n\x04\x46\x61\x63\x65\x12,\n\x08identity\x18\x01 \x01(\x0b\x32\x1a.clarifai.api.FaceIdentity\x12-\n\x0e\x61ge_appearance\x18\x02 \x01(\x0b\x32\x15.clarifai.api.FaceAge\x12;\n\x11gender_appearance\x18\x03 \x01(\x0b\x32 .clarifai.api.FaceGenderIdentity\x12>\n\x18multicultural_appearance\x18\x04 \x01(\x0b\x32\x1c.clarifai.api.FaceMCAffinityBZ\n\x1b\x63larifai2.internal.grpc.apiZ\x03\x61pi\xa2\x02\x04\x43\x41IP\xaa\x02\x16\x43larifai.Internal.GRPC\xc2\x02\x01_\xca\x02\x11\x43larifai\\Internalb\x06proto3')
   ,
   dependencies=[proto_dot_clarifai_dot_api_dot_concept__pb2.DESCRIPTOR,])
 
@@ -254,5 +254,5 @@ _sym_db.RegisterMessage(Face)
 
 
 DESCRIPTOR.has_options = True
-DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('Z\003api\242\002\004CAIP\302\002\001_\312\002\021Clarifai\\Internal'))
+DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('\n\033clarifai2.internal.grpc.apiZ\003api\242\002\004CAIP\252\002\026Clarifai.Internal.GRPC\302\002\001_\312\002\021Clarifai\\Internal'))
 # @@protoc_insertion_point(module_scope)

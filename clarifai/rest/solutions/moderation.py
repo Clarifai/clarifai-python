@@ -23,7 +23,7 @@ class ModerationSolution(object):
     self.base_url = base_url
 
     session = self._make_requests_session()
-    self.http_client = HttpClient(session, api_key)
+    self.http_client = HttpClient(session, api_key)  # type: HttpClient
 
   def _make_requests_session(self):  # type: () -> requests.Session
     http_adapter = requests.adapters.HTTPAdapter(

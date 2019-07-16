@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='proto/clarifai/api/focus.proto',
   package='clarifai.api',
   syntax='proto3',
-  serialized_pb=_b('\n\x1eproto/clarifai/api/focus.proto\x12\x0c\x63larifai.api\x1a)proto/clarifai/api/utils/extensions.proto\"3\n\x05\x46ocus\x12\x15\n\x07\x64\x65nsity\x18\x01 \x01(\x02\x42\x04\x80\xb5\x18\x01\x12\x13\n\x05value\x18\x02 \x01(\x02\x42\x04\x80\xb5\x18\x01\x42$Z\x03\x61pi\xa2\x02\x04\x43\x41IP\xc2\x02\x01_\xca\x02\x11\x43larifai\\Internalb\x06proto3')
+  serialized_pb=_b('\n\x1eproto/clarifai/api/focus.proto\x12\x0c\x63larifai.api\x1a)proto/clarifai/api/utils/extensions.proto\"3\n\x05\x46ocus\x12\x15\n\x07\x64\x65nsity\x18\x01 \x01(\x02\x42\x04\x80\xb5\x18\x01\x12\x13\n\x05value\x18\x02 \x01(\x02\x42\x04\x80\xb5\x18\x01\x42Z\n\x1b\x63larifai2.internal.grpc.apiZ\x03\x61pi\xa2\x02\x04\x43\x41IP\xaa\x02\x16\x43larifai.Internal.GRPC\xc2\x02\x01_\xca\x02\x11\x43larifai\\Internalb\x06proto3')
   ,
   dependencies=[proto_dot_clarifai_dot_api_dot_utils_dot_extensions__pb2.DESCRIPTOR,])
 
@@ -76,7 +76,7 @@ _sym_db.RegisterMessage(Focus)
 
 
 DESCRIPTOR.has_options = True
-DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('Z\003api\242\002\004CAIP\302\002\001_\312\002\021Clarifai\\Internal'))
+DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('\n\033clarifai2.internal.grpc.apiZ\003api\242\002\004CAIP\252\002\026Clarifai.Internal.GRPC\302\002\001_\312\002\021Clarifai\\Internal'))
 _FOCUS.fields_by_name['density'].has_options = True
 _FOCUS.fields_by_name['density']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\200\265\030\001'))
 _FOCUS.fields_by_name['value'].has_options = True

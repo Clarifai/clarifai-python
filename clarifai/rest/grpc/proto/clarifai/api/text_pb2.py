@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='proto/clarifai/api/text.proto',
   package='clarifai.api',
   syntax='proto3',
-  serialized_pb=_b('\n\x1dproto/clarifai/api/text.proto\x12\x0c\x63larifai.api\"\x13\n\x04Text\x12\x0b\n\x03raw\x18\x01 \x01(\tB$Z\x03\x61pi\xa2\x02\x04\x43\x41IP\xc2\x02\x01_\xca\x02\x11\x43larifai\\Internalb\x06proto3')
+  serialized_pb=_b('\n\x1dproto/clarifai/api/text.proto\x12\x0c\x63larifai.api\"\x13\n\x04Text\x12\x0b\n\x03raw\x18\x01 \x01(\tBZ\n\x1b\x63larifai2.internal.grpc.apiZ\x03\x61pi\xa2\x02\x04\x43\x41IP\xaa\x02\x16\x43larifai.Internal.GRPC\xc2\x02\x01_\xca\x02\x11\x43larifai\\Internalb\x06proto3')
 )
 
 
@@ -67,5 +67,5 @@ _sym_db.RegisterMessage(Text)
 
 
 DESCRIPTOR.has_options = True
-DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('Z\003api\242\002\004CAIP\302\002\001_\312\002\021Clarifai\\Internal'))
+DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('\n\033clarifai2.internal.grpc.apiZ\003api\242\002\004CAIP\252\002\026Clarifai.Internal.GRPC\302\002\001_\312\002\021Clarifai\\Internal'))
 # @@protoc_insertion_point(module_scope)

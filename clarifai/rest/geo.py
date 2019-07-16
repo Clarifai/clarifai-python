@@ -1,3 +1,4 @@
+from typing import Dict
 """
 Geo support for clarifai api
 """
@@ -36,7 +37,7 @@ class GeoLimit(object):
       'kilometer': 'withinKilometers',
       'degree': 'withinDegrees',
       'radian': 'withinRadians'
-  }
+  }  # type: Dict[str, str]
 
   def __init__(self, limit_type='mile', limit_range=10):  # type: (str, int) -> None
     if limit_type not in self.convert_table:

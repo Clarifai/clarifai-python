@@ -17,9 +17,9 @@ _sym_db = _symbol_database.Default()
 
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='proto/clarifai/utils/pagination/pagination.proto',
-  package='clarifai.api',
+  package='',
   syntax='proto3',
-  serialized_pb=_b('\n0proto/clarifai/utils/pagination/pagination.proto\x12\x0c\x63larifai.api\",\n\nPagination\x12\x0c\n\x04page\x18\x01 \x01(\r\x12\x10\n\x08per_page\x18\x02 \x01(\rB$Z\x03\x61pi\xa2\x02\x04\x43\x41IP\xc2\x02\x01_\xca\x02\x11\x43larifai\\Internalb\x06proto3')
+  serialized_pb=_b('\n0proto/clarifai/utils/pagination/pagination.proto\",\n\nPagination\x12\x0c\n\x04page\x18\x01 \x01(\r\x12\x10\n\x08per_page\x18\x02 \x01(\rb\x06proto3')
 )
 
 
@@ -27,20 +27,20 @@ DESCRIPTOR = _descriptor.FileDescriptor(
 
 _PAGINATION = _descriptor.Descriptor(
   name='Pagination',
-  full_name='clarifai.api.Pagination',
+  full_name='Pagination',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='page', full_name='clarifai.api.Pagination.page', index=0,
+      name='page', full_name='Pagination.page', index=0,
       number=1, type=13, cpp_type=3, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='per_page', full_name='clarifai.api.Pagination.per_page', index=1,
+      name='per_page', full_name='Pagination.per_page', index=1,
       number=2, type=13, cpp_type=3, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
@@ -58,8 +58,8 @@ _PAGINATION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=66,
-  serialized_end=110,
+  serialized_start=52,
+  serialized_end=96,
 )
 
 DESCRIPTOR.message_types_by_name['Pagination'] = _PAGINATION
@@ -68,11 +68,9 @@ _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 Pagination = _reflection.GeneratedProtocolMessageType('Pagination', (_message.Message,), dict(
   DESCRIPTOR = _PAGINATION,
   __module__ = 'proto.clarifai.utils.pagination.pagination_pb2'
-  # @@protoc_insertion_point(class_scope:clarifai.api.Pagination)
+  # @@protoc_insertion_point(class_scope:Pagination)
   ))
 _sym_db.RegisterMessage(Pagination)
 
 
-DESCRIPTOR.has_options = True
-DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('Z\003api\242\002\004CAIP\302\002\001_\312\002\021Clarifai\\Internal'))
 # @@protoc_insertion_point(module_scope)

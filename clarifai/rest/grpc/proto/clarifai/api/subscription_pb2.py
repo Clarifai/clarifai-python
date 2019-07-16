@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='proto/clarifai/api/subscription.proto',
   package='clarifai.api',
   syntax='proto3',
-  serialized_pb=_b('\n%proto/clarifai/api/subscription.proto\x12\x0c\x63larifai.api\x1a&proto/clarifai/api/status/status.proto\"\x14\n\x04Plan\x12\x0c\n\x04name\x18\x01 \x01(\t\"\x18\n\x16GetSubscriptionRequest\"P\n\x17PostSubscriptionRequest\x12\x13\n\x0bsignup_code\x18\x01 \x01(\t\x12 \n\x04plan\x18\x02 \x01(\x0b\x32\x12.clarifai.api.Plan\"\x80\x01\n\x1aSingleSubscriptionResponse\x12+\n\x06status\x18\x01 \x01(\x0b\x32\x1b.clarifai.api.status.Status\x12 \n\x04plan\x18\x02 \x01(\x0b\x32\x12.clarifai.api.Plan\x12\x13\n\x0bsignup_code\x18\x03 \x01(\tB$Z\x03\x61pi\xa2\x02\x04\x43\x41IP\xc2\x02\x01_\xca\x02\x11\x43larifai\\Internalb\x06proto3')
+  serialized_pb=_b('\n%proto/clarifai/api/subscription.proto\x12\x0c\x63larifai.api\x1a&proto/clarifai/api/status/status.proto\"\x14\n\x04Plan\x12\x0c\n\x04name\x18\x01 \x01(\t\"\x18\n\x16GetSubscriptionRequest\"P\n\x17PostSubscriptionRequest\x12\x13\n\x0bsignup_code\x18\x01 \x01(\t\x12 \n\x04plan\x18\x02 \x01(\x0b\x32\x12.clarifai.api.Plan\"\x80\x01\n\x1aSingleSubscriptionResponse\x12+\n\x06status\x18\x01 \x01(\x0b\x32\x1b.clarifai.api.status.Status\x12 \n\x04plan\x18\x02 \x01(\x0b\x32\x12.clarifai.api.Plan\x12\x13\n\x0bsignup_code\x18\x03 \x01(\tBZ\n\x1b\x63larifai2.internal.grpc.apiZ\x03\x61pi\xa2\x02\x04\x43\x41IP\xaa\x02\x16\x43larifai.Internal.GRPC\xc2\x02\x01_\xca\x02\x11\x43larifai\\Internalb\x06proto3')
   ,
   dependencies=[proto_dot_clarifai_dot_api_dot_status_dot_status__pb2.DESCRIPTOR,])
 
@@ -203,5 +203,5 @@ _sym_db.RegisterMessage(SingleSubscriptionResponse)
 
 
 DESCRIPTOR.has_options = True
-DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('Z\003api\242\002\004CAIP\302\002\001_\312\002\021Clarifai\\Internal'))
+DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('\n\033clarifai2.internal.grpc.apiZ\003api\242\002\004CAIP\252\002\026Clarifai.Internal.GRPC\302\002\001_\312\002\021Clarifai\\Internal'))
 # @@protoc_insertion_point(module_scope)

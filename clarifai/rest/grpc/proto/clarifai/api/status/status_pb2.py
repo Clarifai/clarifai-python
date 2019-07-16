@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='proto/clarifai/api/status/status.proto',
   package='clarifai.api.status',
   syntax='proto3',
-  serialized_pb=_b('\n&proto/clarifai/api/status/status.proto\x12\x13\x63larifai.api.status\x1a+proto/clarifai/api/status/status_code.proto\"\xa0\x01\n\x06Status\x12-\n\x04\x63ode\x18\x01 \x01(\x0e\x32\x1f.clarifai.api.status.StatusCode\x12\x13\n\x0b\x64\x65scription\x18\x02 \x01(\t\x12\x0f\n\x07\x64\x65tails\x18\x03 \x01(\t\x12\x19\n\x11percent_completed\x18\x05 \x01(\r\x12\x16\n\x0etime_remaining\x18\x06 \x01(\r\x12\x0e\n\x06req_id\x18\x07 \x01(\t\";\n\x0c\x42\x61seResponse\x12+\n\x06status\x18\x01 \x01(\x0b\x32\x1b.clarifai.api.status.StatusB.Z\x06status\xa2\x02\x04\x43\x41IP\xc2\x02\x01_\xca\x02\x18\x43larifai\\Internal\\Statusb\x06proto3')
+  serialized_pb=_b('\n&proto/clarifai/api/status/status.proto\x12\x13\x63larifai.api.status\x1a+proto/clarifai/api/status/status_code.proto\"\xa0\x01\n\x06Status\x12-\n\x04\x63ode\x18\x01 \x01(\x0e\x32\x1f.clarifai.api.status.StatusCode\x12\x13\n\x0b\x64\x65scription\x18\x02 \x01(\t\x12\x0f\n\x07\x64\x65tails\x18\x03 \x01(\t\x12\x19\n\x11percent_completed\x18\x05 \x01(\r\x12\x16\n\x0etime_remaining\x18\x06 \x01(\r\x12\x0e\n\x06req_id\x18\x07 \x01(\t\";\n\x0c\x42\x61seResponse\x12+\n\x06status\x18\x01 \x01(\x0b\x32\x1b.clarifai.api.status.StatusBr\n\"clarifai2.internal.grpc.api.statusZ\x06status\xa2\x02\x04\x43\x41IP\xaa\x02\x1d\x43larifai.Internal.GRPC.Status\xc2\x02\x01_\xca\x02\x18\x43larifai\\Internal\\Statusb\x06proto3')
   ,
   dependencies=[proto_dot_clarifai_dot_api_dot_status_dot_status__code__pb2.DESCRIPTOR,])
 
@@ -145,5 +145,5 @@ _sym_db.RegisterMessage(BaseResponse)
 
 
 DESCRIPTOR.has_options = True
-DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('Z\006status\242\002\004CAIP\302\002\001_\312\002\030Clarifai\\Internal\\Status'))
+DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b('\n\"clarifai2.internal.grpc.api.statusZ\006status\242\002\004CAIP\252\002\035Clarifai.Internal.GRPC.Status\302\002\001_\312\002\030Clarifai\\Internal\\Status'))
 # @@protoc_insertion_point(module_scope)
