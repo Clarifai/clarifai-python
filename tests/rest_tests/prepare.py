@@ -35,12 +35,20 @@ def main():
   app.wait_until_models_delete_finish()
 
   app.inputs.create_image_from_url(
-      urls[0], concepts=['train', 'railway'], allow_duplicate_url=True)
-  app.inputs.create_image_from_url(urls[3], concepts=['dog', 'animal'], allow_duplicate_url=True)
+      urls[0],
+      concepts=['train_custom_prepare', 'railway_custom_prepare'],
+      allow_duplicate_url=True)
+  app.inputs.create_image_from_url(
+      urls[3], concepts=['dog_custom_prepare', 'animal_custom_prepare'], allow_duplicate_url=True)
 
   model_id = uuid.uuid4().hex
 
-  model1 = app.models.create(model_id=model_id, concepts=['train', 'railway', 'dog', 'animal'])
+  model1 = app.models.create(
+      model_id=model_id,
+      concepts=[
+          'train_custom_prepare', 'railway_custom_prepare', 'dog_custom_prepare',
+          'animal_custom_prepare'
+      ])
   model = model1.train(timeout=240)
 
   if model.model_status_code != 21100:

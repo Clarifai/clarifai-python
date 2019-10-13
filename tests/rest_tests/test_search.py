@@ -26,47 +26,51 @@ class TestSearch(unittest.TestCase):
   def test_search_annotated_concepts(self):
     """ test search by annotated concepts only """
 
-    self.app.inputs.search_by_annotated_concepts(concept='cat')
-    self.app.inputs.search_by_annotated_concepts(concepts=['cat'])
+    self.app.inputs.search_by_annotated_concepts(concept='feline')
+    self.app.inputs.search_by_annotated_concepts(concepts=['feline'])
     self.app.inputs.search_by_annotated_concepts(concept_id='ai_mFqxrph2')
     self.app.inputs.search_by_annotated_concepts(concept_ids=['ai_mFqxrph2'])
 
     # go with unicode string
-    self.app.inputs.search_by_annotated_concepts(concept=u'cat')
-    self.app.inputs.search_by_annotated_concepts(concepts=[u'cat'])
+    self.app.inputs.search_by_annotated_concepts(concept=u'feline')
+    self.app.inputs.search_by_annotated_concepts(concepts=[u'feline'])
     self.app.inputs.search_by_annotated_concepts(concept_id=u'ai_mFqxrph2')
     self.app.inputs.search_by_annotated_concepts(concept_ids=[u'ai_mFqxrph2'])
 
     # search with NOT
-    self.app.inputs.search_by_annotated_concepts(concept='cat', value=False)
-    self.app.inputs.search_by_annotated_concepts(concepts=['cat', 'dog'], values=[False, False])
+    self.app.inputs.search_by_annotated_concepts(concept='feline', value=False)
+    self.app.inputs.search_by_annotated_concepts(
+        concepts=['feline', 'puppy'], values=[False, False])
 
   def test_search_predicted_concepts(self):
     """ test search by predicted concepts only """
 
-    # upload some cat and dog
+    # upload some feline and puppy
+    input_id = uuid.uuid4().hex
     img1 = self.app.inputs.create_image_from_url(
-        sample_inputs.METRO_IMAGE_URL, allow_duplicate_url=True)
+        image_id=input_id, url=sample_inputs.METRO_IMAGE_URL, allow_duplicate_url=True)
 
-    self.app.inputs.search_by_predicted_concepts(concept='train')
-    self.app.inputs.search_by_predicted_concepts(concepts=['train'])
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[input_id], max_wait=60)
+
+    self.app.inputs.search_by_predicted_concepts(concept='locomotive')
+    self.app.inputs.search_by_predicted_concepts(concepts=['locomotive'])
     self.app.inputs.search_by_predicted_concepts(concept_id='ai_mFqxrph2')
     self.app.inputs.search_by_predicted_concepts(concept_ids=['ai_mFqxrph2'])
 
     # go with unicode string
-    self.app.inputs.search_by_predicted_concepts(concept=u'train')
-    self.app.inputs.search_by_predicted_concepts(concepts=[u'train'])
+    self.app.inputs.search_by_predicted_concepts(concept=u'locomotive')
+    self.app.inputs.search_by_predicted_concepts(concepts=[u'locomotive'])
     self.app.inputs.search_by_predicted_concepts(concept_id=u'ai_mFqxrph2')
     self.app.inputs.search_by_predicted_concepts(concept_ids=[u'ai_mFqxrph2'])
 
     # search with NOT
-    self.app.inputs.search_by_predicted_concepts(concept='train', value=False)
+    self.app.inputs.search_by_predicted_concepts(concept='locomotive', value=False)
     self.app.inputs.search_by_predicted_concepts(
-        concepts=['train', 'railway'], values=[False, False])
+        concepts=['locomotive', 'track'], values=[False, False])
     self.app.inputs.search_by_predicted_concepts(
-        concepts=['train', 'railway'], values=[True, False])
+        concepts=['locomotive', 'track'], values=[True, False])
     self.app.inputs.search_by_predicted_concepts(
-        concepts=['train', 'railway'], values=[False, True])
+        concepts=['locomotive', 'track'], values=[False, True])
 
     # clean up
     self.app.inputs.delete(img1.input_id)
@@ -75,8 +79,11 @@ class TestSearch(unittest.TestCase):
     """ test search by predicted concepts with non-English """
 
     # upload the metro north
+    input_id = uuid.uuid4().hex
     img1 = self.app.inputs.create_image_from_url(
-        sample_inputs.METRO_IMAGE_URL, allow_duplicate_url=True)
+        image_id=input_id, url=sample_inputs.METRO_IMAGE_URL, allow_duplicate_url=True)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[input_id], max_wait=60)
 
     # search in simplified Chinese
     imgs = self.app.inputs.search_by_predicted_concepts(concept=u'铁路列车', lang='zh')
@@ -115,8 +122,11 @@ class TestSearch(unittest.TestCase):
     """ test search by image id """
 
     # search by exising input id
+    input_id = uuid.uuid4().hex
     image = self.app.inputs.create_image_from_url(
-        sample_inputs.METRO_IMAGE_URL, allow_duplicate_url=True)
+        image_id=input_id, url=sample_inputs.METRO_IMAGE_URL, allow_duplicate_url=True)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[input_id], max_wait=60)
 
     self.app.inputs.search_by_image(image_id=image.input_id)
 
@@ -173,6 +183,8 @@ class TestSearch(unittest.TestCase):
         metadata=meta,
         allow_duplicate_url=True)
 
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id], max_wait=60)
+
     # simple meta search
     search_res = self.app.inputs.search_by_metadata({"key": "value"})
     # disable this until citus migration fully finishes
@@ -198,6 +210,8 @@ class TestSearch(unittest.TestCase):
         url=sample_inputs.METRO_IMAGE_URL,
         metadata=meta,
         allow_duplicate_url=True)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id], max_wait=30)
 
     # simple meta search
     search_res = self.app.inputs.search_by_metadata({"key": "value", "key2": "value2"})
@@ -237,6 +251,8 @@ class TestSearch(unittest.TestCase):
     img1 = self.app.inputs.create_image_from_url(
         image_id=image_id, url=sample_inputs.METRO_IMAGE_URL, geo=geo, allow_duplicate_url=True)
 
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id], max_wait=30)
+
     # simple geo search
     search_res = self.app.inputs.search_by_geo(GeoPoint(40.7128, 74.0059))
     # disable this until citus migration fully finishes
@@ -255,6 +271,8 @@ class TestSearch(unittest.TestCase):
     img2 = self.app.inputs.create_image_from_url(
         image_id=image_id, url=sample_inputs.METRO_IMAGE_URL, geo=geo, allow_duplicate_url=True)
 
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id], max_wait=30)
+
     search_res = self.app.inputs.search_by_geo(
         GeoPoint(40.7128, 74.0059), GeoLimit("kilometer", 9))
     # disable this until citus migration fully finishes
@@ -272,6 +290,8 @@ class TestSearch(unittest.TestCase):
     img2 = self.app.inputs.create_image_from_url(
         image_id=image_id, url=sample_inputs.METRO_IMAGE_URL, geo=geo, allow_duplicate_url=True)
 
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id], max_wait=30)
+
     geo_box = GeoBox(GeoPoint(40.7028, 74.0009), GeoPoint(40.7328, 74.0359))
     search_res = self.app.inputs.search_by_geo(geo_box=geo_box)
     # disable this until citus migration fully finishes
@@ -288,6 +308,8 @@ class TestSearch(unittest.TestCase):
     geo = Geo(GeoPoint(40.7129, 74.0058))
     img2 = self.app.inputs.create_image_from_url(
         image_id=image_id, url=sample_inputs.METRO_IMAGE_URL, geo=geo, allow_duplicate_url=True)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id], max_wait=30)
 
     term1 = clarifai.rest.InputSearchTerm(url=sample_inputs.METRO_IMAGE_URL)
     geo_box = GeoBox(GeoPoint(40.7028, 74.0009), GeoPoint(40.7328, 74.0359))
@@ -318,13 +340,15 @@ class TestSearch(unittest.TestCase):
         image_id=image_id,
         url=sample_inputs.METRO_IMAGE_URL,
         geo=geo,
-        concepts=["train"],
+        concepts=["train_custom"],
         allow_duplicate_url=True)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id], max_wait=30)
 
     geo_box = GeoBox(GeoPoint(40.7028, 74.0009), GeoPoint(40.7328, 74.0359))
     term1 = clarifai.rest.InputSearchTerm(geo=Geo(geo_box=geo_box))
-    term2 = clarifai.rest.InputSearchTerm(concept="train")
-    term3 = clarifai.rest.OutputSearchTerm(concept="railway")
+    term2 = clarifai.rest.InputSearchTerm(concept="train_custom")
+    term3 = clarifai.rest.OutputSearchTerm(concept="track")
     query = clarifai.rest.SearchQueryBuilder()
     query.add_term(term1)
     query.add_term(term2)
@@ -346,7 +370,7 @@ class TestSearch(unittest.TestCase):
   def test_input_query_term(self):
     """ test input query term, same as search_by_annotated_concepts """
 
-    term1 = clarifai.rest.InputSearchTerm(concept='cat')
+    term1 = clarifai.rest.InputSearchTerm(concept='feline')
 
     query = clarifai.rest.SearchQueryBuilder()
     query.add_term(term1)
@@ -356,7 +380,7 @@ class TestSearch(unittest.TestCase):
   def test_output_query_term(self):
     """ test output query term, same as search_by_predicted_concepts """
 
-    term1 = clarifai.rest.OutputSearchTerm(concept='train')
+    term1 = clarifai.rest.OutputSearchTerm(concept='locomotive')
 
     query = clarifai.rest.SearchQueryBuilder()
     query.add_term(term1)
@@ -371,18 +395,20 @@ class TestSearch(unittest.TestCase):
     img1 = self.app.inputs.create_image_from_url(
         image_id=image_id,
         url=sample_inputs.METRO_IMAGE_URL,
-        concepts=["train"],
+        concepts=["train_custom2"],
         allow_duplicate_url=True)
 
-    image_id = uuid.uuid4().hex
+    image_id2 = uuid.uuid4().hex
     img2 = self.app.inputs.create_image_from_url(
-        image_id=image_id,
+        image_id=image_id2,
         url=sample_inputs.WEDDING_IMAGE_URL,
-        concepts=["train"],
+        concepts=["train_custom2"],
         allow_duplicate_url=True)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id, image_id2], max_wait=30)
 
     # search input term and verify the scores are always 1
-    term1 = clarifai.rest.InputSearchTerm(concept="train")
+    term1 = clarifai.rest.InputSearchTerm(concept="train_custom2")
     query = clarifai.rest.SearchQueryBuilder()
     query.add_term(term1)
 
@@ -394,7 +420,7 @@ class TestSearch(unittest.TestCase):
     self.assertEqual(scores, [1] * len(res))
 
     # search output term and verify the scores are descending
-    term1 = clarifai.rest.OutputSearchTerm(concept="train")
+    term1 = clarifai.rest.OutputSearchTerm(concept="locomotive")
     query = clarifai.rest.SearchQueryBuilder()
     query.add_term(term1)
 
@@ -411,11 +437,17 @@ class TestSearch(unittest.TestCase):
   def test_search_by_annotated_and_predicted_concepts(self):
     """ more complex query, with both input and output concept search """
 
-    # upload some cat and dog
+    # upload some feline and puppy
+    image_id = uuid.uuid4().hex
     img1 = self.app.inputs.create_image_from_url(
-        sample_inputs.METRO_IMAGE_URL, concepts=['trains'], allow_duplicate_url=True)
+        image_id=image_id,
+        url=sample_inputs.METRO_IMAGE_URL,
+        concepts=['trains_custom3'],
+        allow_duplicate_url=True)
 
-    term1 = clarifai.rest.InputSearchTerm(concept='trains')
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id], max_wait=30)
+
+    term1 = clarifai.rest.InputSearchTerm(concept='trains_custom3')
     term2 = clarifai.rest.OutputSearchTerm(concept='platform', value=False)
     query = clarifai.rest.SearchQueryBuilder()
     query.add_term(term1)
@@ -429,13 +461,20 @@ class TestSearch(unittest.TestCase):
   def test_complex_combinations(self):
     """ with more complex queries """
 
-    # upload some cat and dog
+    # upload some feline and puppy
+    image_id1 = uuid.uuid4().hex
+    image_id2 = uuid.uuid4().hex
     img1 = self.app.inputs.create_image_from_url(
-        sample_inputs.WEDDING_IMAGE_URL, concepts=['cat'], allow_duplicate_url=True)
+        image_id=image_id1,
+        url=sample_inputs.WEDDING_IMAGE_URL,
+        concepts=['cat_custom'],
+        allow_duplicate_url=True)
     img2 = self.app.inputs.create_image_from_url(
-        sample_inputs.DOG_TIFF_IMAGE_URL, allow_duplicate_url=True)
+        image_id=image_id2, url=sample_inputs.DOG_TIFF_IMAGE_URL, allow_duplicate_url=True)
 
-    term1 = clarifai.rest.InputSearchTerm(concept='cat')
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id1, image_id2], max_wait=30)
+
+    term1 = clarifai.rest.InputSearchTerm(concept='cat_custom')
     term2 = clarifai.rest.OutputSearchTerm(concept='ceremony', value=True)
     term3 = clarifai.rest.OutputSearchTerm(url=sample_inputs.FACEBOOK_IMAGE_URL)
 
@@ -447,8 +486,8 @@ class TestSearch(unittest.TestCase):
     self.app.inputs.search(query)
 
     # more with all the input search terms
-    term1 = clarifai.rest.InputSearchTerm(concept='cat')
-    term2 = clarifai.rest.InputSearchTerm(concept='dog', value=False)
+    term1 = clarifai.rest.InputSearchTerm(concept='cat_custom')
+    term2 = clarifai.rest.InputSearchTerm(concept='puppy', value=False)
     term3 = clarifai.rest.InputSearchTerm(metadata={'name': 'value'})
 
     query = clarifai.rest.SearchQueryBuilder()
@@ -471,8 +510,8 @@ class TestSearch(unittest.TestCase):
     self.app.inputs.search(query)
 
     # more with all the search term combination
-    term1 = clarifai.rest.InputSearchTerm(concept='cat')
-    term2 = clarifai.rest.InputSearchTerm(concept='dog', value=False)
+    term1 = clarifai.rest.InputSearchTerm(concept='cat_custom')
+    term2 = clarifai.rest.InputSearchTerm(concept='puppy', value=False)
     term3 = clarifai.rest.InputSearchTerm(metadata={'name': 'value'})
     term4 = clarifai.rest.OutputSearchTerm(concept='group', value=False)
     term5 = clarifai.rest.OutputSearchTerm(concept='ceremony', value=True)

@@ -152,11 +152,13 @@ class TestImages(unittest.TestCase):
   def test_post_bulk_images(self):
     """ post bulk post images """
     img1 = ClarifaiImage(
-        url=sample_inputs.METRO_IMAGE_URL, concepts=['train', 'railway'], allow_dup_url=True)
+        url=sample_inputs.METRO_IMAGE_URL,
+        concepts=['train_custom_images', 'railway_custom_images'],
+        allow_dup_url=True)
     img2 = ClarifaiImage(
         url=sample_inputs.WEDDING_IMAGE_URL,
-        concepts=['wedding'],
-        not_concepts=['food'],
+        concepts=['wedding_custon_images'],
+        not_concepts=['food_custom_images'],
         allow_dup_url=True)
     ret_imgs = self.app.inputs.bulk_create_images([img1, img2])
 
@@ -383,11 +385,15 @@ class TestImages(unittest.TestCase):
   def test_patch_metadata(self):
     """ test patching metadata """
 
+    input_id1 = uuid.uuid4().hex
+
     # add an image without label
     img = self.app.inputs.create_image_from_url(
-        url=sample_inputs.METRO_IMAGE_URL, allow_duplicate_url=True)
+        image_id=input_id1, url=sample_inputs.METRO_IMAGE_URL, allow_duplicate_url=True)
     self.assertTrue(isinstance(img, ClarifaiImage))
     self.assertEqual(img.url, sample_inputs.METRO_IMAGE_URL)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[input_id1])
 
     # patch with metadata (adding first)
     img_res = self.app.inputs.merge_metadata(
@@ -423,11 +429,11 @@ class TestImages(unittest.TestCase):
 
     img = self.app.inputs.create_image_from_url(
         url=sample_inputs.METRO_IMAGE_URL,
-        concepts=['cat', 'animal'],
-        not_concepts=['vehicle'],
+        concepts=['cati1', 'animali1'],
+        not_concepts=['vehiclei1'],
         allow_duplicate_url=True)
-    self.assertSetEqual(set(img.concepts), {'cat', 'animal'})
-    self.assertSetEqual(set(img.not_concepts), {'vehicle'})
+    self.assertSetEqual(set(img.concepts), {'cati1', 'animali1'})
+    self.assertSetEqual(set(img.not_concepts), {'vehiclei1'})
 
     self.app.inputs.delete(img.input_id)
 
@@ -435,53 +441,62 @@ class TestImages(unittest.TestCase):
     """ update concepts for an image """
 
     # add an image without label
+    image_id1 = uuid.uuid4().hex
     img = self.app.inputs.create_image_from_url(
-        url=sample_inputs.METRO_IMAGE_URL, allow_duplicate_url=True)
+        image_id=image_id1, url=sample_inputs.METRO_IMAGE_URL, allow_duplicate_url=True)
     self.assertTrue(isinstance(img, ClarifaiImage))
     self.assertEqual(img.url, sample_inputs.METRO_IMAGE_URL)
 
     img2 = self.app.inputs.get(input_id=img.input_id)
     self.assertTrue(isinstance(img2, ClarifaiImage))
 
+    image_id2 = uuid.uuid4().hex
     img3 = self.app.inputs.create_image_from_url(
-        url=sample_inputs.WEDDING_IMAGE_URL, allow_duplicate_url=True)
+        image_id=image_id2, url=sample_inputs.WEDDING_IMAGE_URL, allow_duplicate_url=True)
     self.assertTrue(isinstance(img, ClarifaiImage))
     self.assertEqual(img3.url, sample_inputs.WEDDING_IMAGE_URL)
 
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id1, image_id2], max_wait=30)
+
     # add tags
     res3 = self.app.inputs.merge_concepts(
-        input_id=img.input_id, concepts=['cat', 'animal'], not_concepts=['vehicle'])
+        input_id=img.input_id,
+        concepts=['cat_custom_images', 'animal_custom_images'],
+        not_concepts=['vehicle_custom_images'])
     self.assertTrue(isinstance(res3, ClarifaiImage))
-    self.assertSetEqual(set(res3.concepts), {'cat', 'animal'})
+    self.assertSetEqual(set(res3.concepts), {'cat_custom_images', 'animal_custom_images'})
 
     # overwrite tags
     res3 = self.app.inputs.merge_concepts(
         input_id=img.input_id,
-        concepts=['dog', 'animal'],
-        not_concepts=['vehicle'],
+        concepts=['dog_custom_images', 'animal_custom_images'],
+        not_concepts=['vehicle_custom_images'],
         overwrite=True)
     self.assertTrue(isinstance(res3, ClarifaiImage))
     # input_new = self.app.inputs.get(res3.input_id)
-    # self.assertSetEqual(set(input_new.concepts), {'dog', 'animal'})
+    # self.assertSetEqual(set(input_new.concepts), {'dog_custom_images', 'animal_custom_images'})
 
     # delete tags
-    res3 = self.app.inputs.delete_concepts(input_id=img.input_id, concepts=['animal'])
+    res3 = self.app.inputs.delete_concepts(
+        input_id=img.input_id, concepts=['animal_custom_images'])
     self.assertTrue(isinstance(res3, ClarifaiImage))
-    # self.assertSetEqual(set(res3.concepts), {'dog'})
+    # self.assertSetEqual(set(res3.concepts), {'dog_custom_images'})
 
     # bulk merge tags
-    res3 = self.app.inputs.bulk_merge_concepts([img.input_id, img3.input_id],
-                                               [[('cat', True),
-                                                 ('animal', False)], [('vehicle', False)]])
+    res3 = self.app.inputs.bulk_merge_concepts(
+        [img.input_id, img3.input_id],
+        [[('cat_custom_images', True),
+          ('animal_custom_images', False)], [('vehicle_custom_images', False)]])
     self.assertTrue(isinstance(res3, list))
     self.assertTrue(all([isinstance(one, ClarifaiImage) for one in res3]))
-    # self.assertSetEqual(set(res3[0].concepts), {'cat', 'dog'})
-    # self.assertSetEqual(set(res3[0].not_concepts), {'animal'})
-    # self.assertSetEqual(set(res3[1].not_concepts), {'vehicle'})
+    # self.assertSetEqual(set(res3[0].concepts), {'cat_custom_images', 'dog_custom_images'})
+    # self.assertSetEqual(set(res3[0].not_concepts), {'animal_custom_images'})
+    # self.assertSetEqual(set(res3[1].not_concepts), {'vehicle_custom_images'})
 
     # bulk delete tags
-    res3 = self.app.inputs.bulk_delete_concepts([img.input_id, img3.input_id],
-                                                [['cat', 'animal'], ['vehicle']])
+    res3 = self.app.inputs.bulk_delete_concepts(
+        [img.input_id, img3.input_id],
+        [['cat_custom_images', 'animal_custom_images'], ['vehicle_custom_images']])
     self.assertTrue(isinstance(res3, list))
     self.assertTrue(all([isinstance(one, ClarifaiImage) for one in res3]))
 
@@ -525,17 +540,21 @@ class TestImages(unittest.TestCase):
         make sure the partial error is coming and well handled
     """
 
-    img1 = ClarifaiImage(url=sample_inputs.DOG2_IMAGE_URL, allow_dup_url=True)
-    img2 = ClarifaiImage(url=sample_inputs.DOG2_NONEXISTENT_IMAGE_URL, allow_dup_url=True)
+    def make_image(url):
+      return ClarifaiImage(image_id=uuid.uuid4().hex, url=url, allow_dup_url=True)
 
-    imgs = self.app.inputs.bulk_create_images([img1] * 5 + [img2] * 2 + [img1] * 5)
+    all_urls = [sample_inputs.DOG2_IMAGE_URL] * 1 + [sample_inputs.DOG2_NONEXISTENT_IMAGE_URL] * 2
+    inputs = [make_image(url) for url in all_urls]
+    input_ids = [inputs[0].input_id]  # the good input's id.
+
+    imgs = self.app.inputs.bulk_create_images(inputs)
     bad_ids = []
     for img in imgs:
       if img.url == sample_inputs.DOG2_NONEXISTENT_IMAGE_URL:
         bad_ids.append(img.input_id)
     self.assertEqual(len(bad_ids), 2)
 
-    self.app.wait_until_inputs_upload_finish(max_wait=30)
+    self.app.wait_for_specific_input_uploads_to_finish(ids=input_ids, max_wait=30)
 
     # Mixed status exception will be raised
     found_error = False

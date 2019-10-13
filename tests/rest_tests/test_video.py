@@ -6,7 +6,7 @@ import os
 import tempfile
 import unittest
 
-from clarifai.rest import ClarifaiApp
+from clarifai.rest import GENERAL_MODEL_ID, ClarifaiApp
 from clarifai.rest import Video as ClVideo
 
 from . import sample_inputs
@@ -20,7 +20,7 @@ class TestVideo(unittest.TestCase):
   @classmethod
   def setUpClass(cls):
     cls.app = ClarifaiApp(log_level=logging.WARN)
-    cls.m = cls.app.models.get('general-v1.3')
+    cls.m = cls.app.models.get(model_id=GENERAL_MODEL_ID)
 
   def test_create_video_obj(self):
     """ test creating Clarifai Video object from different sources """

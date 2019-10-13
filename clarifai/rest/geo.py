@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict  # noqa
 """
 Geo support for clarifai api
 """

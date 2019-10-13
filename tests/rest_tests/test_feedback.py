@@ -6,9 +6,10 @@ Test for feedback API endpoints
 import logging
 import unittest
 
-from clarifai.rest import (BoundingBox, ClarifaiApp, Concept, Face, FaceAgeAppearance,
-                           FaceGenderAppearance, FaceIdentity, FaceMulticulturalAppearance,
-                           FeedbackInfo, FeedbackType, Region, RegionInfo)
+from clarifai.rest import (GENERAL_MODEL_ID, BoundingBox, ClarifaiApp, Concept, Face,
+                           FaceAgeAppearance, FaceGenderAppearance, FaceIdentity,
+                           FaceMulticulturalAppearance, FeedbackInfo, FeedbackType, Region,
+                           RegionInfo)
 
 from . import sample_inputs
 
@@ -28,7 +29,7 @@ class TestFeedback(unittest.TestCase):
         event_type='annotation',
         output_id='oooooooid')
 
-    m = self.app.models.get('general-v1.3')
+    m = self.app.models.get(model_id=GENERAL_MODEL_ID)
 
     ret = m.send_concept_feedback(
         input_id='bb',
@@ -61,7 +62,7 @@ class TestFeedback(unittest.TestCase):
         event_type='annotation',
         output_id='oooooooid')
 
-    m = self.app.models.get('general-v1.3')
+    m = self.app.models.get(model_id=GENERAL_MODEL_ID)
 
     concepts = [Concept(concept_id='ab', value=False)]
     regions = [
@@ -107,7 +108,7 @@ class TestFeedback(unittest.TestCase):
         event_type='annotation',
         output_id='oooooooid')
 
-    m = self.app.models.get('general-v1.3')
+    m = self.app.models.get(model_id=GENERAL_MODEL_ID)
 
     # positive
     concepts = [Concept(concept_id='ab', value=False)]
@@ -265,7 +266,7 @@ class TestFeedback(unittest.TestCase):
         event_type='annotation',
         output_id='oooooooid')
 
-    m = self.app.models.get('general-v1.3')
+    m = self.app.models.get(model_id=GENERAL_MODEL_ID)
 
     identities = [Concept(concept_id='xx', value=True), Concept(concept_id='x2', value=False)]
     ages = [Concept(concept_id='1', value=True)]
@@ -307,7 +308,7 @@ class TestFeedback(unittest.TestCase):
         event_type='annotation',
         output_id='oooooooid')
 
-    m = self.app.models.get('general-v1.3')
+    m = self.app.models.get(model_id=GENERAL_MODEL_ID)
 
     identities = [Concept(concept_id='xx', value=True), Concept(concept_id='x2', value=False)]
     genders = [Concept(concept_id='male', value=True), Concept(concept_id='female', value=False)]
@@ -331,7 +332,7 @@ class TestFeedback(unittest.TestCase):
         event_type='annotation',
         output_id='oooooooid')
 
-    m = self.app.models.get('general-v1.3')
+    m = self.app.models.get(model_id=GENERAL_MODEL_ID)
 
     identities = [Concept(concept_id='xx', value=True), Concept(concept_id='x2', value=False)]
     cultures = [
@@ -360,7 +361,7 @@ class TestFeedback(unittest.TestCase):
         event_type='annotation',
         output_id='oooooooid')
 
-    m = self.app.models.get('general-v1.3')
+    m = self.app.models.get(model_id=GENERAL_MODEL_ID)
 
     identities = [Concept(concept_id='xx', value=True), Concept(concept_id='x2', value=False)]
     ages = [Concept(concept_id='1', value=True), Concept(concept_id='2', value=False)]

@@ -11,7 +11,6 @@ import platform
 import time
 import typing  # noqa
 import warnings
-
 from configparser import ConfigParser
 from enum import Enum
 from io import BytesIO
@@ -55,6 +54,8 @@ from clarifai.rest.grpc.proto.clarifai.api.model_version_pb2 import (
     PostModelVersionMetricsRequest, PostModelVersionsRequest)
 from clarifai.rest.grpc.proto.clarifai.api.search_pb2 import (PostSearchesRequest,
                                                               PostSearchFeedbackRequest, Query)
+from clarifai.rest.grpc.proto.clarifai.api.status.status_code_pb2 import (
+    INPUT_IMAGE_DOWNLOAD_IN_PROGRESS, INPUT_IMAGE_DOWNLOAD_PENDING, INPUT_IMAGE_DOWNLOAD_SUCCESS)
 from clarifai.rest.grpc.proto.clarifai.api.workflow_pb2 import (
     GetWorkflowRequest, ListPublicWorkflowsRequest, ListWorkflowsRequest,
     PostWorkflowResultsRequest)
@@ -72,10 +73,11 @@ logging.getLogger("requests").setLevel(logging.WARNING)
 
 GITHUB_TAG_ENDPOINT = 'https://api.github.com/repos/clarifai/clarifai-python/git/refs/tags'
 
-DEFAULT_TAG_MODEL = 'general-v1.3'
-
 RETRIES = 2  # if connections fail retry a couple times.
 CONNECTIONS = 20  # number of connections to maintain in pool.
+
+# This is used as default in some wrapper calls.
+GENERAL_MODEL_ID = "aaa03c23b3724a16a56b629203edc62c"
 
 TOKENS_DEPRECATED_MESSAGE = (
     "App ID/secret are deprecated, please switch to API keys. See here how: "
@@ -130,7 +132,7 @@ class ClarifaiApp(object):
   to know the extra concepts of Inputs, Models, etc.
   """
 
-  def tag_urls(self, urls, model_name=DEFAULT_TAG_MODEL, model_id=None):
+  def tag_urls(self, urls, model_name=None, model_id=GENERAL_MODEL_ID):
     # type: (typing.Union[typing.List[str], str], str, typing.Optional[str]) -> dict
     warnings.warn('tag_* methods are deprecated. Please switch to using model.predict_* methods.',
                   DeprecationWarning)
@@ -146,13 +148,15 @@ class ClarifaiApp(object):
 
     if model_id is not None:
       model = Model(self.api, model_id=model_id)
-    else:
+    elif model_name is not None:
       model = self.models.get(model_name)
+    else:
+      raise ApiClientError("Must specify model_id")
 
     res = model.predict(images)
     return res
 
-  def tag_files(self, files, model_name=DEFAULT_TAG_MODEL, model_id=None):
+  def tag_files(self, files, model_name=None, model_id=GENERAL_MODEL_ID):
     # type: (typing.Union[typing.List[str], str], str, typing.Optional[str]) -> dict
     warnings.warn('tag_* methods are deprecated. Please switch to using model.predict_* methods.',
                   DeprecationWarning)
@@ -168,8 +172,10 @@ class ClarifaiApp(object):
 
     if model_id is not None:
       model = Model(self.api, model_id=model_id)
-    else:
+    elif model_name is not None:
       model = self.models.get(model_name)
+    else:
+      raise ApiClientError("Must specify model_id")
 
     res = model.predict(images)
     return res
@@ -198,15 +204,42 @@ class ClarifaiApp(object):
     Returns:
       None
     """
-    to_process = 1
+    elapsed = 0.0
+    time_start = time.time()
+    status = self.inputs.check_status()
+    to_process = status.to_process
+    processing = status.processing
+
+    while to_process != 0 and processing != 0 and elapsed <= max_wait:
+      status = self.inputs.check_status()
+      to_process = status.to_process
+      processing = status.processing
+      time.sleep(1)
+      elapsed = time.time() - time_start
+
+  def wait_for_specific_input_uploads_to_finish(
+      self,  # type: ClarifaiApp 
+      ids,  # type: typing.List[str]
+      max_wait=666666  # type: typing.Optional[int]
+  ):  # type: (...) -> None
+    """ Block until the inputs with ids "ids" have status INPUT_IMAGE_DOWNLOAD_SUCCESS. This will raise and error if 
+    they have other than INPUT_IMAGE_DOWNLOAD_SUCESS.
+
+    Returns: 
+      None or ApiClientError
+
+    """
     elapsed = 0.0
     time_start = time.time()
 
-    while to_process != 0 and elapsed > max_wait:
-      status = self.inputs.check_status()
-      to_process = status.to_process
-      elapsed = time.time() - time_start
-      time.sleep(1)
+    for ident in ids:
+      inp = self.inputs.get(ident)
+      while inp.status.code != INPUT_IMAGE_DOWNLOAD_SUCCESS and elapsed <= max_wait:
+        if inp.status.code != INPUT_IMAGE_DOWNLOAD_PENDING and inp.status.code != INPUT_IMAGE_DOWNLOAD_IN_PROGRESS:
+          raise ApiClientError("input %s was not successful to breaking the wait." % ident)
+        inp = self.inputs.get(ident)
+        time.sleep(1)
+        elapsed = time.time() - time_start
 
   def wait_until_models_delete_finish(self):  # type: () -> None
     """ Block until the inputs deletion finishes
@@ -1088,10 +1121,6 @@ class Models(object):
         model_type = m.output_info['type']
         model_id = m.model_id
         model_cache.update({(model_name, model_type): model_id})
-
-        # for general-v1.3 concept model, make an extra cache entry
-        if model_name == 'general-v1.3' and model_type == 'concept':
-          model_cache.update({(model_name, None): model_id})
     except ApiError as e:
       if e.error_code == 11007:
         logger.debug("not authorized to call GET /models. Unable to cache models")
@@ -1318,8 +1347,8 @@ class Models(object):
       the Model object
 
     Examples:
-      >>> # get general-v1.3 model
-      >>> app.models.get('general-v1.3')
+      >>> # get general model (id aaa03c23b3724a16a56b629203edc62c)
+      >>> app.models.get('aaa03c23b3724a16a56b629203edc62c')
     """
 
     # if the model ID is specified, just make the Model
@@ -1381,8 +1410,8 @@ class Models(object):
           a list of Model objects or None
 
         Examples:
-          >>> # search for general-v1.3 models
-          >>> app.models.search('general-v1.3')
+          >>> # search for general models
+          >>> app.models.search('general')
           >>>
           >>> # search for color model
           >>> app.models.search('color', model_type='color')
@@ -2230,9 +2259,19 @@ class Inputs(object):
     one = res['inputs'][0]
     return self._to_obj(one)
 
-  # TODO(Rok) MEDIUM: Unconsistent name. Should be bulk_update_image. Deprecate this method
-  #                   and create a new one.
   def bulk_update(self, images, action='merge'):
+
+    # type: (typing.List[typing.Union[Input]], str) -> typing.List[Image]
+    """
+    bulk_update has been deprecated. Please use bulk_update_inputs.
+    """
+    warnings.warn('bulk_update is deprecated. Please use bulk_update_inputs', DeprecationWarning)
+
+    ret = self.api.patch_inputs(action=action, inputs=images)
+    objs = [self._to_obj(item) for item in ret['inputs']]
+    return objs
+
+  def bulk_update_inputs(self, images, action='merge'):
     # type: (typing.List[typing.Union[Input]], str) -> typing.List[Image]
     """ Update the input
     update the information of an input/image
@@ -2307,7 +2346,7 @@ class Inputs(object):
       image = Image(image_id=input_id, concepts=concepts, not_concepts=not_concepts)
       inputs.append(image)
 
-    res = self.bulk_update(inputs, action='merge')
+    res = self.bulk_update_inputs(inputs, action='merge')
     return res
 
   def bulk_delete_concepts(self, input_ids, concept_lists):
@@ -3461,7 +3500,7 @@ class PublicModels(object):
     """ Face detection model detects the presence and location of human faces. """
     self.face_detection_model = Model(
         api, model_id='a403429f2ddf4b49b307e318f00e528b')  # type: Model
-    """ 
+    """
     Face embedding model computes numerical embedding vectors using our Face detection model.
     """
     self.face_embedding_model = Model(
@@ -3499,7 +3538,7 @@ class PublicModels(object):
 class ApiClient(object):
   """ Handles auth and making requests for you.
 
-  The constructor for API access. You must sign up at developer.clarifai.com first and create an
+  The constructor for API access. You must sign up at portal.clarifai.com first and create an
   application in order to generate your credentials for API access.
 
   Args:
@@ -4232,8 +4271,8 @@ class ApiClient(object):
   def predict_concepts(self, objs, lang=None):
     # type: (typing.List[Input], typing.Optional[str]) -> dict
 
-    models = self.search_models(name='general-v1.3', model_type='concept')
-    model = models['models'][0]
+    response = self.get_model(model_id=GENERAL_MODEL_ID)
+    model = response['model']
     model_id = model['id']
 
     model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(language=lang))
@@ -4310,17 +4349,18 @@ class InputCounts(object):
 
     counts = item['counts']
 
-    # TODO(Rok) MEDIUM: Add the "processing" field here and in dict().
     self.processed = counts['processed']
     self.to_process = counts['to_process']
     self.errors = counts['errors']
+    self.processing = counts['processing']
 
   def dict(self):  # type: () -> dict
     d = {
         'counts': {
             'processed': self.processed,
             'to_process': self.to_process,
-            'errors': self.errors
+            'errors': self.errors,
+            'processing': self.processing
         }
     }
     return d

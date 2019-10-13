@@ -2,7 +2,7 @@
 
 # Clarifai API Python Client
 
-This is the official Python client for interacting with our powerful recognition [API](https://developer.clarifai.com).
+This is the official Python client for interacting with our powerful recognition [API](https://docs.clarifai.com).
 The Clarifai API offers image and video recognition as a service. Whether you have one image or billions,
 you are only steps away from using artificial intelligence to recognize your visual content.
 
@@ -72,4 +72,3 @@ See many more code examples [in the developer guide](https://clarifai.com/develo
 [Python client tutorial](https://clarifai-python.readthedocs.io/en/latest/).
 
 Also see [the Python client reference](https://clarifai-python.readthedocs.io/en/latest/clarifai.rest/).
-

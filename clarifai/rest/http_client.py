@@ -2,8 +2,8 @@ import copy
 import json
 import logging
 import typing  # noqa
-
 from pprint import pformat
+
 import requests
 
 from clarifai.errors import ApiError

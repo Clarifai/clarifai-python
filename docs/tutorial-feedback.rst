@@ -13,7 +13,8 @@ Concept model prediction
    app = ClarifaiApp()
 
    # positive feedback: this is a dog
-   m = app.models.get('general-v1.3')
+   general_model_id = "aaa03c23b3724a16a56b629203edc62c"
+   m = app.models.get(model_id=general_model_id)
 
    m.send_concept_feedback(input_id='id1', url='https://samples.clarifai.com/dog2.jpeg',
                            concepts=['dog', 'animal'],
@@ -23,7 +24,7 @@ Concept model prediction
                                                       event_type='annotation'))
 
    # negative feedback: this is not a cat
-   m = app.models.get('general-v1.3')
+   m = app.models.get(model_id=general_model_id)
 
    m.send_concept_feedback(input_id='id1', url='https://samples.clarifai.com/dog2.jpeg',
                            not_concepts=['cat', 'kitty'],
@@ -33,7 +34,7 @@ Concept model prediction
                                                       event_type='annotation'))
 
    # all together: this is a dog but not a cat
-   m = app.models.get('general-v1.3')
+   m = app.models.get(model_id=general_model_id)
 
    m.send_concept_feedback(input_id='id1', url='https://samples.clarifai.com/dog2.jpeg',
                            concepts=['dog'], not_concepts=['cat', 'kitty'],
@@ -54,7 +55,7 @@ Detection model prediction
 
    app = ClarifaiApp()
 
-   m.send_region_feedback(input_id='id2', url='https://developer.clarifai.com/static/images/model-samples/celeb-001.jpg',
+   m.send_region_feedback(input_id='id2', url='https://portal.clarifai.com/developer/static/images/model-samples/celeb-001.jpg',
                           regions=[Region(region_info=RegionInfo(bbox=BoundingBox(top_row=0.1,
                                                                                   left_col=0.2,
                                                                                   bottom_row=0.5,
@@ -122,4 +123,3 @@ Face detection model prediction
                                                      session_id='SID',
                                                      end_user_id='UID',
                                                      event_type='annotation'))
-
