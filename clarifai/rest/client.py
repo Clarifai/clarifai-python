@@ -12,7 +12,6 @@ import time
 import typing  # noqa
 import warnings
 from configparser import ConfigParser
-from enum import Enum
 from io import BytesIO
 from posixpath import join as urljoin
 from pprint import pformat
@@ -27,9 +26,11 @@ from clarifai.errors import ApiClientError, ApiError, TokenError, UserError  # n
 from clarifai.rest.geo import Geo, GeoBox, GeoLimit, GeoPoint
 from clarifai.rest.grpc.grpc_json_channel import GRPCJSONChannel, dict_to_protobuf, protobuf_to_dict
 from clarifai.rest.grpc.proto.clarifai.api.concept_pb2 import Concept as ConceptPB
-from clarifai.rest.grpc.proto.clarifai.api.concept_pb2 import (
-    ConceptQuery, GetConceptRequest, ListConceptsRequest, PatchConceptsRequest,
-    PostConceptsRequest, PostConceptsSearchesRequest)
+from clarifai.rest.grpc.proto.clarifai.api.concept_pb2 import (ConceptQuery, GetConceptRequest,
+                                                               ListConceptsRequest,
+                                                               PatchConceptsRequest,
+                                                               PostConceptsRequest,
+                                                               PostConceptsSearchesRequest)
 from clarifai.rest.grpc.proto.clarifai.api.data_pb2 import Data as DataPB
 from clarifai.rest.grpc.proto.clarifai.api.endpoint_pb2 import _V2
 from clarifai.rest.grpc.proto.clarifai.api.endpoint_pb2_grpc import V2Stub
@@ -37,9 +38,10 @@ from clarifai.rest.grpc.proto.clarifai.api.input_pb2 import (DeleteInputRequest,
                                                              DeleteInputsRequest,
                                                              GetInputCountRequest, GetInputRequest)
 from clarifai.rest.grpc.proto.clarifai.api.input_pb2 import Input as InputPB
-from clarifai.rest.grpc.proto.clarifai.api.input_pb2 import (
-    ListInputsRequest, ListModelInputsRequest, PatchInputsRequest, PostInputsRequest,
-    PostModelFeedbackRequest, PostModelOutputsRequest)
+from clarifai.rest.grpc.proto.clarifai.api.input_pb2 import (ListInputsRequest,
+                                                             ListModelInputsRequest,
+                                                             PatchInputsRequest, PostInputsRequest,
+                                                             PostModelOutputsRequest)
 from clarifai.rest.grpc.proto.clarifai.api.model_pb2 import (DeleteModelRequest,
                                                              DeleteModelsRequest, GetModelRequest,
                                                              ListModelsRequest)
@@ -49,16 +51,19 @@ from clarifai.rest.grpc.proto.clarifai.api.model_pb2 import OutputConfig as Outp
 from clarifai.rest.grpc.proto.clarifai.api.model_pb2 import OutputInfo as OutputInfoPB
 from clarifai.rest.grpc.proto.clarifai.api.model_pb2 import (PatchModelsRequest, PostModelsRequest,
                                                              PostModelsSearchesRequest)
-from clarifai.rest.grpc.proto.clarifai.api.model_version_pb2 import (
-    DeleteModelVersionRequest, GetModelVersionRequest, ListModelVersionsRequest,
-    PostModelVersionMetricsRequest, PostModelVersionsRequest)
-from clarifai.rest.grpc.proto.clarifai.api.search_pb2 import (PostSearchesRequest,
-                                                              PostSearchFeedbackRequest, Query)
-from clarifai.rest.grpc.proto.clarifai.api.status.status_code_pb2 import (
-    INPUT_IMAGE_DOWNLOAD_IN_PROGRESS, INPUT_IMAGE_DOWNLOAD_PENDING, INPUT_IMAGE_DOWNLOAD_SUCCESS)
-from clarifai.rest.grpc.proto.clarifai.api.workflow_pb2 import (
-    GetWorkflowRequest, ListPublicWorkflowsRequest, ListWorkflowsRequest,
-    PostWorkflowResultsRequest)
+from clarifai.rest.grpc.proto.clarifai.api.model_version_pb2 import (DeleteModelVersionRequest,
+                                                                     GetModelVersionRequest,
+                                                                     ListModelVersionsRequest,
+                                                                     PostModelVersionMetricsRequest,
+                                                                     PostModelVersionsRequest)
+from clarifai.rest.grpc.proto.clarifai.api.search_pb2 import PostSearchesRequest, Query
+from clarifai.rest.grpc.proto.clarifai.api.status.status_code_pb2 import (INPUT_IMAGE_DOWNLOAD_IN_PROGRESS,
+                                                                          INPUT_IMAGE_DOWNLOAD_PENDING,
+                                                                          INPUT_IMAGE_DOWNLOAD_SUCCESS)
+from clarifai.rest.grpc.proto.clarifai.api.workflow_pb2 import (GetWorkflowRequest,
+                                                                ListPublicWorkflowsRequest,
+                                                                ListWorkflowsRequest,
+                                                                PostWorkflowResultsRequest)
 from clarifai.rest.grpc.proto.clarifai.utils.pagination.pagination_pb2 import Pagination
 from clarifai.rest.solutions.solutions import Solutions
 # Versions are imported here to avoid breaking existing client code.
@@ -218,14 +223,14 @@ class ClarifaiApp(object):
       elapsed = time.time() - time_start
 
   def wait_for_specific_input_uploads_to_finish(
-      self,  # type: ClarifaiApp 
+      self,  # type: ClarifaiApp
       ids,  # type: typing.List[str]
       max_wait=666666  # type: typing.Optional[int]
   ):  # type: (...) -> None
-    """ Block until the inputs with ids "ids" have status INPUT_IMAGE_DOWNLOAD_SUCCESS. This will raise and error if 
+    """ Block until the inputs with ids "ids" have status INPUT_IMAGE_DOWNLOAD_SUCCESS. This will raise and error if
     they have other than INPUT_IMAGE_DOWNLOAD_SUCESS.
 
-    Returns: 
+    Returns:
       None or ApiClientError
 
     """
@@ -269,7 +274,6 @@ class Input(object):
       metadata=None,  # type: typing.Optional[dict]
       geo=None,  # type: typing.Optional[Geo]
       regions=None,  # type: typing.Optional[typing.List[Region]]
-      feedback_info=None  # type: typing.Optional[FeedbackInfo]
   ):
     # type: (...) -> None
     """ Construct an Image/Video object. it must have one of url or file_obj set.
@@ -281,7 +285,6 @@ class Input(object):
       metadata: metadata as a JSON object to associate arbitrary info with the input
       geo: geographical info for the input, as a Geo() object
       regions: regions of Region object
-      feedback_info: FeedbackInfo object
     """
 
     self.input_id = input_id
@@ -304,14 +307,10 @@ class Input(object):
         not all(isinstance(r, Region) for r in regions)):
       raise UserError('regions should be a list of Region')
 
-    if feedback_info and not isinstance(feedback_info, FeedbackInfo):
-      raise UserError('feedback_info should be a FeedbackInfo object')
-
     self.concepts = concepts
     self.not_concepts = not_concepts
     self.metadata = metadata
     self.geo = geo
-    self.feedback_info = feedback_info
     self.regions = regions
     self.score = 0  # type: int
     self.status = None  # type: ApiStatus
@@ -334,8 +333,6 @@ class Input(object):
     input_ = {}
     if self.input_id:
       input_['id'] = self.input_id
-    if self.feedback_info:
-      input_.update(self.feedback_info.dict())
     if data:
       input_['data'] = data
 
@@ -357,7 +354,6 @@ class Image(Input):
       regions=None,  # type: typing.Optional[typing.List[Region]]
       metadata=None,  # type: typing.Optional[dict]
       geo=None,  # type: typing.Optional[Geo]
-      feedback_info=None,  # type: typing.Optional[FeedbackInfo]
       allow_dup_url=False  # type: bool
   ):
     # type: (...) -> None
@@ -374,7 +370,6 @@ class Image(Input):
       regions: regions of an image
       metadata: the metadata attached to the image
       geo: geographical information about the image
-      feedback_info: feedback information
       allow_dup_url: whether to allow duplicate URLs
     """
 
@@ -384,8 +379,7 @@ class Image(Input):
         not_concepts,
         metadata=metadata,
         geo=geo,
-        regions=regions,
-        feedback_info=feedback_info)
+        regions=regions)
 
     if crop and (not isinstance(crop, list) or len(crop) != 4):
       raise UserError("crop arg must be list of 4 floats or None")
@@ -536,54 +530,6 @@ class Video(Input):
       data['data'] = video
     return data
 
-
-class FeedbackType(Enum):
-  """ Enum class for feedback type """
-
-  accurate = 1
-  misplaced = 2
-  not_detected = 3
-  false_positive = 4
-
-
-class FeedbackInfo(object):
-  """
-  FeedbackInfo holds the metadata of a feedback
-  """
-
-  def __init__(
-      self,  # type: FeedbackInfo
-      end_user_id=None,  # type: typing.Optional[str]
-      session_id=None,  # type: typing.Optional[str]
-      event_type=None,  # type: typing.Optional[str]
-      output_id=None,  # type: typing.Optional[str]
-      search_id=None  # type: typing.Optional[str]
-  ):
-    # type: (...) -> None
-
-    self.end_user_id = end_user_id
-    self.session_id = session_id
-    self.event_type = event_type
-    self.output_id = output_id
-    self.search_id = search_id
-
-  def dict(self):  # type: () -> dict
-
-    data = {
-        "feedback_info": {
-            "end_user_id": self.end_user_id,
-            "session_id": self.session_id,
-            "event_type": self.event_type,
-        }
-    }
-
-    if self.output_id:
-      data['feedback_info']['output_id'] = self.output_id
-
-    if self.search_id:
-      data['feedback_info']['search_id'] = self.search_id
-
-    return data
 
 
 class SearchTerm(object):
@@ -2214,24 +2160,6 @@ class Inputs(object):
 
     return self.search(qb, page, per_page, raw)
 
-  def send_search_feedback(self, input_id, feedback_info=None):
-    # type: (str, typing.Optional[FeedbackInfo]) -> dict
-    """
-    Send feedback for search
-
-    Args:
-      input_id: unique identifier for the input
-      feedback_info: the feedback information
-
-    Returns:
-      None
-    """
-
-    feedback_input = Image(image_id=input_id, feedback_info=feedback_info)
-    res = self.api.send_search_feedback(feedback_input)
-
-    return res
-
   def update(self, image, action='merge'):  # type: (Image, str) -> Image
     """
     Update the information of an input/image
@@ -3341,71 +3269,6 @@ class Model(object):
 
     return res
 
-  def send_concept_feedback(
-      self,  # type: Model
-      input_id,  # type: str
-      url,  # type: str
-      concepts=None,  # type: typing.Optional[typing.List[str]]
-      not_concepts=None,  # type: typing.Optional[typing.List[str]]
-      feedback_info=None  # type: typing.Optional[FeedbackInfo]
-  ):
-    # type: (...) -> dict
-    """
-    Send feedback for this model
-
-    Args:
-      input_id: input id for the feedback
-      url: the url of the input
-      concepts: concepts that are present
-      not_concepts: concepts that aren't present
-      feedback_info: feedback info
-
-    Returns:
-      None
-    """
-
-    feedback_input = Image(
-        url=url,
-        image_id=input_id,
-        concepts=concepts,
-        not_concepts=not_concepts,
-        feedback_info=feedback_info)
-    res = self.api.send_model_feedback(self.model_id, self.model_version, feedback_input)
-
-    return res
-
-  def send_region_feedback(
-      self,  # type: Model
-      input_id,  # type: str
-      url,  # type: str
-      concepts=None,  # type: typing.Optional[typing.List[str]]
-      not_concepts=None,  # type: typing.Optional[typing.List[str]]
-      regions=None,  # type: typing.Optional[typing.List[Region]]
-      feedback_info=None  # type: typing.Optional[FeedbackInfo]
-  ):
-    # type: (...) -> dict
-    """
-    Send feedback for this model
-
-    Args:
-      input_id: input id for the feedback
-      url: the input url
-
-    Returns:
-      None
-    """
-
-    feedback_input = Image(
-        url=url,
-        image_id=input_id,
-        concepts=concepts,
-        not_concepts=not_concepts,
-        regions=regions,
-        feedback_info=feedback_info)
-    res = self.api.send_model_feedback(self.model_id, self.model_version, feedback_input)
-
-    return res
-
   def _to_obj(self, item):  # type: (dict) -> Model
     """ convert a model json object to Model object """
     return Model(self.api, item)
@@ -4250,24 +4113,6 @@ class ApiClient(object):
         PostWorkflowResultsRequest(
             workflow_id=_escape(workflow_id), inputs=inputs_pb, output_config=output_config_pb))
 
-  def send_model_feedback(self, model_id, version_id, obj):
-    # type: (str, typing.Optional[str], Input) -> dict
-
-    input_pb = dict_to_protobuf(InputPB, obj.dict())
-
-    return self._grpc_request(
-        self._grpc_stub().PostModelFeedback,
-        PostModelFeedbackRequest(
-            model_id=_escape(model_id), version_id=version_id, input=input_pb))
-
-  def send_search_feedback(self, obj):  # type: (Input) -> dict
-    input_dict = obj.dict()
-
-    input_pb = dict_to_protobuf(InputPB, input_dict)
-
-    return self._grpc_request(
-        self._grpc_stub().PostSearchFeedback, PostSearchFeedbackRequest(input=input_pb))
-
   def predict_concepts(self, objs, lang=None):
     # type: (typing.List[Input], typing.Optional[str]) -> dict
 
@@ -4461,10 +4306,9 @@ class BoundingBox(object):
 
 class RegionInfo(object):
 
-  def __init__(self, bbox=None, feedback_type=None):
-    # type: (typing.Optional[BoundingBox], typing.Optional[FeedbackType]) -> None
+  def __init__(self, bbox=None):
+    # type: (typing.Optional[BoundingBox]) -> None
     self.bbox = bbox
-    self.feedback_type = feedback_type
 
   def dict(self):  # type: () -> dict
 
@@ -4472,12 +4316,6 @@ class RegionInfo(object):
 
     if self.bbox:
       data['region_info'].update(self.bbox.dict())
-
-    if self.feedback_type:
-      if isinstance(self.feedback_type, FeedbackType):
-        data['region_info']['feedback'] = self.feedback_type.name
-      else:
-        data['region_info']['feedback'] = self.feedback_type
 
     return data
 
