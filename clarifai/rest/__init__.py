@@ -3,10 +3,9 @@
 from clarifai.errors import ApiError, TokenError, UserError
 from clarifai.rest.client import (
     GENERAL_MODEL_ID, ApiClient, ApiStatus, BoundingBox, ClarifaiApp, Concept, Face,
-    FaceAgeAppearance, FaceGenderAppearance, FaceIdentity, FaceMulticulturalAppearance,
-    FeedbackInfo, FeedbackType, Geo, GeoBox, GeoLimit, GeoPoint, Image, InputSearchTerm, Model,
-    ModelOutputConfig, ModelOutputInfo, OutputSearchTerm, Region, RegionInfo, SearchQueryBuilder,
-    Video, Workflow)
+    FaceAgeAppearance, FaceGenderAppearance, FaceIdentity, FaceMulticulturalAppearance, Geo,
+    GeoBox, GeoLimit, GeoPoint, Image, InputSearchTerm, Model, ModelOutputConfig, ModelOutputInfo,
+    OutputSearchTerm, Region, RegionInfo, SearchQueryBuilder, Video, Workflow)
 
 # So autoflake doesn't remove imports.
 _ = ApiError

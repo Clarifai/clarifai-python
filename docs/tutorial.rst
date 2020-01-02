@@ -9,7 +9,6 @@ Each of the examples below is a small independent code snippet within 10 lines t
 
 .. toctree::
    tutorial-predict.rst
-   tutorial-feedback.rst
 
 
 Upload Images
@@ -141,4 +140,3 @@ Search the Image
    app.inputs.search_by_image(url='https://samples.clarifai.com/dog1.jpeg')
 
    app.inputs.search_by_metadata(metadata={'key':'value'})
-

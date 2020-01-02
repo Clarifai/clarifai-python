@@ -35,23 +35,6 @@ class TestImages(unittest.TestCase):
     toddler_flowers_base64_bytes = base64.b64encode(toddler_flowers_file_bytes)
     img4 = ClarifaiImage(base64=toddler_flowers_base64_bytes)
 
-    # init with crops
-    img1 = ClarifaiImage(url=sample_inputs.FACEBOOK_IMAGE_URL, crop=[0.1, 0.3, 0.5, 0.7])
-
-    f = open(sample_inputs.TODDLER_FLOWERS_IMAGE_FILE_PATH, 'rb')
-    img2 = ClarifaiImage(file_obj=f, crop=[0.1, 0.3, 0.5, 0.7])
-    f.close()
-
-    img3 = ClarifaiImage(
-        filename=sample_inputs.TODDLER_FLOWERS_IMAGE_FILE_PATH, crop=[0.1, 0.3, 0.5, 0.7])
-
-    img4 = ClarifaiImage(base64=toddler_flowers_base64_bytes, crop=[0.1, 0.3, 0.5, 0.7])
-
-    self.assertListEqual(img1.crop, [0.1, 0.3, 0.5, 0.7])
-    self.assertListEqual(img2.crop, [0.1, 0.3, 0.5, 0.7])
-    self.assertListEqual(img3.crop, [0.1, 0.3, 0.5, 0.7])
-    self.assertListEqual(img4.crop, [0.1, 0.3, 0.5, 0.7])
-
     # init with urls with spaces
     img5 = ClarifaiImage(url=' ' + sample_inputs.FACEBOOK_IMAGE_URL)
     self.assertEqual(img5.url, sample_inputs.FACEBOOK_IMAGE_URL)
@@ -205,28 +188,20 @@ class TestImages(unittest.TestCase):
     self.app.inputs.delete(img2.input_id)
     self.app.inputs.delete(img3.input_id)
 
-  def test_post_cropped_image(self):
-    """ add cropped image """
+  def test_raises_on_crop_argument(self):
+    with self.assertRaises(UserError):
+      ClarifaiImage(url=sample_inputs.FACEBOOK_IMAGE_URL, crop=[0.1, 0.3, 0.5, 0.7])
 
-    image = self.app.inputs.create_image_from_url(
-        url=sample_inputs.METRO_IMAGE_URL, crop=[0.2, 0.4, 0.3, 0.6], allow_duplicate_url=True)
-    self.assertEqual(image.url, sample_inputs.METRO_IMAGE_URL)
-    self.assertEqual(len(image.input_id) in [22, 32], True)
-
-    image2 = self.app.inputs.get(input_id=image.input_id)
-    self.assertEqual(image2.input_id, image.input_id)
-
-    self.app.inputs.delete(input_id=image2.input_id)
+    with self.assertRaises(UserError):
+      self.app.inputs.create_image_from_url(
+          url=sample_inputs.METRO_IMAGE_URL, crop=[0.2, 0.4, 0.3, 0.6], allow_duplicate_url=True)
 
   def test_post_image_with_id(self):
     """ add image with id """
 
     image_id = uuid.uuid4().hex
     res = self.app.inputs.create_image_from_url(
-        image_id=image_id,
-        url=sample_inputs.METRO_IMAGE_URL,
-        crop=[0.2, 0.4, 0.3, 0.6],
-        allow_duplicate_url=True)
+        image_id=image_id, url=sample_inputs.METRO_IMAGE_URL, allow_duplicate_url=True)
 
     self.assertTrue(isinstance(res, ClarifaiImage))
     self.assertEqual(res.input_id, image_id)
