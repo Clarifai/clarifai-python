@@ -12,7 +12,6 @@ import time
 import typing  # noqa
 import warnings
 from configparser import ConfigParser
-from enum import Enum
 from io import BytesIO
 from posixpath import join as urljoin
 from pprint import pformat
@@ -39,7 +38,7 @@ from clarifai.rest.grpc.proto.clarifai.api.input_pb2 import (DeleteInputRequest,
 from clarifai.rest.grpc.proto.clarifai.api.input_pb2 import Input as InputPB
 from clarifai.rest.grpc.proto.clarifai.api.input_pb2 import (
     ListInputsRequest, ListModelInputsRequest, PatchInputsRequest, PostInputsRequest,
-    PostModelFeedbackRequest, PostModelOutputsRequest)
+    PostModelOutputsRequest)
 from clarifai.rest.grpc.proto.clarifai.api.model_pb2 import (DeleteModelRequest,
                                                              DeleteModelsRequest, GetModelRequest,
                                                              ListModelsRequest)
@@ -52,15 +51,13 @@ from clarifai.rest.grpc.proto.clarifai.api.model_pb2 import (PatchModelsRequest,
 from clarifai.rest.grpc.proto.clarifai.api.model_version_pb2 import (
     DeleteModelVersionRequest, GetModelVersionRequest, ListModelVersionsRequest,
     PostModelVersionMetricsRequest, PostModelVersionsRequest)
-from clarifai.rest.grpc.proto.clarifai.api.search_pb2 import (PostSearchesRequest,
-                                                              PostSearchFeedbackRequest, Query)
+from clarifai.rest.grpc.proto.clarifai.api.search_pb2 import PostSearchesRequest, Query
 from clarifai.rest.grpc.proto.clarifai.api.status.status_code_pb2 import (
     INPUT_IMAGE_DOWNLOAD_IN_PROGRESS, INPUT_IMAGE_DOWNLOAD_PENDING, INPUT_IMAGE_DOWNLOAD_SUCCESS)
 from clarifai.rest.grpc.proto.clarifai.api.workflow_pb2 import (
     GetWorkflowRequest, ListPublicWorkflowsRequest, ListWorkflowsRequest,
     PostWorkflowResultsRequest)
 from clarifai.rest.grpc.proto.clarifai.utils.pagination.pagination_pb2 import Pagination
-from clarifai.rest.solutions.solutions import Solutions
 # Versions are imported here to avoid breaking existing client code.
 from clarifai.versions import CLIENT_VERSION, OS_VER, PYTHON_VERSION  # noqa
 
@@ -117,13 +114,12 @@ class ClarifaiApp(object):
         api_key=api_key,
         quiet=quiet,
         log_level=log_level)  # type: ApiClient
-    self.solutions = Solutions(api_key)  # type: Solutions
 
     self.public_models = PublicModels(self.api)  # type: PublicModels
 
     self.concepts = Concepts(self.api)  # type: Concepts
     self.inputs = Inputs(self.api)  # type: Inputs
-    self.models = Models(self.api, self.solutions)  # type: Models
+    self.models = Models(self.api)  # type: Models
     self.workflows = Workflows(self.api)  # type: Workflows
 
   """
@@ -218,14 +214,14 @@ class ClarifaiApp(object):
       elapsed = time.time() - time_start
 
   def wait_for_specific_input_uploads_to_finish(
-      self,  # type: ClarifaiApp 
+      self,  # type: ClarifaiApp
       ids,  # type: typing.List[str]
       max_wait=666666  # type: typing.Optional[int]
   ):  # type: (...) -> None
-    """ Block until the inputs with ids "ids" have status INPUT_IMAGE_DOWNLOAD_SUCCESS. This will raise and error if 
+    """ Block until the inputs with ids "ids" have status INPUT_IMAGE_DOWNLOAD_SUCCESS. This will raise and error if
     they have other than INPUT_IMAGE_DOWNLOAD_SUCESS.
 
-    Returns: 
+    Returns:
       None or ApiClientError
 
     """
@@ -269,7 +265,6 @@ class Input(object):
       metadata=None,  # type: typing.Optional[dict]
       geo=None,  # type: typing.Optional[Geo]
       regions=None,  # type: typing.Optional[typing.List[Region]]
-      feedback_info=None  # type: typing.Optional[FeedbackInfo]
   ):
     # type: (...) -> None
     """ Construct an Image/Video object. it must have one of url or file_obj set.
@@ -281,7 +276,6 @@ class Input(object):
       metadata: metadata as a JSON object to associate arbitrary info with the input
       geo: geographical info for the input, as a Geo() object
       regions: regions of Region object
-      feedback_info: FeedbackInfo object
     """
 
     self.input_id = input_id
@@ -304,14 +298,10 @@ class Input(object):
         not all(isinstance(r, Region) for r in regions)):
       raise UserError('regions should be a list of Region')
 
-    if feedback_info and not isinstance(feedback_info, FeedbackInfo):
-      raise UserError('feedback_info should be a FeedbackInfo object')
-
     self.concepts = concepts
     self.not_concepts = not_concepts
     self.metadata = metadata
     self.geo = geo
-    self.feedback_info = feedback_info
     self.regions = regions
     self.score = 0  # type: int
     self.status = None  # type: ApiStatus
@@ -334,8 +324,6 @@ class Input(object):
     input_ = {}
     if self.input_id:
       input_['id'] = self.input_id
-    if self.feedback_info:
-      input_.update(self.feedback_info.dict())
     if data:
       input_['data'] = data
 
@@ -357,7 +345,6 @@ class Image(Input):
       regions=None,  # type: typing.Optional[typing.List[Region]]
       metadata=None,  # type: typing.Optional[dict]
       geo=None,  # type: typing.Optional[Geo]
-      feedback_info=None,  # type: typing.Optional[FeedbackInfo]
       allow_dup_url=False  # type: bool
   ):
     # type: (...) -> None
@@ -366,35 +353,27 @@ class Image(Input):
     Args:
       url: the url to a publically accessible image.
       file_obj: a file-like object in which read() will give you the bytes.
-      crop: a list of float in the range 0-1.0 in the order [top, left, bottom, right] to crop out
-            the asset before use.
+      crop: (deprecated) a list of float in the range 0-1.0 in the order [top, left, bottom, right]
+            to crop out the asset before use.
       image_id: the image ID
       concepts: the concepts associated with the image
       not_concepts: the concepts not associated with the image
       regions: regions of an image
       metadata: the metadata attached to the image
       geo: geographical information about the image
-      feedback_info: feedback information
       allow_dup_url: whether to allow duplicate URLs
     """
 
     super(Image, self).__init__(
-        image_id,
-        concepts,
-        not_concepts,
-        metadata=metadata,
-        geo=geo,
-        regions=regions,
-        feedback_info=feedback_info)
+        image_id, concepts, not_concepts, metadata=metadata, geo=geo, regions=regions)
 
-    if crop and (not isinstance(crop, list) or len(crop) != 4):
-      raise UserError("crop arg must be list of 4 floats or None")
+    if crop:
+      raise UserError("The `crop` argument is not used/supported by Image. Please remove it.")
 
     self.url = url.strip() if url else url
     self.file_obj = file_obj
     self.filename = filename
     self.base64 = base64
-    self.crop = crop
     self.allow_dup_url = allow_dup_url
 
     we_opened_file = False
@@ -443,8 +422,6 @@ class Image(Input):
       image['base64'] = self.base64.decode('UTF-8')
     if self.url:
       image['url'] = self.url
-    if self.crop:
-      image['crop'] = self.crop
     if self.allow_dup_url:
       image['allow_duplicate_url'] = self.allow_dup_url
 
@@ -534,55 +511,6 @@ class Video(Input):
       data['data'].update(video)
     else:
       data['data'] = video
-    return data
-
-
-class FeedbackType(Enum):
-  """ Enum class for feedback type """
-
-  accurate = 1
-  misplaced = 2
-  not_detected = 3
-  false_positive = 4
-
-
-class FeedbackInfo(object):
-  """
-  FeedbackInfo holds the metadata of a feedback
-  """
-
-  def __init__(
-      self,  # type: FeedbackInfo
-      end_user_id=None,  # type: typing.Optional[str]
-      session_id=None,  # type: typing.Optional[str]
-      event_type=None,  # type: typing.Optional[str]
-      output_id=None,  # type: typing.Optional[str]
-      search_id=None  # type: typing.Optional[str]
-  ):
-    # type: (...) -> None
-
-    self.end_user_id = end_user_id
-    self.session_id = session_id
-    self.event_type = event_type
-    self.output_id = output_id
-    self.search_id = search_id
-
-  def dict(self):  # type: () -> dict
-
-    data = {
-        "feedback_info": {
-            "end_user_id": self.end_user_id,
-            "session_id": self.session_id,
-            "event_type": self.event_type,
-        }
-    }
-
-    if self.output_id:
-      data['feedback_info']['output_id'] = self.output_id
-
-    if self.search_id:
-      data['feedback_info']['search_id'] = self.search_id
-
     return data
 
 
@@ -696,29 +624,20 @@ class OutputSearchTerm(SearchTerm):
     self.concept = concept
     self.concept_id = concept_id
     self.value = value
-    self.crop = crop
+
+    if crop:
+      raise UserError(
+          "The `crop` argument is not used/supported by OutputSearchTerm. Please remove it.")
 
   def dict(self):  # type: () -> dict
     if self.url:
       obj = {"output": {"input": {"data": {"image": {"url": self.url}}}}}
 
-      # add crop as needed
-      if self.crop:
-        obj['output']['input']['data']['image']['crop'] = self.crop
-
     if self.base64:
       obj = {"output": {"input": {"data": {"image": {"base64": self.base64}}}}}
 
-      # add crop as needed
-      if self.crop:
-        obj['output']['input']['data']['image']['crop'] = self.crop
-
     elif self.input_id:
       obj = {"output": {"input": {"id": self.input_id, "data": {"image": {}}}}}
-
-      # add crop as needed
-      if self.crop:
-        obj['output']['input']['data']['image']['crop'] = self.crop
 
     elif self.concept:
       obj = {"output": {"data": {"concepts": [{"name": self.concept, "value": self.value}]}}}
@@ -1092,9 +1011,8 @@ class Workflows(object):
 
 class Models(object):
 
-  def __init__(self, api, solutions):  # type: (ApiClient, Solutions) -> None
+  def __init__(self, api):  # type: (ApiClient) -> None
     self.api = api  # type: ApiClient
-    self.solutions = solutions  # type: Solutions
 
     # the cache of the model name -> model id mapping
     # to avoid an extra model query on every prediction by model name
@@ -1353,13 +1271,13 @@ class Models(object):
 
     # if the model ID is specified, just make the Model
     if model_id:
-      model = Model(self.api, model_id=model_id, solutions=self.solutions)
+      model = Model(self.api, model_id=model_id)
       return model
 
     # search for the model_name together with the model_type
     if self.model_id_cache.get((model_name, model_type)):
       model_id = self.model_id_cache[(model_name, model_type)]
-      model = Model(self.api, model_id=model_id, solutions=self.solutions)
+      model = Model(self.api, model_id=model_id)
       return model
 
     try:
@@ -1430,7 +1348,7 @@ class Models(object):
 
   def _to_obj(self, item):  # type: (dict) -> Model
     """ convert a model json object to Model object """
-    return Model(self.api, item, solutions=self.solutions)
+    return Model(self.api, item)
 
 
 def _escape(param):  # type: (str) -> str
@@ -1479,7 +1397,7 @@ class Inputs(object):
       image_id: ID of the image
       concepts: a list of concept names this image is associated with
       not_concepts: a list of concept names this image is not associated with
-      crop: crop information, with four corner coordinates
+      crop: (deprecated) crop information, with four corner coordinates
       metadata: meta data with a dictionary
       geo: geo info with a dictionary
       allow_duplicate_url: True or False, the flag to allow a duplicate url to be imported
@@ -1495,6 +1413,10 @@ class Inputs(object):
       >>>                                  geo=Geo(geo_point=GeoPoint(22.22, 44.44))
     """
 
+    if crop:
+      raise UserError(
+          "The `crop` argument is not used/supported by create_image_from_url. Please remove it.")
+
     url = url.strip() if url else url
 
     image = Image(
@@ -1502,7 +1424,6 @@ class Inputs(object):
         image_id=image_id,
         concepts=concepts,
         not_concepts=not_concepts,
-        crop=crop,
         metadata=metadata,
         geo=geo,
         allow_dup_url=allow_duplicate_url)
@@ -1528,7 +1449,7 @@ class Inputs(object):
       image_id: ID of the image
       concepts: a list of concept names this image is associated with
       not_concepts: a list of concept names this image is not associated with
-      crop: crop information, with four corner coordinates
+      crop: (deprecated) crop information, with four corner coordinates
       metadata: meta data with a dictionary
       geo: geo info with a dictionary
       allow_duplicate_url: True or False, the flag to allow a duplicate url to be imported
@@ -1540,13 +1461,17 @@ class Inputs(object):
       >>> app.inputs.create_image_filename(filename="a.jpeg")
     """
 
+    if crop:
+      raise UserError(
+          "The `crop` argument is not used/supported by create_image_from_filename. Please remove "
+          "it.")
+
     with open(filename, 'rb') as fileio:
       image = Image(
           file_obj=fileio,
           image_id=image_id,
           concepts=concepts,
           not_concepts=not_concepts,
-          crop=crop,
           metadata=metadata,
           geo=geo,
           allow_dup_url=allow_duplicate_url)
@@ -1583,13 +1508,17 @@ class Inputs(object):
       >>> app.inputs.create_image_bytes(img_bytes="raw image bytes...")
     """
 
+    if crop:
+      raise UserError(
+          "The `crop` argument is not used/supported by create_image_from_bytes. Please remove it."
+      )
+
     fileio = BytesIO(img_bytes)
     image = Image(
         file_obj=fileio,
         image_id=image_id,
         concepts=concepts,
         not_concepts=not_concepts,
-        crop=crop,
         metadata=metadata,
         geo=geo,
         allow_dup_url=allow_duplicate_url)
@@ -1626,12 +1555,16 @@ class Inputs(object):
       >>> app.inputs.create_image_bytes(base64_bytes="base64 encoded image bytes...")
     """
 
+    if crop:
+      raise UserError(
+          "The `crop` argument is not used/supported by create_image_from_base64. Please remove "
+          "it.")
+
     image = Image(
         base64=base64_bytes,
         image_id=image_id,
         concepts=concepts,
         not_concepts=not_concepts,
-        crop=crop,
         metadata=metadata,
         geo=geo,
         allow_dup_url=allow_duplicate_url)
@@ -1853,8 +1786,6 @@ class Inputs(object):
     image filename, or Clarifai Image object, you can use the visual search power of
     the Clarifai API.
 
-    You can specify a crop of the image to search over
-
     Args:
       image_id: unique ID of the image for search
       image: Image object for search
@@ -1883,6 +1814,11 @@ class Inputs(object):
       >>> app.inputs.search_by_image(fileobj=open('file'))
     """
 
+    if crop:
+      raise UserError(
+          "The `crop` argument is not used/supported by create_image_from_base64. Please remove "
+          "it.")
+
     not_nones = [
         x for x in [image_id, image, url, imgbytes, base64bytes, fileobj, filename]
         if x is not None
@@ -1892,7 +1828,7 @@ class Inputs(object):
 
     if image_id:
       qb = SearchQueryBuilder()
-      term = OutputSearchTerm(input_id=image_id, crop=crop)
+      term = OutputSearchTerm(input_id=image_id)
       qb.add_term(term)
 
       return self.search(qb, page, per_page, raw)
@@ -1900,9 +1836,9 @@ class Inputs(object):
       qb = SearchQueryBuilder()
 
       if image.url:
-        term = OutputSearchTerm(url=image.url, crop=crop)
+        term = OutputSearchTerm(url=image.url)
       elif image.base64:
-        term = OutputSearchTerm(base64=image.base64.decode('UTF-8'), crop=crop)
+        term = OutputSearchTerm(base64=image.base64.decode('UTF-8'))
       elif image.file_obj:
         if hasattr(image.file_obj, 'getvalue'):
           base64_bytes = base64_lib.b64encode(image.file_obj.getvalue()).decode('UTF-8')
@@ -1911,7 +1847,7 @@ class Inputs(object):
         else:
           raise UserError("Not sure how to read your file_obj")
 
-        term = OutputSearchTerm(base64=base64_bytes, crop=crop)
+        term = OutputSearchTerm(base64=base64_bytes)
       else:
         raise UserError('Unrecognized image object')
 
@@ -1934,7 +1870,7 @@ class Inputs(object):
     else:
       raise UserError('None of the arguments was passed in')
 
-    return self.search_by_image(image=img, page=page, per_page=per_page, raw=raw, crop=crop)
+    return self.search_by_image(image=img, page=page, per_page=per_page, raw=raw)
 
   def search_by_original_url(self, url, page=1, per_page=20, raw=False):
     # type: (str, int, int, bool) -> typing.List[Image]
@@ -2214,24 +2150,6 @@ class Inputs(object):
 
     return self.search(qb, page, per_page, raw)
 
-  def send_search_feedback(self, input_id, feedback_info=None):
-    # type: (str, typing.Optional[FeedbackInfo]) -> dict
-    """
-    Send feedback for search
-
-    Args:
-      input_id: unique identifier for the input
-      feedback_info: the feedback information
-
-    Returns:
-      None
-    """
-
-    feedback_input = Image(image_id=input_id, feedback_info=feedback_info)
-    res = self.api.send_search_feedback(feedback_input)
-
-    return res
-
   def update(self, image, action='merge'):  # type: (Image, str) -> Image
     """
     Update the information of an input/image
@@ -2508,12 +2426,11 @@ class Inputs(object):
       regions = [
           Region(
               region_id=r['id'],
-              region_info=RegionInfo(
-                  bbox=BoundingBox(
-                      top_row=r['region_info']['bounding_box']['top_row'],
-                      left_col=r['region_info']['bounding_box']['left_col'],
-                      bottom_row=r['region_info']['bounding_box']['bottom_row'],
-                      right_col=r['region_info']['bounding_box']['right_col'])),
+              region_info=RegionInfo(bbox=BoundingBox(
+                  top_row=r['region_info']['bounding_box']['top_row'],
+                  left_col=r['region_info']['bounding_box']['left_col'],
+                  bottom_row=r['region_info']['bounding_box']['bottom_row'],
+                  right_col=r['region_info']['bounding_box']['right_col'])),
               face=Face(FaceIdentity([c for c in r['data']['face']['identity']['concepts']]))
               if r.get('data', {}).get('face') else None) for r in regions_json
       ]
@@ -2523,51 +2440,25 @@ class Inputs(object):
       allow_dup_url = one['data']['image'].get('allow_duplicate_url', False)
 
       if one['data']['image'].get('url'):
-        if one['data']['image'].get('crop'):
-          crop = one['data']['image']['crop']
-          one_input = Image(
-              image_id=input_id,
-              url=one['data']['image']['url'],
-              concepts=concepts,
-              not_concepts=not_concepts,
-              crop=crop,
-              metadata=metadata,
-              geo=geo,
-              regions=regions,
-              allow_dup_url=allow_dup_url)
-        else:
-          one_input = Image(
-              image_id=input_id,
-              url=one['data']['image']['url'],
-              concepts=concepts,
-              not_concepts=not_concepts,
-              metadata=metadata,
-              geo=geo,
-              regions=regions,
-              allow_dup_url=allow_dup_url)
+        one_input = Image(
+            image_id=input_id,
+            url=one['data']['image']['url'],
+            concepts=concepts,
+            not_concepts=not_concepts,
+            metadata=metadata,
+            geo=geo,
+            regions=regions,
+            allow_dup_url=allow_dup_url)
       elif one['data']['image'].get('base64'):
-        if one['data']['image'].get('crop'):
-          crop = one['data']['image']['crop']
-          one_input = Image(
-              image_id=input_id,
-              base64=one['data']['image']['base64'],
-              concepts=concepts,
-              not_concepts=not_concepts,
-              crop=crop,
-              metadata=metadata,
-              geo=geo,
-              regions=regions,
-              allow_dup_url=allow_dup_url)
-        else:
-          one_input = Image(
-              image_id=input_id,
-              base64=one['data']['image']['base64'],
-              concepts=concepts,
-              not_concepts=not_concepts,
-              metadata=metadata,
-              geo=geo,
-              regions=regions,
-              allow_dup_url=allow_dup_url)
+        one_input = Image(
+            image_id=input_id,
+            base64=one['data']['image']['base64'],
+            concepts=concepts,
+            not_concepts=not_concepts,
+            metadata=metadata,
+            geo=geo,
+            regions=regions,
+            allow_dup_url=allow_dup_url)
       else:
         raise UserError('Unknown input type')
     elif one['data'].get('video'):
@@ -2782,12 +2673,10 @@ class Model(object):
       api,  # type: ApiClient
       item=None,  # type: typing.Optional[dict]
       model_id=None,  # type: typing.Optional[str]
-      solutions=None  # type: typing.Optional[Solutions]
   ):
     # type: (...) -> None
 
     self.api = api  # type: ApiClient
-    self.solutions = ModelSolutions(solutions, self)  # type: ModelSolutions
 
     if model_id is not None:
       self.model_id = model_id
@@ -2981,13 +2870,12 @@ class Model(object):
     else:
       input_ = Image(url=url)
 
-    model_output_info = ModelOutputInfo(
-        output_config=ModelOutputConfig(
-            language=lang,
-            min_value=min_value,
-            max_concepts=max_concepts,
-            select_concepts=select_concepts,
-            sample_ms=sample_ms))
+    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(
+        language=lang,
+        min_value=min_value,
+        max_concepts=max_concepts,
+        select_concepts=select_concepts,
+        sample_ms=sample_ms))
 
     res = self.predict([input_], model_output_info)
     return res
@@ -3024,13 +2912,12 @@ class Model(object):
       else:
         input_ = Image(file_obj=fileio)
 
-    model_output_info = ModelOutputInfo(
-        output_config=ModelOutputConfig(
-            language=lang,
-            min_value=min_value,
-            max_concepts=max_concepts,
-            select_concepts=select_concepts,
-            sample_ms=sample_ms))
+    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(
+        language=lang,
+        min_value=min_value,
+        max_concepts=max_concepts,
+        select_concepts=select_concepts,
+        sample_ms=sample_ms))
 
     res = self.predict([input_], model_output_info)
     return res
@@ -3068,13 +2955,12 @@ class Model(object):
     else:
       input_ = Image(base64=base64_bytes)
 
-    model_output_info = ModelOutputInfo(
-        output_config=ModelOutputConfig(
-            language=lang,
-            min_value=min_value,
-            max_concepts=max_concepts,
-            select_concepts=select_concepts,
-            sample_ms=sample_ms))
+    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(
+        language=lang,
+        min_value=min_value,
+        max_concepts=max_concepts,
+        select_concepts=select_concepts,
+        sample_ms=sample_ms))
 
     res = self.predict([input_], model_output_info)
     return res
@@ -3110,13 +2996,12 @@ class Model(object):
     else:
       input_ = Image(base64=base64_bytes)
 
-    model_output_info = ModelOutputInfo(
-        output_config=ModelOutputConfig(
-            language=lang,
-            min_value=min_value,
-            max_concepts=max_concepts,
-            select_concepts=select_concepts,
-            sample_ms=sample_ms))
+    model_output_info = ModelOutputInfo(output_config=ModelOutputConfig(
+        language=lang,
+        min_value=min_value,
+        max_concepts=max_concepts,
+        select_concepts=select_concepts,
+        sample_ms=sample_ms))
 
     res = self.predict([input_], model_output_info)
     return res
@@ -3341,71 +3226,6 @@ class Model(object):
 
     return res
 
-  def send_concept_feedback(
-      self,  # type: Model
-      input_id,  # type: str
-      url,  # type: str
-      concepts=None,  # type: typing.Optional[typing.List[str]]
-      not_concepts=None,  # type: typing.Optional[typing.List[str]]
-      feedback_info=None  # type: typing.Optional[FeedbackInfo]
-  ):
-    # type: (...) -> dict
-    """
-    Send feedback for this model
-
-    Args:
-      input_id: input id for the feedback
-      url: the url of the input
-      concepts: concepts that are present
-      not_concepts: concepts that aren't present
-      feedback_info: feedback info
-
-    Returns:
-      None
-    """
-
-    feedback_input = Image(
-        url=url,
-        image_id=input_id,
-        concepts=concepts,
-        not_concepts=not_concepts,
-        feedback_info=feedback_info)
-    res = self.api.send_model_feedback(self.model_id, self.model_version, feedback_input)
-
-    return res
-
-  def send_region_feedback(
-      self,  # type: Model
-      input_id,  # type: str
-      url,  # type: str
-      concepts=None,  # type: typing.Optional[typing.List[str]]
-      not_concepts=None,  # type: typing.Optional[typing.List[str]]
-      regions=None,  # type: typing.Optional[typing.List[Region]]
-      feedback_info=None  # type: typing.Optional[FeedbackInfo]
-  ):
-    # type: (...) -> dict
-    """
-    Send feedback for this model
-
-    Args:
-      input_id: input id for the feedback
-      url: the input url
-
-    Returns:
-      None
-    """
-
-    feedback_input = Image(
-        url=url,
-        image_id=input_id,
-        concepts=concepts,
-        not_concepts=not_concepts,
-        regions=regions,
-        feedback_info=feedback_info)
-    res = self.api.send_model_feedback(self.model_id, self.model_version, feedback_input)
-
-    return res
-
   def _to_obj(self, item):  # type: (dict) -> Model
     """ convert a model json object to Model object """
     return Model(self.api, item)
@@ -3422,22 +3242,6 @@ class Model(object):
 
     res = self.api.run_model_evaluation(self.model_id, self.model_version)
     return res
-
-
-class ModelSolutions(object):
-
-  def __init__(self, solutions, model):  # type: (Solutions, Model) -> None
-    self.moderation = ModelSolutionsModeration(solutions, model)  # type: ModelSolutionsModeration
-
-
-class ModelSolutionsModeration(object):
-
-  def __init__(self, solutions, model):  # type: (Solutions, Model) -> None
-    self.solutions = solutions  # type: Solutions
-    self.model = model  # type: Model
-
-  def predict_by_url(self, url):  # type: (str) -> dict
-    return self.solutions.moderation.predict_model(self.model.model_id, url)
 
 
 class Concept(object):
@@ -3757,9 +3561,9 @@ class ApiClient(object):
 
     q = dict_to_protobuf(Query, query)
 
-    return self._grpc_request(
-        self._grpc_stub().PostSearches,
-        PostSearchesRequest(query=q, pagination=Pagination(page=page, per_page=per_page)))
+    return self._grpc_request(self._grpc_stub().PostSearches,
+                              PostSearchesRequest(
+                                  query=q, pagination=Pagination(page=page, per_page=per_page)))
 
   def get_input(self, input_id):  # type: (str) -> dict
     """ Get a single image by it's id.
@@ -3942,11 +3746,10 @@ class ApiClient(object):
 
     """
 
-    return self._grpc_request(
-        self._grpc_stub().PostConceptsSearches,
-        PostConceptsSearchesRequest(
-            concept_query=ConceptQuery(name=term, language=language),
-            pagination=Pagination(page=page, per_page=per_page)))
+    return self._grpc_request(self._grpc_stub().PostConceptsSearches,
+                              PostConceptsSearchesRequest(
+                                  concept_query=ConceptQuery(name=term, language=language),
+                                  pagination=Pagination(page=page, per_page=per_page)))
 
   def patch_concepts(self, action, concepts):  # type: (str, typing.List[Concept]) -> dict
     """ bulk update concepts, to delete or modify concepts
@@ -3994,9 +3797,9 @@ class ApiClient(object):
       the model info in JSON format
     """
 
-    return self._grpc_request(
-        self._grpc_stub().GetModel,
-        GetModelRequest(model_id=_escape(model_id), version_id=model_version_id))
+    return self._grpc_request(self._grpc_stub().GetModel,
+                              GetModelRequest(
+                                  model_id=_escape(model_id), version_id=model_version_id))
 
   def get_model_output_info(self, model_id,
                             model_version_id=None):  # type: (str, typing.Optional[str]) -> dict
@@ -4009,9 +3812,9 @@ class ApiClient(object):
     Returns:
       the model info with output_info in JSON format
     """
-    return self._grpc_request(
-        self._grpc_stub().GetModelOutputInfo,
-        GetModelRequest(model_id=_escape(model_id), version_id=model_version_id))
+    return self._grpc_request(self._grpc_stub().GetModelOutputInfo,
+                              GetModelRequest(
+                                  model_id=_escape(model_id), version_id=model_version_id))
 
   def get_model_versions(self, model_id, page=1, per_page=20):  # type: (str, int, int) -> dict
     """ get model versions
@@ -4025,9 +3828,9 @@ class ApiClient(object):
       a list of model versions in JSON format
     """
 
-    return self._grpc_request(
-        self._grpc_stub().ListModelVersions,
-        ListModelVersionsRequest(model_id=model_id, page=page, per_page=per_page))
+    return self._grpc_request(self._grpc_stub().ListModelVersions,
+                              ListModelVersionsRequest(
+                                  model_id=model_id, page=page, per_page=per_page))
 
   def get_model_version(self, model_id, version_id):  # type: (str, str) -> dict
     """ get model info for a specific model version
@@ -4043,9 +3846,9 @@ class ApiClient(object):
   def delete_model_version(self, model_id, model_version):  # type: (str, str) -> dict
     """ delete a model version """
 
-    return self._grpc_request(
-        self._grpc_stub().DeleteModelVersion,
-        DeleteModelVersionRequest(model_id=_escape(model_id), version_id=model_version))
+    return self._grpc_request(self._grpc_stub().DeleteModelVersion,
+                              DeleteModelVersionRequest(
+                                  model_id=_escape(model_id), version_id=model_version))
 
   def delete_model(self, model_id):  # type: (str) -> dict
     """ delete a model """
@@ -4072,10 +3875,12 @@ class ApiClient(object):
     if version_id:
       version_id = _escape(version_id)
 
-    return self._grpc_request(
-        self._grpc_stub().ListModelInputs,
-        ListModelInputsRequest(
-            model_id=_escape(model_id), version_id=version_id, page=page, per_page=per_page))
+    return self._grpc_request(self._grpc_stub().ListModelInputs,
+                              ListModelInputsRequest(
+                                  model_id=_escape(model_id),
+                                  version_id=version_id,
+                                  page=page,
+                                  per_page=per_page))
 
   def search_models(self, name=None, model_type=None):
     # type: (typing.Optional[str], typing.Optional[str]) -> dict
@@ -4116,10 +3921,11 @@ class ApiClient(object):
 
     data = None
     if concepts:
-      data = dict_to_protobuf(DataPB,
-                              {'concepts': [{
-                                  'id': concept_id
-                              } for concept_id in concepts]})
+      data = dict_to_protobuf(DataPB, {
+          'concepts': [{
+              'id': concept_id
+          } for concept_id in concepts]
+      })
 
     hyper_parameters_pb = None
     if hyper_parameters:
@@ -4190,10 +3996,12 @@ class ApiClient(object):
         output_info = dict_to_protobuf(OutputInfoPB, model_output_info_dict)
         model = ModelPB(output_info=output_info)
 
-    return self._grpc_request(
-        self._grpc_stub().PostModelOutputs,
-        PostModelOutputsRequest(
-            model_id=_escape(model_id), version_id=version_id, inputs=inputs_pb, model=model))
+    return self._grpc_request(self._grpc_stub().PostModelOutputs,
+                              PostModelOutputsRequest(
+                                  model_id=_escape(model_id),
+                                  version_id=version_id,
+                                  inputs=inputs_pb,
+                                  model=model))
 
   def get_workflows(self, public_only=False):  # type: (bool) -> dict
     """ get all workflows with pagination
@@ -4245,28 +4053,11 @@ class ApiClient(object):
       if output_config_:
         output_config_pb = dict_to_protobuf(OutputConfigPB, output_config_)
 
-    return self._grpc_request(
-        self._grpc_stub().PostWorkflowResults,
-        PostWorkflowResultsRequest(
-            workflow_id=_escape(workflow_id), inputs=inputs_pb, output_config=output_config_pb))
-
-  def send_model_feedback(self, model_id, version_id, obj):
-    # type: (str, typing.Optional[str], Input) -> dict
-
-    input_pb = dict_to_protobuf(InputPB, obj.dict())
-
-    return self._grpc_request(
-        self._grpc_stub().PostModelFeedback,
-        PostModelFeedbackRequest(
-            model_id=_escape(model_id), version_id=version_id, input=input_pb))
-
-  def send_search_feedback(self, obj):  # type: (Input) -> dict
-    input_dict = obj.dict()
-
-    input_pb = dict_to_protobuf(InputPB, input_dict)
-
-    return self._grpc_request(
-        self._grpc_stub().PostSearchFeedback, PostSearchFeedbackRequest(input=input_pb))
+    return self._grpc_request(self._grpc_stub().PostWorkflowResults,
+                              PostWorkflowResultsRequest(
+                                  workflow_id=_escape(workflow_id),
+                                  inputs=inputs_pb,
+                                  output_config=output_config_pb))
 
   def predict_concepts(self, objs, lang=None):
     # type: (typing.List[Input], typing.Optional[str]) -> dict
@@ -4305,9 +4096,9 @@ class ApiClient(object):
       the model version data with evaluation metrics in JSON format
     """
 
-    return self._grpc_request(
-        self._grpc_stub().PostModelVersionMetrics,
-        PostModelVersionMetricsRequest(model_id=_escape(model_id), version_id=version_id))
+    return self._grpc_request(self._grpc_stub().PostModelVersionMetrics,
+                              PostModelVersionMetricsRequest(
+                                  model_id=_escape(model_id), version_id=version_id))
 
 
 class pagination(object):
@@ -4461,10 +4252,9 @@ class BoundingBox(object):
 
 class RegionInfo(object):
 
-  def __init__(self, bbox=None, feedback_type=None):
-    # type: (typing.Optional[BoundingBox], typing.Optional[FeedbackType]) -> None
+  def __init__(self, bbox=None):
+    # type: (typing.Optional[BoundingBox]) -> None
     self.bbox = bbox
-    self.feedback_type = feedback_type
 
   def dict(self):  # type: () -> dict
 
@@ -4472,12 +4262,6 @@ class RegionInfo(object):
 
     if self.bbox:
       data['region_info'].update(self.bbox.dict())
-
-    if self.feedback_type:
-      if isinstance(self.feedback_type, FeedbackType):
-        data['region_info']['feedback'] = self.feedback_type.name
-      else:
-        data['region_info']['feedback'] = self.feedback_type
 
     return data
 

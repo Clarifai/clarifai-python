@@ -28,8 +28,8 @@ class HttpClient:
     }
     logger.debug("=" * 100)
     succinct_payload = self._mangle_base64_values(params)
-    logger.debug("%s %s\nHEADERS:\n%s\nPAYLOAD:\n%s", method, url, pformat(headers),
-                 pformat(succinct_payload))
+    logger.debug("%s %s\nHEADERS:\n%s\nPAYLOAD:\n%s", method, url,
+                 pformat(headers), pformat(succinct_payload))
     try:
       if method == 'GET':
         res = self._session.get(url, params=params, headers=headers)

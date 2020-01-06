@@ -48,16 +48,6 @@ with probabilities for confidence of the prediction.
 
 Models can also be evaluated for measuring their prediction capability.
 
-Image Crop
-============
-Image crop is defined as a crop box within an image. We use this in visual search so user does not have to crop an image before the search.
-
-We use percentage coordinates instead of pixel coordinates to specify the crop box.
-
-A four-element-tuple represents a crop box, in (top_y, left_x, bottom_y, right_x) order.
-
-So a (0.3, 0.2, 0.6, 0.4) represents a box horizontally spanning from 20%-40% and vertically spanning 30%-60% of the image, measured from the top left corner.
-
 Workflow
 ============
 Workflow enables you to run prediction on Inputs using several Models in one request.

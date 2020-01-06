@@ -1,0 +1,37 @@
+environment:
+
+  matrix:
+    - PYTHON: "C:\\Python27"
+    - PYTHON: "C:\\Python27-x64"
+    - PYTHON: "C:\\Python36"
+    - PYTHON: "C:\\Python36-x64"
+
+  global:
+    COVERAGE_ARGS: "--cov=clarifai --junitxml=nosetests.xml"
+
+os: Windows Server 2012
+
+install:
+  - "pip install -r requirements.txt"
+  - "pip install -r tests/requirements.txt"
+
+build: off
+
+before_test:
+  - set "PYTHONPATH=%cd%"
+  - FOR /F "tokens=* USEBACKQ" %%F IN (`python scripts/app_and_key_for_tests.py --create-app python-appveyor`) DO (
+      SET CLARIFAI_APP_ID=%%F
+    )
+  - FOR /F "tokens=* USEBACKQ" %%F IN (`python scripts/app_and_key_for_tests.py --create-key %CLARIFAI_APP_ID%`) DO (
+      SET CLARIFAI_API_KEY=%%F
+    )
+  - FOR /F %%i IN ('%PYTHON%\python.exe scripts\app_and_key_for_tests.py --create-workflow %CLARIFAI_API_KEY%') DO rem
+  - python tests/rest_tests/prepare.py
+
+test_script:
+  - set "PYTHONPATH=%cd%"
+  - pytest -n 8 %COVERAGE_ARGS%
+
+after_test:
+  - set "PYTHONPATH=%cd%"
+  - python scripts/app_and_key_for_tests.py --delete-app %CLARIFAI_APP_ID%
