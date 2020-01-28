@@ -131,6 +131,7 @@ class ClarifaiApp(object):
   """
 
   def tag_urls(self, urls, model_name=None, model_id=GENERAL_MODEL_ID):
+
     # type: (typing.Union[typing.List[str], str], str, typing.Optional[str]) -> dict
     warnings.warn('tag_* methods are deprecated. Please switch to using model.predict_* methods.',
                   DeprecationWarning)
