@@ -17,11 +17,6 @@ from posixpath import join as urljoin
 from pprint import pformat
 
 import requests
-from future.moves.urllib.parse import urlparse
-from google.protobuf.struct_pb2 import Struct
-from jsonschema import validate
-from past.builtins import basestring
-
 from clarifai.errors import ApiClientError, ApiError, TokenError, UserError  # noqa
 from clarifai.rest.geo import Geo, GeoBox, GeoLimit, GeoPoint
 from clarifai.rest.grpc.grpc_json_channel import GRPCJSONChannel, dict_to_protobuf, protobuf_to_dict
@@ -60,6 +55,10 @@ from clarifai.rest.grpc.proto.clarifai.api.workflow_pb2 import (
 from clarifai.rest.grpc.proto.clarifai.utils.pagination.pagination_pb2 import Pagination
 # Versions are imported here to avoid breaking existing client code.
 from clarifai.versions import CLIENT_VERSION, OS_VER, PYTHON_VERSION  # noqa
+from future.moves.urllib.parse import urlparse
+from google.protobuf.struct_pb2 import Struct
+from jsonschema import validate
+from past.builtins import basestring
 
 logger = logging.getLogger('clarifai')
 logger.handlers = []
@@ -106,6 +105,9 @@ class ClarifaiApp(object):
       log_level=None  # type: typing.Optional[int]
   ):
     # type: (...) -> None
+
+    if not api_key:
+      raise UserError('Must provide a valid api_key.')
 
     self.api = ApiClient(
         app_id=app_id,
@@ -3309,8 +3311,6 @@ class PublicModels(object):
     """
     self.face_embedding_model = Model(
         api, model_id='d02b4508df58432fbb84e800597b8959')  # type: Model
-    """ Focus model returns overall focus and identifies in-focus regions. """
-    self.focus_model = Model(api, model_id='c2cf7cecd8a6427da375b9f35fcd2381')  # type: Model
     """ Food model recognizes food items and dishes, down to the ingredient level. """
     self.food_model = Model(api, model_id='bd367be194cf45149e75f01d59f77ba7')  # type: Model
     """ General embedding model computes numerical embedding vectors using our General model. """
