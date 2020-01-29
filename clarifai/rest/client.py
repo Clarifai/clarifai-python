@@ -107,9 +107,6 @@ class ClarifaiApp(object):
   ):
     # type: (...) -> None
 
-    if not api_key:
-      raise UserError('Must provide a valid api_key.')
-
     self.api = ApiClient(
         app_id=app_id,
         app_secret=app_secret,
@@ -3423,7 +3420,8 @@ class ApiClient(object):
 
       if parser.has_option('clarifai', 'CLARIFAI_API_KEY'):
         return parser.get('clarifai', 'CLARIFAI_API_KEY')
-    return None
+    else:
+      raise UserError('Must provide a valid api_key.')
 
   def _read_base_from_env_or_os(self):  # type: () -> str
     conf_file = self._config_file_path()
