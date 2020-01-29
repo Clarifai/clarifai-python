@@ -3421,7 +3421,10 @@ class ApiClient(object):
       if parser.has_option('clarifai', 'CLARIFAI_API_KEY'):
         return parser.get('clarifai', 'CLARIFAI_API_KEY')
     else:
-      raise UserError('Must provide a valid api_key.')
+      raise UserError(
+          'You must provide a valid API key either via the api_key parameter, via the '
+          'CLARIFAI_API_KEY environment variable, or via the config file. See more here: '
+          'https://github.com/Clarifai/clarifai-python#setup')
 
   def _read_base_from_env_or_os(self):  # type: () -> str
     conf_file = self._config_file_path()
