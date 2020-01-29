@@ -1,4 +1,5 @@
 import mock
+
 from clarifai.rest import ClarifaiApp
 
 from .mock_extensions import assert_request, mock_request

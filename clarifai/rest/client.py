@@ -17,6 +17,11 @@ from posixpath import join as urljoin
 from pprint import pformat
 
 import requests
+from future.moves.urllib.parse import urlparse
+from google.protobuf.struct_pb2 import Struct
+from jsonschema import validate
+from past.builtins import basestring
+
 from clarifai.errors import ApiClientError, ApiError, TokenError, UserError  # noqa
 from clarifai.rest.geo import Geo, GeoBox, GeoLimit, GeoPoint
 from clarifai.rest.grpc.grpc_json_channel import GRPCJSONChannel, dict_to_protobuf, protobuf_to_dict
@@ -55,10 +60,6 @@ from clarifai.rest.grpc.proto.clarifai.api.workflow_pb2 import (
 from clarifai.rest.grpc.proto.clarifai.utils.pagination.pagination_pb2 import Pagination
 # Versions are imported here to avoid breaking existing client code.
 from clarifai.versions import CLIENT_VERSION, OS_VER, PYTHON_VERSION  # noqa
-from future.moves.urllib.parse import urlparse
-from google.protobuf.struct_pb2 import Struct
-from jsonschema import validate
-from past.builtins import basestring
 
 logger = logging.getLogger('clarifai')
 logger.handlers = []
