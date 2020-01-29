@@ -129,6 +129,7 @@ class ClarifaiApp(object):
   """
 
   def tag_urls(self, urls, model_name=None, model_id=GENERAL_MODEL_ID):
+
     # type: (typing.Union[typing.List[str], str], str, typing.Optional[str]) -> dict
     warnings.warn('tag_* methods are deprecated. Please switch to using model.predict_* methods.',
                   DeprecationWarning)
@@ -3309,8 +3310,6 @@ class PublicModels(object):
     """
     self.face_embedding_model = Model(
         api, model_id='d02b4508df58432fbb84e800597b8959')  # type: Model
-    """ Focus model returns overall focus and identifies in-focus regions. """
-    self.focus_model = Model(api, model_id='c2cf7cecd8a6427da375b9f35fcd2381')  # type: Model
     """ Food model recognizes food items and dishes, down to the ingredient level. """
     self.food_model = Model(api, model_id='bd367be194cf45149e75f01d59f77ba7')  # type: Model
     """ General embedding model computes numerical embedding vectors using our General model. """
@@ -3421,7 +3420,11 @@ class ApiClient(object):
 
       if parser.has_option('clarifai', 'CLARIFAI_API_KEY'):
         return parser.get('clarifai', 'CLARIFAI_API_KEY')
-    return None
+    else:
+      raise UserError(
+          'You must provide a valid API key either via the api_key parameter, via the '
+          'CLARIFAI_API_KEY environment variable, or via the config file. See more here: '
+          'https://github.com/Clarifai/clarifai-python#setup')
 
   def _read_base_from_env_or_os(self):  # type: () -> str
     conf_file = self._config_file_path()

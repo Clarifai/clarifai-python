@@ -65,30 +65,30 @@ def test_search_models_by_name_and_type(mock_http_client):  # type: (mock.Mock) 
   },
   "models": [{
     "id": "@modelID",
-    "name": "focus",
-    "created_at": "2017-03-06T22:57:00.660603Z",
+    "name": "color",
+    "created_at": "2016-05-11T18:05:45.924367Z",
     "app_id": "main",
     "output_info": {
       "message": "Show output_info with: GET /models/{model_id}/output_info",
-      "type": "blur",
-      "type_ext": "focus"
+      "type": "color",
+      "type_ext": "color"
     },
     "model_version": {
       "id": "@modelVersionID",
-      "created_at": "2017-03-06T22:57:00.684652Z",
+      "created_at": "2016-07-13T01:19:12.147644Z",
       "status": {
         "code": 21100,
         "description": "Model trained successfully"
       }
     },
-    "display_name": "Focus"
+    "display_name": "Color"
   }]
 }
 """)
 
   app = ClarifaiApp()
 
-  models = app.models.search("*", 'focus')
+  models = app.models.search("*", 'color')
 
   assert models[0].model_id == '@modelID'
   assert models[0].model_version == '@modelVersionID'
@@ -97,7 +97,7 @@ def test_search_models_by_name_and_type(mock_http_client):  # type: (mock.Mock) 
 {
   "model_query": {
     "name": "*",
-    "type": "focus"
+    "type": "color"
   }
 }
   """)

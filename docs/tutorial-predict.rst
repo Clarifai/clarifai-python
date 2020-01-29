@@ -62,12 +62,6 @@ For more information on any of the public models, visit https://clarifai.com/mod
    response = model.predict_by_url(url='https://portal.clarifai.com/developer/static/images/model-samples/celeb-001.jpg')
 
 
-   #Focus Detection model
-   model = app.models.get(model_id="c2cf7cecd8a6427da375b9f35fcd2381")
-
-   response = model.predict_by_url(url='https://samples.clarifai.com/focus.jpg')
-
-
    #General Embedding model
    model = app.models.get(model_id="bbb5f41425b8468d9b7a554ff10f8581")
 

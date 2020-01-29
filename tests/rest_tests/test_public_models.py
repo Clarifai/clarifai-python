@@ -41,10 +41,6 @@ class TestPublicModels(unittest.TestCase):
         url=sample_inputs.METRO_IMAGE_URL)
     self.assertEqual(10000, res['status']['code'])
 
-  def test_predict_with_focus_model(self):
-    res = self.app.public_models.focus_model.predict_by_url(url=sample_inputs.METRO_IMAGE_URL)
-    self.assertEqual(10000, res['status']['code'])
-
   def test_predict_with_food_model(self):
     res = self.app.public_models.food_model.predict_by_url(url=sample_inputs.METRO_IMAGE_URL)
     self.assertEqual(10000, res['status']['code'])
