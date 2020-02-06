@@ -2,8 +2,8 @@ import mock
 import pytest
 
 from clarifai.errors import ApiError, UserError
-from clarifai.rest import (BoundingBox, ClarifaiApp, Concept, Face, FaceIdentity, Geo, GeoPoint,
-                           Image, Region, RegionInfo)
+from clarifai.rest import (BoundingBox, ClarifaiApp, Concept, Geo, GeoPoint, Image, Region,
+                           RegionInfo)
 
 from .mock_extensions import (assert_request, assert_requests, mock_request,
                               mock_request_with_failed_response)

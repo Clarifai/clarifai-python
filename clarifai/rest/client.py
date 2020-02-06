@@ -3,6 +3,9 @@
 Clarifai API Python Client
 """
 
+from future.moves.urllib.parse import urlparse
+from past.builtins import basestring
+
 import base64 as base64_lib
 import copy
 import logging
@@ -17,14 +20,13 @@ from posixpath import join as urljoin
 from pprint import pformat
 
 import requests
-from future.moves.urllib.parse import urlparse
 from google.protobuf.struct_pb2 import Struct
 from jsonschema import validate
-from past.builtins import basestring
 
 from clarifai.errors import ApiClientError, ApiError, TokenError, UserError  # noqa
 from clarifai.rest.geo import Geo, GeoBox, GeoLimit, GeoPoint
-from clarifai.rest.grpc.grpc_json_channel import GRPCJSONChannel, dict_to_protobuf, protobuf_to_dict
+from clarifai.rest.grpc.grpc_json_channel import (GRPCJSONChannel, dict_to_protobuf,
+                                                  protobuf_to_dict)
 from clarifai.rest.grpc.proto.clarifai.api.concept_pb2 import Concept as ConceptPB
 from clarifai.rest.grpc.proto.clarifai.api.concept_pb2 import (
     ConceptQuery, GetConceptRequest, ListConceptsRequest, PatchConceptsRequest,
@@ -1335,8 +1337,8 @@ class Models(object):
           >>> # search for color model
           >>> app.models.search('color', model_type='color')
           >>>
-          >>> # search for face model
-          >>> app.models.search('face', model_type='facedetect')
+          >>> # search for detect model
+          >>> app.models.search('face', model_type='detect')
     """
 
     res = self.api.search_models(model_name, model_type)
@@ -2424,17 +2426,27 @@ class Inputs(object):
     regions = None
     regions_json = one['data'].get('regions')
     if regions_json:
-      regions = [
-          Region(
-              region_id=r['id'],
-              region_info=RegionInfo(bbox=BoundingBox(
-                  top_row=r['region_info']['bounding_box']['top_row'],
-                  left_col=r['region_info']['bounding_box']['left_col'],
-                  bottom_row=r['region_info']['bounding_box']['bottom_row'],
-                  right_col=r['region_info']['bounding_box']['right_col'])),
-              face=Face(FaceIdentity([c for c in r['data']['face']['identity']['concepts']]))
-              if r.get('data', {}).get('face') else None) for r in regions_json
-      ]
+
+      regions = []
+      for r in regions_json:
+        region = Region(
+            region_id=r['id'],
+            region_info=RegionInfo(bbox=BoundingBox(
+                top_row=r['region_info']['bounding_box']['top_row'],
+                left_col=r['region_info']['bounding_box']['left_col'],
+                bottom_row=r['region_info']['bounding_box']['bottom_row'],
+                right_col=r['region_info']['bounding_box']['right_col'])))
+        if r.get('data', {}).get('concepts'):
+          concepts = []
+          for concept in r['data']['concepts']:
+            concept = Concept(
+                concept_name=concept['name'],
+                concept_id=concept['id'],
+                app_id=concept['app_id'],
+                created_at=concept['created_at'])
+            concepts.append(concept)
+          region.concepts = concepts
+        regions.append(region)
 
     input_id = one['id']
     if one['data'].get('image'):
@@ -4275,22 +4287,18 @@ class Region(object):
       self,  # type: Region
       region_info=None,  # type: typing.Optional[RegionInfo]
       concepts=None,  # type: typing.Optional[typing.List[Concept]]
-      face=None,  # type: typing.Optional[Face]
       region_id=None  # type: typing.Optional[str]
   ):
     # type: (...) -> None
 
     self.region_info = region_info
     self.concepts = concepts
-    self.face = face
     self.region_id = region_id
 
   def dict(self):  # type: () -> dict
     data = {}
     if self.concepts:
       data['concepts'] = [c.dict() for c in self.concepts]
-    if self.face:
-      data.update(self.face.dict())
 
     region = {}
     if self.region_info:
@@ -4300,78 +4308,3 @@ class Region(object):
     if data:
       region['data'] = data
     return region
-
-
-class Face(object):
-
-  def __init__(
-      self,  # type: Face
-      identity=None,  # type: typing.Optional[FaceIdentity]
-      age_appearance=None,  # type: typing.Optional[FaceAgeAppearance]
-      gender_appearance=None,  # type: typing.Optional[FaceGenderAppearance]
-      multicultural_appearance=None  # type: typing.Optional[FaceMulticulturalAppearance]
-  ):
-    # type: (...) -> None
-
-    self.identity = identity
-    self.age_appearance = age_appearance
-    self.gender_appearance = gender_appearance
-    self.multicultural_appearance = multicultural_appearance
-
-  def dict(self):  # type: () -> dict
-
-    data = {'face': {}}
-
-    if self.identity:
-      data['face'].update(self.identity.dict())
-
-    if self.age_appearance:
-      data['face'].update(self.age_appearance.dict())
-
-    if self.gender_appearance:
-      data['face'].update(self.gender_appearance.dict())
-
-    if self.multicultural_appearance:
-      data['face'].update(self.multicultural_appearance.dict())
-
-    return data
-
-
-class FaceIdentity(object):
-
-  def __init__(self, concepts):  # type: (typing.List[Concept]) -> None
-    self.concepts = concepts
-
-  def dict(self):  # type: () -> dict
-    data = {'identity': {'concepts': [c.dict() for c in self.concepts]}}
-    return data
-
-
-class FaceAgeAppearance(object):
-
-  def __init__(self, concepts):  # type: (typing.List[Concept]) -> None
-    self.concepts = concepts
-
-  def dict(self):  # type: () -> dict
-    data = {'age_appearance': {'concepts': [c.dict() for c in self.concepts]}}
-    return data
-
-
-class FaceGenderAppearance(object):
-
-  def __init__(self, concepts):  # type: (typing.List[Concept]) -> None
-    self.concepts = concepts
-
-  def dict(self):  # type: () -> dict
-    data = {'gender_appearance': {'concepts': [c.dict() for c in self.concepts]}}
-    return data
-
-
-class FaceMulticulturalAppearance(object):
-
-  def __init__(self, concepts):  # type: (typing.List[Concept]) -> None
-    self.concepts = concepts
-
-  def dict(self):  # type: () -> dict
-    data = {'multicultural_appearance': {'concepts': [c.dict() for c in self.concepts]}}
-    return data

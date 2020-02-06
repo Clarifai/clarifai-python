@@ -84,7 +84,7 @@ def test_create_model(mock_http_client):  # type: (mock.Mock) -> None
       "output_config": {}
     }
   }
-} 
+}
       """)
 
 
@@ -185,8 +185,8 @@ def test_get_all_models(mock_http_client):  # type: (mock.Mock) -> None
       "app_id": "main",
       "output_info": {
         "message": "Show output_info with: GET /models/{model_id}/output_info",
-        "type": "facedetect",
-        "type_ext": "facedetect"
+        "type": "detect",
+        "type_ext": "detect"
       },
       "model_version": {
         "id": "28b2ff6148684aa2b18a34cd004b4fac",
@@ -238,7 +238,7 @@ def test_get_all_models(mock_http_client):  # type: (mock.Mock) -> None
 
   assert models[0].model_id == '@modelID1'
   assert models[0].model_name == '@modelName1'
-  assert models[0].output_info['type_ext'] == 'facedetect'
+  assert models[0].output_info['type_ext'] == 'detect'
 
   assert models[1].model_id == '@modelID2'
   assert models[1].model_name == '@modelName2'
@@ -415,7 +415,7 @@ def test_update_model(mock_http_client):  # type: (mock.Mock) -> None
     }
   ],
   "action": "merge"
-} 
+}
 """)
 
   # User Error should be thrown if unsupported action is given
@@ -458,7 +458,7 @@ def test_train_model(mock_http_client):  # type: (mock.Mock) -> None
       "train_stats": {}
     }
   }
-} 
+}
   """)
 
   app = ClarifaiApp()
