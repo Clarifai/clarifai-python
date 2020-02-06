@@ -10,38 +10,43 @@ TINY_IMAGE_BASE64 = b'R0lGODlhAQABAIABAP///wAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw
 @mock.patch('clarifai.rest.http_client.HttpClient')
 def test_search_models_by_name(mock_http_client):  # type: (mock.Mock) -> None
   mock_execute_request = mock_request(mock_http_client, """
+
 {
-  "status": {
-    "code": 10000,
-    "description": "Ok"
-  },
-  "models": [{
-    "id": "@modelID",
-    "name": "celeb-v1.3",
-    "created_at": "2016-10-25T19:30:38.541073Z",
-    "app_id": "main",
-    "output_info": {
-      "message": "Show output_info with: GET /models/{model_id}/output_info",
-      "type": "concept",
-      "type_ext": "facedetect-identity"
+    "status": {
+        "code": 10000,
+        "description": "Ok",
+        "req_id": "08e649a6116f4f56992e1676b25dcde6"
     },
-    "model_version": {
-      "id": "@modelVersionID",
-      "created_at": "2016-10-25T19:30:38.541073Z",
-      "status": {
-        "code": 21100,
-        "description": "Model trained successfully"
-      },
-      "active_concept_count": 10554
-    },
-    "display_name": "Celebrity"
-  }]
+    "models": [
+        {
+            "id": "@modelID",
+            "name": "moderation",
+            "created_at": "2017-05-12T21:28:00.471607Z",
+            "app_id": "main",
+            "output_info": {
+                "message": "Show output_info with: GET /models/{model_id}/output_info",
+                "type": "concept",
+                "type_ext": "concept"
+            },
+            "model_version": {
+                "id": "@modelVersionID",
+                "created_at": "2017-10-26T20:29:09.263232Z",
+                "status": {
+                    "code": 21100,
+                    "description": "Model is trained and ready"
+                },
+                "active_concept_count": 5,
+                "worker_id": "8b7c05a25ce04d0490367390665f1526"
+            },
+            "display_name": "Moderation"
+        }
+    ]
 }
 """)
 
   app = ClarifaiApp()
 
-  models = app.models.search("celeb*")
+  models = app.models.search("moderation*")
 
   assert models[0].model_id == '@modelID'
   assert models[0].model_version == '@modelVersionID'
@@ -49,7 +54,7 @@ def test_search_models_by_name(mock_http_client):  # type: (mock.Mock) -> None
   assert_request(mock_execute_request, 'POST', '/v2/models/searches', """
 {
   "model_query": {
-    "name": "celeb*"
+    "name": "moderation*"
   }
 }
   """)
