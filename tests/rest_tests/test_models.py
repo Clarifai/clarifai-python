@@ -563,6 +563,7 @@ class TestModels(unittest.TestCase):
 
     model_id = uuid.uuid4().hex
     model = self.app.models.create(model_id)
+    time.sleep(1)
     model.add_concepts(['cats4', 'dogs4'])
     model.delete_concepts(['cats4'])
     model.merge_concepts(['cats4', 'dogs4'])
@@ -585,6 +586,7 @@ class TestModels(unittest.TestCase):
 
     model_id = uuid.uuid4().hex
     model = self.app.models.create(model_id)
+    time.sleep(1)
     model = model.merge_concepts(concept_ids=['cats5', 'dogs5'])
     model = model.delete_concepts(concept_ids=['dogs5'])
 
