@@ -475,6 +475,7 @@ class TestModels(unittest.TestCase):
 
     model_id = uuid.uuid4().hex
     model = self.app.models.create(model_id)
+    time.sleep(1)
     model.add_concepts(['cats3', 'dogs3'])
 
     # mock the response of res_ver = self.api.get_model_version(model_id, model_version)
