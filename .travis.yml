@@ -5,23 +5,17 @@ matrix:
   include:
     - os: linux
       sudo: required
-      python: '2.7'
-    - os: linux
-      sudo: required
       python: '3.5'
     - os: linux
       sudo: required
-      python: '3.7'
-    - os: osx
-      language: generic
-      env: PYTHON=2.7.15
+      python: '3.8'
     - os: osx
       language: generic
       env: PYTHON=3.5.6
     - os: osx
       language: generic
       env:
-        - PYTHON=3.7.2
+        - PYTHON=3.8.2
         - RELEASE_JOB=true
 
 # environmental variables
