@@ -25,7 +25,7 @@ env:
 
 # TODO(Rok) LOW: Cache the Python installation, if possible.
 before_install: |
-  if [ "$TRAVIS_OS_NAME" == "osx" ]; then
+  if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     brew update
     brew install openssl readline
     brew outdated pyenv || brew upgrade pyenv
@@ -57,7 +57,7 @@ before_script:
 
 # command to run tests
 script: |
-  if [ "$TRAVIS_OS_NAME" == "osx" ]; then
+  if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     COVERAGE_ARGS=""
   fi
   pytest -n 8 $COVERAGE_ARGS
