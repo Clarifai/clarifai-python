@@ -1,4 +1,4 @@
-import mock
+import unittest.mock as mock
 
 from clarifai.rest import (ClarifaiApp, Geo, GeoLimit, GeoPoint, InputSearchTerm, OutputSearchTerm,
                            SearchQueryBuilder)

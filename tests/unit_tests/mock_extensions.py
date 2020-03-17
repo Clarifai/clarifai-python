@@ -1,8 +1,7 @@
 import json
 import typing  # noqa
+import unittest.mock as mock
 from typing import Union  # noqa
-
-import mock
 
 
 class MockValidator(object):

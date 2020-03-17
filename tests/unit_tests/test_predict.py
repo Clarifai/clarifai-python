@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import mock
+import unittest.mock as mock
 
 from clarifai.rest import ClarifaiApp, Image, ModelOutputConfig, ModelOutputInfo
 
