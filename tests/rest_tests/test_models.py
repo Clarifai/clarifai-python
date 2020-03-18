@@ -7,7 +7,7 @@ import time
 import unittest
 import uuid
 
-from mock import Mock
+from unittest.mock import Mock
 
 from clarifai.rest import GENERAL_MODEL_ID, ApiError, ClarifaiApp, Image, Model
 

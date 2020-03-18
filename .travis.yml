@@ -5,22 +5,18 @@ matrix:
   include:
     - os: linux
       sudo: required
-      python: '2.7'
-    - os: linux
-      sudo: required
       python: '3.5'
     - os: linux
       sudo: required
-      python: '3.7'
-    - os: osx
-      language: generic
-      env: PYTHON=2.7.15
+      python: '3.8'
     - os: osx
       language: generic
       env: PYTHON=3.5.6
     - os: osx
       language: generic
-      env: PYTHON=3.7.2
+      env:
+        - PYTHON=3.8.2
+        - RELEASE_JOB=true
 
 # environmental variables
 env:
@@ -29,7 +25,7 @@ env:
 
 # TODO(Rok) LOW: Cache the Python installation, if possible.
 before_install: |
-  if [ "$TRAVIS_OS_NAME" == "osx" ]; then
+  if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     brew update
     brew install openssl readline
     brew outdated pyenv || brew upgrade pyenv
@@ -61,7 +57,7 @@ before_script:
 
 # command to run tests
 script: |
-  if [ "$TRAVIS_OS_NAME" == "osx" ]; then
+  if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     COVERAGE_ARGS=""
   fi
   pytest -n 8 $COVERAGE_ARGS
@@ -69,3 +65,25 @@ script: |
 after_script:
   - export PYTHONPATH=.
   - python scripts/app_and_key_for_tests.py --delete-app $CLARIFAI_APP_ID
+
+before_deploy:
+  - python setup.py sdist
+  - python setup.py sdist --format zip
+
+deploy:
+  - provider: pypi
+    user: ${PYPI_USERNAME}
+    password: ${PYPI_PASSWORD}
+    on:
+      condition: "$RELEASE_JOB == true"
+      tags: true
+      repo: Clarifai/clarifai-python
+  - provider: releases
+    api_key: ${GITHUB_TOKEN}
+    file:
+      - dist/clarifai-*.tar.gz
+      - dist/clarifai-*.zip
+    on:
+      condition: "$RELEASE_JOB == true"
+      tags: true
+      repo: Clarifai/clarifai-python
