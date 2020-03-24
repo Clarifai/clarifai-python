@@ -22,11 +22,13 @@ class TestWorkflows(unittest.TestCase):
       wf_get = self.app.workflows.get(wf.wf_id)
       self.assertEqual(wf_get.wf_id, wf.wf_id)
 
-  def test_list_and_get_public_workflows(self):
-    for wf in self.app.workflows.get_all(public_only=True):
-      self.assertTrue(isinstance(wf, Workflow))
-      wf_get = self.app.workflows.get(wf.wf_id)
-      self.assertEqual(wf_get.wf_id, wf.wf_id)
+  # Note(zeiler): this is removed for now...shouldn't need this in the future when we refactor some
+  # API stuff.
+  # def test_list_and_get_public_workflows(self):
+  #   for wf in self.app.workflows.get_all(public_only=True):
+  #     self.assertTrue(isinstance(wf, Workflow))
+  #     wf_get = self.app.workflows.get(wf.wf_id)
+  #     self.assertEqual(wf_get.wf_id, wf.wf_id)
 
   def test_public_workflow_predict_by_url(self):
 

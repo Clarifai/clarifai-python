@@ -56,9 +56,9 @@ from clarifai.rest.grpc.proto.clarifai.api.model_version_pb2 import (
 from clarifai.rest.grpc.proto.clarifai.api.search_pb2 import PostSearchesRequest, Query
 from clarifai.rest.grpc.proto.clarifai.api.status.status_code_pb2 import (
     INPUT_IMAGE_DOWNLOAD_IN_PROGRESS, INPUT_IMAGE_DOWNLOAD_PENDING, INPUT_IMAGE_DOWNLOAD_SUCCESS)
-from clarifai.rest.grpc.proto.clarifai.api.workflow_pb2 import (
-    GetWorkflowRequest, ListPublicWorkflowsRequest, ListWorkflowsRequest,
-    PostWorkflowResultsRequest)
+from clarifai.rest.grpc.proto.clarifai.api.workflow_pb2 import (GetWorkflowRequest,
+                                                                ListWorkflowsRequest,
+                                                                PostWorkflowResultsRequest)
 from clarifai.rest.grpc.proto.clarifai.utils.pagination.pagination_pb2 import Pagination
 # Versions are imported here to avoid breaking existing client code.
 from clarifai.versions import CLIENT_VERSION, OS_VER, PYTHON_VERSION  # noqa
@@ -942,12 +942,9 @@ class Workflows(object):
   def __init__(self, api):  # type: (ApiClient) -> None
     self.api = api  # type: ApiClient
 
-  def get_all(self, public_only=False):
+  def get_all(self):
     # type: (typing.Optional[bool]) -> typing.Generator[Workflow, None, None]
     """ get all workflows in the application
-
-    Args:
-      public_only: whether to get public workflow
 
     Returns:
       a generator that yields Workflow object
@@ -957,7 +954,7 @@ class Workflows(object):
       >>>   print(workflow.id)
     """
 
-    res = self.api.get_workflows(public_only)
+    res = self.api.get_workflows()
 
     # FIXME(robert): hack to correct the empty workflow
     if not res.get('workflows'):
@@ -970,7 +967,7 @@ class Workflows(object):
       workflow = Workflow(self.api, one)
       yield workflow
 
-  def get_by_page(self, public_only=False, page=1, per_page=20):
+  def get_by_page(self, page=1, per_page=20):
     # type: (bool, int, int) -> typing.List[Workflow]
     """ get paginated workflows from the application
 
@@ -978,7 +975,6 @@ class Workflows(object):
         the paginated results from all the models
 
     Args:
-      public_only: whether to get public workflow
       page: page number
       per_page: number of models returned in one page
 
@@ -989,7 +985,7 @@ class Workflows(object):
       >>> workflows = app.workflows.get_by_page(2, 20)
     """
 
-    res = self.api.get_workflows(public_only)
+    res = self.api.get_workflows()
     results = [Workflow(self.api, one) for one in res['workflows']]
 
     return results
@@ -4018,21 +4014,14 @@ class ApiClient(object):
                                   inputs=inputs_pb,
                                   model=model))
 
-  def get_workflows(self, public_only=False):  # type: (bool) -> dict
+  def get_workflows(self):  # type: (bool) -> dict
     """ get all workflows with pagination
-
-    Args:
-      public_only: whether to get public workflow
 
     Returns:
       a list of workflows in JSON format
     """
 
-    if public_only:
-      return self._grpc_request(self._grpc_stub().ListPublicWorkflows,
-                                ListPublicWorkflowsRequest())
-    else:
-      return self._grpc_request(self._grpc_stub().ListWorkflows, ListWorkflowsRequest())
+    return self._grpc_request(self._grpc_stub().ListWorkflows, ListWorkflowsRequest())
 
   def get_workflow(self, workflow_id):  # type: (str) -> dict
     """ get workflow basic info by workflow id
