@@ -6,7 +6,6 @@ import time
 import unittest
 
 import responses
-
 from clarifai.rest import ApiClient, ApiError, ClarifaiApp
 
 from . import sample_inputs
@@ -246,9 +245,12 @@ class TestApiExceptions(unittest.TestCase):
 
   def test_invalid_api_key_error(self):
     with self.assertRaises(ApiError) as ex:
-      ClarifaiApp(api_key='some-invalid-api-key')
-
+      ClarifaiApp(api_key='invalid-api-key-format')
     raised_exception = ex.exception
+    assert raised_exception.error_code == 11008
 
+    with self.assertRaises(ApiError) as ex:
+      ClarifaiApp(api_key='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+    raised_exception = ex.exception
     assert raised_exception.error_code == 11009
     assert raised_exception.error_desc == 'API key not found'
