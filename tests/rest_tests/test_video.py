@@ -138,7 +138,8 @@ class TestVideo(unittest.TestCase):
     res = m.predict_by_url(sample_inputs.BEER_VIDEO_URL, is_video=True, sample_ms=2000)
     self._verify_video_response(res)
     for frame in res['outputs'][0]['data']['frames']:
-      assert frame['frame_info']['time'] % 2000 == 0
+      assert (frame['frame_info']['time'] + 1000
+             ) % 2000 == 0  # API will return 1000/3000/5000... midpint timestamp
 
   def test_predict_video_filename_with_custom_sample_ms(self):
     """ test video with not just general models """
@@ -147,7 +148,8 @@ class TestVideo(unittest.TestCase):
     res = m.predict_by_filename(sample_inputs.BEER_VIDEO_FILE_PATH, is_video=True, sample_ms=2000)
     self._verify_video_response(res)
     for frame in res['outputs'][0]['data']['frames']:
-      assert frame['frame_info']['time'] % 2000 == 0
+      assert (frame['frame_info']['time'] + 1000
+             ) % 2000 == 0  # API will return 1000/3000/5000... midpint timestamp
 
   def test_predict_video_bytes_with_custom_sample_ms(self):
     """ test video with not just general models """
@@ -157,7 +159,8 @@ class TestVideo(unittest.TestCase):
     res = m.predict_by_bytes(file_bytes, is_video=True, sample_ms=2000)
     self._verify_video_response(res)
     for frame in res['outputs'][0]['data']['frames']:
-      assert frame['frame_info']['time'] % 2000 == 0
+      assert (frame['frame_info']['time'] + 1000
+             ) % 2000 == 0  # API will return 1000/3000/5000... midpint timestamp
 
   def test_predict_video_base64_with_custom_sample_ms(self):
     """ test video with not just general models """
@@ -167,4 +170,5 @@ class TestVideo(unittest.TestCase):
     res = m.predict_by_base64(base64.encodestring(file_bytes), is_video=True, sample_ms=2000)
     self._verify_video_response(res)
     for frame in res['outputs'][0]['data']['frames']:
-      assert frame['frame_info']['time'] % 2000 == 0
+      assert (frame['frame_info']['time'] + 1000
+             ) % 2000 == 0  # API will return 1000/3000/5000... midpint timestamp
