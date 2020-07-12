@@ -1,5 +1,9 @@
 ![Clarifai logo](docs/logo.png)
 
+# DECPRECATED: This API Client is no longer supported. 
+
+Please use https://github.com/Clarifai/clarifai-python-grpc instead which is more feature rich, faster and supported.
+
 # Clarifai API Python Client
 
 This is the official Python client for interacting with our powerful recognition [API](https://docs.clarifai.com).
