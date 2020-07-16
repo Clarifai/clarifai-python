@@ -54,7 +54,7 @@ class TestModels(unittest.TestCase):
 
     # create a model with no concept
     model_id = uuid.uuid4().hex
-    model1 = self.app.models.create(model_id)
+    model1 = self.app.models.create(model_id, ['test-concept'])
     model_id_retrieved = model1.model_id
     self.assertEqual(model_id, model_id_retrieved)
 
@@ -73,7 +73,7 @@ class TestModels(unittest.TestCase):
 
     # create a model with no concept
     model_id = uuid.uuid4().hex
-    model1 = self.app.models.create(model_id)
+    model1 = self.app.models.create(model_id, ['test-concept'])
     model_id_retrieved = model1.model_id
     self.assertEqual(model_id, model_id_retrieved)
 
@@ -118,7 +118,7 @@ class TestModels(unittest.TestCase):
       m = self.app.models.get(new_model_id)
     except ApiError as e:
       if e.response.status_code == 404:
-        m = self.app.models.create(new_model_id)
+        m = self.app.models.create(new_model_id, ['test-concept'])
         self.assertEqual(m.model_id, new_model_id)
 
     model_fetch = self.app.models.get(new_model_id)
@@ -133,7 +133,7 @@ class TestModels(unittest.TestCase):
       m = self.app.models.get(new_model_id)
     except ApiError as e:
       if e.response.status_code == 404:
-        m = self.app.models.create(new_model_id)
+        m = self.app.models.create(new_model_id, ['test-concept'])
         self.assertEqual(m.model_id, new_model_id)
 
     model_fetch = self.app.models.get(new_model_id)
@@ -295,23 +295,7 @@ class TestModels(unittest.TestCase):
       self.assertTrue(isinstance(model, Model))
 
   def test_create_model(self):
-
-    # create a model with no concept
-    model_id = uuid.uuid4().hex
-    model1 = self.app.models.create(model_id)
-    model_id_retrieved = model1.model_id
-    self.assertEqual(model_id, model_id_retrieved)
-    self.app.models.delete(model_id)
-
-    # create a model with model_id and no concept
-    model_id = uuid.uuid4().hex
-    model2 = self.app.models.create(model_name="my_model2", model_id=model_id)
-    model_id_retrieved = model2.model_id
-    self.assertEqual(model_id, model_id_retrieved)
-    self.app.models.delete(model_id)
-
     # create a model with concepts
-
     img1 = self.app.inputs.create_image_from_url(
         url=sample_inputs.METRO_IMAGE_URL,
         concepts=['catm3', 'animalm3'],
@@ -320,7 +304,7 @@ class TestModels(unittest.TestCase):
         url=sample_inputs.WEDDING_IMAGE_URL, concepts=['dogm3'], allow_duplicate_url=True)
 
     model_id = uuid.uuid4().hex
-    model = self.app.models.create(model_id=model_id, concepts=['catm3', 'dogm3', 'animalm3'])
+    model = self.app.models.create(model_id=model_id, concepts=['catm3', 'dogm3', 'animalm3'], model_name="my_model")
 
     model_id_retrieved = model.model_id
     self.assertEqual(model_id, model_id_retrieved)
@@ -333,7 +317,7 @@ class TestModels(unittest.TestCase):
 
     # create a model without hyper parameter
     model_id = uuid.uuid4().hex
-    model1 = self.app.models.create(model_id, hyper_parameters=None)
+    model1 = self.app.models.create(model_id, ['test-concept'], hyper_parameters=None)
 
     self.assertEqual(model1.model_id, model_id)
 
@@ -347,7 +331,7 @@ class TestModels(unittest.TestCase):
         'custom_training_cfg_args': {}
     }
 
-    model2 = self.app.models.create(model_id, hyper_parameters=parameters)
+    model2 = self.app.models.create(model_id, ['test-concept'], hyper_parameters=parameters)
 
     self.assertEqual(model2.model_id, model_id)
     self.assertIsNotNone(model2.hyper_parameters)
@@ -369,7 +353,7 @@ class TestModels(unittest.TestCase):
         'custom_training_cfg_args': {}
     }
 
-    model3 = self.app.models.create(model_id, hyper_parameters=parameters)
+    model3 = self.app.models.create(model_id, ['test-concept'], hyper_parameters=parameters)
 
     self.assertEqual(model3.model_id, model_id)
     self.assertIsNotNone(model3.hyper_parameters)
@@ -414,16 +398,6 @@ class TestModels(unittest.TestCase):
 
   def test_train_model(self):
     """ train models """
-
-    # create a model with no concept
-    model_id = uuid.uuid4().hex
-    model2 = self.app.models.create(model_id=model_id)
-
-    # train well created model with no concept
-    with self.assertRaises(ApiError) as ae:
-      res = model2.train()
-      self.assertEqual(res['status']['code'], 21202)
-
     # create a model with concepts but no samples
     try:
       self.app.concepts.get('cats1')
@@ -474,8 +448,8 @@ class TestModels(unittest.TestCase):
         sample_inputs.WEDDING_IMAGE_URL, concepts=['dogs3'], allow_duplicate_url=True)
 
     model_id = uuid.uuid4().hex
-    model = self.app.models.create(model_id)
-    model.add_concepts(['cats3', 'dogs3'])
+    model = self.app.models.create(model_id, ['cats3'])
+    model.add_concepts(['dogs3'])
 
     # mock the response of res_ver = self.api.get_model_version(model_id, model_version)
     #                      res_ver['model_version']['status']['code']
@@ -530,13 +504,13 @@ class TestModels(unittest.TestCase):
   def test_delete_model(self):
     # create a model and delete it
     model_id = uuid.uuid4().hex
-    model = self.app.models.create(model_id)
+    model = self.app.models.create(model_id, ['test-concept'])
     self.app.models.delete(model.model_id)
 
   def test_delete_models(self):
     # create models
-    model1 = self.app.models.create(uuid.uuid4().hex)
-    model2 = self.app.models.create(uuid.uuid4().hex)
+    model1 = self.app.models.create(uuid.uuid4().hex, ['test-concept'])
+    model2 = self.app.models.create(uuid.uuid4().hex, ['test-concept'])
 
     # assert presence
     all_model_ids = [m.model_id for m in self.app.models.get_all(private_only=True)]
@@ -562,8 +536,8 @@ class TestModels(unittest.TestCase):
         sample_inputs.WEDDING_IMAGE_URL, concepts=['dogs4'], allow_duplicate_url=True)
 
     model_id = uuid.uuid4().hex
-    model = self.app.models.create(model_id)
-    model.add_concepts(['cats4', 'dogs4'])
+    model = self.app.models.create(model_id, ['cats4'])
+    model.add_concepts(['dogs4'])
     model.delete_concepts(['cats4'])
     model.merge_concepts(['cats4', 'dogs4'])
     model.merge_concepts(['cats4', 'dogs4'], overwrite=False)
@@ -584,8 +558,8 @@ class TestModels(unittest.TestCase):
         sample_inputs.WEDDING_IMAGE_URL, concepts=['dogs5'], allow_duplicate_url=True)
 
     model_id = uuid.uuid4().hex
-    model = self.app.models.create(model_id)
-    model = model.merge_concepts(concept_ids=['cats5', 'dogs5'])
+    model = self.app.models.create(model_id, ['dogs5'])
+    model = model.merge_concepts(concept_ids=['cats5'])
     model = model.delete_concepts(concept_ids=['dogs5'])
 
     self.assertEqual(model.model_id, model_id)

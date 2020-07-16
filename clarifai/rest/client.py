@@ -1066,8 +1066,8 @@ class Models(object):
   def create(
       self,  # type: Models
       model_id,  # type: str
+      concepts,  # type: typing.List[str]
       model_name=None,  # type: typing.Optional[str]
-      concepts=None,  # type: typing.Optional[typing.List[str]]
       concepts_mutually_exclusive=False,  # type: bool
       closed_environment=False,  # type: bool
       hyper_parameters=None  # type: typing.Optional[dict]
