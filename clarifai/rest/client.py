@@ -3930,13 +3930,11 @@ class ApiClient(object):
     if not model_name:
       model_name = model_id
 
-    data = None
-    if concepts:
-      data = dict_to_protobuf(DataPB, {
-          'concepts': [{
-              'id': concept_id
-          } for concept_id in concepts]
-      })
+    data = dict_to_protobuf(DataPB, {
+        'concepts': [{
+            'id': concept_id
+        } for concept_id in (concepts or [])]
+    })
 
     hyper_parameters_pb = None
     if hyper_parameters:
