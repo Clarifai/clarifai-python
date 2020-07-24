@@ -7,8 +7,6 @@ import time
 import unittest
 import uuid
 
-from unittest.mock import Mock
-
 from clarifai.rest import GENERAL_MODEL_ID, ApiError, ClarifaiApp, Image, Model
 
 from . import sample_inputs
@@ -89,27 +87,6 @@ class TestModels(unittest.TestCase):
     # clean up
     self.app.models.delete(model_id)
 
-  def test_get_model_by_id(self):
-    """ get model by model id """
-
-    for model in self.app.models.get_all():
-
-      model_id = model.model_id
-
-      try:
-        model_fetch = self.app.models.get(model_id)
-      except ApiError as e:
-        if e.response.status_code == 404:
-          # in the concurrent tests, this may get some transient models that will be
-          # deleted right away
-          # so just ignore the 404 errors
-          continue
-        else:
-          raise e
-
-      self.assertTrue(isinstance(model_fetch, Model))
-      self.assertEqual(model_id, model_fetch.model_id)
-
   def test_get_model_by_id_multi_lang(self):
     """ get model by model id in other language """
 
@@ -141,33 +118,6 @@ class TestModels(unittest.TestCase):
     self.app.models.get(new_model_id).get_info()
     self.assertTrue(isinstance(model_fetch, Model))
     self.assertEqual(new_model_id, model_fetch.model_id)
-
-  def test_get_model_output_info_by_id(self):
-    """ get model output info by model id """
-
-    for model in self.app.models.get_all():
-
-      model_id = model.model_id
-
-      try:
-        model_fetch = self.app.models.get(model_id)
-        ret = model_fetch.get_info(verbose=True)
-      except ApiError as e:
-        if e.response.status_code == 404:
-          # in the concurrent tests, this may get some transient models that will be
-          # deleted right away
-          # so just ignore the 404 errors
-          continue
-        else:
-          raise e
-
-      self.assertIn('model', ret)
-      self.assertIn('output_info', ret['model'])
-      if 'data' in ret['model']['output_info']:
-        self.assertIn('concepts', ret['model']['output_info']['data'])
-        self.assertNotEqual(0, len(ret['model']['output_info']['data']['concepts']))
-
-      self.assertIn('type', ret['model']['output_info'])
 
   def test_get_model_by_id_and_version(self):
     """ get model by model id and version """
@@ -397,6 +347,8 @@ class TestModels(unittest.TestCase):
         concepts=['dog_custom_models'],
         allow_duplicate_url=True)
 
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[img1.input_id, img2.input_id])
+
     model_id = uuid.uuid4().hex
     model = self.app.models.create(
         model_id=model_id,
@@ -465,68 +417,6 @@ class TestModels(unittest.TestCase):
     self.app.inputs.delete(img1.input_id)
     self.app.inputs.delete(img2.input_id)
 
-  def test_train_timeout(self):
-    ''' train(sync=True) timeout handling '''
-
-    img1 = self.app.inputs.create_image_from_url(
-        sample_inputs.METRO_IMAGE_URL, concepts=['cats3'], allow_duplicate_url=True)
-    img2 = self.app.inputs.create_image_from_url(
-        sample_inputs.WEDDING_IMAGE_URL, concepts=['dogs3'], allow_duplicate_url=True)
-
-    model_id = uuid.uuid4().hex
-    model = self.app.models.create(model_id)
-    model.add_concepts(['cats3', 'dogs3'])
-
-    # mock the response of res_ver = self.api.get_model_version(model_id, model_version)
-    #                      res_ver['model_version']['status']['code']
-    start_ts = time.time()
-    timeout = 1
-
-    def get_mocked_model_version(model_id, version_id):
-      # 21101: being trained
-      # 21100: trained
-
-      ret_training = {'model_version': {'id': 'xxxx', 'status': {'code': 21103}}}
-
-      ret_trained = {'model_version': {'id': 'xxxx', 'status': {'code': 21100}}}
-
-      time_now_ts = time.time()
-      if time_now_ts - start_ts > timeout:
-        return ret_trained
-      else:
-        return ret_training
-
-    # patch the relevant functions under api endpoint
-    model.api = Mock()
-    model.api.create_model_version.side_effect = self.app.api.create_model_version
-    model.api.get_model_version.side_effect = get_mocked_model_version
-
-    # within timeout
-    start_ts = time.time()
-    timeout = 3
-    ret = model.train()
-    self.assertEqual(ret.model_status_code, 21100)
-
-    # call train with 10 sec timeout
-    start_ts = time.time()
-    timeout = 10
-    ret = model.train(timeout=3)
-    self.assertEqual(ret.model_status_code, 21103)
-
-    # beyond default timeout
-    start_ts = time.time()
-    timeout = 100
-    ret = model.train()
-    self.assertEqual(ret.model_status_code, 21103)
-
-    # recover the patched api
-    model.api = self.app.api
-
-    # clean up
-    self.app.models.delete(model_id)
-    self.app.inputs.delete(img1.input_id)
-    self.app.inputs.delete(img2.input_id)
-
   def test_delete_model(self):
     # create a model and delete it
     model_id = uuid.uuid4().hex
@@ -561,6 +451,8 @@ class TestModels(unittest.TestCase):
     img2 = self.app.inputs.create_image_from_url(
         sample_inputs.WEDDING_IMAGE_URL, concepts=['dogs4'], allow_duplicate_url=True)
 
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[img1.input_id, img2.input_id])
+
     model_id = uuid.uuid4().hex
     model = self.app.models.create(model_id)
     model.add_concepts(['cats4', 'dogs4'])
@@ -582,6 +474,8 @@ class TestModels(unittest.TestCase):
         sample_inputs.METRO_IMAGE_URL, concepts=['cats5', 'animals5'], allow_duplicate_url=True)
     img2 = self.app.inputs.create_image_from_url(
         sample_inputs.WEDDING_IMAGE_URL, concepts=['dogs5'], allow_duplicate_url=True)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[img1.input_id, img2.input_id])
 
     model_id = uuid.uuid4().hex
     model = self.app.models.create(model_id)
@@ -754,16 +648,18 @@ class TestModels(unittest.TestCase):
 
     try:
       # Create inputs.
-      self.app.inputs.create_image_from_url(
+      input1 = self.app.inputs.create_image_from_url(
           image_id=image_id1,
           url=sample_inputs.METRO_IMAGE_URL,
           concepts=['cats6', 'animals6'],
           allow_duplicate_url=True)
-      self.app.inputs.create_image_from_url(
+      input2 = self.app.inputs.create_image_from_url(
           image_id=image_id2,
           url=sample_inputs.WEDDING_IMAGE_URL,
           concepts=['dogs6'],
           allow_duplicate_url=True)
+
+      self.app.wait_for_specific_input_uploads_to_finish(ids=[input1.input_id, input2.input_id])
 
       # Create and train a model.
       model = self.app.models.create(model_id=model_id, concepts=['cats6', 'dogs6', 'animals6'])
@@ -806,10 +702,11 @@ class TestModels(unittest.TestCase):
           concepts=[concept_id_2],
           allow_duplicate_url=True)
 
+      self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id1, image_id2])
+
       # Create a model.
       model = self.app.models.create(model_id=model_id, concepts=[concept_id_1, concept_id_2])
 
-      self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id1, image_id2])
       model = model.train(timeout=1200)
 
       # Get model's inputs. Note: use a large page because there we just list all inputs

@@ -234,6 +234,8 @@ class TestSearch(unittest.TestCase):
         metadata=meta,
         allow_duplicate_url=True)
 
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id])
+
     # nested meta search
     search_res = self.app.inputs.search_by_metadata({"key1": {"key2": {"key3": "value_level3"}}})
     # disable this until citus migration fully finishes

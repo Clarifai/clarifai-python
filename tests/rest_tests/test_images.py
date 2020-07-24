@@ -99,6 +99,8 @@ class TestImages(unittest.TestCase):
     self.assertEqual(image.url, sample_inputs.METRO_IMAGE_URL)
     self.assertEqual(len(image.input_id) in [22, 32], True)
 
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image.input_id, image2.input_id])
+
     self.app.inputs.delete(input_id=image.input_id)
     self.app.inputs.delete(input_id=image2.input_id)
 
@@ -109,6 +111,8 @@ class TestImages(unittest.TestCase):
         url=sample_inputs.METRO_IMAGE_URL, allow_duplicate_url=True)
     self.assertEqual(image.url, sample_inputs.METRO_IMAGE_URL)
     self.assertEqual(len(image.input_id) in [22, 32], True)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image.input_id])
 
     image2 = self.app.inputs.get(input_id=image.input_id)
     self.assertEqual(image2.input_id, image.input_id)
@@ -129,6 +133,9 @@ class TestImages(unittest.TestCase):
         url=sample_inputs.DOG_TIFF_IMAGE_URL, allow_duplicate_url=True)
     self.assertEqual(img3.url, sample_inputs.DOG_TIFF_IMAGE_URL)
 
+    self.app.wait_for_specific_input_uploads_to_finish(
+        ids=[img1.input_id, img2.input_id, img3.input_id])
+
     ret = self.app.inputs.delete(input_id=[img1.input_id, img2.input_id, img3.input_id])
     time.sleep(3)
 
@@ -144,6 +151,9 @@ class TestImages(unittest.TestCase):
         not_concepts=['food_custom_images'],
         allow_dup_url=True)
     ret_imgs = self.app.inputs.bulk_create_images([img1, img2])
+
+    self.app.wait_for_specific_input_uploads_to_finish(
+        ids=[ret_imgs[0].input_id, ret_imgs[1].input_id])
 
     self.assertEqual(len(list(ret_imgs)), 2)
     # sleep here to ensure inputs are all properly added before deleting them
@@ -161,6 +171,8 @@ class TestImages(unittest.TestCase):
     image_id = uuid.uuid4().hex
     img1 = self.app.inputs.create_image_from_url(
         image_id=image_id, url=sample_inputs.METRO_IMAGE_URL, allow_duplicate_url=True)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id])
 
     with self.assertRaises(ApiError):
       image_id = uuid.uuid4().hex
@@ -184,6 +196,9 @@ class TestImages(unittest.TestCase):
     img3 = self.app.inputs.create_image_from_url(
         image_id=image_id, url=sample_inputs.METRO_IMAGE_URL, allow_duplicate_url=True)
 
+    self.app.wait_for_specific_input_uploads_to_finish(
+        ids=[img1.input_id, img2.input_id, img3.input_id])
+
     self.app.inputs.delete(img1.input_id)
     self.app.inputs.delete(img2.input_id)
     self.app.inputs.delete(img3.input_id)
@@ -202,6 +217,8 @@ class TestImages(unittest.TestCase):
     image_id = uuid.uuid4().hex
     res = self.app.inputs.create_image_from_url(
         image_id=image_id, url=sample_inputs.METRO_IMAGE_URL, allow_duplicate_url=True)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id])
 
     self.assertTrue(isinstance(res, ClarifaiImage))
     self.assertEqual(res.input_id, image_id)
@@ -222,6 +239,8 @@ class TestImages(unittest.TestCase):
         not_concepts=['bb1', 'bb2'],
         image_id=image_id,
         allow_duplicate_url=True)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[img.input_id])
 
     res = self.app.inputs.get(image_id)
     self.assertTrue(isinstance(res, ClarifaiImage))
@@ -246,6 +265,9 @@ class TestImages(unittest.TestCase):
         metadata=meta,
         image_id=image_id,
         allow_duplicate_url=True)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id])
+
     try:
       res = self.app.inputs.get(image_id)
     finally:
@@ -260,8 +282,10 @@ class TestImages(unittest.TestCase):
 
     image_id = uuid.uuid4().hex
     geo = Geo(GeoPoint(-30, 40))
-    img = self.app.inputs.create_image_from_url(
+    self.app.inputs.create_image_from_url(
         url=sample_inputs.METRO_IMAGE_URL, geo=geo, image_id=image_id, allow_duplicate_url=True)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id])
 
     res = self.app.inputs.get(image_id)
     self.assertTrue(isinstance(res, ClarifaiImage))
@@ -280,12 +304,14 @@ class TestImages(unittest.TestCase):
     geo = Geo(GeoPoint(-30, 40))
     meta = {'myid': image_id, 'key_id': 'test_meta'}
 
-    img = self.app.inputs.create_image_from_url(
+    self.app.inputs.create_image_from_url(
         url=sample_inputs.METRO_IMAGE_URL,
         geo=geo,
         metadata=meta,
         image_id=image_id,
         allow_duplicate_url=True)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id])
 
     res = self.app.inputs.get(image_id)
     self.assertTrue(isinstance(res, ClarifaiImage))
@@ -306,6 +332,9 @@ class TestImages(unittest.TestCase):
     # upload by url
     img = self.app.inputs.create_image_from_url(
         sample_inputs.METRO_IMAGE_URL, allow_duplicate_url=True)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[img.input_id])
+
     self.assertEqual(img.url, sample_inputs.METRO_IMAGE_URL)
     img_ret = self.app.inputs.get(input_id=img.input_id)
     self.assertEqual(img_ret.url, img.url)
@@ -316,6 +345,9 @@ class TestImages(unittest.TestCase):
 
     # upload by filename
     img = self.app.inputs.create_image_from_filename(sample_inputs.TAHOE_IMAGE_FILE_PATH)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[img.input_id])
+
     self.assertTrue(img.url.startswith("https://s3.amazonaws.com/clarifai-api/img"))
     img_ret = self.app.inputs.get(input_id=img.input_id)
     self.assertEqual(img_ret.url, img.url)
@@ -328,6 +360,9 @@ class TestImages(unittest.TestCase):
     with open(sample_inputs.TAHOE_IMAGE_FILE_PATH, 'rb') as f:
       file_bytes = f.read()
     img = self.app.inputs.create_image_from_bytes(file_bytes)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[img.input_id])
+
     self.assertTrue(img.url.startswith("https://s3.amazonaws.com/clarifai-api/img"))
     img_ret = self.app.inputs.get(input_id=img.input_id)
     self.assertEqual(img_ret.url, img.url)
@@ -341,6 +376,9 @@ class TestImages(unittest.TestCase):
       file_bytes = f.read()
     base64_bytes = base64.b64encode(file_bytes)
     img = self.app.inputs.create_image_from_base64(base64_bytes)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[img.input_id])
+
     self.assertTrue(img.url.startswith("https://s3.amazonaws.com/clarifai-api/img"))
     img_ret = self.app.inputs.get(input_id=img.input_id)
     self.assertEqual(img_ret.url, img.url)
@@ -407,6 +445,9 @@ class TestImages(unittest.TestCase):
         concepts=['cati1', 'animali1'],
         not_concepts=['vehiclei1'],
         allow_duplicate_url=True)
+
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[img.input_id])
+
     self.assertSetEqual(set(img.concepts), {'cati1', 'animali1'})
     self.assertSetEqual(set(img.not_concepts), {'vehiclei1'})
 
@@ -422,6 +463,8 @@ class TestImages(unittest.TestCase):
     self.assertTrue(isinstance(img, ClarifaiImage))
     self.assertEqual(img.url, sample_inputs.METRO_IMAGE_URL)
 
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id1])
+
     img2 = self.app.inputs.get(input_id=img.input_id)
     self.assertTrue(isinstance(img2, ClarifaiImage))
 
@@ -431,7 +474,7 @@ class TestImages(unittest.TestCase):
     self.assertTrue(isinstance(img, ClarifaiImage))
     self.assertEqual(img3.url, sample_inputs.WEDDING_IMAGE_URL)
 
-    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id1, image_id2], max_wait=30)
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id2], max_wait=30)
 
     # add tags
     res3 = self.app.inputs.merge_concepts(
