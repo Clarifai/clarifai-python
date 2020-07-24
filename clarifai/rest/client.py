@@ -219,7 +219,7 @@ class ClarifaiApp(object):
   def wait_for_specific_input_uploads_to_finish(
       self,  # type: ClarifaiApp
       ids,  # type: typing.List[str]
-      max_wait=666666  # type: typing.Optional[int]
+      max_wait=60  # type: typing.Optional[int]
   ):  # type: (...) -> None
     """ Block until the inputs with ids "ids" have status INPUT_IMAGE_DOWNLOAD_SUCCESS. This will raise and error if
     they have other than INPUT_IMAGE_DOWNLOAD_SUCESS.
