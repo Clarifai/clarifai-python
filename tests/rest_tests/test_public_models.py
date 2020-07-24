@@ -18,10 +18,6 @@ class TestPublicModels(unittest.TestCase):
     res = self.app.public_models.apparel_model.predict_by_url(url=sample_inputs.METRO_IMAGE_URL)
     self.assertEqual(10000, res['status']['code'])
 
-  def test_predict_with_celebrity_model(self):
-    res = self.app.public_models.celebrity_model.predict_by_url(url=sample_inputs.METRO_IMAGE_URL)
-    self.assertEqual(10000, res['status']['code'])
-
   def test_predict_with_color_mode(self):
     res = self.app.public_models.color_model.predict_by_url(url=sample_inputs.METRO_IMAGE_URL)
     self.assertEqual(10000, res['status']['code'])
