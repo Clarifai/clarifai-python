@@ -68,7 +68,7 @@ script: |
   if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
     COVERAGE_ARGS=""
   fi
-  pytest -n 8 $COVERAGE_ARGS
+  pytest --verbose -n auto $COVERAGE_ARGS
 
 after_script:
   - export PYTHONPATH=.
