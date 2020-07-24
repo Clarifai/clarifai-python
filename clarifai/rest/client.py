@@ -3323,12 +3323,12 @@ class PublicModels(object):
         api, model_id='c0c0ac362b03416da06ab3fa36fb58e3')  # type: Model
     """ Face detection model detects the presence and location of human faces. """
     self.face_detection_model = Model(
-        api, model_id='a403429f2ddf4b49b307e318f00e528b')  # type: Model
+        api, model_id='53e1df302c079b3db8a0a36033ed2d15')  # type: Model
     """
     Face embedding model computes numerical embedding vectors using our Face detection model.
     """
     self.face_embedding_model = Model(
-        api, model_id='d02b4508df58432fbb84e800597b8959')  # type: Model
+        api, model_id='e15d0f873e66047e579f90cf82c9882z')  # type: Model
     """ Food model recognizes food items and dishes, down to the ingredient level. """
     self.food_model = Model(api, model_id='bd367be194cf45149e75f01d59f77ba7')  # type: Model
     """ General embedding model computes numerical embedding vectors using our General model. """
