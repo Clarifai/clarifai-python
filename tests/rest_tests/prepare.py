@@ -18,6 +18,7 @@ urls = [
 def delete_all_inputs(app, logger):
   logger.error('Attempting to delete all inputs.')
   app.inputs.delete_all()
+  logger.error('All inputs have been deleted.')
 
 
 def main():
@@ -34,12 +35,14 @@ def main():
   app.wait_until_inputs_delete_finish()
   app.wait_until_models_delete_finish()
 
-  app.inputs.create_image_from_url(
+  image1 = app.inputs.create_image_from_url(
       urls[0],
       concepts=['train_custom_prepare', 'railway_custom_prepare'],
       allow_duplicate_url=True)
-  app.inputs.create_image_from_url(
+  image2 = app.inputs.create_image_from_url(
       urls[3], concepts=['dog_custom_prepare', 'animal_custom_prepare'], allow_duplicate_url=True)
+
+  app.wait_for_specific_input_uploads_to_finish(ids=[image1.input_id, image2.input_id])
 
   model_id = uuid.uuid4().hex
 
