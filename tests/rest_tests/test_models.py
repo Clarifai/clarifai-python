@@ -373,7 +373,7 @@ class TestModels(unittest.TestCase):
 
     # train well created model with no concept
     with self.assertRaises(ApiError) as ae:
-      res = model2.train()
+      res = model2.train(timeout=120, raise_on_timeout=True)
       self.assertEqual(res['status']['code'], 21202)
 
     # create a model with concepts but no samples
@@ -400,7 +400,7 @@ class TestModels(unittest.TestCase):
     # train in sync way with no example
     model_id = uuid.uuid4().hex
     model3 = self.app.models.create(model_id=model_id, concepts=['cats1', 'dogs1'])
-    res = model3.train()
+    res = model3.train(timeout=120, raise_on_timeout=True)
     self.app.models.delete(model_id)
 
     # train a good model
@@ -411,7 +411,7 @@ class TestModels(unittest.TestCase):
 
     model_id = uuid.uuid4().hex
     model4 = self.app.models.create(model_id=model_id, concepts=['cats2', 'dogs2'])
-    res = model4.train()
+    res = model4.train(timeout=120, raise_on_timeout=True)
     self.app.models.delete(model_id)
 
     self.app.inputs.delete(img1.input_id)
@@ -663,7 +663,7 @@ class TestModels(unittest.TestCase):
 
       # Create and train a model.
       model = self.app.models.create(model_id=model_id, concepts=['cats6', 'dogs6', 'animals6'])
-      model = model.train(timeout=1200)
+      model = model.train(timeout=120, raise_on_timeout=True)
 
       # Run model evaluation and assert the response.
       res = model.evaluate()
@@ -689,41 +689,33 @@ class TestModels(unittest.TestCase):
     concept_id_1 = uuid.uuid4().hex
     concept_id_2 = uuid.uuid4().hex
 
-    try:
-      # Create inputs.
-      self.app.inputs.create_image_from_url(
-          image_id=image_id1,
-          url=sample_inputs.METRO_IMAGE_URL,
-          concepts=[concept_id_1],
-          allow_duplicate_url=True)
-      self.app.inputs.create_image_from_url(
-          image_id=image_id2,
-          url=sample_inputs.WEDDING_IMAGE_URL,
-          concepts=[concept_id_2],
-          allow_duplicate_url=True)
+    # Create inputs.
+    self.app.inputs.create_image_from_url(
+        image_id=image_id1,
+        url=sample_inputs.METRO_IMAGE_URL,
+        concepts=[concept_id_1],
+        allow_duplicate_url=True)
+    self.app.inputs.create_image_from_url(
+        image_id=image_id2,
+        url=sample_inputs.WEDDING_IMAGE_URL,
+        concepts=[concept_id_2],
+        allow_duplicate_url=True)
 
-      self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id1, image_id2])
+    self.app.wait_for_specific_input_uploads_to_finish(ids=[image_id1, image_id2])
 
-      # Create a model.
-      model = self.app.models.create(model_id=model_id, concepts=[concept_id_1, concept_id_2])
+    # Create a model.
+    model = self.app.models.create(model_id=model_id, concepts=[concept_id_1, concept_id_2])
 
-      model = model.train(timeout=1200)
+    model = model.train(timeout=120, raise_on_timeout=True)
 
-      # Get model's inputs. Note: use a large page because there we just list all inputs
-      # in app with this call and depending on which test ran before this we might not have
-      # image_id1 and image_id2 in the 20 default per_page size.
-      response = model.get_inputs(per_page=1000)
+    # Get model's inputs. Note: use a large page because there we just list all inputs
+    # in app with this call and depending on which test ran before this we might not have
+    # image_id1 and image_id2 in the 20 default per_page size.
+    response = model.get_inputs(per_page=1000)
 
-      input_ids = [input_['id'] for input_ in response['inputs']]
-      assert image_id1 in input_ids
-      assert image_id2 in input_ids
-
-    finally:
-      # Clean up.
-      self.app.models.delete(model_id)
-
-      self.app.inputs.delete(image_id1)
-      self.app.inputs.delete(image_id2)
+    input_ids = [input_['id'] for input_ in response['inputs']]
+    assert image_id1 in input_ids
+    assert image_id2 in input_ids
 
   def test_get_info_with_version(self):
     model = self.app.public_models.general_model

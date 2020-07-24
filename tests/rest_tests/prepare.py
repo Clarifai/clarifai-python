@@ -52,11 +52,7 @@ def main():
           'train_custom_prepare', 'railway_custom_prepare', 'dog_custom_prepare',
           'animal_custom_prepare'
       ])
-  model = model1.train(timeout=240)
-
-  if model.model_status_code != 21100:
-    logger.error('Model not trained in 240 seconds with 2 inputs. Test could not continue.')
-    exit(2)
+  model1.train(timeout=120, raise_on_timeout=True)
 
 
 if __name__ == '__main__':

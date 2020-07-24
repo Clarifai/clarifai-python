@@ -463,7 +463,7 @@ def test_train_model(mock_http_client):  # type: (mock.Mock) -> None
 
   app = ClarifaiApp()
   model = app.models.get(model_id='@modelID')
-  updated_model = model.train()
+  updated_model = model.train(timeout=120, raise_on_timeout=True)
 
   assert updated_model.model_id == '@modelID'
   assert updated_model.model_name == '@modelName'

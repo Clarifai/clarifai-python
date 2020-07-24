@@ -219,7 +219,7 @@ class ClarifaiApp(object):
   def wait_for_specific_input_uploads_to_finish(
       self,  # type: ClarifaiApp
       ids,  # type: typing.List[str]
-      max_wait=60  # type: typing.Optional[int]
+      max_wait=120  # type: typing.Optional[int]
   ):  # type: (...) -> None
     """ Block until the inputs with ids "ids" have status INPUT_IMAGE_DOWNLOAD_SUCCESS. This will raise and error if
     they have other than INPUT_IMAGE_DOWNLOAD_SUCESS.
@@ -2786,7 +2786,8 @@ class Model(object):
 
     return data
 
-  def train(self, sync=True, timeout=60):  # type: (bool, int) -> typing.Union[Model, dict]
+  def train(self, sync=True, timeout=60,
+            raise_on_timeout=False):  # type: (bool, int, bool) -> typing.Union[Model, dict]
     """
     train the model in synchronous or asynchronous mode. Synchronous will block until the
     model is trained, async will not.
@@ -2794,6 +2795,7 @@ class Model(object):
     Args:
       sync: indicating synchronous or asynchronous, default is True
       timeout: Used when sync=True. Num. of seconds we should wait for training to complete.
+      raise_on_timeout: Used when sync=True. Whether an error should be raised after training has timed out.
 
     Returns:
       the Model object
@@ -2827,6 +2829,10 @@ class Model(object):
 
       elapsed = time.time() - time_start
       if elapsed > timeout:
+        if raise_on_timeout:
+          raise ApiClientError(
+              "Waiting for model ID %s training to finish was aborted after %d seconds. Last model status: %s"
+              % (self.model_id, timeout, str(res_ver['model_version']['status'])))
         break
 
       if elapsed < 10:
@@ -4129,6 +4135,9 @@ class ApiStatus(object):
     d = {'status': {'code': self.code, 'description': self.description}}
 
     return d
+
+  def __str__(self):
+    return str(self.code) + " " + self.description
 
 
 class ApiResponse(object):
