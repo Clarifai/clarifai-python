@@ -228,17 +228,22 @@ class ClarifaiApp(object):
       None or ApiClientError
 
     """
-    elapsed = 0.0
     time_start = time.time()
 
-    for ident in ids:
-      inp = self.inputs.get(ident)
-      while inp.status.code != INPUT_IMAGE_DOWNLOAD_SUCCESS and elapsed <= max_wait:
-        if inp.status.code != INPUT_IMAGE_DOWNLOAD_PENDING and inp.status.code != INPUT_IMAGE_DOWNLOAD_IN_PROGRESS:
-          raise ApiClientError("input %s was not successful to breaking the wait." % ident)
-        inp = self.inputs.get(ident)
-        time.sleep(1)
-        elapsed = time.time() - time_start
+    for input_id in ids:
+      while True:
+        inp = self.inputs.get(input_id)
+        if inp.status.code == INPUT_IMAGE_DOWNLOAD_SUCCESS:
+          break
+        elif time.time() - time_start > max_wait:
+          raise ApiClientError(
+              "Waiting for input ID %s to be downloaded was aborted after %d seconds. Last known status: %s"
+              % (input_id, max_wait, str(inp.status)))
+        elif inp.status.code == INPUT_IMAGE_DOWNLOAD_PENDING or inp.status.code == INPUT_IMAGE_DOWNLOAD_IN_PROGRESS:
+          time.sleep(1)
+        else:
+          raise ApiClientError("Input ID %s was not successfully downloaded, status: %s" %
+                               (input_id, str(inp.status)))
 
   def wait_until_models_delete_finish(self):  # type: () -> None
     """ Block until the inputs deletion finishes
