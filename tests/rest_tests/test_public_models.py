@@ -88,17 +88,6 @@ class TestPublicModels(unittest.TestCase):
   def test_predict_with_segmentation_model(self):
     # only runs this test in prod as the segmentation models only exist in prod
     if self.app.api.base_url == 'api.clarifai.com':
-      # test people segmentation model
-      m = self.app.models.get(model_id='9bef4f02cb40e4709fa254d597b2942d')
-      m.model_version = 'db92abe2e6714d7992b359c1fc269ce5'
-      res = m.predict_by_url(sample_inputs.METRO_IMAGE_URL)
-
-      # ensure that only 'person' concepts are returned
-      # this tests for the correct filtering of concepts in the backend
-      for region in res['outputs'][0]['data']['regions']:
-        for concept in region['data']['concepts']:
-          self.assertEqual('person', concept['name'])
-
       # test car segmentation
       m = self.app.models.get(model_id='b17ab715bba448228ef916caaaf8d35b')
       m.model_version = 'fc92eca9d7cb45cc8832ab40ddc95c3c'
