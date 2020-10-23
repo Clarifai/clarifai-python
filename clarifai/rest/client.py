@@ -63,8 +63,8 @@ class ClarifaiApp(object):
 
     self.concepts = Concepts(self.api)
     self.inputs = Inputs(self.api)
-    self.models = Models(self.api)
-    self.workflows = Workflows(self.api, skip_model_cache=skip_model_cache)
+    self.models = Models(self.api, skip_model_cache=skip_model_cache)
+    self.workflows = Workflows(self.api)
 
   """
   Below are the shortcut functions for a more smooth transition of the v1 users
