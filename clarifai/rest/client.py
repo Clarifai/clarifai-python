@@ -16,12 +16,9 @@ import platform
 from enum import Enum
 from io import BytesIO
 from pprint import pformat
-from configparser import ConfigParser
+from ConfigParser import ConfigParser
 from posixpath import join as urljoin
-from past.builtins import basestring
-from jsonschema import validate
-from future.moves.urllib.parse import urlparse
-from distutils.version import StrictVersion
+from urlparse import urlparse
 from .geo import GeoPoint, GeoBox, GeoLimit, Geo
 
 logger = logging.getLogger('clarifai')
@@ -56,7 +53,7 @@ class ClarifaiApp(object):
   """
 
   def __init__(self, app_id=None, app_secret=None, base_url=None, api_key=None, quiet=True,
-               log_level=None):
+               log_level=None, skip_model_cache=False):
 
     self.api = ApiClient(app_id=app_id, app_secret=app_secret, base_url=base_url,
                          api_key=api_key, quiet=quiet, log_level=log_level)
@@ -65,7 +62,7 @@ class ClarifaiApp(object):
 
     self.concepts = Concepts(self.api)
     self.inputs = Inputs(self.api)
-    self.models = Models(self.api)
+    self.models = Models(self.api, skip_model_cache=skip_model_cache)
     self.workflows = Workflows(self.api)
 
   """
@@ -1033,12 +1030,13 @@ class Workflows(object):
 
 
 class Models(object):
-  def __init__(self, api):
+  def __init__(self, api, skip_model_cache=False):
     self.api = api
 
     # the cache of the model name -> model id mapping
     # to avoid an extra model query on every prediction by model name
-    self.model_id_cache = self.init_model_cache()
+    if not skip_model_cache:
+      self.model_id_cache = self.init_model_cache()
 
   def init_model_cache(self):
     """ Initialize the model cache for the public models
@@ -2285,7 +2283,6 @@ class Inputs(object):
         }
       }
 
-      validate(geo_json, geo_schema)
       geo = Geo(
         GeoPoint(geo_json['geo_point']['longitude'], geo_json['geo_point']['latitude']))
 
