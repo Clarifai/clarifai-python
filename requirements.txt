@@ -1,5 +1,5 @@
-future==0.15.2
-requests==2.13.0
-configparser==3.5.0
-jsonschema==2.5.1
-Pillow==2.9.0
+future>=0.15, <2
+requests>=2.13, <3
+configparser>=3.5, <4
+jsonschema>=2.5, <3
+enum34>=1.1, <2
