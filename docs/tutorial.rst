@@ -4,76 +4,11 @@
 Tutorial
 ==============
 
-Each of the examples below is a small independent code snippet within 10 lines that could work by copy and paste to a python source code file. By playing with them, you should be getting started with Clarifai API. For more usages about the API, check the API Reference.
+Each of the examples below is a small independent code snippet within 10 lines that could work by copy and paste to a python source code file. By playing with them, you should be getting started with Clarifai API. For more information about the API, check the API Reference.
 
 
-Predict with general model
-==========================
-
-.. code-block:: python
-   :linenos:
-
-   from clarifai.rest import ClarifaiApp
-
-   app = ClarifaiApp()
-
-   app.tag_urls(['https://samples.clarifai.com/metro-north.jpg'])
-
-
-Predict with travel model
-==========================
-
-.. code-block:: python
-   :linenos:
-
-   from clarifai.rest import ClarifaiApp
-
-   app = ClarifaiApp()
-
-   app.tag_urls(urls=['https://samples.clarifai.com/wedding.jpg'], model='travel-v1.0')
-
-
-Predict with food model
-==========================
-
-.. code-block:: python
-   :linenos:
-
-   from clarifai.rest import ClarifaiApp
-
-   app = ClarifaiApp()
-
-   app.tag_urls(urls=['https://samples.clarifai.com/wedding.jpg'], model='food-items-v1.0')
-
-
-Predict with NSFW model
-=======================
-
-.. code-block:: python
-   :linenos:
-
-   from clarifai.rest import ClarifaiApp
-
-   app = ClarifaiApp()
-
-   app.tag_urls(urls=['https://samples.clarifai.com/wedding.jpg'], model='nsfw-v1.0')
-
-
-Predict with color model
-========================
-
-.. code-block:: python
-   :linenos:
-
-   from clarifai.rest import ClarifaiApp
-
-   app = ClarifaiApp()
-
-   model = app.models.get('color', model_type='color')
-
-   image2 = ClImage(url='https://samples.clarifai.com/wedding.jpg')
-
-   model.predict([image1, image2])
+.. toctree::
+   tutorial-predict.rst
 
 
 Upload Images
@@ -83,9 +18,9 @@ Upload Images
    :linenos:
 
    from clarifai.rest import ClarifaiApp
-      
+
    app = ClarifaiApp()
-      
+
    app.inputs.create_image_from_url(url='https://samples.clarifai.com/puppy.jpeg', concepts=['my puppy'])
    app.inputs.create_image_from_url(url='https://samples.clarifai.com/wedding.jpg', not_concepts=['my puppy'])
 
@@ -116,7 +51,7 @@ Predict with Model
 ==================
 
 .. note:: This assumes you follow through the tutorial and finished the "Upload Images",
-           "Create a Model", and "Train the Model".
+          "Create a Model", and "Train the Model".
           Otherwise you may not be able to make predictions with the model.
 
 .. code-block:: python
@@ -127,7 +62,7 @@ Predict with Model
    app = ClarifaiApp()
 
    model = app.models.get('puppy')
-   model.predict_by_url('https://samples.clarifai.com/metro-north.jpg') 
+   model.predict_by_url('https://samples.clarifai.com/metro-north.jpg')
 
 Instantiate an Image
 ====================
@@ -205,4 +140,3 @@ Search the Image
    app.inputs.search_by_image(url='https://samples.clarifai.com/dog1.jpeg')
 
    app.inputs.search_by_metadata(metadata={'key':'value'})
-

@@ -1,60 +1,81 @@
-Clarifai API Python Client
-====================
+![Clarifai logo](docs/logo.png)
+
+# DEPRECATED
+
+## This API Client is no longer supported.
+
+### Please use [Clarifai Python gRPC](https://github.com/Clarifai/clarifai-python-grpc) instead, which is faster and more feature-rich.
 
 
-Overview
----------------------
-This Python client provides a simple wrapper around our powerful image recognition <a href="https://developer.clarifai.com">API</a>.
+# Clarifai API Python Client
 
-The client supports basic tagging with existing models.
+This is the official Python client for interacting with our powerful recognition [API](https://docs.clarifai.com).
+The Clarifai API offers image and video recognition as a service. Whether you have one image or billions,
+you are only steps away from using artificial intelligence to recognize your visual content.
 
-The client also uses Applications to store images and visually search across them. You can either do
-a simple visual search or also add predictions for any, all or none, as noted in the directions
-below.
+* Try the Clarifai demo at: https://clarifai.com/demo
+* Sign up for a free account at: https://clarifai.com/developer/account/signup/
+* Read the developer guide at: https://clarifai.com/developer/guide/
 
 
-Installation
----------------------
-The API client is available on Pip. You can simply install it with a `pip install`
+[![PyPi version](https://pypip.in/v/clarifai/badge.png)](https://pypi.python.org/pypi/clarifai)
+[![Build Status](https://travis-ci.org/Clarifai/clarifai-python.svg?branch=master)](https://travis-ci.org/Clarifai/clarifai-python)
+
+
+## Installation
+Install the API client:
 ```
-pip install clarifai==2.0.27
-```
-
-For more details on the installation, please refer to https://clarifai-python.readthedocs.io/en/v2.0.27/install/
-
-Setup
----------------------
-The client uses your "CLARIFAI_APP_ID" and "CLARIFAI_APP_SECRET" to get an access token. Since this
-expires every so often, the client is setup to renew the token for you automatically using your
-credentials so you don't have to worry about it.
-
-You can get the `id` and `secret` from https://developer.clarifai.com and config them for client's use by
-
-```bash
-$ clarifai config
-CLARIFAI_APP_ID: []: ************************************YQEd
-CLARIFAI_APP_SECRET: []: ************************************gCqT
-
+pip install clarifai --upgrade
 ```
 
-The config will be stored under ~/.clarifai/config for client's use
+> Note: If you cannot use `pip`, you can download the latest
+[release](https://github.com/Clarifai/clarifai-python/releases) manually or using git.
 
-Environmental variable CLARIFAI_APP_ID and CLARIFAI_APP_SECRET will override the settings in the config file.
+## Setup
+Firstly, generate your Clarifai API key [on the API keys page](https://clarifai.com/developer/account/keys). The client
+uses it for authentication.
 
-For AWS or Windows users, please refer to https://clarifai-python.readthedocs.io/en/v2.0.27/install/ for more instructions.
+Then, to authenticate, either:
+- initialize the `ClarifaiApp` with your API key
+    ```python
+    from clarifai.rest import ClarifaiApp
+    app = ClarifaiApp(api_key='YOUR_API_KEY')
+    ```
+- or set the environment variable named `CLARIFAI_API_KEY`
+- or run the script `./scripts/clarifai config` which will, after you input the API key, create a
+file `~/.clarifai/config` with your key
 
 
-Getting Started
----------------------
-The following example will setup the client and predict from our general model
+> Note: If you have both the environmental variable CLARIFAI_API_KEY and a file `~/.clarifai/config`, the environmental
+  variable will be used.
+
+For AWS or Windows users, please refer to
+[the documentation](https://clarifai-python.readthedocs.io/en/latest/install/#aws-lambda-users) for more instructions.
+
+
+## Getting Started
+The following example will setup the client and predict concepts on an image from a URL, using the general model
 ```python
 from clarifai.rest import ClarifaiApp
 
 app = ClarifaiApp()
-app.tag_urls(['https://samples.clarifai.com/metro-north.jpg'])
+model = app.public_models.general_model
+response = model.predict_by_url(url='https://samples.clarifai.com/metro-north.jpg')
 ```
 
-Documentations
----------------------
-Read more code examples and references at https://clarifai-python.readthedocs.io/en/v2.0.27/index.html
+Use `model.predict_by_filename` to predict concepts on a local file.
 
+The response is a JSON structure. Here's how to print all the predicted concepts associated with the image, together
+with their confidence values.
+
+```python
+concepts = response['outputs'][0]['data']['concepts']
+for concept in concepts:
+    print(concept['name'], concept['value'])
+```
+
+## Documentation
+See many more code examples [in the developer guide](https://clarifai.com/developer/guide/) and in the
+[Python client tutorial](https://clarifai-python.readthedocs.io/en/latest/).
+
+Also see [the Python client reference](https://clarifai-python.readthedocs.io/en/latest/clarifai.rest/).

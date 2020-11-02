@@ -40,9 +40,7 @@ Search Syntax
 .. autoclass:: clarifai.rest.client.OutputSearchTerm
     :members:
 
-Authentication
-==============
-.. autoclass:: clarifai.rest.client.Auth
+.. autoclass:: clarifai.rest.client.SearchQueryBuilder
     :members:
 
 Exceptions

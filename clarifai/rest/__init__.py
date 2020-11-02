@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from .client import ApiClient, ApiError, UserError, TokenError
-from .client import ClarifaiApp
-from .client import Model, Image, Video, Concept
-from .client import InputSearchTerm, OutputSearchTerm, SearchQueryBuilder
-from .client import Geo, GeoPoint, GeoBox, GeoLimit
-from .client import ApiStatus
+from clarifai.errors import ApiError, TokenError, UserError
+from clarifai.rest.client import (GENERAL_MODEL_ID, ApiClient, ApiStatus, BoundingBox, ClarifaiApp,
+                                  Concept, Geo, GeoBox, GeoLimit, GeoPoint, Image, InputSearchTerm,
+                                  Model, ModelOutputConfig, ModelOutputInfo, OutputSearchTerm,
+                                  Region, RegionInfo, SearchQueryBuilder, Video, Workflow)
+
+# So autoflake doesn't remove imports.
+_ = ApiError
+_ = UserError
+_ = TokenError

@@ -1,13 +1,97 @@
+dist: xenial
 language: python
-python:
-  - "2.7"
-  - "3.4"
-  - "3.5"
-  - "3.6"
-  - "3.6-dev"
-  - "3.7-dev"
-  - "nightly"
+
+matrix:
+  include:
+    - os: linux
+      sudo: required
+      python: '3.5'
+    - os: linux
+      sudo: required
+      python: '3.8'
+    - os: osx
+      language: generic
+      env:
+        - PYTHON=3.5.6
+        - RELEASE_JOB=true
+# In recent versions of pip, there's an issue with the typing package on
+# the latest Python versions (apparently on osx only?). See more here:
+# https://stackoverflow.com/questions/55833509/attributeerror-type-object-callable-has-no-attribute-abc-registry
+#
+# Once the above is fixed, uncomment the environment below, and remove RELEASE_JOB above.
+#
+#    - os: osx
+#      language: generic
+#      env:
+#        - PYTHON=3.8.2
+#        - RELEASE_JOB=true
+
+# environmental variables
+env:
+  global:
+    - COVERAGE_ARGS="--cov=clarifai --cov-report xml --junitxml=nosetest.xml"
+
+# TODO(Rok) LOW: Cache the Python installation, if possible.
+before_install: |
+  if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+    brew update
+    brew install openssl readline
+    brew outdated pyenv || brew upgrade pyenv
+    brew install pyenv-virtualenv
+    pyenv install $PYTHON
+    export PYENV_VERSION=$PYTHON
+    export PATH="/Users/travis/.pyenv/shims:${PATH}"
+    pyenv-virtualenv venv
+    source venv/bin/activate
+    python --version
+  fi
+
 # command to install dependencies
-install: "pip install -r requirements.txt"
+install:
+  - pip install --upgrade pip
+  - pip install --upgrade setuptools
+  - pip install -r requirements.txt
+  - pip install -r tests/requirements.txt
+
+# run code quality checks and prepare the environment for tests
+before_script:
+  - ./assert-code-quality.sh
+  - export PYTHONPATH=.
+  - export CLARIFAI_APP_ID="$(python scripts/app_and_key_for_tests.py --create-app python-travis)"
+  - export CLARIFAI_API_KEY="$(python scripts/app_and_key_for_tests.py --create-key ${CLARIFAI_APP_ID})"
+  - python scripts/app_and_key_for_tests.py --create-workflow ${CLARIFAI_API_KEY}
+  - python tests/rest_tests/prepare.py
+
+
 # command to run tests
-script: nosetests
+script: |
+  if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+    COVERAGE_ARGS=""
+  fi
+  pytest --verbose -n auto $COVERAGE_ARGS
+
+after_script:
+  - export PYTHONPATH=.
+  - python scripts/app_and_key_for_tests.py --delete-app $CLARIFAI_APP_ID
+
+before_deploy:
+  - python setup.py sdist
+  - python setup.py sdist --format zip
+
+deploy:
+  - provider: pypi
+    user: ${PYPI_USERNAME}
+    password: ${PYPI_PASSWORD}
+    on:
+      condition: "$RELEASE_JOB == true"
+      tags: true
+      repo: Clarifai/clarifai-python
+  - provider: releases
+    api_key: ${GITHUB_TOKEN}
+    file:
+      - dist/clarifai-*.tar.gz
+      - dist/clarifai-*.zip
+    on:
+      condition: "$RELEASE_JOB == true"
+      tags: true
+      repo: Clarifai/clarifai-python

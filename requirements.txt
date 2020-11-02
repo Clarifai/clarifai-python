@@ -1,5 +1,8 @@
-future==0.15.2
-requests==2.13.0
-configparser==3.5.0
-jsonschema==2.5.1
-Pillow==2.9.0
+configparser>=3.5, <4
+future>=0.15, <2
+googleapis-common-protos>=1.5.0, <2
+grpcio>=1.13.0, <2
+jsonschema>=2.5, <3
+protobuf>=3.6, <4
+requests>=2.13, <3
+typing>=3.6
