@@ -1055,6 +1055,8 @@ class Models(object):
 
     try:
       for m in models:
+        if not m.output_info.get('type'):
+          continue
         model_name = m.model_name
         model_type = m.output_info['type']
         model_id = m.model_id
