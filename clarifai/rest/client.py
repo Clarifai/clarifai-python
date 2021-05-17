@@ -1322,6 +1322,10 @@ class Models(object):
 
         model = res[0]
         self.model_id_cache.update({(model_name, model_type): model.model_id})
+      else:
+        logging.error('Error in clarifai get model. Status code: {}, error code: {}'
+                      .format(e.response.status_code, e.error_code))
+        raise e
 
     return model
 
