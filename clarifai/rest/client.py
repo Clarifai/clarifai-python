@@ -1040,7 +1040,7 @@ class Models(object):
     try:
       for m in models:
         model_name = m.model_name
-        model_type = m.output_info['type']
+        model_type = m.output_info.get('type')
         model_id = m.model_id
         model_cache.update({(model_name, model_type): model_id})
     except ApiError as e:
