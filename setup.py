@@ -1,19 +1,19 @@
 import setuptools
 
 with open("README.md", "r") as fh:
-    long_description = fh.read()
+  long_description = fh.read()
 
-packages = setuptools.find_packages(include=["clarifai_grpc*"])
+packages = setuptools.find_packages(include=["clarifai-utils*"])
 
 setuptools.setup(
-    name="clarifai-grpc",
-    version="7.10.0",
+    name="clarifai-utils",
+    version="0.0.1",
     author="Clarifai",
     author_email="support@clarifai.com",
-    description="Clarifai gRPC API Client",
+    description="Clarifai Python Utilities",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/Clarifai/clarifai-python-grpc",
+    url="https://github.com/Clarifai/clarifai-utils",
     packages=packages,
     classifiers=[
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -24,11 +24,8 @@ setuptools.setup(
     license="Apache 2.0",
     python_requires='>=3.6',
     install_requires=[
-        "grpcio>=1.36.0",
-        "protobuf>=3.15.6",
-        "googleapis-common-protos>=1.53.0",
-        "requests>=2.25.1",
+        "clarifai-grpc>=7.10.0",
     ],
-    package_data={p: ["*.pyi"] for p in packages},
-    include_package_data=True
-)
+    package_data={p: ["*.pyi"]
+                  for p in packages},
+    include_package_data=True)

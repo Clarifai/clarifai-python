@@ -2,7 +2,7 @@
 
 set -eo pipefail
 
-FIND_SOURCE_FILES='find clarifai_grpc tests -name "*.py" -not -path "clarifai_grpc/grpc/*"'
+FIND_SOURCE_FILES='find clarifai-utils tests -name "*.py" -not -path "clarifai-utils/grpc/*"'
 
 function run_autoflake {
   echo "- autoflake: Make sure there are no unused imports and unused variables"
