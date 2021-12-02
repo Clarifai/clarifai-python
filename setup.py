@@ -3,7 +3,7 @@ import setuptools
 with open("README.md", "r") as fh:
   long_description = fh.read()
 
-packages = setuptools.find_packages(include=["clarifai-utils*"])
+packages = setuptools.find_packages(include=["clarifai_utils*"])
 
 setuptools.setup(
     name="clarifai-utils",
