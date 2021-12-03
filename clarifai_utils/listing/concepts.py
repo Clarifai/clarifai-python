@@ -1,8 +1,13 @@
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
+from clarifai_grpc.grpc.api.service_pb2_grpc import V2Stub
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
 
-def concepts_generator(stub, metadata, user_id, app_id, page_size=16):
+def concepts_generator(stub: V2Stub,
+                       metadata: tuple,
+                       user_id: str,
+                       app_id: str,
+                       page_size: int = 16):
   """
   Lists all the concept in the given userAppID user_id, app_id app.
 

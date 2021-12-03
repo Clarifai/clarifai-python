@@ -1,23 +1,10 @@
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
+from clarifai_grpc.grpc.api.service_pb2_grpc import V2Stub
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
 
-def list_all_inputs(stub, metadata, user_id, app_id, page_size=16):
-  """
-  Lists all the inputs in the given userAppID user_id, app_id app. This uses the more efficient
-  streaming input listing technique.
-
-  Args:
-    stub: grpc client stub.
-    metadata: the auth metadata for the grpc stub.
-    user_id: the user to list from.
-    app_id: the app in the user_id account to list from.
-    page_size: the pagination size to use while iterating.
-  """
-  return [inp for inp in inputs_generator(stub, metadata, user_id, app_id, page_size)]
-
-
-def inputs_generator(stub, metadata, user_id, app_id, page_size=16):
+def inputs_generator(stub: V2Stub, metadata: tuple, user_id: str, app_id: str,
+                     page_size: int = 16):
   """
   Lists all the inputs in the given userAppID user_id, app_id app. This uses the more efficient
   streaming input listing technique.
