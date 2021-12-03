@@ -54,15 +54,17 @@ class ClarifaiAuthHelper(object):
       raise Exception("Need 'user_id' in the query params")
     if 'app_id' not in query_params:
       raise Exception("Need 'app_id' in the query params")
-    if 'token' not in query_params:
-      raise Exception("Need 'token' in the query params")
-    for k in ['user_id', 'app_id', 'token']:
-      if len(query_params[k]) != 1:
+    token = ''
+    pat = ''
+    if 'token' in query_params:
+      token = query_params['token'][0]
+    if 'pat' in query_params:
+      pat = query_params['pat'][0]
+    for k in ['user_id', 'app_id', 'token', 'pat']:
+      if k in query_params and len(query_params[k]) != 1:
         raise Exception("There should only be 1 query param value for key '%s'" % k)
     user_id = query_params['user_id'][0]
     app_id = query_params['app_id'][0]
-    token = query_params['token'][0]
-    pat = ''
     return cls(user_id, app_id, pat, token)
 
   @classmethod
