@@ -1,4 +1,4 @@
-![Clarifai logo](docs/logo.png)
+![Clarifai logo](media/logo.png)
 
 # clarifai-utils
 
