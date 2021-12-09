@@ -3,7 +3,7 @@
 # clarifai-utils
 
 
-This is the official Clarifai Python utilities. This repo includes higher level convencience classes, functions, and scripts to make using our [API](https://docs.clarifai.com) easier. This is built on top of the [Clarifai Python gRPC Client](https://github.com/Clarifai/clarifai-python-grpc).
+This is the official Clarifai Python utilities project. This repo includes higher level convenience classes, functions, and scripts to make using our [API](https://docs.clarifai.com) easier. This is built on top of the [Clarifai Python gRPC Client](https://github.com/Clarifai/clarifai-python-grpc).
 
 * Try the Clarifai demo at: https://clarifai.com/demo
 * Sign up for a free account at: https://clarifai.com/signup
