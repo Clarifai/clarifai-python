@@ -13,7 +13,7 @@ setuptools.setup(
     description="Clarifai Python Utilities",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/Clarifai/clarifai-utils",
+    url="https://github.com/Clarifai/clarifai-python-utils",
     packages=packages,
     classifiers=[
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
