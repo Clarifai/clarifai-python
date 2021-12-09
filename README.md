@@ -13,12 +13,7 @@ This is the official Clarifai Python utilities project. This repo includes highe
 ## Installation
 
 ```cmd
-git clone git@github.com:Clarifai/clarifai-python-utils.git
-cd clarifai-python-utils/
-python setup.py develop
-
-# Coming soon:
-# pip install clarifai-utils
+pip install -U clarifai-utils
 ```
 
 ## Versioning
