@@ -1,6 +1,6 @@
 ![Clarifai logo](media/logo.png)
 
-# clarifai-utils
+# clarifai-python-utils
 
 
 This is the official Clarifai Python utilities project. This repo includes higher level convenience classes, functions, and scripts to make using our [API](https://docs.clarifai.com) easier. This is built on top of the [Clarifai Python gRPC Client](https://github.com/Clarifai/clarifai-python-grpc).
@@ -13,8 +13,8 @@ This is the official Clarifai Python utilities project. This repo includes highe
 ## Installation
 
 ```cmd
-git clone git@github.com:Clarifai/clarifai-utils.git
-cd clarifai-utils/
+git clone git@github.com:Clarifai/clarifai-python-utils.git
+cd clarifai-python-utils/
 python setup.py develop
 
 # Coming soon:
