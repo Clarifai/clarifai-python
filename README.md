@@ -16,6 +16,13 @@ This is the official Clarifai Python utilities project. This repo includes highe
 pip install -U clarifai-utils
 ```
 
+## Installation from source (for development)
+```cmd
+python -m venv ~/virtualenv/clarifai-python-utils
+source ~/virtualenv/clarifai-python-utils/bin/activate
+cd clarifai-python-utils
+python setup.py develop
+```
 ## Versioning
 
 This library doesn't use semantic versioning. The first two version numbers (`X.Y` out of `X.Y.Z`) follow the API (backend) versioning, and
