@@ -34,7 +34,8 @@ class ClarifaiAuthHelper(object):
       app_id: an app id for the application that owns the resource you want to interact with
       pat: a personal access token.
       token: a session token (internal use only, always use a PAT).
-      base: a url to the API endpoint to hit. Examples include api.clarifai.com, api.clarifai.com (default), host:port (for any non-https endpoints they need this host:port format).
+      base: a url to the API endpoint to hit. Examples include api.clarifai.com,
+    https://api.clarifai.com (default), https://host:port, http://host:port, host:port (will be treated as http, not https). It's highly recommended to include the http:// or https:// otherwise we need to check the endpoint to determine if it has SSL during this __init__
     """
     if pat != "" and token != "":
       raise Exception(
@@ -49,9 +50,14 @@ class ClarifaiAuthHelper(object):
     self.app_id = app_id
     self._pat = pat
     self._token = token
-    if base.startswith('http'):
-      raise Exception("Base should not contain http or https")
-    if base not in base_https_cache:
+    # If http or https is provided, we trust that it is correct.
+    if base.startswith('https://'):
+      base = base.replace('https://', '')
+      base_https_cache[base] = True
+    elif base.startswith('http://'):
+      base = base.replace('http://', '')
+      base_https_cache[base] = False
+    elif base not in base_https_cache:
       # We know our endpoints are https.
       if base.find('.clarifai.com') >= 0:
         base_https_cache[base] = True
@@ -66,8 +72,9 @@ class ClarifaiAuthHelper(object):
             if base.find(':') < 0:
               raise Exception("When providing an insecure base it must have both host:port format")
           else:
-            print("Could not get a valid response from base: %s" % base)
-            raise (e)
+            raise Exception(
+                "Could not get a valid response from base: %s, is the API running there?" %
+                base) from e
 
     self._base = base
 
@@ -180,7 +187,14 @@ class ClarifaiAuthHelper(object):
     if https:
       channel = ClarifaiChannel.get_grpc_channel(base=self._base)
     else:
-      host, port = self._base.split(":")
+      if self._base.find(':') >= 0:
+        host, port = self._base.split(":")
+      else:
+        host = self._base
+        port = 80
       channel = ClarifaiChannel.get_insecure_grpc_channel(base=host, port=port)
     stub = service_pb2_grpc.V2Stub(channel)
     return stub
+
+  def __str__(self):
+    return "ClarifaiAuthHelper:\n- user_id: %s\n- app_id: %s\n" % (self.user_id, self.app_id)
