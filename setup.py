@@ -7,7 +7,7 @@ packages = setuptools.find_packages(include=["clarifai_utils*"])
 
 setuptools.setup(
     name="clarifai-utils",
-    version="0.0.3",
+    version="0.0.4",
     author="Clarifai",
     author_email="support@clarifai.com",
     description="Clarifai Python Utilities",
@@ -24,7 +24,7 @@ setuptools.setup(
     license="Apache 2.0",
     python_requires='>=3.6',
     install_requires=[
-        "clarifai-grpc>=7.10.0",
+        "clarifai-grpc>=7.12.0rc1",
     ],
     package_data={p: ["*.pyi"]
                   for p in packages},
