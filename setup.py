@@ -7,7 +7,7 @@ packages = setuptools.find_packages(include=["clarifai_utils*"])
 
 setuptools.setup(
     name="clarifai-utils",
-    version="0.0.5",
+    version="0.0.6",
     author="Clarifai",
     author_email="support@clarifai.com",
     description="Clarifai Python Utilities",
