@@ -1,12 +1,25 @@
 import os
+import urllib.request
 from typing import Any
 
-from clarifai_grpc.grpc.api import resources_pb2
+from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
+from clarifai_grpc.grpc.api import resources_pb2, service_pb2_grpc
+
+DEFAULT_BASE = 'api.clarifai.com'
+
+# Map from base domain to True / False for whether the base has https or http.
+# This is filled in get_stub() if it's not in there already.
+base_https_cache = {}
 
 
 class ClarifaiAuthHelper(object):
 
-  def __init__(self, user_id: str, app_id: str, pat: str, token: str = ''):
+  def __init__(self,
+               user_id: str,
+               app_id: str,
+               pat: str,
+               token: str = '',
+               base: str = DEFAULT_BASE):
     """
     A helper to get the authorization information needed to make API calls with the grpc
     client to a specific app using a personal access token.
@@ -21,6 +34,7 @@ class ClarifaiAuthHelper(object):
       app_id: an app id for the application that owns the resource you want to interact with
       pat: a personal access token.
       token: a session token (internal use only, always use a PAT).
+      base: a url to the API endpoint to hit. Examples include api.clarifai.com, api.clarifai.com (default), host:port (for any non-https endpoints they need this host:port format).
     """
     if pat != "" and token != "":
       raise Exception(
@@ -35,14 +49,38 @@ class ClarifaiAuthHelper(object):
     self.app_id = app_id
     self._pat = pat
     self._token = token
+    if base.startswith('http'):
+      raise Exception("Base should not contain http or https")
+    if base not in base_https_cache:
+      # We know our endpoints are https.
+      if base.find('.clarifai.com') >= 0:
+        base_https_cache[base] = True
+      else:  # need to test it.
+        try:  # make request to https endpoint.
+          urllib.request.urlopen('https://%s/v2/auth/methods' % base, timeout=5)
+          base_https_cache[base] = True  # cache it.
+        except Exception as e:
+          if str(e).find('SSL') >= 0:  # if ssl error then we know it's http.
+            base_https_cache[base] = False
+            # For http bases we need host:port format.
+            if base.find(':') < 0:
+              raise Exception("When providing an insecure base it must have both host:port format")
+          else:
+            print("Could not get a valid response from base: %s" % base)
+            raise (e)
+
+    self._base = base
 
   @classmethod
   def from_streamlit_query_params(cls, query_params: Any = ''):
     """ Initialize from streamlit queryparams. The following things will be looked for:
       user_id: as 'user_id' in query_params
       app_id: as 'app_id' in query_params
-      token: as 'token' in query_params
-      pat: as 'pat' in query_params
+      one of:
+        token: as 'token' in query_params
+        pat: as 'pat' in query_params
+      optionally:
+        base: as 'base' in query_params.
 
     Args:
       query_params: the streamlit.experimental_get_query_params() response or an empty dict to fall
@@ -65,15 +103,21 @@ class ClarifaiAuthHelper(object):
         raise Exception("There should only be 1 query param value for key '%s'" % k)
     user_id = query_params['user_id'][0]
     app_id = query_params['app_id'][0]
-    return cls(user_id, app_id, pat, token)
+    if 'base' in query_params:
+      base = query_params['base'][0]
+    else:
+      base = DEFAULT_BASE
+    return cls(user_id, app_id, pat, token, base)
 
   @classmethod
   def from_env(cls):
     """ Will look for the following env vars:
       user_id: CLARIFAI_USER_ID env var.
       app_id: CLARIFAI_APP_ID env var.
-      token: CLARIFAI_SESSION_TOKEN env var.
-      pat: CLARIFAI_PAT env var.
+      one of:
+        token: CLARIFAI_SESSION_TOKEN env var.
+        pat: CLARIFAI_PAT env var.
+      base: CLARIFAI_API_BASE env var.
     """
     if os.environ.get('CLARIFAI_USER_ID', '') == '':
       raise Exception("Need CLARIFAI_USER_ID env var")
@@ -89,7 +133,8 @@ class ClarifaiAuthHelper(object):
       token = os.environ['CLARIFAI_SESSION_TOKEN']
     if os.environ.get('CLARIFAI_PAT', '') != '':
       pat = os.environ['CLARIFAI_PAT']
-    return cls(user_id, app_id, pat, token)
+    base = os.environ.get('CLARIFAI_API_BASE', DEFAULT_BASE)
+    return cls(user_id, app_id, pat, token, base)
 
   def get_user_app_id_proto(self, user_id: str = None, app_id: str = None):
     """
@@ -120,3 +165,22 @@ class ClarifaiAuthHelper(object):
       return (('x-clarifai-session-token', self._token),)
     else:
       raise Exception("'token' or 'pat' needed to be provided in the query params or env vars.")
+
+  def get_stub(self):
+    """
+    Get the API gRPC stub using the right channel based on the API endpoint base.
+
+    Returns:
+      stub: The service_pb2_grpc.V2Stub stub for the API.
+    """
+    if self._base not in base_https_cache:
+      raise Exception("Cannot determine if base %s is https" % self._base)
+
+    https = base_https_cache[self._base]
+    if https:
+      channel = ClarifaiChannel.get_grpc_channel(base=self._base)
+    else:
+      host, port = self._base.split(":")
+      channel = ClarifaiChannel.get_insecure_grpc_channel(base=host, port=port)
+    stub = service_pb2_grpc.V2Stub(channel)
+    return stub

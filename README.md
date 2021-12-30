@@ -42,8 +42,6 @@ export CLARIFAI_PAT={your personal access token}
 ```
 
 ```python
-from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
-from clarifai_grpc.grpc.api import service_pb2_grpc
 from clarifai_utils.auth.helper import ClarifaiAuthHelper
 from clarifai_utils.listing.lister import ClarifaiResourceLister
 
@@ -51,8 +49,7 @@ from clarifai_utils.listing.lister import ClarifaiResourceLister
 auth = ClarifaiAuthHelper.from_env()
 
 # Create the grpc client stub.
-channel = ClarifaiChannel.get_grpc_channel(base="api.clarifai.com")
-stub = service_pb2_grpc.V2Stub(channel)
+stub = auth.get_stub()
 
 # Create the resource lister.
 lister = ClarifaiResourceLister(stub, auth.metadata, auth.user_id, auth.app_id, page_size=16)
