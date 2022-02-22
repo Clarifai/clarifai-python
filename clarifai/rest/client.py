@@ -1312,8 +1312,10 @@ class Models(object):
         if len(res) > 0:
           # exclude embed and cluster model when it's not explicitly searched for
           if model_type is None:
-            res = list(filter(lambda one: (one.output_info['type'] != u'embed') & (
-              one.output_info['type'] != u'cluster'), res))
+            for one in res:
+              print('test 1', one.output_info)
+            res = list(filter(lambda one: (one.output_info.get('type') != u'embed') & (
+              one.output_info.get('type') != u'cluster'), res))
 
         if len(res) > 1:
           logging.error(
