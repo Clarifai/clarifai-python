@@ -15,7 +15,9 @@ class ClarifaiModulePageManager(object):
       qp: the streamlit query params st.experimental_get_query_params()
     """
     # Get the page from query params or default to 1 from the url.
-    page = qp.get('page', ['1'])[0]
+    page = qp.get('page', [None])[0]
+    if page is None:
+      page = self.page_names[0]
     # Check that the page number coming in is within the range of pages in the folder.
     if page not in self.page_names:
       raise Exception(

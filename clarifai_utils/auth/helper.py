@@ -197,4 +197,6 @@ class ClarifaiAuthHelper(object):
     return stub
 
   def __str__(self):
-    return "ClarifaiAuthHelper:\n- user_id: %s\n- app_id: %s\n" % (self.user_id, self.app_id)
+    return "ClarifaiAuthHelper:\n- base: %s\n- user_id: %s\n- app_id: %s\n" % (self._base,
+                                                                               self.user_id,
+                                                                               self.app_id)
