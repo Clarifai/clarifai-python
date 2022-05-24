@@ -6,10 +6,40 @@ from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2_grpc
 
 DEFAULT_BASE = 'api.clarifai.com'
+DEFAULT_UI = 'clarifai.com'
 
 # Map from base domain to True / False for whether the base has https or http.
 # This is filled in get_stub() if it's not in there already.
 base_https_cache = {}
+ui_https_cache = {}
+
+
+def https_cache(cache, url):
+  # If http or https is provided, we trust that it is correct.
+  if url.startswith('https://'):
+    url = url.replace('https://', '')
+    cache[url] = True
+  elif url.startswith('http://'):
+    url = url.replace('http://', '')
+    cache[url] = False
+  elif url not in cache:
+    # We know our endpoints are https.
+    if url.find('.clarifai.com') >= 0:
+      cache[url] = True
+    else:  # need to test it.
+      try:  # make request to https endpoint.
+        urllib.request.urlopen('https://%s/v2/auth/methods' % url, timeout=5)
+        cache[url] = True  # cache it.
+      except Exception as e:
+        if str(e).find('SSL') >= 0:  # if ssl error then we know it's http.
+          cache[url] = False
+          # For http urls we need host:port format.
+          if url.find(':') < 0:
+            raise Exception("When providing an insecure url it must have both host:port format")
+        else:
+          raise Exception("Could not get a valid response from url: %s, is the API running there?"
+                          % url) from e
+  return url
 
 
 class ClarifaiAuthHelper(object):
@@ -19,7 +49,8 @@ class ClarifaiAuthHelper(object):
                app_id: str,
                pat: str,
                token: str = '',
-               base: str = DEFAULT_BASE):
+               base: str = DEFAULT_BASE,
+               ui: str = DEFAULT_UI):
     """
     A helper to get the authorization information needed to make API calls with the grpc
     client to a specific app using a personal access token.
@@ -36,6 +67,8 @@ class ClarifaiAuthHelper(object):
       token: a session token (internal use only, always use a PAT).
       base: a url to the API endpoint to hit. Examples include api.clarifai.com,
     https://api.clarifai.com (default), https://host:port, http://host:port, host:port (will be treated as http, not https). It's highly recommended to include the http:// or https:// otherwise we need to check the endpoint to determine if it has SSL during this __init__
+      ui: a url to the UI. Examples include clarifai.com,
+    https://clarifai.com (default), https://host:port, http://host:port, host:port (will be treated as http, not https). It's highly recommended to include the http:// or https:// otherwise we need to check the endpoint to determine if it has SSL during this __init__
     """
     if pat != "" and token != "":
       raise Exception(
@@ -50,33 +83,40 @@ class ClarifaiAuthHelper(object):
     self.app_id = app_id
     self._pat = pat
     self._token = token
-    # If http or https is provided, we trust that it is correct.
-    if base.startswith('https://'):
-      base = base.replace('https://', '')
-      base_https_cache[base] = True
-    elif base.startswith('http://'):
-      base = base.replace('http://', '')
-      base_https_cache[base] = False
-    elif base not in base_https_cache:
-      # We know our endpoints are https.
-      if base.find('.clarifai.com') >= 0:
-        base_https_cache[base] = True
-      else:  # need to test it.
-        try:  # make request to https endpoint.
-          urllib.request.urlopen('https://%s/v2/auth/methods' % base, timeout=5)
-          base_https_cache[base] = True  # cache it.
-        except Exception as e:
-          if str(e).find('SSL') >= 0:  # if ssl error then we know it's http.
-            base_https_cache[base] = False
-            # For http bases we need host:port format.
-            if base.find(':') < 0:
-              raise Exception("When providing an insecure base it must have both host:port format")
-          else:
-            raise Exception(
-                "Could not get a valid response from base: %s, is the API running there?" %
-                base) from e
 
-    self._base = base
+    self._base = https_cache(base_https_cache, base)
+    self._ui = https_cache(ui_https_cache, ui)
+
+  @classmethod
+  def from_streamlit(cls, st: Any, fallback_to_envvars: bool = True):
+    """ This is a convenient method to check the query params from streamlit for the required
+    parameters for authentication, and then optional fallback to checking environment variables as
+    well if needed.
+    Args:
+      st: the streamlit package typically as: 'import streamlit as st'
+      fallback_to_envvars: if True then when the sufficient query params are not present it will
+    check env vars. If False then we raise the query param exception directly.
+    Returns:
+      auth: this class instantiated
+    """
+    try:
+      auth = cls.from_streamlit_query_params(st.experimental_get_query_params())
+    except Exception as e:
+      if not fallback_to_envvars:
+        st.error(e)
+        st.stop()
+        raise e
+      else:
+        st.markdown(
+            "Could not find query params in url. For development purposes we will check for env vars next."
+        )
+        try:
+          auth = ClarifaiAuthHelper.from_env()
+        except Exception as e:
+          st.error(e)
+          st.stop()
+          raise e
+    return auth
 
   @classmethod
   def from_streamlit_query_params(cls, query_params: Any = ''):
@@ -93,12 +133,28 @@ class ClarifaiAuthHelper(object):
       query_params: the streamlit.experimental_get_query_params() response or an empty dict to fall
     back to using env vars.
     """
+    error_description = """
+Please check the following required query params are in the url:
+ - 'user_id': the user ID accessing the module.
+ - 'app_id': the app the module is being accessed from.
+ - 'token' or 'pat': to authenticate the calling user with a session token or personal access token.
+
+Additionally, these optional params are supported:
+ - 'base': the base domain for the API such as https://api.clarifai.com
+ - 'ui': the overall UI domain for redirects such as https://clarifai.com
+"""
+
     if query_params == '':  # empty response from streamlit
       query_params = {}
     if 'user_id' not in query_params:
-      raise Exception("Need 'user_id' in the query params")
+      raise Exception("You need to set 'user_id' in the query params of the url." +
+                      error_description)
+    user_id = query_params['user_id'][0]
     if 'app_id' not in query_params:
-      raise Exception("Need 'app_id' in the query params")
+      raise Exception("You need to set 'app_id' in the query params of the url." +
+                      error_description)
+    app_id = query_params['app_id'][0]
+
     token = ''
     pat = ''
     if 'token' in query_params:
@@ -107,14 +163,21 @@ class ClarifaiAuthHelper(object):
       pat = query_params['pat'][0]
     for k in ['user_id', 'app_id', 'token', 'pat']:
       if k in query_params and len(query_params[k]) != 1:
-        raise Exception("There should only be 1 query param value for key '%s'" % k)
-    user_id = query_params['user_id'][0]
-    app_id = query_params['app_id'][0]
+        err_str = "There should only be 1 query param value for key '%s'" % k
+        raise Exception(err_str + error_description)
+    if token == '' and pat == '':
+      raise Exception("You must provide one of 'token' or 'pat' in the query params." +
+                      error_description)
     if 'base' in query_params:
       base = query_params['base'][0]
     else:
       base = DEFAULT_BASE
-    return cls(user_id, app_id, pat, token, base)
+    if 'ui' in query_params:
+      ui = query_params['ui'][0]
+    else:
+      ui = DEFAULT_BASE
+
+    return cls(user_id, app_id, pat, token, base, ui)
 
   @classmethod
   def from_env(cls):
@@ -126,12 +189,22 @@ class ClarifaiAuthHelper(object):
         pat: CLARIFAI_PAT env var.
       base: CLARIFAI_API_BASE env var.
     """
+    error_description = """
+Please check the following required vars are in your env:
+ - 'CLARIFAI_USER_ID': the user ID accessing the module.
+ - 'CLARIFAI_APP_ID': the app the module is being accessed from.
+ - 'CLARIFAI_SESSION_TOKEN' or 'CLARIFAI_PAT': to authenticate the calling user with a session token or personal access token.
+
+Additionally, these optional params are supported:
+ - 'CLARIFAI_API_BASE': the base domain for the API such as https://api.clarifai.com
+ - 'CLARIFAI_UI': the overall UI domain for redirects such as https://clarifai.com
+"""
     if os.environ.get('CLARIFAI_USER_ID', '') == '':
-      raise Exception("Need CLARIFAI_USER_ID env var")
+      raise Exception("You need to set the 'CLARIFAI_USER_ID' env var." + error_description)
     else:
       user_id = os.environ['CLARIFAI_USER_ID']
     if os.environ.get('CLARIFAI_APP_ID', '') == '':
-      raise Exception("Need CLARIFAI_APP_ID env var")
+      raise Exception("You need to set the 'CLARIFAI_APP_ID' env var." + error_description)
     else:
       app_id = os.environ['CLARIFAI_APP_ID']
     token = ''
@@ -140,8 +213,13 @@ class ClarifaiAuthHelper(object):
       token = os.environ['CLARIFAI_SESSION_TOKEN']
     if os.environ.get('CLARIFAI_PAT', '') != '':
       pat = os.environ['CLARIFAI_PAT']
+    if token == '' and pat == '':
+      raise Exception(
+          "You must provide one of 'CLARIFAI_SESSION_TOKEN' or 'CLARIFAI_PAT' in your env variables."
+          + error_description)
     base = os.environ.get('CLARIFAI_API_BASE', DEFAULT_BASE)
-    return cls(user_id, app_id, pat, token, base)
+    ui = os.environ.get('CLARIFAI_UI', DEFAULT_UI)
+    return cls(user_id, app_id, pat, token, base, ui)
 
   def get_user_app_id_proto(self, user_id: str = None, app_id: str = None):
     """
@@ -195,6 +273,10 @@ class ClarifaiAuthHelper(object):
       channel = ClarifaiChannel.get_insecure_grpc_channel(base=host, port=port)
     stub = service_pb2_grpc.V2Stub(channel)
     return stub
+
+  @property
+  def ui(self):
+    return self._ui
 
   def __str__(self):
     return "ClarifaiAuthHelper:\n- base: %s\n- user_id: %s\n- app_id: %s\n" % (self._base,
