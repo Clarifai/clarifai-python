@@ -99,14 +99,7 @@ footer {
     color: #FFF !important;
 }
 
-
-
 div[data-testid="stDecoration"] {
-    display: none !important;
-    background-image: none;
-}
-
-section[data-testid="stSidebar"] {
     display: none !important;
     background-image: none;
 }
