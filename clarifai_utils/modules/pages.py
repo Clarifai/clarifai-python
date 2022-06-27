@@ -7,15 +7,15 @@ class ClarifaiModulePageManager(object):
   def __init__(self):
     # List all the available pages.
     page_files = sorted(glob.glob("pages/*.py"))
-    self.page_names = [f.replace('pages/', '').replace('.py', '') for f in page_files]
+    self.page_names = [f.replace("pages/", "").replace(".py", "") for f in page_files]
 
   def get_page_from_query_params(self, qp):
     """
-    Args:
-      qp: the streamlit query params st.experimental_get_query_params()
-    """
+        Args:
+          qp: the streamlit query params st.experimental_get_query_params()
+        """
     # Get the page from query params or default to 1 from the url.
-    page = qp.get('page', [None])[0]
+    page = qp.get("page", [None])[0]
     if page is None:
       page = self.page_names[0]
     # Check that the page number coming in is within the range of pages in the folder.
@@ -32,9 +32,9 @@ class ClarifaiModulePageManager(object):
   def render_page(self, page):
     # Since the page re-renders every time the selectbox changes, we'll always have the latest page out
     # of the query params.
-    module_str = 'pages.%s' % page
+    module_str = "pages.%s" % page
     # check if the page exists
-    spec = importlib.util.find_spec(module_str)
+    importlib.util.find_spec(module_str)
     if page is None:
       raise Exception("Page %s is was not found." % page)
 

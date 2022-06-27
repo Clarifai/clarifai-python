@@ -59,3 +59,21 @@ concepts = []
 for c in lister.concepts_generator():
   concepts.append(c)
 ```
+
+
+# Testing
+
+```bash
+pip install tests/requirements.txt
+pytest tests/
+```
+
+
+# Linting
+
+The repo will be linted when changed in a github workflow. To speed up development it's recommented
+you copy this lint.sh file to the .git/hooks/pre-commit so it runs on each change locally:
+```
+pip install tests/requirements.txt
+cp lint.sh .git/hooks/pre-commit
+``
