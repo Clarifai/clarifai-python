@@ -5,8 +5,8 @@ from typing import Any
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2_grpc
 
-DEFAULT_BASE = "api.clarifai.com"
-DEFAULT_UI = "clarifai.com"
+DEFAULT_BASE = "https://api.clarifai.com"
+DEFAULT_UI = "https://clarifai.com"
 
 # Map from base domain to True / False for whether the base has https or http.
 # This is filled in get_stub() if it's not in there already.
@@ -16,6 +16,7 @@ ui_https_cache = {}
 
 def https_cache(cache, url):
   # If http or https is provided, we trust that it is correct.
+  # Note: this always stores the url without http:// or https://
   if url.startswith("https://"):
     url = url.replace("https://", "")
     cache[url] = True
@@ -278,6 +279,15 @@ Additionally, these optional params are supported:
 
   @property
   def ui(self):
+    if self._ui not in ui_https_cache:
+      raise Exception("Cannot determine if ui %s is https" % self._ui)
+    https = ui_https_cache[self._ui]
+    if https:
+      if not self._ui.startswith("https://"):
+        return "https://" + self._ui
+      return self._ui
+    if not self._ui.startswith("http://"):
+      return "http://" + self._ui
     return self._ui
 
   def __str__(self):
