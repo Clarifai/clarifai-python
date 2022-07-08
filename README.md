@@ -76,4 +76,4 @@ you copy this lint.sh file to the .git/hooks/pre-commit so it runs on each chang
 ```
 pip install tests/requirements.txt
 cp lint.sh .git/hooks/pre-commit
-``
+```
