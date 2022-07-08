@@ -4,7 +4,7 @@ import pytest
 from clarifai_utils.modules.urls import ClarifaiModuleUrlHelper
 
 
-class TestModuels:
+class TestModules:
 
   @classmethod
   def setUpClass(cls):
@@ -30,6 +30,14 @@ class TestModuels:
         install_url ==
         "https://clarifai.com/person/app/installed_module_versions/module_manager_install?page=install&install=%s"
         % url)
+
+    custom_imv_id = "some_imv_id"
+    helper = ClarifaiModuleUrlHelper(auth, custom_imv_id)
+    install_url = helper.module_install_ui_url("person", "app", url)
+    assert (
+        install_url ==
+        "https://clarifai.com/person/app/installed_module_versions/%s?page=install&install=%s" %
+        (custom_imv_id, url))
 
   def test_slitting(self):
 
