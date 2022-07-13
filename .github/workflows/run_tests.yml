@@ -17,12 +17,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: [3.6, 3.8]
+        python-version: [3.7, 3.9]
         exclude:
           - os: macos-latest
-            python-version: 3.8
+            python-version: 3.9
           - os: macos-latest
-            python-version: 3.6
+            python-version: 3.7
         include:
           - os: windows-latest
             python-version: 3.8.10

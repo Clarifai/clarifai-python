@@ -22,7 +22,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     license="Apache 2.0",
-    python_requires='>=3.6',
+    python_requires='>=3.7',
     install_requires=[
         "clarifai-grpc>=7.12.0rc1",
     ],

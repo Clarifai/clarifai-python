@@ -15,27 +15,30 @@ ui_https_cache = {}
 
 
 def https_cache(cache, url):
+  HTTPS = True
+  HTTP = False
+
   # If http or https is provided, we trust that it is correct.
   # Note: this always stores the url without http:// or https://
   if url.startswith("https://"):
     url = url.replace("https://", "")
-    cache[url] = True
+    cache[url] = HTTPS
   elif url.startswith("http://"):
     url = url.replace("http://", "")
-    cache[url] = False
+    cache[url] = HTTP
   elif url not in cache:
     # We know our endpoints are https.
-    if url.find(".clarifai.com") >= 0:
-      cache[url] = True
+    if ".clarifai.com" in url:
+      cache[url] = HTTPS
     else:  # need to test it.
       try:  # make request to https endpoint.
-        urllib.request.urlopen("https://%s/v2/auth/methods" % url, timeout=5)
-        cache[url] = True  # cache it.
+        urllib.request.urlopen("https://%s/v2/auth/methods" % url, timeout=1)
+        cache[url] = HTTPS  # cache it.
       except Exception as e:
-        if str(e).find("SSL") >= 0:  # if ssl error then we know it's http.
-          cache[url] = False
+        if "SSL" in str(e):  # if ssl error then we know it's http.
+          cache[url] = HTTP
           # For http urls we need host:port format.
-          if url.find(":") < 0:
+          if ":" not in url:
             raise Exception("When providing an insecure url it must have both host:port format")
         else:
           raise Exception("Could not get a valid response from url: %s, is the API running there?"

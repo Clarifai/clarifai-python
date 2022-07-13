@@ -1,28 +1,70 @@
-from clarifai_utils.auth.helper import ClarifaiAuthHelper
+from unittest import mock
+from unittest.mock import Mock
+
+import pytest as pytest
+
+from clarifai_utils.auth.helper import ClarifaiAuthHelper, ui_https_cache
 
 
-class TestAuth:
+@pytest.fixture(autouse=True)
+def clear_cache():
+  ui_https_cache.clear()
 
-  @classmethod
-  def setUpClass(cls):
-    pass
 
-  @classmethod
-  def tearDownClass(cls):
-    pass
+def test_ui_default_url():
+  default = ClarifaiAuthHelper("clarifai", "main", "fake_pat")
+  assert default.ui == "https://clarifai.com"
 
-  def test_ui_urls(self):
-    default = ClarifaiAuthHelper("clarifai", "main", "fake_pat")
-    assert default.ui == "https://clarifai.com"
 
-    default = ClarifaiAuthHelper("clarifai", "main", "fake_pat", ui="localhost:3002")
-    assert default.ui == "http://localhost:3002"
+@pytest.mark.parametrize(("input_url", "expected_url"), (
+    ("http://localhost:3002", "http://localhost:3002"),
+    ("https://localhost:3002", "https://localhost:3002"),
+    ("https://clarifai.com", "https://clarifai.com"),
+))
+def test_ui_urls(input_url, expected_url):
+  helper = ClarifaiAuthHelper("clarifai", "main", "fake_pat", ui=input_url)
+  assert helper.ui == expected_url
 
-    default = ClarifaiAuthHelper("clarifai", "main", "fake_pat", ui="http://localhost:3002")
-    assert default.ui == "http://localhost:3002"
 
-    default = ClarifaiAuthHelper("clarifai", "main", "fake_pat", ui="https://localhost:3002")
-    assert default.ui == "https://localhost:3002"
+def test_passing_no_schema_url_use_https_when_server_is_running():
 
-    default = ClarifaiAuthHelper("clarifai", "main", "fake_pat", ui="https://clarifai.com")
-    assert default.ui == "https://clarifai.com"
+  def raise_exception():
+    return Mock()
+
+  with mock.patch('urllib.request.urlopen', new_callable=raise_exception):
+    helper = ClarifaiAuthHelper("clarifai", "main", "fake_pat", ui="server")
+    assert helper.ui == "https://server"
+
+
+def test_passing_no_schema_url_show_error_when_not_server_running():
+
+  def raise_exception():
+    return Mock(side_effect=Exception("http_exception"))
+
+  with mock.patch('urllib.request.urlopen', new_callable=raise_exception):
+    with pytest.raises(
+        Exception,
+        match="Could not get a valid response from url: localhost:3002, is the API running there?"
+    ):
+      ClarifaiAuthHelper("clarifai", "main", "fake_pat", ui="localhost:3002")
+
+
+def test_passing_no_schema_url_detect_http_when_SSL_in_error():
+
+  def raise_exception():
+    return Mock(side_effect=Exception("Has SSL in error"))
+
+  with mock.patch('urllib.request.urlopen', new_callable=raise_exception):
+    helper = ClarifaiAuthHelper("clarifai", "main", "fake_pat", ui="localhost:3002")
+    assert helper.ui == "http://localhost:3002"
+
+
+def test_passing_no_schema_url_require_port():
+
+  def raise_exception():
+    return Mock(side_effect=Exception("Has SSL in error"))
+
+  with mock.patch('urllib.request.urlopen', new_callable=raise_exception):
+    with pytest.raises(
+        Exception, match="When providing an insecure url it must have both host:port format"):
+      ClarifaiAuthHelper("clarifai", "main", "fake_pat", ui="localhost")
