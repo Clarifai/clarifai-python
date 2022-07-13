@@ -25,6 +25,18 @@ def test_module_install_url(helper):
   )
 
 
+def test_install_with_custom_imv_id():
+  auth_obj = namedtuple("auth", "ui")
+  auth = auth_obj(ui="http://fake")
+
+  custom_imv_id = "some_imv_id"
+  helper = ClarifaiModuleUrlHelper(auth, custom_imv_id)
+  install_url = helper.module_install_ui_url("person", "app", "XXX")
+  assert (
+      install_url ==
+      "http://fake/person/app/installed_module_versions/some_imv_id?page=install&install=XXX")
+
+
 def test_split_of_ui_clarifai_url():
   (
       user_id,
