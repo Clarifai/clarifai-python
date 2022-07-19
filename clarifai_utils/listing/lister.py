@@ -1,8 +1,8 @@
 from clarifai_grpc.grpc.api import resources_pb2
 from clarifai_grpc.grpc.api.service_pb2_grpc import V2Stub
-
 from clarifai_utils.listing.concepts import concepts_generator
 from clarifai_utils.listing.inputs import inputs_generator
+from clarifai_utils.listing.installed_module_versions import installed_module_versions_generator
 
 
 class ClarifaiResourceLister(object):
@@ -63,3 +63,23 @@ class ClarifaiResourceLister(object):
     """
     page_size = self.default_page_size if page_size is None else page_size
     return inputs_generator(self.stub, self.metadata, self.user_id, self.app_id, page_size)
+
+  def list_all_installed_module_versions(self, page_size: int = None):
+    """
+    This lists all the installed_module_versions in an app. Not recommended for large apps.
+
+    Returns:
+      installed_module_versions: a list of InstalledModuleVersion protos for all the installed_module_versions in the app.
+    """
+    return [item for item in self.installed_module_versions_generator(page_size)]
+
+  def installed_module_versions_generator(self, page_size: int = None):
+    """
+    This lists all the installed_module_versions in an app. Not recommended for large apps.
+
+    Returns:
+      gen: a generator that yields a single InstalledModuleVersion proto at a time.
+    """
+    page_size = self.default_page_size if page_size is None else page_size
+    return installed_module_versions_generator(self.stub, self.metadata, self.user_id, self.app_id,
+                                               page_size)

@@ -7,7 +7,7 @@ def concepts_generator(stub: V2Stub,
                        metadata: tuple,
                        user_id: str,
                        app_id: str,
-                       page_size: int = 16):
+                       page_size: int = 64):
   """
   Lists all the concept in the given userAppID user_id, app_id app.
 
