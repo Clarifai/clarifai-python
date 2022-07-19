@@ -6,7 +6,7 @@ body {
     font-family: -apple-system,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol;
 }
 
-.stButton>button, .stDownloadButton>button {
+.stButton>button, .stDownloadButton>button, .stButton>a {
   color: #fff;
   background-color: #006dff;
   border-color: transparent;
@@ -19,11 +19,16 @@ body {
   border-radius: calc( 2.8rem / 4 );
   cursor: pointer;
   position: relative;
-  display: flex;
   justify-content: center;
   align-items: center;
+  appearance: button;
+  text-decoration: none;
+}
+.stButton>a {
+    font-size: 0.925rem;
 }
 
+.ourButton>a:hover,
 .stButton>button:hover,
 .stButton>button:focus,
 .stButton>button:focus:not(:active),
@@ -37,6 +42,7 @@ body {
     border-color: transparent;
     box-shadow: none !important;
     background-color: #356dff;
+    text-decoration: none;
 }
 
 

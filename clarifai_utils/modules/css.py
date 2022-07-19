@@ -25,3 +25,17 @@ class ClarifaiStreamlitCSS(object):
     """
     with open(css_file) as f:
       st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+
+  @classmethod
+  def buttonlink(cls, st, label, link, target="_parent"):
+    """
+    This is a streamlit button that will link to another page (or _self if target is _self).
+    It is styled to look like the other stButton>button buttons that are created with st.button().
+    """
+    st.markdown(
+        f'''
+    <div class="stButton">
+      <a href="{link}" target="{target}">{label}</a>
+    </div>
+    ''',
+        unsafe_allow_html=True)
