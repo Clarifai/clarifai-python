@@ -1,0 +1,162 @@
+body {
+    font-family: -apple-system,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol;
+}
+
+.stDataFrame {
+    font-family: -apple-system,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol;
+}
+
+.stButton>button, .stDownloadButton>button {
+  color: #fff;
+  background-color: #006dff;
+  border-color: transparent;
+  font-size: 0.875rem;
+  font-weight: 600;
+  outline: 0;
+  padding: 0.625rem 1rem;
+  text-align: center;
+  border: 1px solid transparent;
+  border-radius: calc( 2.8rem / 4 );
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.stButton>button:hover,
+.stButton>button:focus,
+.stButton>button:focus:not(:active),
+.stButton>button:active,
+.stDownloadButton>button:hover,
+.stDownloadButton>button:focus,
+.stDownloadButton>button:focus:not(:active),
+.stDownloadButton>button:active
+{
+    color: #fff;
+    border-color: transparent;
+    box-shadow: none !important;
+    background-color: #356dff;
+}
+
+
+.stCheckbox [role="checkbox"] {
+  border: 1px solid #D0D5DD;
+  transition: all 0.1s;
+  width: 20px;
+  height: 20px;
+}
+
+.stCheckbox [role="checkbox"][aria-checked="true"] {
+  background-color: #F2F6FE;
+  background-size: auto;
+  background-image: url('data:image/svg+xml,%3Csvg%20width%3D%2212%22%20height%3D%229%22%20viewBox%3D%220%200%2012%209%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M10.6663%201.5L4.24967%207.91667L1.33301%205%22%20stroke%3D%22%23195AFF%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3C%2Fpath%3E%3C%2Fsvg%3E');
+}
+
+.stSelectbox > div > div {
+  border-radius: 8px;
+}
+
+
+.stMultiSelect > div > div {
+  border-radius: 8px;
+}
+
+.stTextInput > div > div {
+  border-radius: 8px;
+}
+
+.stNumberInput > div > div:first-of-type {
+  border-radius: 8px 0 0 8px;
+}
+
+.stNumberInput button:last-of-type {
+  color: #fff;
+  background-color: #006dff;
+  border-color: transparent;
+  border-radius: 0 8px 8px 0;
+}
+
+.stTextArea > div {
+  border-radius: 8px;
+}
+
+.stDateInput > div > div {
+  border-radius: 8px;
+}
+
+.stTimeInput > div > div {
+  border-radius: 8px;
+}
+
+.stNumberInput>div>div>button {
+    color: #fff;
+    background-color: #006dff;
+    border-color: transparent;
+}
+.stNumberInput>div>div>button:hover,
+.stNumberInput>div>div>button:hover:enabled,
+.stNumberInput>div>div>button:focus,
+.stNumberInput>div>div>button:focus:enabled,
+.stNumberInput>div>div>button:focus:not(:active),
+.stNumberInput>div>div>button:active
+{
+    color: #fff;
+    border-color: transparent;
+    box-shadow: none !important;
+    background-color: #356dff;
+}
+
+
+div[data-testid="stFileUploader"]>section>button {
+    color: #fff;
+    background-color: #006dff;
+    border-color: transparent;
+    border-radius: 8px;
+    padding: 0.625rem 1rem;
+    font-weight: 600;
+}
+div[data-testid="stFileUploader"]>section {
+  border-radius: 8px;
+}
+
+div[data-testid="stFileUploader"]>section>button:hover,
+div[data-testid="stFileUploader"]>section>button:hover:enabled,
+div[data-testid="stFileUploader"]>section>button:focus,
+div[data-testid="stFileUploader"]>section>button:focus:enabled,
+div[data-testid="stFileUploader"]>section>button:focus:not(:active),
+div[data-testid="stFileUploader"]>section>button:active
+{
+    color: #fff;
+    border-color: transparent;
+    box-shadow: none !important;
+    background-color: #356dff;
+}
+
+.st-bt {
+    background-color: #fff;
+}
+
+.stTextInput>div>div>input {
+    background-color: #fff;
+    border-radius: 9.8px;
+    border-color: transparent;
+}
+
+div[data-baseweb="base-input"] {
+    color: #4F8BF9;
+    background-color: #fff;
+    border-radius: 9.8px;
+    border-color: transparent;
+}
+
+
+footer {
+    display: none !important;
+    color: #FFF !important;
+}
+
+div[data-testid="stDecoration"] {
+    display: none !important;
+    background-image: none;
+}

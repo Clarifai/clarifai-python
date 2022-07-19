@@ -16,6 +16,13 @@ This is the official Clarifai Python utilities project. This repo includes highe
 pip install -U clarifai-utils
 ```
 
+## Installation from source (for development)
+```cmd
+python -m venv ~/virtualenv/clarifai-python-utils
+source ~/virtualenv/clarifai-python-utils/bin/activate
+cd clarifai-python-utils
+python setup.py develop
+```
 ## Versioning
 
 This library doesn't use semantic versioning. The first two version numbers (`X.Y` out of `X.Y.Z`) follow the API (backend) versioning, and
@@ -35,8 +42,6 @@ export CLARIFAI_PAT={your personal access token}
 ```
 
 ```python
-from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
-from clarifai_grpc.grpc.api import service_pb2_grpc
 from clarifai_utils.auth.helper import ClarifaiAuthHelper
 from clarifai_utils.listing.lister import ClarifaiResourceLister
 
@@ -44,8 +49,7 @@ from clarifai_utils.listing.lister import ClarifaiResourceLister
 auth = ClarifaiAuthHelper.from_env()
 
 # Create the grpc client stub.
-channel = ClarifaiChannel.get_grpc_channel(base="api.clarifai.com")
-stub = service_pb2_grpc.V2Stub(channel)
+stub = auth.get_stub()
 
 # Create the resource lister.
 lister = ClarifaiResourceLister(stub, auth.metadata, auth.user_id, auth.app_id, page_size=16)
@@ -54,4 +58,22 @@ lister = ClarifaiResourceLister(stub, auth.metadata, auth.user_id, auth.app_id, 
 concepts = []
 for c in lister.concepts_generator():
   concepts.append(c)
+```
+
+
+# Testing
+
+```bash
+pip install tests/requirements.txt
+pytest tests/
+```
+
+
+# Linting
+
+The repo will be linted when changed in a github workflow. To speed up development it's recommented
+you copy this lint.sh file to the .git/hooks/pre-commit so it runs on each change locally:
+```
+pip install tests/requirements.txt
+cp lint.sh .git/hooks/pre-commit
 ```

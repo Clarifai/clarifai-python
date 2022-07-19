@@ -9,17 +9,17 @@ def concepts_generator(stub: V2Stub,
                        app_id: str,
                        page_size: int = 64):
   """
-  Lists all the concept in the given userAppID user_id, app_id app.
+    Lists all the concept in the given userAppID user_id, app_id app.
 
-  Args:
-    stub: grpc client stub.
-    user_id: the user to list from.
-    app_id: the app in the user_id account to list from.
-    page_size: the pagination size to use while iterating.
+    Args:
+      stub: grpc client stub.
+      user_id: the user to list from.
+      app_id: the app in the user_id account to list from.
+      page_size: the pagination size to use while iterating.
 
-  Returns:
-    concepts: a list of Concept protos for all the concepts in the app.
-  """
+    Returns:
+      concepts: a list of Concept protos for all the concepts in the app.
+    """
   userDataObject = resources_pb2.UserAppIDSet(user_id=user_id, app_id=app_id)
 
   concept_success_status = {status_code_pb2.SUCCESS}
@@ -28,7 +28,8 @@ def concepts_generator(stub: V2Stub,
   while True:
     response = stub.ListConcepts(
         service_pb2.ListConceptsRequest(user_app_id=userDataObject, page=page, per_page=page_size),
-        metadata=metadata)
+        metadata=metadata,
+    )
 
     if response.status.code not in concept_success_status:
       raise Exception("ListConcepts failed with response %r" % response)

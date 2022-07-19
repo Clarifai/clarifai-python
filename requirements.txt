@@ -1,1 +1,1 @@
-clarifai-grpc==7.10.0
+clarifai-grpc==7.12.0rc2

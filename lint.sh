@@ -2,7 +2,7 @@
 
 set -eo pipefail
 
-FIND_SOURCE_FILES='find clarifai-utils tests -name "*.py" -not -path "clarifai-utils/grpc/*"'
+FIND_SOURCE_FILES='find clarifai_utils tests -name "*.py"'
 
 function run_autoflake {
   echo "- autoflake: Make sure there are no unused imports and unused variables"
@@ -25,27 +25,23 @@ function run_autoflake {
 }
 
 
-function run_black() {
+function run_yapf() {
   echo ""
-  echo "- black: Make sure all the code is formatted consistently"
+  echo "- yapf: Make sure all the code is formatted consistently"
 
-  if [ "$1" == "check" ]; then
-    black --line-length 99 --check $(eval ${FIND_SOURCE_FILES})
-  else
-    black --line-length 99 $(eval ${FIND_SOURCE_FILES})
-  fi
+  yapf -i $(eval ${FIND_SOURCE_FILES})
 
   if [ $? != 0 ]; then
     echo ""
-    echo "  black failed. Run './lint.sh' to automatically apply code formatting."
+    echo "  yapf failed. Run './lint.sh' to automatically apply code formatting."
     exit 1
   fi
 
-  echo "  Done black"
+  echo "  Done yapf"
 }
 
 
 run_autoflake
-run_black $1
+run_yapf $1
 
 echo "SUCCESSFUL FINISH OF lint.sh"
