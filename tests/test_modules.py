@@ -32,9 +32,8 @@ def test_install_with_custom_imv_id():
   custom_imv_id = "some_imv_id"
   helper = ClarifaiModuleUrlHelper(auth, custom_imv_id)
   install_url = helper.module_install_ui_url("person", "app", "XXX")
-  assert (
-      install_url ==
-      "http://fake/person/app/installed_module_versions/some_imv_id?page=install&install=XXX")
+  assert (install_url ==
+          "http://fake/person/app/installed_module_versions/some_imv_id?page=install&install=XXX")
 
 
 def test_split_of_ui_clarifai_url():
