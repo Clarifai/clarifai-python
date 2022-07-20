@@ -38,7 +38,7 @@ jobs:
         pip install -r requirements.txt
         pip install -r tests/requirements.txt
     - name: Run static analysis lint
-      run: ./lint.sh check
+      uses: pre-commit/action@v3.0.0
     - name: Run pytest
       shell: bash
       run: |
