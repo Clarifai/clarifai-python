@@ -31,6 +31,14 @@ class ClarifaiStreamlitCSS(object):
     """
     This is a streamlit button that will link to another page (or _self if target is _self).
     It is styled to look like the other stButton>button buttons that are created with st.button().
+
+    You must insert_default_css(st) before using on a page.
+
+    Example:
+      ClarifaiStreamlitCSS.insert_default_css(st)
+      cols = st.columns(4)
+      ClarifaiStreamlitCSS.buttonlink(cols[3], "Button", "https://clarifai.com", "_blank")
+
     """
     st.markdown(
         f'''

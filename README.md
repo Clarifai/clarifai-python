@@ -70,10 +70,14 @@ pytest tests/
 
 
 # Linting
-
-The repo will be linted when changed in a github workflow. To speed up development it's recommented
-you copy this lint.sh file to the .git/hooks/pre-commit so it runs on each change locally:
+The repo will be linted when changed in a github workflow.
+To speed up development it's recommended to install pre-commit and tools
+```shell
+pip install -r requirements-dev.txt
+pre-commit install
 ```
-pip install tests/requirements.txt
-cp lint.sh .git/hooks/pre-commit
+
+You could run all checks by
+```shell
+pre-commit run --all-files
 ```

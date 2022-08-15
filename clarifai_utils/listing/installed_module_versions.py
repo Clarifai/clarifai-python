@@ -28,7 +28,6 @@ def installed_module_versions_generator(stub: V2Stub,
   # so with pagination
   seen = {
       "module_manager_install": False,
-      "auto_annotation_install": False,
   }
 
   page = 1
@@ -40,12 +39,14 @@ def installed_module_versions_generator(stub: V2Stub,
 
     if response.status.code not in imv_success_status:
       raise Exception("ListInstalledModuleVersions failed with response %r" % response)
-    if len(response.installed_module_versions) == 0 or (len(
-        response.installed_module_versions) == len(seen) and all(seen.values())):
-      break
-    else:
-      for item in response.installed_module_versions:
-        if item.id in seen:
+    for item in response.installed_module_versions:
+      if item.id in seen:
+        if not seen[item.id]:  # yield it once.
           seen[item.id] = True
+          yield item
+      else:
         yield item
     page += 1
+    # if we don't get a full page back (plus the hard coded ones) we know we're done.
+    if len(response.installed_module_versions) < page_size + len(seen):
+      break
