@@ -293,6 +293,19 @@ Additionally, these optional params are supported:
       return "http://" + self._ui
     return self._ui
 
+  @property
+  def base(self):
+    if self._base not in base_https_cache:
+      raise Exception("Cannot determine if base %s is https" % self._base)
+    https = base_https_cache[self._base]
+    if https:
+      if not self._base.startswith("https://"):
+        return "https://" + self._base
+      return self._base
+    if not self._base.startswith("http://"):
+      return "http://" + self._base
+    return self._base
+
   def __str__(self):
     return "ClarifaiAuthHelper:\n- base: %s\n- user_id: %s\n- app_id: %s\n" % (
         self._base,
