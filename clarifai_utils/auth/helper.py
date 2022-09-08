@@ -46,7 +46,7 @@ def https_cache(cache, url):
   return url
 
 
-class ClarifaiAuthHelper(object):
+class ClarifaiAuthHelper:
 
   def __init__(
       self,
@@ -94,7 +94,7 @@ class ClarifaiAuthHelper(object):
     self._ui = https_cache(ui_https_cache, ui)
 
   @classmethod
-  def from_streamlit(cls, st: Any, fallback_to_envvars: bool = True):
+  def from_streamlit(cls, st: Any, fallback_to_envvars: bool = True) -> "ClarifaiAuthHelper":
     """This is a convenient method to check the query params from streamlit for the required
         parameters for authentication, and then optional fallback to checking environment variables as
         well if needed.
@@ -125,7 +125,7 @@ class ClarifaiAuthHelper(object):
     return auth
 
   @classmethod
-  def from_streamlit_query_params(cls, query_params: Any = ""):
+  def from_streamlit_query_params(cls, query_params: Any = "") -> "ClarifaiAuthHelper":
     """Initialize from streamlit queryparams. The following things will be looked for:
           user_id: as 'user_id' in query_params
           app_id: as 'app_id' in query_params
@@ -186,7 +186,7 @@ Additionally, these optional params are supported:
     return cls(user_id, app_id, pat, token, base, ui)
 
   @classmethod
-  def from_env(cls):
+  def from_env(cls) -> "ClarifaiAuthHelper":
     """Will look for the following env vars:
         user_id: CLARIFAI_USER_ID env var.
         app_id: CLARIFAI_APP_ID env var.
@@ -227,7 +227,11 @@ Additionally, these optional params are supported:
     ui = os.environ.get("CLARIFAI_UI", DEFAULT_UI)
     return cls(user_id, app_id, pat, token, base, ui)
 
-  def get_user_app_id_proto(self, user_id: str = None, app_id: str = None):
+  def get_user_app_id_proto(
+      self,
+      user_id: str = None,
+      app_id: str = None,
+  ) -> resources_pb2.UserAppIDSet:
     """
         Get the gRPC metadata that contains either the session token or the PAT to use.
 
@@ -257,7 +261,7 @@ Additionally, these optional params are supported:
     else:
       raise Exception("'token' or 'pat' needed to be provided in the query params or env vars.")
 
-  def get_stub(self):
+  def get_stub(self) -> service_pb2_grpc.V2Stub:
     """
         Get the API gRPC stub using the right channel based on the API endpoint base.
 
