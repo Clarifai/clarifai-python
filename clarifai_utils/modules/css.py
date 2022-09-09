@@ -27,7 +27,7 @@ class ClarifaiStreamlitCSS(object):
       st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
 
   @classmethod
-  def buttonlink(cls, st, label, link, target="_parent"):
+  def buttonlink(cls, st, label, link, target="_parent", style=""):
     """
     This is a streamlit button that will link to another page (or _self if target is _self).
     It is styled to look like the other stButton>button buttons that are created with st.button().
@@ -39,11 +39,22 @@ class ClarifaiStreamlitCSS(object):
       cols = st.columns(4)
       ClarifaiStreamlitCSS.buttonlink(cols[3], "Button", "https://clarifai.com", "_blank")
 
+    Args:
+      st: the streamlit package.
+      label: the text string to display in the button.
+      link: the url to link the button to.
+      target: to open the link in same page (_parent) or new tab (_blank).
+      style: additional style to apply to the button link.
+        Ex: "background-color: rgb(45, 164, 78); color:white;" makes the button green background with white text.
     """
+    astyle = ""
+    if style:
+      astyle = f'style="{style}"'
+
     st.markdown(
         f'''
     <div class="stButton">
-      <a href="{link}" target="{target}">{label}</a>
+      <a href="{link}" target="{target}" {astyle}>{label}</a>
     </div>
     ''',
         unsafe_allow_html=True)
