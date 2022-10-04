@@ -22,7 +22,7 @@ def dict_to_protobuf(protobuf_class, js_dict, ignore_unknown_fields=False):
   none_args = [None] * (num_of_args - 2)  # Subtract 2 for self and ignore_unknown_fields.
   parser = _CustomParser(ignore_unknown_fields, *none_args)
 
-  parser.ConvertMessage(js_dict, message)
+  parser.ConvertMessage(js_dict, message, None)
   return message
 
 
