@@ -1,1 +1,5 @@
 clarifai-grpc==8.7.0
+pandas==1.3.5
+numpy==1.21.6
+tqdm==4.64.1
+omegaconf==2.2.3

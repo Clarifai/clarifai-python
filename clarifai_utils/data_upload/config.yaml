@@ -1,0 +1,15 @@
+auth:
+  user_id: ""
+  app_id: ""
+  pat: ""
+
+data:
+  dataset_id: ""
+  clf_image_dir: "./test_data/clf_data.csv"
+  clf_text_dir: ""
+  visual_det_image_dir: "./test_data/pascalvoc07/images/"
+  visual_det_labels_dir: "./test_data/pascalvoc07/annotations/"
+
+split: "train" # Specify whether train or test data
+chunk_size: 16 # thread chunk size
+task: "visual_clf" # Specify kind of data being uploaded

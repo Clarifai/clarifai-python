@@ -1,0 +1,13 @@
+image_path,label
+/home/clarifai-python-utils/clarifai_utils/data_upload/test_data/images/bus.jpg,people
+/home/clarifai-python-utils/clarifai_utils/data_upload/test_data/images/ee7a.jpg,fighter-jet
+/home/clarifai-python-utils/clarifai_utils/data_upload/test_data/images/ee9e.jpg,building
+/home/clarifai-python-utils/clarifai_utils/data_upload/test_data/images/english.png,flier
+/home/clarifai-python-utils/clarifai_utils/data_upload/test_data/images/french.jpg,sign-post
+/home/clarifai-python-utils/clarifai_utils/data_upload/test_data/images/general-comp.jpg,gadgets
+/home/clarifai-python-utils/clarifai_utils/data_upload/test_data/images/landmark1.jpg,landmark
+/home/clarifai-python-utils/clarifai_utils/data_upload/test_data/images/landmark2.jpg,landmark
+/home/clarifai-python-utils/clarifai_utils/data_upload/test_data/images/landmark3.jpg,landmark
+/home/clarifai-python-utils/clarifai_utils/data_upload/test_data/images/landmark4.jpg,landmark
+/home/clarifai-python-utils/clarifai_utils/data_upload/test_data/images/landmark5.jpg,landmark
+/home/clarifai-python-utils/clarifai_utils/data_upload/test_data/images/zidane.jpg,people
