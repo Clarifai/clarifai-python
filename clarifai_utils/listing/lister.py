@@ -3,6 +3,7 @@ from clarifai_grpc.grpc.api.service_pb2_grpc import V2Stub
 from clarifai_utils.listing.concepts import concepts_generator
 from clarifai_utils.listing.inputs import inputs_generator
 from clarifai_utils.listing.installed_module_versions import installed_module_versions_generator
+from clarifai_utils.listing.models import models_generator
 
 
 class ClarifaiResourceLister(object):
@@ -25,6 +26,34 @@ class ClarifaiResourceLister(object):
     self.app_id = app_id
     self.user_app_id_proto = resources_pb2.UserAppIDSet(user_id=user_id, app_id=app_id)
     self.default_page_size = page_size
+
+  def list_all_models(self, page_size: int = None, only_in_app: bool = False):
+    """
+        This lists all the Models accessible in app. Not recommended for large apps.
+
+        Params:
+          page_size: how many elements per page to fetch
+          only_in_app: if only models created in the app should be returned
+
+        Returns:
+          inputs: a list of Model protos for all the inputs in the app.
+        """
+    return [item for item in self.models_generator(page_size, only_in_app)]
+
+  def models_generator(self, page_size: int = None, only_in_app: bool = False):
+    """
+        This lists all the models in an app. Not recommended for large apps.
+
+        Params:
+          page_size: how many elements per page to fetch
+          only_in_app: if only models created in the app should be returned
+
+        Returns:
+          gen: a generator that yields a single Model proto at a time.
+        """
+    page_size = self.default_page_size if page_size is None else page_size
+    return models_generator(self.stub, self.metadata, self.user_id, self.app_id, page_size,
+                            only_in_app)
 
   def list_all_concepts(self, page_size: int = None):
     """
