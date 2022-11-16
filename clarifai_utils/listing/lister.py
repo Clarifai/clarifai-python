@@ -1,6 +1,7 @@
 from clarifai_grpc.grpc.api import resources_pb2
 from clarifai_grpc.grpc.api.service_pb2_grpc import V2Stub
 from clarifai_utils.listing.concepts import concepts_generator
+from clarifai_utils.listing.datasets import datasets_generator
 from clarifai_utils.listing.inputs import inputs_generator
 from clarifai_utils.listing.installed_module_versions import installed_module_versions_generator
 from clarifai_utils.listing.models import models_generator
@@ -54,6 +55,31 @@ class ClarifaiResourceLister(object):
     page_size = self.default_page_size if page_size is None else page_size
     return models_generator(self.stub, self.metadata, self.user_id, self.app_id, page_size,
                             only_in_app)
+
+  def list_all_datasets(self, page_size: int = None):
+    """
+        This lists all Datasets in app. Not recommended for large apps.
+
+        Params:
+          page_size: how many elements per page to fetch
+
+        Returns:
+          inputs: a list of Dataset protos for all the inputs in the app.
+        """
+    return [item for item in self.datasets_generator(page_size)]
+
+  def datasets_generator(self, page_size: int = None):
+    """
+        This lists all the Datasets in an app. Not recommended for large apps.
+
+        Params:
+          page_size: how many elements per page to fetch
+
+        Returns:
+          gen: a generator that yields a single Dataset proto at a time.
+        """
+    page_size = self.default_page_size if page_size is None else page_size
+    return datasets_generator(self.stub, self.metadata, self.user_id, self.app_id, page_size)
 
   def list_all_concepts(self, page_size: int = None):
     """
