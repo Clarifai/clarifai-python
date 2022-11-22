@@ -1,4 +1,4 @@
-## Data Upload into a Clarifai app dataset
+## Data Upload into your app dataset in the Clarifai platform
 
 The functionality here allows a user to upload datasets of the specified types and all sizes from a local directory to the Clarifai platform datasets
 
