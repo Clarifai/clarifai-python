@@ -7,7 +7,7 @@ Supported dataset types currently are:
 * Object detection
 * Text classification
 
-The `datasets.py` script holds methods to preprocess input data and generate input protos that are then sent as request objects in `upload.py` to the Clarifai api to upload into a particular Clarifai dataset.
+The `datasets.py` script holds methods to preprocess input data and generate input protos that are then sent as request objects in `upload.py` to the Clarifai api to upload into a particular dataset.
 
 ## Usage
 
