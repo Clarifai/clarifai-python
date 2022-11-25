@@ -1,11 +1,11 @@
-from typing import Dict, List
+from typing import List
 
 import pandas as pd
 from base import ClarifaiDataset
 from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.struct_pb2 import Struct
 from tqdm import tqdm
-from utils import create_image_df
+from utils import create_image_df, create_segmentation_df
 
 
 class ImageClassificationDataset(ClarifaiDataset):
@@ -22,52 +22,28 @@ class ImageClassificationDataset(ClarifaiDataset):
   def __len__(self):
     return len(self._all_input_protos)
 
-  def create_input_protos(self,
-                          image_path: str,
-                          label: str,
-                          input_id: str,
-                          dataset_id: str,
-                          metadata: Dict,
-                          use_urls=False,
-                          allow_dups=False):
+  def create_input_protos(self, image_path: str, label: str, input_id: str, dataset_id: str,
+                          metadata: Struct):
     """
     Create input protos for each image, label input pair.
     Args:
-    	`image_path`: full image path or valid url
-    		ending with an image extension.
+    	`image_path`: full image path.
     	`label`: image label
     	`input_id: unique input id
     	`dataset_id`: Clarifai dataset id
     	`metadata`: image metadata
-    	`use_urls`: If set to True it means all image_paths are provided as urls and
-    		hence uploading will attempt to read images from urls.
-    		The default behavior is reading images from local storage.
-    	`allow_dups`: Boolean indicating whether to allow duplicate url inputs
     Returns:
     	An input proto representing a single row input
     """
-    if use_urls is False:
-      input_proto = resources_pb2.Input(
-          id=input_id,
-          dataset_ids=[dataset_id],
-          data=resources_pb2.Data(
-              image=resources_pb2.Image(base64=open(image_path, 'rb').read(),),
-              concepts=[
-                  resources_pb2.Concept(id=label, name=label, value=1.),
-              ],
-              metadata=metadata))
-    else:
-      input_proto = resources_pb2.Input(
-          id=input_id,
-          dataset_ids=[dataset_id],
-          data=resources_pb2.Data(
-              image=resources_pb2.Image(
-                  url=image_path,  # image_path here maps to a valid url
-                  allow_duplicate_url=allow_dups),
-              concepts=[
-                  resources_pb2.Concept(id=label, name=label, value=1.),
-              ],
-              metadata=metadata))
+    input_proto = resources_pb2.Input(
+        id=input_id,
+        dataset_ids=[dataset_id],
+        data=resources_pb2.Data(
+            image=resources_pb2.Image(base64=open(image_path, 'rb').read(),),
+            concepts=[
+                resources_pb2.Concept(id=label, name=label, value=1.),
+            ],
+            metadata=metadata))
 
     return input_proto
 
@@ -104,16 +80,16 @@ class TextClassificationDataset(ClarifaiDataset):
   def __len__(self):
     return len(self._all_input_protos)
 
-  def create_input_protos(self, text_input: str, label: List, input_id: str, dataset_id: str,
-                          metadata: Dict):
+  def create_input_protos(self, text_input: str, label: str, input_id: str, dataset_id: str,
+                          metadata: Struct):
     """
     Create input protos for each text, label input pair.
     Args:
     	`text_input`: text string.
-    	`label`: image label
+    	`label`: text label
     	`input_id: unique input id
     	`dataset_id`: Clarifai dataset id
-    	`metadata`: image metadata
+    	`metadata`: text metadata
     Returns:
     	An input proto representing a single row input
     """
@@ -122,9 +98,7 @@ class TextClassificationDataset(ClarifaiDataset):
         dataset_ids=[dataset_id],
         data=resources_pb2.Data(
             text=resources_pb2.Text(raw=text_input),
-            concepts=[
-                resources_pb2.Concept(id=_label, name=_label, value=1.) for _label in set(label)
-            ],
+            concepts=[resources_pb2.Concept(id=label, name=label, value=1.)],
             metadata=metadata))
 
     return input_proto
@@ -138,9 +112,9 @@ class TextClassificationDataset(ClarifaiDataset):
     for i, row in tqdm(self.image_df.iterrows(), desc="Loading Text"):
       metadata = Struct()
       text = row["text"]
-      label = list(row["label"])  # clarifai concept
+      label = row["label"]  # clarifai concept
       input_id = f"{self.split}-{str(i)}"
-      metadata.update({"label": label, "split": self.split})
+      metadata.update({"label": row["label"], "split": self.split})
 
       input_proto = self.create_input_protos(text, label, input_id, self.dataset_id, metadata)
 
@@ -164,11 +138,11 @@ class VisualDetectionDataset(ClarifaiDataset):
     self._annotations = []
 
   def create_input_protos(self, image_path: str, label: List, input_id: str, dataset_id: str,
-                          metadata: Dict):
+                          metadata: Struct):
     """
     Create input protos for each image, label input pair.
     Args:
-    	`image_path`: absolute image file path
+    	`image_path`: absolute file path to image
     	`label`: image label
     	`input_id: unique input id
     	`dataset_id`: Clarifai dataset id
@@ -188,16 +162,14 @@ class VisualDetectionDataset(ClarifaiDataset):
 
     return input_image_proto
 
-  def create_annotation_protos(self, label: str, annotations: List, input_id: str, dataset_id: str,
-                               metadata: Dict):
+  def create_annotation_proto(self, label: str, annotations: List, input_id: str, dataset_id: str):
     """
-    Create input protos for each image, label input pair.
+    Create an input proto for each bounding box, label input pair.
     Args:
-    	`image_path`: absolute image file path
-    	`label`: image label
+    	`label`: annotation label
+    	`annotations`: a list of a single bbox's coordinates.
     	`input_id: unique input id
     	`dataset_id`: Clarifai dataset id
-    	`metadata`: image metadata
     Returns:
     	An input proto representing a single row input
     """
@@ -240,8 +212,94 @@ class VisualDetectionDataset(ClarifaiDataset):
       # iter over bboxes and annotations and map to each input_id
       # one id could have more than one bbox and label
       for i in range(len(bboxes)):
-        input_annot_proto = self.create_annotation_protos(label[i], bboxes[i], input_id,
-                                                          self.dataset_id, metadata)
+        input_annot_proto = self.create_annotation_proto(label[i], bboxes[i], input_id,
+                                                         self.dataset_id)
         self._annotations.append(input_annot_proto)
 
     return iter(self._all_input_protos), iter(self._annotations)
+
+
+class VisualSegmentationDataset(ClarifaiDataset):
+  """
+  Visual segmentation dataset upload class.
+  """
+
+  def __init__(self, file_path, masks_path, dataset_id, split) -> None:
+    super().__init__(None, dataset_id, split)
+    self.file_path = file_path
+    self.masks_path = masks_path
+    self.image_df = create_segmentation_df(self.file_path, self.masks_path)
+    self._masks = []
+
+  def create_input_protos(self, image_path: str, label: List, input_id: str, dataset_id: str,
+                          metadata: Struct):
+    """
+    Create input protos for each image, label input pair.
+    Args:
+    	`image_path`: absolute image file path
+    	`label`: image label
+    	`input_id: unique input id
+    	`dataset_id`: Clarifai dataset id
+    	`metadata`: image metadata
+    Returns:
+    	An input proto representing a single row input
+    """
+    input_image_proto = resources_pb2.Input(
+        id=input_id,
+        dataset_ids=[dataset_id],
+        data=resources_pb2.Data(
+            image=resources_pb2.Image(base64=open(image_path, 'rb').read(),),
+            concepts=[
+                resources_pb2.Concept(id=_label, name=_label, value=1.) for _label in set(label)
+            ],
+            metadata=metadata))
+
+    return input_image_proto
+
+  def create_mask_proto(self, label: str, mask: str, input_id: str, dataset_id: str):
+    """
+    Create an input mask proto for an input masked image and label.
+    Args:
+    	`label`: image label
+    	`mask`: masked image path
+    	`input_id: unique input id
+    	`dataset_id`: Clarifai dataset id
+    Returns:
+    	An input proto representing a single row input
+    """
+    input_mask_proto = resources_pb2.Annotation(
+        input_id=input_id,
+        data=resources_pb2.Data(regions=[
+            resources_pb2.Region(
+                region_info=resources_pb2.RegionInfo(mask=resources_pb2.Mask(
+                    image=resources_pb2.Image(base64=open(mask, 'rb').read()))),
+                data=resources_pb2.Data(concepts=[resources_pb2.Concept(id=label, value=1.)]))
+        ]))
+
+    return input_mask_proto
+
+  def _get_input_protos(self) -> List:
+    """
+    Create input image protos for each row of the dataframe.
+    Returns:
+    	A list of input protos
+    """
+    for i, row in tqdm(self.image_df.iterrows(), desc="Loading images"):
+      metadata = Struct()
+      image = row["image"]  # image path
+      label = row["label"]  # list of class labels
+      masks = row["mask"]  # list of image paths with masked regions
+      input_id = f"{row['id']}-{str(i)}"
+      metadata.update({"label": row['id'], "split": self.split})
+
+      input_image_proto = self.create_input_protos(image, label, input_id, self.dataset_id,
+                                                   metadata)
+      self._all_input_protos.append(input_image_proto)
+
+      ## Iterate over each masked image and create a proto for upload to clarifai
+      ## The length of masks and labels must be equal
+      for i, mask in enumerate(masks):
+        input_mask_proto = self.create_mask_proto(label[i], mask, input_id, self.dataset_id)
+        self._masks.append(input_mask_proto)
+
+    return iter(self._all_input_protos), iter(self._masks)

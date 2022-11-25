@@ -10,8 +10,8 @@ def validate_bboxes(bboxes: List) -> List:
   """
   Validate bounding boxes for correctness of dimensions.
   Args:
-  	bboxes: a list holding a single bounding box in the format,
-  		[x_min, y_min, x_max, y_max]
+  	`bboxes`: a list holding a single bounding box in the format,
+		 [x_min, y_min, x_max, y_max]
   """
   # Some bbox annotations may have their min dims > max dims
   # Check for these as clarifai annotation post requests will throw errors
@@ -154,3 +154,28 @@ def create_image_df(data_dir, labels_dir, from_text_file=False):
   gc.collect()
 
   return image_df
+
+
+def create_segmentation_df(image_dir: str, masks_dir: str) -> pd.DataFrame:
+  """
+  Create an image, masked_image and labels dataframe for image
+  segmentation data upload.
+  Returns:
+  	A dataframe with the id, image, label and mask columns.
+  Customization Guide:
+  	Update `data_dict` by appending the corresponding data to the values lists.
+  	id: (str) used to uniquely identify each image.
+  	image: (str) holds a list of image paths
+  	label: (str) holds a list of labels,.i.e ['car', 'tv', 'car']
+  	mask: (str) is a list of paths to images containing masks corresponding to each label
+  	in the labels key of an image.i.e.
+  		['car_masked_image_path', 'tv_masked_image_path', 'car_masked_image_path']
+  	The order of the masks and labels lists matters and they must be of the same length.
+  	Each masked image should therefore contain a single mask mapping to a single label.
+  """
+  data_dict = {"id": [], "image": [], "label": [], "mask": []}
+
+  ## Your image processing code here
+
+  segmentation_df = pd.DataFrame(data_dict)
+  return segmentation_df

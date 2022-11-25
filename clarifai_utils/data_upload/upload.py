@@ -8,7 +8,8 @@ from base import Chunker
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2
-from datasets import ImageClassificationDataset, TextClassificationDataset, VisualDetectionDataset
+from datasets import (ImageClassificationDataset, TextClassificationDataset,
+                      VisualDetectionDataset, VisualSegmentationDataset)
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
@@ -65,7 +66,7 @@ def upload_annotations(config, inputs, inp_stub):
 
     if response.status.code != status_code_pb2.SUCCESS:
       try:
-        print(f"Post annotations failed, status:\n{response.inputs[0].status.details}\n")
+        print(f"Post annotations failed, status:\n{response.annotations[0].status.details}\n")
       except:
         print(f"Post annotations failed, status:\n{response.status.details}\n")
         retry_upload.append(annot_proto)
@@ -85,7 +86,7 @@ def concurrent_inp_upload(config, inputs, workers, chunks, stub):
   with ThreadPoolExecutor(max_workers=workers) as executor:
     for inp_batch in tqdm(inputs, total=chunks + 1, desc="uploading.."):
       inp_threads.append(executor.submit(upload_data, config, inp_batch, stub))
-      time.sleep(0.1)
+      time.sleep(0.2)
 
   for job in tqdm(
       as_completed(inp_threads), total=chunks + 1, desc="retry uploading failed protos..."):
@@ -105,7 +106,7 @@ def concurrent_annot_upload(config, inputs, workers, chunks, stub):
   with ThreadPoolExecutor(max_workers=workers) as executor:
     for annot_batch in tqdm(inputs, total=chunks + 1, desc="uploading..."):
       annot_threads.append(executor.submit(upload_annotations, config, annot_batch, stub))
-      time.sleep(0.1)
+      time.sleep(0.2)
 
   for job in tqdm(
       as_completed(annot_threads), total=chunks + 1, desc="retry uploading failed protos..."):
@@ -164,7 +165,28 @@ def upload_to_clarifai(config, task: str = "visual_clf"):
 
     concurrent_annot_upload(config, chunked_annot_protos, workers, chunks_, STUB)
 
-  else:  # default to visual_clf
+  elif task == "visual_seg":
+    dataset_obj = VisualSegmentationDataset(config.data["visual_seg_image_dir"],
+                                            config.data["visual_seg_masks_dir"],
+                                            config.data["dataset_id"], config["split"])
+    img_protos, mask_protos = dataset_obj._get_input_protos()
+    img_protos = dataset_obj.to_list(img_protos)
+    mask_protos = dataset_obj.to_list(mask_protos)
+
+    # Upload images
+    chunks = len(img_protos) // workers
+    chunked_img_protos = Chunker(img_protos, config["chunk_size"]).chunk()
+
+    concurrent_inp_upload(config, chunked_img_protos, workers, chunks, STUB)
+
+    # Upload masks:
+    print("Uploading masks.......")
+    chunks_ = len(mask_protos) // workers
+    chunked_mask_protos = Chunker(mask_protos, config["chunk_size"]).chunk()
+
+    concurrent_annot_upload(config, chunked_mask_protos, workers, chunks_, STUB)
+
+  else:
     dataset_obj = ImageClassificationDataset(config.data["clf_image_dir"],
                                              config.data["dataset_id"], config["split"])
     img_protos = dataset_obj._get_input_protos()
