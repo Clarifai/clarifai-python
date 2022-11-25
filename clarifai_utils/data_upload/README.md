@@ -1,4 +1,4 @@
-## Data Upload into a Clarifai app dataset
+## Data Upload into your app dataset in the Clarifai platform
 
 The functionality here allows a user to upload datasets of the specified types and all sizes from a local directory to the Clarifai platform datasets
 
@@ -8,7 +8,7 @@ Supported dataset types currently are:
 * Text classification
 * Image segmentation
 
-The `datasets.py` script holds methods to preprocess input data and generate input protos that are then sent as request objects in `upload.py` to the Clarifai api to upload into a particular Clarifai dataset.
+The `datasets.py` script holds methods to preprocess input data and generate input protos that are then sent as request objects in `upload.py` to the Clarifai api to upload into a particular dataset.
 
 ## Usage
 
