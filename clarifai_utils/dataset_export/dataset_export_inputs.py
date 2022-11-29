@@ -13,8 +13,8 @@ class DatasetExportReader:
   """
   Unpacks the zipfile from DatasetVersionExport
   - Downloads the temp archive onto disk
-  - Reads DataserVersionExports archive in memory without extracting all
-  - Yield each api.Data object.
+  - Reads DatasetVersionExports archive in memory without extracting all
+  - Yield each api.Input object.
   """
 
   def __init__(self, archive_url=None, local_archive_path=None):
@@ -40,7 +40,7 @@ class DatasetExportReader:
 
   def _download_temp_archive(self, chunk_size=128):
     """
-    Downloads the temp archive of DataBatches.
+    Downloads the temp archive of InputBatches.
     """
     r = requests.get(self.archive_url, stream=True)
     self.temp_file = tempfile.TemporaryFile()
@@ -73,13 +73,13 @@ class DatasetExportReader:
 
   def __iter__(self):
     """
-    Loops through all DataBatches in the DatasetVersionExport and yields every api.Data object
+    Loops through all InputBatches in the DatasetVersionExport and yields every api.Input object
     """
     if self.file_name_list is not None:
       for filename in self.file_name_list:
-        db = resources_pb2.DataBatch().FromString(self.archive.read(filename))
-        for data in db.data:
-          yield data
+        db = resources_pb2.InputBatch().FromString(self.archive.read(filename))
+        for db_input in db.inputs:
+          yield db_input
       print("DONE")
 
   def __enter__(self):
@@ -95,19 +95,19 @@ class DatasetExportReader:
       self.temp_file.close()
 
 
-class DataInputDownloader:
+class InputDownloader:
   """
-  Takes an iterator or a list of api.Data instances as input,
+  Takes an iterator or a list of api.Input instances as input,
   and has a method for downloading all inputs (currently only images) of that data.
   Has the ability of either writing to a new ZIP archive OR a filesystem directory.
   """
 
-  def __init__(self, data_iterator):
-    self.data_iterator = data_iterator
+  def __init__(self, input_iterator):
+    self.input_iterator = input_iterator
     self.num_inputs = 0
     self.split_prefix = None
-    if isinstance(self.data_iterator, DatasetExportReader):
-      self.split_prefix = self.data_iterator.split_dir
+    if isinstance(self.input_iterator, DatasetExportReader):
+      self.split_prefix = self.input_iterator.split_dir
 
   def _save_image_to_archive(self, new_archive, hosted_url, name):
     """
@@ -125,19 +125,17 @@ class DataInputDownloader:
     Writes the image archive into prefix dir.
     """
     try:
-      total = len(self.data_iterator)
+      total = len(self.input_iterator)
     except TypeError:
       total = None
     with zipfile.ZipFile(save_path, "a") as new_archive:
-      for data in tqdm(self.data_iterator, desc="Writing image archive", total=total):
-        #checks for image
-        if data.image.hosted.prefix:
-          assert 'orig' in data.image.hosted.sizes
-          prefix = data.image.hosted.prefix
-          suffix = data.image.hosted.suffix
-          hosted_url = f"{prefix}/orig/{suffix}"
-          name = suffix.split('/')[-1] + ".jpg"
-          full_name = os.path.join(split, name)
+      for input_ in tqdm(self.input_iterator, desc="Writing image archive", total=total):
+        # checks for image
+        hosted = input_.data.image.hosted
+        if hosted.prefix:
+          assert 'orig' in hosted.sizes
+          hosted_url = f"{hosted.prefix}/orig/{hosted.suffix}"
+          full_name = os.path.join(split, input_.id + ".jpg")
 
           self._save_image_to_archive(new_archive, hosted_url, full_name)
           self.num_inputs += 1
@@ -160,6 +158,12 @@ class DataInputDownloader:
 
 
 if __name__ == "__main__":
-  archive_url = 'https://s3.amazonaws.com/clarifai-data-dumps/prod/app/045342b081ad4b699c5f19adcefed017/dumps/d1dbdf58c65d421b803b7c72535f9e92/exports/clarifai-data-protobuf.zip'
+  import sys
+  if len(sys.argv) < 2:
+    print(f"usage: {sys.argv[0]} <archive-url> [<save-path>]")
+    sys.exit(2)
+  archive_url = sys.argv[1]
+  save_path = sys.argv[2] if len(sys.argv) > 2 else "output.zip"
+
   with DatasetExportReader(archive_url=archive_url) as reader:
-    DataInputDownloader(reader).download_image_archive(save_path="output.zip")
+    InputDownloader(reader).download_image_archive(save_path=save_path)
