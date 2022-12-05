@@ -54,7 +54,7 @@ stub = auth.get_stub()
 # Create the resource lister.
 lister = ClarifaiResourceLister(stub, auth.metadata, auth.user_id, auth.app_id, page_size=16)
 
-# List all the concepts in the app showing:
+# List all the concepts in the app:
 concepts = []
 for c in lister.concepts_generator():
   concepts.append(c)
