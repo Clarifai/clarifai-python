@@ -1,10 +1,10 @@
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
-from clarifai_grpc.grpc.api.service_pb2_grpc import V2Stub
 from clarifai_grpc.grpc.api.status import status_code_pb2
+
+from clarifai_utils.client import V2Stub
 
 
 def models_generator(stub: V2Stub,
-                     metadata: tuple,
                      user_id: str,
                      app_id: str,
                      page_size: int = 64,
@@ -13,7 +13,7 @@ def models_generator(stub: V2Stub,
     Lists all the models accessible in an application given a userAppID user_id, app_id app.
 
     Args:
-      stub: grpc client stub.
+      stub: client stub.
       user_id: the user to list from.
       app_id: the app in the user_id account to list from.
       page_size: the pagination size to use while iterating.
@@ -29,9 +29,7 @@ def models_generator(stub: V2Stub,
   page = 1
   while True:
     response = stub.ListModels(
-        service_pb2.ListModelsRequest(user_app_id=userDataObject, page=page, per_page=page_size),
-        metadata=metadata,
-    )
+        service_pb2.ListModelsRequest(user_app_id=userDataObject, page=page, per_page=page_size),)
 
     if response.status.code not in model_success_status:
       raise Exception("ListModels failed with response %r" % response)

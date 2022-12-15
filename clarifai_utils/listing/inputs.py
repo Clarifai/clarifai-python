@@ -1,6 +1,7 @@
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
-from clarifai_grpc.grpc.api.service_pb2_grpc import V2Stub
 from clarifai_grpc.grpc.api.status import status_code_pb2
+
+from clarifai_utils.client import V2Stub
 
 
 def generator_setup(user_id, app_id):
@@ -19,7 +20,6 @@ def generator_setup(user_id, app_id):
 
 def inputs_generator(
     stub: V2Stub,
-    metadata: tuple,
     user_id: str,
     app_id: str,
     page_size: int = 64,
@@ -31,7 +31,6 @@ def inputs_generator(
 
     Args:
       stub: grpc client stub.
-      metadata: the auth metadata for the grpc stub.
       user_id: the user to list from.
       app_id: the app in the user_id account to list from.
       page_size: the pagination size to use while iterating.
@@ -55,9 +54,7 @@ def inputs_generator(
   while True:
     response = stub.StreamInputs(
         service_pb2.StreamInputsRequest(
-            user_app_id=userDataObject, per_page=page_size, last_id=last_id),
-        metadata=metadata,
-    )
+            user_app_id=userDataObject, per_page=page_size, last_id=last_id),)
     if response.status.code not in response_success_status:
       raise Exception("Stream inputs failed with response %r" % response)
     if len(response.inputs) == 0:
@@ -74,7 +71,6 @@ def inputs_generator(
 
 def dataset_inputs_generator(
     stub: V2Stub,
-    metadata: tuple,
     user_id: str,
     app_id: str,
     page_size: int = 64,
@@ -87,7 +83,6 @@ def dataset_inputs_generator(
 
     Args:
       stub: grpc client stub.
-      metadata: the auth metadata for the grpc stub.
       user_id: the user to list from.
       app_id: the app in the user_id account to list from.
       page_size: the pagination size to use while iterating.
@@ -100,9 +95,7 @@ def dataset_inputs_generator(
   while True:
     response = stub.ListDatasetInputs(
         service_pb2.ListDatasetInputsRequest(
-            user_app_id=userDataObject, per_page=page_size, page=page, dataset_id=dataset_id),
-        metadata=metadata,
-    )
+            user_app_id=userDataObject, per_page=page_size, page=page, dataset_id=dataset_id),)
     if response.status.code not in response_success_status:
       raise Exception("List Dataset inputs failed with response %r" % response)
     if len(response.dataset_inputs) == 0:
@@ -115,4 +108,3 @@ def dataset_inputs_generator(
       else:
         for inp in response.dataset_inputs:
           yield inp.input
-    page += 1

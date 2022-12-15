@@ -1,18 +1,15 @@
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
-from clarifai_grpc.grpc.api.service_pb2_grpc import V2Stub
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
+from clarifai_utils.client import V2Stub
 
-def datasets_generator(stub: V2Stub,
-                       metadata: tuple,
-                       user_id: str,
-                       app_id: str,
-                       page_size: int = 64):
+
+def datasets_generator(stub: V2Stub, user_id: str, app_id: str, page_size: int = 64):
   """
     Lists all the datasets in an application given a userAppID user_id, app_id app.
 
     Args:
-      stub: grpc client stub.
+      stub: client stub.
       user_id: the user to list from.
       app_id: the app in the user_id account to list from.
       page_size: the pagination size to use while iterating.
@@ -28,7 +25,6 @@ def datasets_generator(stub: V2Stub,
   while True:
     response = stub.ListDatasets(
         service_pb2.ListDatasetsRequest(user_app_id=userDataObject, page=page, per_page=page_size),
-        metadata=metadata,
     )
 
     if response.status.code not in dataset_success_status:

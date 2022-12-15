@@ -1,5 +1,5 @@
 from clarifai_grpc.grpc.api import resources_pb2
-from clarifai_grpc.grpc.api.service_pb2_grpc import V2Stub
+from clarifai_utils.client import V2Stub
 from clarifai_utils.listing.concepts import concepts_generator
 from clarifai_utils.listing.datasets import datasets_generator
 from clarifai_utils.listing.inputs import dataset_inputs_generator, inputs_generator
@@ -9,20 +9,17 @@ from clarifai_utils.listing.models import models_generator
 
 class ClarifaiResourceLister(object):
 
-  def __init__(self, stub: V2Stub, metadata: tuple, user_id: str, app_id: str,
-               page_size: int = 16):
+  def __init__(self, stub: V2Stub, user_id: str, app_id: str, page_size: int = 16):
     """
         Helper class for common listing of resources in an Clarifai App.
 
         Args:
           stub: grpc client V2Strub for our API.
-          metadata: the auth metadata for the grpc stub.
           user_id: the user to list from.
           app_id: the app in the user_id account to list from.
           page_size: the pagination size to use while iterating.
         """
     self.stub = stub
-    self.metadata = metadata
     self.user_id = user_id
     self.app_id = app_id
     self.user_app_id_proto = resources_pb2.UserAppIDSet(user_id=user_id, app_id=app_id)
@@ -53,8 +50,7 @@ class ClarifaiResourceLister(object):
           gen: a generator that yields a single Model proto at a time.
         """
     page_size = self.default_page_size if page_size is None else page_size
-    return models_generator(self.stub, self.metadata, self.user_id, self.app_id, page_size,
-                            only_in_app)
+    return models_generator(self.stub, self.user_id, self.app_id, page_size, only_in_app)
 
   def list_all_datasets(self, page_size: int = None):
     """
@@ -79,7 +75,7 @@ class ClarifaiResourceLister(object):
           gen: a generator that yields a single Dataset proto at a time.
         """
     page_size = self.default_page_size if page_size is None else page_size
-    return datasets_generator(self.stub, self.metadata, self.user_id, self.app_id, page_size)
+    return datasets_generator(self.stub, self.user_id, self.app_id, page_size)
 
   def list_all_concepts(self, page_size: int = None):
     """
@@ -98,7 +94,7 @@ class ClarifaiResourceLister(object):
           gen: a generator that yields a single Concept proto at a time.
         """
     page_size = self.default_page_size if page_size is None else page_size
-    return concepts_generator(self.stub, self.metadata, self.user_id, self.app_id, page_size)
+    return concepts_generator(self.stub, self.user_id, self.app_id, page_size)
 
   def list_all_inputs(self, page_size: int = None):
     """
@@ -117,7 +113,7 @@ class ClarifaiResourceLister(object):
           gen: a generator that yields a single Input proto at a time.
         """
     page_size = self.default_page_size if page_size is None else page_size
-    return inputs_generator(self.stub, self.metadata, self.user_id, self.app_id, page_size)
+    return inputs_generator(self.stub, self.user_id, self.app_id, page_size)
 
   def list_all_dataset_inputs(self, page_size: int = None, dataset_id: str = None):
     """
@@ -138,7 +134,6 @@ class ClarifaiResourceLister(object):
     page_size = self.default_page_size if page_size is None else page_size
     return dataset_inputs_generator(
         stub=self.stub,
-        metadata=self.metadata,
         user_id=self.user_id,
         app_id=self.app_id,
         page_size=page_size,
@@ -161,5 +156,4 @@ class ClarifaiResourceLister(object):
       gen: a generator that yields a single InstalledModuleVersion proto at a time.
     """
     page_size = self.default_page_size if page_size is None else page_size
-    return installed_module_versions_generator(self.stub, self.metadata, self.user_id, self.app_id,
-                                               page_size)
+    return installed_module_versions_generator(self.stub, self.user_id, self.app_id, page_size)

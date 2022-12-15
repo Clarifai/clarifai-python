@@ -5,13 +5,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
 
 from base import Chunker
-from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
-from clarifai_grpc.grpc.api import resources_pb2, service_pb2, service_pb2_grpc
+from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from datasets import (ImageClassificationDataset, TextClassificationDataset,
                       VisualDetectionDataset, VisualSegmentationDataset)
 from omegaconf import OmegaConf
 from tqdm import tqdm
+
+from clarifai_utils.client import create_stub
 
 
 def upload_data(config, inputs, inp_stub):
@@ -23,7 +24,6 @@ def upload_data(config, inputs, inp_stub):
   	inp_stub: grpc stub
   """
   STUB = inp_stub
-  AUTHORIZATION = (("authorization", "Key " + config.auth["pat"]),)
   USER_APP_ID = resources_pb2.UserAppIDSet(
       user_id=config.auth["user_id"], app_id=config.auth["app_id"])
 
@@ -32,8 +32,7 @@ def upload_data(config, inputs, inp_stub):
 
   for inp_proto in inputs:
     response = STUB.PostInputs(
-        service_pb2.PostInputsRequest(user_app_id=USER_APP_ID, inputs=[inp_proto]),
-        metadata=AUTHORIZATION)
+        service_pb2.PostInputsRequest(user_app_id=USER_APP_ID, inputs=[inp_proto]),)
 
     if response.status.code != status_code_pb2.SUCCESS:
       try:
@@ -52,7 +51,6 @@ def upload_annotations(config, inputs, inp_stub):
   Upload image annotations to clarifai detection dataset
   """
   STUB = inp_stub
-  AUTHORIZATION = (("authorization", "Key " + config.auth["pat"]),)
   USER_APP_ID = resources_pb2.UserAppIDSet(
       user_id=config.auth["user_id"], app_id=config.auth["app_id"])
 
@@ -61,8 +59,7 @@ def upload_annotations(config, inputs, inp_stub):
 
   for annot_proto in inputs:
     response = STUB.PostAnnotations(
-        service_pb2.PostAnnotationsRequest(user_app_id=USER_APP_ID, annotations=[annot_proto]),
-        metadata=AUTHORIZATION)
+        service_pb2.PostAnnotationsRequest(user_app_id=USER_APP_ID, annotations=[annot_proto]),)
 
     if response.status.code != status_code_pb2.SUCCESS:
       try:
@@ -125,8 +122,7 @@ def upload_to_clarifai(config, task: str = "visual_clf"):
     `task`: Machine Learning domain task data type.
        Can be either of `visual_clf`, `visual_det` or `text_clf`.
   """
-  CHANNEL = ClarifaiChannel.get_json_channel()
-  STUB = service_pb2_grpc.V2Stub(CHANNEL)
+  STUB = create_stub()
   workers = cpu_count()
 
   if task == "text_clf":

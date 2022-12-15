@@ -42,17 +42,14 @@ export CLARIFAI_PAT={your personal access token}
 ```
 
 ```python
-from clarifai_utils.auth.helper import ClarifaiAuthHelper
+from clarifai_utils.client import create_stub
 from clarifai_utils.listing.lister import ClarifaiResourceLister
 
-# Get auth information from those env vars.
-auth = ClarifaiAuthHelper.from_env()
-
-# Create the grpc client stub.
-stub = auth.get_stub()
+# Create a client with auth information from those env vars.
+stub = create_stub()
 
 # Create the resource lister.
-lister = ClarifaiResourceLister(stub, auth.metadata, auth.user_id, auth.app_id, page_size=16)
+lister = ClarifaiResourceLister(stub, auth.user_id, auth.app_id, page_size=16)
 
 # List all the concepts in the app:
 concepts = []

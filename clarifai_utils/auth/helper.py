@@ -14,6 +14,11 @@ base_https_cache = {}
 ui_https_cache = {}
 
 
+def clear_cache():
+  base_https_cache.clear()
+  ui_https_cache.clear()
+
+
 def https_cache(cache, url):
   HTTPS = True
   HTTP = False

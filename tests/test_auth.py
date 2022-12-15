@@ -3,12 +3,12 @@ from unittest.mock import Mock
 
 import pytest as pytest
 
-from clarifai_utils.auth.helper import ClarifaiAuthHelper, ui_https_cache
+from clarifai_utils.auth.helper import ClarifaiAuthHelper, clear_cache
 
 
 @pytest.fixture(autouse=True)
-def clear_cache():
-  ui_https_cache.clear()
+def clear_caches():
+  clear_cache()
 
 
 def test_ui_default_url():
