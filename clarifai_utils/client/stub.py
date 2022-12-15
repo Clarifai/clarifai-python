@@ -67,8 +67,8 @@ class _AuthorizedRpcCallable(RpcCallable):
     return self.f(*args, **kwargs, metadata=metadata)
 
   def future(self, *args, **kwargs):
-    kwargs.pop('metadata', self.metadata)
-    return self.f.future(*args, **kwargs, metadata=self.metadata)
+    metadata = kwargs.pop('metadata', self.metadata)
+    return self.f.future(*args, **kwargs, metadata=metadata)
 
   def __getattr__(self, name):
     return getattr(self.f, name)

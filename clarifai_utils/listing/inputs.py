@@ -108,3 +108,4 @@ def dataset_inputs_generator(
       else:
         for inp in response.dataset_inputs:
           yield inp.input
+    page += 1
