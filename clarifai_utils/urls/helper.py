@@ -29,7 +29,7 @@ class ClarifaiUrlHelper(object):
   def module_install_ui_url(self, dest_user_id, dest_app_id, module_url):
     """This is a url that allows for installation of the module from the community at 'module_url'
         into the destination app_id of the destination user_id."""
-    return ("%s/%s/%s/installed_module_versions/%s?page=install&install=%s" %
+    return ("%s/%s/%s/installed_module_versions/%s/install?install=%s" %
             (self.auth.ui, dest_user_id, dest_app_id, self._module_manager_imv_id, module_url))
 
   @classmethod
