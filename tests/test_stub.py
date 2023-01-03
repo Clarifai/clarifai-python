@@ -5,8 +5,8 @@ import pytest as pytest
 from clarifai_grpc.grpc.api import service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
-from clarifai_utils.auth.helper import ClarifaiAuthHelper, clear_cache
-from clarifai_utils.client.stub import AuthorizedStub, RetryStub
+from clarifai.auth.helper import ClarifaiAuthHelper, clear_cache
+from clarifai.client.stub import AuthorizedStub, RetryStub
 
 
 class MockRpcError(grpc.RpcError):

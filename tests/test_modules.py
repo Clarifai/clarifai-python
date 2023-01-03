@@ -1,7 +1,8 @@
 from collections import namedtuple
 
 import pytest
-from clarifai_utils.urls.helper import ClarifaiUrlHelper
+
+from clarifai.urls.helper import ClarifaiUrlHelper
 
 
 @pytest.fixture()
@@ -20,7 +21,7 @@ def test_module_install_url(helper):
   install_url = helper.module_install_ui_url("person", "app", "XXX")
   assert (
       install_url ==
-      "http://fake/person/app/installed_module_versions/module_manager_install?page=install&install=XXX"
+      "http://fake/person/app/installed_module_versions/module_manager_install/install?install=XXX"
   )
 
 
@@ -32,7 +33,7 @@ def test_install_with_custom_imv_id():
   helper = ClarifaiUrlHelper(auth, custom_imv_id)
   install_url = helper.module_install_ui_url("person", "app", "XXX")
   assert (install_url ==
-          "http://fake/person/app/installed_module_versions/some_imv_id?page=install&install=XXX")
+          "http://fake/person/app/installed_module_versions/some_imv_id/install?install=XXX")
 
 
 def test_split_of_ui_clarifai_url():

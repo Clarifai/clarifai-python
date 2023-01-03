@@ -13,7 +13,7 @@ This is the official Clarifai Python utilities project. This repo includes highe
 ## Installation
 
 ```cmd
-pip install -U clarifai-utils
+pip install -U clarifai
 ```
 
 ## Installation from source (for development)
@@ -42,8 +42,8 @@ export CLARIFAI_PAT={your personal access token}
 ```
 
 ```python
-from clarifai_utils.client import create_stub
-from clarifai_utils.listing.lister import ClarifaiResourceLister
+from clarifai.client import create_stub
+from clarifai.listing.lister import ClarifaiResourceLister
 
 # Create a client with auth information from those env vars.
 stub = create_stub()

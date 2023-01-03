@@ -5,8 +5,8 @@ from concurrent.futures import ThreadPoolExecutor
 import grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
-from clarifai_utils.auth.helper import ClarifaiAuthHelper
-from clarifai_utils.client.abc import RpcCallable, V2Stub
+from clarifai.auth.helper import ClarifaiAuthHelper
+from clarifai.client.abc import RpcCallable, V2Stub
 
 throttle_status_codes = {
     status_code_pb2.CONN_THROTTLED,

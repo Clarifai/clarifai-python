@@ -1,10 +1,11 @@
 from clarifai_grpc.grpc.api import resources_pb2
-from clarifai_utils.client import V2Stub
-from clarifai_utils.listing.concepts import concepts_generator
-from clarifai_utils.listing.datasets import datasets_generator
-from clarifai_utils.listing.inputs import dataset_inputs_generator, inputs_generator
-from clarifai_utils.listing.installed_module_versions import installed_module_versions_generator
-from clarifai_utils.listing.models import models_generator
+
+from clarifai.client import V2Stub
+from clarifai.listing.concepts import concepts_generator
+from clarifai.listing.datasets import datasets_generator
+from clarifai.listing.inputs import dataset_inputs_generator, inputs_generator
+from clarifai.listing.installed_module_versions import installed_module_versions_generator
+from clarifai.listing.models import models_generator
 
 
 class ClarifaiResourceLister(object):

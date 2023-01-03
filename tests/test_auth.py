@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import pytest as pytest
 
-from clarifai_utils.auth.helper import ClarifaiAuthHelper, clear_cache
+from clarifai.auth.helper import ClarifaiAuthHelper, clear_cache
 
 
 @pytest.fixture(autouse=True)

@@ -12,7 +12,7 @@ from datasets import (ImageClassificationDataset, TextClassificationDataset,
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
-from clarifai_utils.client import create_stub
+from clarifai.client import create_stub
 
 
 def upload_data(config, inputs, inp_stub):

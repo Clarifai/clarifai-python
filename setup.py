@@ -3,11 +3,11 @@ import setuptools
 with open("README.md", "r") as fh:
   long_description = fh.read()
 
-packages = setuptools.find_packages(include=["clarifai_utils*"])
+packages = setuptools.find_packages(include=["clarifai*"])
 
 setuptools.setup(
-    name="clarifai-utils",
-    version="0.1.20",
+    name="clarifai",
+    version="8.12.0rc1",
     author="Clarifai",
     author_email="support@clarifai.com",
     description="Clarifai Python Utilities",
@@ -24,6 +24,6 @@ setuptools.setup(
     license="Apache 2.0",
     python_requires='>=3.7',
     install_requires=[
-        "clarifai-grpc>=7.12.0rc1",
+        "clarifai-grpc>=8.12.0rc1",
     ],
     include_package_data=True)

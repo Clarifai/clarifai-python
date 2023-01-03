@@ -1,7 +1,7 @@
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
-from clarifai_utils.client import V2Stub
+from clarifai.client import V2Stub
 
 
 def datasets_generator(stub: V2Stub, user_id: str, app_id: str, page_size: int = 64):
