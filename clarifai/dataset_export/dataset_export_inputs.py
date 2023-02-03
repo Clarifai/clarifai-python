@@ -19,57 +19,45 @@ class DatasetExportReader:
 
   def __init__(self, archive_url=None, local_archive_path=None):
 
-    self.file_name_list = None
-    self.len_file_name_list = 0
     self.input_count = 0
-    self.archive_url = archive_url
-    self.local_archive_path = local_archive_path
     self.temp_file = None
-    self.archive = None
 
     assert archive_url or local_archive_path, "Must use one input."
 
     if archive_url:
-      print('url: %s' % self.archive_url)
-      self._download_temp_archive()
+      print('url: %s' % archive_url)
+      self.temp_file = self._download_temp_archive(archive_url)
+      self.archive = zipfile.ZipFile(self.temp_file)
     else:
       print("path: %s" % local_archive_path)
       self.archive = zipfile.ZipFile(local_archive_path)
 
-    self._get_archive_name_list()
+    self.file_name_list = self.archive.namelist()
+    assert "mimetype" in self.file_name_list, "Missing mimetype file in the dataset export archive."
+    assert self.archive.read("mimetype") == b"application/x.clarifai-data+protobuf"
+    self.file_name_list.remove("mimetype")
 
-  def _download_temp_archive(self, chunk_size=128):
+    print("Obtained file name list. %d entries." % len(self.file_name_list))
+    self.split_dir = os.path.dirname(self.file_name_list[0]) if len(self.file_name_list) else ""
+
+  def _download_temp_archive(self, archive_url, chunk_size=128):
     """
     Downloads the temp archive of InputBatches.
     """
-    r = requests.get(self.archive_url, stream=True)
-    self.temp_file = tempfile.TemporaryFile()
+    r = requests.get(archive_url, stream=True)
+    temp_file = tempfile.TemporaryFile()
     for chunk in r.iter_content(chunk_size=chunk_size):
-      self.temp_file.write(chunk)
+      temp_file.write(chunk)
 
-    self.archive = zipfile.ZipFile(self.temp_file)
-
-  def _get_archive_name_list(self):
-    """
-    Extract the file name list, split directory (e.g. all, train etc).
-    """
-    file_name_list = self.archive.namelist()
-    self.file_name_list = file_name_list
-    self.len_file_name_list = len(file_name_list)
-    print("Obtained file name list. %d entries." % self.len_file_name_list)
-
-    self.split_dir = os.path.dirname(self.file_name_list[0]) if self.len_file_name_list else ""
+    return temp_file
 
   def __len__(self):
-    if self.input_count:
-      return self.input_count
-    else:
-      cnt = 0
+    if not self.input_count:
       if self.file_name_list is not None:
         for filename in self.file_name_list:
-          cnt += int(filename.split('_n')[-1])
-        self.input_count = cnt
-      return cnt
+          self.input_count += int(filename.split('_n')[-1])
+
+    return self.input_count
 
   def __iter__(self):
     """
