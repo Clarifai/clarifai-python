@@ -80,7 +80,7 @@ body {
   color: #fff;
   background-color: #006dff;
   border-color: transparent;
-  border-radius: 0 8px 8px 0;
+  border-radius: 0 7px 7px 0;
 }
 
 .stTextArea > div {
@@ -93,6 +93,12 @@ body {
 
 .stTimeInput > div > div {
   border-radius: 8px;
+}
+
+.stNumberInput>div {
+    color: #fff;
+    border-color: #e4e7ec;
+    border-radius: 8px 8px 8px 8px;
 }
 
 .stNumberInput>div>div>button {
