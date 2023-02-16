@@ -25,7 +25,7 @@ you are only steps away from using artificial intelligence to recognize your vis
 ## Installation
 Install the API client:
 ```
-pip install clarifai --upgrade
+pip install clarifai==2.0.18
 ```
 
 > Note: If you cannot use `pip`, you can download the latest
