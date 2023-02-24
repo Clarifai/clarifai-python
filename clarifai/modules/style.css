@@ -145,9 +145,6 @@ div[data-testid="stFileUploader"]>section>button:active
     background-color: #356dff;
 }
 
-.st-bt {
-    background-color: #fff;
-}
 
 .stTextInput>div>div>input {
     background-color: #fff;
