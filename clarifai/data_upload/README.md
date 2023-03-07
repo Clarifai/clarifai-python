@@ -8,65 +8,56 @@ Supported dataset types currently are:
 * Text classification
 * Image segmentation
 
-The `datasets.py` script holds methods to preprocess input data and generate input protos that are then sent as request objects in `upload.py` to the Clarifai api to upload into a particular dataset.
+The `datasets` package holds methods to preprocess input data and generate input protos that are then sent as request objects in `upload.py` to the Clarifai api to upload into a particular dataset.
 
 ## Usage
 
 * Create a dataset under any of your apps in the Clarifai platform.
 
-* Copy the Clarifai app id, pat, dataset id and your user id into the `config.yaml` file
+#### Upload dataset from dataset package
+* To upload the dataset from a (python)package, create a folder with the structure and files as below.
 
-* Update the respective `config.yaml` data directory variables depending on your task. See assumptions & limitations section below for the structuring of the data and `schemas` for example file structures.
-	* if uploading visual detection data, an extra boolean flag indicating whether to load annotations from a text file has to be set in the `upload.py` script under;
+- Package Structure:
+  ---------------------------
+      <folder_name>/
+      ├──__init__.py
+      ├── <Your local dir dataset>/
+      └──dataset.py
+  `dataset.py` must implement a class named following the convention, `<dataset_name>Dataset`. This class must accept `split` as the only argument in the `__init__` method and must have a `dataloader()` generator method that formats your local dir dataset and yields either of `VisualClassificationFeatures()`, `VisualDetectionFeatures()`, `VisualSegmentationFeatures()` or `TextFeatures()` as defined in [clarifai/data_upload/datasets/features.py](datasets/features.py). Other methods can be added in the class as seen fit but `dataloader()` is the main method and must be named dataloader.
+
+- In a python script (or in the commandline), import the `UploadConfig` class from upload module and then specify the dataset module path in the `from_module` parameter of the  `UploadConfig` .i.e.
+
 	```python
-	...
-	elif task == "visual_det":
-    dataset_obj = VisualDetectionDataset(
-        config.data["visual_det_image_dir"],
-        config.data["visual_det_labels_dir"],
-        config.data["dataset_id"],
-        config["split"],
-        labels_from_text_file=False)
-	```
-	False is the default behaviour implying that read annotations from an xml file
+	from clarifai.data_upload.upload import UploadConfig
 
-	* When uploading image segmentation data, some preprocessing is needed to generate the required dataframe based on the structure of your data. Under `utils.py` update the function template below with your preprocessing code. Further comments are added in the function to describe the structure of the output dataframe.
-	```python
-	...
-	def create_segmentation_df(image_dir: str, masks_dir: str) -> pd.DataFrame:
-		"""
-		Create an image, masked_image and labels dataframe for image
-		segmentation data upload.
-		Returns:
-			A dataframe with the id, image, label and mask columns.
-		"""
+	upload_obj = UploadConfig(
+		user_id="",
+		app_id="",
+		pat="", # Clarifai user PAT (not Clarifai app PAT)
+		dataset_id="",
+		task="<task-name>", # see supported tasks below
+		from_module="./path/to/dataset_package/<package-folder-name>",
+		split="val" # train, val or test depending on the dataset
+		)
+	# execute data upload to Clarifai app dataset
+	upload_obj.upload_to_clarifai()
 	```
+	See `examples/` and `examples.py` for reference.
 
-* Set the task parameter in the `config.yaml` file to either of:
+For data upload from dataset zoo, see [clarifai/data_upload/datasets/zoo](datasets/zoo)
+* Supported tasks:
 	* `text_clf` for text classification.
 	* `visual_clf` for image classification.
-	* `visual_det` for object detection.
-	* `visual_seg` for image segmentation.
-
-	`visual_clf` is the default task.
-
-* Finally run, ```python3 upload.py```
-
-**NOTE**: For text classification datasets, change the base workflow in your clarifai app settings to Text for a successful upload.
+	* `visual_detection` for object detection.
+	* `visual_segmentation` for image segmentation.
 
 
-## Assumptions & Limitations
+**NOTE**: For text classification datasets, change the base workflow in your clarifai app settings to a Text workflow for a successful upload.
 
-The scripts currently support upload of data that has the same format as that presented in the sample files under `schemas`. Feel free to open a pull request to contribute more.
+## Notes
 
-* Text and image classification data upload tasks assume that you have a csv file of your data. However if this is not the case, you may generate the required csv file first basing on the structure presented in the schemas and then proceed with the upload.
+* For datasets not available in the datasets zoo, the user has to handle the preprocessing for their local datasets to convert them into compatible upload formats.
 
-* Text classification data upload assumes a csv file with two columns named `text` and `label` with text holding the text and label the labels respectively.
+* An individual image can have multiple bounding boxes for the same or different classes and so `VisualDetectionFeatures()` classes and bounding boxes lists must match in length with each element of bounding boxes being a list of bbox coordinates ([`x_min, y_min, x_max, y_max`]) corresponding to a single class name in class_names.
 
-* For image classification datasets, the assumption made is that you have a csv file with two string type columns named `image_path` and `label`. The image_path is the absolute path to where the image's location on your computer and the label its associated class.
-
-* For object detection tasks, the `utils.py` script defines functions to read, preprocess data and return a dataframe with the image path, labels and annotations. The funtions are built on the assumption that your annotations files have the same structure as either of xml or text_file annotations presented in `schemas`. The image dimensions and all elements present in the sample xml file in `schemas` must be present in your xml file as well. For the text file annotations, the bounding box coordinates should be already computed proportions.
-
-* Both image and object detection utils here assume that the images and corresponding annotations/label files have the same naming with the exception of file extension. Since no image input validation is done currently,  ensure that all images are valid and have the correct file extensions.
-
-* Image segmentation data upload requires custom preprocessing to generate the required dataframe. See Usage section, bullet point 3 above for more details.
+* For Segmentation tasks, a single image can have multiple masks corresponding to different or the same classes, hence `VisualSegmentationFeatures()` classes and polygons must be lists of the same length as well. Polygons in turn contain lists with each list in turn having an `[x, y]` list points.
