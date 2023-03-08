@@ -36,3 +36,11 @@ A dataset (preprocessing) module is a python script that contains a dataset clas
 
 The class naming convention is `<datasetname>Dataset`. The dataset class must accept `split` as the only argument in the `__init__` method and the `dataloader` method must be a generator that yields either of `VisualClassificationFeatures()`, `VisualDetectionFeatures()`, `VisualSegmentationFeatures()` or `TextFeatures()` as defined in [clarifai/data_upload/datasets/features.py](datasets/features.py). Other methods can be added as seen fit but `dataloader()` is the main method and must strictly be named `dataloader`.
 Reference can be taken from the existing dataset modules in the zoo for development.
+
+## Notes
+
+* Dataset in the zoo by default first create a `.data` directory in the local directory where the call to `UploadConfig(...).upload_to_clarifai()` is made and then download the data into this `.data` directory, preprocess the data and finally execute upload to a Clarifai app dataset. For instance with the COCO dataset modules above, the coco2017 dataset is by default downloaded first into a `.data` directory, extracted and then preprocessing is performed on it and finally uploaded to Clarifai.
+
+* Taking the above into consideration, to avoid the scripts re-downloading data you already have locally, create a `.data` directory in the same directory where you'll make a call to `UploadConfig(...).upload_to_clarifai()` and move your extracted data there. **Ensure that the extracted folder/file names and file structure MATCH those when the downloaded zips are extracted.**
+
+* COCO Format: To reuse the coco modules above on your coco format data, ensure the criteria in the two points above is adhered to first. If so, pass the coco module name from any of the above in the zoo to the `from_zoo=` parameter in `UploadConfig()` and finally invoke the `upload_to_clarifai()` method.

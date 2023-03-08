@@ -27,7 +27,11 @@ class COCOSegmentationDataset:
       data_dir: the local coco dataset directory
       split: "train" or "val"
     """
-    self.filenames = ["train2017.zip", "val2017.zip", "annotations_trainval2017.zip"]
+    self.filenames = {
+        "train": "train2017.zip",
+        "val": "val2017.zip",
+        "annotations": "annotations_trainval2017.zip"
+    }
     self.split = split
     self.url = "http://images.cocodataset.org/zips/"  # coco base image-zip url
     self.data_dir = os.path.join(os.curdir, ".data")  # data storage dir
@@ -38,9 +42,11 @@ class COCOSegmentationDataset:
     if not os.path.exists(save_dir):
       os.mkdir(save_dir)
 
-    for filename in self.filenames:
-      if os.path.exists(os.path.join(save_dir, filename[:-4])):
-        print("dataset already downloded and extracted :) ")
+    #check if train, val and annotation dirs exist
+    #so that the coco2017 data isn't downloaded
+    for key, filename in self.filenames.items():
+      if os.path.exists(glob(f"{save_dir}/{key}*")[0]):
+        print("dataset already downloded and extracted")
         continue
 
       print("-" * 80)
@@ -63,7 +69,7 @@ class COCOSegmentationDataset:
       print(f" Extracting {filename} file")
       zf.extractall(path=save_dir)
       # Delete coco zip
-      print(f"Removing {filename}")
+      print(f" Deleting {filename}")
       os.remove(path=os.path.join(save_dir, filename))
 
   def dataloader(self):
@@ -72,7 +78,7 @@ class COCOSegmentationDataset:
     Returns:
       VisualSegmentationFeatures type generator.
     """
-    if isinstance(self.filenames, list) and len(self.filenames) > 2:
+    if isinstance(self.filenames, list) and len(self.filenames) == 3:
       self.coco_download(self.data_dir)
       self.extracted_coco_dirs["train"] = [os.path.join(self.data_dir, i) \
       for i in os.listdir(self.data_dir) if "train" in i][0]
@@ -82,9 +88,8 @@ class COCOSegmentationDataset:
       self.extracted_coco_dirs["annotations"] = [os.path.join(self.data_dir, i) \
       for i in os.listdir(self.data_dir) if "annotations" in i][0]
     else:
-      raise Exception(f"`filenames` must be a list of atleast 3 coco zip file names \
-      to be downloaded. Found type {type(self.filenames)} with {len(self.filenames)} items instead."
-                     )
+      raise Exception(f"`filenames` must be a list of atleast 3 coco zip file names; \
+      train, val and annotations. Found {len(self.filenames)} items instead.")
 
     annot_file = glob(self.extracted_coco_dirs["annotations"] + "/" +\
      f"instances_{self.split}*")[0]
