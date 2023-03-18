@@ -22,7 +22,7 @@ The `datasets` package holds methods to preprocess input data and generate input
       <folder_name>/
       ├──__init__.py
       ├── <Your local dir dataset>/
-      └──dataset.py
+      └──<Your local dir dataset>/dataset.py
   `dataset.py` must implement a class named following the convention, `<dataset_name>Dataset`. This class must accept `split` as the only argument in the `__init__` method and must have a `dataloader()` generator method that formats your local dir dataset and yields either of `VisualClassificationFeatures()`, `VisualDetectionFeatures()`, `VisualSegmentationFeatures()` or `TextFeatures()` as defined in [clarifai/data_upload/datasets/features.py](datasets/features.py). Other methods can be added in the class as seen fit but `dataloader()` is the main method and must be named dataloader.
 
 - In a python script (or in the commandline), import the `UploadConfig` class from upload module and then specify the dataset module path in the `from_module` parameter of the  `UploadConfig` .i.e.

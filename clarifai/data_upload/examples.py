@@ -7,8 +7,8 @@ text_upload_obj = UploadConfig(
     app_id="",
     pat="",
     dataset_id="",
-    task="text_clf",
-    from_module="./examples/text_classification",
+    task="visual_clf",
+    from_module="./examples/image_classification/cifar10",
     split="train",
     portal="clarifai"  #clarifai(prod), dev or staging
 )

@@ -18,8 +18,8 @@ class IMDBMovieReviewsDataset:
     """
     self.split = split
     self.data_dirs = {
-        "train": os.path.join(os.path.dirname(__file__), "imdb_dataset", "train.csv"),
-        "test": os.path.join(os.path.dirname(__file__), "imdb_dataset", "test.csv")
+        "train": os.path.join(os.path.dirname(__file__), "train.csv"),
+        "test": os.path.join(os.path.dirname(__file__), "test.csv")
     }
 
   def dataloader(self):

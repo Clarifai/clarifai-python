@@ -49,7 +49,7 @@ class VisualClassificationDataset(ClarifaiDataset):
       metadata = Struct()
       image_path = item.image_path
       label = item.label if isinstance(item.label, list) else [item.label]  # clarifai concept
-      input_id = f"{self.split}-{i}" if item.id is None else f"{self.split}-{str(item.id)}"
+      input_id = f"{self.dataset_id}-{self.split}-{i}" if item.id is None else f"{self.split}-{str(item.id)}"
 
       input_proto = self.create_input_protos(image_path, label, input_id, self.dataset_id,
                                              metadata)
@@ -131,7 +131,7 @@ class VisualDetectionDataset(ClarifaiDataset):
       image = item.image_path
       labels = item.classes  # list:[l1,...,ln]
       bboxes = item.bboxes  # [[xmin,ymin,xmax,ymax],...,[xmin,ymin,xmax,ymax]]
-      input_id = f"{self.split}-{i}" if item.id is None else f"{self.split}-{str(item.id)}"
+      input_id = f"{self.dataset_id}-{self.split}-{i}" if item.id is None else f"{self.split}-{str(item.id)}"
       metadata.update({"label": labels, "split": self.split})
 
       input_image_proto = self.create_input_protos(image, input_id, self.dataset_id, metadata)
@@ -218,7 +218,7 @@ class VisualSegmentationDataset(ClarifaiDataset):
       image = item.image_path  # image path
       labels = item.classes  # list of class labels
       _polygons = item.polygons  # list of polygons: [[[x,y],...,[x,y]],...]
-      input_id = f"{self.split}-{i}" if item.id is None else f"{self.split}-{str(item.id)}"
+      input_id = f"{self.dataset_id}-{self.split}-{i}" if item.id is None else f"{self.split}-{str(item.id)}"
       metadata.update({"label": labels, "split": self.split})
 
       input_image_proto = self.create_input_protos(image, input_id, self.dataset_id, metadata)

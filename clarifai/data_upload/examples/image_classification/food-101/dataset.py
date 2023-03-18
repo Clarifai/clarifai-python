@@ -18,7 +18,7 @@ class Food101Dataset:
       split: "train" or "test"
     """
     self.split = split
-    self.image_dir = {"train": os.path.join(os.path.dirname(__file__), "food-101", "images")}
+    self.image_dir = {"train": os.path.join(os.path.dirname(__file__), "images")}
 
   def dataloader(self):
     """
