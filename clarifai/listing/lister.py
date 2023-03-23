@@ -6,6 +6,8 @@ from clarifai.listing.datasets import datasets_generator
 from clarifai.listing.inputs import dataset_inputs_generator, inputs_generator
 from clarifai.listing.installed_module_versions import installed_module_versions_generator
 from clarifai.listing.models import models_generator
+from clarifai.listing.module_versions import module_versions_generator
+from clarifai.listing.modules import modules_generator
 
 
 class ClarifaiResourceLister(object):
@@ -158,3 +160,41 @@ class ClarifaiResourceLister(object):
     """
     page_size = self.default_page_size if page_size is None else page_size
     return installed_module_versions_generator(self.stub, self.user_id, self.app_id, page_size)
+
+  def list_all_modules(self, page_size: int = None):
+    """
+    This lists all the modules in an app. Not recommended for large apps.
+
+    Returns:
+      modules: a list of Module protos for all the modules in the app.
+    """
+    return [item for item in self.module_generator(page_size)]
+
+  def module_generator(self, page_size: int = None):
+    """
+    This lists all the module in an app. Not recommended for large apps.
+
+    Returns:
+      gen: a generator that yields a single Module proto at a time.
+    """
+    page_size = self.default_page_size if page_size is None else page_size
+    return modules_generator(self.stub, self.user_id, self.app_id, page_size)
+
+  def list_all_module_versions(self, page_size: int = None):
+    """
+    This lists all the module_versions in an app. Not recommended for large apps.
+
+    Returns:
+      module_versions: a list of ModuleVersion protos for all the module_versions in the app.
+    """
+    return [item for item in self.module_versions_generator(page_size)]
+
+  def module_versions_generator(self, page_size: int = None):
+    """
+    This lists all the module_versions in an app. Not recommended for large apps.
+
+    Returns:
+      gen: a generator that yields a single ModuleVersion proto at a time.
+    """
+    page_size = self.default_page_size if page_size is None else page_size
+    return module_versions_generator(self.stub, self.user_id, self.app_id, page_size)

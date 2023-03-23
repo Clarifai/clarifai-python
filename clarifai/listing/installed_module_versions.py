@@ -24,12 +24,6 @@ def installed_module_versions_generator(stub: V2Stub,
 
   imv_success_status = {status_code_pb2.SUCCESS}
 
-  # HACK(zeiler): this is the number of default installed module versions every app has.
-  # so with pagination
-  seen = {
-      "module_manager_install": False,
-  }
-
   page = 1
   while True:
     response = stub.ListInstalledModuleVersions(
@@ -39,13 +33,8 @@ def installed_module_versions_generator(stub: V2Stub,
     if response.status.code not in imv_success_status:
       raise Exception("ListInstalledModuleVersions failed with response %r" % response)
     for item in response.installed_module_versions:
-      if item.id in seen:
-        if not seen[item.id]:  # yield it once.
-          seen[item.id] = True
-          yield item
-      else:
-        yield item
+      yield item
     page += 1
-    # if we don't get a full page back (plus the hard coded ones) we know we're done.
-    if len(response.installed_module_versions) < page_size + len(seen):
+    # if we don't get a full page back we know we're done.
+    if len(response.installed_module_versions) < page_size:
       break
