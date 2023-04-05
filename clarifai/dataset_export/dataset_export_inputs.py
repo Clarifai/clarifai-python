@@ -4,8 +4,8 @@ import zipfile
 from io import BytesIO
 
 import requests
+from clarifai_grpc.grpc.api import resources_pb2
 from PIL import ImageFile
-from proto.clarifai.api import resources_pb2
 from tqdm import tqdm
 
 
