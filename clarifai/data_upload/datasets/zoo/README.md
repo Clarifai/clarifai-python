@@ -29,6 +29,7 @@ upload_obj.upload_to_clarifai()
  | [COCO 2017](https://cocodataset.org/#download) | Detection | `coco_detection` | `train`, `val` |
  |        | Segmentation | `coco_segmentation` | `train`, `val` |
  |       | Captions | `coco_captions` | `train`, `val` |
+ |[xVIEW](http://xviewdataset.org/)  | Detection | `xview_detection` | `train`
 
 ## Contributing Modules
 
@@ -44,3 +45,5 @@ Reference can be taken from the existing dataset modules in the zoo for developm
 * Taking the above into consideration, to avoid the scripts re-downloading data you already have locally, create a `.data` directory in the same directory where you'll make a call to `UploadConfig(...).upload_to_clarifai()` and move your extracted data there. **Ensure that the extracted folder/file names and file structure MATCH those when the downloaded zips are extracted.**
 
 * COCO Format: To reuse the coco modules above on your coco format data, ensure the criteria in the two points above is adhered to first. If so, pass the coco module name from any of the above in the zoo to the `from_zoo=` parameter in `UploadConfig()` and finally invoke the `upload_to_clarifai()` method.
+
+* xVIEW Dataset: To upload, you have to register and download images,label from [xviewdataset](http://xviewdataset.org/#dataset) follow the above mentioned steps to place extracted folder in `.data` directory. Finally pass the xview module name to `from_zoo=` parameter in `UploadConfig()` and invoke the `upload_to_clarifai()` method.
