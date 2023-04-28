@@ -30,7 +30,7 @@ upload_obj.upload_to_clarifai()
  |        | Segmentation | `coco_segmentation` | `train`, `val` |
  |       | Captions | `coco_captions` | `train`, `val` |
  |[xVIEW](http://xviewdataset.org/)  | Detection | `xview_detection` | `train`
-
+ | [ImageNet](https://www.image-net.org/)  | Classification | `imagenet_classification` | `train`
 ## Contributing Modules
 
 A dataset (preprocessing) module is a python script that contains a dataset class which implements data download (to download the dataset from a source to local disk dir) & extraction and dataloader methods.
@@ -47,3 +47,9 @@ Reference can be taken from the existing dataset modules in the zoo for developm
 * COCO Format: To reuse the coco modules above on your coco format data, ensure the criteria in the two points above is adhered to first. If so, pass the coco module name from any of the above in the zoo to the `from_zoo=` parameter in `UploadConfig()` and finally invoke the `upload_to_clarifai()` method.
 
 * xVIEW Dataset: To upload, you have to register and download images,label from [xviewdataset](http://xviewdataset.org/#dataset) follow the above mentioned steps to place extracted folder in `.data` directory. Finally pass the xview module name to `from_zoo=` parameter in `UploadConfig()` and invoke the `upload_to_clarifai()` method.
+
+* ImageNet Dataset: ImageNet Dataset should be downloaded and placed in the '.data' folder along with the [label mapping file](https://www.kaggle.com/competitions/imagenet-object-localization-challenge/data?select=LOC_synset_mapping.txt).
+
+		<.data>/
+      	├── train/
+      	├── LOC_synset_mapping.txt
