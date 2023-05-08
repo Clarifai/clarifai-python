@@ -214,10 +214,7 @@ Additionally, these optional params are supported:
       raise Exception("You need to set the 'CLARIFAI_USER_ID' env var." + error_description)
     else:
       user_id = os.environ["CLARIFAI_USER_ID"]
-    if os.environ.get("CLARIFAI_APP_ID", "") == "":
-      raise Exception("You need to set the 'CLARIFAI_APP_ID' env var." + error_description)
-    else:
-      app_id = os.environ["CLARIFAI_APP_ID"]
+    app_id = os.environ.get("CLARIFAI_APP_ID", "")
     token = ""
     pat = ""
     if os.environ.get("CLARIFAI_SESSION_TOKEN", "") != "":
