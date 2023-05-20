@@ -116,7 +116,7 @@ class UploadConfig:
     self.zoo_dataset = from_zoo
     self.split = split
     self.chunk_size = chunk_size
-    self.num_workers: int = cpu_count()
+    self.num_workers: int = min(10, cpu_count())  #15 req/sec rate limit
     self.__base: str = ""
     if portal == "dev":
       self.__base = "https://api-dev.clarifai.com"
