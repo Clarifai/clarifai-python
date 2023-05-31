@@ -4,7 +4,6 @@ import importlib
 import inspect
 import os
 import sys
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
 from typing import Iterator, Optional, Tuple, Union
@@ -194,14 +193,15 @@ class UploadConfig:
     retry_upload = []
 
     with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
-      for inp_batch in tqdm(inputs, total=chunks + 1, desc="uploading inputs..."):
-        inp_threads.append(executor.submit(self._upload_inputs, inp_batch))
-        time.sleep(0.1)
+      with tqdm(total=chunks, desc="uploading inputs...") as progress:
+        # Submit all jobs to the executor and store the returned futures
+        inp_threads = [executor.submit(self._upload_inputs, inp_batch) for inp_batch in inputs]
 
-    for job in tqdm(
-        as_completed(inp_threads), total=chunks + 1, desc="retry uploading failed protos..."):
-      if job.result():
-        retry_upload.extend(job.result())
+        for job in as_completed(inp_threads):
+          result = job.result()
+          if result:
+            retry_upload.extend(result)
+          progress.update()
 
     if len(
         list(retry_upload)) > 0:  ## TODO: use api_with_retries functionality via upload_inputs()
@@ -215,14 +215,16 @@ class UploadConfig:
     retry_annot_upload = []
 
     with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
-      for annot_batch in tqdm(inputs, total=chunks + 1, desc="uploading..."):
-        annot_threads.append(executor.submit(self.upload_annotations, annot_batch))
-        time.sleep(0.2)
+      with tqdm(total=chunks, desc="uploading annotations...") as progress:
+        # Submit all jobs to the executor and store the returned futures
+        annot_threads = [executor.submit(self._upload_inputs, inp_batch) for inp_batch in inputs]
 
-    for job in tqdm(
-        as_completed(annot_threads), total=chunks + 1, desc="retry uploading failed protos..."):
-      if job.result():
-        retry_annot_upload.extend(job.result())
+        for job in as_completed(annot_threads):
+          result = job.result()
+          if result:
+            retry_annot_upload.extend(result)
+          progress.update()
+
     if len(retry_annot_upload) > 0:
       ## TODO: use api_with_retries functionality via upload_annotations()
       _ = self.upload_annotations(retry_annot_upload)
@@ -249,10 +251,8 @@ class UploadConfig:
       text_protos = dataset_obj._to_list(text_protos)
 
       # Upload text
-      chunks = len(text_protos) // self.num_workers
       chunked_text_protos = Chunker(text_protos, self.chunk_size).chunk()
-
-      self.concurrent_inp_upload(chunked_text_protos, chunks)
+      self.concurrent_inp_upload(chunked_text_protos, len(chunked_text_protos))
 
     elif self.task == "visual_detection":
       dataset_obj = VisualDetectionDataset(datagen_object, self.dataset_id, self.split)
@@ -260,18 +260,14 @@ class UploadConfig:
       img_protos = dataset_obj._to_list(img_protos)
 
       # Upload images
-      chunks = len(img_protos) // self.num_workers
       chunked_img_protos = Chunker(img_protos, self.chunk_size).chunk()
-
-      self.concurrent_inp_upload(chunked_img_protos, chunks)
+      self.concurrent_inp_upload(chunked_img_protos, len(chunked_img_protos))
 
       # Upload annotations:
       print("Uploading annotations.......")
       annotation_protos = dataset_obj._to_list(annotation_protos)
-      chunks_ = len(annotation_protos) // self.num_workers
       chunked_annot_protos = Chunker(annotation_protos, self.chunk_size).chunk()
-
-      self.concurrent_annot_upload(chunked_annot_protos, chunks_)
+      self.concurrent_annot_upload(chunked_annot_protos, len(chunked_annot_protos))
 
     elif self.task == "visual_segmentation":
       dataset_obj = VisualSegmentationDataset(datagen_object, self.dataset_id, self.split)
@@ -280,23 +276,19 @@ class UploadConfig:
       mask_protos = dataset_obj._to_list(mask_protos)
 
       # Upload images
-      chunks = len(img_protos) // self.num_workers
       chunked_img_protos = Chunker(img_protos, self.chunk_size).chunk()
+      self.concurrent_inp_upload(chunked_img_protos, len(chunked_img_protos))
 
-      #self.concurrent_inp_upload(chunked_img_protos, chunks)
       # Upload masks:
       print("Uploading masks.......")
-      chunks_ = len(mask_protos) // self.num_workers
       chunked_mask_protos = Chunker(mask_protos, self.chunk_size).chunk()
+      self.concurrent_annot_upload(chunked_mask_protos, len(chunked_mask_protos))
 
-      self.concurrent_annot_upload(chunked_mask_protos, chunks_)
     else:  # visual-classification & visual-captioning
       dataset_obj = VisualClassificationDataset(datagen_object, self.dataset_id, self.split)
       img_protos = dataset_obj._get_input_protos()
       img_protos = dataset_obj._to_list(img_protos)
 
       # Upload images
-      chunks = len(img_protos) // self.num_workers
       chunked_img_protos = Chunker(img_protos, self.chunk_size).chunk()
-
-      self.concurrent_inp_upload(chunked_img_protos, chunks)
+      self.concurrent_inp_upload(chunked_img_protos, len(chunked_img_protos))
