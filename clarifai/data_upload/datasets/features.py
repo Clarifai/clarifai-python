@@ -20,6 +20,7 @@ class VisualClassificationFeatures:
   """
   image_path: str
   label: Union[str, int]
+  geo_info: Optional[List[float]] = None  #[Longitude, Latitude]
   id: Optional[int] = None  # image_id
 
 
@@ -31,6 +32,7 @@ class VisualDetectionFeatures:
   image_path: str
   classes: List[Union[str, int]]
   bboxes: List[List[float]]
+  geo_info: Optional[List[float]] = None  #[Longitude, Latitude]
   id: Optional[int] = None  # image_id
 
 
@@ -40,6 +42,7 @@ class VisualSegmentationFeatures:
   Image Segmentation datasets preprocessing output features.
   """
   image_path: str
-  classes: List[Union[str]]
+  classes: List[Union[str, int]]
   polygons: List[List[List[float]]]
+  geo_info: Optional[List[float]] = None  #[Longitude, Latitude]
   id: Optional[int] = None  # image_id

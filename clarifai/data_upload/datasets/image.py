@@ -13,7 +13,8 @@ class VisualClassificationDataset(ClarifaiDataset):
     super().__init__(datagen_object, dataset_id, split)
 
   def create_input_protos(self, image_path: str, labels: List[Union[str, int]], input_id: str,
-                          dataset_id: str, metadata: Struct) -> resources_pb2.Input:
+                          dataset_id: str, geo_info: Union[List[float], None],
+                          metadata: Struct) -> resources_pb2.Input:
     """
     Create input protos for each image, label input pair.
     Args:
@@ -21,15 +22,20 @@ class VisualClassificationDataset(ClarifaiDataset):
       `labels`: image label(s)
       `input_id: unique input id
       `dataset_id`: Clarifai dataset id
+      `geo_info`: image longitude, latitude info
       `metadata`: image metadata
     Returns:
       An input proto representing a single row input
     """
+    geo_pb = resources_pb2.Geo(geo_point=resources_pb2.GeoPoint(
+        longitude=geo_info[0], latitude=geo_info[1])) if geo_info is not None else None
+
     input_proto = resources_pb2.Input(
         id=input_id,
         dataset_ids=[dataset_id],
         data=resources_pb2.Data(
             image=resources_pb2.Image(base64=open(image_path, 'rb').read(),),
+            geo=geo_pb,
             concepts=[
                 resources_pb2.Concept(
                   id=f"id-{''.join(_label.split(' '))}", name=_label, value=1.)\
@@ -50,9 +56,10 @@ class VisualClassificationDataset(ClarifaiDataset):
       image_path = item.image_path
       label = item.label if isinstance(item.label, list) else [item.label]  # clarifai concept
       input_id = f"{self.dataset_id}-{self.split}-{i}" if item.id is None else f"{self.split}-{str(item.id)}"
+      geo_info = item.geo_info
 
       input_proto = self.create_input_protos(image_path, label, input_id, self.dataset_id,
-                                             metadata)
+                                             geo_info, metadata)
       self._all_input_protos.append(input_proto)
 
     return iter(self._all_input_protos)
@@ -68,6 +75,7 @@ class VisualDetectionDataset(ClarifaiDataset):
     self._annotation_protos = []
 
   def create_input_protos(self, image_path: str, input_id: str, dataset_id: str,
+                          geo_info: Union[List[float], None],
                           metadata: Struct) -> resources_pb2.Input:
     """
     Create input protos for each image, label input pair.
@@ -75,15 +83,20 @@ class VisualDetectionDataset(ClarifaiDataset):
       `image_path`: file path to image
       `input_id: unique input id
       `dataset_id`: Clarifai dataset id
+      `geo_info`: image longitude, latitude info
       `metadata`: image metadata
     Returns:
       An input proto representing a single row input
     """
+    geo_pb = resources_pb2.Geo(geo_point=resources_pb2.GeoPoint(
+        longitude=geo_info[0], latitude=geo_info[1])) if geo_info is not None else None
     input_image_proto = resources_pb2.Input(
         id=input_id,
         dataset_ids=[dataset_id],
         data=resources_pb2.Data(
-            image=resources_pb2.Image(base64=open(image_path, 'rb').read(),), metadata=metadata))
+            image=resources_pb2.Image(base64=open(image_path, 'rb').read(),),
+            geo=geo_pb,
+            metadata=metadata))
 
     return input_image_proto
 
@@ -133,8 +146,10 @@ class VisualDetectionDataset(ClarifaiDataset):
       bboxes = item.bboxes  # [[xmin,ymin,xmax,ymax],...,[xmin,ymin,xmax,ymax]]
       input_id = f"{self.dataset_id}-{self.split}-{i}" if item.id is None else f"{self.split}-{str(item.id)}"
       metadata.update({"label": labels, "split": self.split})
+      geo_info = item.geo_info
 
-      input_image_proto = self.create_input_protos(image, input_id, self.dataset_id, metadata)
+      input_image_proto = self.create_input_protos(image, input_id, self.dataset_id, geo_info,
+                                                   metadata)
       self._all_input_protos.append(input_image_proto)
 
       # iter over bboxes and classes
@@ -157,6 +172,7 @@ class VisualSegmentationDataset(ClarifaiDataset):
     self._mask_protos = []  # mask or polygon protos
 
   def create_input_protos(self, image_path: str, input_id: str, dataset_id: str,
+                          geo_info: Union[List[float], None],
                           metadata: Struct) -> resources_pb2.Input:
     """
     Create input protos for each image, label input pair.
@@ -164,15 +180,20 @@ class VisualSegmentationDataset(ClarifaiDataset):
       `image_path`: absolute image file path
       `input_id: unique input id
       `dataset_id`: Clarifai dataset id
+      `geo_info`: image longitude, latitude info
       `metadata`: image metadata
     Returns:
       An input proto representing a single input item
     """
+    geo_pb = resources_pb2.Geo(geo_point=resources_pb2.GeoPoint(
+        longitude=geo_info[0], latitude=geo_info[1])) if geo_info is not None else None
     input_image_proto = resources_pb2.Input(
         id=input_id,
         dataset_ids=[dataset_id],
         data=resources_pb2.Data(
-            image=resources_pb2.Image(base64=open(image_path, 'rb').read(),), metadata=metadata))
+            image=resources_pb2.Image(base64=open(image_path, 'rb').read(),),
+            geo=geo_pb,
+            metadata=metadata))
 
     return input_image_proto
 
@@ -220,8 +241,10 @@ class VisualSegmentationDataset(ClarifaiDataset):
       _polygons = item.polygons  # list of polygons: [[[x,y],...,[x,y]],...]
       input_id = f"{self.dataset_id}-{self.split}-{i}" if item.id is None else f"{self.split}-{str(item.id)}"
       metadata.update({"label": labels, "split": self.split})
+      geo_info = item.geo_info
 
-      input_image_proto = self.create_input_protos(image, input_id, self.dataset_id, metadata)
+      input_image_proto = self.create_input_protos(image, input_id, self.dataset_id, geo_info,
+                                                   metadata)
       self._all_input_protos.append(input_image_proto)
 
       ## Iterate over each masked image and create a proto for upload to clarifai
