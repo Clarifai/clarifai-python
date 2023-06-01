@@ -6,7 +6,7 @@ import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
-from typing import Iterator, Optional, Tuple, Union
+from typing import Iterator, List, Optional, Tuple, Union
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2
@@ -88,7 +88,7 @@ class UploadConfig:
       from_module: Optional[Union[str, os.PathLike]] = None,
       from_zoo: Optional[str] = None,  # load dataset from zoo
       split: str = "train",  # train or test/val
-      chunk_size: int = 16,
+      chunk_size: int = 128,
       portal: str = "clarifai"):
     """
     Initialize upload configs.
@@ -114,7 +114,7 @@ class UploadConfig:
     self.module_dir = from_module
     self.zoo_dataset = from_zoo
     self.split = split
-    self.chunk_size = chunk_size
+    self.chunk_size = min(128, chunk_size)  # limit max protos in a req
     self.num_workers: int = min(10, cpu_count())  #15 req/sec rate limit
     self.__base: str = ""
     if portal == "dev":
@@ -134,66 +134,73 @@ class UploadConfig:
     self.metadata: Tuple = (('authorization', 'Key ' + self.PAT),)
     self.user_app_id = resources_pb2.UserAppIDSet(user_id=self.USER_ID, app_id=self.APP_ID)
 
-  def _upload_inputs(self, inputs):
+  def _upload_inputs(self, batch_input: List[resources_pb2.Input]
+                    ) -> Union[List[resources_pb2.Input], List[None]]:
     """
     Upload inputs to clarifai platform dataset.
     Args:
-      inputs: input protos
+      batch_input: input batch protos
+    Returns:
+      retry_upload: failed input upload
     """
-    upload_count = 0
     retry_upload = []  # those that fail to upload are stored for retries
+    response = self.STUB.PostInputs(
+        service_pb2.PostInputsRequest(user_app_id=self.user_app_id, inputs=batch_input),)
 
-    for inp_proto in inputs:
-      response = self.STUB.PostInputs(
-          service_pb2.PostInputsRequest(user_app_id=self.user_app_id, inputs=[inp_proto]),)
-
-      MESSAGE_DUPLICATE_ID = "Input has a duplicate ID."
-      if response.status.code != status_code_pb2.SUCCESS:
-        try:
-          if response.inputs[0].status.details != MESSAGE_DUPLICATE_ID:
-            retry_upload.append(inp_proto)
-          print(f"Post inputs failed, status: {response.inputs[0].status.details}\n")
-          continue
-        except:
-          print(f"Post inputs failed, status: {response.status.details}\n")
-      else:
-        upload_count += 1
+    MESSAGE_DUPLICATE_ID = "Input has a duplicate ID."
+    if response.status.code != status_code_pb2.SUCCESS:
+      try:
+        if response.inputs[0].status.details != MESSAGE_DUPLICATE_ID:
+          retry_upload.extend(batch_input)
+        print(f"Post inputs failed, status: {response.inputs[0].status.details}\n")
+      except:
+        if "Duplicated inputs ID" not in response.status.details:
+          retry_upload.extend(batch_input)
+        print(f"Post inputs failed, status: {response.status.details}\n")
 
     return retry_upload
 
-  def upload_annotations(self, inputs):
+  def upload_annotations(self, batch_annot: List[resources_pb2.Annotation]
+                        ) -> Union[List[resources_pb2.Annotation], List[None]]:
     """
     Upload image annotations to clarifai detection dataset
+    Args:
+      batch_annot: annot batch protos
+    Returns:
+      retry_upload: failed annot upload
     """
-    upload_count = 0
     retry_upload = []  # those that fail to upload are stored for retries
+    response = self.STUB.PostAnnotations(
+        service_pb2.PostAnnotationsRequest(user_app_id=self.user_app_id, annotations=batch_annot),)
 
-    for annot_proto in inputs:
-      response = self.STUB.PostAnnotations(
-          service_pb2.PostAnnotationsRequest(
-              user_app_id=self.user_app_id, annotations=[annot_proto]),)
-
-      if response.status.code != status_code_pb2.SUCCESS:
-        try:
-          print(f"Post annotations failed, status:\n{response.annotations[0].status.details}\n")
-          continue
-        except:
-          print(f"Post annotations failed, status:\n{response.status.details}\n")
-          retry_upload.append(annot_proto)
-      else:
-        upload_count += 1
+    if response.status.code != status_code_pb2.SUCCESS:
+      try:
+        print(f"Post annotations failed, status:\n{response.annotations[0].status.details}\n")
+      except:
+        print(f"Post annotations failed, status:\n{response.status.details}\n")
+      finally:
+        retry_upload.extend(batch_annot)
 
     return retry_upload
 
-  def concurrent_inp_upload(self, inputs, chunks):
+  def concurrent_inp_upload(
+      self,
+      inputs: List[List[resources_pb2.Input]],
+      chunks: int,
+      desc: str = "uploading inputs...") -> Union[List[resources_pb2.Input], List[None]]:
     """
     Upload images concurrently.
+    Args:
+      inputs: input protos
+      chunks: number of inputs chunks
+    Returns:
+      retry_upload: All failed input protos during upload
     """
     inp_threads = []
     retry_upload = []
 
     with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
-      with tqdm(total=chunks, desc="uploading inputs...") as progress:
+      with tqdm(total=chunks, desc=desc) as progress:
         # Submit all jobs to the executor and store the returned futures
         inp_threads = [executor.submit(self._upload_inputs, inp_batch) for inp_batch in inputs]
 
@@ -203,21 +210,30 @@ class UploadConfig:
             retry_upload.extend(result)
           progress.update()
 
-    if len(
-        list(retry_upload)) > 0:  ## TODO: use api_with_retries functionality via upload_inputs()
-      _ = self._upload_inputs(retry_upload)
+    return retry_upload
 
-  def concurrent_annot_upload(self, inputs, chunks):
+  def concurrent_annot_upload(
+      self,
+      annots: List[List[resources_pb2.Annotation]],
+      chunks: int,
+      desc: str = "uploading annotations...") -> Union[List[resources_pb2.Annotation], List[None]]:
     """
     Uploads annotations concurrently.
+    Args:
+      annots: annot protos
+      chunks: number of annots chunks
+    Returns:
+      retry_annot_upload: All failed annot protos during upload
     """
     annot_threads = []
     retry_annot_upload = []
 
     with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
-      with tqdm(total=chunks, desc="uploading annotations...") as progress:
+      with tqdm(total=chunks, desc=desc) as progress:
         # Submit all jobs to the executor and store the returned futures
-        annot_threads = [executor.submit(self._upload_inputs, inp_batch) for inp_batch in inputs]
+        annot_threads = [
+            executor.submit(self.upload_annotations, inp_batch) for inp_batch in annots
+        ]
 
         for job in as_completed(annot_threads):
           result = job.result()
@@ -225,9 +241,29 @@ class UploadConfig:
             retry_annot_upload.extend(result)
           progress.update()
 
-    if len(retry_annot_upload) > 0:
-      ## TODO: use api_with_retries functionality via upload_annotations()
-      _ = self.upload_annotations(retry_annot_upload)
+    return retry_annot_upload
+
+  def retry_concurrent_uploads(
+      self,
+      retry_upload_protos: Union[List[resources_pb2.Input], List[resources_pb2.Annotation]],
+      upload_type: str = "input") -> None:
+    """
+    Retry Uploads of inputs/annotations.
+    Args:
+      retry_upload_protos: upload protos for retry
+      upload_type: input/annot protos type
+    """
+    retry_chunked_upload_protos = Chunker(retry_upload_protos, self.chunk_size).chunk()
+    if len(retry_upload_protos) > 0 and upload_type == "input":
+      _ = self.concurrent_inp_upload(
+          retry_chunked_upload_protos,
+          len(retry_chunked_upload_protos),
+          desc="retry uploading failed input protos...")
+    elif len(retry_upload_protos) > 0 and upload_type == "annot":
+      _ = self.concurrent_annot_upload(
+          retry_chunked_upload_protos,
+          len(retry_chunked_upload_protos),
+          desc="retry uploading failed annotation protos...")
 
   def upload_to_clarifai(self):
     """
@@ -252,7 +288,9 @@ class UploadConfig:
 
       # Upload text
       chunked_text_protos = Chunker(text_protos, self.chunk_size).chunk()
-      self.concurrent_inp_upload(chunked_text_protos, len(chunked_text_protos))
+      retry_upload_protos = self.concurrent_inp_upload(chunked_text_protos,
+                                                       len(chunked_text_protos))
+      self.retry_concurrent_uploads(retry_upload_protos, "input")
 
     elif self.task == "visual_detection":
       dataset_obj = VisualDetectionDataset(datagen_object, self.dataset_id, self.split)
@@ -261,13 +299,16 @@ class UploadConfig:
 
       # Upload images
       chunked_img_protos = Chunker(img_protos, self.chunk_size).chunk()
-      self.concurrent_inp_upload(chunked_img_protos, len(chunked_img_protos))
+      retry_upload_protos = self.concurrent_inp_upload(chunked_img_protos, len(chunked_img_protos))
+      self.retry_concurrent_uploads(retry_upload_protos, "input")
 
       # Upload annotations:
       print("Uploading annotations.......")
       annotation_protos = dataset_obj._to_list(annotation_protos)
       chunked_annot_protos = Chunker(annotation_protos, self.chunk_size).chunk()
-      self.concurrent_annot_upload(chunked_annot_protos, len(chunked_annot_protos))
+      retry_upload_protos = self.concurrent_annot_upload(chunked_annot_protos,
+                                                         len(chunked_annot_protos))
+      self.retry_concurrent_uploads(retry_upload_protos, "annot")
 
     elif self.task == "visual_segmentation":
       dataset_obj = VisualSegmentationDataset(datagen_object, self.dataset_id, self.split)
@@ -277,12 +318,15 @@ class UploadConfig:
 
       # Upload images
       chunked_img_protos = Chunker(img_protos, self.chunk_size).chunk()
-      self.concurrent_inp_upload(chunked_img_protos, len(chunked_img_protos))
+      retry_upload_protos = self.concurrent_inp_upload(chunked_img_protos, len(chunked_img_protos))
+      self.retry_concurrent_uploads(retry_upload_protos, "input")
 
       # Upload masks:
       print("Uploading masks.......")
       chunked_mask_protos = Chunker(mask_protos, self.chunk_size).chunk()
-      self.concurrent_annot_upload(chunked_mask_protos, len(chunked_mask_protos))
+      retry_upload_protos = self.concurrent_annot_upload(chunked_mask_protos,
+                                                         len(chunked_mask_protos))
+      self.retry_concurrent_uploads(retry_upload_protos, "annot")
 
     else:  # visual-classification & visual-captioning
       dataset_obj = VisualClassificationDataset(datagen_object, self.dataset_id, self.split)
@@ -291,4 +335,5 @@ class UploadConfig:
 
       # Upload images
       chunked_img_protos = Chunker(img_protos, self.chunk_size).chunk()
-      self.concurrent_inp_upload(chunked_img_protos, len(chunked_img_protos))
+      retry_upload_protos = self.concurrent_inp_upload(chunked_img_protos, len(chunked_img_protos))
+      self.retry_concurrent_uploads(retry_upload_protos, "input")
