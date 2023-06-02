@@ -23,6 +23,8 @@ body {
   align-items: center;
   appearance: button;
   text-decoration: none;
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
+
 }
 .stButton>a {
     font-size: 0.925rem;
@@ -61,19 +63,58 @@ body {
 
 .stSelectbox > div > div {
   border-radius: 8px;
+  background-color: transparent;
+  border-color: #d0d5dd;
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
 }
 
 
 .stMultiSelect > div > div {
   border-radius: 8px;
+  border-color: #d0d5dd;
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
 }
 
-.stTextInput > div > div {
+.stMultiSelect > div > div > div{
+  background-color: transparent;
+  border-color: #d0d5dd;
   border-radius: 8px;
+}
+
+.stTextArea > div {
+  border-radius: 8px;
+}
+
+.stTextArea > div > div {
+  background-color: transparent;
+  border-radius: 8px;
+  border-color: #d0d5dd;
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
+}
+
+
+.stDateInput > div > div {
+  border-radius: 8px;
+  border-color: #d0d5dd;
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
+}
+
+.stDateInput > div > div > div {
+  border-radius: 8px;
+  border-color: #d0d5dd;
+}
+
+
+.stTimeInput > div > div {
+  border-radius: 8px;
+  background-color: transparent;
+  border-color: #d0d5dd;
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
 }
 
 .stNumberInput > div > div:first-of-type {
   border-radius: 8px 0 0 8px;
+  background-color: transparent;
 }
 
 .stNumberInput button:last-of-type {
@@ -81,24 +122,14 @@ body {
   background-color: #006dff;
   border-color: transparent;
   border-radius: 0 7px 7px 0;
-}
-
-.stTextArea > div {
-  border-radius: 8px;
-}
-
-.stDateInput > div > div {
-  border-radius: 8px;
-}
-
-.stTimeInput > div > div {
-  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
 }
 
 .stNumberInput>div {
-    color: #fff;
-    border-color: #e4e7ec;
-    border-radius: 8px 8px 8px 8px;
+  color: #fff;
+  border-color: #d0d5dd;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
 }
 
 .stNumberInput>div>div>button {
@@ -129,7 +160,9 @@ div[data-testid="stFileUploader"]>section>button {
     font-weight: 600;
 }
 div[data-testid="stFileUploader"]>section {
+  border: 1px dashed #d0d5dd;
   border-radius: 8px;
+  background-color: #f7fafe;
 }
 
 div[data-testid="stFileUploader"]>section>button:hover,
@@ -146,10 +179,18 @@ div[data-testid="stFileUploader"]>section>button:active
 }
 
 
-.stTextInput>div>div>input {
-    background-color: #fff;
-    border-radius: 9.8px;
-    border-color: transparent;
+.stTextInput>div {
+  background-color: transparent;
+  border-radius: 8px;
+  border-color: #d0d5dd;
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
+}
+
+.stTextInput > div > div {
+  border-radius: 8px;
+  background-color: transparent;
+  border-color: #d0d5dd;
+  box-shadow: 0 1px 2px rgba(16,24,40,.05);
 }
 
 div[data-baseweb="base-input"] {
@@ -168,4 +209,9 @@ footer {
 div[data-testid="stDecoration"] {
     display: none !important;
     background-image: none;
+}
+
+.stSlider > div {
+  padding-left: 5px;
+  padding-right: 2px;
 }
