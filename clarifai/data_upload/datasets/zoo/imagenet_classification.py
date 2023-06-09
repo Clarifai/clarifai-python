@@ -29,9 +29,11 @@ class ImageNetDataset:
     #Creating label map
     with open(os.path.join(self.data_dir, "LOC_synset_mapping.txt")) as _file:
       for _id in _file:
-        self.label_map[_id.split(' ')[0]] = [
-            label.rstrip().lstrip() for label in _id[_id.find(' ') + 1:].split(',')
-        ]
+        #Removing the spaces,upper quotes and Converting to set to remove repetitions. Then converting to list for compatibility.
+        self.label_map[_id.split(" ")[0]] = list({
+            "".join(("".join((label.rstrip().lstrip().split(" ")))).split("'"))
+            for label in _id[_id.find(" ") + 1:].split(",")
+        })
 
     for _folder in os.listdir(os.path.join(self.data_dir, self.split)):
       try:
