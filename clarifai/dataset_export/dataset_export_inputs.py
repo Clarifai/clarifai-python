@@ -8,6 +8,8 @@ from clarifai_grpc.grpc.api import resources_pb2
 from PIL import ImageFile
 from tqdm import tqdm
 
+from clarifai.auth.helper import ClarifaiAuthHelper
+
 
 class DatasetExportReader:
   """
@@ -17,10 +19,11 @@ class DatasetExportReader:
   - Yield each api.Input object.
   """
 
-  def __init__(self, archive_url=None, local_archive_path=None):
+  def __init__(self, session, archive_url=None, local_archive_path=None):
 
     self.input_count = 0
     self.temp_file = None
+    self.session = session
 
     assert archive_url or local_archive_path, "Must use one input."
 
@@ -44,7 +47,7 @@ class DatasetExportReader:
     """
     Downloads the temp archive of InputBatches.
     """
-    r = requests.get(archive_url, stream=True)
+    r = self.session.get(archive_url, stream=True)
     temp_file = tempfile.TemporaryFile()
     for chunk in r.iter_content(chunk_size=chunk_size):
       temp_file.write(chunk)
@@ -90,10 +93,11 @@ class InputDownloader:
   Has the ability of either writing to a new ZIP archive OR a filesystem directory.
   """
 
-  def __init__(self, input_iterator):
+  def __init__(self, session, input_iterator):
     self.input_iterator = input_iterator
     self.num_inputs = 0
     self.split_prefix = None
+    self.session = session
     if isinstance(self.input_iterator, DatasetExportReader):
       self.split_prefix = self.input_iterator.split_dir
 
@@ -102,7 +106,7 @@ class InputDownloader:
     Use PIL ImageFile to return image parsed from the response bytestring (from requests) and append to zip file.
     """
     p = ImageFile.Parser()
-    p.feed(requests.get(hosted_url).content)
+    p.feed(self.session.get(hosted_url).content)
     image = p.close()
     image_file = BytesIO()
     image.save(image_file, 'JPEG')
@@ -152,6 +156,10 @@ if __name__ == "__main__":
     sys.exit(2)
   archive_url = sys.argv[1]
   save_path = sys.argv[2] if len(sys.argv) > 2 else "output.zip"
+  metadata = getattr(ClarifaiAuthHelper.from_env(), "metadata")[0]
+  # Create a session object and set auth header
+  session = requests.Session()
+  session.headers.update({'Authorization': metadata[1]})
 
-  with DatasetExportReader(archive_url=archive_url) as reader:
-    InputDownloader(reader).download_image_archive(save_path=save_path)
+  with DatasetExportReader(session=session, archive_url=archive_url) as reader:
+    InputDownloader(session, reader).download_image_archive(save_path=save_path)
