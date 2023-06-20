@@ -12,10 +12,11 @@
 # limitations under the License.
 """Interface to Clarifai Models API."""
 
-from typing import Dict, Type
+from typing import Dict, List, Type
 
-from clarifai_grpc.grpc.api import service_pb2
+from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from google.protobuf.json_format import MessageToDict
+from google.protobuf.struct_pb2 import Struct
 
 from clarifai.auth.helper import ClarifaiAuthHelper
 from clarifai.client import create_stub
@@ -85,6 +86,7 @@ class Models:
             temp_out[each['data_field_name']] = None
           if 'shapes' in each.keys():
             for dim in each['shapes']:
+
               if 'dims' in dim.keys():
                 out_dims_dtype[model_id].append((dim['dims'], dim['data_type']))
           else:
@@ -98,18 +100,136 @@ class Models:
         "Output Metadata": out_dims_dtype
     }
 
-  def post_model(self):
-    """
-    Post a new trained model to the Clarifai platform.
-    Args:
-      auth: Clarifai Auth object
-    """
-    raise NotImplementedError()
+  def post_model(
+      self,
+      model_id: str,
+      model_zip_url: str,
+      model_type: str,
+      input: List,
+      outputs: List,
+      description: str = "",
+  ):
+    """Post a new trained model to the Clarifai platform.
 
-  def post_model_version(self):
-    """
-    Post a new version of an existing model in the Clarifai platform.
     Args:
-      auth: Clarifai Auth object
+        model_id (str): Clarifai model id
+        model_zip_url (str): url of zip of model
+        model_type (str): Clarifai model type
+        input (List): list of a pair of clarifai input field and triton model input,
+            [clarifai_input_field, triton_input_filed]
+        outputs (List): list of pairs of clarifai output fields and triton model outputs,
+            [[clarifai_output_field1, triton_output_filed1],[clarifai_output_field2, triton_output_filed2],...]
+        description (str, optional): a description of the model. Defaults to "".
+
+    Returns:
+        dict: Clarifai api response
     """
-    raise NotImplementedError()
+
+    def _parse_fields_map(x):
+      """parse input, outputs to Struct"""
+      _fields_map = Struct()
+      if not isinstance(x[0], list):
+        x = [x]
+      for field, mapping in x:
+        _fields_map.update({field: mapping})
+      return _fields_map
+
+    input_fields_map = _parse_fields_map(input)
+    output_fields_map = _parse_fields_map(outputs)
+    user_data_object = self.auth.get_user_app_id_proto()
+    post_models_response = self.stub.PostModels(
+        service_pb2.PostModelsRequest(
+            user_app_id=user_data_object,
+            models=[
+                resources_pb2.Model(
+                    id=model_id,
+                    notes=description,
+                    model_type_id=model_type,
+                    model_version=resources_pb2.ModelVersion(
+                        pretrained_model_config=resources_pb2.PretrainedModelConfig(
+                            model_zip_url=model_zip_url,
+                            input_fields_map=input_fields_map,
+                            output_fields_map=output_fields_map)))
+            ]),
+        metadata=self.auth.metadata)
+
+    return MessageToDict(post_models_response, preserving_proto_field_name=True)
+
+  def post_model_version(self, model_id: str, model_zip_url: str):
+    """Post a new version of an existing model in the Clarifai platform.
+
+    Args:
+        model_id (str): Clarifai model id
+        model_zip_url (str]): url of zip of model
+
+    Returns:
+        dict: clarifai api response
+    """
+    user_data_object = self.auth.get_user_app_id_proto()
+    post_model_versions = self.stub.PostModelVersions(
+        service_pb2.PostModelVersionsRequest(
+            user_app_id=user_data_object,
+            model_id=model_id,
+            model_versions=[
+                resources_pb2.ModelVersion(pretrained_model_config=resources_pb2.
+                                           PretrainedModelConfig(model_zip_url=model_zip_url))
+            ]),
+        metadata=self.auth.metadata)
+
+    return MessageToDict(post_model_versions, preserving_proto_field_name=True)
+
+  def delete_model(self, model_id: str):
+    """Delete model api by model id
+
+    Args:
+        model_id (str): Clarifai model id
+
+    Returns:
+        dict: clarifai api response
+    """
+    user_data_object = self.auth.get_user_app_id_proto()
+    delete_model_response = self.stub.DeleteModel(
+        service_pb2.DeleteModelRequest(
+            user_app_id=user_data_object,
+            model_id=model_id,
+        ),
+        metadata=self.auth.metadata)
+
+    return MessageToDict(delete_model_response, preserving_proto_field_name=True)
+
+  def delete_model_version(self, model_id: str, version_id: str):
+    """Delete specific version of model
+
+    Args:
+        model_id (str): Clarifai model id
+        version_id (str): version id of model that will be removed
+
+    Returns:
+        dict: Clarifai API response
+    """
+    user_data_object = self.auth.get_user_app_id_proto()
+    delete_model_response = self.stub.DeleteModelVersion(
+        service_pb2.DeleteModelVersionRequest(
+            user_app_id=user_data_object, model_id=model_id, version_id=version_id),
+        metadata=self.auth.metadata)
+
+    return MessageToDict(delete_model_response, preserving_proto_field_name=True)
+
+  def get_model(self, model_id: str):
+    """Get model by id
+
+    Args:
+        model_id (str): Clarifai model id
+
+    Returns:
+        dict: Clarifai API response
+    """
+    user_data_object = self.auth.get_user_app_id_proto()
+    response = self.stub.GetModel(
+        service_pb2.GetModelRequest(
+            user_app_id=user_data_object,
+            model_id=model_id,
+        ),
+        metadata=self.auth.metadata)
+
+    return MessageToDict(response, preserving_proto_field_name=True)
