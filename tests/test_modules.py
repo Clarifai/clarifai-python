@@ -14,7 +14,7 @@ def helper():
 
 def test_module_Ui_url(helper):
   url = helper.module_ui_url("clarifai", "main", "module_1", "version_1")
-  assert (url == "http://fake/clarifai/main/modules/module_1/module_versions/version_1")
+  assert (url == "http://fake/clarifai/main/modules/module_1/versions/version_1")
 
 
 def test_module_install_url(helper):
@@ -43,7 +43,7 @@ def test_split_of_ui_clarifai_url():
       module_id,
       module_version_id,
   ) = ClarifaiUrlHelper.split_module_ui_url(
-      "clarifai.com/clarifai/main/modules/module_1/module_versions/2")
+      "clarifai.com/clarifai/main/modules/module_1/versions/2")
   assert user_id == "clarifai"
   assert app_id == "main"
   assert module_id == "module_1"
@@ -57,7 +57,7 @@ def test_split_with_https_prefix():
       module_id,
       module_version_id,
   ) = ClarifaiUrlHelper.split_module_ui_url(
-      "https://clarifai.com/clarifai/main/modules/module_1/module_versions/2")
+      "https://clarifai.com/clarifai/main/modules/module_1/versions/2")
   assert user_id == "clarifai"
   assert app_id == "main"
   assert module_id == "module_1"
@@ -70,19 +70,19 @@ def test_too_many_things_happen():
       match="Provided url must have 4 or 6 parts after the domain name",
   ):
     ClarifaiUrlHelper.split_module_ui_url(
-        "https://clarifai.com/clarifai/main/modules/module_1/module_versions/2/something")
+        "https://clarifai.com/clarifai/main/modules/module_1/versions/2/something")
 
 
 def test_not_enougth_items():
   with pytest.raises(
       ValueError, match="Provided url must have 4 or 6 parts after the domain name"):
-    ClarifaiUrlHelper.split_module_ui_url("clarifai/main/modules/module_1/module_versions/2")
+    ClarifaiUrlHelper.split_module_ui_url("clarifai/main/modules/module_1/versions/2")
 
 
 def test_no_right_modules_in_path():
   with pytest.raises(
       ValueError, match="Provided url must have 4 or 6 parts after the domain name"):
-    ClarifaiUrlHelper.split_module_ui_url("clarifai/main/modules_abc/module_1/module_versions/2")
+    ClarifaiUrlHelper.split_module_ui_url("clarifai/main/modules_abc/module_1/versions/2")
 
 
 def test_no_right_module_version_in_path():

@@ -18,7 +18,7 @@ class ClarifaiUrlHelper(object):
 
   def module_ui_url(self, user_id, app_id, module_id, module_version_id):
     """This is the path to the module in community."""
-    return "%s/%s/%s/modules/%s/module_versions/%s" % (
+    return "%s/%s/%s/modules/%s/versions/%s" % (
         self.auth.ui,
         user_id,
         app_id,
@@ -63,7 +63,7 @@ class ClarifaiUrlHelper(object):
 
   @classmethod
   def split_module_ui_url(cls, install):
-    """Takes in a path like https://clarifai.com/zeiler/app/modules/module1/module_versions/2
+    """Takes in a path like https://clarifai.com/zeiler/app/modules/module1/versions/2
         to split it apart into it's IDs.
 
         Returns:
@@ -77,6 +77,6 @@ class ClarifaiUrlHelper(object):
 
     if resource_type != "modules" or resource_version_id is None:
       raise ValueError(
-          "Provided install url must have 6 parts after the domain name. These are {user_id}/{app_id}/modules/{module_id}/module_versions/{module_version_id}"
+          "Provided install url must have 6 parts after the domain name. These are {user_id}/{app_id}/modules/{module_id}/versions/{module_version_id}"
       )
     return user_id, app_id, resource_id, resource_version_id
