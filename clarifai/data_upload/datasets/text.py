@@ -53,7 +53,7 @@ class TextClassificationDataset(ClarifaiDataset):
       text = item.text
       labels = item.labels if isinstance(item.labels, list) else [item.labels]  # clarifai concept
       input_id = f"{self.dataset_id}-{self.split}-{i}" if item.id is None else f"{self.split}-{str(item.id)}"
-      metadata.update({"label": labels, "split": self.split})
+      metadata.update({"split": self.split})
 
       input_proto = self.create_input_protos(text, labels, input_id, self.dataset_id, metadata)
 
