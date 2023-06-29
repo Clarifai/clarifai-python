@@ -25,5 +25,13 @@ setuptools.setup(
     python_requires='>=3.8',
     install_requires=[
         "clarifai-grpc>=9.5.0",
+        "tritonclient==2.34.0",
+        "packaging",
     ],
+    entry_points={
+        "console_scripts": [
+            "clarifai-model-upload-init = clarifai.models.model_serving.cli.repository:model_upload_init",
+            "clarifai-triton-zip = clarifai.models.model_serving.cli.model_zip:main",
+        ],
+    },
     include_package_data=True)
