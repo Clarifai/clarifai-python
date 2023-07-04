@@ -50,10 +50,12 @@ def model_upload_init():
       default=".",  #curdir
       required=True,
       help="Directory to create triton repository.")
+
   args = parser.parse_args()
 
   model_config = TritonModelConfig(
       model_name=args.model_name, model_version="1", model_type=args.model_type)
+
   triton_repo = TritonModelRepository(model_config)
   triton_repo.build_repository(args.repo_dir)
 

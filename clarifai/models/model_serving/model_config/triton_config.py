@@ -77,7 +77,7 @@ class Device:
   Device object
   """
   count: int = 1
-  use_gpu = False
+  use_gpu: bool = True
 
   def __post_init__(self):
     if self.use_gpu:
@@ -147,5 +147,19 @@ class TritonModelConfig:
       del pred_labels.labels
       pred_scores = OutputConfig(name="predicted_scores", data_type="TYPE_FP32", dims=[-1, 1])
       self.output.extend([pred_bboxes, pred_labels, pred_scores])
+
     elif self.model_type == "visual-classifier":
       self.input.append(image_input)
+      pred_labels = OutputConfig(
+          name="softmax_predictions", data_type="TYPE_FP32", dims=[-1], labels=True)
+      del pred_labels.labels
+      self.output.append(pred_labels)
+
+    elif self.model_type == "text-classifier":
+      self.input.append(text_input)
+      pred_labels = OutputConfig(
+          name="softmax_predictions", data_type="TYPE_FP32", dims=[-1], labels=True)
+      #'Len of out list expected to be the number of concepts returned by the model,
+      # with each value being the confidence for the respective model output.
+      del pred_labels.labels
+      self.output.append(pred_labels)

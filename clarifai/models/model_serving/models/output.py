@@ -44,24 +44,18 @@ class VisualDetectorOutput:
 
 
 @dataclass
-class VisualClassifierOutput:
-  #predicted_labels: np.ndarray
+class ClassifierOutput:
+  """
+  Takes model softmax predictions
+  """
   predicted_scores: np.ndarray
+
+  # the index of each predicted score as returned by the model must correspond
+  # to the predicted label index in the labels.txt file
 
   def __post_init__(self):
     """
     Validate input upon initialization.
     """
-    raise NotImplementedError()
-
-
-@dataclass
-class TextClassifierOutput:
-  #predicted_labels: np.ndarray
-  predicted_scores: np.ndarray
-
-  def __post_init__(self):
-    """
-    Validate input upon initialization.
-    """
-    raise NotImplementedError()
+    assert self.predicted_scores.ndim == 1, \
+      f"All predictions must be 1-dimensional, Got scores-dims: {self.predicted_scores.ndim} instead."

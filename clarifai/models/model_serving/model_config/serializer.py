@@ -76,7 +76,10 @@ class Serializer:
     """
     instance = self.config_proto.instance_group.add()
     for field_name, value in self.model_config.instance_group.__dict__.items():
-      setattr(instance, field_name, value)
+      try:
+        setattr(instance, field_name, value)
+      except AttributeError:
+        continue
     return
 
   def _set_batch_info(self) -> model_config_pb2.ModelDynamicBatching:

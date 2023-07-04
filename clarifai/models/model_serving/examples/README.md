@@ -1,4 +1,4 @@
-### Clarifai Model Upload Examples
+## Clarifai Model Upload Examples
 
 A collection of pre-built triton models for different tasks.
 To run inference locally using any of the examples here, you need to have the [Triton Inference Server](https://github.com/triton-inference-server/server/blob/main/docs/customization_guide/build.md#building-with-docker) installed.

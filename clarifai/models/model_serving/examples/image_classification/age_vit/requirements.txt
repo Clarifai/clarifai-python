@@ -1,0 +1,6 @@
+clarifai>9.5.3 # for model upload features
+tritonclient[all]
+transformers==4.30.2
+scipy==1.10.1
+sentencepiece==0.1.99
+protobuf<4.21.3

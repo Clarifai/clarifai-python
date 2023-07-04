@@ -75,7 +75,18 @@ def visual_classifier(func: Callable):
     """
     Format predictions and return clarifai compatible output.
     """
-    raise NotImplementedError()
+    out_scores = []
+    for item in input_data:
+      preds = func(item, model)
+      out_scores.append(preds.predicted_scores)
+
+    out_tensor_scores = pb_utils.Tensor("softmax_predictions",
+                                        np.asarray(out_scores, dtype=np.float32))
+    inference_response = pb_utils.InferenceResponse(output_tensors=[out_tensor_scores])
+
+    return inference_response
+
+  return parse_predictions
 
 
 def text_classifier(func: Callable):
@@ -88,4 +99,16 @@ def text_classifier(func: Callable):
     """
     Format predictions and return clarifai compatible output.
     """
-    raise NotImplementedError()
+    out_scores = []
+    input_data = [in_elem[0].decode() for in_elem in input_data]
+    for item in input_data:
+      preds = func(item, model)
+      out_scores.append(preds.predicted_scores)
+
+    out_tensor_scores = pb_utils.Tensor("softmax_predictions",
+                                        np.asarray(out_scores, dtype=np.float32))
+    inference_response = pb_utils.InferenceResponse(output_tensors=[out_tensor_scores])
+
+    return inference_response
+
+  return parse_predictions

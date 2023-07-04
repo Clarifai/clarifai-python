@@ -16,3 +16,5 @@ from clarifai.models.model_serving.models.output import VisualDetectorOutput
 | | `predicted_labels` | int32 | [-1, 1] | A 2D detected labels array of length equal to that of predicted_bboxes with each element array having a length of exactly 1.
 | | `predicted_scores` | float32 | [-1, 1] | A 2D detection scores array of length equal to that of predicted_bboxes & predicted_labels with each element array having a length of exactly 1.
 | | | | | |
+| [ClassifierOutput](../models/output.py) | `predicted_scores` | float32 | [-1] | The softmax of the model's predictions. The index of each predicted probability as returned by the model must correspond to the label index in the labels.txt file |
+| | | | | |
