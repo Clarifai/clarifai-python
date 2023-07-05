@@ -28,7 +28,10 @@ $ export CLARIFAI_PAT=<your clarifai PAT>
 ```
 7. Upload your model Clarifai.
 ```console
-$ clarifai-upload-model --model_zip_url=<URL to your model zip>
+$ clarifai-upload-model --url <URL to your model zip. Your zip file name is expected to have "zipfile_name" format (in clarifai-triton-zip), if not you need to specify your model_id and model_type> \
+    --model_id <Your model ID on the platform> \
+    --model_type <Clarifai model types> \
+    --desc <A description of your model>
 ```
 
 * Finally, navigate to your Clarifai app models and check that the deployed model appears. Click it on the model name to go the model versions table to track the status of the model deployment.

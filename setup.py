@@ -32,6 +32,7 @@ setuptools.setup(
         "console_scripts": [
             "clarifai-model-upload-init = clarifai.models.model_serving.cli.repository:model_upload_init",
             "clarifai-triton-zip = clarifai.models.model_serving.cli.model_zip:main",
+            "clarifai-upload-model = clarifai.models.model_serving.cli.deploy_cli:main"
         ],
     },
     include_package_data=True)

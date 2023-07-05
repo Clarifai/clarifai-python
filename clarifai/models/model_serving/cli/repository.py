@@ -14,6 +14,7 @@
 
 import argparse
 
+from ..constants import MODEL_TYPES
 from ..model_config.triton_config import TritonModelConfig
 from ..pb_model_repository import TritonModelRepository
 
@@ -22,11 +23,6 @@ def model_upload_init():
   """
   Clarifai triton model upload commandline tool.
   """
-  model_types = [
-      "visual-detector",
-      "visual-classifier",
-      "text-classifier",
-  ]
   parser = argparse.ArgumentParser(description=__doc__)
   # TritonModelConfig args
   parser.add_argument("--model_name", type=str, required=True, help="Inference Model Name")
@@ -40,9 +36,9 @@ def model_upload_init():
   parser.add_argument(
       "--model_type",
       type=str,
-      choices=model_types,
+      choices=MODEL_TYPES,
       required=True,
-      help=f"Clarifai supported model types.\n Model-types-map: {model_types}",
+      help=f"Clarifai supported model types.\n Model-types-map: {MODEL_TYPES}",
   )
   parser.add_argument(
       "--repo_dir",
