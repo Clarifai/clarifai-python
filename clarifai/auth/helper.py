@@ -287,7 +287,8 @@ Additionally, these optional params are supported:
     return stub
 
   @property
-  def ui(self):
+  def ui(self) -> str:
+    """ Return the domain for the UI. """
     if self._ui not in ui_https_cache:
       raise Exception("Cannot determine if ui %s is https" % self._ui)
     https = ui_https_cache[self._ui]
@@ -300,7 +301,8 @@ Additionally, these optional params are supported:
     return self._ui
 
   @property
-  def base(self):
+  def base(self) -> str:
+    """ Return the base domain for the API. """
     if self._base not in base_https_cache:
       raise Exception("Cannot determine if base %s is https" % self._base)
     https = base_https_cache[self._base]
@@ -311,6 +313,11 @@ Additionally, these optional params are supported:
     if not self._base.startswith("http://"):
       return "http://" + self._base
     return self._base
+
+  @property
+  def pat(self) -> str:
+    """ Return the personal access token. """
+    return self._pat
 
   def __str__(self):
     return "ClarifaiAuthHelper:\n- base: %s\n- user_id: %s\n- app_id: %s\n" % (

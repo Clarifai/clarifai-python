@@ -14,6 +14,7 @@ def clear_caches():
 def test_ui_default_url():
   default = ClarifaiAuthHelper("clarifai", "main", "fake_pat")
   assert default.ui == "https://clarifai.com"
+  assert default.pat == "fake_pat"
 
 
 @pytest.mark.parametrize(("input_url", "expected_url"), (
