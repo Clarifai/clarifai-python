@@ -4,11 +4,12 @@ import pytest
 
 from clarifai.urls.helper import ClarifaiUrlHelper
 
+auth_obj = namedtuple("auth", "ui")
+
 
 @pytest.fixture()
 def helper():
-  authObj = namedtuple("auth", "ui")
-  auth = authObj(ui="http://fake")
+  auth = auth_obj(ui="http://fake")
   return ClarifaiUrlHelper(auth)
 
 
@@ -26,7 +27,6 @@ def test_module_install_url(helper):
 
 
 def test_install_with_custom_imv_id():
-  auth_obj = namedtuple("auth", "ui")
   auth = auth_obj(ui="http://fake")
 
   custom_imv_id = "some_imv_id"
@@ -98,31 +98,59 @@ def test_no_right_model_version_in_path():
 
 
 def test_split_model_with_https_prefix():
+  auth = auth_obj(ui="https://clarifai.com")
+  url = "https://clarifai.com/clarifai/main/models/model_1/versions/2"
   (
       user_id,
       app_id,
       resource_type,
       model_id,
       model_version_id,
-  ) = ClarifaiUrlHelper.split_clarifai_url(
-      "https://clarifai.com/clarifai/main/models/model_1/versions/2")
+  ) = ClarifaiUrlHelper.split_clarifai_url(url)
   assert user_id == "clarifai"
   assert app_id == "main"
   assert resource_type == "models"
   assert model_id == "model_1"
   assert model_version_id == "2"
 
+  new = ClarifaiUrlHelper(auth).clarifai_url(user_id, app_id, resource_type, model_id,
+                                             model_version_id)
+  assert new == url
+
 
 def test_split_model_without_version_with_https_prefix():
+  auth = auth_obj(ui="https://clarifai.com")
+  url = "https://clarifai.com/clarifai/main/models/model_1"
   (
       user_id,
       app_id,
       resource_type,
       model_id,
       model_version_id,
-  ) = ClarifaiUrlHelper.split_clarifai_url("https://clarifai.com/clarifai/main/models/model_1")
+  ) = ClarifaiUrlHelper.split_clarifai_url(url)
   assert user_id == "clarifai"
   assert app_id == "main"
   assert resource_type == "models"
   assert model_id == "model_1"
   assert model_version_id == None
+
+  new = ClarifaiUrlHelper(auth).clarifai_url(user_id, app_id, resource_type, model_id,
+                                             model_version_id)
+  assert new == url
+
+
+def test_bad_resource_type_in_clarifai_url():
+  auth = auth_obj(ui="https://clarifai.com")
+  helper = ClarifaiUrlHelper(auth)
+
+  with pytest.raises(
+      ValueError,
+      match=
+      "resource_type must be one of modules, models, concepts, inputs, workflows, tasks, installed_module_versions but was models_abc"
+  ):
+    user_id = "clarifai"
+    app_id = "main"
+    resource_type = "models_abc"
+    model_id = "model_1"
+    model_version_id = "2"
+    helper.clarifai_url(user_id, app_id, resource_type, model_id, model_version_id)

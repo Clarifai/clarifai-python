@@ -36,6 +36,28 @@ class ClarifaiUrlHelper(object):
     return ("%s/%s/%s/installed_module_versions/%s" % (self.auth.ui, dest_user_id, dest_app_id,
                                                        imv_id))
 
+  def clarifai_url(self, user_id, app_id, resource_type, resource_id, version_id: str = None):
+    """This is the path to the resource in community.
+
+        Args:
+          user_id: the author of the resource.
+          app_id: the author's app the resource was created in.
+          resource_type: the type of resource. One of "modules", "models", "concepts", "inputs", "workflows", "tasks", "installed_module_versions"
+          resource_id: the resource ID
+          version_id: the version of the resource.
+    """
+    if resource_type not in [
+        "modules", "models", "concepts", "inputs", "workflows", "tasks",
+        "installed_module_versions"
+    ]:
+      raise ValueError(
+          "resource_type must be one of modules, models, concepts, inputs, workflows, tasks, installed_module_versions but was %s"
+          % resource_type)
+    if version_id is None:
+      return "%s/%s/%s/%s/%s" % (self.auth.ui, user_id, app_id, resource_type, resource_id)
+    return "%s/%s/%s/%s/%s/versions/%s" % (self.auth.ui, user_id, app_id, resource_type,
+                                           resource_id, version_id)
+
   @classmethod
   def split_clarifai_url(cls, url):
     """
