@@ -40,16 +40,16 @@ Reference can be taken from the existing dataset modules in the zoo for developm
 
 ## Notes
 
-* Dataset in the zoo by default first create a `.data` directory in the local directory where the call to `UploadConfig(...).upload_to_clarifai()` is made and then download the data into this `.data` directory, preprocess the data and finally execute upload to a Clarifai app dataset. For instance with the COCO dataset modules above, the coco2017 dataset is by default downloaded first into a `.data` directory, extracted and then preprocessing is performed on it and finally uploaded to Clarifai.
+* Dataset in the zoo by default first create a `data` directory in the local directory where the call to `UploadConfig(...).upload_to_clarifai()` is made and then download the data into this `data` directory, preprocess the data and finally execute upload to a Clarifai app dataset. For instance with the COCO dataset modules above, the coco2017 dataset is by default downloaded first into a `data` directory, extracted and then preprocessing is performed on it and finally uploaded to Clarifai.
 
-* Taking the above into consideration, to avoid the scripts re-downloading data you already have locally, create a `.data` directory in the same directory where you'll make a call to `UploadConfig(...).upload_to_clarifai()` and move your extracted data there. **Ensure that the extracted folder/file names and file structure MATCH those when the downloaded zips are extracted.**
+* Taking the above into consideration, to avoid the scripts re-downloading data you already have locally, create a `data` directory in the same directory where you'll make a call to `UploadConfig(...).upload_to_clarifai()` and move your extracted data there. **Ensure that the extracted folder/file names and file structure MATCH those when the downloaded zips are extracted.**
 
 * COCO Format: To reuse the coco modules above on your coco format data, ensure the criteria in the two points above is adhered to first. If so, pass the coco module name from any of the above in the zoo to the `from_zoo=` parameter in `UploadConfig()` and finally invoke the `upload_to_clarifai()` method.
 
-* xVIEW Dataset: To upload, you have to register and download images,label from [xviewdataset](http://xviewdataset.org/#dataset) follow the above mentioned steps to place extracted folder in `.data` directory. Finally pass the xview module name to `from_zoo=` parameter in `UploadConfig()` and invoke the `upload_to_clarifai()` method.
+* xVIEW Dataset: To upload, you have to register and download images,label from [xviewdataset](http://xviewdataset.org/#dataset) follow the above mentioned steps to place extracted folder in `data` directory. Finally pass the xview module name to `from_zoo=` parameter in `UploadConfig()` and invoke the `upload_to_clarifai()` method.
 
-* ImageNet Dataset: ImageNet Dataset should be downloaded and placed in the '.data' folder along with the [label mapping file](https://www.kaggle.com/competitions/imagenet-object-localization-challenge/data?select=LOC_synset_mapping.txt).
+* ImageNet Dataset: ImageNet Dataset should be downloaded and placed in the 'data' folder along with the [label mapping file](https://www.kaggle.com/competitions/imagenet-object-localization-challenge/data?select=LOC_synset_mapping.txt).
 
-		<.data>/
+		<data>/
       	├── train/
       	├── LOC_synset_mapping.txt

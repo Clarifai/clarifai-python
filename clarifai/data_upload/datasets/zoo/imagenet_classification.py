@@ -16,7 +16,7 @@ class ImageNetDataset:
       split: "train" or "test"
     """
     self.split = split
-    self.data_dir = os.path.join(os.curdir, ".data")  # data storage directory
+    self.data_dir = os.path.join(os.curdir, "data")  # data storage directory
     self.label_map = dict()
 
   def dataloader(self):
