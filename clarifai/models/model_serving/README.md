@@ -64,65 +64,62 @@ A generated triton model repository looks as illustrated in the directory tree a
 
 ## Inference Script
 
-An `inference.py` script with template code is generated during the triton model repository generation. This script is composed of two main functions, `setup()` and `predict()` whose names mustn't be changed.
+An `inference.py` script with template code is generated during the triton model repository generation.
+**This is the script where users write their inference code**.
+This script is composed of a single class that contains a default init method and the `get_predictions()` method whose names mustn't be changed.
+
 ```python
 """User model inference script."""
 
 import os
+from pathlib import Path
 from typing import Callable
 
-BASE_PATH = os.path.dirname(__file__)
+class InferenceModel:
+  """User model inference class."""
 
+  def __init__(self) -> None:
+    """
+    Load inference time artifacts that are called frequently .e.g. models, tokenizers, etc.
+    in this method so they are loaded only once for faster inference.
+    """
+    self.base_path: Path = os.path.dirname(__file__)
+    ## sample model loading code:
+    #self.checkpoint_path: Path = os.path.join(self.base_path, "your checkpoint filename/path")
+    #self.model: Callable = <load_your_model_here from checkpoint or folder>
 
-def setup():
-  """
-  Load inference model.
-  The model checkpoint(s) should be saved in the same directory and directory
-  level as this inference.py module.
+  #Add relevant model type decorator to the method below (see docs/model_types for ref.)
+  def get_predictions(self, input_data):
+    """
+    Main model inference method.
 
-  Returns:
-  --------
-    Inference Model Callable
-  """
-  # sample model loading code:
-  # checkpoint_path = os.path.join(BASE_PATH, your_checkpoint_name)
-  # model = <load model from checkpoint_path>
-  # return model
+    Args:
+    -----
+      input_data: A single input data item to predict on.
+        Input data can be an image or text, etc depending on the model type.
 
-  # Delete/Comment out line below and add your code
-  raise NotImplementedError()
-
-def predict(input_data, model: Callable):
-  """
-  Main model inference function.
-
-  Args:
-  -----
-    input_data: A single input data item to predict on.
-      Input data can be an image or text, etc depending on the model type.
-    model: Inference model callable as returned by setup() above.
-
-  Returns:
-  --------
-    One of the clarifai.model_serving.models.output types. Refer to the README/docs
-  """
-  # Delete/Comment out line below and add your inference code
-  raise NotImplementedError()
+    Returns:
+    --------
+      One of the clarifai.models.model_serving.models.output types. Refer to the README/docs
+    """
+    # Delete/Comment out line below and add your inference code
+    raise NotImplementedError()
 ```
 
-- `setup()` loads the inference model from a checkpoint/storage and returns the model object. The model is loaded separately so that this is done once as opposed to loading during each call.
+- `__init__()` used for one-time loading of inference time artifacts such as models, tokenizers, etc that are frequently called during inference to improve inference speed.
 
-- `predict()` takes an input data item whose type depends on the task the model solves, and the model object as returned from `setup()`. The model object is called to get & return predictions for an input data item.
+- `get_predictions()` takes an input data item whose type depends on the task the model solves, & returns predictions for an input data item.
 
-`predict()` should return any of the output types defined under [output](docs/output.md) and the predict function MUST be decorated with a task corresponding [model type decorator](docs/model_types.md). The model type decorators are responsible for passing input request batches for prediction and formatting the resultant predictions into triton inference responses.
+`get_predictions()` should return any of the output types defined under [output](docs/output.md) and the predict function MUST be decorated with a task corresponding [model type decorator](docs/model_types.md). The model type decorators are responsible for passing input request batches for prediction and formatting the resultant predictions into triton inference responses.
 
-Additional functions can be added to this script by the user as deemed necessary for their model inference provided they are invoked inside `predict()` if used at inference time.
+Additional methods can be added to this script's `Infer` class by the user as deemed necessary for their model inference provided they are invoked inside `get_predictions()` if used at inference time.
 
 ## Next steps
 
 - [Model types docs](docs/model_types.md)
 - [Model Output types docs](docs/output.md)
 - [Dependencies](docs/dependencies.md)
+- [Examples](examples/)
 
 ## Prerequisites
 

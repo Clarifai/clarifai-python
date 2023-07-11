@@ -34,10 +34,9 @@ class TritonPythonModel:
     """
     args["model_repository"] = args["model_repository"].replace("/1/model.py", "")
     sys.path.append(os.path.dirname(__file__))
-    from inference import predict, setup
+    from inference import InferenceModel
 
-    self.inference_func = predict
-    self.model = setup()
+    self.inference_obj = InferenceModel()
     self.device = "cuda:0" if "GPU" in args["model_instance_kind"] else "cpu"
 
     # Read input_name from config file
@@ -56,7 +55,7 @@ class TritonPythonModel:
     for request in requests:
       in_batch = pb_utils.get_input_tensor_by_name(request, self.input_name)
       in_batch = in_batch.as_numpy()
-      inference_response = self.inference_func(in_batch, self.model)
+      inference_response = self.inference_obj.get_predictions(in_batch)
       responses.append(inference_response)
 
     return responses

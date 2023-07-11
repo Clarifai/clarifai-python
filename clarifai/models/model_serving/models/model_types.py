@@ -16,7 +16,7 @@ per model type.
 """
 
 from functools import wraps
-from typing import Callable, List
+from typing import Callable
 
 import numpy as np
 
@@ -32,7 +32,7 @@ def visual_detector(func: Callable):
   """
 
   @wraps(func)
-  def parse_predictions(input_data: List[List], model: Callable):
+  def parse_predictions(self, input_data: np.ndarray):
     """
     Format predictions and return clarifai compatible output.
     """
@@ -40,7 +40,7 @@ def visual_detector(func: Callable):
     out_labels = []
     out_scores = []
     for item in input_data:
-      preds = func(item, model)
+      preds = func(self, item)
       out_bboxes.append(preds.predicted_bboxes)
       out_labels.append(preds.predicted_labels)
       out_scores.append(preds.predicted_scores)
@@ -71,13 +71,13 @@ def visual_classifier(func: Callable):
   """
 
   @wraps(func)
-  def parse_predictions(input_data: List[List], model: Callable):
+  def parse_predictions(self, input_data: np.ndarray):
     """
     Format predictions and return clarifai compatible output.
     """
     out_scores = []
     for item in input_data:
-      preds = func(item, model)
+      preds = func(self, item)
       out_scores.append(preds.predicted_scores)
 
     out_tensor_scores = pb_utils.Tensor("softmax_predictions",
@@ -95,14 +95,14 @@ def text_classifier(func: Callable):
   """
 
   @wraps(func)
-  def parse_predictions(input_data: List[List], model: Callable):
+  def parse_predictions(self, input_data: np.ndarray):
     """
     Format predictions and return clarifai compatible output.
     """
     out_scores = []
     input_data = [in_elem[0].decode() for in_elem in input_data]
     for item in input_data:
-      preds = func(item, model)
+      preds = func(self, item)
       out_scores.append(preds.predicted_scores)
 
     out_tensor_scores = pb_utils.Tensor("softmax_predictions",

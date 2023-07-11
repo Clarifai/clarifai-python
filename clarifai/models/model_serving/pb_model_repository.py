@@ -81,7 +81,7 @@ class TritonModelRepository:
           continue
       # gen requirements & conda yaml
       with open(os.path.join(repository_path, "requirements.txt"), "w") as f:
-        f.write("clarifai\ntritonclient==2.34.0")  # for model upload utils
+        f.write("clarifai>9.5.3\ntritonclient[all]")  # for model upload utils
       with open(os.path.join(repository_path, "triton_conda.yaml"), "w") as conda_env:
         conda_env.write("name: triton_conda-cp3.8-torch1.13.1-19f97078")
 
