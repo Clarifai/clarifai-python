@@ -14,6 +14,7 @@ class TextClassificationDataset(ClarifaiDataset):
 
   def __init__(self, datagen_object: Iterator, dataset_id: str, split: str) -> None:
     super().__init__(datagen_object, dataset_id, split)
+    self._extract_protos()
 
   def create_input_protos(self, text_input: str, labels: List[str], input_id: str, dataset_id: str,
                           metadata: Struct) -> resources_pb2.Input:
@@ -42,11 +43,9 @@ class TextClassificationDataset(ClarifaiDataset):
 
     return input_proto
 
-  def _get_input_protos(self) -> Iterator:
+  def _extract_protos(self) -> None:
     """
     Creates input protos for each data generator item.
-    Returns:
-    	A list of input protos
     """
     for i, item in tqdm(enumerate(self.datagen_object), desc="Loading text data"):
       metadata = Struct()
@@ -55,8 +54,7 @@ class TextClassificationDataset(ClarifaiDataset):
       input_id = f"{self.dataset_id}-{self.split}-{i}" if item.id is None else f"{self.split}-{str(item.id)}"
       metadata.update({"split": self.split})
 
+      self.input_ids.append(input_id)
       input_proto = self.create_input_protos(text, labels, input_id, self.dataset_id, metadata)
 
-      self._all_input_protos.append(input_proto)
-
-    return iter(self._all_input_protos)
+      self._all_input_protos[input_id] = input_proto

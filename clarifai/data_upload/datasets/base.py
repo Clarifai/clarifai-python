@@ -1,4 +1,5 @@
-from typing import Iterator, List
+from collections import defaultdict
+from typing import Iterator, List, Tuple
 
 from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.struct_pb2 import Struct
@@ -13,7 +14,9 @@ class ClarifaiDataset:
     self.datagen_object = datagen_object
     self.dataset_id = dataset_id
     self.split = split
-    self._all_input_protos = []
+    self.input_ids = []
+    self._all_input_protos = {}
+    self._all_annotation_protos = defaultdict(list)
 
   def __len__(self) -> int:
     """
@@ -42,13 +45,30 @@ class ClarifaiDataset:
     """
     raise NotImplementedError()
 
-  def _get_input_protos(self) -> Iterator:
+  def _extract_protos(self) -> None:
     """
-    Create input protos for each row of the dataframe.
-    Returns:
-    	A list of input protos
+    Create input image protos for each data generator item.
     """
     raise NotImplementedError()
+
+  def get_protos(self, input_ids: List[str]
+                ) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:
+    """
+    Get input and annotation protos based on input_ids.
+    Args:
+      `input_ids`: List of input IDs to retrieve the protos for.
+    Returns:
+      Input and Annotation proto iterators for the specified input IDs.
+    """
+    input_protos = [self._all_input_protos.get(input_id) for input_id in input_ids]
+    annotation_protos = []
+    if len(self._all_annotation_protos) > 0:
+      annotation_protos = [self._annotation_protos.get(input_id) for input_id in input_ids]
+      annotation_protos = [
+          ann_proto for ann_protos in annotation_protos for ann_proto in ann_protos
+      ]
+
+    return input_protos, annotation_protos
 
 
 class Chunker:

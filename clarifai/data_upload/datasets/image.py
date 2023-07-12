@@ -1,5 +1,5 @@
 import os
-from typing import Iterator, List, Tuple, Union
+from typing import Iterator, List, Union
 
 from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.struct_pb2 import Struct
@@ -12,6 +12,7 @@ class VisualClassificationDataset(ClarifaiDataset):
 
   def __init__(self, datagen_object: Iterator, dataset_id: str, split: str) -> None:
     super().__init__(datagen_object, dataset_id, split)
+    self._extract_protos()
 
   def create_input_protos(self, image_path: str, labels: List[Union[str, int]], input_id: str,
                           dataset_id: str, geo_info: Union[List[float], None],
@@ -46,11 +47,9 @@ class VisualClassificationDataset(ClarifaiDataset):
 
     return input_proto
 
-  def _get_input_protos(self) -> Iterator:
+  def _extract_protos(self) -> None:
     """
     Create input image protos for each data generator item.
-    Returns:
-      Input proto iterator
     """
     for i, item in tqdm(enumerate(self.datagen_object), desc="Creating input protos..."):
       metadata = Struct()
@@ -60,11 +59,10 @@ class VisualClassificationDataset(ClarifaiDataset):
       geo_info = item.geo_info
       metadata.update({"filename": os.path.basename(image_path), "split": self.split})
 
+      self.input_ids.append(input_id)
       input_proto = self.create_input_protos(image_path, label, input_id, self.dataset_id,
                                              geo_info, metadata)
-      self._all_input_protos.append(input_proto)
-
-    return iter(self._all_input_protos)
+      self._all_input_protos[input_id] = input_proto
 
 
 class VisualDetectionDataset(ClarifaiDataset):
@@ -74,7 +72,7 @@ class VisualDetectionDataset(ClarifaiDataset):
 
   def __init__(self, datagen_object: Iterator, dataset_id: str, split: str) -> None:
     super().__init__(datagen_object, dataset_id, split)
-    self._annotation_protos = []
+    self._extract_protos()
 
   def create_input_protos(self, image_path: str, input_id: str, dataset_id: str,
                           geo_info: Union[List[float], None],
@@ -135,11 +133,9 @@ class VisualDetectionDataset(ClarifaiDataset):
 
     return input_annot_proto
 
-  def _get_input_protos(self) -> Tuple[Iterator, Iterator]:
+  def _extract_protos(self) -> None:
     """
     Create input image protos for each data generator item.
-    Returns:
-      Input and Annotation proto iterators.
     """
     for i, item in tqdm(enumerate(self.datagen_object), desc="Creating input protos..."):
       metadata = Struct()
@@ -150,18 +146,17 @@ class VisualDetectionDataset(ClarifaiDataset):
       metadata.update({"filename": os.path.basename(image), "split": self.split})
       geo_info = item.geo_info
 
+      self.input_ids.append(input_id)
       input_image_proto = self.create_input_protos(image, input_id, self.dataset_id, geo_info,
                                                    metadata)
-      self._all_input_protos.append(input_image_proto)
+      self._all_input_protos[input_id] = input_image_proto
 
       # iter over bboxes and classes
       # one id could have more than one bbox and label
       for i in range(len(bboxes)):
         input_annot_proto = self.create_annotation_proto(labels[i], bboxes[i], input_id,
                                                          self.dataset_id)
-        self._annotation_protos.append(input_annot_proto)
-
-    return iter(self._all_input_protos), iter(self._annotation_protos)
+        self._all_annotation_protos[input_id].append(input_annot_proto)
 
 
 class VisualSegmentationDataset(ClarifaiDataset):
@@ -171,7 +166,7 @@ class VisualSegmentationDataset(ClarifaiDataset):
 
   def __init__(self, datagen_object: Iterator, dataset_id: str, split: str) -> None:
     super().__init__(datagen_object, dataset_id, split)
-    self._mask_protos = []  # mask or polygon protos
+    self._extract_protos()
 
   def create_input_protos(self, image_path: str, input_id: str, dataset_id: str,
                           geo_info: Union[List[float], None],
@@ -230,11 +225,9 @@ class VisualSegmentationDataset(ClarifaiDataset):
 
     return input_mask_proto
 
-  def _get_input_protos(self) -> Tuple[Iterator, Iterator]:
+  def _extract_protos(self) -> None:
     """
     Create input image and annotation protos for each data generator item.
-    Returns:
-      Input and Annotation proto iterators.
     """
     for i, item in tqdm(enumerate(self.datagen_object), desc="Creating input protos..."):
       metadata = Struct()
@@ -245,17 +238,16 @@ class VisualSegmentationDataset(ClarifaiDataset):
       metadata.update({"filename": os.path.basename(image), "split": self.split})
       geo_info = item.geo_info
 
+      self.input_ids.append(input_id)
       input_image_proto = self.create_input_protos(image, input_id, self.dataset_id, geo_info,
                                                    metadata)
-      self._all_input_protos.append(input_image_proto)
+      self._all_input_protos[input_id] = input_image_proto
 
       ## Iterate over each masked image and create a proto for upload to clarifai
       ## The length of masks/polygons-list and labels must be equal
       for i, _polygon in enumerate(_polygons):
         try:
           input_mask_proto = self.create_mask_proto(labels[i], _polygon, input_id, self.dataset_id)
-          self._mask_protos.append(input_mask_proto)
+          self._all_annotation_protos[input_id].append(input_mask_proto)
         except IndexError:
           continue
-
-    return iter(self._all_input_protos), iter(self._mask_protos)
