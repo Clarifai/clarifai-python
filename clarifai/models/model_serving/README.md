@@ -26,7 +26,7 @@ $ export CLARIFAI_USER_ID=<your clarifai user_id>
 $ export CLARIFAI_APP_ID=<your clarifai app_id>
 $ export CLARIFAI_PAT=<your clarifai PAT>
 ```
-7. Upload your model Clarifai.
+7. Upload your model to Clarifai. Please ensure that your configuration field maps adhere to [this](https://github.com/Clarifai/clarifai-python-utils/blob/main/clarifai/models/model_serving/model_config/deploy.py)
 ```console
 $ clarifai-upload-model --url <URL to your model zip. Your zip file name is expected to have "zipfile_name" format (in clarifai-triton-zip), if not you need to specify your model_id and model_type> \
     --model_id <Your model ID on the platform> \

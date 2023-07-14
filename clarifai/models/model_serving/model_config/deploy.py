@@ -37,13 +37,15 @@ class ClarifaiFieldsMap:
     Set mapping of clarifai in/output vs triton in/output
     """
     if self.model_type == "visual-detector":
-      self.input_fields_map = ["image", "image"]
-      self.output_fields_map = [["regions[...].region_info.bounding_box", "predicted_bboxes"],
-                                ["regions[...].data.concepts[...].id", "predicted_labels"],
-                                ["regions[...].data.concepts[...].value", "predicted_scores"]]
+      self.input_fields_map = {"image": "image"}
+      self.output_fields_map = {
+          "regions[...].region_info.bounding_box": "predicted_bboxes",
+          "regions[...].data.concepts[...].id": "predicted_labels",
+          "regions[...].data.concepts[...].value": "predicted_scores"
+      }
     elif self.model_type == "visual-classifier":
-      self.input_fields_map = ["image", "image"]
-      self.output_fields_map = ["concepts", "softmax_predictions"]
+      self.input_fields_map = {"image": "image"}
+      self.output_fields_map = {"concepts": "softmax_predictions"}
     elif self.model_type == "text-classifier":
-      self.input_fields_map = ["text", "text"]
-      self.output_fields_map = ["concepts", "softmax_predictions"]
+      self.input_fields_map = {"text": "text"}
+      self.output_fields_map = {"concepts": "softmax_predictions"}

@@ -12,7 +12,7 @@
 # limitations under the License.
 """Interface to Clarifai Models API."""
 
-from typing import Dict, List, Type
+from typing import Dict, Type
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from google.protobuf.json_format import MessageToDict
@@ -100,83 +100,108 @@ class Models:
         "Output Metadata": out_dims_dtype
     }
 
-  def post_model(
+  def init_model(
       self,
       model_id: str,
-      model_zip_url: str,
       model_type: str,
-      input: List,
-      outputs: List,
       description: str = "",
   ):
-    """Post a new trained model to the Clarifai platform.
+    """Init a new model on Clarifai platform.
 
     Args:
         model_id (str): Clarifai model id
-        model_zip_url (str): url of zip of model
         model_type (str): Clarifai model type
-        input (List): list of a pair of clarifai input field and triton model input,
-            [clarifai_input_field, triton_input_filed]
-        outputs (List): list of pairs of clarifai output fields and triton model outputs,
-            [[clarifai_output_field1, triton_output_filed1],[clarifai_output_field2, triton_output_filed2],...]
         description (str, optional): a description of the model. Defaults to "".
 
     Returns:
         dict: Clarifai api response
     """
-
-    def _parse_fields_map(x):
-      """parse input, outputs to Struct"""
-      _fields_map = Struct()
-      if not isinstance(x[0], list):
-        x = [x]
-      for field, mapping in x:
-        _fields_map.update({field: mapping})
-      return _fields_map
-
-    input_fields_map = _parse_fields_map(input)
-    output_fields_map = _parse_fields_map(outputs)
     user_data_object = self.auth.get_user_app_id_proto()
     post_models_response = self.stub.PostModels(
         service_pb2.PostModelsRequest(
             user_app_id=user_data_object,
-            models=[
-                resources_pb2.Model(
-                    id=model_id,
-                    notes=description,
-                    model_type_id=model_type,
-                    model_version=resources_pb2.ModelVersion(
-                        pretrained_model_config=resources_pb2.PretrainedModelConfig(
-                            model_zip_url=model_zip_url,
-                            input_fields_map=input_fields_map,
-                            output_fields_map=output_fields_map)))
-            ]),
+            models=[resources_pb2.Model(id=model_id, notes=description,
+                                        model_type_id=model_type)]),
         metadata=self.auth.metadata)
 
     return MessageToDict(post_models_response, preserving_proto_field_name=True)
 
-  def post_model_version(self, model_id: str, model_zip_url: str):
+  def post_model_version(
+      self,
+      model_id: str,
+      model_zip_url: str,
+      input: dict,
+      outputs: dict,
+  ):
     """Post a new version of an existing model in the Clarifai platform.
 
     Args:
         model_id (str): Clarifai model id
         model_zip_url (str]): url of zip of model
+        model_zip_url (str): url of zip of model
+        input (dict): a dict where the key is clarifai input field and the value is triton model input,
+            {clarifai_input_field: triton_input_filed}.
+        outputs (dict): a dict where the keys are clarifai output fields and the values are triton model outputs,
+            {clarifai_output_field1: triton_output_filed1, clarifai_output_field2: triton_output_filed2,...}.
 
     Returns:
         dict: clarifai api response
     """
     user_data_object = self.auth.get_user_app_id_proto()
+
+    def _parse_fields_map(x):
+      """parse input, outputs to Struct"""
+      _fields_map = Struct()
+      _fields_map.update(x)
+      return _fields_map
+
+    input_fields_map = _parse_fields_map(input)
+    output_fields_map = _parse_fields_map(outputs)
     post_model_versions = self.stub.PostModelVersions(
         service_pb2.PostModelVersionsRequest(
             user_app_id=user_data_object,
             model_id=model_id,
             model_versions=[
-                resources_pb2.ModelVersion(pretrained_model_config=resources_pb2.
-                                           PretrainedModelConfig(model_zip_url=model_zip_url))
+                resources_pb2.ModelVersion(
+                    pretrained_model_config=resources_pb2.PretrainedModelConfig(
+                        model_zip_url=model_zip_url,
+                        input_fields_map=input_fields_map,
+                        output_fields_map=output_fields_map))
             ]),
         metadata=self.auth.metadata)
 
     return MessageToDict(post_model_versions, preserving_proto_field_name=True)
+
+  def upload_model(
+      self,
+      model_id: str,
+      model_zip_url: str,
+      input: dict,
+      outputs: dict,
+      model_type: str,
+      description: str = "",
+  ):
+    """Doing 2 requests for initializing and creating version for a new trained model to the Clarifai platform.
+
+    Args:
+        model_id (str): Clarifai model id
+        model_zip_url (str): url of zip of model
+        input (dict): a dict where the key is clarifai input field and the value is triton model input,
+            {clarifai_input_field: triton_input_filed}
+        outputs (dict): a dict where the keys are clarifai output fields and the values are triton model outputs,
+            {clarifai_output_field1: triton_output_filed1, clarifai_output_field2: triton_output_filed2,...}
+        model_type (str): Clarifai model type.
+        description (str, optional): a description of the model. Defaults to "".
+
+    Returns:
+        dict: Clarifai api response
+    """
+    init_resp = self.init_model(model_id, model_type, description)
+    if init_resp["status"]["code"] != "SUCCESS":
+      return init_resp
+    version_resp = self.post_model_version(model_id, model_zip_url, input, outputs)
+
+    return version_resp
 
   def delete_model(self, model_id: str):
     """Delete model api by model id
