@@ -13,5 +13,26 @@ you are only steps away from using artificial intelligence to recognize your vis
 * Read the developer guide at: https://clarifai.com/developer/guide/
 
 
-[![PyPi version](https://pypip.in/v/clarifai/badge.png)](https://pypi.python.org/pypi/clarifai)
-[![Build Status](https://travis-ci.org/Clarifai/clarifai-python.svg?branch=master)](https://travis-ci.org/Clarifai/clarifai-python)
+## Getting started
+
+Here is a quick example of listing all the concepts in an application.
+
+Set some env vars first
+```cmd
+export CLARIFAI_PAT={your personal access token}
+```
+
+```python
+from clarifai.client.api import ApiClient
+
+client = ApiClient()
+
+# List all users
+print(client.list_users())
+
+# List all apps for a user
+print(client.user('user_id').list_apps())
+
+# Get an app
+app = client.user('user_id').app('app_id')
+```
