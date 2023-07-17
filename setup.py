@@ -7,7 +7,7 @@ packages = setuptools.find_namespace_packages(include=["clarifai*"])
 
 setuptools.setup(
     name="clarifai",
-    version="9.5.4",
+    version="9.6.0",
     author="Clarifai",
     author_email="support@clarifai.com",
     description="Clarifai Python Utilities",
@@ -24,7 +24,7 @@ setuptools.setup(
     license="Apache 2.0",
     python_requires='>=3.8',
     install_requires=[
-        "clarifai-grpc>=9.5.0",
+        "clarifai-grpc>=9.6.0",
         "tritonclient==2.34.0",
         "packaging",
     ],
