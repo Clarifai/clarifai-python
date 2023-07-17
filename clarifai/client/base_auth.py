@@ -1,11 +1,11 @@
-from .auth_helper import ClarifaiAuthHelper, V2Stub, RpcCallable
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 
 import grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2
-# from clarifai_grpc.grpc.api.service_pb2_grpc import V2Stub
+
+from .auth_helper import ClarifaiAuthHelper, RpcCallable, V2Stub
 
 throttle_status_codes = {
     status_code_pb2.CONN_THROTTLED,
@@ -110,16 +110,19 @@ class _RetryRpcCallable(RpcCallable):
   def __getattr__(self, name):
     return getattr(self.f, name)
 
-class BaseAuth(object):
-    def __init__(self, **kwargs) -> None:
-        self.auth_helper = ClarifaiAuthHelper(**kwargs)
-        self.max_retry_attempts = 10
-        self.STUB = self.create_stub()
-        self.metadata = self.auth_helper.metadata
-        self.userDataObject = self.auth_helper.get_user_app_id_proto()
 
-    def create_stub(self):
-        '''
+class BaseAuth(object):
+
+  def __init__(self, **kwargs) -> None:
+    self.auth_helper = ClarifaiAuthHelper(**kwargs)
+    self.max_retry_attempts = 10
+    self.STUB = self.create_stub()
+    self.metadata = self.auth_helper.metadata
+    self.userDataObject = self.auth_helper.get_user_app_id_proto()
+    self.base = self.auth_helper.base
+
+  def create_stub(self):
+    '''
         Create client stub that handles authorization and basic retries for
         unavailable or throttled connections.
 
@@ -127,7 +130,7 @@ class BaseAuth(object):
             auth_helper:  ClarifaiAuthHelper to use for auth metadata (default: from env)
             max_retry_attempts:  max attempts to retry rpcs with retryable failures
         '''
-        stub = AuthorizedStub(self.auth_helper)
-        if self.max_retry_attempts > 0:
-            return RetryStub(stub, self.max_retry_attempts)
-        return stub
+    stub = AuthorizedStub(self.auth_helper)
+    if self.max_retry_attempts > 0:
+      return RetryStub(stub, self.max_retry_attempts)
+    return stub

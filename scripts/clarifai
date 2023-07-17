@@ -3,8 +3,7 @@
 from __future__ import print_function
 
 from clarifai.errors import ApiError
-from clarifai.rest import ApiClient, TokenError, ClarifaiApp
-
+from clarifai.rest import ClarifaiApp
 """
 the clarifai command line utility
 
@@ -12,11 +11,11 @@ Basically it helps to setup the environmental variables for the API Clients
 """
 
 import os
-import sys
 import platform
-from pprint import pprint
-from configparser import ConfigParser
+import sys
 from builtins import input
+from configparser import ConfigParser
+from pprint import pprint
 from subprocess import call
 
 
@@ -160,4 +159,3 @@ def main():
 
 if __name__ == '__main__':
   main()
-

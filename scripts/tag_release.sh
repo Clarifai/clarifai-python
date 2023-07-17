@@ -6,4 +6,3 @@ release_tag="v${version}"
 
 git tag $release_tag
 git push origin $release_tag
-

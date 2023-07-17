@@ -52,8 +52,10 @@ def https_cache(cache, url):
                           % url) from e
   return url
 
+
 class V2Stub(abc.ABC):
   '''Abstract base class of clarifai api rpc client stubs'''
+
 
 class RpcCallable(abc.ABC):
   '''Abstract base class of clarifai api rpc callables'''
@@ -65,6 +67,7 @@ def _register_classes():
   for name in dir(grpc):
     if name.endswith('Callable'):
       RpcCallable.register(getattr(grpc, name))
+
 
 _register_classes()
 
@@ -182,8 +185,7 @@ Additionally, these optional params are supported:
         err_str = "There should only be 1 query param value for key '%s'" % k
         raise Exception(err_str + error_description)
     if pat == "":
-      raise Exception("You must provide 'pat' in the query params." +
-                      error_description)
+      raise Exception("You must provide 'pat' in the query params." + error_description)
     if "base" in query_params:
       base = query_params["base"][0]
     else:
@@ -224,7 +226,6 @@ Additionally, these optional params are supported:
     base = os.environ.get("CLARIFAI_API_BASE", DEFAULT_BASE)
     ui = os.environ.get("CLARIFAI_UI", DEFAULT_UI)
     return cls(user_id, app_id, pat, base, ui)
-
 
   def get_user_app_id_proto(
       self,
