@@ -1,38 +1,29 @@
-import setuptools
+import sys
 
-with open("README.md", "r") as fh:
-  long_description = fh.read()
+from setuptools import find_packages
 
-packages = setuptools.find_namespace_packages(include=["clarifai*"])
+try:
+  from setuptools import setup
+except ImportError:
+  from distutils.core import setup
 
-setuptools.setup(
+has_enum = sys.version_info >= (3, 4)
+has_typing = sys.version_info >= (3, 5)
+
+setup(
     name="clarifai",
-    version="9.7.0",
-    author="Clarifai",
-    author_email="support@clarifai.com",
-    description="Clarifai Python Utilities",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
-    url="https://github.com/Clarifai/clarifai-python-utils",
-    packages=packages,
-    classifiers=[
-        "Topic :: Scientific/Engineering :: Artificial Intelligence",
-        "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: Apache Software License",
-        "Operating System :: OS Independent",
-    ],
-    license="Apache 2.0",
-    python_requires='>=3.8',
+    description='Clarifai API Python Client',
+    version='2.6.2',
+    author='Clarifai',
+    maintainer='Robert Wen',
+    maintainer_email='robert@clarifai.com',
+    url='https://github.com/clarifai/clarifai-python',
+    author_email='support@clarifai.com',
     install_requires=[
-        "clarifai-grpc>=9.7.0",
-        "tritonclient==2.34.0",
-        "packaging",
-    ],
-    entry_points={
-        "console_scripts": [
-            "clarifai-model-upload-init = clarifai.models.model_serving.cli.repository:model_upload_init",
-            "clarifai-triton-zip = clarifai.models.model_serving.cli.model_zip:main",
-            "clarifai-upload-model = clarifai.models.model_serving.cli.deploy_cli:main"
-        ],
-    },
-    include_package_data=True)
+        'future>=0.15, <2', 'requests>=2.13, <3', 'configparser>=3.5, <4', 'jsonschema>=2.5, <3',
+        'grpcio>=1.13.0, <2', 'protobuf>=3.6, <4', 'googleapis-common-protos>=1.5.0, <2'
+    ] + ([] if has_enum else ['enum34>=1.1, <2']) + ([] if has_typing else ['typing>=3.6']),
+    packages=find_packages(),
+    license="Apache 2.0",
+    scripts=['scripts/clarifai'],
+)
