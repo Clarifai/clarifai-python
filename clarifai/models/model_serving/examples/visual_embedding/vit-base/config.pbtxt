@@ -1,0 +1,22 @@
+name: "vit-base"
+max_batch_size: 1
+input {
+  name: "image"
+  data_type: TYPE_UINT8
+  dims: -1
+  dims: -1
+  dims: 3
+}
+output {
+  name: "embeddings"
+  data_type: TYPE_FP32
+  dims: -1
+}
+instance_group {
+  count: 1
+  kind: KIND_GPU
+}
+dynamic_batching {
+  max_queue_delay_microseconds: 500
+}
+backend: "python"

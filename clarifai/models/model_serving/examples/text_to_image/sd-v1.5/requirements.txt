@@ -1,0 +1,5 @@
+clarifai>9.5.3
+tritonclient[all]
+transformers==4.30.2
+Pillow==10.0.0
+diffusers==0.19.0

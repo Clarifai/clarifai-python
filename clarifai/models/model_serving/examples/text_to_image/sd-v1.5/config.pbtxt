@@ -1,0 +1,22 @@
+name: "sd-v1.5"
+max_batch_size: 1
+input {
+  name: "text"
+  data_type: TYPE_STRING
+  dims: 1
+}
+output {
+  name: "image"
+  data_type: TYPE_UINT8
+  dims: -1
+  dims: -1
+  dims: 3
+}
+instance_group {
+  count: 1
+  kind: KIND_GPU
+}
+dynamic_batching {
+  max_queue_delay_microseconds: 500
+}
+backend: "python"

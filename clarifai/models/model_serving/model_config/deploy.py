@@ -36,16 +36,40 @@ class ClarifaiFieldsMap:
     """
     Set mapping of clarifai in/output vs triton in/output
     """
+    text_input_fields = {"text": "text"}
+    image_input_fields = {"image": "image"}
+
+    embedding_output_fields = {"embeddings": "embeddings"}
+
     if self.model_type == "visual-detector":
-      self.input_fields_map = {"image": "image"}
+      self.input_fields_map = image_input_fields
       self.output_fields_map = {
           "regions[...].region_info.bounding_box": "predicted_bboxes",
           "regions[...].data.concepts[...].id": "predicted_labels",
           "regions[...].data.concepts[...].value": "predicted_scores"
       }
     elif self.model_type == "visual-classifier":
-      self.input_fields_map = {"image": "image"}
+      self.input_fields_map = image_input_fields
       self.output_fields_map = {"concepts": "softmax_predictions"}
     elif self.model_type == "text-classifier":
-      self.input_fields_map = {"text": "text"}
+      self.input_fields_map = text_input_fields
       self.output_fields_map = {"concepts": "softmax_predictions"}
+    elif self.model_type == "text-embedder":
+      self.input_fields_map = text_input_fields
+      self.output_fields_map = embedding_output_fields
+    elif self.model_type == "text-to-text":
+      self.input_fields_map = text_input_fields
+      # input and output fields are the same for text-to-text
+      self.output_fields_map = text_input_fields
+    elif self.model_type == "text-to-image":
+      self.input_fields_map = text_input_fields
+      # image output fields match image_input fields
+      self.output_fields_map = image_input_fields
+    elif self.model_type == "visual-embedder":
+      self.input_fields_map = image_input_fields
+      self.output_fields_map = embedding_output_fields
+    elif self.model_type == "visual-segmenter":
+      self.input_fields_map = image_input_fields
+      self.output_fields_map = {
+          "regions[...].region_info.mask,regions[...].data.concepts": "predicted_mask"
+      }

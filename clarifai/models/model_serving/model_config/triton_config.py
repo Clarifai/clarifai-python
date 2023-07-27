@@ -163,3 +163,33 @@ class TritonModelConfig:
       # with each value being the confidence for the respective model output.
       del pred_labels.labels
       self.output.append(pred_labels)
+
+    elif self.model_type == "text-to-text":
+      self.input.append(text_input)
+      pred_text = OutputConfig(name="text", data_type="TYPE_STRING", dims=[1], labels=False)
+      self.output.append(pred_text)
+
+    elif self.model_type == "text-embedder":
+      self.input.append(text_input)
+      embedding_vector = OutputConfig(
+          name="embeddings", data_type="TYPE_FP32", dims=[-1], labels=False)
+      self.output.append(embedding_vector)
+
+    elif self.model_type == "text-to-image":
+      self.input.append(text_input)
+      gen_image = OutputConfig(
+          name="image", data_type="TYPE_UINT8", dims=[-1, -1, 3], labels=False)
+      self.output.append(gen_image)
+
+    elif self.model_type == "visual-embedder":
+      self.input.append(image_input)
+      embedding_vector = OutputConfig(
+          name="embeddings", data_type="TYPE_FP32", dims=[-1], labels=False)
+      self.output.append(embedding_vector)
+
+    elif self.model_type == "visual-segmenter":
+      self.input.append(image_input)
+      pred_masks = OutputConfig(
+          name="predicted_mask", data_type="TYPE_INT64", dims=[-1, -1], labels=True)
+      del pred_masks.labels
+      self.output.append(pred_masks)

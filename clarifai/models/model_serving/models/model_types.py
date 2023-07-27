@@ -112,3 +112,125 @@ def text_classifier(func: Callable):
     return inference_response
 
   return parse_predictions
+
+
+def text_to_text(func: Callable):
+  """
+  Text to text type output parser.
+  Convert a sequence of text into another e.g. text generation,
+  summarization or translation.
+  """
+
+  @wraps(func)
+  def parse_predictions(self, input_data: np.ndarray):
+    """
+    Format predictions and return clarifai compatible output.
+    """
+    out_text = []
+    input_data = [in_elem[0].decode() for in_elem in input_data]
+    for item in input_data:
+      preds = func(self, item)
+      out_text.append(preds.predicted_text)
+
+    out_text_tensor = pb_utils.Tensor("text", np.asarray(out_text, dtype=object))
+    inference_response = pb_utils.InferenceResponse(output_tensors=[out_text_tensor])
+
+    return inference_response
+
+  return parse_predictions
+
+
+def text_embedder(func: Callable):
+  """
+  Text embedder type output parser.
+  Generates embeddings for an input text.
+  """
+
+  @wraps(func)
+  def parse_predictions(self, input_data: np.ndarray):
+    """
+    Format predictions and return clarifai compatible output.
+    """
+    out_embeddings = []
+    input_data = [in_elem[0].decode() for in_elem in input_data]
+    for item in input_data:
+      preds = func(self, item)
+      out_embeddings.append(preds.embedding_vector)
+
+    out_embed_tensor = pb_utils.Tensor("embeddings", np.asarray(out_embeddings, dtype=np.float32))
+    inference_response = pb_utils.InferenceResponse(output_tensors=[out_embed_tensor])
+
+    return inference_response
+
+  return parse_predictions
+
+
+def visual_embedder(func: Callable):
+  """
+  Visual embedder type output parser.
+  Generates embeddings for an input image.
+  """
+
+  @wraps(func)
+  def parse_predictions(self, input_data: np.ndarray):
+    """
+    Format predictions and return clarifai compatible output.
+    """
+    out_embeddings = []
+    for item in input_data:
+      preds = func(self, item)
+      out_embeddings.append(preds.embedding_vector)
+
+    out_embed_tensor = pb_utils.Tensor("embeddings", np.asarray(out_embeddings, dtype=np.float32))
+    inference_response = pb_utils.InferenceResponse(output_tensors=[out_embed_tensor])
+
+    return inference_response
+
+  return parse_predictions
+
+
+def visual_segmenter(func: Callable):
+  """
+  Visual segmenter type output parser.
+  """
+
+  @wraps(func)
+  def parse_predictions(self, input_data: np.ndarray):
+    """
+    Format predictions and return clarifai compatible output.
+    """
+    masks = []
+    for item in input_data:
+      preds = func(self, item)
+      masks.append(preds.predicted_mask)
+
+    out_mask_tensor = pb_utils.Tensor("predicted_mask", np.asarray(masks, dtype=np.int64))
+    inference_response = pb_utils.InferenceResponse(output_tensors=[out_mask_tensor])
+
+    return inference_response
+
+  return parse_predictions
+
+
+def text_to_image(func: Callable):
+  """
+  Text to image type output parser.
+  """
+
+  @wraps(func)
+  def parse_predictions(self, input_data: np.ndarray):
+    """
+    Format predictions and return clarifai compatible output.
+    """
+    gen_images = []
+    input_data = [in_elem[0].decode() for in_elem in input_data]
+    for item in input_data:
+      preds = func(self, item)
+      gen_images.append(preds.image)
+
+    out_image_tensor = pb_utils.Tensor("image", np.asarray(gen_images, dtype=np.uint8))
+    inference_response = pb_utils.InferenceResponse(output_tensors=[out_image_tensor])
+
+    return inference_response
+
+  return parse_predictions

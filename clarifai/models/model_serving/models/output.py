@@ -59,3 +59,65 @@ class ClassifierOutput:
     """
     assert self.predicted_scores.ndim == 1, \
       f"All predictions must be 1-dimensional, Got scores-dims: {self.predicted_scores.ndim} instead."
+
+
+@dataclass
+class TextOutput:
+  """
+  Takes model text predictions
+  """
+  predicted_text: np.ndarray
+
+  def __post_init__(self):
+    """
+    Validate input upon initialization.
+    """
+    assert self.predicted_text.ndim == 1, \
+      f"All predictions must be 1-dimensional, Got text-dims: {self.predicted_text.ndim} instead."
+
+
+@dataclass
+class EmbeddingOutput:
+  """
+  Takes embedding vector returned by a model.
+  """
+  embedding_vector: np.ndarray
+
+  def __post_init__(self):
+    """
+    Validate input upon initialization.
+    """
+    assert self.embedding_vector.ndim == 1, \
+      f"Embeddings must be 1-dimensional, Got embedding-dims: {self.embedding_vector.ndim} instead."
+
+
+@dataclass
+class MasksOutput:
+  """
+  Takes image segmentation masks returned by a model.
+  """
+  predicted_mask: np.ndarray
+
+  def __post_init__(self):
+    """
+    Validate input upon initialization.
+    """
+    assert self.predicted_mask.ndim == 2, \
+      f"predicted_mask must be 2-dimensional, Got mask dims: {self.predicted_mask.ndim} instead."
+
+
+@dataclass
+class ImageOutput:
+  """
+  Takes a predicted/generated image array as returned by a model.
+  """
+  image: np.ndarray
+
+  def __post_init__(self):
+    """
+    Validate input upon initialization.
+    """
+    assert self.image.ndim == 3, \
+      f"Generated image must be 3-dimensional, Got image-dims: {self.image.ndim} instead."
+    assert self.image.shape[2] == 3, \
+      f"The image channels dimension must equal 3, Got channel dim: {self.image.shape[2]} instead."

@@ -18,3 +18,11 @@ from clarifai.models.model_serving.models.output import VisualDetectorOutput
 | | | | | |
 | [ClassifierOutput](../models/output.py) | `predicted_scores` | float32 | [-1] | The softmax of the model's predictions. The index of each predicted probability as returned by the model must correspond to the label index in the labels.txt file |
 | | | | | |
+| [TextOutput](../models/output.py) | `predicted_text` | string | [1] | Predicted text from a model |
+| | | | | |
+| [EmbeddingOutput](../models/output.py) | `embedding_vector` | float32 | [-1] | The embedding vector (image or text embedding) returned by a model |
+| | | | | |
+| [MasksOutput](../models/output.py) | `predicted_mask` | int64 | [-1, -1] | The model predicted image mask. The predicted class indices must be assigned to the corresponding image pixels in the mask where that class is predicted by the model. |
+| | | | | |
+| [ImageOutput](../models/output.py) | `image` | unint8 | [-1, -1, 3] | The model predicted/generated image |
+| | | | | |

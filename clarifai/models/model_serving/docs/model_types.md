@@ -12,3 +12,8 @@ Clarifai [model types](../models/model_types.py) are decorator functions that ar
 - visual_detector
 - visual_classifier
 - text_classifier
+- text_to_text
+- text_embedder
+- text_to_image
+- visual_embedder
+- visual_segmenter
