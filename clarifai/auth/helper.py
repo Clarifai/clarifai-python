@@ -131,7 +131,7 @@ class ClarifaiAuthHelper:
 
     # Then add in the query params.
     try:
-      auth = auth.add_streamlit_query_params(query_params)
+      auth.add_streamlit_query_params(st.experimental_get_query_params())
     except Exception as e:
       st.error(e)
       st.stop()
@@ -165,7 +165,7 @@ class ClarifaiAuthHelper:
     auth = ClarifaiAuthHelper("", "", "", "", validate=False)
 
     # Then add in the query params.
-    auth = auth.add_streamlit_query_params(query_params)
+    auth.add_streamlit_query_params(query_params)
 
     # Then validate.
     auth.validate()
@@ -238,7 +238,7 @@ Additionally, these optional params are supported:
 """
     user_id = os.environ.get("CLARIFAI_USER_ID", "")
     app_id = os.environ.get("CLARIFAI_APP_ID", "")
-    token = os.environ("CLARIFAI_SESSION_TOKEN", "")
+    token = os.environ.get("CLARIFAI_SESSION_TOKEN", "")
     pat = os.environ.get("CLARIFAI_PAT", "")
     base = os.environ.get("CLARIFAI_API_BASE", DEFAULT_BASE)
     ui = os.environ.get("CLARIFAI_UI", DEFAULT_UI)
