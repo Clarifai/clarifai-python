@@ -1,6 +1,5 @@
 import logging
-import sys
-from typing import NoReturn, Optional
+from typing import Optional
 
 from rich.logging import RichHandler
 from rich.table import Table
@@ -10,9 +9,7 @@ install()
 
 
 def table_from_dict(data, column_names, title="") -> Table:
-  """
-  Use this function for printing tables from a list of dicts.
-  """
+  """Use this function for printing tables from a list of dicts."""
   table = Table(title=title, show_header=True, header_style="bold blue")
   for column_name in column_names:
     table.add_column(column_name)
@@ -27,13 +24,12 @@ def _get_library_name() -> str:
 
 
 def _configure_logger() -> None:
-  logging.basicConfig(level="NOTSET", datefmt='%Y-%m-%d %H:%M:%S', handlers=[RichHandler(rich_tracebacks=True)])
+  logging.basicConfig(
+      level="NOTSET", datefmt='%Y-%m-%d %H:%M:%S', handlers=[RichHandler(rich_tracebacks=True)])
 
 
 def get_logger(name: Optional[str] = None) -> logging.Logger:
-  """
-    Return a logger with the specified name.
-    """
+  """Return a logger with the specified name."""
 
   if name is None:
     name = _get_library_name()
