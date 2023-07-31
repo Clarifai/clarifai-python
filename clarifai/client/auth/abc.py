@@ -5,11 +5,11 @@ from clarifai_grpc.grpc.api import service_pb2_grpc
 
 
 class V2Stub(abc.ABC):
-  '''Abstract base class of clarifai api rpc client stubs'''
+  """Abstract base class of clarifai api rpc client stubs"""
 
 
 class RpcCallable(abc.ABC):
-  '''Abstract base class of clarifai api rpc callables'''
+  """Abstract base class of clarifai api rpc callables"""
 
 
 # add grpc classes as subclasses of the abcs, so they also succeed in isinstance calls

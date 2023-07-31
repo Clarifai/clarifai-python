@@ -21,14 +21,14 @@ _threadpool = ThreadPoolExecutor(100)
 
 
 def create_stub(auth_helper: ClarifaiAuthHelper = None, max_retry_attempts: int = 10) -> V2Stub:
-  '''
+  """
   Create client stub that handles authorization and basic retries for
   unavailable or throttled connections.
 
   Args:
     auth_helper:  ClarifaiAuthHelper to use for auth metadata (default: from env)
     max_retry_attempts:  max attempts to retry rpcs with retryable failures
-  '''
+  """
   stub = AuthorizedStub(auth_helper)
   if max_retry_attempts > 0:
     return RetryStub(stub, max_retry_attempts)
@@ -36,9 +36,7 @@ def create_stub(auth_helper: ClarifaiAuthHelper = None, max_retry_attempts: int 
 
 
 class AuthorizedStub(V2Stub):
-  '''
-  V2Stub proxy that inserts metadata authorization in rpc calls.
-  '''
+  """V2Stub proxy that inserts metadata authorization in rpc calls."""
 
   def __init__(self, auth_helper: ClarifaiAuthHelper = None):
     if auth_helper is None:
@@ -54,9 +52,7 @@ class AuthorizedStub(V2Stub):
 
 
 class _AuthorizedRpcCallable(RpcCallable):
-  """
-    Adds metadata(authorization header) to rpc calls
-  """
+  """Adds metadata(authorization header) to rpc calls"""
 
   def __init__(self, func, metadata):
     self.f = func
@@ -78,9 +74,9 @@ class _AuthorizedRpcCallable(RpcCallable):
 
 
 class RetryStub(V2Stub):
-  '''
+  """
   V2Stub proxy that retries requests (currently on unavailable server or throttle codes)
-  '''
+  """
 
   def __init__(self, stub, max_attempts=10, backoff_time=5):
     self.stub = stub
@@ -95,9 +91,7 @@ class RetryStub(V2Stub):
 
 
 class _RetryRpcCallable(RpcCallable):
-  """
-    Retries rpc calls on unavailable server or throttle codes
-  """
+  """Retries rpc calls on unavailable server or throttle codes"""
 
   def __init__(self, func, max_attempts, backoff_time):
     self.f = func

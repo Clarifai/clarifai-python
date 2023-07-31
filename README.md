@@ -22,5 +22,6 @@ export CLARIFAI_PAT={your personal access token}
 ```
 
 ```python
-client = UserApi(user_id="user_id")
+from clarifai.client.user import User
+client = User(user_id="user_id")
 ```

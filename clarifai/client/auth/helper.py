@@ -15,17 +15,13 @@ ui_https_cache = {}
 
 
 def clear_cache() -> None:
-  """
-    Clears the cache.
-  """
+  """Clears the cache."""
   base_https_cache.clear()
   ui_https_cache.clear()
 
 
 def https_cache(cache: dict, url: str) -> str:
-  """
-    This is a helper function to cache whether a url is http or https.
-  """
+  """This is a helper function to cache whether a url is http or https."""
   HTTPS = True
   HTTP = False
 
@@ -69,24 +65,24 @@ class ClarifaiAuthHelper:
       ui: str = DEFAULT_UI,
   ):
     """
-        A helper to get the authorization information needed to make API calls with the grpc
-        client to a specific app using a personal access token.
+    A helper to get the authorization information needed to make API calls with the grpc
+    client to a specific app using a personal access token.
 
-        There are classmethods to make this object easily from either query_params provided by streamlit or from env vars.
+    There are classmethods to make this object easily from either query_params provided by streamlit or from env vars.
 
-        Note: only one of personal access token (pat) or a session token (token) can be provided.
-        Always use PATs in your code and never session tokens, those are only provided internal UI code.
+    Note: only one of personal access token (pat) or a session token (token) can be provided.
+    Always use PATs in your code and never session tokens, those are only provided internal UI code.
 
-        Args:
-          user_id: a user id who owns the resource you want to make calls to.
-          app_id: an app id for the application that owns the resource you want to interact with
-          pat: a personal access token.
-          token: a session token (internal use only, always use a PAT).
-          base: a url to the API endpoint to hit. Examples include api.clarifai.com,
-        https://api.clarifai.com (default), https://host:port, http://host:port, host:port (will be treated as http, not https). It's highly recommended to include the http:// or https:// otherwise we need to check the endpoint to determine if it has SSL during this __init__
-          ui: a url to the UI. Examples include clarifai.com,
-        https://clarifai.com (default), https://host:port, http://host:port, host:port (will be treated as http, not https). It's highly recommended to include the http:// or https:// otherwise we need to check the endpoint to determine if it has SSL during this __init__
-        """
+    Args:
+      user_id: a user id who owns the resource you want to make calls to.
+      app_id: an app id for the application that owns the resource you want to interact with
+      pat: a personal access token.
+      token: a session token (internal use only, always use a PAT).
+      base: a url to the API endpoint to hit. Examples include api.clarifai.com,
+    https://api.clarifai.com (default), https://host:port, http://host:port, host:port (will be treated as http, not https). It's highly recommended to include the http:// or https:// otherwise we need to check the endpoint to determine if it has SSL during this __init__
+      ui: a url to the UI. Examples include clarifai.com,
+    https://clarifai.com (default), https://host:port, http://host:port, host:port (will be treated as http, not https). It's highly recommended to include the http:// or https:// otherwise we need to check the endpoint to determine if it has SSL during this __init__
+    """
     if pat != "" and token != "":
       raise Exception(
           "A personal access token OR a session token need to be provided, but you cannot provide both."
@@ -107,16 +103,17 @@ class ClarifaiAuthHelper:
 
   @classmethod
   def from_streamlit(cls, st: Any, fallback_to_envvars: bool = True) -> "ClarifaiAuthHelper":
-    """This is a convenient method to check the query params from streamlit for the required
-        parameters for authentication, and then optional fallback to checking environment variables as
-        well if needed.
-        Args:
-          st: the streamlit package typically as: 'import streamlit as st'
-          fallback_to_envvars: if True then when the sufficient query params are not present it will
-        check env vars. If False then we raise the query param exception directly.
-        Returns:
-          auth: this class instantiated
-        """
+    """
+    This is a convenient method to check the query params from streamlit for the required
+    parameters for authentication, and then optional fallback to checking environment variables as
+    well if needed.
+    Args:
+      st: the streamlit package typically as: 'import streamlit as st'
+      fallback_to_envvars: if True then when the sufficient query params are not present it will
+    check env vars. If False then we raise the query param exception directly.
+    Returns:
+      auth: this class instantiated
+    """
     try:
       auth = cls.from_streamlit_query_params(st.experimental_get_query_params())
     except Exception as e:
@@ -138,19 +135,20 @@ class ClarifaiAuthHelper:
 
   @classmethod
   def from_streamlit_query_params(cls, query_params: Any = "") -> "ClarifaiAuthHelper":
-    """Initialize from streamlit queryparams. The following things will be looked for:
-          user_id: as 'user_id' in query_params
-          app_id: as 'app_id' in query_params
-          one of:
-            token: as 'token' in query_params
-            pat: as 'pat' in query_params
-          optionally:
-            base: as 'base' in query_params.
+    """
+    Initialize from streamlit queryparams. The following things will be looked for:
+    user_id: as 'user_id' in query_params
+    app_id: as 'app_id' in query_params
+    one of:
+      token: as 'token' in query_params
+      pat: as 'pat' in query_params
+    optionally:
+      base: as 'base' in query_params.
 
-        Args:
-          query_params: the streamlit.experimental_get_query_params() response or an empty dict to fall
-        back to using env vars.
-        """
+    Args:
+      query_params: the streamlit.experimental_get_query_params() response or an empty dict to fall
+    back to using env vars.
+    """
     error_description = """
 Please check the following required query params are in the url:
  - 'user_id': the user ID accessing the module.
@@ -199,14 +197,15 @@ Additionally, these optional params are supported:
 
   @classmethod
   def from_env(cls) -> "ClarifaiAuthHelper":
-    """Will look for the following env vars:
-        user_id: CLARIFAI_USER_ID env var.
-        app_id: CLARIFAI_APP_ID env var.
-        one of:
-          token: CLARIFAI_SESSION_TOKEN env var.
-          pat: CLARIFAI_PAT env var.
-        base: CLARIFAI_API_BASE env var.
-        """
+    """
+    Will look for the following env vars:
+    user_id: CLARIFAI_USER_ID env var.
+    app_id: CLARIFAI_APP_ID env var.
+    one of:
+      token: CLARIFAI_SESSION_TOKEN env var.
+      pat: CLARIFAI_PAT env var.
+    base: CLARIFAI_API_BASE env var.
+    """
     error_description = """
 Please check the following required vars are in your env:
  - 'CLARIFAI_USER_ID': the user ID accessing the module.
@@ -242,15 +241,15 @@ Additionally, these optional params are supported:
       app_id: str = None,
   ) -> resources_pb2.UserAppIDSet:
     """
-        Get the gRPC metadata that contains either the session token or the PAT to use.
+    Get the gRPC metadata that contains either the session token or the PAT to use.
 
-        Args:
-          user_id: optional user_id to override the default
-          app_id: optional app_id to override the default.
+    Args:
+      user_id: optional user_id to override the default
+      app_id: optional app_id to override the default.
 
-        Returns:
-          metadata: the metadata need to send with all grpc API calls in the API client.
-        """
+    Returns:
+      metadata: the metadata need to send with all grpc API calls in the API client.
+    """
     user_id = self.user_id if user_id is None else user_id
     app_id = self.app_id if app_id is None else app_id
     return resources_pb2.UserAppIDSet(user_id=user_id, app_id=app_id)
@@ -258,11 +257,11 @@ Additionally, these optional params are supported:
   @property
   def metadata(self):
     """
-        Get the gRPC metadata that contains either the session token or the PAT to use.
+    Get the gRPC metadata that contains either the session token or the PAT to use.
 
-        Returns:
-          metadata: the metadata need to send with all grpc API calls in the API client.
-        """
+    Returns:
+      metadata: the metadata need to send with all grpc API calls in the API client.
+    """
     if self._pat != "":
       return (("authorization", "Key %s" % self._pat),)
     elif self._token != "":
@@ -272,11 +271,11 @@ Additionally, these optional params are supported:
 
   def get_stub(self) -> service_pb2_grpc.V2Stub:
     """
-        Get the API gRPC stub using the right channel based on the API endpoint base.
+    Get the API gRPC stub using the right channel based on the API endpoint base.
 
-        Returns:
-          stub: The service_pb2_grpc.V2Stub stub for the API.
-        """
+    Returns:
+      stub: The service_pb2_grpc.V2Stub stub for the API.
+    """
     if self._base not in base_https_cache:
       raise Exception("Cannot determine if base %s is https" % self._base)
 
