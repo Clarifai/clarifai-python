@@ -1,4 +1,4 @@
-clarifai-grpc==9.6.0
+clarifai-grpc==9.6.1
 pandas==1.3.5
 numpy==1.22.0
 tqdm==4.64.1
