@@ -12,9 +12,9 @@ The Clarifai Python SDK offers a comprehensive set of tools to integrate Clarifa
 * Read the developer guide at: https://clarifai.com/developer/guide/
 
 ## Getting started
-Clarifai uses Personal Access Token(PAT) to validate requests. You can create and manage PATs on Clarifai account.
+Clarifai uses Personal Access Tokens(PATs) to validate requests. You can create and manage PATs under your Clarifai account security settings.
 
-Pass your PAT as an environment variable. Then, import and initialize the API Client.
+Export your PAT as an environment variable. Then, import and initialize the API Client.
 
 
 ```cmd
