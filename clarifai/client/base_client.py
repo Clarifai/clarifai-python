@@ -1,10 +1,18 @@
+from pprint import pformat
+from typing import Any, Callable
+
+from google.protobuf.json_format import MessageToDict
+
 from clarifai.client.auth import create_stub
 from clarifai.client.auth.helper import ClarifaiAuthHelper
+from clarifai.errors import ApiError
+from clarifai.utils.logging import get_logger
+
+logger = get_logger("ERROR", __name__)
 
 
-class BaseAuth:
-  """
-  BaseAuth is the base class for all the classes interacting with Clarifai endpoints.
+class BaseClient:
+  """BaseClient is the base class for all the classes interacting with Clarifai endpoints.
 
   Parameters:
       **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
@@ -28,3 +36,20 @@ class BaseAuth:
     self.metadata = self.auth_helper.metadata
     self.userDataObject = self.auth_helper.get_user_app_id_proto()
     self.base = self.auth_helper.base
+
+  def _grpc_request(self, method: Callable, argument: Any):
+    """Makes a gRPC request to the API.
+    Args:
+        method (Callable): The gRPC method to call.
+        argument (Any): The argument to pass to the gRPC method.
+    Returns:
+        res (Any): The result of the gRPC method call.
+    """
+
+    try:
+      res = method(argument)
+      dict_res = MessageToDict(res)
+      logger.debug("\nRESULT:\n%s", pformat(dict_res))
+      return res
+    except ApiError:
+      logger.exception("ApiError")
