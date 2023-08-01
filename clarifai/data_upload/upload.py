@@ -14,7 +14,7 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from google.protobuf.json_format import MessageToDict
 from tqdm import tqdm
-
+from clarifai.auth.helper import ClarifaiAuthHelper
 from clarifai.client import create_stub
 from clarifai.data_upload.datasets.base import Chunker
 from clarifai.data_upload.datasets.image import (VisualClassificationDataset,
@@ -92,7 +92,7 @@ class UploadConfig:
       from_zoo: Optional[str] = None,  # load dataset from zoo
       split: str = "train",  # train or test/val
       chunk_size: int = 128,
-      portal: str = "clarifai"):
+      base_url: str = None):
     """
     Initialize upload configs.
     Args:
@@ -122,22 +122,15 @@ class UploadConfig:
     self.annot_num_workers = 4
     self.max_retires = 10
     self.__base: str = ""
-    if portal == "dev":
-      self.__base = "https://api-dev.clarifai.com"
-    elif portal == "staging":
-      self.__base = "https://api-staging.clarifai.com"
-    else:  #prod
+    if not base_url:
       self.__base = "https://api.clarifai.com"
+    else:
+      self.__base = base_url
 
-    # Set auth vars as env variables
-    os.environ["CLARIFAI_USER_ID"] = self.USER_ID
-    os.environ["CLARIFAI_APP_ID"] = self.APP_ID
-    os.environ["CLARIFAI_API_BASE"] = self.__base
-    os.environ["CLARIFAI_PAT"] = self.PAT
-
-    self.STUB: service_pb2_grpc.V2Stub = create_stub()
-    self.metadata: Tuple = (('authorization', 'Key ' + self.PAT),)
-    self.user_app_id = resources_pb2.UserAppIDSet(user_id=self.USER_ID, app_id=self.APP_ID)
+    auth_helper = ClarifaiAuthHelper(
+        user_id=self.USER_ID, app_id=self.APP_ID, pat=self.PAT, base=self.__base)
+    self.STUB: service_pb2_grpc.V2Stub = create_stub(auth_helper)
+    self.user_app_id = auth_helper.get_user_app_id_proto()
 
   def _upload_inputs(self, batch_input: List[resources_pb2.Input]) -> str:
     """

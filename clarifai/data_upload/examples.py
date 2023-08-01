@@ -9,9 +9,7 @@ text_upload_obj = UploadConfig(
     dataset_id="",
     task="visual_clf",
     from_module="./examples/image_classification/cifar10",
-    split="train",
-    portal="clarifai"  #clarifai(prod), dev or staging
-)
+    split="train")
 ## change the task and from_module arguments in UploadConfig() to upload
 ## example food-101 dataset
 
