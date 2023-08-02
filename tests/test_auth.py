@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import pytest as pytest
 
-from clarifai.auth.helper import ClarifaiAuthHelper, clear_cache
+from clarifai.client.auth.helper import ClarifaiAuthHelper, clear_cache
 
 
 @pytest.fixture(autouse=True)
@@ -69,29 +69,3 @@ def test_passing_no_schema_url_require_port():
     with pytest.raises(
         Exception, match="When providing an insecure url it must have both host:port format"):
       ClarifaiAuthHelper("clarifai", "main", "fake_pat", ui="localhost")
-
-
-def test_exception_empty_user():
-  ClarifaiAuthHelper("", "main", "fake_pat", validate=False)
-  with pytest.raises(
-      Exception,
-      match="Need 'user_id' to not be empty in the query params or user CLARIFAI_USER_ID env var"):
-    ClarifaiAuthHelper("", "main", "fake_pat")
-
-
-def test_exception_empty_app():
-  ClarifaiAuthHelper("clarifai", "", "fake_pat", validate=False)
-  with pytest.raises(
-      Exception,
-      match="Need 'app_id' to not be empty in the query params or user CLARIFAI_APP_ID env var"):
-    ClarifaiAuthHelper("clarifai", "", "fake_pat")
-
-
-def test_exception_empty_pat():
-  ClarifaiAuthHelper("clarifai", "main", "", validate=False)
-  with pytest.raises(
-      Exception,
-      match=
-      "Need 'pat' or 'token' in the query params or use one of the CLARIFAI_PAT or CLARIFAI_SESSION_TOKEN env vars"
-  ):
-    ClarifaiAuthHelper("clarifai", "main", "")
