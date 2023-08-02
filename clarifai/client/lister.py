@@ -5,10 +5,11 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.timestamp_pb2 import Timestamp
 
-from clarifai.client.base_client import BaseClient
+from clarifai.client.base import BaseClient
 
 
 class Lister(BaseClient):
+  """Lister class for obtaining paginated results from the Clarifai API."""
 
   def __init__(self, page_size: int = 16):
     self.default_page_size = page_size

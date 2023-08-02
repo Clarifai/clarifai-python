@@ -3,7 +3,7 @@ from typing import Any, Dict, List
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2  # noqa: F401
 
 from clarifai.client.app import App
-from clarifai.client.base_client import BaseClient
+from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
 
 
@@ -14,7 +14,7 @@ class User(Lister, BaseClient):
   """
 
   def __init__(self, user_id: str, **kwargs):
-    """Initializes a User object.
+    """Initializes an User object.
     Args:
         user_id (str): The user ID for the user to interact with.
         **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.

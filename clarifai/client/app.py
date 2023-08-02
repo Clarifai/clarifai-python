@@ -1,6 +1,6 @@
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2  # noqa: F401
 
-from clarifai.client.base_client import BaseClient
+from clarifai.client.base import BaseClient
 
 
 class App(BaseClient):
@@ -10,7 +10,7 @@ class App(BaseClient):
   """
 
   def __init__(self, app_id: str, **kwargs):
-    """Initializes a App object.
+    """Initializes an App object.
     Args:
         app_id (str): The App ID for the App to interact with.
         **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
