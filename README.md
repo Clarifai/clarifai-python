@@ -24,4 +24,7 @@ export CLARIFAI_PAT={your personal access token}
 ```python
 from clarifai.client.user import User
 client = User(user_id="user_id")
+
+# Get all apps
+apps = client.list_apps()
 ```
