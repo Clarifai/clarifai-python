@@ -8,14 +8,16 @@ class Dataset(BaseClient):
   Inherits from BaseClient for authentication purposes.
   """
 
-  def __init__(self, dataset_id: str, **kwargs):
+  def __init__(self, dataset_id: str, dataset_info: resources_pb2.Dataset = None, **kwargs):
     """Initializes an Dataset object.
     Args:
         dataset_id (str): The Dataset ID within the App to interact with.
         **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
     """
     self.kwargs = {**kwargs, 'id': dataset_id}
-    self.dataset_info = resources_pb2.Dataset(**self.kwargs)
+    self.dataset_info = resources_pb2.Dataset(
+        **self.kwargs) if dataset_info is None else dataset_info
+    super().__init__(app_id=self.app_id)
 
   def __getattr__(self, name):
     return getattr(self.dataset_info, name)

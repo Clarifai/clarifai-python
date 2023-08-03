@@ -115,7 +115,7 @@ class App(BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
 
-    return Dataset(dataset_id=dataset_id, **kwargs)
+    return Dataset(dataset_id=dataset_id, dataset_info=response.dataset)
 
   def model(self, model_id: str, **kwargs) -> Model:
     """Returns a Model object for the existing model ID.
@@ -129,7 +129,7 @@ class App(BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
 
-    return Model(model_id=model_id, **kwargs)
+    return Model(model_id=model_id, model_info=response.model)
 
   def workflow(self, workflow_id: str, **kwargs) -> Workflow:
     """Returns a workflow object for the existing workflow ID.
@@ -144,7 +144,7 @@ class App(BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
 
-    return Workflow(workflow_id=workflow_id, **kwargs)
+    return Workflow(workflow_id=workflow_id, workflow_info=response.workflow)
 
   def delete_dataset(self, dataset_id: str) -> None:
     """Deletes an dataset for the user.
