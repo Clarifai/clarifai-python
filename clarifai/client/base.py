@@ -1,4 +1,3 @@
-from pprint import pformat
 from typing import Any, Callable
 
 from google.protobuf.json_format import MessageToDict
@@ -6,9 +5,6 @@ from google.protobuf.json_format import MessageToDict
 from clarifai.client.auth import create_stub
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.errors import ApiError
-from clarifai.utils.logging import get_logger
-
-logger = get_logger("ERROR", __name__)
 
 
 class BaseClient:
@@ -48,8 +44,7 @@ class BaseClient:
 
     try:
       res = method(argument)
-      dict_res = MessageToDict(res)
-      logger.debug("\nRESULT:\n%s", pformat(dict_res))
+      MessageToDict(res)
       return res
     except ApiError:
-      logger.exception("ApiError")
+      raise Exception("ApiError")
