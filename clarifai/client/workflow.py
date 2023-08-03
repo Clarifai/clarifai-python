@@ -8,14 +8,16 @@ class Workflow(BaseClient):
   Inherits from BaseClient for authentication purposes.
   """
 
-  def __init__(self, workflow_id: str, **kwargs):
+  def __init__(self, workflow_id: str, workflow_info: resources_pb2.Workflow = None, **kwargs):
     """Initializes an Workflow object.
     Args:
         workflow_id (str): The Workflow ID to interact with.
         **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
     """
     self.kwargs = {**kwargs, 'id': workflow_id}
-    self.workflow_info = resources_pb2.Workflow(**self.kwargs)
+    self.workflow_info = resources_pb2.Workflow(
+        **self.kwargs) if workflow_info is None else workflow_info
+    super().__init__(app_id=self.app_id)
 
   def __getattr__(self, name):
     return getattr(self.workflow_info, name)
