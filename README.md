@@ -27,4 +27,8 @@ client = User(user_id="user_id")
 
 # Get all apps
 apps = client.list_apps()
+
+# Create app and dataset
+app = client.create_app(app_id="demo_app")
+dataset = app.create_dataset(dataset_id="demo_dataset")
 ```
