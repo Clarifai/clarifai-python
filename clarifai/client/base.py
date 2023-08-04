@@ -1,14 +1,12 @@
-from pprint import pformat
+from datetime import datetime
 from typing import Any, Callable
 
 from google.protobuf.json_format import MessageToDict
+from google.protobuf.timestamp_pb2 import Timestamp
 
 from clarifai.client.auth import create_stub
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.errors import ApiError
-from clarifai.utils.logging import get_logger
-
-logger = get_logger("ERROR", __name__)
 
 
 class BaseClient:
@@ -48,8 +46,64 @@ class BaseClient:
 
     try:
       res = method(argument)
-      dict_res = MessageToDict(res)
-      logger.debug("\nRESULT:\n%s", pformat(dict_res))
+      MessageToDict(res)
       return res
     except ApiError:
-      logger.exception("ApiError")
+      raise Exception("ApiError")
+
+  def convert_string_to_timestamp(self, date_str) -> Timestamp:
+    """Converts a string to a Timestamp object.
+    Args:
+        date_str (str): The string to convert.
+    Returns:
+        Timestamp: The converted Timestamp object.
+    """
+    # Parse the string into a Python datetime object
+    try:
+      datetime_obj = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S.%fZ')
+    except ValueError:
+      datetime_obj = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%SZ')
+
+    # Convert the datetime object to a Timestamp object
+    timestamp_obj = Timestamp()
+    timestamp_obj.FromDatetime(datetime_obj)
+
+    return timestamp_obj
+
+  def convert_keys_to_snake_case(self, old_dict, listing_resource):
+    """Converts keys in a dictionary to snake case.
+    Args:
+        old_dict (dict): The dictionary to convert.
+    Returns:
+        new_dict (dict): The dictionary with snake case keys.
+    """
+    old_dict[f'{listing_resource}_id'] = old_dict['id']
+    old_dict.pop('id')
+
+    def snake_case(key):
+      result = ''
+      for char in key:
+        if char.isupper():
+          result += '_' + char.lower()
+        else:
+          result += char
+      return result
+
+    def convert_recursive(item):
+      if isinstance(item, dict):
+        new_item = {}
+        for key, value in item.items():
+          if key in ['createdAt', 'modifiedAt']:
+            value = self.convert_string_to_timestamp(value)
+          if key in ['metadata', 'workflowRecommended', 'modelVersion']:
+            continue  # TODO Fix "app_duplication",modelVersion error
+          new_key = snake_case(key)
+          new_item[new_key] = convert_recursive(value)
+        return new_item
+      elif isinstance(item, list):
+        return [convert_recursive(element) for element in item]
+      else:
+        return item
+
+    new_dict = convert_recursive(old_dict)
+    return new_dict
