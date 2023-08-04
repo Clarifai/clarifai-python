@@ -8,15 +8,15 @@ class Model(BaseClient):
   Inherits from BaseClient for authentication purposes.
   """
 
-  def __init__(self, model_id: str, model_info: resources_pb2.Model = None, **kwargs):
+  def __init__(self, model_id: str, **kwargs):
     """Initializes an Model object.
     Args:
         model_id (str): The Model ID to interact with.
         **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
     """
     self.kwargs = {**kwargs, 'id': model_id}
-    self.model_info = resources_pb2.Model(**self.kwargs) if model_info is None else model_info
-    super().__init__(app_id=self.app_id)
+    self.model_info = resources_pb2.Model(**self.kwargs)
+    super().__init__(user_id=self.user_id, app_id=self.app_id)
 
   def __getattr__(self, name):
     return getattr(self.model_info, name)

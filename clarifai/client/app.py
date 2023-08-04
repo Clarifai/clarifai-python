@@ -1,5 +1,6 @@
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2  # noqa: F401
 from clarifai_grpc.grpc.api.status import status_code_pb2
+from google.protobuf.json_format import MessageToDict
 
 from clarifai.client.base import BaseClient
 from clarifai.client.dataset import Dataset
@@ -114,8 +115,11 @@ class App(BaseClient):
     response = self._grpc_request(self.STUB.GetDataset, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
+    dict_response = MessageToDict(response)
+    kwargs = self.convert_keys_to_snake_case(dict_response[list(dict_response.keys())[1]],
+                                             list(dict_response.keys())[1])
 
-    return Dataset(dataset_id=dataset_id, dataset_info=response.dataset)
+    return Dataset(**kwargs)
 
   def model(self, model_id: str, **kwargs) -> Model:
     """Returns a Model object for the existing model ID.
@@ -128,8 +132,11 @@ class App(BaseClient):
     response = self._grpc_request(self.STUB.GetModel, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
+    dict_response = MessageToDict(response)
+    kwargs = self.convert_keys_to_snake_case(dict_response[list(dict_response.keys())[1]],
+                                             list(dict_response.keys())[1])
 
-    return Model(model_id=model_id, model_info=response.model)
+    return Model(**kwargs)
 
   def workflow(self, workflow_id: str, **kwargs) -> Workflow:
     """Returns a workflow object for the existing workflow ID.
@@ -143,8 +150,11 @@ class App(BaseClient):
     response = self._grpc_request(self.STUB.GetWorkflow, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
+    dict_response = MessageToDict(response)
+    kwargs = self.convert_keys_to_snake_case(dict_response[list(dict_response.keys())[1]],
+                                             list(dict_response.keys())[1])
 
-    return Workflow(workflow_id=workflow_id, workflow_info=response.workflow)
+    return Workflow(**kwargs)
 
   def delete_dataset(self, dataset_id: str) -> None:
     """Deletes an dataset for the user.
