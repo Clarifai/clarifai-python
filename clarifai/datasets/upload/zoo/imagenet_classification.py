@@ -5,6 +5,7 @@ import os
 from clarifai.data_upload.datasets.features import VisualClassificationFeatures
 from clarifai.datasets.upload.base import ClarifaiDataLoader
 
+
 class ImageNetDataLoader(ClarifaiDataLoader):
   """ImageNet Dataset."""
 
@@ -16,7 +17,8 @@ class ImageNetDataLoader(ClarifaiDataLoader):
       split: "train" or "test"
     """
     self.split = split
-    self.data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")  # data storage directory
+    self.data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 "data")  # data storage directory
     self.label_map = dict()
     self.concepts = []
     self.image_paths = []
@@ -44,13 +46,12 @@ class ImageNetDataLoader(ClarifaiDataLoader):
           self.concepts.append(concept)
           self.image_paths.append(folder_path + "/" + _img)
 
-    assert len(self.concepts) == len(self.image_paths); "Number of concepts and images are not equal"
+    assert len(self.concepts) == len(self.image_paths)
+    "Number of concepts and images are not equal"
 
   def __len__(self):
     return len(self.image_paths)
 
   def __getitem__(self, idx):
     return VisualClassificationFeatures(
-        image_path=self.image_paths[idx],
-        label=self.concepts[idx],
-        id=None)
+        image_path=self.image_paths[idx], label=self.concepts[idx], id=None)

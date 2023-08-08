@@ -1,6 +1,6 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Iterator, List, Union, Tuple
+from typing import Iterator, List, Tuple, Union
 
 from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.struct_pb2 import Struct
@@ -45,7 +45,8 @@ class VisualClassificationDataset(ClarifaiDataset):
 
     return input_proto
 
-  def _extract_protos(self, batch_input_ids: List[str]) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:
+  def _extract_protos(self, batch_input_ids: List[str]
+                     ) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:
     """Create input image and annotation protos for batch of input ids.
     Args:
       batch_input_ids: List of input IDs to retrieve the protos for.
@@ -56,21 +57,24 @@ class VisualClassificationDataset(ClarifaiDataset):
     input_protos, annotation_protos = [], []
 
     def process_datagen_item(id):
-            datagen_item = self.datagen_object[id]
-            metadata = Struct()
-            image_path = datagen_item.image_path
-            label = datagen_item.label if isinstance(datagen_item.label, list) else [datagen_item.label]  # clarifai concept
-            input_id = f"{self.dataset_id}-{self.split}-{id}" if datagen_item.id is None else f"{self.split}-{str(datagen_item.id)}"
-            geo_info = datagen_item.geo_info
-            metadata.update({"filename": os.path.basename(image_path), "split": self.split})
+      datagen_item = self.datagen_object[id]
+      metadata = Struct()
+      image_path = datagen_item.image_path
+      label = datagen_item.label if isinstance(datagen_item.label,
+                                               list) else [datagen_item.label]  # clarifai concept
+      input_id = f"{self.dataset_id}-{self.split}-{id}" if datagen_item.id is None else f"{self.split}-{str(datagen_item.id)}"
+      geo_info = datagen_item.geo_info
+      metadata.update({"filename": os.path.basename(image_path), "split": self.split})
 
-            self.all_input_ids[id] = input_id
-            input_protos.append(self.create_input_protos(image_path, label, input_id, self.dataset_id, geo_info, metadata))
+      self.all_input_ids[id] = input_id
+      input_protos.append(
+          self.create_input_protos(image_path, label, input_id, self.dataset_id, geo_info,
+                                   metadata))
 
     with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(process_datagen_item, id) for id in batch_input_ids]
-        for job in futures:
-            job.result()
+      futures = [executor.submit(process_datagen_item, id) for id in batch_input_ids]
+      for job in futures:
+        job.result()
 
     return input_protos, annotation_protos
 
@@ -138,7 +142,8 @@ class VisualDetectionDataset(ClarifaiDataset):
 
     return input_annot_proto
 
-  def _extract_protos(self, batch_input_ids: List[int]) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:
+  def _extract_protos(self, batch_input_ids: List[int]
+                     ) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:
     """Create input image protos for each data generator item.
     Args:
       batch_input_ids: List of input IDs to retrieve the protos for.
@@ -147,6 +152,7 @@ class VisualDetectionDataset(ClarifaiDataset):
       annotation_protos: List of annotation protos.
     """
     input_protos, annotation_protos = [], []
+
     def process_datagen_item(id):
       datagen_item = self.datagen_object[id]
       metadata = Struct()
@@ -158,20 +164,21 @@ class VisualDetectionDataset(ClarifaiDataset):
       geo_info = datagen_item.geo_info
 
       self.all_input_ids[id] = input_id
-      input_protos.append(self.create_input_protos(image, input_id, self.dataset_id, geo_info,
-                                                   metadata))
+      input_protos.append(
+          self.create_input_protos(image, input_id, self.dataset_id, geo_info, metadata))
       # iter over bboxes and classes
       # one id could have more than one bbox and label
       for i in range(len(bboxes)):
-        annotation_protos.append(self.create_annotation_proto(labels[i], bboxes[i], input_id,
-                                                         self.dataset_id))
+        annotation_protos.append(
+            self.create_annotation_proto(labels[i], bboxes[i], input_id, self.dataset_id))
 
     with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(process_datagen_item, id) for id in batch_input_ids]
-        for job in futures:
-            job.result()
+      futures = [executor.submit(process_datagen_item, id) for id in batch_input_ids]
+      for job in futures:
+        job.result()
 
     return input_protos, annotation_protos
+
 
 class VisualSegmentationDataset(ClarifaiDataset):
   """Visual segmentation dataset proto class."""
@@ -234,7 +241,8 @@ class VisualSegmentationDataset(ClarifaiDataset):
 
     return input_mask_proto
 
-  def _extract_protos(self, batch_input_ids: List[str]) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:
+  def _extract_protos(self, batch_input_ids: List[str]
+                     ) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:
     """Create input image and annotation protos for batch of input ids.
     Args:
       batch_input_ids: List of input IDs to retrieve the protos for.
@@ -243,6 +251,7 @@ class VisualSegmentationDataset(ClarifaiDataset):
       annotation_protos: List of annotation protos.
     """
     input_protos, annotation_protos = [], []
+
     def process_datagen_item(id):
       datagen_item = self.datagen_object[id]
       metadata = Struct()
@@ -254,20 +263,21 @@ class VisualSegmentationDataset(ClarifaiDataset):
       geo_info = datagen_item.geo_info
 
       self.all_input_ids[id] = input_id
-      input_protos.append(self.create_input_protos(image, input_id, self.dataset_id, geo_info,
-                                                   metadata))
+      input_protos.append(
+          self.create_input_protos(image, input_id, self.dataset_id, geo_info, metadata))
 
       ## Iterate over each masked image and create a proto for upload to clarifai
       ## The length of masks/polygons-list and labels must be equal
       for i, _polygon in enumerate(_polygons):
         try:
-          annotation_protos.append(self.create_mask_proto(labels[i], _polygon, input_id, self.dataset_id))
+          annotation_protos.append(
+              self.create_mask_proto(labels[i], _polygon, input_id, self.dataset_id))
         except IndexError:
           continue
 
     with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(process_datagen_item, id) for id in batch_input_ids]
-        for job in futures:
-            job.result()
+      futures = [executor.submit(process_datagen_item, id) for id in batch_input_ids]
+      for job in futures:
+        job.result()
 
     return input_protos, annotation_protos

@@ -1,6 +1,5 @@
 import glob
 import json
-import math
 import os
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -10,8 +9,10 @@ from typing import DefaultDict, Dict, List
 import cv2
 from tqdm import tqdm
 
-from ..features import VisualDetectionFeatures
 from clarifai.datasets.upload.base import ClarifaiDataLoader
+
+from ..features import VisualDetectionFeatures
+
 
 class xviewDetectionDataLoader(ClarifaiDataLoader):
   """xview Image Detection Dataset"""
@@ -131,16 +132,15 @@ class xviewDetectionDataLoader(ClarifaiDataLoader):
     image_height, image_width = cv2.imread(image_path).shape[:2]
     annots = []
     class_names = []
-    for bbox, concept in zip(self.all_data[_id]['bboxes'],
-                              self.all_data[_id]['concepts']):
-        x_min = max(min(bbox[0] / image_width, 1.0), 0.0)  #left_col
-        y_min = max(min(bbox[1] / image_height, 1.0), 0.0)  #top_row
-        x_max = max(min(bbox[2] / image_width, 1.0), 0.0)  #right_col
-        y_max = max(min(bbox[3] / image_height, 1.0), 0.0)  #bottom_row
-        if (x_min >= x_max) or (y_min >= y_max):
-          continue
-        annots.append([x for x in [x_min, y_min, x_max, y_max]])
-        class_names.append(concept)
+    for bbox, concept in zip(self.all_data[_id]['bboxes'], self.all_data[_id]['concepts']):
+      x_min = max(min(bbox[0] / image_width, 1.0), 0.0)  #left_col
+      y_min = max(min(bbox[1] / image_height, 1.0), 0.0)  #top_row
+      x_max = max(min(bbox[2] / image_width, 1.0), 0.0)  #right_col
+      y_max = max(min(bbox[3] / image_height, 1.0), 0.0)  #bottom_row
+      if (x_min >= x_max) or (y_min >= y_max):
+        continue
+      annots.append([x for x in [x_min, y_min, x_max, y_max]])
+      class_names.append(concept)
 
     assert len(class_names) == len(annots), f"Num classes must match num bbox annotations\
         for a single image. Found {len(class_names)} classes and {len(annots)} bboxes."

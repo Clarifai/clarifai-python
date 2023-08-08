@@ -7,8 +7,11 @@ from google.protobuf.struct_pb2 import Struct
 from clarifai.datasets.upload.features import (TextFeatures, VisualClassificationFeatures,
                                                VisualDetectionFeatures, VisualSegmentationFeatures)
 
-OutputFeaturesType = TypeVar('OutputFeaturesType', bound= Union[TextFeatures, VisualClassificationFeatures,
-                                                                VisualDetectionFeatures, VisualSegmentationFeatures])
+OutputFeaturesType = TypeVar(
+    'OutputFeaturesType',
+    bound=Union[TextFeatures, VisualClassificationFeatures, VisualDetectionFeatures,
+                VisualSegmentationFeatures])
+
 
 class ClarifaiDataset:
   """Clarifai datasets base class."""
@@ -63,7 +66,7 @@ class ClarifaiDataset:
 class ClarifaiDataLoader:
   """Clarifai data loader base class."""
 
-  def __init__(self, split : str) -> None:
+  def __init__(self, split: str) -> None:
     pass
 
   def load_data(self) -> None:

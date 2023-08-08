@@ -9,8 +9,10 @@ import requests
 from pycocotools.coco import COCO
 from tqdm import tqdm
 
-from ..features import VisualDetectionFeatures
 from clarifai.datasets.upload.base import ClarifaiDataLoader
+
+from ..features import VisualDetectionFeatures
+
 
 class COCODetectionDataLoader(ClarifaiDataLoader):
   """COCO 2017 Image Detection Dataset."""
@@ -30,7 +32,8 @@ class COCODetectionDataLoader(ClarifaiDataLoader):
     }
     self.split = split
     self.url = "http://images.cocodataset.org/zips/"  # coco base image-zip url
-    self.data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")  # data storage directory
+    self.data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 "data")  # data storage directory
     self.extracted_coco_dirs = {"train": None, "val": None, "annotations": None}
 
     self.load_data()

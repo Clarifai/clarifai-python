@@ -1,8 +1,9 @@
+import importlib
+import inspect
 import os
 import sys
-import inspect
-import importlib
-from typing import Union, Iterator
+from typing import Union
+
 from .base import ClarifaiDataLoader
 
 
@@ -39,6 +40,7 @@ def load_dataloader(module_dir: Union[str, os.PathLike], split: str) -> Clarifai
       continue
 
   return main_module_cls(split)
+
 
 def load_zoo_dataloader(name: str, split: str) -> ClarifaiDataLoader:
   """Get dataset generator object from dataset zoo.

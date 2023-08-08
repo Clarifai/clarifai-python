@@ -13,8 +13,10 @@ from pycocotools import mask as maskUtils
 from pycocotools.coco import COCO
 from tqdm import tqdm
 
-from ..features import VisualSegmentationFeatures
 from clarifai.datasets.upload.base import ClarifaiDataLoader
+
+from ..features import VisualSegmentationFeatures
+
 
 class COCOSegmentationDataLoader(ClarifaiDataLoader):
   """COCO 2017 Image Segmentation Dataset."""
@@ -34,7 +36,8 @@ class COCOSegmentationDataLoader(ClarifaiDataLoader):
     }
     self.split = split
     self.url = "http://images.cocodataset.org/zips/"  # coco base image-zip url
-    self.data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")  # data storage dir
+    self.data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 "data")  # data storage dir
     self.extracted_coco_dirs = {"train": None, "val": None, "annotations": None}
 
     self.load_data()
@@ -87,21 +90,21 @@ class COCOSegmentationDataLoader(ClarifaiDataLoader):
       self.extracted_coco_dirs["annotations"] = [os.path.join(self.data_dir, i) \
           for i in os.listdir(self.data_dir) if "annotations" in i][0]
     else:
-        raise Exception(f"`filenames` must be a dict of atleast 3 coco zip file names; \
+      raise Exception(f"`filenames` must be a dict of atleast 3 coco zip file names; \
             train, val and annotations. Found {len(self.filenames)} items instead.")
 
-    annot_file = glob(self.extracted_coco_dirs["annotations"] + "/" +
-                          f"instances_{self.split}*")[0]
+    annot_file = glob(self.extracted_coco_dirs["annotations"] + "/" + f"instances_{self.split}*")[
+        0]
     self.coco = COCO(annot_file)
     categories = self.coco.loadCats(self.coco.getCatIds())
     self.cat_id_map = {category["id"]: category["name"] for category in categories}
     self.cat_img_ids = {}
     for cat_id in list(self.cat_id_map.keys()):
-        self.cat_img_ids[cat_id] = self.coco.getImgIds(catIds=[cat_id])
+      self.cat_img_ids[cat_id] = self.coco.getImgIds(catIds=[cat_id])
 
     img_ids = set()
     for i in list(self.cat_img_ids.values()):
-        img_ids.update(i)
+      img_ids.update(i)
 
     self.img_ids = list(img_ids)
 
@@ -149,8 +152,7 @@ class COCOSegmentationDataLoader(ClarifaiDataLoader):
             del mask
             gc.collect()
 
-            polygons = np.array(polygons_flattened).reshape((int(len(polygons_flattened) / 2),
-                                                              2))
+            polygons = np.array(polygons_flattened).reshape((int(len(polygons_flattened) / 2), 2))
             polygons[:, 0] = polygons[:, 0] / image_width
             polygons[:, 1] = polygons[:, 1] / image_height
 
