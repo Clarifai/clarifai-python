@@ -1,15 +1,18 @@
-from clarifai_grpc.grpc.api import resources_pb2, service_pb2  # noqa: F401
+from typing import List
+
+from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 
 from clarifai.client.base import BaseClient
 from clarifai.client.dataset import Dataset
+from clarifai.client.lister import Lister
 from clarifai.client.model import Model
 from clarifai.client.workflow import Workflow
 from clarifai.utils.logging import get_logger
 
 
-class App(BaseClient):
+class App(Lister, BaseClient):
   """
   App is a class that provides access to Clarifai API endpoints related to App information.
   Inherits from BaseClient for authentication purposes.
@@ -26,13 +29,23 @@ class App(BaseClient):
     self.kwargs = {**kwargs, 'id': app_id}
     self.app_info = resources_pb2.App(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
-    super().__init__(app_id=self.id)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.id)
+    Lister.__init__(self)
 
-  def list_datasets(self):
-    """
-    Lists all the datasets for the app.
-    """
-    pass  # TODO
+  def list_datasets(self) -> List[Dataset]:
+    """Lists all the datasets for the app."""
+    request_data = dict(
+        user_app_id=self.user_app_id,
+        per_page=self.default_page_size,
+    )
+    all_datasets_info = list(
+        self.list_all_pages_generator(self.STUB.ListDatasets, service_pb2.ListDatasetsRequest,
+                                      request_data))
+    for dataset_info in all_datasets_info:
+      if 'version' in list(dataset_info.keys()):
+        del dataset_info['version']['metrics']
+
+    return [Dataset(**dataset_info) for dataset_info in all_datasets_info]
 
   def list_models(self):
     """
@@ -61,7 +74,7 @@ class App(BaseClient):
         Dataset: A Dataset object for the specified dataset ID.
     """
     request = service_pb2.PostDatasetsRequest(
-        user_app_id=self.userDataObject, datasets=[resources_pb2.Dataset(id=dataset_id, **kwargs)])
+        user_app_id=self.user_app_id, datasets=[resources_pb2.Dataset(id=dataset_id, **kwargs)])
     response = self._grpc_request(self.STUB.PostDatasets, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
@@ -78,7 +91,7 @@ class App(BaseClient):
         Model: A Model object for the specified model ID.
     """
     request = service_pb2.PostModelsRequest(
-        user_app_id=self.userDataObject, models=[resources_pb2.Model(id=model_id, **kwargs)])
+        user_app_id=self.user_app_id, models=[resources_pb2.Model(id=model_id, **kwargs)])
     response = self._grpc_request(self.STUB.PostModels, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
@@ -95,8 +108,7 @@ class App(BaseClient):
         Workflow: A Workflow object for the specified workflow ID.
     """
     request = service_pb2.PostWorkflowsRequest(
-        user_app_id=self.userDataObject,
-        workflows=[resources_pb2.Workflow(id=workflow_id, **kwargs)])
+        user_app_id=self.user_app_id, workflows=[resources_pb2.Workflow(id=workflow_id, **kwargs)])
     response = self._grpc_request(self.STUB.PostWorkflows, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
@@ -111,7 +123,7 @@ class App(BaseClient):
     Returns:
         Dataset: A Dataset object for the existing dataset ID.
     """
-    request = service_pb2.GetDatasetRequest(user_app_id=self.userDataObject, dataset_id=dataset_id)
+    request = service_pb2.GetDatasetRequest(user_app_id=self.user_app_id, dataset_id=dataset_id)
     response = self._grpc_request(self.STUB.GetDataset, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
@@ -128,14 +140,12 @@ class App(BaseClient):
     Returns:
         Model: A Model object for the existing model ID.
     """
-    request = service_pb2.GetModelRequest(user_app_id=self.userDataObject, model_id=model_id)
+    request = service_pb2.GetModelRequest(user_app_id=self.user_app_id, model_id=model_id)
     response = self._grpc_request(self.STUB.GetModel, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     dict_response = MessageToDict(response)
-    kwargs = self.convert_keys_to_snake_case(dict_response[list(dict_response.keys())[1]],
-                                             list(dict_response.keys())[1])
-
+    kwargs = self.convert_keys_to_snake_case(dict_response['model'], 'model')
     return Model(**kwargs)
 
   def workflow(self, workflow_id: str, **kwargs) -> Workflow:
@@ -145,8 +155,7 @@ class App(BaseClient):
     Returns:
         Workflow: A Workflow object for the existing workflow ID.
     """
-    request = service_pb2.GetWorkflowRequest(
-        user_app_id=self.userDataObject, workflow_id=workflow_id)
+    request = service_pb2.GetWorkflowRequest(user_app_id=self.user_app_id, workflow_id=workflow_id)
     response = self._grpc_request(self.STUB.GetWorkflow, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
@@ -162,7 +171,7 @@ class App(BaseClient):
         dataset_id (str): The dataset ID for the app to delete.
     """
     request = service_pb2.DeleteDatasetsRequest(
-        user_app_id=self.userDataObject, dataset_ids=[dataset_id])
+        user_app_id=self.user_app_id, dataset_ids=[dataset_id])
     response = self._grpc_request(self.STUB.DeleteDatasets, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
@@ -173,7 +182,7 @@ class App(BaseClient):
     Args:
         model_id (str): The model ID for the app to delete.
     """
-    request = service_pb2.DeleteModelsRequest(user_app_id=self.userDataObject, ids=[model_id])
+    request = service_pb2.DeleteModelsRequest(user_app_id=self.user_app_id, ids=[model_id])
     response = self._grpc_request(self.STUB.DeleteModels, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
@@ -184,8 +193,7 @@ class App(BaseClient):
     Args:
         workflow_id (str): The workflow ID for the app to delete.
     """
-    request = service_pb2.DeleteWorkflowsRequest(
-        user_app_id=self.userDataObject, ids=[workflow_id])
+    request = service_pb2.DeleteWorkflowsRequest(user_app_id=self.user_app_id, ids=[workflow_id])
     response = self._grpc_request(self.STUB.DeleteWorkflows, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
