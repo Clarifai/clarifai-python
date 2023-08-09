@@ -9,7 +9,7 @@ If a dataset module exists in the zoo, uploading the specific dataset can be eas
 ```python
 from clarifai.client.app import App
 
-app = App(user_id="", user_id="")
+app = App(app_id="", user_id="")
 # Create a dataset in Clarifai App
 dataset = app.create_dataset(dataset_id="")
 # execute data upload to Clarifai app dataset

@@ -2,7 +2,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
-from typing import List, Tuple, Union
+from typing import List, Tuple, TypeVar, Union
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
@@ -16,6 +16,10 @@ from clarifai.datasets.upload.image import (VisualClassificationDataset, VisualD
 from clarifai.datasets.upload.text import TextClassificationDataset
 from clarifai.datasets.upload.utils import load_dataloader, load_zoo_dataloader
 from clarifai.utils.misc import BackoffIterator, Chunker
+
+ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset,
+                              VisualDetectionDataset, VisualSegmentationDataset,
+                              TextClassificationDataset)
 
 
 class Dataset(Lister, BaseClient):
@@ -32,6 +36,10 @@ class Dataset(Lister, BaseClient):
     """
     self.kwargs = {**kwargs, 'id': dataset_id}
     self.dataset_info = resources_pb2.Dataset(**self.kwargs)
+    # Related to Dataset Upload
+    self.num_workers: int = min(10, cpu_count())  #15 req/sec rate limit
+    self.annot_num_workers = 4
+    self.max_retires = 10
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id)
     Lister.__init__(self)
 
@@ -131,16 +139,18 @@ class Dataset(Lister, BaseClient):
       else:
         time.sleep(next(backoff_iterator))
 
-  def _delete_failed_inputs(self, batch_input_ids: List[int]) -> Tuple[List[int], List[int]]:
+  def _delete_failed_inputs(self, batch_input_ids: List[int],
+                            dataset_obj: ClarifaiDatasetType) -> Tuple[List[int], List[int]]:
     """Delete failed input ids from clarifai platform dataset.
     Args:
       batch_input_ids: batch input ids
+      dataset_obj: ClarifaiDataset object
     Returns:
       success_inputs: upload success input ids
       failed_inputs: upload failed input ids
     """
     success_status = status_pb2.Status(code=status_code_pb2.INPUT_DOWNLOAD_SUCCESS)
-    input_ids = {self.dataset_obj.all_input_ids[id]: id for id in batch_input_ids}
+    input_ids = {dataset_obj.all_input_ids[id]: id for id in batch_input_ids}
     response = self._grpc_request(
         self.STUB.ListInputs,
         service_pb2.ListInputsRequest(
@@ -162,56 +172,69 @@ class Dataset(Lister, BaseClient):
     return [input_ids[id] for id in success_input_ids], [input_ids[id] for id in failed_input_ids]
 
   def _upload_inputs_annotations(
-      self, batch_input_ids: List[int]) -> Tuple[List[int], List[resources_pb2.Annotation]]:
+      self, batch_input_ids: List[int], task: str, chunk_size: int,
+      dataset_obj: ClarifaiDatasetType) -> Tuple[List[int], List[resources_pb2.Annotation]]:
     """Uploads batch of inputs and annotations concurrently to clarifai platform dataset.
     Args:
       batch_input_ids: batch input ids
+      task: Dataset type
+      chunk_size: chunk size for input, annotation protos
+      dataset_obj: ClarifaiDataset object
     Returns:
       failed_input_ids: failed input ids
       retry_annot_protos: failed annot protos
     """
-    input_protos, _ = self.dataset_obj.get_protos(batch_input_ids)
+    input_protos, _ = dataset_obj.get_protos(batch_input_ids)
     input_job_id = self._upload_inputs(input_protos)
     retry_annot_protos = []
 
     self._wait_for_inputs(input_job_id)
-    success_input_ids, failed_input_ids = self._delete_failed_inputs(batch_input_ids)
+    success_input_ids, failed_input_ids = self._delete_failed_inputs(batch_input_ids, dataset_obj)
 
-    if self.task in ["visual_detection", "visual_segmentation"]:
-      _, annotation_protos = self.dataset_obj.get_protos(success_input_ids)
-      chunked_annotation_protos = Chunker(annotation_protos, self.chunk_size).chunk()
+    if task in ["visual_detection", "visual_segmentation"]:
+      _, annotation_protos = dataset_obj.get_protos(success_input_ids)
+      chunked_annotation_protos = Chunker(annotation_protos, chunk_size).chunk()
       retry_annot_protos.extend(self._concurrent_annot_upload(chunked_annotation_protos))
 
     return failed_input_ids, retry_annot_protos
 
   def _retry_uploads(self, failed_input_ids: List[int],
-                     retry_annot_protos: List[resources_pb2.Annotation]) -> None:
+                     retry_annot_protos: List[resources_pb2.Annotation], task: str,
+                     chunk_size: int, dataset_obj: ClarifaiDatasetType) -> None:
     """Retry failed uploads.
     Args:
       failed_input_ids: failed input ids
       retry_annot_protos: failed annot protos
+      task: Dataset type
+      chunk_size: chunk size for input, annotation protos
+      dataset_obj: ClarifaiDataset object
     """
     if failed_input_ids:
-      self._upload_inputs_annotations(failed_input_ids)
+      self._upload_inputs_annotations(failed_input_ids, task, chunk_size, dataset_obj)
     if retry_annot_protos:
-      chunked_annotation_protos = Chunker(retry_annot_protos, self.chunk_size).chunk()
+      chunked_annotation_protos = Chunker(retry_annot_protos, chunk_size).chunk()
       _ = self._concurrent_annot_upload(chunked_annotation_protos)
 
-  def _data_upload(self) -> None:
-    """Uploads inputs and annotations to clarifai platform dataset."""
-    input_ids = list(range(len(self.dataset_obj)))
-    chunk_input_ids = Chunker(input_ids, self.chunk_size).chunk()
+  def _data_upload(self, task: str, chunk_size: int, dataset_obj: ClarifaiDatasetType) -> None:
+    """Uploads inputs and annotations to clarifai platform dataset.
+    Args:
+      task: Dataset type
+      chunk_size: chunk size for input, annotation protos
+      dataset_obj: ClarifaiDataset object
+    """
+    input_ids = list(range(len(dataset_obj)))
+    chunk_input_ids = Chunker(input_ids, chunk_size).chunk()
     with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
       with tqdm(total=len(chunk_input_ids), desc='Uploading Dataset') as progress:
         # Submit all jobs to the executor and store the returned futures
         futures = [
-            executor.submit(self._upload_inputs_annotations, batch_input_ids)
-            for batch_input_ids in chunk_input_ids
+            executor.submit(self._upload_inputs_annotations, batch_input_ids, task, chunk_size,
+                            dataset_obj) for batch_input_ids in chunk_input_ids
         ]
 
         for job in as_completed(futures):
           retry_input_ids, retry_annot_protos = job.result()
-          self._retry_uploads(retry_input_ids, retry_annot_protos)
+          self._retry_uploads(retry_input_ids, retry_annot_protos, task, chunk_size, dataset_obj)
           progress.update()
 
   def upload_dataset(self,
@@ -226,12 +249,9 @@ class Dataset(Lister, BaseClient):
       split: split type(train, test, val)
       module_dir: path to the module directory
       zoo_dataset: name of the zoo dataset
+      chunk_size: chunk size for concurrent upload of inputs and annotations
     """
-    self.chunk_size = min(128, chunk_size)  # limit max protos in a req
-    self.num_workers: int = min(10, cpu_count())  #15 req/sec rate limit
-    self.annot_num_workers = 4
-    self.max_retires = 10
-    self.task = task
+    chunk_size = min(128, chunk_size)  # limit max protos in a req
     datagen_object = None
 
     if module_dir is None and zoo_dataset is None:
@@ -245,19 +265,19 @@ class Dataset(Lister, BaseClient):
     else:
       datagen_object = load_zoo_dataloader(zoo_dataset, split)
 
-    if self.task == "text_clf":
-      self.dataset_obj = TextClassificationDataset(datagen_object, self.id, split)
+    if task == "text_clf":
+      dataset_obj = TextClassificationDataset(datagen_object, self.id, split)
 
-    elif self.task == "visual_detection":
-      self.dataset_obj = VisualDetectionDataset(datagen_object, self.id, split)
+    elif task == "visual_detection":
+      dataset_obj = VisualDetectionDataset(datagen_object, self.id, split)
 
-    elif self.task == "visual_segmentation":
-      self.dataset_obj = VisualSegmentationDataset(datagen_object, self.id, split)
+    elif task == "visual_segmentation":
+      dataset_obj = VisualSegmentationDataset(datagen_object, self.id, split)
 
     else:  # visual_classification & visual_captioning
-      self.dataset_obj = VisualClassificationDataset(datagen_object, self.id, split)
+      dataset_obj = VisualClassificationDataset(datagen_object, self.id, split)
 
-    self._data_upload()
+    self._data_upload(task, chunk_size, dataset_obj)
 
   def __getattr__(self, name):
     return getattr(self.dataset_info, name)
