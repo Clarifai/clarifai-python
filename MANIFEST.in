@@ -1,1 +1,4 @@
 global-include *.css
+include clarifai/modules/style.css
+recursive-include clarifai *
+recursive-include clarifai_utils *
