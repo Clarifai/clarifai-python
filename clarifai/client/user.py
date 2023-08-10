@@ -34,13 +34,12 @@ class User(Lister, BaseClient):
     Returns:
         list of App: A list of App objects for the user.
     """
-    request_data = dict(
-        user_app_id=self.userDataObject, per_page=self.default_page_size, **filter_by)
+    request_data = dict(user_app_id=self.user_app_id, per_page=self.default_page_size, **filter_by)
     all_apps_info = list(
         self.list_all_pages_generator(self.STUB.ListApps, service_pb2.ListAppsRequest,
                                       request_data))
 
-    return [self.app(**app_info) for app_info in all_apps_info]
+    return [App(**app_info) for app_info in all_apps_info]
 
   def create_app(self, app_id: str, **kwargs) -> App:
     """Creates an app for the user.
@@ -51,7 +50,7 @@ class User(Lister, BaseClient):
         App: An App object for the specified app ID.
     """
     request = service_pb2.PostAppsRequest(
-        user_app_id=self.userDataObject, apps=[resources_pb2.App(id=app_id, **kwargs)])
+        user_app_id=self.user_app_id, apps=[resources_pb2.App(id=app_id, **kwargs)])
     response = self._grpc_request(self.STUB.PostApps, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
