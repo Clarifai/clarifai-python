@@ -1,8 +1,9 @@
 from datetime import datetime
 from typing import Any, Callable
 
-from google.protobuf.json_format import MessageToDict
+from google.protobuf.json_format import MessageToDict  # noqa
 from google.protobuf.timestamp_pb2 import Timestamp
+from google.protobuf.wrappers_pb2 import BoolValue
 
 from clarifai.client.auth import create_stub
 from clarifai.client.auth.helper import ClarifaiAuthHelper
@@ -32,7 +33,7 @@ class BaseClient:
     self.auth_helper = ClarifaiAuthHelper(**kwargs)
     self.STUB = create_stub(self.auth_helper)
     self.metadata = self.auth_helper.metadata
-    self.userDataObject = self.auth_helper.get_user_app_id_proto()
+    self.user_app_id = self.auth_helper.get_user_app_id_proto()
     self.base = self.auth_helper.base
 
   def _grpc_request(self, method: Callable, argument: Any):
@@ -46,7 +47,7 @@ class BaseClient:
 
     try:
       res = method(argument)
-      MessageToDict(res)
+      # MessageToDict(res) TODO global debug logger
       return res
     except ApiError:
       raise Exception("ApiError")
@@ -93,10 +94,12 @@ class BaseClient:
       if isinstance(item, dict):
         new_item = {}
         for key, value in item.items():
-          if key in ['createdAt', 'modifiedAt']:
+          if key in ['createdAt', 'modifiedAt', 'completedAt']:
             value = self.convert_string_to_timestamp(value)
-          if key in ['metadata', 'workflowRecommended', 'modelVersion']:
-            continue  # TODO Fix "app_duplication",modelVersion error
+          elif key in ['workflowRecommended']:
+            value = BoolValue(value=True)
+          elif key in ['metadata', 'fieldsMap']:
+            continue  # TODO Fix "app_duplication",fieldsMap(text key) error
           new_key = snake_case(key)
           new_item[new_key] = convert_recursive(value)
         return new_item
