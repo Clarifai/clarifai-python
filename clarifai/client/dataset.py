@@ -18,9 +18,12 @@ from clarifai.datasets.upload.utils import load_dataloader, load_module_dataload
 from clarifai.errors import UserError
 from clarifai.utils.misc import BackoffIterator, Chunker
 
-ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset,
-                              VisualDetectionDataset, VisualSegmentationDataset,
-                              TextClassificationDataset)
+ClarifaiDatasetType = TypeVar(
+    'ClarifaiDatasetType',
+    bound=[
+        VisualClassificationDataset, VisualDetectionDataset, VisualSegmentationDataset,
+        TextClassificationDataset
+    ])
 
 
 class Dataset(Lister, BaseClient):
