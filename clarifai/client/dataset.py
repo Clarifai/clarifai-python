@@ -14,7 +14,8 @@ from clarifai.client.lister import Lister
 from clarifai.datasets.upload.image import (VisualClassificationDataset, VisualDetectionDataset,
                                             VisualSegmentationDataset)
 from clarifai.datasets.upload.text import TextClassificationDataset
-from clarifai.datasets.upload.utils import load_dataloader, load_zoo_dataloader
+from clarifai.datasets.upload.utils import load_dataloader, load_module_dataloader
+from clarifai.errors import UserError
 from clarifai.utils.misc import BackoffIterator, Chunker
 
 ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset,
@@ -237,30 +238,30 @@ class Dataset(Lister, BaseClient):
                      task: str,
                      split: str,
                      module_dir: str = None,
-                     zoo_dataset: str = None,
+                     dataset_loader: str = None,
                      chunk_size: int = 128) -> None:
     """Uploads a dataset to the app.
     Args:
       task: task type(text_clf, visual-classification, visual_detection, visual_segmentation, visual-captioning)
       split: split type(train, test, val)
       module_dir: path to the module directory
-      zoo_dataset: name of the zoo dataset
+      dataset_loader: name of the dataset loader
       chunk_size: chunk size for concurrent upload of inputs and annotations
     """
     self.chunk_size = min(self.chunk_size, chunk_size)
     self.task = task
     datagen_object = None
 
-    if module_dir is None and zoo_dataset is None:
-      raise Exception("One of `from_module` and `from_zoo` must be \
+    if module_dir is None and dataset_loader is None:
+      raise UserError("One of `from_module` and `dataset_loader` must be \
       specified. Both can't be None or defined at the same time.")
-    elif module_dir is not None and zoo_dataset is not None:
-      raise Exception("Use either of `from_module` or `from_zoo` \
+    elif module_dir is not None and dataset_loader is not None:
+      raise UserError("Use either of `from_module` or `dataset_loader` \
       but NOT both.")
     elif module_dir is not None:
-      datagen_object = load_dataloader(module_dir, split)
+      datagen_object = load_module_dataloader(module_dir, split)
     else:
-      datagen_object = load_zoo_dataloader(zoo_dataset, split)
+      datagen_object = load_dataloader(dataset_loader, split)
 
     if self.task == "text_clf":
       dataset_obj = TextClassificationDataset(datagen_object, self.id, split)

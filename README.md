@@ -32,5 +32,5 @@ apps = client.list_apps()
 app = client.create_app(app_id="demo_app")
 dataset = app.create_dataset(dataset_id="demo_dataset")
 # execute data upload to Clarifai app dataset
-dataset.upload_dataset(task='visual_segmentation', split="train", zoo_dataset='coco_segmentation')
+dataset.upload_dataset(task='visual_segmentation', split="train", dataset_loader='coco_segmentation')
 ```

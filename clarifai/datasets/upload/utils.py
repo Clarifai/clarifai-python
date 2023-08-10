@@ -7,7 +7,7 @@ from typing import Union
 from .base import ClarifaiDataLoader
 
 
-def load_dataloader(module_dir: Union[str, os.PathLike], split: str) -> ClarifaiDataLoader:
+def load_module_dataloader(module_dir: Union[str, os.PathLike], split: str) -> ClarifaiDataLoader:
   """Validate and import dataset module data generator.
   Args:
     `module_dir`: relative path to the module directory
@@ -42,18 +42,18 @@ def load_dataloader(module_dir: Union[str, os.PathLike], split: str) -> Clarifai
   return main_module_cls(split)
 
 
-def load_zoo_dataloader(name: str, split: str) -> ClarifaiDataLoader:
-  """Get dataset generator object from dataset zoo.
+def load_dataloader(name: str, split: str) -> ClarifaiDataLoader:
+  """Get dataset generator object from dataset loaders.
   Args:
-    `name`: dataset module name in datasets/zoo/.
+    `name`: dataset module name in datasets/upload/loaders/.
     `split`: "train" or "val"/"test" dataset split
   Returns:
     Data generator object
   """
-  zoo_dataset = importlib.import_module(f"clarifai.datasets.upload.zoo.{name}")
+  loader_dataset = importlib.import_module(f"clarifai.datasets.upload.loaders.{name}")
   # get main module class
   main_module_cls = None
-  for name, obj in zoo_dataset.__dict__.items():
+  for name, obj in loader_dataset.__dict__.items():
     if inspect.isclass(obj) and "DataLoader" in name:
       main_module_cls = obj
     else:
