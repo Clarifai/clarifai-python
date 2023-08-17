@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from typing import Any, Callable
 
@@ -7,7 +8,7 @@ from google.protobuf.wrappers_pb2 import BoolValue
 
 from clarifai.client.auth import create_stub
 from clarifai.client.auth.helper import ClarifaiAuthHelper
-from clarifai.errors import ApiError
+from clarifai.errors import ApiError, UserError
 
 
 class BaseClient:
@@ -30,7 +31,10 @@ class BaseClient:
   """
 
   def __init__(self, **kwargs):
-    self.auth_helper = ClarifaiAuthHelper(**kwargs)
+    pat = os.environ.get('CLARIFAI_PAT', "")
+    if pat == "":
+      raise UserError("CLARIFAI_PAT must be set as env vars")
+    self.auth_helper = ClarifaiAuthHelper(**kwargs, pat=pat, validate=False)
     self.STUB = create_stub(self.auth_helper)
     self.metadata = self.auth_helper.metadata
     self.user_app_id = self.auth_helper.get_user_app_id_proto()
