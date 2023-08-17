@@ -6,7 +6,4 @@ omegaconf==2.2.3
 pycocotools==2.0.6
 opencv-python==4.7.0.68
 tritonclient==2.34.0
-<<<<<<< HEAD
-=======
 rich==13.4.2
->>>>>>> b3b43a8 (base structure (#133))
