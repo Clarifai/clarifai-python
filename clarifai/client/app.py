@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, Dict, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
@@ -18,7 +18,7 @@ class App(Lister, BaseClient):
   Inherits from BaseClient for authentication purposes.
   """
 
-  def __init__(self, app_id: str, **kwargs):
+  def __init__(self, app_id: str = "", **kwargs):
     """Initializes an App object.
     Args:
         app_id (str): The App ID for the App to interact with.
@@ -47,11 +47,34 @@ class App(Lister, BaseClient):
 
     return [Dataset(**dataset_info) for dataset_info in all_datasets_info]
 
-  def list_models(self):
+  def list_models(self, filter_by: Dict[str, Any] = {}, only_in_app: bool = True) -> List[Model]:
+    """Lists all the models for the app.
+    Args:
+        filter_by (dict): A dictionary of filters to apply to the list of models.
+        only_in_app (bool): If True, only return models that are in the app.
+    Returns:
+        List[Model]: A list of Model objects for the models in the app.
+
+    Example:
+        >>> from clarifai.client.user import User
+        >>> app = User(user_id="user_id").app(app_id="app_id")
+        >>> all_models = app.list_models()
     """
-    Lists all the models for the app.
-    """
-    pass  # TODO
+    request_data = dict(user_app_id=self.user_app_id, per_page=self.default_page_size, **filter_by)
+    all_models_info = list(
+        self.list_all_pages_generator(self.STUB.ListModels, service_pb2.ListModelsRequest,
+                                      request_data))
+
+    filtered_models_info = []
+    for model_info in all_models_info:
+      if 'model_version' not in list(model_info.keys()):
+        continue
+      if only_in_app:
+        if model_info['app_id'] != self.id:
+          continue
+      filtered_models_info.append(model_info)
+
+    return [Model(**model_info) for model_info in filtered_models_info]
 
   def list_workflows(self):
     """
