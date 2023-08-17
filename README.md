@@ -34,3 +34,26 @@ dataset = app.create_dataset(dataset_id="demo_dataset")
 # execute data upload to Clarifai app dataset
 dataset.upload_dataset(task='visual_segmentation', split="train", dataset_loader='coco_segmentation')
 ```
+
+## Interacting with Inputs
+
+```python
+from clarifai.client.user import User
+app =  User(user_id="user_id").app(app_id="app_id")
+
+# image upload from folder
+image_obj = app.image()
+image_obj.upload_from_folder(folder_path='demo_folder')
+
+#listing inputs
+image_obj.list_inputs()
+
+# text upload
+text_obj = app.text()
+text_obj.upload(input_id = 'demo', raw_text = 'This is a test')
+
+#audio upload from url
+audio_obj = app.audio()
+audio_obj.upload_from_url(input_id = 'demo', url='https://samples.clarifai.com/english_audio_sample.mp3')
+
+```

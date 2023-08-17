@@ -6,6 +6,10 @@ from google.protobuf.json_format import MessageToDict
 
 from clarifai.client.base import BaseClient
 from clarifai.client.dataset import Dataset
+from clarifai.client.input.audio import Audio
+from clarifai.client.input.image import Image
+from clarifai.client.input.text import Text
+from clarifai.client.input.video import Video
 from clarifai.client.lister import Lister
 from clarifai.client.model import Model
 from clarifai.client.workflow import Workflow
@@ -198,6 +202,34 @@ class App(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nWorkflow Deleted\n%s", response.status)
+
+  def image(self) -> Image:
+    """Returns an Image object.
+    Returns:
+        Image: An Image object.
+    """
+    return Image(self.user_id, self.id)
+
+  def video(self) -> Video:
+    """Returns a Video object.
+    Returns:
+        Video: A Video object.
+    """
+    return Video(self.user_id, self.id)
+
+  def audio(self) -> Audio:
+    """Returns an Audio object.
+    Returns:
+        Audio: An Audio object.
+    """
+    return Audio(self.user_id, self.id)
+
+  def text(self) -> Text:
+    """Returns a Text object.
+    Returns:
+        Text: A Text object.
+    """
+    return Text(self.user_id, self.id)
 
   def __getattr__(self, name):
     return getattr(self.app_info, name)
