@@ -156,14 +156,21 @@ class App(Lister, BaseClient):
 
     return Dataset(**kwargs)
 
-  def model(self, model_id: str, **kwargs) -> Model:
+  def model(self, model_id: str, model_version_id: str = "", **kwargs) -> Model:
     """Returns a Model object for the existing model ID.
     Args:
         model_id (str): The model ID for the model to interact with.
+        model_version_id (str): The model version ID for the model version to interact with.
     Returns:
         Model: A Model object for the existing model ID.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> model_v1 = app.model(model_id="model_id", model_version_id="model_version_id")
     """
-    request = service_pb2.GetModelRequest(user_app_id=self.user_app_id, model_id=model_id)
+    request = service_pb2.GetModelRequest(
+        user_app_id=self.user_app_id, model_id=model_id, version_id=model_version_id)
     response = self._grpc_request(self.STUB.GetModel, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)

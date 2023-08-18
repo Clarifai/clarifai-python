@@ -22,6 +22,7 @@ export CLARIFAI_PAT={your personal access token}
 ```
 
 ```python
+# Note: CLARIFAI_PAT must be set as env variable.
 from clarifai.client.user import User
 client = User(user_id="user_id")
 
@@ -39,6 +40,7 @@ dataset.upload_dataset(task='visual_segmentation', split="train", dataset_loader
 
 ### Model Predict
 ```python
+# Note: CLARIFAI_PAT must be set as env variable.
 from clarifai.client.model import Model
 
 # Model Predict
@@ -52,15 +54,16 @@ model_prediction = model.predict_by_filepath(filepath="local_filepath", input_ty
 
 model = Model(user_id="user_id", app_id="app_id", model_id="model_id",
                     output_config={"sample_ms": 2000}) # Return predictions for specified interval
-model_prediction = model.predict_by_url(url=BEER_VIDEO_URL, input_type="video")
+model_prediction = model.predict_by_url(url="VIDEO_URL", input_type="video")
 ```
 ### Models Listing
 ```python
+# Note: CLARIFAI_PAT must be set as env variable.
 # List all model versions
 all_model_versions = model.list_versions()
 
 # Go to specific model version
-model_v1 = client.app("app_id").model("model_id").version("model_version_id")
+model_v1 = client.app("app_id").model(model_id="model_id", model_version_id="model_version_id")
 
 # List all models in an app
 all_models = app.list_models()

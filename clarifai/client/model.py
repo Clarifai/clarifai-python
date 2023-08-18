@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Dict, List, Union
+from typing import Dict, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import Input
@@ -70,7 +70,7 @@ class Model(Lister, BaseClient):
         continue
 
       if response.status.code != status_code_pb2.SUCCESS:
-        raise Exception(f"Model Predict failed with response {response!r}")
+        raise Exception(f"Model Predict failed with response {response.status!r}")
       else:
         break
 
@@ -98,13 +98,13 @@ class Model(Lister, BaseClient):
 
     return self.predict_by_bytes(file_bytes, input_type)
 
-  def predict_by_bytes(self, file_bytes: Union[bytes, str], input_type: str):
+  def predict_by_bytes(self, file_bytes: bytes, input_type: str):
     """Predicts the model based on the given bytes.
     Args:
-        file_bytes (bytes/str): The bytes or raw text string to predict.
-        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        file_bytes (bytes): File Bytes to predict on.
+        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio'.
     """
-    if input_type not in ['image', 'text', 'video', 'audio']:
+    if input_type not in {'image', 'text', 'video', 'audio'}:
       raise UserError('Invalid input type it should be image, text, video or audio.')
     # TODO will obtain proto from input class
     if input_type == "image":
@@ -133,14 +133,14 @@ class Model(Lister, BaseClient):
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
         >>> model_prediction = model.predict_by_url('url', 'image')
     """
-    if input_type not in ['image', 'text', 'video', 'audio']:
+    if input_type not in {'image', 'text', 'video', 'audio'}:
       raise UserError('Invalid input type it should be image, text, video or audio.')
     # TODO will be obtain proto from input class
     if input_type == "image":
       input_proto = resources_pb2.Input(
           data=resources_pb2.Data(image=resources_pb2.Image(url=url)))
     elif input_type == "text":
-      input_proto = resources_pb2.Input(data=resources_pb2.Data(text=resources_pb2.Text(raw=url)))
+      input_proto = resources_pb2.Input(data=resources_pb2.Data(text=resources_pb2.Text(url=url)))
     elif input_type == "video":
       input_proto = resources_pb2.Input(
           data=resources_pb2.Data(video=resources_pb2.Video(url=url)))
@@ -156,9 +156,9 @@ class Model(Lister, BaseClient):
         List[Model]: A list of Model objects for the versions of the model.
 
     Example:
-        >>> from clarifai.client.user import User
-        >>> user = User(user_id="user_id")
-        >>> all_model_versions = user.app(app_id="app_id").model(model_id="model_id").list_versions()
+        >>> from clarifai.client.model import Model
+        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+        >>> all_model_versions = model.list_versions()
     """
     request_data = dict(
         user_app_id=self.user_app_id,
@@ -177,19 +177,6 @@ class Model(Lister, BaseClient):
         Model(model_id=self.id, **dict(self.kwargs, model_version=model_version_info))
         for model_version_info in all_model_versions_info
     ]
-
-  def version(self, model_version_id: str) -> 'Model':
-    """Returns a Model object with the specified model version ID.
-    Args:
-        model_version_id (str): The model version ID for the model version to interact with.
-
-    Example:
-        >>> from clarifai.client.user import User
-        >>> user = User(user_id="user_id")
-        >>> model_v1 = user.app(app_id="app_id").model(model_id="model_id").version(model_version_id="model_version_id")
-    """
-    self.kwargs["model_version"] = {'id': model_version_id}
-    return Model(model_id=self.id, **self.kwargs)
 
   def __getattr__(self, name):
     return getattr(self.model_info, name)
