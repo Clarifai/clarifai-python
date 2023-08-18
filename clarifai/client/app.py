@@ -76,11 +76,34 @@ class App(Lister, BaseClient):
 
     return [Model(**model_info) for model_info in filtered_models_info]
 
-  def list_workflows(self):
+  def list_workflows(self, filter_by: Dict[str, Any] = {},
+                     only_in_app: bool = True) -> List[Workflow]:
     """
     Lists all the workflows for the app.
+    Args:
+        filter_by (dict): A dictionary of filters to apply to the list of workflows.
+        only_in_app (bool): If True, only return workflows that are in the app.
+    Returns:
+        List[Workflow]: A list of Workflow objects for the workflows in the app.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> all_workflows = app.list_workflows()
     """
-    pass  # TODO
+    request_data = dict(user_app_id=self.user_app_id, per_page=self.default_page_size, **filter_by)
+    all_workflows_info = list(
+        self.list_all_pages_generator(self.STUB.ListWorkflows, service_pb2.ListWorkflowsRequest,
+                                      request_data))
+
+    filtered_workflows_info = []
+    for workflow_info in all_workflows_info:
+      if only_in_app:
+        if workflow_info['app_id'] != self.id:
+          continue
+      filtered_workflows_info.append(workflow_info)
+
+    return [Workflow(**workflow_info) for workflow_info in all_workflows_info]
 
   def list_concepts(self):
     """
@@ -184,6 +207,11 @@ class App(Lister, BaseClient):
         workflow_id (str): The workflow ID for the workflow to interact with.
     Returns:
         Workflow: A Workflow object for the existing workflow ID.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> workflow = app.workflow(workflow_id="workflow_id")
     """
     request = service_pb2.GetWorkflowRequest(user_app_id=self.user_app_id, workflow_id=workflow_id)
     response = self._grpc_request(self.STUB.GetWorkflow, request)

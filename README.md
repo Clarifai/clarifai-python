@@ -59,6 +59,7 @@ model_prediction = model.predict_by_url(url="VIDEO_URL", input_type="video")
 ### Models Listing
 ```python
 # Note: CLARIFAI_PAT must be set as env variable.
+
 # List all model versions
 all_model_versions = model.list_versions()
 
@@ -71,4 +72,38 @@ all_models = app.list_models()
 # List all models in community filtered by model_type, description
 all_llm_community_models = App().list_models(filter_by={"query": "LLM",
                                                         "model_type_id": "text-to-text"}, only_in_app=False)
+```
+
+## Interacting with Workflows
+
+### Workflow Predict
+```python
+# Note: CLARIFAI_PAT must be set as env variable.
+from clarifai.client.workflow import Workflow
+
+# Workflow Predict
+workflow = Workflow(user_id="user_id", app_id="app_id", workflow_id="model_id")
+workflow_prediction = workflow.predict_by_url(url="url", input_type="image") # Supports image, text, audio, video
+
+# Customizing Workflow Inference Output
+workflow = Workflow(user_id="user_id", app_id="app_id", workflow_id="workflow_id",
+                  output_config={"min_value": 0.98}) # Return predictions having prediction confidence > 0.98
+workflow_prediction = workflow.predict_by_filepath(filepath="local_filepath", input_type="text") # Supports image, text, audio, video
+```
+
+### Workflows Listing
+```python
+# Note: CLARIFAI_PAT must be set as env variable.
+
+# List all workflow versions
+all_workflow_versions = workflow.list_versions()
+
+# Go to specific workflow version
+workflow_v1 = Workflow(workflow_id="workflow_id", workflow_version=dict(id="workflow_version_id"), app_id="app_id", user_id="user_id")
+
+# List all workflow in an app
+all_workflow = app.list_workflow()
+
+# List all workflow in community filtered by description
+all_face_community_workflows = App().list_workflow(filter_by={"query": "face"}, only_in_app=False) # Get all face related workflows
 ```

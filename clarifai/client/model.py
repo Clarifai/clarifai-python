@@ -98,27 +98,29 @@ class Model(Lister, BaseClient):
 
     return self.predict_by_bytes(file_bytes, input_type)
 
-  def predict_by_bytes(self, file_bytes: bytes, input_type: str):
+  def predict_by_bytes(self, input_bytes: bytes, input_type: str):
     """Predicts the model based on the given bytes.
     Args:
-        file_bytes (bytes): File Bytes to predict on.
+        input_bytes (bytes): File Bytes to predict on.
         input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio'.
     """
     if input_type not in {'image', 'text', 'video', 'audio'}:
       raise UserError('Invalid input type it should be image, text, video or audio.')
+    if not isinstance(input_bytes, bytes):
+      raise UserError('Invalid bytes.')
     # TODO will obtain proto from input class
     if input_type == "image":
       input_proto = resources_pb2.Input(
-          data=resources_pb2.Data(image=resources_pb2.Image(base64=file_bytes)))
+          data=resources_pb2.Data(image=resources_pb2.Image(base64=input_bytes)))
     elif input_type == "text":
       input_proto = resources_pb2.Input(
-          data=resources_pb2.Data(text=resources_pb2.Text(raw=file_bytes)))
+          data=resources_pb2.Data(text=resources_pb2.Text(raw=input_bytes)))
     elif input_type == "video":
       input_proto = resources_pb2.Input(
-          data=resources_pb2.Data(video=resources_pb2.Video(base64=file_bytes)))
+          data=resources_pb2.Data(video=resources_pb2.Video(base64=input_bytes)))
     elif input_type == "audio":
       input_proto = resources_pb2.Input(
-          data=resources_pb2.Data(audio=resources_pb2.Audio(base64=file_bytes)))
+          data=resources_pb2.Data(audio=resources_pb2.Audio(base64=input_bytes)))
 
     return self.predict(inputs=[input_proto])
 
