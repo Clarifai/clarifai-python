@@ -39,21 +39,21 @@ dataset.upload_dataset(task='visual_segmentation', split="train", dataset_loader
 
 ```python
 from clarifai.client.user import User
-app =  User(user_id="user_id").app(app_id="app_id")
+app = User(user_id="user_id").app(app_id="app_id")
+input_obj = app.inputs()
 
-# image upload from folder
-image_obj = app.image()
-image_obj.upload_from_folder(folder_path='demo_folder')
+#input upload from url
+input_obj.upload_from_url(input_id = 'demo', image_url='https://samples.clarifai.com/metro-north.jpg')
+
+#input upload from filename
+input_obj.upload_from_filename(input_id = 'demo', video_file='demo.mp4')
 
 #listing inputs
-image_obj.list_inputs()
+input_obj.list_inputs()
 
 # text upload
-text_obj = app.text()
-text_obj.upload(input_id = 'demo', raw_text = 'This is a test')
+input_obj.upload_text(input_id = 'demo', raw_text = 'This is a test')
 
-#audio upload from url
-audio_obj = app.audio()
-audio_obj.upload_from_url(input_id = 'demo', url='https://samples.clarifai.com/english_audio_sample.mp3')
-
+# uploading images from folder
+input_obj.upload_images_from_folder(folder_path='demo_folder')
 ```
