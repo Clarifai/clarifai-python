@@ -36,6 +36,31 @@ dataset = app.create_dataset(dataset_id="demo_dataset")
 dataset.upload_dataset(task='visual_segmentation', split="train", dataset_loader='coco_segmentation')
 ```
 
+
+## Interacting with Inputs
+
+```python
+from clarifai.client.user import User
+app = User(user_id="user_id").app(app_id="app_id")
+input_obj = app.inputs()
+
+#input upload from url
+input_obj.upload_from_url(input_id = 'demo', image_url='https://samples.clarifai.com/metro-north.jpg')
+
+#input upload from filename
+input_obj.upload_from_file(input_id = 'demo', video_file='demo.mp4')
+
+#listing inputs
+input_obj.list_inputs()
+
+# text upload
+input_obj.upload_text(input_id = 'demo', raw_text = 'This is a test')
+
+# uploading images from folder
+input_obj.upload_images_from_folder(folder_path='demo_folder')
+```
+
+
 ## Interacting with Models
 
 ### Model Predict

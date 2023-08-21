@@ -6,6 +6,7 @@ from google.protobuf.json_format import MessageToDict
 
 from clarifai.client.base import BaseClient
 from clarifai.client.dataset import Dataset
+from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
 from clarifai.client.model import Model
 from clarifai.client.workflow import Workflow
@@ -222,6 +223,13 @@ class App(Lister, BaseClient):
                                              list(dict_response.keys())[1])
 
     return Workflow(**kwargs)
+
+  def inputs(self,):
+    """Returns an Input object.
+    Returns:
+        Inputs: An input object.
+    """
+    return Inputs(self.user_id, self.id)
 
   def delete_dataset(self, dataset_id: str) -> None:
     """Deletes an dataset for the user.
