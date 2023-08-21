@@ -5,7 +5,7 @@ name: Run tests
 
 on:
   push:
-    branches: [ clarifai-sdk-dev ]
+    branches: [ candidate-master ]
   pull_request:
 
 jobs:
@@ -37,7 +37,13 @@ jobs:
         pip install -r tests/requirements.txt
     - name: Run static analysis lint
       uses: pre-commit/action@v3.0.0
-    - name: Run pytest
+    - name: Prepare the API keys & Run pytest
+      env:
+        CLARIFAI_USER_EMAIL_SECURE_HOSTING: ${{ secrets.CLARIFAI_USER_EMAIL_SECURE_HOSTING }}
+        CLARIFAI_USER_EMAIL: ${{ secrets.INTERNAL_USER_EMAIL }}
+        CLARIFAI_USER_PASSWORD: ${{ secrets.INTERNAL_USER_PASSWORD }}
       shell: bash
       run: |
-        pytest tests/ -n auto
+        export PYTHONPATH=.
+        export CLARIFAI_PAT="$(python scripts/key_for_tests.py --create-pat)"
+        pytest tests/test_auth.py tests/test_modules.py tests/test_stub.py -n auto

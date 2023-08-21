@@ -30,7 +30,7 @@ class Dataset(Lister, BaseClient):
   """
 
   def __init__(self, dataset_id: str, **kwargs):
-    """Initializes an Dataset object.
+    """Initializes a Dataset object.
     Args:
         dataset_id (str): The Dataset ID within the App to interact with.
         **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.

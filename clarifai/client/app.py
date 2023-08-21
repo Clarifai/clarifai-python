@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, Dict, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
@@ -19,7 +19,7 @@ class App(Lister, BaseClient):
   Inherits from BaseClient for authentication purposes.
   """
 
-  def __init__(self, app_id: str, **kwargs):
+  def __init__(self, app_id: str = "", **kwargs):
     """Initializes an App object.
     Args:
         app_id (str): The App ID for the App to interact with.
@@ -48,17 +48,63 @@ class App(Lister, BaseClient):
 
     return [Dataset(**dataset_info) for dataset_info in all_datasets_info]
 
-  def list_models(self):
-    """
-    Lists all the models for the app.
-    """
-    pass  # TODO
+  def list_models(self, filter_by: Dict[str, Any] = {}, only_in_app: bool = True) -> List[Model]:
+    """Lists all the models for the app.
+    Args:
+        filter_by (dict): A dictionary of filters to apply to the list of models.
+        only_in_app (bool): If True, only return models that are in the app.
+    Returns:
+        List[Model]: A list of Model objects for the models in the app.
 
-  def list_workflows(self):
+    Example:
+        >>> from clarifai.client.user import User
+        >>> app = User(user_id="user_id").app(app_id="app_id")
+        >>> all_models = app.list_models()
+    """
+    request_data = dict(user_app_id=self.user_app_id, per_page=self.default_page_size, **filter_by)
+    all_models_info = list(
+        self.list_all_pages_generator(self.STUB.ListModels, service_pb2.ListModelsRequest,
+                                      request_data))
+
+    filtered_models_info = []
+    for model_info in all_models_info:
+      if 'model_version' not in list(model_info.keys()):
+        continue
+      if only_in_app:
+        if model_info['app_id'] != self.id:
+          continue
+      filtered_models_info.append(model_info)
+
+    return [Model(**model_info) for model_info in filtered_models_info]
+
+  def list_workflows(self, filter_by: Dict[str, Any] = {},
+                     only_in_app: bool = True) -> List[Workflow]:
     """
     Lists all the workflows for the app.
+    Args:
+        filter_by (dict): A dictionary of filters to apply to the list of workflows.
+        only_in_app (bool): If True, only return workflows that are in the app.
+    Returns:
+        List[Workflow]: A list of Workflow objects for the workflows in the app.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> all_workflows = app.list_workflows()
     """
-    pass  # TODO
+    request_data = dict(user_app_id=self.user_app_id, per_page=self.default_page_size, **filter_by)
+    all_workflows_info = list(
+        self.list_all_pages_generator(self.STUB.ListWorkflows, service_pb2.ListWorkflowsRequest,
+                                      request_data))
+
+    filtered_workflows_info = []
+    for workflow_info in all_workflows_info:
+      if only_in_app:
+        if workflow_info['app_id'] != self.id:
+          continue
+      filtered_workflows_info.append(workflow_info)
+
+    return [Workflow(**workflow_info) for workflow_info in all_workflows_info]
 
   def list_concepts(self):
     """
@@ -134,14 +180,21 @@ class App(Lister, BaseClient):
 
     return Dataset(**kwargs)
 
-  def model(self, model_id: str, **kwargs) -> Model:
+  def model(self, model_id: str, model_version_id: str = "", **kwargs) -> Model:
     """Returns a Model object for the existing model ID.
     Args:
         model_id (str): The model ID for the model to interact with.
+        model_version_id (str): The model version ID for the model version to interact with.
     Returns:
         Model: A Model object for the existing model ID.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> model_v1 = app.model(model_id="model_id", model_version_id="model_version_id")
     """
-    request = service_pb2.GetModelRequest(user_app_id=self.user_app_id, model_id=model_id)
+    request = service_pb2.GetModelRequest(
+        user_app_id=self.user_app_id, model_id=model_id, version_id=model_version_id)
     response = self._grpc_request(self.STUB.GetModel, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
@@ -155,6 +208,11 @@ class App(Lister, BaseClient):
         workflow_id (str): The workflow ID for the workflow to interact with.
     Returns:
         Workflow: A Workflow object for the existing workflow ID.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> workflow = app.workflow(workflow_id="workflow_id")
     """
     request = service_pb2.GetWorkflowRequest(user_app_id=self.user_app_id, workflow_id=workflow_id)
     response = self._grpc_request(self.STUB.GetWorkflow, request)

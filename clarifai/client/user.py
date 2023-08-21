@@ -15,7 +15,7 @@ class User(Lister, BaseClient):
   Inherits from BaseClient for authentication purposes.
   """
 
-  def __init__(self, user_id: str, **kwargs):
+  def __init__(self, user_id: str = "", **kwargs):
     """Initializes an User object.
     Args:
         user_id (str): The user ID for the user to interact with.
