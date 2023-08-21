@@ -77,13 +77,32 @@ class Inputs(Lister, BaseClient):
             return resources_pb2.Input(
                 id=input_id,
                 dataset_ids=[dataset_id],
-                data=resources_pb2.Data(image=imagepb, video=video_pb, audio=audio_pb, text=text_pb, geo=geo_pb, concepts=concepts, metadata=metadata))
+                data=resources_pb2.Data(image=imagepb, 
+                                        video=video_pb, 
+                                        audio=audio_pb, 
+                                        text=text_pb, 
+                                        geo=geo_pb, 
+                                        concepts=concepts, 
+                                        metadata=metadata))
 
         return resources_pb2.Input(
             id=input_id,
-            data=resources_pb2.Data(image=imagepb, video=video_pb, audio=audio_pb, text=text_pb, geo=geo_pb, concepts=concepts, metadata=metadata))
+            data=resources_pb2.Data(image=imagepb, 
+                                    video=video_pb, 
+                                    audio=audio_pb, 
+                                    text=text_pb, 
+                                    geo=geo_pb, 
+                                    concepts=concepts, 
+                                    metadata=metadata))
 
-    def get_input_from_url(self, input_id: str , image_url: str = None, video_url: str = None, audio_url: str = None, text_url:str = None ,dataset_id: str = None, **kwargs) -> Input:
+    def get_input_from_url(self, 
+                           input_id: str , 
+                           image_url: str = None, 
+                           video_url: str = None, 
+                           audio_url: str = None, 
+                           text_url:str = None ,
+                           dataset_id: str = None, 
+                           **kwargs) -> Input:
         """Create input proto from url.
         Args:
             input_id (str): The input ID for the input to create.
@@ -107,7 +126,13 @@ class Inputs(Lister, BaseClient):
         text_pb = resources_pb2.Text(url=text_url) if text_url else None
         return self._get_proto(input_id, dataset_id, image_pb, video_pb,audio_pb,text_pb, **kwargs)
 
-    def get_input_from_file(self, input_id: str , image_file: str = None, video_file: str = None, audio_file: str = None, dataset_id: str = None, **kwargs) -> Input:
+    def get_input_from_file(self, 
+                            input_id: str , 
+                            image_file: str = None, 
+                            video_file: str = None, 
+                            audio_file: str = None, 
+                            dataset_id: str = None, 
+                            **kwargs) -> Input:
         """Create input proto from files.
         Args:
             input_id (str): The input ID for the input to create.
@@ -129,7 +154,13 @@ class Inputs(Lister, BaseClient):
         audio_pb = resources_pb2.Audio(base64=open(audio_file, 'rb').read()) if audio_file else None
         return self._get_proto(input_id, dataset_id, image_pb, video_pb,audio_pb, **kwargs)
 
-    def get_input_from_bytes(self, input_id: str , image_bytes: bytes = None, video_bytes: bytes = None, audio_bytes: bytes = None, dataset_id: str = None, **kwargs) -> Input:
+    def get_input_from_bytes(self, 
+                             input_id: str , 
+                             image_bytes: bytes = None, 
+                             video_bytes: bytes = None, 
+                             audio_bytes: bytes = None, 
+                             dataset_id: str = None, 
+                             **kwargs) -> Input:
         """Create input proto from bytes.
         Args:
             input_id (str): The input ID for the input to create.
@@ -257,7 +288,14 @@ class Inputs(Lister, BaseClient):
 
         return input_mask_proto
 
-    def upload_from_url(self, input_id: str, image_url: str = None, video_url: str = None, audio_url: str = None, text_url:str = None ,dataset_id: str = None, **kwargs) -> str:
+    def upload_from_url(self, 
+                        input_id: str, 
+                        image_url: str = None, 
+                        video_url: str = None, 
+                        audio_url: str = None, 
+                        text_url:str = None ,
+                        dataset_id: str = None, 
+                        **kwargs) -> str:
         """upload input from url.
         Args:
             input_id (str): The input ID for the input to create.
@@ -276,7 +314,13 @@ class Inputs(Lister, BaseClient):
         input_pb = self.get_input_from_url(input_id, image_url, video_url, audio_url, text_url, dataset_id, **kwargs)
         return self.upload_inputs([input_pb])
 
-    def upload_from_file(self, input_id: str, image_file: str = None, video_file: str = None, audio_file: str = None, dataset_id: str = None, **kwargs) -> str:
+    def upload_from_file(self, 
+                         input_id: str, 
+                         image_file: str = None, 
+                         video_file: str = None, 
+                         audio_file: str = None, 
+                         dataset_id: str = None, 
+                         **kwargs) -> str:
         """upload input from file.
         Args:
             input_id (str): The input ID for the input to create.
@@ -294,7 +338,13 @@ class Inputs(Lister, BaseClient):
         input_pb = self.get_input_from_file(input_id, image_file, video_file, audio_file, dataset_id, **kwargs)
         return self.upload_inputs([input_pb])
 
-    def upload_from_bytes(self, input_id: str, image_bytes: bytes = None, video_bytes: bytes = None, audio_bytes: bytes = None, dataset_id: str = None, **kwargs) -> str:
+    def upload_from_bytes(self, 
+                          input_id: str, 
+                          image_bytes: bytes = None, 
+                          video_bytes: bytes = None, 
+                          audio_bytes: bytes = None, 
+                          dataset_id: str = None, 
+                          **kwargs) -> str:
         """upload input from bytes.
         Args:
             input_id (str): The input ID for the input to create.
