@@ -22,7 +22,7 @@ class Workflow(Lister, BaseClient):
                workflow_version: Dict = {'id': ""},
                output_config: Dict = {'min_value': 0},
                **kwargs):
-    """Initializes an Workflow object.
+    """Initializes a Workflow object.
     Args:
         workflow_id (str): The Workflow ID to interact with.
         workflow_version (dict): The Workflow Version to interact with.

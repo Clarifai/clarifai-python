@@ -24,7 +24,7 @@ class Model(Lister, BaseClient):
                model_version: Dict = {'id': ""},
                output_config: Dict = {'min_value': 0},
                **kwargs):
-    """Initializes an Model object.
+    """Initializes a Model object.
     Args:
         model_id (str): The Model ID to interact with.
         model_version (dict): The Model Version to interact with.

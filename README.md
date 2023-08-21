@@ -82,7 +82,7 @@ all_llm_community_models = App().list_models(filter_by={"query": "LLM",
 from clarifai.client.workflow import Workflow
 
 # Workflow Predict
-workflow = Workflow(user_id="user_id", app_id="app_id", workflow_id="model_id")
+workflow = Workflow(user_id="user_id", app_id="app_id", workflow_id="workflow_id")
 workflow_prediction = workflow.predict_by_url(url="url", input_type="image") # Supports image, text, audio, video
 
 # Customizing Workflow Inference Output
