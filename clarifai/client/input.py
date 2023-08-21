@@ -40,7 +40,14 @@ class Inputs(Lister, BaseClient):
         BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id)
         Lister.__init__(self)
 
-    def _get_proto(self, input_id: str, dataset_id: Union[str, None], imagepb: Image = None,video_pb: Video = None,audio_pb: Audio = None,text_pb: Text = None, **kwargs) -> Input:
+    def _get_proto(self, 
+                   input_id: str, 
+                   dataset_id: Union[str, None], 
+                   imagepb: Image = None,
+                   video_pb: Video = None,
+                   audio_pb: Audio = None,
+                   text_pb: Text = None, 
+                   **kwargs) -> Input:
         """Create input proto for image data type.
         Args:
             input_id (str): The input ID for the input to create.
