@@ -46,7 +46,7 @@ input_obj = app.inputs()
 input_obj.upload_from_url(input_id = 'demo', image_url='https://samples.clarifai.com/metro-north.jpg')
 
 #input upload from filename
-input_obj.upload_from_filename(input_id = 'demo', video_file='demo.mp4')
+input_obj.upload_from_file(input_id = 'demo', video_file='demo.mp4')
 
 #listing inputs
 input_obj.list_inputs()

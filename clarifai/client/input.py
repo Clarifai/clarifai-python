@@ -39,8 +39,7 @@ class Inputs(Lister, BaseClient):
         BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id)
         Lister.__init__(self)
 
-    def _get_proto(self, input_id: str, dataset_id: Union[str, None], imagepb: Image = None,video_pb: Video = None,audio_pb: Audio = None,text_pb: Text = None,
-                 **kwargs) -> Input:
+    def _get_proto(self, input_id: str, dataset_id: Union[str, None], imagepb: Image = None,video_pb: Video = None,audio_pb: Audio = None,text_pb: Text = None, **kwargs) -> Input:
         """Create input proto for image data type.
         Args:
             input_id (str): The input ID for the input to create.
@@ -100,7 +99,7 @@ class Inputs(Lister, BaseClient):
         text_pb = resources_pb2.Text(url=text_url) if text_url else None
         return self._get_proto(input_id, dataset_id, image_pb, video_pb,audio_pb,text_pb, **kwargs)
 
-    def get_input_from_filename(self, input_id: str , image_file: str = None, video_file: str = None, audio_file: str = None, dataset_id: str = None, **kwargs) -> Input:
+    def get_input_from_file(self, input_id: str , image_file: str = None, video_file: str = None, audio_file: str = None, dataset_id: str = None, **kwargs) -> Input:
         """Create input proto from files.
         Args:
             input_id (str): The input ID for the input to create.
@@ -113,7 +112,7 @@ class Inputs(Lister, BaseClient):
         Example:
             >>> from clarifai.client.input import Input
             >>> input_obj = Input()
-            >>> input_proto = input_obj.get_input_from_filename(input_id = 'demo', video_file='file_path')
+            >>> input_proto = input_obj.get_input_from_file(input_id = 'demo', video_file='file_path')
         """
         if not any((image_file, video_file, audio_file)):
             raise ValueError("At least one of image_file, video_file, audio_file, must be provided.")
@@ -269,22 +268,22 @@ class Inputs(Lister, BaseClient):
         input_pb = self.get_input_from_url(input_id, image_url, video_url, audio_url, text_url, dataset_id, **kwargs)
         return self.upload_inputs([input_pb])
 
-    def upload_from_filename(self, input_id: str, image_file: str = None, video_file: str = None, audio_file: str = None, dataset_id: str = None, **kwargs) -> str:
+    def upload_from_file(self, input_id: str, image_file: str = None, video_file: str = None, audio_file: str = None, dataset_id: str = None, **kwargs) -> str:
         """upload input from file.
         Args:
             input_id (str): The input ID for the input to create.
-            image_file (str): The filename for the image.
-            video_file (str): The filename for the video.
-            audio_file (str): The filename for the audio.
+            image_file (str): The file for the image.
+            video_file (str): The file for the video.
+            audio_file (str): The file for the audio.
             dataset_id (str): The dataset ID for the dataset to add the input to.
         Returns:
             input_job_id: job id for the upload request.
         Example:
             >>> from clarifai.client.input import Input
             >>> input_obj = Input(user_id = 'user_id', app_id = 'demo_app')
-            >>> input_obj.upload_from_filename(input_id='demo', audio_file='demo.mp3')
+            >>> input_obj.upload_from_file(input_id='demo', audio_file='demo.mp3')
         """
-        input_pb = self.get_input_from_filename(input_id, image_file, video_file, audio_file, dataset_id, **kwargs)
+        input_pb = self.get_input_from_file(input_id, image_file, video_file, audio_file, dataset_id, **kwargs)
         return self.upload_inputs([input_pb])
 
     def upload_from_bytes(self, input_id: str, image_bytes: bytes = None, video_bytes: bytes = None, audio_bytes: bytes = None, dataset_id: str = None, **kwargs) -> str:
