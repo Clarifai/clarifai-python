@@ -14,6 +14,7 @@ from tqdm import tqdm
 
 from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
+from clarifai.errors import UserError
 from clarifai.utils.logging import get_logger
 from clarifai.utils.misc import BackoffIterator, Chunker
 
@@ -345,7 +346,7 @@ class Inputs(Lister, BaseClient):
             input_job_id: job id for the upload request.
         """
         if not isinstance(inputs, list):
-            raise Exception("inputs must be a list of Input objects")
+            raise UserError("inputs must be a list of Input objects")
         input_job_id = uuid.uuid4().hex  # generate a unique id for this job
         request = service_pb2.PostInputsRequest(
             user_app_id=self.user_app_id, inputs=inputs, inputs_add_job_id=input_job_id)
@@ -384,7 +385,7 @@ class Inputs(Lister, BaseClient):
             >>> input_obj.delete_inputs(input_obj.list_inputs())
         """
         if not isinstance(inputs, list):
-            raise Exception("input_ids must be a list of input ids")
+            raise UserError("input_ids must be a list of input ids")
         inputs_ids = [input.id for input in inputs]
         request = service_pb2.DeleteInputsRequest(user_app_id=self.user_app_id, ids=inputs_ids)
         response = self._grpc_request(self.STUB.DeleteInputs, request)
