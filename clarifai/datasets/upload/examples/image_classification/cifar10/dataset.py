@@ -11,11 +11,10 @@ class Cifar10DataLoader(ClarifaiDataLoader):
   """Cifar10 Dataset."""
 
   def __init__(self, split: str = "train"):
+    """Initialize dataset params.
+    Args:
+      split: "train" or "test"
     """
-        Initialize dataset params.
-        Args:
-          split: "train" or "test"
-        """
     self.split = split
     self.data_dirs = {
         "train": os.path.join(os.path.dirname(__file__), "cifar_small_train.csv"),

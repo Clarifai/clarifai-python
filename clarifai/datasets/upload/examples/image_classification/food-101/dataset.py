@@ -9,9 +9,9 @@ class Food101DataLoader(ClarifaiDataLoader):
 
   def __init__(self, split: str = "train"):
     """Initialize dataset params.
-        Args:
-          split: "train" or "test"
-        """
+    Args:
+      split: "train" or "test"
+    """
     self.split = split
     self.image_dir = {"train": os.path.join(os.path.dirname(__file__), "images")}
     self.load_data()
