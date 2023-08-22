@@ -15,9 +15,8 @@ from clarifai.datasets.upload.image import (VisualClassificationDataset, VisualD
 from clarifai.datasets.upload.text import TextClassificationDataset
 from clarifai.datasets.upload.utils import load_dataloader, load_module_dataloader
 from clarifai.errors import UserError
-from clarifai.utils.misc import Chunker
 from clarifai.urls.helper import ClarifaiUrlHelper
-
+from clarifai.utils.misc import Chunker
 
 ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset,
                               VisualDetectionDataset, VisualSegmentationDataset,
