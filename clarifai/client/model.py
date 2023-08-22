@@ -9,6 +9,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
 from clarifai.errors import UserError
+from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import get_logger
 from clarifai.utils.misc import BackoffIterator
 
@@ -20,12 +21,14 @@ class Model(Lister, BaseClient):
   """
 
   def __init__(self,
-               model_id: str,
+               url_init: str = "",
+               model_id: str = "",
                model_version: Dict = {'id': ""},
                output_config: Dict = {'min_value': 0},
                **kwargs):
     """Initializes a Model object.
     Args:
+        url_init (str): The URL to initialize the model object.
         model_id (str): The Model ID to interact with.
         model_version (dict): The Model Version to interact with.
         output_config (dict): The output config to interact with.
@@ -35,6 +38,15 @@ class Model(Lister, BaseClient):
           sample_ms (int): The number of milliseconds to sample.
         **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
     """
+    if url_init != "" and model_id != "":
+      raise UserError("You can only specify one of url_init or model_id.")
+    if url_init == "" and model_id == "":
+      raise UserError("You must specify one of url_init or model_id.")
+    if url_init != "":
+      user_id, app_id, _, model_id, model_version_id = ClarifaiUrlHelper.split_clarifai_url(
+          url_init)
+      model_version = {'id': model_version_id}
+      kwargs = {'user_id': user_id, 'app_id': app_id}
     self.kwargs = {**kwargs, 'id': model_id, 'model_version': model_version,
                    'output_info': {'output_config': output_config}}
     self.model_info = resources_pb2.Model(**self.kwargs)
@@ -84,6 +96,8 @@ class Model(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.model import Model
+        >>> model = Model("model_url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+                    or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
         >>> model_prediction = model.predict_by_filepath('/path/to/image.jpg', 'image')
         >>> model_prediction = model.predict_by_filepath('/path/to/text.txt', 'text')
@@ -103,6 +117,11 @@ class Model(Lister, BaseClient):
     Args:
         input_bytes (bytes): File Bytes to predict on.
         input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio'.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model("https://clarifai.com/anthropic/completion/models/claude-v2")
+        >>> model_prediction = model.predict_by_bytes(b'Write a tweet on future of AI', 'text')
     """
     if input_type not in {'image', 'text', 'video', 'audio'}:
       raise UserError('Invalid input type it should be image, text, video or audio.')
@@ -132,6 +151,8 @@ class Model(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.model import Model
+        >>> model = Model("model_url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+                    or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
         >>> model_prediction = model.predict_by_url('url', 'image')
     """
@@ -159,6 +180,8 @@ class Model(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.model import Model
+        >>> model = Model("model_url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+                    or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
         >>> all_model_versions = model.list_versions()
     """

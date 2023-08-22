@@ -69,6 +69,8 @@ input_obj.upload_images_from_folder(folder_path='demo_folder')
 from clarifai.client.model import Model
 
 # Model Predict
+model = Model("https://clarifai.com/anthropic/completion/models/claude-v2").predict_by_bytes(b"Write a tweet on future of AI", "text")
+
 model = Model(user_id="user_id", app_id="app_id", model_id="model_id")
 model_prediction = model.predict_by_url(url="url", input_type="image") # Supports image, text, audio, video
 
@@ -107,7 +109,7 @@ all_llm_community_models = App().list_models(filter_by={"query": "LLM",
 from clarifai.client.workflow import Workflow
 
 # Workflow Predict
-workflow = Workflow(user_id="user_id", app_id="app_id", workflow_id="workflow_id")
+workflow = Workflow("workflow_url") # Example: https://clarifai.com/clarifai/main/workflows/Face-Sentiment
 workflow_prediction = workflow.predict_by_url(url="url", input_type="image") # Supports image, text, audio, video
 
 # Customizing Workflow Inference Output
@@ -130,5 +132,5 @@ workflow_v1 = Workflow(workflow_id="workflow_id", workflow_version=dict(id="work
 all_workflow = app.list_workflow()
 
 # List all workflow in community filtered by description
-all_face_community_workflows = App().list_workflow(filter_by={"query": "face"}, only_in_app=False) # Get all face related workflows
+all_face_community_workflows = App().list_workflows(filter_by={"query": "face"}, only_in_app=False) # Get all face related workflows
 ```

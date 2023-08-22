@@ -8,6 +8,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
 from clarifai.errors import UserError
+from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import get_logger
 
 
@@ -18,12 +19,14 @@ class Workflow(Lister, BaseClient):
   """
 
   def __init__(self,
+               url_init: str = "",
                workflow_id: str = "",
                workflow_version: Dict = {'id': ""},
                output_config: Dict = {'min_value': 0},
                **kwargs):
     """Initializes a Workflow object.
     Args:
+        url_init (str): The URL to initialize the workflow object.
         workflow_id (str): The Workflow ID to interact with.
         workflow_version (dict): The Workflow Version to interact with.
         output_config (dict): The output config to interact with.
@@ -33,6 +36,15 @@ class Workflow(Lister, BaseClient):
           sample_ms (int): The number of milliseconds to sample.
         **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
     """
+    if url_init != "" and workflow_id != "":
+      raise UserError("You can only specify one of url_init or workflow_id.")
+    if url_init == "" and workflow_id == "":
+      raise UserError("You must specify one of url_init or workflow_id.")
+    if url_init != "":
+      user_id, app_id, _, workflow_id, workflow_version_id = ClarifaiUrlHelper.split_clarifai_url(
+          url_init)
+      workflow_version = {'id': workflow_version_id}
+      kwargs = {'user_id': user_id, 'app_id': app_id}
     self.kwargs = {**kwargs, 'id': workflow_id, 'version': workflow_version}
     self.output_config = output_config
     self.workflow_info = resources_pb2.Workflow(**self.kwargs)
@@ -68,6 +80,8 @@ class Workflow(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.workflow import Workflow
+        >>> workflow = Workflow("workflow_url") # Example: https://clarifai.com/clarifai/main/workflows/Face-Sentiment
+                      or
         >>> workflow = Workflow(user_id='user_id', app_id='app_id', workflow_id='workflow_id')
         >>> workflow_prediction = workflow.predict_by_filepath('filepath', 'image')
     """
@@ -115,6 +129,8 @@ class Workflow(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.workflow import Workflow
+        >>> workflow = Workflow("workflow_url") # Example: https://clarifai.com/clarifai/main/workflows/Face-Sentiment
+                      or
         >>> workflow = Workflow(user_id='user_id', app_id='app_id', workflow_id='workflow_id')
         >>> workflow_prediction = workflow.predict_by_url('url', 'image')
     """

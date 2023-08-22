@@ -10,6 +10,8 @@ from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
 from clarifai.client.model import Model
 from clarifai.client.workflow import Workflow
+from clarifai.errors import UserError
+from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import get_logger
 
 
@@ -19,14 +21,20 @@ class App(Lister, BaseClient):
   Inherits from BaseClient for authentication purposes.
   """
 
-  def __init__(self, app_id: str = "", **kwargs):
+  def __init__(self, url_init: str = "", app_id: str = "", **kwargs):
     """Initializes an App object.
     Args:
+        url_init (str): The URL to initialize the app object.
         app_id (str): The App ID for the App to interact with.
         **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
             - name (str): The name of the app.
             - description (str): The description of the app.
     """
+    if url_init != "" and app_id != "":
+      raise UserError("You can only specify one of url_init or app_id.")
+    if url_init != "":
+      user_id, app_id, _, _, _ = ClarifaiUrlHelper.split_clarifai_url(url_init)
+      kwargs = {'user_id': user_id}
     self.kwargs = {**kwargs, 'id': app_id}
     self.app_info = resources_pb2.App(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
@@ -34,7 +42,15 @@ class App(Lister, BaseClient):
     Lister.__init__(self)
 
   def list_datasets(self) -> List[Dataset]:
-    """Lists all the datasets for the app."""
+    """Lists all the datasets for the app.
+    Returns:
+        List[Dataset]: A list of Dataset objects for the datasets in the app.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> all_datasets = app.list_datasets()
+    """
     request_data = dict(
         user_app_id=self.user_app_id,
         per_page=self.default_page_size,
@@ -119,6 +135,11 @@ class App(Lister, BaseClient):
         **kwargs: Additional keyword arguments to be passed to the Dataset.
     Returns:
         Dataset: A Dataset object for the specified dataset ID.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> dataset = app.create_dataset(dataset_id="dataset_id")
     """
     request = service_pb2.PostDatasetsRequest(
         user_app_id=self.user_app_id, datasets=[resources_pb2.Dataset(id=dataset_id, **kwargs)])
@@ -126,6 +147,7 @@ class App(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nDataset created\n%s", response.status)
+    kwargs.update({'app_id': self.id, 'user_id': self.user_id})
 
     return Dataset(dataset_id=dataset_id, **kwargs)
 
@@ -136,6 +158,11 @@ class App(Lister, BaseClient):
         **kwargs: Additional keyword arguments to be passed to the Model.
     Returns:
         Model: A Model object for the specified model ID.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> model = app.create_model(model_id="model_id")
     """
     request = service_pb2.PostModelsRequest(
         user_app_id=self.user_app_id, models=[resources_pb2.Model(id=model_id, **kwargs)])
@@ -143,6 +170,7 @@ class App(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nModel created\n%s", response.status)
+    kwargs.update({'app_id': self.id, 'user_id': self.user_id})
 
     return Model(model_id=model_id, **kwargs)
 
@@ -153,6 +181,11 @@ class App(Lister, BaseClient):
         **kwargs: Additional keyword arguments to be passed to the workflow.
     Returns:
         Workflow: A Workflow object for the specified workflow ID.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> workflow = app.create_workflow(workflow_id="workflow_id")
     """
     request = service_pb2.PostWorkflowsRequest(
         user_app_id=self.user_app_id, workflows=[resources_pb2.Workflow(id=workflow_id, **kwargs)])
@@ -160,6 +193,7 @@ class App(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nWorkflow created\n%s", response.status)
+    kwargs.update({'app_id': self.id, 'user_id': self.user_id})
 
     return Workflow(workflow_id=workflow_id, **kwargs)
 
@@ -169,14 +203,19 @@ class App(Lister, BaseClient):
         dataset_id (str): The dataset ID for the dataset to interact with.
     Returns:
         Dataset: A Dataset object for the existing dataset ID.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> dataset = app.dataset(dataset_id="dataset_id")
     """
     request = service_pb2.GetDatasetRequest(user_app_id=self.user_app_id, dataset_id=dataset_id)
     response = self._grpc_request(self.STUB.GetDataset, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
-    dict_response = MessageToDict(response)
-    kwargs = self.convert_keys_to_snake_case(dict_response[list(dict_response.keys())[1]],
-                                             list(dict_response.keys())[1])
+    dict_response = MessageToDict(response, preserving_proto_field_name=True)
+    kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
+                                        list(dict_response.keys())[1])
 
     return Dataset(**kwargs)
 
@@ -198,8 +237,8 @@ class App(Lister, BaseClient):
     response = self._grpc_request(self.STUB.GetModel, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
-    dict_response = MessageToDict(response)
-    kwargs = self.convert_keys_to_snake_case(dict_response['model'], 'model')
+    dict_response = MessageToDict(response, preserving_proto_field_name=True)
+    kwargs = self.process_response_keys(dict_response['model'], 'model')
     return Model(**kwargs)
 
   def workflow(self, workflow_id: str, **kwargs) -> Workflow:
@@ -218,9 +257,9 @@ class App(Lister, BaseClient):
     response = self._grpc_request(self.STUB.GetWorkflow, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
-    dict_response = MessageToDict(response)
-    kwargs = self.convert_keys_to_snake_case(dict_response[list(dict_response.keys())[1]],
-                                             list(dict_response.keys())[1])
+    dict_response = MessageToDict(response, preserving_proto_field_name=True)
+    kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
+                                        list(dict_response.keys())[1])
 
     return Workflow(**kwargs)
 
