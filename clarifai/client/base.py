@@ -75,37 +75,27 @@ class BaseClient:
 
     return timestamp_obj
 
-  def convert_keys_to_snake_case(self, old_dict, listing_resource):
-    """Converts keys in a dictionary to snake case.
+  def process_response_keys(self, old_dict, listing_resource):
+    """Converts keys in a response dictionary to resource proto format.
     Args:
         old_dict (dict): The dictionary to convert.
     Returns:
-        new_dict (dict): The dictionary with snake case keys.
+        new_dict (dict): The dictionary with processed keys.
     """
     old_dict[f'{listing_resource}_id'] = old_dict['id']
     old_dict.pop('id')
-
-    def snake_case(key):
-      result = ''
-      for char in key:
-        if char.isupper():
-          result += '_' + char.lower()
-        else:
-          result += char
-      return result
 
     def convert_recursive(item):
       if isinstance(item, dict):
         new_item = {}
         for key, value in item.items():
-          if key in ['createdAt', 'modifiedAt', 'completedAt']:
+          if key in ['created_at', 'modified_at', 'completed_at']:
             value = self.convert_string_to_timestamp(value)
-          elif key in ['workflowRecommended']:
+          elif key in ['workflow_recommended']:
             value = BoolValue(value=True)
-          elif key in ['metadata', 'fieldsMap']:
-            continue  # TODO Fix "app_duplication",fieldsMap(text key) error
-          new_key = snake_case(key)
-          new_item[new_key] = convert_recursive(value)
+          elif key in ['metadata', 'fields_map', 'params']:
+            continue  # TODO Fix "app_duplication",proto struct
+          new_item[key] = convert_recursive(value)
         return new_item
       elif isinstance(item, list):
         return [convert_recursive(element) for element in item]

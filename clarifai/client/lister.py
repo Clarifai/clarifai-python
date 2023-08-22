@@ -21,13 +21,13 @@ class Lister(BaseClient):
         proto_message (Any): The proto message to use.
         request_data (dict): The request data to use.
     Yields:
-        dict: The next item in the listing.
+        response_dict: The next item in the listing.
     """
     page = 1
     while True:
       request_data['page'] = page
       response = self._grpc_request(endpoint, proto_message(**request_data))
-      dict_response = MessageToDict(response)
+      dict_response = MessageToDict(response, preserving_proto_field_name=True)
       if response.status.code != status_code_pb2.SUCCESS:
         raise Exception(f"Listing failed with response {response!r}")
       if len(list(dict_response.keys())) == 1:
@@ -35,5 +35,5 @@ class Lister(BaseClient):
       else:
         listing_resource = list(dict_response.keys())[1]
         for item in dict_response[listing_resource]:
-          yield self.convert_keys_to_snake_case(item, listing_resource[:-1])
+          yield self.process_response_keys(item, listing_resource[:-1])
       page += 1

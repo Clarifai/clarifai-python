@@ -55,6 +55,7 @@ class User(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nApp created\n%s", response.status)
+    kwargs.update({'user_id': self.id})
     return App(app_id=app_id, **kwargs)
 
   def app(self, app_id: str, **kwargs) -> App:

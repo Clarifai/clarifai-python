@@ -43,7 +43,7 @@ def _request(method, url, payload={}, headers={}):
   return json.loads(response)
 
 
-def _login():
+def login():
   url = "/login"
   payload = {"email": EMAIL, "password": PASSWORD}
   data = _request(method="POST", url=url, payload=payload)
@@ -66,7 +66,7 @@ def _auth_headers(session_token):
 
 
 def create_pat():
-  session_token, user_id = _login()
+  session_token, user_id = login()
   os.environ["CLARIFAI_USER_ID"] = user_id
 
   url = "/users/%s/keys" % user_id
@@ -101,6 +101,10 @@ def run(arguments):
   # these options are mutually exclusive
   if arguments.create_pat:
     create_pat()
+  elif arguments.get_userid:
+    _, user_id = login()
+    # This print needs to be present so we can read the value in CI.
+    print(user_id)
   else:
     print(f"No relevant arguments specified. Run {sys.argv[0]} --help to see available options")
     exit(1)
@@ -123,6 +127,7 @@ if __name__ == "__main__":
   )
   group = parser.add_mutually_exclusive_group()
   group.add_argument("--create-pat", action="store_true", help=" Creates a new PAT key.")
+  group.add_argument("--get-userid", action="store_true", help=" Gets the user id.")
 
   args = parser.parse_args()
   run(args)

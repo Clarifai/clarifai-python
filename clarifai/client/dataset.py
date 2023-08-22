@@ -16,6 +16,8 @@ from clarifai.datasets.upload.text import TextClassificationDataset
 from clarifai.datasets.upload.utils import load_dataloader, load_module_dataloader
 from clarifai.errors import UserError
 from clarifai.utils.misc import Chunker
+from clarifai.urls.helper import ClarifaiUrlHelper
+
 
 ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset,
                               VisualDetectionDataset, VisualSegmentationDataset,
@@ -28,12 +30,20 @@ class Dataset(Lister, BaseClient):
   Inherits from BaseClient for authentication purposes.
   """
 
-  def __init__(self, dataset_id: str, **kwargs):
+  def __init__(self, url_init: str = "", dataset_id: str = "", **kwargs):
     """Initializes a Dataset object.
     Args:
+        url_init (str): The URL to initialize the dataset object.
         dataset_id (str): The Dataset ID within the App to interact with.
         **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
     """
+    if url_init != "" and dataset_id != "":
+      raise UserError("You can only specify one of url_init or dataset_id.")
+    if url_init == "" and dataset_id == "":
+      raise UserError("You must specify one of url_init or dataset_id.")
+    if url_init != "":
+      user_id, app_id, _, dataset_id, _ = ClarifaiUrlHelper.split_clarifai_url(url_init)
+      kwargs = {'user_id': user_id, 'app_id': app_id}
     self.kwargs = {**kwargs, 'id': dataset_id}
     self.dataset_info = resources_pb2.Dataset(**self.kwargs)
     # Related to Dataset Upload
