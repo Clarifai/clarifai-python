@@ -9,6 +9,7 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2  # noqa: F401
 from clarifai_grpc.grpc.api.resources_pb2 import Annotation, Audio, Image, Input, Text, Video
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from google.protobuf.json_format import MessageToDict
+from google.protobuf.struct_pb2 import Struct
 from tqdm import tqdm
 
 from clarifai.client.base import BaseClient
@@ -46,7 +47,9 @@ class Inputs(Lister, BaseClient):
                  video_pb: Video = None,
                  audio_pb: Audio = None,
                  text_pb: Text = None,
-                 **kwargs) -> Input:
+                 geo_info: List = None,
+                 labels: List = None,
+                 metadata: Struct = None) -> Input:
     """Create input proto for image data type.
         Args:
             input_id (str): The input ID for the input to create.
@@ -55,22 +58,23 @@ class Inputs(Lister, BaseClient):
             video_pb (Video): The video proto to be used for the input.
             audio_pb (Audio): The audio proto to be used for the input.
             text_pb (Text): The text proto to be used for the input.
-            **kwargs: Additional keyword arguments to be passed to the Input
-                - geo_info (list): A list of longitude and latitude for the geo point.
-                - labels (list): A list of labels for the input.
-                - metadata (Struct): A Struct of metadata for the input.
+            geo_info (list): A list of longitude and latitude for the geo point.
+            labels (list): A list of labels for the input.
+            metadata (Struct): A Struct of metadata for the input.
         Returns:
             Input: An Input object for the specified input ID.
         """
+    assert geo_info is None or isinstance(
+        geo_info, list), "geo_info must be a list of longitude and latitude"
+    assert labels is None or isinstance(labels, list), "labels must be a list of strings"
+    assert metadata is None or isinstance(metadata, Struct), "metadata must be a Struct"
     geo_pb = resources_pb2.Geo(geo_point=resources_pb2.GeoPoint(
-        longitude=kwargs['geo_info'][0], latitude=kwargs['geo_info'][
-            1])) if 'geo_info' in kwargs else None
+        longitude=geo_info[0], latitude=geo_info[1])) if geo_info else None
     concepts=[
             resources_pb2.Concept(
             id=f"id-{''.join(_label.split(' '))}", name=_label, value=1.)\
-            for _label in kwargs['labels']
-        ]if 'labels' in kwargs else None
-    metadata = kwargs['metadata'] if 'metadata' in kwargs else None
+            for _label in labels
+        ]if labels else None
 
     if dataset_id:
       return resources_pb2.Input(
@@ -239,6 +243,8 @@ class Inputs(Lister, BaseClient):
             >>> input_obj = Input()
             >>> input_obj.get_annotation_proto(input_id='demo', label='demo', annotations=[x_min, y_min, x_max, y_max])
         """
+    if not isinstance(annotations, list):
+      raise UserError("annotations must be a list of bbox cooridnates")
     input_annot_proto = resources_pb2.Annotation(
         input_id=input_id,
         data=resources_pb2.Data(regions=[
@@ -273,6 +279,8 @@ class Inputs(Lister, BaseClient):
             >>> input_obj = Input()
             >>> input_obj.get_mask_proto(input_id='demo', label='demo', polygons=[[[x,y],...,[x,y]],...])
         """
+    if not isinstance(polygons, list):
+      raise UserError("polygons must be a list of points")
     input_mask_proto = resources_pb2.Annotation(
         input_id=input_id,
         data=resources_pb2.Data(regions=[
@@ -427,6 +435,31 @@ class Inputs(Lister, BaseClient):
         self.logger.info("\nInputs Uploaded\n%s", response.status)
 
     return input_job_id
+
+  def upload_annotations(self, batch_annot: List[resources_pb2.Annotation], show_log: bool = True
+                        ) -> Union[List[resources_pb2.Annotation], List[None]]:
+    """Upload image annotations to app.
+    Args:
+      batch_annot: annot batch protos
+    Returns:
+      retry_upload: failed annot upload
+    """
+    retry_upload = []  # those that fail to upload are stored for retries
+    request = service_pb2.PostAnnotationsRequest(
+        user_app_id=self.user_app_id, annotations=batch_annot)
+    response = self._grpc_request(self.STUB.PostAnnotations, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      try:
+        self.logger.warning(
+            f"Post annotations failed, status: {response.annotations[0].status.details}")
+      except:
+        self.logger.warning(f"Post annotations failed, status: {response.status.details}")
+      finally:
+        retry_upload.extend(batch_annot)
+    else:
+      if show_log:
+        self.logger.info("\nAnnotations Uploaded\n%s", response.status)
+    return retry_upload
 
   def _upload_batch(self, inputs: List[Input]) -> List[Input]:
     """Upload a batch of input objects to the app.

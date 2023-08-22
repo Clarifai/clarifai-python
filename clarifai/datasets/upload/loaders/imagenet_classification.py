@@ -2,8 +2,8 @@
 
 import os
 
-from clarifai.data_upload.datasets.features import VisualClassificationFeatures
 from clarifai.datasets.upload.base import ClarifaiDataLoader
+from ..features import VisualClassificationFeatures
 
 
 class ImageNetDataLoader(ClarifaiDataLoader):
