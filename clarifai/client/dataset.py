@@ -1,5 +1,3 @@
-import time
-import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
 from typing import List, Tuple, TypeVar, Union
@@ -10,6 +8,7 @@ from google.protobuf.json_format import MessageToDict
 from tqdm import tqdm
 
 from clarifai.client.base import BaseClient
+from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
 from clarifai.datasets.upload.image import (VisualClassificationDataset, VisualDetectionDataset,
                                             VisualSegmentationDataset)
@@ -17,7 +16,7 @@ from clarifai.datasets.upload.text import TextClassificationDataset
 from clarifai.datasets.upload.utils import load_dataloader, load_module_dataloader
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
-from clarifai.utils.misc import BackoffIterator, Chunker
+from clarifai.utils.misc import Chunker
 
 ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset,
                               VisualDetectionDataset, VisualSegmentationDataset,
@@ -52,53 +51,9 @@ class Dataset(Lister, BaseClient):
     self.max_retires = 10
     self.chunk_size = 128  # limit max protos in a req
     self.task = None  # Upload dataset type
-
+    self.input_object = Inputs(user_id=self.user_id, app_id=self.app_id)
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id)
     Lister.__init__(self)
-
-  def _upload_inputs(self, batch_input: List[resources_pb2.Input]) -> str:
-    """Upload inputs to clarifai platform dataset.
-    Args:
-      batch_input: input batch protos
-    Returns:
-      input_job_id: Upload Input Job ID
-    """
-    input_job_id = uuid.uuid4().hex  # generate a unique id for this job
-    response = self._grpc_request(self.STUB.PostInputs,
-                                  service_pb2.PostInputsRequest(
-                                      user_app_id=self.user_app_id,
-                                      inputs=batch_input,
-                                      inputs_add_job_id=input_job_id))
-    if response.status.code != status_code_pb2.SUCCESS:
-      try:
-        print(f"Post inputs failed, status: {response.inputs[0].status.details}")
-      except:
-        print(f"Post inputs failed, status: {response.status.details}")
-
-    return input_job_id
-
-  def _upload_annotations(self, batch_annot: List[resources_pb2.Annotation]
-                         ) -> Union[List[resources_pb2.Annotation], List[None]]:
-    """Upload image annotations to clarifai detection dataset
-    Args:
-      batch_annot: annot batch protos
-    Returns:
-      retry_upload: failed annot upload
-    """
-    retry_upload = []  # those that fail to upload are stored for retries
-    response = self._grpc_request(
-        self.STUB.PostAnnotations,
-        service_pb2.PostAnnotationsRequest(user_app_id=self.user_app_id, annotations=batch_annot),
-    )
-    if response.status.code != status_code_pb2.SUCCESS:
-      try:
-        print(f"Post annotations failed, status: {response.annotations[0].status.details}")
-      except:
-        print(f"Post annotations failed, status: {response.status.details}")
-      finally:
-        retry_upload.extend(batch_annot)
-
-    return retry_upload
 
   def _concurrent_annot_upload(self, annots: List[List[resources_pb2.Annotation]]
                               ) -> Union[List[resources_pb2.Annotation], List[None]]:
@@ -113,7 +68,8 @@ class Dataset(Lister, BaseClient):
 
     with ThreadPoolExecutor(max_workers=self.annot_num_workers) as executor:  # limit annot workers
       annot_threads = [
-          executor.submit(self._upload_annotations, inp_batch) for inp_batch in annots
+          executor.submit(self.input_object.upload_annotations, inp_batch, False)
+          for inp_batch in annots
       ]
 
       for job in as_completed(annot_threads):
@@ -122,35 +78,6 @@ class Dataset(Lister, BaseClient):
           retry_annot_upload.extend(result)
 
     return retry_annot_upload
-
-  def _wait_for_inputs(self, input_job_id: str) -> bool:
-    """Wait for inputs to be processed. Cancel Job if timeout > 30 minutes.
-    Args:
-      input_job_id: Upload Input Job ID
-    Returns:
-      True if inputs are processed, False otherwise
-    """
-    backoff_iterator = BackoffIterator()
-    max_retries = self.max_retires
-    start_time = time.time()
-    while True:
-      response = self._grpc_request(
-          self.STUB.GetInputsAddJob,
-          service_pb2.GetInputsAddJobRequest(user_app_id=self.user_app_id, id=input_job_id),
-      )
-      if time.time() - start_time > 60 * 30 or max_retries == 0:  # 30 minutes timeout
-        self._grpc_request(self.STUB.CancelInputsAddJob,
-                           service_pb2.CancelInputsAddJobRequest(
-                               user_app_id=self.user_app_id, id=input_job_id))  #Cancel Job
-        return False
-      if response.status.code != status_code_pb2.SUCCESS:
-        max_retries -= 1
-        print(f"Get input job failed, status: {response.status.details}\n")
-        continue
-      if response.inputs_add_job.progress.in_progress_count == 0 and response.inputs_add_job.progress.pending_count == 0:
-        return True
-      else:
-        time.sleep(next(backoff_iterator))
 
   def _delete_failed_inputs(self, batch_input_ids: List[int],
                             dataset_obj: ClarifaiDatasetType) -> Tuple[List[int], List[int]]:
@@ -195,10 +122,10 @@ class Dataset(Lister, BaseClient):
       retry_annot_protos: failed annot protos
     """
     input_protos, _ = dataset_obj.get_protos(batch_input_ids)
-    input_job_id = self._upload_inputs(input_protos)
+    input_job_id = self.input_object.upload_inputs(inputs=input_protos, show_log=False)
     retry_annot_protos = []
 
-    self._wait_for_inputs(input_job_id)
+    self.input_object._wait_for_inputs(input_job_id)
     success_input_ids, failed_input_ids = self._delete_failed_inputs(batch_input_ids, dataset_obj)
 
     if self.task in ["visual_detection", "visual_segmentation"]:

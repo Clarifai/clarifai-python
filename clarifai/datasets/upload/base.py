@@ -2,8 +2,8 @@ from collections import defaultdict
 from typing import Iterator, List, Tuple, TypeVar, Union
 
 from clarifai_grpc.grpc.api import resources_pb2
-from google.protobuf.struct_pb2 import Struct
 
+from clarifai.client.input import Inputs
 from clarifai.datasets.upload.features import (TextFeatures, VisualClassificationFeatures,
                                                VisualDetectionFeatures, VisualSegmentationFeatures)
 
@@ -23,6 +23,7 @@ class ClarifaiDataset:
     self.all_input_ids = {}
     self._all_input_protos = {}
     self._all_annotation_protos = defaultdict(list)
+    self.input_object = Inputs()
 
   def __len__(self) -> int:
     """Get size of all input protos"""
@@ -31,20 +32,6 @@ class ClarifaiDataset:
   def _to_list(self, input_protos: Iterator) -> List:
     """Parse protos iterator to list."""
     return list(input_protos)
-
-  def create_input_protos(self, image_path: str, label: str, input_id: str, dataset_id: str,
-                          metadata: Struct) -> resources_pb2.Input:
-    """Create input protos for each image, label input pair.
-    Args:
-    	image_path: path to image.
-    	label: image label
-    	input_id: unique input id
-    	dataset_id: Clarifai dataset id
-    	metadata: input metadata
-    Returns:
-    	An input proto representing a single row input
-    """
-    raise NotImplementedError()
 
   def _extract_protos(self) -> None:
     """Create input image protos for each data generator item."""
