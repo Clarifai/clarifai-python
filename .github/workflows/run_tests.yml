@@ -46,4 +46,4 @@ jobs:
       run: |
         export PYTHONPATH=.
         export CLARIFAI_PAT="$(python scripts/key_for_tests.py --create-pat)"
-        pytest tests/test_auth.py -n auto
+        pytest tests/ -n auto
