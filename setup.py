@@ -21,9 +21,16 @@ setup(
     author_email='support@clarifai.com',
     install_requires=[
         'future>=0.15, <2', 'requests>=2.13, <3', 'configparser>=3.5, <4', 'jsonschema>=2.5, <3',
-        'grpcio>=1.13.0, <2', 'protobuf>=3.6, <4', 'googleapis-common-protos>=1.5.0, <2'
+        'grpcio>=1.13.0, <2', 'protobuf>=3.6, <4', 'googleapis-common-protos>=1.5.0, <2',
+        'clarifai-grpc>=9.7.1', 'tritonclient==2.34.0', 'packaging',
     ] + ([] if has_enum else ['enum34>=1.1, <2']) + ([] if has_typing else ['typing>=3.6']),
     packages=find_packages(),
     license="Apache 2.0",
-    scripts=['scripts/clarifai'],
+    entry_points={
+        "console_scripts": [
+            "clarifai-model-upload-init = clarifai.models.model_serving.cli.repository:model_upload_init",
+            "clarifai-triton-zip = clarifai.models.model_serving.cli.model_zip:main",
+            "clarifai-upload-model = clarifai.models.model_serving.cli.deploy_cli:main"
+        ],
+    },
 )
