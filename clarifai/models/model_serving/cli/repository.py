@@ -21,9 +21,9 @@ from ..pb_model_repository import TritonModelRepository
 
 def dims_type(shape_string: str):
   """Read list string from cli and convert values to a list of integers."""
-  shape_string =shape_string.replace("[", "").replace("]", "")
+  shape_string = shape_string.replace("[", "").replace("]", "")
   shape_int = map(int, shape_string.split(","))
-  return list(shape_int) # (H, W)
+  return list(shape_int)  # (H, W)
 
 
 def model_upload_init():
@@ -52,7 +52,8 @@ def model_upload_init():
       type=dims_type,
       default="[-1, -1]",
       required=False,
-      help=f"(H, W) dims for models with an image input type. H and W each have a max value of 1024",
+      help=
+      f"(H, W) dims for models with an image input type. H and W each have a max value of 1024",
   )
   parser.add_argument(
       "--repo_dir",
@@ -62,12 +63,12 @@ def model_upload_init():
       help="Directory to create triton repository.")
 
   args = parser.parse_args()
-  
+
   model_config = TritonModelConfig(
-    model_name=args.model_name,
-    model_version="1",
-    model_type=args.model_type,
-    image_shape=args.image_shape,
+      model_name=args.model_name,
+      model_version="1",
+      model_type=args.model_type,
+      image_shape=args.image_shape,
   )
 
   triton_repo = TritonModelRepository(model_config)

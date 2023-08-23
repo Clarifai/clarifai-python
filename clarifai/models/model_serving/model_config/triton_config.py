@@ -142,7 +142,7 @@ class TritonModelConfig:
   model_name: str
   model_version: str
   model_type: str
-  image_shape: List #(H, W)
+  image_shape: List  #(H, W)
   input: List[InputConfig] = field(default_factory=list)
   output: List[OutputConfig] = field(default_factory=list)
   instance_group: Device = Device()
@@ -156,12 +156,12 @@ class TritonModelConfig:
     a given model_type.
     """
     image_dims = self.image_shape
-    image_dims.append(3) # add channel dim
+    image_dims.append(3)  # add channel dim
     image_input = InputConfig(name="image", data_type=DType.TYPE_UINT8, dims=image_dims)
     text_input = InputConfig(name="text", data_type=DType.TYPE_STRING, dims=[1])
     # del image_shape as it's a temporary config that's not used by triton
     del self.image_shape
-    
+
     if self.model_type == "visual-detector":
       self.input.append(image_input)
       pred_bboxes = OutputConfig(name="predicted_bboxes", data_type=DType.TYPE_FP32, dims=[-1, 4])
