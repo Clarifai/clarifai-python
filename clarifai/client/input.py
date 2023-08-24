@@ -108,6 +108,7 @@ class Inputs(Lister, BaseClient):
                          dataset_id: str = None,
                          **kwargs) -> Input:
     """Create input proto from url.
+
     Args:
         input_id (str): The input ID for the input to create.
         image_url (str): The url for the image.
