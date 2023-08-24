@@ -30,10 +30,17 @@ client = User(user_id="user_id")
 apps = client.list_apps()
 
 # Create app and dataset
-app = client.create_app(app_id="demo_app")
+app = client.create_app(app_id="demo_app", base_workflow="Universal")
 dataset = app.create_dataset(dataset_id="demo_dataset")
+
 # execute data upload to Clarifai app dataset
 dataset.upload_dataset(task='visual_segmentation', split="train", dataset_loader='coco_segmentation')
+
+#upload text from csv
+dataset.upload_from_csv(csv_path='csv_path', labels=True)
+
+#upload data from folder
+dataset.upload_from_folder(folder_path='folder_path', input_type='text', labels=True)
 ```
 
 
@@ -55,9 +62,6 @@ input_obj.list_inputs()
 
 # text upload
 input_obj.upload_text(input_id = 'demo', raw_text = 'This is a test')
-
-# uploading images from folder
-input_obj.upload_images_from_folder(folder_path='demo_folder')
 ```
 
 
@@ -133,4 +137,24 @@ all_workflow = app.list_workflow()
 
 # List all workflow in community filtered by description
 all_face_community_workflows = App().list_workflows(filter_by={"query": "face"}, only_in_app=False) # Get all face related workflows
+```
+
+## Interacting with Modules
+
+```python
+# Note: CLARIFAI_PAT must be set as env variable.
+from clarifai.client.app import App
+app = App(user_id="user_id", app_id="app_id")
+
+# create a new module
+module = app.create_module(module_id="module_id", description="module_description")
+
+# List all modules in an app
+all_modules = app.list_modules()
+
+# List all module versions
+all_module_versions = module.list_versions()
+
+# Delete a module
+app.delete_module(module_id="module_id")
 ```

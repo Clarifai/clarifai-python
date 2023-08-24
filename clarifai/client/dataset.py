@@ -24,13 +24,11 @@ ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset
 
 
 class Dataset(Lister, BaseClient):
-  """
-  Dataset is a class that provides access to Clarifai API endpoints related to Dataset information.
-  Inherits from BaseClient for authentication purposes.
-  """
+  """Dataset is a class that provides access to Clarifai API endpoints related to Dataset information."""
 
   def __init__(self, url_init: str = "", dataset_id: str = "", **kwargs):
     """Initializes a Dataset object.
+
     Args:
         url_init (str): The URL to initialize the dataset object.
         dataset_id (str): The Dataset ID within the App to interact with.
@@ -58,8 +56,10 @@ class Dataset(Lister, BaseClient):
   def _concurrent_annot_upload(self, annots: List[List[resources_pb2.Annotation]]
                               ) -> Union[List[resources_pb2.Annotation], List[None]]:
     """Uploads annotations concurrently.
+
     Args:
       annots: annot protos
+
     Returns:
       retry_annot_upload: All failed annot protos during upload
     """
@@ -82,9 +82,11 @@ class Dataset(Lister, BaseClient):
   def _delete_failed_inputs(self, batch_input_ids: List[int],
                             dataset_obj: ClarifaiDatasetType) -> Tuple[List[int], List[int]]:
     """Delete failed input ids from clarifai platform dataset.
+
     Args:
       batch_input_ids: batch input ids
       dataset_obj: ClarifaiDataset object
+
     Returns:
       success_inputs: upload success input ids
       failed_inputs: upload failed input ids
@@ -114,9 +116,11 @@ class Dataset(Lister, BaseClient):
   def _upload_inputs_annotations(self, batch_input_ids: List[int], dataset_obj: ClarifaiDatasetType
                                 ) -> Tuple[List[int], List[resources_pb2.Annotation]]:
     """Uploads batch of inputs and annotations concurrently to clarifai platform dataset.
+
     Args:
       batch_input_ids: batch input ids
       dataset_obj: ClarifaiDataset object
+
     Returns:
       failed_input_ids: failed input ids
       retry_annot_protos: failed annot protos
@@ -139,6 +143,7 @@ class Dataset(Lister, BaseClient):
                      retry_annot_protos: List[resources_pb2.Annotation],
                      dataset_obj: ClarifaiDatasetType) -> None:
     """Retry failed uploads.
+
     Args:
       failed_input_ids: failed input ids
       retry_annot_protos: failed annot protos
@@ -152,6 +157,7 @@ class Dataset(Lister, BaseClient):
 
   def _data_upload(self, dataset_obj: ClarifaiDatasetType) -> None:
     """Uploads inputs and annotations to clarifai platform dataset.
+
     Args:
       dataset_obj: ClarifaiDataset object
     """
@@ -177,12 +183,13 @@ class Dataset(Lister, BaseClient):
                      dataset_loader: str = None,
                      chunk_size: int = 128) -> None:
     """Uploads a dataset to the app.
+
     Args:
-      task: task type(text_clf, visual-classification, visual_detection, visual_segmentation, visual-captioning)
-      split: split type(train, test, val)
-      module_dir: path to the module directory
-      dataset_loader: name of the dataset loader
-      chunk_size: chunk size for concurrent upload of inputs and annotations
+      task (str): task type(text_clf, visual-classification, visual_detection, visual_segmentation, visual-captioning)
+      split (str): split type(train, test, val)
+      module_dir (str): path to the module directory
+      dataset_loader (str): name of the dataset loader
+      chunk_size (int): chunk size for concurrent upload of inputs and annotations
     """
     self.chunk_size = min(self.chunk_size, chunk_size)
     self.task = task
@@ -212,6 +219,64 @@ class Dataset(Lister, BaseClient):
       dataset_obj = VisualClassificationDataset(datagen_object, self.id, split)
 
     self._data_upload(dataset_obj)
+
+  def upload_from_csv(self,
+                      csv_path: str,
+                      input_type: str = 'text',
+                      labels: bool = True,
+                      chunk_size: int = 128) -> None:
+    """Uploads dataset from a csv file.
+
+    Args:
+        csv_path (str): path to the csv file
+        input_type (str): type of the dataset(text, image)
+        labels (bool): True if csv file has labels column
+        chunk_size (int): chunk size for concurrent upload of inputs and annotations
+
+    Example:
+        >>> from clarifai.client.dataset import Dataset
+        >>> dataset = Dataset(user_id = 'user_id', app_id = 'demo_app', dataset_id = 'demo_dataset')
+        >>> dataset.upload_from_csv(csv_path='csv_path', labels=True)
+
+    Note: csv file should have either one(input) or two columns(input, labels).
+    """
+    if input_type not in ['image', 'text']:  #TODO: add image
+      raise UserError('Invalid input type it should be image or text')
+    chunk_size = min(128, chunk_size)
+    if input_type == 'text':
+      input_protos = self.input_object.get_text_input_from_csv(
+          csv_path=csv_path, dataset_id=self.id, labels=labels)
+    self.input_object._bulk_upload(inputs=input_protos, chunk_size=chunk_size)
+
+  def upload_from_folder(self,
+                         folder_path: str,
+                         input_type: str,
+                         labels: bool = False,
+                         chunk_size: int = 128) -> None:
+    """Upload dataset from folder.
+
+    Args:
+        folder_path (str): Path to the folder containing images.
+        input_type (str): type of the dataset(text, image)
+        labels (bool): True if folder name is the label for the inputs
+        chunk_size (int): chunk size for concurrent upload of inputs and annotations
+
+    Example:
+        >>> from clarifai.client.dataset import Dataset
+        >>> dataset = Dataset(user_id = 'user_id', app_id = 'demo_app', dataset_id = 'demo_dataset')
+        >>> dataset.upload_from_folder(folder_path='folder_path', input_type='text', labels=True)
+
+    Note: The filename is used as the input_id.
+    """
+    if input_type not in ['image', 'text']:
+      raise UserError('Invalid input type it should be image or text')
+    if input_type == 'image':
+      input_protos = self.input_object.get_image_inputs_from_folder(
+          folder_path=folder_path, dataset_id=self.id, labels=labels)
+    if input_type == 'text':
+      input_protos = self.input_object.get_text_inputs_from_folder(
+          folder_path=folder_path, dataset_id=self.id, labels=labels)
+    self.input_object._bulk_upload(inputs=input_protos, chunk_size=chunk_size)
 
   def __getattr__(self, name):
     return getattr(self.dataset_info, name)
