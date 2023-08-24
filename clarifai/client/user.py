@@ -10,13 +10,11 @@ from clarifai.utils.logging import get_logger
 
 
 class User(Lister, BaseClient):
-  """
-  User is a class that provides access to Clarifai API endpoints related to user information.
-  Inherits from BaseClient for authentication purposes.
-  """
+  """User is a class that provides access to Clarifai API endpoints related to user information."""
 
   def __init__(self, user_id: str = "", **kwargs):
     """Initializes an User object.
+
     Args:
         user_id (str): The user ID for the user to interact with.
         **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
@@ -29,8 +27,10 @@ class User(Lister, BaseClient):
 
   def list_apps(self, filter_by: Dict[str, Any] = {}) -> List[App]:
     """Lists all the apps for the user.
+
     Args:
         filter_by (dict): A dictionary of filters to be applied to the list of apps.
+
     Returns:
         list of App: A list of App objects for the user.
     """
@@ -43,11 +43,17 @@ class User(Lister, BaseClient):
 
   def create_app(self, app_id: str, **kwargs) -> App:
     """Creates an app for the user.
+
     Args:
         app_id (str): The app ID for the app to create.
         **kwargs: Additional keyword arguments to be passed to the App.
+
     Returns:
         App: An App object for the specified app ID.
+
+    Example:
+        >>> from clarifai.client.user import User
+        >>> app = User("user_id").create_app("app_id")
     """
     request = service_pb2.PostAppsRequest(
         user_app_id=self.user_app_id, apps=[resources_pb2.App(id=app_id, **kwargs)])
@@ -60,11 +66,17 @@ class User(Lister, BaseClient):
 
   def app(self, app_id: str, **kwargs) -> App:
     """Returns an App object for the specified app ID.
+
     Args:
         app_id (str): The app ID for the app to interact with.
         **kwargs: Additional keyword arguments to be passed to the App.
+
     Returns:
         App: An App object for the specified app ID.
+
+    Example:
+        >>> from clarifai.client.user import User
+        >>> app = User("user_id").app("app_id")
     """
     request = service_pb2.GetAppRequest(
         user_app_id=resources_pb2.UserAppIDSet(user_id=self.id, app_id=app_id))
@@ -77,8 +89,13 @@ class User(Lister, BaseClient):
 
   def delete_app(self, app_id: str) -> None:
     """Deletes an app for the user.
+
     Args:
         app_id (str): The app ID for the app to delete.
+
+    Example:
+        >>> from clarifai.client.user import User
+        >>> user = User("user_id").delete_app("app_id")
     """
     request = service_pb2.DeleteAppRequest(
         user_app_id=resources_pb2.UserAppIDSet(user_id=self.id, app_id=app_id))

@@ -20,18 +20,16 @@ from clarifai.utils.misc import BackoffIterator, Chunker
 
 
 class Inputs(Lister, BaseClient):
-  """
-    Inputs is a class that provides access to Clarifai API endpoints related to Input information.
-    Inherits from BaseClient for authentication purposes.
-    """
+  """Inputs is a class that provides access to Clarifai API endpoints related to Input information."""
 
-  def __init__(self, user_id: str = '', app_id: str = '', logger_level: str = "INFO", **kwargs):
+  def __init__(self, user_id: str = "", app_id: str = "", logger_level: str = "INFO", **kwargs):
     """Initializes an Input object.
-        Args:
-            user_id (str): A user ID for authentication.
-            app_id (str): An app ID for the application to interact with.
-            **kwargs: Additional keyword arguments to be passed to the Input
-        """
+
+    Args:
+        user_id (str): A user ID for authentication.
+        app_id (str): An app ID for the application to interact with.
+        **kwargs: Additional keyword arguments to be passed to the Input
+    """
     self.user_id = user_id
     self.app_id = app_id
     self.kwargs = {**kwargs}
@@ -109,20 +107,22 @@ class Inputs(Lister, BaseClient):
                          dataset_id: str = None,
                          **kwargs) -> Input:
     """Create input proto from url.
-        Args:
-            input_id (str): The input ID for the input to create.
-            image_url (str): The url for the image.
-            video_url (str): The url for the video.
-            audio_url (str): The url for the audio.
-            text_url (str): The url for the text.
-                dataset_id (str): The dataset ID for the dataset to add the input to.
-        Returns:
-            Input: An Input object for the specified input ID.
-        Example:
-            >>> from clarifai.client.input import Input
-            >>> input_obj = Input()
-            >>> input_proto = input_obj.get_input_from_url(input_id = 'demo', image_url='https://samples.clarifai.com/metro-north.jpg')
-        """
+    Args:
+        input_id (str): The input ID for the input to create.
+        image_url (str): The url for the image.
+        video_url (str): The url for the video.
+        audio_url (str): The url for the audio.
+        text_url (str): The url for the text.
+            dataset_id (str): The dataset ID for the dataset to add the input to.
+
+    Returns:
+        Input: An Input object for the specified input ID.
+
+    Example:
+        >>> from clarifai.client.input import Input
+        >>> input_obj = Input()
+        >>> input_proto = input_obj.get_input_from_url(input_id = 'demo', image_url='https://samples.clarifai.com/metro-north.jpg')
+    """
     if not any((image_url, video_url, audio_url, text_url)):
       raise ValueError(
           "At least one of image_url, video_url, audio_url, text_url must be provided.")
@@ -140,19 +140,22 @@ class Inputs(Lister, BaseClient):
                           dataset_id: str = None,
                           **kwargs) -> Input:
     """Create input proto from files.
-        Args:
-            input_id (str): The input ID for the input to create.
-            image_file (str): The url for the image.
-            video_file (str): The url for the video.
-            audio_file (str): The url for the audio.
-            dataset_id (str): The dataset ID for the dataset to add the input to.
-        Returns:
-            Input: An Input object for the specified input ID.
-        Example:
-            >>> from clarifai.client.input import Input
-            >>> input_obj = Input()
-            >>> input_proto = input_obj.get_input_from_file(input_id = 'demo', video_file='file_path')
-        """
+
+    Args:
+        input_id (str): The input ID for the input to create.
+        image_file (str): The url for the image.
+        video_file (str): The url for the video.
+        audio_file (str): The url for the audio.
+        dataset_id (str): The dataset ID for the dataset to add the input to.
+
+    Returns:
+        Input: An Input object for the specified input ID.
+
+    Example:
+        >>> from clarifai.client.input import Input
+        >>> input_obj = Input()
+        >>> input_proto = input_obj.get_input_from_file(input_id = 'demo', video_file='file_path')
+    """
     if not any((image_file, video_file, audio_file)):
       raise ValueError("At least one of image_file, video_file, audio_file, must be provided.")
     image_pb = resources_pb2.Image(base64=open(image_file, 'rb').read()) if image_file else None
@@ -168,21 +171,24 @@ class Inputs(Lister, BaseClient):
                            dataset_id: str = None,
                            **kwargs) -> Input:
     """Create input proto from bytes.
-        Args:
-            input_id (str): The input ID for the input to create.
-            image_bytes (str): The bytes for the image.
-            video_bytes (str): The bytes for the video.
-            audio_bytes (str): The bytes for the audio.
-            dataset_id (str): The dataset ID for the dataset to add the input to.
-        Returns:
-            Input: An Input object for the specified input ID.
-        Example:
-            >>> from clarifai.client.input import Input
-            >>> input_obj = Input()
-            >>> image = open('demo.jpg', 'rb').read()
-            >>> video = open('demo.mp4', 'rb').read()
-            >>> input_proto = input_obj.get_input_from_bytes(input_id = 'demo',image_bytes =image, video_bytes=video)
-        """
+
+    Args:
+        input_id (str): The input ID for the input to create.
+        image_bytes (str): The bytes for the image.
+        video_bytes (str): The bytes for the video.
+        audio_bytes (str): The bytes for the audio.
+        dataset_id (str): The dataset ID for the dataset to add the input to.
+
+    Returns:
+        Input: An Input object for the specified input ID.
+
+    Example:
+        >>> from clarifai.client.input import Input
+        >>> input_obj = Input()
+        >>> image = open('demo.jpg', 'rb').read()
+        >>> video = open('demo.mp4', 'rb').read()
+        >>> input_proto = input_obj.get_input_from_bytes(input_id = 'demo',image_bytes =image, video_bytes=video)
+    """
     if not any((image_bytes, video_bytes, audio_bytes)):
       raise ValueError("At least one of image_bytes, video_bytes, audio_bytes, must be provided.")
     image_pb = resources_pb2.Image(base64=image_bytes) if image_bytes else None
@@ -193,16 +199,21 @@ class Inputs(Lister, BaseClient):
   def get_image_inputs_from_folder(self, folder_path: str,
                                    dataset_id: str = None) -> List[Input]:  #image specific
     """Create input protos for image data type from folder.
+
+    Args:
+        folder_path (str): Path to the folder containing images.
+
+    Returns:
+        list of Input: A list of Input objects for the specified folder.
+
+    Example:
+        >>> from clarifai.client.input import Input
+        >>> input_obj = Input()
+        >>> input_protos = img_obj.get_image_inputs_from_folder(folder_path='demo_folder')
+
+    Note:
         The folder should only contain images. The filename of the image is used as the input_id.
-        Args:
-            folder_path (str): Path to the folder containing images.
-        Returns:
-            list of Input: A list of Input objects for the specified folder.
-        Example:
-            >>> from clarifai.client.input import Input
-            >>> input_obj = Input()
-            >>> input_protos = img_obj.get_image_inputs_from_folder(folder_path='demo_folder')
-        """
+    """
     inputs = []
     for filename in os.listdir(folder_path):
       if filename.split('.')[-1] not in ['jpg', 'jpeg', 'png', 'tiff', 'webp']:
@@ -215,34 +226,40 @@ class Inputs(Lister, BaseClient):
   def get_text_input(self, input_id: str, raw_text: str, dataset_id: str = None,
                      **kwargs) -> Text:  #text specific
     """Create input proto for text data type from rawtext.
-        Args:
-            input_id (str): The input ID for the input to create.
-            raw_text (str): The raw text input.
-            dataset_id (str): The dataset ID for the dataset to add the input to.
-            **kwargs: Additional keyword arguments to be passed to the Input
-        Returns:
-            Text: An Input object for the specified input ID.
-        Example:
-            >>> from clarifai.client.input import Input
-            >>> input_obj = Input()
-            >>> input_protos = input_obj.get_input(input_id = 'demo', raw_text = 'This is a test')
-        """
+
+    Args:
+        input_id (str): The input ID for the input to create.
+        raw_text (str): The raw text input.
+        dataset_id (str): The dataset ID for the dataset to add the input to.
+        **kwargs: Additional keyword arguments to be passed to the Input
+
+    Returns:
+        Text: An Input object for the specified input ID.
+
+    Example:
+        >>> from clarifai.client.input import Input
+        >>> input_obj = Input()
+        >>> input_protos = input_obj.get_input(input_id = 'demo', raw_text = 'This is a test')
+    """
     text_pb = resources_pb2.Text(raw=raw_text)
     return self._get_proto(input_id, dataset_id, text_pb, **kwargs)
 
   def get_annotation_proto(self, input_id: str, label: str, annotations: List) -> Annotation:
     """Create an annotation proto for each bounding box, label input pair.
-        Args:
-            input_id (str): The input ID for the annotation to create.
-            label (str): annotation label
-            annotations (List): a list of a single bbox's coordinates. # Annotations ordering: [xmin, ymin, xmax, ymax]
-        Returns:
-            An annotation object for the specified input ID.
-        Example:
-            >>> from clarifai.client.input import Input
-            >>> input_obj = Input()
-            >>> input_obj.get_annotation_proto(input_id='demo', label='demo', annotations=[x_min, y_min, x_max, y_max])
-        """
+
+    Args:
+        input_id (str): The input ID for the annotation to create.
+        label (str): annotation label
+        annotations (List): a list of a single bbox's coordinates. # Annotations ordering: [xmin, ymin, xmax, ymax]
+
+    Returns:
+        An annotation object for the specified input ID.
+
+    Example:
+        >>> from clarifai.client.input import Input
+        >>> input_obj = Input()
+        >>> input_obj.get_annotation_proto(input_id='demo', label='demo', annotations=[x_min, y_min, x_max, y_max])
+    """
     if not isinstance(annotations, list):
       raise UserError("annotations must be a list of bbox cooridnates")
     input_annot_proto = resources_pb2.Annotation(
@@ -268,17 +285,20 @@ class Inputs(Lister, BaseClient):
 
   def get_mask_proto(self, input_id: str, label: str, polygons: List[List[float]]) -> Annotation:
     """Create an annotation proto for each polygon box, label input pair.
-        Args:
-            input_id (str): The input ID for the annotation to create.
-            label (str): annotation label
-            polygons (List): Polygon x,y points iterable
-        Returns:
-            An annotation object for the specified input ID.
-        Example:
-            >>> from clarifai.client.input import Input
-            >>> input_obj = Input()
-            >>> input_obj.get_mask_proto(input_id='demo', label='demo', polygons=[[[x,y],...,[x,y]],...])
-        """
+
+    Args:
+        input_id (str): The input ID for the annotation to create.
+        label (str): annotation label
+        polygons (List): Polygon x,y points iterable
+
+    Returns:
+        An annotation object for the specified input ID.
+
+    Example:
+        >>> from clarifai.client.input import Input
+        >>> input_obj = Input()
+        >>> input_obj.get_mask_proto(input_id='demo', label='demo', polygons=[[[x,y],...,[x,y]],...])
+    """
     if not isinstance(polygons, list):
       raise UserError("polygons must be a list of points")
     input_mask_proto = resources_pb2.Annotation(
@@ -308,21 +328,24 @@ class Inputs(Lister, BaseClient):
                       text_url: str = None,
                       dataset_id: str = None,
                       **kwargs) -> str:
-    """upload input from url.
-        Args:
-            input_id (str): The input ID for the input to create.
-            image_url (str): The url for the image.
-            video_url (str): The url for the video.
-            audio_url (str): The url for the audio.
-            text_url (str): The url for the text.
-            dataset_id (str): The dataset ID for the dataset to add the input to.
-        Returns:
-            input_job_id: job id for the upload request.
-        Example:
-            >>> from clarifai.client.input import Input
-            >>> input_obj = Input(user_id = 'user_id', app_id = 'demo_app')
-            >>> input_obj.upload_from_url(input_id='demo', image_url='https://samples.clarifai.com/metro-north.jpg')
-        """
+    """Upload input from url.
+
+    Args:
+        input_id (str): The input ID for the input to create.
+        image_url (str): The url for the image.
+        video_url (str): The url for the video.
+        audio_url (str): The url for the audio.
+        text_url (str): The url for the text.
+        dataset_id (str): The dataset ID for the dataset to add the input to.
+
+    Returns:
+        input_job_id: job id for the upload request.
+
+    Example:
+        >>> from clarifai.client.input import Input
+        >>> input_obj = Input(user_id = 'user_id', app_id = 'demo_app')
+        >>> input_obj.upload_from_url(input_id='demo', image_url='https://samples.clarifai.com/metro-north.jpg')
+    """
     input_pb = self.get_input_from_url(input_id, image_url, video_url, audio_url, text_url,
                                        dataset_id, **kwargs)
     return self.upload_inputs([input_pb])
@@ -334,20 +357,23 @@ class Inputs(Lister, BaseClient):
                        audio_file: str = None,
                        dataset_id: str = None,
                        **kwargs) -> str:
-    """upload input from file.
-        Args:
-            input_id (str): The input ID for the input to create.
-            image_file (str): The file for the image.
-            video_file (str): The file for the video.
-            audio_file (str): The file for the audio.
-            dataset_id (str): The dataset ID for the dataset to add the input to.
-        Returns:
-            input_job_id: job id for the upload request.
-        Example:
-            >>> from clarifai.client.input import Input
-            >>> input_obj = Input(user_id = 'user_id', app_id = 'demo_app')
-            >>> input_obj.upload_from_file(input_id='demo', audio_file='demo.mp3')
-        """
+    """Upload input from file.
+
+    Args:
+        input_id (str): The input ID for the input to create.
+        image_file (str): The file for the image.
+        video_file (str): The file for the video.
+        audio_file (str): The file for the audio.
+        dataset_id (str): The dataset ID for the dataset to add the input to.
+
+    Returns:
+        input_job_id: job id for the upload request.
+
+    Example:
+        >>> from clarifai.client.input import Input
+        >>> input_obj = Input(user_id = 'user_id', app_id = 'demo_app')
+        >>> input_obj.upload_from_file(input_id='demo', audio_file='demo.mp3')
+    """
     input_pb = self.get_input_from_file(input_id, image_file, video_file, audio_file, dataset_id,
                                         **kwargs)
     return self.upload_inputs([input_pb])
@@ -359,66 +385,79 @@ class Inputs(Lister, BaseClient):
                         audio_bytes: bytes = None,
                         dataset_id: str = None,
                         **kwargs) -> str:
-    """upload input from bytes.
-        Args:
-            input_id (str): The input ID for the input to create.
-            image_bytes (str): The bytes for the image.
-            video_bytes (str): The bytes for the video.
-            audio_bytes (str): The bytes for the audio.
-            dataset_id (str): The dataset ID for the dataset to add the input to.
-        Returns:
-            input_job_id: job id for the upload request.
-        Example:
-            >>> from clarifai.client.input import Input
-            >>> input_obj = Input(user_id = 'user_id', app_id = 'demo_app')
-            >>> image = open('demo.jpg', 'rb').read()
-            >>> input_obj.upload_from_bytes(input_id='demo', image_bytes=image)
-        """
+    """Upload input from bytes.
+
+    Args:
+        input_id (str): The input ID for the input to create.
+        image_bytes (str): The bytes for the image.
+        video_bytes (str): The bytes for the video.
+        audio_bytes (str): The bytes for the audio.
+        dataset_id (str): The dataset ID for the dataset to add the input to.
+
+    Returns:
+        input_job_id: job id for the upload request.
+
+    Example:
+        >>> from clarifai.client.input import Input
+        >>> input_obj = Input(user_id = 'user_id', app_id = 'demo_app')
+        >>> image = open('demo.jpg', 'rb').read()
+        >>> input_obj.upload_from_bytes(input_id='demo', image_bytes=image)
+    """
     input_pb = self.get_input_from_bytes(input_id, image_bytes, video_bytes, audio_bytes,
                                          dataset_id, **kwargs)
     return self.upload_inputs([input_pb])
 
   def upload_text(self, input_id: str, raw_text: str, dataset_id: str = None,
                   **kwargs) -> str:  #text specific
-    """upload text from raw text.
-        Args:
-            input_id (str): The input ID for the input to create.
-            raw_text (str): The raw text.
-            dataset_id (str): The dataset ID for the dataset to add the input to.
-        Returns:
-            input_job_id (str): job id for the upload request.
-        Example:
-            >>> from clarifai.client.input import Input
-            >>> input_obj = Input(user_id = 'user_id', app_id = 'demo_app')
-            >>> input_obj.upload_text(input_id = 'demo', raw_text = 'This is a test')
-        """
+    """Upload text from raw text.
+
+    Args:
+        input_id (str): The input ID for the input to create.
+        raw_text (str): The raw text.
+        dataset_id (str): The dataset ID for the dataset to add the input to.
+
+    Returns:
+        input_job_id (str): job id for the upload request.
+
+    Example:
+        >>> from clarifai.client.input import Input
+        >>> input_obj = Input(user_id = 'user_id', app_id = 'demo_app')
+        >>> input_obj.upload_text(input_id = 'demo', raw_text = 'This is a test')
+    """
     input_pb = self._get_proto(
         input_id, dataset_id, text_pb=resources_pb2.Text(raw=raw_text), **kwargs)
     return self.upload_inputs([input_pb])
 
   def upload_images_from_folder(self, folder_path: str, dataset_id: str = None) -> str:
     """Upload images from folder.
+
+    Args:
+        folder_path (str): Path to the folder containing images.
+
+    Returns:
+        input_job_id (str): job id for the upload request.
+
+    Example:
+        >>> from clarifai.client.input import Input
+        >>> input_obj = Input(user_id = 'user_id', app_id = 'demo_app')
+        >>> input_obj.upload_from_folder(folder_path='demo_folder')
+
+    Note:
         The folder should only contain images. The filename of the image is used as the input_id.
-        Args:
-            folder_path (str): Path to the folder containing images.
-        Returns:
-            input_job_id (str): job id for the upload request.
-        Example:
-            >>> from clarifai.client.input import Input
-            >>> input_obj = Input(user_id = 'user_id', app_id = 'demo_app')
-            >>> input_obj.upload_from_folder(folder_path='demo_folder')
-        """
+    """
     inputs = self.get_image_inputs_from_folder(folder_path, dataset_id)
     return self._bulk_upload(inputs)
 
   def upload_inputs(self, inputs: List[Input], show_log: bool = True) -> str:
     """Upload list of input objects to the app.
-        Args:
-            inputs (list): List of input objects to upload.
-            show_log (bool): Show upload status log.
-        Returns:
-            input_job_id: job id for the upload request.
-        """
+
+    Args:
+        inputs (list): List of input objects to upload.
+        show_log (bool): Show upload status log.
+
+    Returns:
+        input_job_id: job id for the upload request.
+    """
     if not isinstance(inputs, list):
       raise UserError("inputs must be a list of Input objects")
     input_job_id = uuid.uuid4().hex  # generate a unique id for this job
@@ -439,10 +478,12 @@ class Inputs(Lister, BaseClient):
   def upload_annotations(self, batch_annot: List[resources_pb2.Annotation], show_log: bool = True
                         ) -> Union[List[resources_pb2.Annotation], List[None]]:
     """Upload image annotations to app.
+
     Args:
-      batch_annot: annot batch protos
+        batch_annot: annot batch protos
+
     Returns:
-      retry_upload: failed annot upload
+        retry_upload: failed annot upload
     """
     retry_upload = []  # those that fail to upload are stored for retries
     request = service_pb2.PostAnnotationsRequest(
@@ -463,11 +504,13 @@ class Inputs(Lister, BaseClient):
 
   def _upload_batch(self, inputs: List[Input]) -> List[Input]:
     """Upload a batch of input objects to the app.
-        Args:
-            inputs (List[Input]): List of input objects to upload.
-        Returns:
-            input_job_id: job id for the upload request.
-        """
+
+    Args:
+        inputs (List[Input]): List of input objects to upload.
+
+    Returns:
+        input_job_id: job id for the upload request.
+    """
     input_job_id = self.upload_inputs(inputs, False)
     self._wait_for_inputs(input_job_id)
     failed_inputs = self._delete_failed_inputs(inputs)
@@ -476,13 +519,15 @@ class Inputs(Lister, BaseClient):
 
   def delete_inputs(self, inputs: List[Input]) -> None:
     """Delete list of input objects from the app.
-        Args:
-            input_ids (Input): List of input objects to delete.
-        Example:
-            >>> from clarifai.client.user import User
-            >>> input_obj = User(user_id="user_id").app(app_id="app_id").inputs()
-            >>> input_obj.delete_inputs(input_obj.list_inputs())
-        """
+
+    Args:
+        input_ids (Input): List of input objects to delete.
+
+    Example:
+        >>> from clarifai.client.user import User
+        >>> input_obj = User(user_id="user_id").app(app_id="app_id").inputs()
+        >>> input_obj.delete_inputs(input_obj.list_inputs())
+    """
     if not isinstance(inputs, list):
       raise UserError("input_ids must be a list of input ids")
     inputs_ids = [input.id for input in inputs]
@@ -494,13 +539,15 @@ class Inputs(Lister, BaseClient):
 
   def list_inputs(self) -> List[Input]:  # TODO: update lister
     """Lists all the inputs for the app.
-        Returns:
-            list of Input: A list of Input objects for the app.
-        Example:
-            >>> from clarifai.client.user import User
-            >>> input_obj = User(user_id="user_id").app(app_id="app_id").inputs()
-            >>> input_obj.list_inputs()
-        """
+
+    Returns:
+        list of Input: A list of Input objects for the app.
+
+    Example:
+        >>> from clarifai.client.user import User
+        >>> input_obj = User(user_id="user_id").app(app_id="app_id").inputs()
+        >>> input_obj.list_inputs()
+    """
     request_data = dict(user_app_id=self.user_app_id, per_page=self.default_page_size)
     all_inputs_info = list(
         self.list_all_pages_generator(self.STUB.ListInputs, service_pb2.ListInputsRequest,
@@ -510,11 +557,12 @@ class Inputs(Lister, BaseClient):
     return [resources_pb2.Input(**input_info) for input_info in all_inputs_info]
 
   def _bulk_upload(self, inputs: List[Input], chunk_size: int = 128) -> None:
-    """Uploads process for large number of inputs .
-        Args:
+    """Uploads process for large number of inputs.
+
+    Args:
         inputs (List[Input]): input protos
         chunk_size (int): chunk size for each request
-        """
+    """
     num_workers: int = min(10, cpu_count())  # limit max workers to 10
     chunk_size = min(128, chunk_size)  # limit max protos in a req
     chunked_inputs = Chunker(inputs, chunk_size).chunk()
@@ -533,11 +581,13 @@ class Inputs(Lister, BaseClient):
 
   def _wait_for_inputs(self, input_job_id: str) -> bool:
     """Wait for inputs to be processed. Cancel Job if timeout > 30 minutes.
-        Args:
+
+    Args:
         input_job_id (str): Upload Input Job ID
-        Returns:
+
+    Returns:
         True if inputs are processed, False otherwise
-        """
+    """
     backoff_iterator = BackoffIterator()
     max_retries = 10
     start_time = time.time()
@@ -561,19 +611,22 @@ class Inputs(Lister, BaseClient):
 
   def _retry_uploads(self, failed_inputs: List[Input]) -> None:
     """Retry failed uploads.
-        Args:
+
+    Args:
         failed_inputs (List[Input]): failed input prots
-        """
+    """
     if failed_inputs:
       self._upload_batch(failed_inputs)
 
   def _delete_failed_inputs(self, inputs: List[Input]) -> List[Input]:
     """Delete failed input ids from clarifai platform dataset.
-        Args:
+
+    Args:
         inputs (List[Input]): batch input protos
-        Returns:
+
+    Returns:
         failed_inputs: failed inputs
-        """
+    """
     input_ids = [input.id for input in inputs]
     success_status = status_pb2.Status(code=status_code_pb2.INPUT_DOWNLOAD_SUCCESS)
     request = service_pb2.ListInputsRequest(
