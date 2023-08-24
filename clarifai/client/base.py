@@ -14,7 +14,7 @@ from clarifai.errors import ApiError, UserError
 class BaseClient:
   """BaseClient is the base class for all the classes interacting with Clarifai endpoints.
 
-  Args:
+  Parameters:
       **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
           - user_id (str): A user ID for authentication.
           - app_id (str): An app ID for the application to interact with.
@@ -42,11 +42,9 @@ class BaseClient:
 
   def _grpc_request(self, method: Callable, argument: Any):
     """Makes a gRPC request to the API.
-
     Args:
         method (Callable): The gRPC method to call.
         argument (Any): The argument to pass to the gRPC method.
-
     Returns:
         res (Any): The result of the gRPC method call.
     """
@@ -60,10 +58,8 @@ class BaseClient:
 
   def convert_string_to_timestamp(self, date_str) -> Timestamp:
     """Converts a string to a Timestamp object.
-
     Args:
         date_str (str): The string to convert.
-
     Returns:
         Timestamp: The converted Timestamp object.
     """
@@ -81,10 +77,8 @@ class BaseClient:
 
   def process_response_keys(self, old_dict, listing_resource):
     """Converts keys in a response dictionary to resource proto format.
-
     Args:
         old_dict (dict): The dictionary to convert.
-
     Returns:
         new_dict (dict): The dictionary with processed keys.
     """
