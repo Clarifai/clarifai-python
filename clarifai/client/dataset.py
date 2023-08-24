@@ -220,6 +220,62 @@ class Dataset(Lister, BaseClient):
 
     self._data_upload(dataset_obj)
 
+  def upload_from_csv(self,
+                      csv_path: str,
+                      input_type: str = 'text',
+                      labels: bool = True,
+                      chunk_size: int = 128) -> None:
+    """Uploads dataset from a csv file.
+    Note: csv file should have either one(input) or two columns(input, labels).
+
+    Args:
+        csv_path (str): path to the csv file
+        input_type (str): type of the dataset(text, image)
+        labels (bool): True if csv file has labels column
+        chunk_size (int): chunk size for concurrent upload of inputs and annotations
+
+    Example:
+        >>> from clarifai.client.dataset import Dataset
+        >>> dataset = Dataset(user_id = 'user_id', app_id = 'demo_app', dataset_id = 'demo_dataset')
+        >>> dataset.upload_from_csv(csv_path='csv_path', labels=True)
+    """
+    if input_type not in ['image', 'text']:  #TODO: add image
+      raise UserError('Invalid input type it should be image or text')
+    chunk_size = min(128, chunk_size)
+    if input_type == 'text':
+      input_protos = self.input_object.get_text_input_from_csv(
+          csv_path=csv_path, dataset_id=self.id, labels=labels)
+    self.input_object._bulk_upload(inputs=input_protos, chunk_size=chunk_size)
+
+  def upload_from_folder(self,
+                         folder_path: str,
+                         input_type: str,
+                         labels: bool = False,
+                         chunk_size: int = 128) -> None:
+    """Upload dataset from folder.
+    Note: The filename is used as the input_id.
+
+    Args:
+        folder_path (str): Path to the folder containing images.
+        input_type (str): type of the dataset(text, image)
+        labels (bool): True if folder name is the label for the inputs
+        chunk_size (int): chunk size for concurrent upload of inputs and annotations
+
+    Example:
+        >>> from clarifai.client.dataset import Dataset
+        >>> dataset = Dataset(user_id = 'user_id', app_id = 'demo_app', dataset_id = 'demo_dataset')
+        >>> dataset.upload_from_folder(folder_path='folder_path', input_type='text', labels=True)
+    """
+    if input_type not in ['image', 'text']:
+      raise UserError('Invalid input type it should be image or text')
+    if input_type == 'image':
+      input_protos = self.input_object.get_image_inputs_from_folder(
+          folder_path=folder_path, dataset_id=self.id, labels=labels)
+    if input_type == 'text':
+      input_protos = self.input_object.get_text_inputs_from_folder(
+          folder_path=folder_path, dataset_id=self.id, labels=labels)
+    self.input_object._bulk_upload(inputs=input_protos, chunk_size=chunk_size)
+
   def __getattr__(self, name):
     return getattr(self.dataset_info, name)
 

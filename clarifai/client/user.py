@@ -33,6 +33,10 @@ class User(Lister, BaseClient):
 
     Returns:
         list of App: A list of App objects for the user.
+
+    Example:
+        >>> from clarifai.client.user import User
+        >>> apps = User("user_id").list_apps()
     """
     request_data = dict(user_app_id=self.user_app_id, per_page=self.default_page_size, **filter_by)
     all_apps_info = list(
@@ -41,7 +45,7 @@ class User(Lister, BaseClient):
 
     return [App(**app_info) for app_info in all_apps_info]
 
-  def create_app(self, app_id: str, **kwargs) -> App:
+  def create_app(self, app_id: str, workflow_id: str = 'Language-Understanding', **kwargs) -> App:
     """Creates an app for the user.
 
     Args:
@@ -53,10 +57,13 @@ class User(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.user import User
-        >>> app = User("user_id").create_app("app_id")
+        >>> client = User(user_id="user_id")
+        >>> app = client.create_app(app_id="app_id",workflow_id="Universal")
     """
+    workflow = resources_pb2.Workflow(id=workflow_id, app_id="main", user_id="clarifai")
     request = service_pb2.PostAppsRequest(
-        user_app_id=self.user_app_id, apps=[resources_pb2.App(id=app_id, **kwargs)])
+        user_app_id=self.user_app_id,
+        apps=[resources_pb2.App(id=app_id, default_workflow=workflow, **kwargs)])
     response = self._grpc_request(self.STUB.PostApps, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)

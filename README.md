@@ -30,10 +30,17 @@ client = User(user_id="user_id")
 apps = client.list_apps()
 
 # Create app and dataset
-app = client.create_app(app_id="demo_app")
+app = client.create_app(app_id="demo_app", workflow_id="Universal")
 dataset = app.create_dataset(dataset_id="demo_dataset")
+
 # execute data upload to Clarifai app dataset
 dataset.upload_dataset(task='visual_segmentation', split="train", dataset_loader='coco_segmentation')
+
+#upload text from csv
+dataset.upload_from_csv(csv_path='csv_path', labels=True)
+
+#upload data from folder
+dataset.upload_from_folder(folder_path='folder_path', input_type='text', labels=True)
 ```
 
 
@@ -55,9 +62,6 @@ input_obj.list_inputs()
 
 # text upload
 input_obj.upload_text(input_id = 'demo', raw_text = 'This is a test')
-
-# uploading images from folder
-input_obj.upload_images_from_folder(folder_path='demo_folder')
 ```
 
 
