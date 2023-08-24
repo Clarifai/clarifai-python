@@ -1,3 +1,4 @@
+import csv
 import os
 import time
 import uuid
@@ -130,7 +131,14 @@ class Inputs(Lister, BaseClient):
     video_pb = resources_pb2.Video(url=video_url) if video_url else None
     audio_pb = resources_pb2.Audio(url=audio_url) if audio_url else None
     text_pb = resources_pb2.Text(url=text_url) if text_url else None
-    return self._get_proto(input_id, dataset_id, image_pb, video_pb, audio_pb, text_pb, **kwargs)
+    return self._get_proto(
+        input_id=input_id,
+        dataset_id=dataset_id,
+        imagepb=image_pb,
+        video_pb=video_pb,
+        audio_pb=audio_pb,
+        text_pb=text_pb,
+        **kwargs)
 
   def get_input_from_file(self,
                           input_id: str,
@@ -161,7 +169,13 @@ class Inputs(Lister, BaseClient):
     image_pb = resources_pb2.Image(base64=open(image_file, 'rb').read()) if image_file else None
     video_pb = resources_pb2.Video(base64=open(video_file, 'rb').read()) if video_file else None
     audio_pb = resources_pb2.Audio(base64=open(audio_file, 'rb').read()) if audio_file else None
-    return self._get_proto(input_id, dataset_id, image_pb, video_pb, audio_pb, **kwargs)
+    return self._get_proto(
+        input_id=input_id,
+        dataset_id=dataset_id,
+        imagepb=image_pb,
+        video_pb=video_pb,
+        audio_pb=audio_pb,
+        **kwargs)
 
   def get_input_from_bytes(self,
                            input_id: str,
@@ -194,10 +208,18 @@ class Inputs(Lister, BaseClient):
     image_pb = resources_pb2.Image(base64=image_bytes) if image_bytes else None
     video_pb = resources_pb2.Video(base64=video_bytes) if video_bytes else None
     audio_pb = resources_pb2.Audio(base64=audio_bytes) if audio_bytes else None
-    return self._get_proto(input_id, dataset_id, image_pb, video_pb, audio_pb, **kwargs)
+    return self._get_proto(
+        input_id=input_id,
+        dataset_id=dataset_id,
+        imagepb=image_pb,
+        video_pb=video_pb,
+        audio_pb=audio_pb,
+        **kwargs)
 
-  def get_image_inputs_from_folder(self, folder_path: str,
-                                   dataset_id: str = None) -> List[Input]:  #image specific
+  def get_image_inputs_from_folder(self,
+                                   folder_path: str,
+                                   dataset_id: str = None,
+                                   labels: bool = False) -> List[Input]:  #image specific
     """Create input protos for image data type from folder.
 
     Args:
@@ -209,19 +231,19 @@ class Inputs(Lister, BaseClient):
     Example:
         >>> from clarifai.client.input import Input
         >>> input_obj = Input()
-        >>> input_protos = img_obj.get_image_inputs_from_folder(folder_path='demo_folder')
-
-    Note:
-        The folder should only contain images. The filename of the image is used as the input_id.
+        >>> input_protos = input_obj.get_image_inputs_from_folder(folder_path='demo_folder')
     """
-    inputs = []
+    input_protos = []
+    labels = [folder_path.split('/')[-1]] if labels else None
     for filename in os.listdir(folder_path):
       if filename.split('.')[-1] not in ['jpg', 'jpeg', 'png', 'tiff', 'webp']:
         continue
       input_id = filename.split('.')[0]
       image_pb = resources_pb2.Image(base64=open(os.path.join(folder_path, filename), 'rb').read())
-      inputs.append(self._get_proto(input_id, dataset_id, image_pb))
-    return inputs
+      input_protos.append(
+          self._get_proto(
+              input_id=input_id, dataset_id=dataset_id, imagepb=image_pb, labels=labels))
+    return input_protos
 
   def get_text_input(self, input_id: str, raw_text: str, dataset_id: str = None,
                      **kwargs) -> Text:  #text specific
@@ -239,10 +261,74 @@ class Inputs(Lister, BaseClient):
     Example:
         >>> from clarifai.client.input import Input
         >>> input_obj = Input()
-        >>> input_protos = input_obj.get_input(input_id = 'demo', raw_text = 'This is a test')
+        >>> input_protos = input_obj.get_text_input(input_id = 'demo', raw_text = 'This is a test')
     """
     text_pb = resources_pb2.Text(raw=raw_text)
-    return self._get_proto(input_id, dataset_id, text_pb, **kwargs)
+    return self._get_proto(input_id=input_id, dataset_id=dataset_id, text_pb=text_pb, **kwargs)
+
+  def get_text_input_from_csv(self, csv_path: str, dataset_id: str = None,
+                              labels: str = True) -> List[Text]:  #text specific
+    """Create input proto for text data type from cscv.
+
+    Args:
+        csv_path (str): Path to the csv file.
+        dataset_id (str): The dataset ID for the dataset to add the input to.
+        labels (str): True if csv file has labels column.
+
+    Returns:
+        inputs: List of inputs
+
+    Example:
+        >>> from clarifai.client.input import Input
+        >>> input_obj = Input()
+        >>> input_protos = input_obj.get_text_input_from_csv(csv_path = 'filepath')
+    """
+    input_protos = []
+    with open(csv_path) as _file:
+      reader = csv.reader(_file)
+      next(reader, None)  # skip header
+      for id, input in enumerate(reader):
+        text = input[0]
+        if labels:
+          assert len(input) == 2, "csv file should have two columns(input, labels)"
+          labels = input[1] if isinstance(input[1], list) else [input[1]]
+        else:
+          labels = None
+        input_id = f"{dataset_id}-{id}"
+        input_protos.append(
+            self.get_text_input(
+                input_id=input_id, raw_text=text, dataset_id=dataset_id, labels=labels))
+
+    return input_protos
+
+  def get_text_inputs_from_folder(self,
+                                  folder_path: str,
+                                  dataset_id: str = None,
+                                  labels: bool = False) -> List[Text]:  #text specific
+    """Create input protos for text data type from folder.
+
+    Args:
+        folder_path (str): Path to the folder containing text.
+
+    Returns:
+        list of Input: A list of Input objects for the specified folder.
+
+    Example:
+        >>> from clarifai.client.input import Input
+        >>> input_obj = Input()
+        >>> input_protos = input_obj.get_text_inputs_from_folder(folder_path='demo_folder')
+    """
+    input_protos = []
+    labels = [folder_path.split('/')[-1]] if labels else None
+    for filename in os.listdir(folder_path):
+      if filename.split('.')[-1] != 'txt':
+        continue
+      input_id = filename.split('.')[0]
+      text_pb = resources_pb2.Text(raw=open(os.path.join(folder_path, filename), 'rb').read())
+      input_protos.append(
+          self._get_proto(
+              input_id=input_id, dataset_id=dataset_id, text_pb=text_pb, labels=labels))
+    return input_protos
 
   def get_annotation_proto(self, input_id: str, label: str, annotations: List) -> Annotation:
     """Create an annotation proto for each bounding box, label input pair.
@@ -425,28 +511,11 @@ class Inputs(Lister, BaseClient):
         >>> input_obj.upload_text(input_id = 'demo', raw_text = 'This is a test')
     """
     input_pb = self._get_proto(
-        input_id, dataset_id, text_pb=resources_pb2.Text(raw=raw_text), **kwargs)
+        input_id=input_id,
+        dataset_id=dataset_id,
+        text_pb=resources_pb2.Text(raw=raw_text),
+        **kwargs)
     return self.upload_inputs([input_pb])
-
-  def upload_images_from_folder(self, folder_path: str, dataset_id: str = None) -> str:
-    """Upload images from folder.
-
-    Args:
-        folder_path (str): Path to the folder containing images.
-
-    Returns:
-        input_job_id (str): job id for the upload request.
-
-    Example:
-        >>> from clarifai.client.input import Input
-        >>> input_obj = Input(user_id = 'user_id', app_id = 'demo_app')
-        >>> input_obj.upload_from_folder(folder_path='demo_folder')
-
-    Note:
-        The folder should only contain images. The filename of the image is used as the input_id.
-    """
-    inputs = self.get_image_inputs_from_folder(folder_path, dataset_id)
-    return self._bulk_upload(inputs)
 
   def upload_inputs(self, inputs: List[Input], show_log: bool = True) -> str:
     """Upload list of input objects to the app.
