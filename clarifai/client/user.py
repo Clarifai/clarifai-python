@@ -45,11 +45,13 @@ class User(Lister, BaseClient):
 
     return [App(**app_info) for app_info in all_apps_info]
 
-  def create_app(self, app_id: str, workflow_id: str = 'Language-Understanding', **kwargs) -> App:
+  def create_app(self, app_id: str, base_workflow: str = 'Language-Understanding',
+                 **kwargs) -> App:
     """Creates an app for the user.
 
     Args:
         app_id (str): The app ID for the app to create.
+        base_workflow (str): The base workflow to use for the app.(Examples: 'Universal', 'Empty', 'General')
         **kwargs: Additional keyword arguments to be passed to the App.
 
     Returns:
@@ -58,9 +60,9 @@ class User(Lister, BaseClient):
     Example:
         >>> from clarifai.client.user import User
         >>> client = User(user_id="user_id")
-        >>> app = client.create_app(app_id="app_id",workflow_id="Universal")
+        >>> app = client.create_app(app_id="app_id",base_workflow="Universal")
     """
-    workflow = resources_pb2.Workflow(id=workflow_id, app_id="main", user_id="clarifai")
+    workflow = resources_pb2.Workflow(id=base_workflow, app_id="main", user_id="clarifai")
     request = service_pb2.PostAppsRequest(
         user_app_id=self.user_app_id,
         apps=[resources_pb2.App(id=app_id, default_workflow=workflow, **kwargs)])

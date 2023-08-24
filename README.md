@@ -30,7 +30,7 @@ client = User(user_id="user_id")
 apps = client.list_apps()
 
 # Create app and dataset
-app = client.create_app(app_id="demo_app", workflow_id="Universal")
+app = client.create_app(app_id="demo_app", base_workflow="Universal")
 dataset = app.create_dataset(dataset_id="demo_dataset")
 
 # execute data upload to Clarifai app dataset

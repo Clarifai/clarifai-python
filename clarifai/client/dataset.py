@@ -226,7 +226,6 @@ class Dataset(Lister, BaseClient):
                       labels: bool = True,
                       chunk_size: int = 128) -> None:
     """Uploads dataset from a csv file.
-    Note: csv file should have either one(input) or two columns(input, labels).
 
     Args:
         csv_path (str): path to the csv file
@@ -238,6 +237,8 @@ class Dataset(Lister, BaseClient):
         >>> from clarifai.client.dataset import Dataset
         >>> dataset = Dataset(user_id = 'user_id', app_id = 'demo_app', dataset_id = 'demo_dataset')
         >>> dataset.upload_from_csv(csv_path='csv_path', labels=True)
+
+    Note: csv file should have either one(input) or two columns(input, labels).
     """
     if input_type not in ['image', 'text']:  #TODO: add image
       raise UserError('Invalid input type it should be image or text')
@@ -253,7 +254,6 @@ class Dataset(Lister, BaseClient):
                          labels: bool = False,
                          chunk_size: int = 128) -> None:
     """Upload dataset from folder.
-    Note: The filename is used as the input_id.
 
     Args:
         folder_path (str): Path to the folder containing images.
@@ -265,6 +265,8 @@ class Dataset(Lister, BaseClient):
         >>> from clarifai.client.dataset import Dataset
         >>> dataset = Dataset(user_id = 'user_id', app_id = 'demo_app', dataset_id = 'demo_dataset')
         >>> dataset.upload_from_folder(folder_path='folder_path', input_type='text', labels=True)
+
+    Note: The filename is used as the input_id.
     """
     if input_type not in ['image', 'text']:
       raise UserError('Invalid input type it should be image or text')
