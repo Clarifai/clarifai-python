@@ -22,8 +22,8 @@ from ..pb_model_repository import TritonModelRepository
 def dims_type(shape_string: str):
   """Read list string from cli and convert values to a list of integers."""
   shape_string = shape_string.replace("[", "").replace("]", "")
-  shapes = map(int, shape_string.split(","))
-  return list(shapes)  # (H,W)
+  shapes = list(map(int, shape_string.split(",")))
+  return shapes
 
 
 def model_upload_init():
@@ -63,7 +63,12 @@ def model_upload_init():
       help="Directory to create triton repository.")
 
   args = parser.parse_args()
-  if args.image_shape[0] or args.image_shape[1] > 1024:
+  if len(args.image_shape) != 2:
+    raise ValueError(
+        f"image_shape takes 2 values, Height and Width. Got {len(args.image_shape)} values instead."
+    )
+
+  if args.image_shape[0] > 1024 or args.image_shape[1] > 1024:
     raise ValueError(
         f"H and W each have a maximum value of 1024. Got H: {args.image_shape[0]}, W: {args.image_shape[1]}"
     )

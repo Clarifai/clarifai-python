@@ -155,6 +155,13 @@ class TritonModelConfig:
     Set supported input dims and data_types for
     a given model_type.
     """
+    if len(self.image_shape) != 2:
+      raise ValueError(
+          f"image_shape takes 2 values, Height and Width. Got {len(self.image_shape)} instead.")
+    if self.image_shape[0] > 1024 or self.image_shape[1] > 1024:
+      raise ValueError(
+          f"H and W each have a maximum value of 1024. Got H: {self.image_shape[0]}, W: {self.image_shape[1]}"
+      )
     image_dims = self.image_shape
     image_dims.append(3)  # add channel dim
     image_input = InputConfig(name="image", data_type=DType.TYPE_UINT8, dims=image_dims)

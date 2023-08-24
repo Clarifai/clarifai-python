@@ -9,7 +9,8 @@ $ clarifai-model-upload-init --model_name <Your model name> \
 		--image_shape "H, W"
 		--repo_dir <directory in which to create your model repository>
 ```
-`H` and `W` each have a maximum value of 1024
+`H` and `W` each have a maximum value of 1024.
+`--image_shape` accepts both `"H, W"` and `"[H, W]"` format input.
 
 
 ## Generating the triton model repository without the commandline
