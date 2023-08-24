@@ -16,7 +16,6 @@ CREATE_APP_ID = "ci_test_app"
 CREATE_MODEL_ID = "ci_test_model"
 CREATE_WORKFLOW_ID = "ci_test_workflow"
 CREATE_DATASET_ID = "ci_test_dataset"
-CREATE_MODULE_ID = "ci_test_module"
 
 
 @pytest.fixture
@@ -82,10 +81,6 @@ class TestApp:
     workflow = create_app.create_workflow(CREATE_WORKFLOW_ID)
     assert workflow.id == CREATE_WORKFLOW_ID and workflow.app_id == CREATE_APP_ID and workflow.user_id == CREATE_APP_USER_ID
 
-  def test_create_module(self, create_app):
-    module = create_app.create_module(CREATE_MODULE_ID, description="CI test module")
-    assert module.id == CREATE_MODULE_ID and module.app_id == CREATE_APP_ID and module.user_id == CREATE_APP_USER_ID
-
   def test_delete_dataset(self, create_app, caplog):
     with caplog.at_level(logging.INFO):
       create_app.delete_dataset(CREATE_DATASET_ID)
@@ -99,11 +94,6 @@ class TestApp:
   def test_delete_model(self, create_app, caplog):
     with caplog.at_level(logging.INFO):
       create_app.delete_model(CREATE_MODEL_ID)
-      assert "SUCCESS" in caplog.text
-
-  def test_delete_module(self, create_app, caplog):
-    with caplog.at_level(logging.INFO):
-      create_app.delete_module(CREATE_MODULE_ID)
       assert "SUCCESS" in caplog.text
 
   def test_delete_app(self, caplog):

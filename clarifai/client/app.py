@@ -9,7 +9,6 @@ from clarifai.client.dataset import Dataset
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
 from clarifai.client.model import Model
-from clarifai.client.module import Module
 from clarifai.client.workflow import Workflow
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
@@ -17,11 +16,13 @@ from clarifai.utils.logging import get_logger
 
 
 class App(Lister, BaseClient):
-  """App is a class that provides access to Clarifai API endpoints related to App information."""
+  """
+  App is a class that provides access to Clarifai API endpoints related to App information.
+  Inherits from BaseClient for authentication purposes.
+  """
 
   def __init__(self, url_init: str = "", app_id: str = "", **kwargs):
     """Initializes an App object.
-
     Args:
         url_init (str): The URL to initialize the app object.
         app_id (str): The App ID for the App to interact with.
@@ -42,7 +43,6 @@ class App(Lister, BaseClient):
 
   def list_datasets(self) -> List[Dataset]:
     """Lists all the datasets for the app.
-
     Returns:
         List[Dataset]: A list of Dataset objects for the datasets in the app.
 
@@ -65,12 +65,10 @@ class App(Lister, BaseClient):
     return [Dataset(**dataset_info) for dataset_info in all_datasets_info]
 
   def list_models(self, filter_by: Dict[str, Any] = {}, only_in_app: bool = True) -> List[Model]:
-    """Lists all the available models for the user.
-
+    """Lists all the models for the app.
     Args:
         filter_by (dict): A dictionary of filters to apply to the list of models.
         only_in_app (bool): If True, only return models that are in the app.
-
     Returns:
         List[Model]: A list of Model objects for the models in the app.
 
@@ -97,12 +95,11 @@ class App(Lister, BaseClient):
 
   def list_workflows(self, filter_by: Dict[str, Any] = {},
                      only_in_app: bool = True) -> List[Workflow]:
-    """Lists all the available workflows for the user.
-
+    """
+    Lists all the workflows for the app.
     Args:
         filter_by (dict): A dictionary of filters to apply to the list of workflows.
         only_in_app (bool): If True, only return workflows that are in the app.
-
     Returns:
         List[Workflow]: A list of Workflow objects for the workflows in the app.
 
@@ -125,74 +122,17 @@ class App(Lister, BaseClient):
 
     return [Workflow(**workflow_info) for workflow_info in all_workflows_info]
 
-  def list_modules(self, filter_by: Dict[str, Any] = {}, only_in_app: bool = True) -> List[Module]:
-    """Lists all the available modules for the user.
-
-    Args:
-        filter_by (dict): A dictionary of filters to apply to the list of modules.
-        only_in_app (bool): If True, only return modules that are in the app.
-
-    Returns:
-        List[Module]: A list of Module objects for the modules in the app.
-
-    Example:
-        >>> from clarifai.client.app import App
-        >>> app = App(app_id="app_id", user_id="user_id")
-        >>> all_modules = app.list_modules()
-    """
-    request_data = dict(user_app_id=self.user_app_id, per_page=self.default_page_size, **filter_by)
-    all_modules_info = list(
-        self.list_all_pages_generator(self.STUB.ListModules, service_pb2.ListModulesRequest,
-                                      request_data))
-
-    filtered_modules_info = []
-    for module_info in all_modules_info:
-      if only_in_app:
-        if module_info['app_id'] != self.id:
-          continue
-      filtered_modules_info.append(module_info)
-
-    return [Module(**module_info) for module_info in filtered_modules_info]
-
-  def list_installed_module_versions(self, filter_by: Dict[str, Any] = {}) -> List[Module]:
-    """Lists all installed module versions in the app.
-
-    Args:
-        filter_by (dict): A dictionary of filters to apply to the list of installed module versions.
-
-    Returns:
-        List[Module]: A list of Module objects for the installed module versions in the app.
-
-    Example:
-        >>> from clarifai.client.app import App
-        >>> app = App(app_id="app_id", user_id="user_id")
-        >>> all_installed_module_versions = app.list_installed_module_versions()
-    """
-    request_data = dict(user_app_id=self.user_app_id, per_page=self.default_page_size, **filter_by)
-    all_imv_infos = list(
-        self.list_all_pages_generator(self.STUB.ListInstalledModuleVersions,
-                                      service_pb2.ListInstalledModuleVersionsRequest,
-                                      request_data))
-    for imv_info in all_imv_infos:
-      del imv_info['deploy_url']
-      del imv_info['installed_module_version_id']  # TODO: remove this after the backend fix
-
-    return [
-        Module(module_id=imv_info['module_version']['module_id'], **imv_info)
-        for imv_info in all_imv_infos
-    ]
-
   def list_concepts(self):
-    """Lists all the concepts for the app."""
+    """
+    Lists all the concepts for the app.
+    """
     pass  # TODO
 
   def create_dataset(self, dataset_id: str, **kwargs) -> Dataset:
     """Creates a dataset for the app.
-
     Args:
         dataset_id (str): The dataset ID for the dataset to create.
         **kwargs: Additional keyword arguments to be passed to the Dataset.
-
     Returns:
         Dataset: A Dataset object for the specified dataset ID.
 
@@ -213,11 +153,9 @@ class App(Lister, BaseClient):
 
   def create_model(self, model_id: str, **kwargs) -> Model:
     """Creates a model for the app.
-
     Args:
         model_id (str): The model ID for the model to create.
         **kwargs: Additional keyword arguments to be passed to the Model.
-
     Returns:
         Model: A Model object for the specified model ID.
 
@@ -238,11 +176,9 @@ class App(Lister, BaseClient):
 
   def create_workflow(self, workflow_id: str, **kwargs) -> Workflow:
     """Creates a workflow for the app.
-
     Args:
         workflow_id (str): The workflow ID for the workflow to create.
         **kwargs: Additional keyword arguments to be passed to the workflow.
-
     Returns:
         Workflow: A Workflow object for the specified workflow ID.
 
@@ -261,40 +197,10 @@ class App(Lister, BaseClient):
 
     return Workflow(workflow_id=workflow_id, **kwargs)
 
-  def create_module(self, module_id: str, description: str, **kwargs) -> Module:
-    """Creates a module for the app.
-
-    Args:
-        module_id (str): The module ID for the module to create.
-        description (str): The description of the module to create.
-        **kwargs: Additional keyword arguments to be passed to the module.
-
-    Returns:
-        Module: A Module object for the specified module ID.
-
-    Example:
-        >>> from clarifai.client.app import App
-        >>> app = App(app_id="app_id", user_id="user_id")
-        >>> module = app.create_module(module_id="module_id")
-    """
-    request = service_pb2.PostModulesRequest(
-        user_app_id=self.user_app_id,
-        modules=[resources_pb2.Module(id=module_id, description=description, **kwargs)])
-    response = self._grpc_request(self.STUB.PostModules, request)
-
-    if response.status.code != status_code_pb2.SUCCESS:
-      raise Exception(response.status)
-    self.logger.info("\nModule created\n%s", response.status)
-    kwargs.update({'app_id': self.id, 'user_id': self.user_id})
-
-    return Module(module_id=module_id, **kwargs)
-
   def dataset(self, dataset_id: str, **kwargs) -> Dataset:
     """Returns a Dataset object for the existing dataset ID.
-
     Args:
         dataset_id (str): The dataset ID for the dataset to interact with.
-
     Returns:
         Dataset: A Dataset object for the existing dataset ID.
 
@@ -305,7 +211,6 @@ class App(Lister, BaseClient):
     """
     request = service_pb2.GetDatasetRequest(user_app_id=self.user_app_id, dataset_id=dataset_id)
     response = self._grpc_request(self.STUB.GetDataset, request)
-
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
@@ -316,11 +221,9 @@ class App(Lister, BaseClient):
 
   def model(self, model_id: str, model_version_id: str = "", **kwargs) -> Model:
     """Returns a Model object for the existing model ID.
-
     Args:
         model_id (str): The model ID for the model to interact with.
         model_version_id (str): The model version ID for the model version to interact with.
-
     Returns:
         Model: A Model object for the existing model ID.
 
@@ -332,7 +235,6 @@ class App(Lister, BaseClient):
     request = service_pb2.GetModelRequest(
         user_app_id=self.user_app_id, model_id=model_id, version_id=model_version_id)
     response = self._grpc_request(self.STUB.GetModel, request)
-
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
@@ -341,10 +243,8 @@ class App(Lister, BaseClient):
 
   def workflow(self, workflow_id: str, **kwargs) -> Workflow:
     """Returns a workflow object for the existing workflow ID.
-
     Args:
         workflow_id (str): The workflow ID for the workflow to interact with.
-
     Returns:
         Workflow: A Workflow object for the existing workflow ID.
 
@@ -355,7 +255,6 @@ class App(Lister, BaseClient):
     """
     request = service_pb2.GetWorkflowRequest(user_app_id=self.user_app_id, workflow_id=workflow_id)
     response = self._grpc_request(self.STUB.GetWorkflow, request)
-
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
@@ -364,35 +263,8 @@ class App(Lister, BaseClient):
 
     return Workflow(**kwargs)
 
-  def module(self, module_id: str, module_version_id: str = "", **kwargs) -> Module:
-    """Returns a Module object for the existing module ID.
-
-    Args:
-        module_id (str): The module ID for the module to interact with.
-        module_version_id (str): The module version ID for the module version to interact with.
-
-    Returns:
-        Module: A Module object for the existing module ID.
-
-    Example:
-        >>> from clarifai.client.app import App
-        >>> app = App(app_id="app_id", user_id="user_id")
-        >>> module = app.module(module_id="module_id", module_version_id="module_version_id")
-    """
-    request = service_pb2.GetModuleRequest(
-        user_app_id=self.user_app_id, module_id=module_id, version_id=module_version_id)
-    response = self._grpc_request(self.STUB.GetModule, request)
-
-    if response.status.code != status_code_pb2.SUCCESS:
-      raise Exception(response.status)
-    dict_response = MessageToDict(response, preserving_proto_field_name=True)
-    kwargs = self.process_response_keys(dict_response['module'], 'module')
-
-    return Module(**kwargs)
-
   def inputs(self,):
     """Returns an Input object.
-
     Returns:
         Inputs: An input object.
     """
@@ -400,76 +272,37 @@ class App(Lister, BaseClient):
 
   def delete_dataset(self, dataset_id: str) -> None:
     """Deletes an dataset for the user.
-
     Args:
         dataset_id (str): The dataset ID for the app to delete.
-
-    Example:
-        >>> from clarifai.client.app import App
-        >>> app = App(app_id="app_id", user_id="user_id")
-        >>> app.delete_dataset(dataset_id="dataset_id")
     """
     request = service_pb2.DeleteDatasetsRequest(
         user_app_id=self.user_app_id, dataset_ids=[dataset_id])
     response = self._grpc_request(self.STUB.DeleteDatasets, request)
-
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nDataset Deleted\n%s", response.status)
 
   def delete_model(self, model_id: str) -> None:
     """Deletes an model for the user.
-
     Args:
         model_id (str): The model ID for the app to delete.
-
-    Example:
-        >>> from clarifai.client.app import App
-        >>> app = App(app_id="app_id", user_id="user_id")
-        >>> app.delete_model(model_id="model_id")
     """
     request = service_pb2.DeleteModelsRequest(user_app_id=self.user_app_id, ids=[model_id])
     response = self._grpc_request(self.STUB.DeleteModels, request)
-
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nModel Deleted\n%s", response.status)
 
   def delete_workflow(self, workflow_id: str) -> None:
     """Deletes an workflow for the user.
-
     Args:
         workflow_id (str): The workflow ID for the app to delete.
-
-    Example:
-        >>> from clarifai.client.app import App
-        >>> app = App(app_id="app_id", user_id="user_id")
-        >>> app.delete_workflow(workflow_id="workflow_id")
     """
     request = service_pb2.DeleteWorkflowsRequest(user_app_id=self.user_app_id, ids=[workflow_id])
     response = self._grpc_request(self.STUB.DeleteWorkflows, request)
-
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nWorkflow Deleted\n%s", response.status)
-
-  def delete_module(self, module_id: str) -> None:
-    """Deletes an module for the user.
-
-    Args:
-        module_id (str): The module ID for the app to delete.
-
-    Example:
-        >>> from clarifai.client.app import App
-        >>> app = App(app_id="app_id", user_id="user_id")
-        >>> app.delete_module(module_id="module_id")
-    """
-    request = service_pb2.DeleteModulesRequest(user_app_id=self.user_app_id, ids=[module_id])
-    response = self._grpc_request(self.STUB.DeleteModules, request)
-
-    if response.status.code != status_code_pb2.SUCCESS:
-      raise Exception(response.status)
-    self.logger.info("\nModule Deleted\n%s", response.status)
 
   def __getattr__(self, name):
     return getattr(self.app_info, name)

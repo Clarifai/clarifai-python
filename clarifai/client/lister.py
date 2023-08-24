@@ -16,12 +16,10 @@ class Lister(BaseClient):
       self, endpoint: Callable, proto_message: Any,
       request_data: Dict[str, Any]) -> Generator[Dict[str, Any], None, None]:
     """Lists all pages of a resource.
-
     Args:
         endpoint (Callable): The endpoint to call.
         proto_message (Any): The proto message to use.
         request_data (dict): The request data to use.
-
     Yields:
         response_dict: The next item in the listing.
     """

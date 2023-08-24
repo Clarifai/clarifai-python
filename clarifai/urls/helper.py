@@ -6,9 +6,9 @@ class ClarifaiUrlHelper(object):
 
   def __init__(self, auth, module_manager_imv_id="module_manager_install"):
     """
-    Args:
-      auth: a ClarifaiAuthHelper object.
-    """
+        Args:
+          auth: a ClarifaiAuthHelper object.
+        """
     self._auth = auth
     self._module_manager_imv_id = module_manager_imv_id
 
@@ -39,12 +39,12 @@ class ClarifaiUrlHelper(object):
   def clarifai_url(self, user_id, app_id, resource_type, resource_id, version_id: str = None):
     """This is the path to the resource in community.
 
-    Args:
-      user_id: the author of the resource.
-      app_id: the author's app the resource was created in.
-      resource_type: the type of resource. One of "modules", "models", "concepts", "inputs", "workflows", "tasks", "installed_module_versions"
-      resource_id: the resource ID
-      version_id: the version of the resource.
+        Args:
+          user_id: the author of the resource.
+          app_id: the author's app the resource was created in.
+          resource_type: the type of resource. One of "modules", "models", "concepts", "inputs", "workflows", "tasks", "installed_module_versions"
+          resource_id: the resource ID
+          version_id: the version of the resource.
     """
     if resource_type not in [
         "modules", "models", "concepts", "inputs", "workflows", "tasks",
@@ -85,14 +85,15 @@ class ClarifaiUrlHelper(object):
 
   @classmethod
   def split_module_ui_url(cls, install):
-    """Takes in a path like https://clarifai.com/zeiler/app/modules/module1/versions/2 to split it apart into it's IDs.
+    """Takes in a path like https://clarifai.com/zeiler/app/modules/module1/versions/2
+        to split it apart into it's IDs.
 
-    Returns:
-      user_id: the author of the module.
-      app_id: the author's app the module was created in.
-      module_id: the module ID
-      module_version_id: the version of the module.
-    """
+        Returns:
+          user_id: the author of the module.
+          app_id: the author's app the module was created in.
+          module_id: the module ID
+          module_version_id: the version of the module.
+        """
     user_id, app_id, resource_type, resource_id, resource_version_id = cls.split_clarifai_url(
         install)
 

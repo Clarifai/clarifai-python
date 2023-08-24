@@ -15,7 +15,10 @@ from clarifai.utils.misc import BackoffIterator
 
 
 class Model(Lister, BaseClient):
-  """Model is a class that provides access to Clarifai API endpoints related to Model information."""
+  """
+  Model is a class that provides access to Clarifai API endpoints related to Model information.
+  Inherits from BaseClient for authentication purposes.
+  """
 
   def __init__(self,
                url_init: str = "",
@@ -24,7 +27,6 @@ class Model(Lister, BaseClient):
                output_config: Dict = {'min_value': 0},
                **kwargs):
     """Initializes a Model object.
-
     Args:
         url_init (str): The URL to initialize the model object.
         model_id (str): The Model ID to interact with.
@@ -54,7 +56,6 @@ class Model(Lister, BaseClient):
 
   def predict(self, inputs: List[Input]):
     """Predicts the model based on the given inputs.
-
     Args:
         inputs (list[Input]): The inputs to predict, must be less than 128.
     """
@@ -89,7 +90,6 @@ class Model(Lister, BaseClient):
 
   def predict_by_filepath(self, filepath: str, input_type: str):
     """Predicts the model based on the given filepath.
-
     Args:
         filepath (str): The filepath to predict.
         input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
@@ -114,7 +114,6 @@ class Model(Lister, BaseClient):
 
   def predict_by_bytes(self, input_bytes: bytes, input_type: str):
     """Predicts the model based on the given bytes.
-
     Args:
         input_bytes (bytes): File Bytes to predict on.
         input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio'.
@@ -146,7 +145,6 @@ class Model(Lister, BaseClient):
 
   def predict_by_url(self, url: str, input_type: str):
     """Predicts the model based on the given URL.
-
     Args:
         url (str): The URL to predict.
         input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
@@ -177,7 +175,6 @@ class Model(Lister, BaseClient):
 
   def list_versions(self) -> List['Model']:
     """Lists all the versions for the model.
-
     Returns:
         List[Model]: A list of Model objects for the versions of the model.
 
