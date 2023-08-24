@@ -134,3 +134,23 @@ all_workflow = app.list_workflow()
 # List all workflow in community filtered by description
 all_face_community_workflows = App().list_workflows(filter_by={"query": "face"}, only_in_app=False) # Get all face related workflows
 ```
+
+## Interacting with Modules
+
+```python
+# Note: CLARIFAI_PAT must be set as env variable.
+from clarifai.client.app import App
+app = App(user_id="user_id", app_id="app_id")
+
+# create a new module
+module = app.create_module(module_id="module_id", description="module_description")
+
+# List all modules in an app
+all_modules = app.list_modules()
+
+# List all module versions
+all_module_versions = module.list_versions()
+
+# Delete a module
+app.delete_module(module_id="module_id")
+```
