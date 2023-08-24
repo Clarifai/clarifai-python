@@ -13,10 +13,7 @@ from clarifai.utils.logging import get_logger
 
 
 class Workflow(Lister, BaseClient):
-  """
-  Workflow is a class that provides access to Clarifai API endpoints related to Workflow information.
-  Inherits from BaseClient for authentication purposes.
-  """
+  """Workflow is a class that provides access to Clarifai API endpoints related to Workflow information."""
 
   def __init__(self,
                url_init: str = "",
@@ -25,6 +22,7 @@ class Workflow(Lister, BaseClient):
                output_config: Dict = {'min_value': 0},
                **kwargs):
     """Initializes a Workflow object.
+
     Args:
         url_init (str): The URL to initialize the workflow object.
         workflow_id (str): The Workflow ID to interact with.
@@ -54,6 +52,7 @@ class Workflow(Lister, BaseClient):
 
   def predict(self, inputs: List[Input]):
     """Predicts the workflow based on the given inputs.
+
     Args:
         inputs (list[Input]): The inputs to predict.
     """
@@ -74,6 +73,7 @@ class Workflow(Lister, BaseClient):
 
   def predict_by_filepath(self, filepath: str, input_type: str):
     """Predicts the workflow based on the given filepath.
+
     Args:
         filepath (str): The filepath to predict.
         input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
@@ -97,6 +97,7 @@ class Workflow(Lister, BaseClient):
 
   def predict_by_bytes(self, input_bytes: bytes, input_type: str):
     """Predicts the workflow based on the given bytes.
+
     Args:
         input_bytes (bytes): Bytes to predict on.
         input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
@@ -123,6 +124,7 @@ class Workflow(Lister, BaseClient):
 
   def predict_by_url(self, url: str, input_type: str):
     """Predicts the workflow based on the given URL.
+
     Args:
         url (str): The URL to predict.
         input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
@@ -153,6 +155,7 @@ class Workflow(Lister, BaseClient):
 
   def list_versions(self) -> List['Workflow']:
     """Lists all the versions of the workflow.
+
     Returns:
         list[Workflow]: A list of Workflow objects.
 

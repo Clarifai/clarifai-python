@@ -24,13 +24,11 @@ ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset
 
 
 class Dataset(Lister, BaseClient):
-  """
-  Dataset is a class that provides access to Clarifai API endpoints related to Dataset information.
-  Inherits from BaseClient for authentication purposes.
-  """
+  """Dataset is a class that provides access to Clarifai API endpoints related to Dataset information."""
 
   def __init__(self, url_init: str = "", dataset_id: str = "", **kwargs):
     """Initializes a Dataset object.
+
     Args:
         url_init (str): The URL to initialize the dataset object.
         dataset_id (str): The Dataset ID within the App to interact with.
@@ -58,8 +56,10 @@ class Dataset(Lister, BaseClient):
   def _concurrent_annot_upload(self, annots: List[List[resources_pb2.Annotation]]
                               ) -> Union[List[resources_pb2.Annotation], List[None]]:
     """Uploads annotations concurrently.
+
     Args:
       annots: annot protos
+
     Returns:
       retry_annot_upload: All failed annot protos during upload
     """
@@ -82,9 +82,11 @@ class Dataset(Lister, BaseClient):
   def _delete_failed_inputs(self, batch_input_ids: List[int],
                             dataset_obj: ClarifaiDatasetType) -> Tuple[List[int], List[int]]:
     """Delete failed input ids from clarifai platform dataset.
+
     Args:
       batch_input_ids: batch input ids
       dataset_obj: ClarifaiDataset object
+
     Returns:
       success_inputs: upload success input ids
       failed_inputs: upload failed input ids
@@ -114,9 +116,11 @@ class Dataset(Lister, BaseClient):
   def _upload_inputs_annotations(self, batch_input_ids: List[int], dataset_obj: ClarifaiDatasetType
                                 ) -> Tuple[List[int], List[resources_pb2.Annotation]]:
     """Uploads batch of inputs and annotations concurrently to clarifai platform dataset.
+
     Args:
       batch_input_ids: batch input ids
       dataset_obj: ClarifaiDataset object
+
     Returns:
       failed_input_ids: failed input ids
       retry_annot_protos: failed annot protos
@@ -139,6 +143,7 @@ class Dataset(Lister, BaseClient):
                      retry_annot_protos: List[resources_pb2.Annotation],
                      dataset_obj: ClarifaiDatasetType) -> None:
     """Retry failed uploads.
+
     Args:
       failed_input_ids: failed input ids
       retry_annot_protos: failed annot protos
@@ -152,6 +157,7 @@ class Dataset(Lister, BaseClient):
 
   def _data_upload(self, dataset_obj: ClarifaiDatasetType) -> None:
     """Uploads inputs and annotations to clarifai platform dataset.
+
     Args:
       dataset_obj: ClarifaiDataset object
     """
@@ -177,12 +183,13 @@ class Dataset(Lister, BaseClient):
                      dataset_loader: str = None,
                      chunk_size: int = 128) -> None:
     """Uploads a dataset to the app.
+
     Args:
-      task: task type(text_clf, visual-classification, visual_detection, visual_segmentation, visual-captioning)
-      split: split type(train, test, val)
-      module_dir: path to the module directory
-      dataset_loader: name of the dataset loader
-      chunk_size: chunk size for concurrent upload of inputs and annotations
+      task (str): task type(text_clf, visual-classification, visual_detection, visual_segmentation, visual-captioning)
+      split (str): split type(train, test, val)
+      module_dir (str): path to the module directory
+      dataset_loader (str): name of the dataset loader
+      chunk_size (int): chunk size for concurrent upload of inputs and annotations
     """
     self.chunk_size = min(self.chunk_size, chunk_size)
     self.task = task
