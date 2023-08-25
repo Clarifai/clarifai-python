@@ -15,7 +15,7 @@ For more information on any of the public models, visit https://clarifai.com/mod
    from clarifai.client.model import Model
 
    # Model Predict
-   model = Model("https://clarifai.com/anthropic/completion/models/claude-v2").predict_by_bytes(b"Write a tweet on future of AI", "text")
+   model_prediction = Model("https://clarifai.com/anthropic/completion/models/claude-v2").predict_by_bytes(b"Write a tweet on future of AI", "text")
 
    model = Model(user_id="user_id", app_id="app_id", model_id="model_id")
    model_prediction = model.predict_by_url(url="url", input_type="image") # Supports image, text, audio, video
