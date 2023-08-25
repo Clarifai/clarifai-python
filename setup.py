@@ -7,7 +7,7 @@ packages = setuptools.find_namespace_packages(include=["clarifai*"])
 
 setuptools.setup(
     name="clarifai",
-    version="9.7.4",
+    version="9.7.5",
     author="Clarifai",
     author_email="support@clarifai.com",
     description="Clarifai Python SDK",
