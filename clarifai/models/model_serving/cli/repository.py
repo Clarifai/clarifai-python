@@ -63,12 +63,14 @@ def model_upload_init():
       help="Directory to create triton repository.")
 
   args = parser.parse_args()
+  MAX_HW_DIM = 1024
+
   if len(args.image_shape) != 2:
     raise ValueError(
         f"image_shape takes 2 values, Height and Width. Got {len(args.image_shape)} values instead."
     )
 
-  if args.image_shape[0] > 1024 or args.image_shape[1] > 1024:
+  if args.image_shape[0] > MAX_HW_DIM or args.image_shape[1] > MAX_HW_DIM:
     raise ValueError(
         f"H and W each have a maximum value of 1024. Got H: {args.image_shape[0]}, W: {args.image_shape[1]}"
     )

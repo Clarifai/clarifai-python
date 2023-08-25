@@ -155,10 +155,11 @@ class TritonModelConfig:
     Set supported input dims and data_types for
     a given model_type.
     """
+    MAX_HW_DIM = 1024
     if len(self.image_shape) != 2:
       raise ValueError(
           f"image_shape takes 2 values, Height and Width. Got {len(self.image_shape)} instead.")
-    if self.image_shape[0] > 1024 or self.image_shape[1] > 1024:
+    if self.image_shape[0] > MAX_HW_DIM or self.image_shape[1] > MAX_HW_DIM:
       raise ValueError(
           f"H and W each have a maximum value of 1024. Got H: {self.image_shape[0]}, W: {self.image_shape[1]}"
       )
