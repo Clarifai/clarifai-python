@@ -8,16 +8,16 @@ A step by step guide to building your own triton inference model and deploying i
 
 1. Generate a triton model repository via commandline.
 ```console
-$ clarifai-model-upload-init --model_name=<Your model name> \
-		--model_type=<select model type from available ones> \
-		--repo_dir=<directory in which to create your model repository>
+$ clarifai-model-upload-init --model_name <Your model name> \
+		--model_type <select model type from available ones> \
+		--repo_dir <directory in which to create your model repository>
 ```
 2. Edit the `requirements.txt` file with dependencies needed to run inference on your model and the `labels.txt` (if available in dir) with the labels your model is to predict.
 3. Add your model loading and inference code inside `inference.py` script of the generated model repository under the `setup()` and `predict()` functions respectively. Refer to  The [Inference Script section]() for a description of this file.
 4. Generate a zip of your triton model for deployment via commandline.
 ```console
-$ clarifai-triton-zip --triton_model_repository=<path to triton model repository to be compressed> \
-    --zipfile_name=<name of the triton model zip> (Recommended to use 	  <model_name>_<model-type> convention for naming)
+$ clarifai-triton-zip --triton_model_repository <path to triton model repository to be compressed> \
+    --zipfile_name <name of the triton model zip> (Recommended to use 	  <model_name>_<model-type> convention for naming)
 ```
 5. Upload the generated zip to a public file storage service to get a URL to the zip. This URL must be publicly accessible and downloadable as it's necessary for the last step: uploading the model to a Clarifai app.
 6. Set your Clarifai auth credentials as environment variables.
@@ -120,6 +120,7 @@ Additional methods can be added to this script's `Infer` class by the user as de
 - [Model Output types docs](docs/output.md)
 - [Dependencies](docs/dependencies.md)
 - [Examples](examples/)
+- [Custom Configs](docs/custom_config.md/)
 
 ## Prerequisites
 

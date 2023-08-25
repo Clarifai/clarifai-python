@@ -19,6 +19,13 @@ from ..model_config.triton_config import TritonModelConfig
 from ..pb_model_repository import TritonModelRepository
 
 
+def dims_type(shape_string: str):
+  """Read list string from cli and convert values to a list of integers."""
+  shape_string = shape_string.replace("[", "").replace("]", "")
+  shapes = list(map(int, shape_string.split(",")))
+  return shapes
+
+
 def model_upload_init():
   """
   Clarifai triton model upload commandline tool.
@@ -41,16 +48,39 @@ def model_upload_init():
       help=f"Clarifai supported model types.\n Model-types-map: {MODEL_TYPES}",
   )
   parser.add_argument(
+      "--image_shape",
+      type=dims_type,
+      default="[-1, -1]",
+      required=False,
+      help=
+      f"(H, W) dims for models with an image input type. H and W each have a max value of 1024",
+  )
+  parser.add_argument(
       "--repo_dir",
       type=str,
-      default=".",  #curdir
+      default=".",
       required=True,
       help="Directory to create triton repository.")
 
   args = parser.parse_args()
+  MAX_HW_DIM = 1024
+
+  if len(args.image_shape) != 2:
+    raise ValueError(
+        f"image_shape takes 2 values, Height and Width. Got {len(args.image_shape)} values instead."
+    )
+
+  if args.image_shape[0] > MAX_HW_DIM or args.image_shape[1] > MAX_HW_DIM:
+    raise ValueError(
+        f"H and W each have a maximum value of 1024. Got H: {args.image_shape[0]}, W: {args.image_shape[1]}"
+    )
 
   model_config = TritonModelConfig(
-      model_name=args.model_name, model_version="1", model_type=args.model_type)
+      model_name=args.model_name,
+      model_version="1",
+      model_type=args.model_type,
+      image_shape=args.image_shape,
+  )
 
   triton_repo = TritonModelRepository(model_config)
   triton_repo.build_repository(args.repo_dir)

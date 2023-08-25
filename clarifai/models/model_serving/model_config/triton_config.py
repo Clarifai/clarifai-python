@@ -17,6 +17,24 @@ from typing import List
 
 
 @dataclass
+class DType:
+  """
+  Triton Model Config data types.
+  """
+  # https://github.com/triton-inference-server/common/blob/main/protobuf/model_config.proto
+  TYPE_UINT8: int = 2
+  TYPE_INT8: int = 6
+  TYPE_INT16: int = 7
+  TYPE_INT32: int = 8
+  TYPE_INT64: int = 9
+  TYPE_FP16: int = 10
+  TYPE_FP32: int = 11
+  TYPE_STRING: int = 13
+  KIND_GPU: int = 1
+  KIND_CPU: int = 2
+
+
+@dataclass
 class InputConfig:
   """
   Triton Input definition.
@@ -31,7 +49,7 @@ class InputConfig:
   InputConfig
   """
   name: str
-  data_type: str = None
+  data_type: int
   dims: List = field(default_factory=list)
 
 
@@ -51,7 +69,7 @@ class OutputConfig:
   OutputConfig
   """
   name: str
-  data_type: str = None
+  data_type: int
   dims: List = field(default_factory=list)
   labels: bool = False
 
@@ -81,9 +99,9 @@ class Device:
 
   def __post_init__(self):
     if self.use_gpu:
-      self.kind: str = "KIND_GPU"
+      self.kind: str = DType.KIND_GPU
     else:
-      self.kind: str = "KIND_CPU"
+      self.kind: str = DType.KIND_CPU
 
 
 @dataclass
@@ -124,6 +142,7 @@ class TritonModelConfig:
   model_name: str
   model_version: str
   model_type: str
+  image_shape: List  #(H, W)
   input: List[InputConfig] = field(default_factory=list)
   output: List[OutputConfig] = field(default_factory=list)
   instance_group: Device = Device()
@@ -136,29 +155,41 @@ class TritonModelConfig:
     Set supported input dims and data_types for
     a given model_type.
     """
-    image_input = InputConfig(name="image", data_type="TYPE_UINT8", dims=[-1, -1, 3])
-    text_input = InputConfig(name="text", data_type="TYPE_STRING", dims=[1])
+    MAX_HW_DIM = 1024
+    if len(self.image_shape) != 2:
+      raise ValueError(
+          f"image_shape takes 2 values, Height and Width. Got {len(self.image_shape)} instead.")
+    if self.image_shape[0] > MAX_HW_DIM or self.image_shape[1] > MAX_HW_DIM:
+      raise ValueError(
+          f"H and W each have a maximum value of 1024. Got H: {self.image_shape[0]}, W: {self.image_shape[1]}"
+      )
+    image_dims = self.image_shape
+    image_dims.append(3)  # add channel dim
+    image_input = InputConfig(name="image", data_type=DType.TYPE_UINT8, dims=image_dims)
+    text_input = InputConfig(name="text", data_type=DType.TYPE_STRING, dims=[1])
+    # del image_shape as it's a temporary config that's not used by triton
+    del self.image_shape
 
     if self.model_type == "visual-detector":
       self.input.append(image_input)
-      pred_bboxes = OutputConfig(name="predicted_bboxes", data_type="TYPE_FP32", dims=[-1, 4])
+      pred_bboxes = OutputConfig(name="predicted_bboxes", data_type=DType.TYPE_FP32, dims=[-1, 4])
       pred_labels = OutputConfig(
-          name="predicted_labels", data_type="TYPE_INT32", dims=[-1, 1], labels=True)
+          name="predicted_labels", data_type=DType.TYPE_INT32, dims=[-1, 1], labels=True)
       del pred_labels.labels
-      pred_scores = OutputConfig(name="predicted_scores", data_type="TYPE_FP32", dims=[-1, 1])
+      pred_scores = OutputConfig(name="predicted_scores", data_type=DType.TYPE_FP32, dims=[-1, 1])
       self.output.extend([pred_bboxes, pred_labels, pred_scores])
 
     elif self.model_type == "visual-classifier":
       self.input.append(image_input)
       pred_labels = OutputConfig(
-          name="softmax_predictions", data_type="TYPE_FP32", dims=[-1], labels=True)
+          name="softmax_predictions", data_type=DType.TYPE_FP32, dims=[-1], labels=True)
       del pred_labels.labels
       self.output.append(pred_labels)
 
     elif self.model_type == "text-classifier":
       self.input.append(text_input)
       pred_labels = OutputConfig(
-          name="softmax_predictions", data_type="TYPE_FP32", dims=[-1], labels=True)
+          name="softmax_predictions", data_type=DType.TYPE_FP32, dims=[-1], labels=True)
       #'Len of out list expected to be the number of concepts returned by the model,
       # with each value being the confidence for the respective model output.
       del pred_labels.labels
@@ -166,30 +197,30 @@ class TritonModelConfig:
 
     elif self.model_type == "text-to-text":
       self.input.append(text_input)
-      pred_text = OutputConfig(name="text", data_type="TYPE_STRING", dims=[1], labels=False)
+      pred_text = OutputConfig(name="text", data_type=DType.TYPE_STRING, dims=[1], labels=False)
       self.output.append(pred_text)
 
     elif self.model_type == "text-embedder":
       self.input.append(text_input)
       embedding_vector = OutputConfig(
-          name="embeddings", data_type="TYPE_FP32", dims=[-1], labels=False)
+          name="embeddings", data_type=DType.TYPE_FP32, dims=[-1], labels=False)
       self.output.append(embedding_vector)
 
     elif self.model_type == "text-to-image":
       self.input.append(text_input)
       gen_image = OutputConfig(
-          name="image", data_type="TYPE_UINT8", dims=[-1, -1, 3], labels=False)
+          name="image", data_type=DType.TYPE_UINT8, dims=[-1, -1, 3], labels=False)
       self.output.append(gen_image)
 
     elif self.model_type == "visual-embedder":
       self.input.append(image_input)
       embedding_vector = OutputConfig(
-          name="embeddings", data_type="TYPE_FP32", dims=[-1], labels=False)
+          name="embeddings", data_type=DType.TYPE_FP32, dims=[-1], labels=False)
       self.output.append(embedding_vector)
 
     elif self.model_type == "visual-segmenter":
       self.input.append(image_input)
       pred_masks = OutputConfig(
-          name="predicted_mask", data_type="TYPE_INT64", dims=[-1, -1], labels=True)
+          name="predicted_mask", data_type=DType.TYPE_INT64, dims=[-1, -1], labels=True)
       del pred_masks.labels
       self.output.append(pred_masks)
