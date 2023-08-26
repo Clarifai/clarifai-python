@@ -16,6 +16,7 @@ from typing import Dict, Type
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from google.protobuf.json_format import MessageToDict
+from google.protobuf.json_format import ParseDict
 from google.protobuf.struct_pb2 import Struct
 
 from clarifai.auth.helper import ClarifaiAuthHelper
@@ -175,77 +176,132 @@ class Models:
   def create_prompt_model(self, user_id, app_id, model_id, prompt, position):
     if position not in ["PREFIX", "SUFFIX", "TEMPLATE"]:
       raise Exception("Position must be PREFIX or SUFFIX")
-
-    response = self.stub.PostModels(
-      service_pb2.PostModelsRequest(
-        user_app_id = resources_pb2.UserAppIDSet(
+    user_app_id = resources_pb2.UserAppIDSet(
           user_id = user_id,
           app_id = app_id
         )
+
+    response = self.stub.PostModels(
+      service_pb2.PostModelsRequest(
+        user_app_id=user_app_id,
+        models = [
+          resources_pb2.Model(
+            id = model_id,
+            model_type_id = 'prompter'
+          )
+        ]
       ))
-    if response.status.code != "SUCCESS":
+    if response.status.code != 10000:
+      print(f"CODE {response.status.code}")
       raise Exception("PostModels request failed: %r" % response)
 
     req = service_pb2.PostModelVersionsRequest(
-      user_app_id=userDataObject,
+
+      user_app_id=user_app_id,
       model_id=model_id,
       model_versions=[resources_pb2.ModelVersion(output_info=resources_pb2.OutputInfo())],
     )
-    params = json_format.ParseDict(
+    params = ParseDict(
       {
         "prompt_template": prompt,
         "position": position,
       },
       req.model_versions[0].output_info.params,
     )
-    post_model_versions_response = stub.PostModelVersions(req)
-    if post_model_versions_response.status.code != "SUCCESS":
+    post_model_versions_response = self.stub.PostModelVersions(req)
+    if post_model_versions_response.status.code != 10000:
       raise Exception("PostModelVersions request failed: %r" % post_model_versions_response)
     return post_model_versions_response.model
 
-  def post_prompt_model_version(
-      self,
-      model_id: str,
-      outputs: dict,
-  ):
-    """Post a new version of an existing model in the Clarifai platform.
+# def create_model(user_id, app_id):
+#     # creates the empty model object — just sets the model id / model type
+#     res_pm = stub.PostModels(
+#         service_pb2.PostModelsRequest(
+#             user_app_id = resources_pb2.UserAppIDSet(
+#                 user_id = user_id,
+#                 app_id = app_id
+#             ),
+#     models = [
+#         resources_pb2.Model(
+#             id = 'my-test-prompter',
+#             model_type_id = 'prompter'
+#         )
+#     ]
+#         ),
+#         metadata = (('authorization', f'Key {pat}'),)
+#     )
+    
+#     # defining the prompt_template for the prompter model
+#     model_params = Struct()
+#     model_params.update(
+#         {
+#             'prompt_template': 'here is my prompt template: {data.text.raw}'
+#         }
+#     )
+    
+#     # creates the model version, which specifies/takes in the prompt template above
+#     res_pmv = stub.PostModelVersions(
+#         service_pb2.PostModelVersionsRequest(
+#             user_app_id = resources_pb2.UserAppIDSet(
+#                 user_id = user_id,
+#                 app_id = app_id
+#             ),
+#             model_id = 'my-test-prompter',
+#             model_versions = [
+#                 resources_pb2.ModelVersion(
+#                     output_info = resources_pb2.OutputInfo(
+#                         params = model_params
+#                     )
+#                 )
+#             ]
+#         ),
+#         metadata = (('authorization', f'Key {pat}'),)
+#     )
+    
 
-    Args:
-        model_id (str): Clarifai model id
-        model_zip_url (str]): url of zip of model
-        model_zip_url (str): url of zip of model
-        input (dict): a dict where the key is clarifai input field and the value is triton model input,
-            {clarifai_input_field: triton_input_filed}.
-        outputs (dict): a dict where the keys are clarifai output fields and the values are triton model outputs,
-            {clarifai_output_field1: triton_output_filed1, clarifai_output_field2: triton_output_filed2,...}.
+  # def post_prompt_model_version(
+  #     self,
+  #     model_id: str,
+  #     outputs: dict,
+  # ):
+  #   """Post a new version of an existing model in the Clarifai platform.
 
-    Returns:
-        dict: clarifai api response
-    """
-    user_data_object = self.auth.get_user_app_id_proto()
+  #   Args:
+  #       model_id (str): Clarifai model id
+  #       model_zip_url (str]): url of zip of model
+  #       model_zip_url (str): url of zip of model
+  #       input (dict): a dict where the key is clarifai input field and the value is triton model input,
+  #           {clarifai_input_field: triton_input_filed}.
+  #       outputs (dict): a dict where the keys are clarifai output fields and the values are triton model outputs,
+  #           {clarifai_output_field1: triton_output_filed1, clarifai_output_field2: triton_output_filed2,...}.
 
-    def _parse_fields_map(x):
-      """parse input, outputs to Struct"""
-      _fields_map = Struct()
-      _fields_map.update(x)
-      return _fields_map
+  #   Returns:
+  #       dict: clarifai api response
+  #   """
+  #   user_data_object = self.auth.get_user_app_id_proto()
 
-    input_fields_map = _parse_fields_map(input)
-    output_fields_map = _parse_fields_map(outputs)
-    post_model_versions = self.stub.PostModelVersions(
-        service_pb2.PostModelVersionsRequest(
-            user_app_id=user_data_object,
-            model_id=model_id,
-            model_versions=[
-                resources_pb2.ModelVersion(
-                    pretrained_model_config=resources_pb2.PretrainedModelConfig(
-                        model_zip_url=model_zip_url,
-                        input_fields_map=input_fields_map,
-                        output_fields_map=output_fields_map))
-            ]),
-        metadata=self.auth.metadata)
+  #   def _parse_fields_map(x):
+  #     """parse input, outputs to Struct"""
+  #     _fields_map = Struct()
+  #     _fields_map.update(x)
+  #     return _fields_map
 
-    return MessageToDict(post_model_versions, preserving_proto_field_name=True)
+  #   input_fields_map = _parse_fields_map(input)
+  #   output_fields_map = _parse_fields_map(outputs)
+  #   post_model_versions = self.stub.PostModelVersions(
+  #       service_pb2.PostModelVersionsRequest(
+  #           user_app_id=user_data_object,
+  #           model_id=model_id,
+  #           model_versions=[
+  #               resources_pb2.ModelVersion(
+  #                   pretrained_model_config=resources_pb2.PretrainedModelConfig(
+  #                       model_zip_url=model_zip_url,
+  #                       input_fields_map=input_fields_map,
+  #                       output_fields_map=output_fields_map))
+  #           ]),
+  #       metadata=self.auth.metadata)
+
+  #   return MessageToDict(post_model_versions, preserving_proto_field_name=True)
 
   def upload_model(
       self,
