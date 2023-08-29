@@ -73,6 +73,12 @@ client = User(user_id="user_id")
 
 # Get all apps
 apps = client.list_apps()
+```
+
+### Interacting with Datasets
+
+```python
+# Note: CLARIFAI_PAT must be set as env variable.
 
 # Create app and dataset
 app = client.create_app(app_id="demo_app", base_workflow="Universal")
@@ -86,12 +92,17 @@ dataset.upload_from_csv(csv_path='csv_path', labels=True)
 
 #upload data from folder
 dataset.upload_from_folder(folder_path='folder_path', input_type='text', labels=True)
+
+# Export Dataset Inputs
+from clarifai.client.dataset import Dataset
+Dataset().export(save_path='output.zip', local_archive_path='clarifai-data-protobuf.zip')
 ```
 
 
 ### Interacting with Inputs
 
 ```python
+# Note: CLARIFAI_PAT must be set as env variable.
 from clarifai.client.user import User
 app = User(user_id="user_id").app(app_id="app_id")
 input_obj = app.inputs()
@@ -187,4 +198,4 @@ all_face_community_workflows = App().list_workflows(filter_by={"query": "face"},
 
 ## More Examples
 See many more code examples in this [repo](https://github.com/Clarifai/examples).
-Also see the official [python SDK docs](https://clarifai-python.readthedocs.io/en/latest/index.html)
+Also see the official [Python SDK docs](https://clarifai-python.readthedocs.io/en/latest/index.html)

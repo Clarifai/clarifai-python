@@ -1,7 +1,9 @@
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
 from typing import List, Tuple, TypeVar, Union
 
+import requests
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from google.protobuf.json_format import MessageToDict
@@ -10,6 +12,7 @@ from tqdm import tqdm
 from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
+from clarifai.datasets.export.dataset_inputs import DatasetExportReader, InputDownloader
 from clarifai.datasets.upload.image import (VisualClassificationDataset, VisualDetectionDataset,
                                             VisualSegmentationDataset)
 from clarifai.datasets.upload.text import TextClassificationDataset
@@ -36,8 +39,6 @@ class Dataset(Lister, BaseClient):
     """
     if url_init != "" and dataset_id != "":
       raise UserError("You can only specify one of url_init or dataset_id.")
-    if url_init == "" and dataset_id == "":
-      raise UserError("You must specify one of url_init or dataset_id.")
     if url_init != "":
       user_id, app_id, _, dataset_id, _ = ClarifaiUrlHelper.split_clarifai_url(url_init)
       kwargs = {'user_id': user_id, 'app_id': app_id}
@@ -277,6 +278,34 @@ class Dataset(Lister, BaseClient):
       input_protos = self.input_object.get_text_inputs_from_folder(
           folder_path=folder_path, dataset_id=self.id, labels=labels)
     self.input_object._bulk_upload(inputs=input_protos, chunk_size=chunk_size)
+
+  def export(self,
+             save_path: str,
+             archive_url: str = None,
+             local_archive_path: str = None,
+             split: str = None) -> None:
+    """Exports the Clarifai protobuf dataset to a local archive.
+
+    Args:
+        save_path (str): The path to save the archive to.
+        archive_url (str): The URL to the Clarifai protobuf archive.
+        local_archive_path (str): The path to the local Clarifai protobuf archive.
+        split (str): Export dataset inputs in the directory format {split}/{input_type}. Default is all.
+
+    Example:
+        >>> from clarifai.client.dataset import Dataset
+        >>> Dataset().export(save_path='output.zip', local_archive_path='clarifai-data-protobuf.zip')
+
+    Note: Currently only supports export of dataset inputs.
+    """
+    if local_archive_path and not os.path.exists(local_archive_path):
+      raise UserError(f"Archive {local_archive_path} does not exist.")
+    # Create a session object and set auth header
+    session = requests.Session()
+    session.headers.update({'Authorization': self.metadata[0][1]})
+    with DatasetExportReader(
+        session=session, archive_url=archive_url, local_archive_path=local_archive_path) as reader:
+      InputDownloader(session, reader).download_input_archive(save_path=save_path, split=split)
 
   def __getattr__(self, name):
     return getattr(self.dataset_info, name)
