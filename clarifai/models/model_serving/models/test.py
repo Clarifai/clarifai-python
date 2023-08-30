@@ -1,13 +1,14 @@
-import os
 import logging
+import os
 import unittest
 
 from clarifai.models.model_serving.models.default_test import DefaultTestInferenceModel
 
+
 class CustomTestInferenceModel(DefaultTestInferenceModel):
   """
   Run this file to test your implementation of InferenceModel in inference.py with default tests of Triton configuration and its output values based on basic predefined inputs
-  If you want to write custom testcase or just test output value. 
+  If you want to write custom testcase or just test output value.
   Please follow these instrucitons:
   1. Name your test function with prefix "test" so that pytest can execute
   2. In order to obtain output of InferenceModel, call `self.triton_get_predictions(input_data)`.
@@ -19,7 +20,7 @@ class CustomTestInferenceModel(DefaultTestInferenceModel):
   #to see std output
   pytest --log-cli-level=INFO  -s ./your_triton_folder/1/test.py
   ```
-  
+
   ### Examples:
   + test text-to-image output
   ```
@@ -27,7 +28,7 @@ class CustomTestInferenceModel(DefaultTestInferenceModel):
     text = "Test text"
     output = self.triton_get_predictions(text)
     image = output.image # uint8 np.ndarray image
-    #show or save 
+    #show or save
   ```
   + test visual-classifier output
   ```
@@ -38,16 +39,18 @@ class CustomTestInferenceModel(DefaultTestInferenceModel):
     #process scores to get class id and its score
     logger.info(result)
   """
-  
+
   ########### Initialization. Do not change ###########
   __test__ = True
+
   def setUp(self) -> None:
     logging.info("Initializing...")
-    model_type = "clarifai-model-type" # your model type
-    self.intitialize(model_type, 
-                     repo_version_dir=os.path.dirname(__file__), 
-                     is_instance_kind_gpu=True)
+    model_type = "clarifai-model-type"  # your model type
+    self.intitialize(
+        model_type, repo_version_dir=os.path.dirname(__file__), is_instance_kind_gpu=True)
+
   #########################################################
-  
+
+
 if __name__ == '__main__':
   unittest.main()

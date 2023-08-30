@@ -97,7 +97,8 @@ class TritonModelRepository:
     custom_test_path = os.path.join(model_version_path, "test.py")
     test_source_code = inspect.getsource(test)
     with open(custom_test_path, "w") as fp:
-      # change model type 
-      test_source_code = test_source_code.replace("clarifai-model-type", self.model_config.model_type)
+      # change model type
+      test_source_code = test_source_code.replace("clarifai-model-type",
+                                                  self.model_config.model_type)
       # write it to file
       fp.write(test_source_code)
