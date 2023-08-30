@@ -14,19 +14,26 @@ $ clarifai-model-upload-init --model_name <Your model name> \
 ```
 2. Edit the `requirements.txt` file with dependencies needed to run inference on your model and the `labels.txt` (if available in dir) with the labels your model is to predict.
 3. Add your model loading and inference code inside `inference.py` script of the generated model repository under the `setup()` and `predict()` functions respectively. Refer to  The [Inference Script section]() for a description of this file.
-4. Generate a zip of your triton model for deployment via commandline.
+4. Testing your implemtation locally by running `<your_triton_folder>/1/test.py` with basic predefined tests.
+To avoid missing dependencies when deploying, recommend to use conda to create clean environment. Then install everything in `requirements.txt`. Follow instruction inside [test.py](./models/test.py) for implementing custom tests. Running the test by using pytest:
+```bash
+  pytest ./your_triton_folder/1/test.py
+  #to see std output
+  pytest --log-cli-level=INFO  -s ./your_triton_folder/1/test.py
+```
+5. Generate a zip of your triton model for deployment via commandline.
 ```console
 $ clarifai-triton-zip --triton_model_repository <path to triton model repository to be compressed> \
     --zipfile_name <name of the triton model zip> (Recommended to use 	  <model_name>_<model-type> convention for naming)
 ```
-5. Upload the generated zip to a public file storage service to get a URL to the zip. This URL must be publicly accessible and downloadable as it's necessary for the last step: uploading the model to a Clarifai app.
-6. Set your Clarifai auth credentials as environment variables.
+6. Upload the generated zip to a public file storage service to get a URL to the zip. This URL must be publicly accessible and downloadable as it's necessary for the last step: uploading the model to a Clarifai app.
+7. Set your Clarifai auth credentials as environment variables.
 ```console
 $ export CLARIFAI_USER_ID=<your clarifai user_id>
 $ export CLARIFAI_APP_ID=<your clarifai app_id>
 $ export CLARIFAI_PAT=<your clarifai PAT>
 ```
-7. Upload your model to Clarifai. Please ensure that your configuration field maps adhere to [this](https://github.com/Clarifai/clarifai-python-utils/blob/main/clarifai/models/model_serving/model_config/deploy.py)
+8. Upload your model to Clarifai. Please ensure that your configuration field maps adhere to [this](https://github.com/Clarifai/clarifai-python-utils/blob/main/clarifai/models/model_serving/model_config/deploy.py)
 ```console
 $ clarifai-upload-model --url <URL to your model zip. Your zip file name is expected to have "zipfile_name" format (in clarifai-triton-zip), if not you need to specify your model_id and model_type> \
     --model_id <Your model ID on the platform> \
@@ -47,6 +54,7 @@ $ clarifai-upload-model --url <URL to your model zip. Your zip file name is expe
     └── 1/
         ├── __init__.py
         ├── inference.py
+        ├── test.py
         └── model.py
 
 A generated triton model repository looks as illustrated in the directory tree above. Any additional files such as model checkpoints and folders needed at inference time must all be placed under the `1/` directory.
@@ -61,6 +69,7 @@ A generated triton model repository looks as illustrated in the directory tree a
 | `triton_conda.yaml` | Contains dependencies available in pre-configured execution environment. |
 | `1/inference.py` | The inference script where users write their inference code. |
 | `1/model.py` | The triton python backend model file run to serve inference requests. |
+| `1/test.py` | Contains some predefined tests in order to test inference implementation and dependencies locally. |
 
 ## Inference Script
 
