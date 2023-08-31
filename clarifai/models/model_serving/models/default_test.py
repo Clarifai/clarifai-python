@@ -21,7 +21,10 @@ PREDEFINED_IMAGES = [
 
 class DefaultTestInferenceModel(unittest.TestCase):
   """
-  This file contains 2 test cases of:
+  This file contains test cases:
+  * Test triton config of current model vs default config
+  * Test if labels.txt is valid for specific model types
+  * Test inference with simple inputs
   ...
   """
   __test__ = False
@@ -173,7 +176,7 @@ class DefaultTestInferenceModel(unittest.TestCase):
           self.assertEqual(
               len(output.predicted_scores),
               len(self.labels),
-              f"`predicted_labels` must equal to {len(self.labels)}, howerver got {len(output.predicted_scores)}"
+              f"`predicted_labels` must equal to {len(self.labels)}, however got {len(output.predicted_scores)}"
           )
 
       elif self.model_type == "text-classifier":
@@ -186,7 +189,7 @@ class DefaultTestInferenceModel(unittest.TestCase):
           self.assertEqual(
               len(output.predicted_scores),
               len(self.labels),
-              f"`predicted_labels` must equal to {len(self.labels)}, howerver got {len(output.predicted_scores)}"
+              f"`predicted_labels` must equal to {len(self.labels)}, however got {len(output.predicted_scores)}"
           )
 
       elif self.model_type == "text-embedder":
