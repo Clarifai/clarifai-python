@@ -52,6 +52,7 @@ class Runner(BaseClient):
       )
 
     self.runner_id = runner_id
+    self.app_id = app_id
     self.logger = get_logger("INFO", __name__)
     self.kwargs = {**kwargs, 'id': runner_id, 'user_id': user_id}
     self.runner_info = resources_pb2.Runner(**self.kwargs)
