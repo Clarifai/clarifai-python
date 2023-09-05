@@ -14,11 +14,23 @@ $ clarifai-model-upload-init --model_name <Your model name> \
 ```
 2. Edit the `requirements.txt` file with dependencies needed to run inference on your model and the `labels.txt` (if available in dir) with the labels your model is to predict.
 3. Add your model loading and inference code inside `inference.py` script of the generated model repository under the `setup()` and `predict()` functions respectively. Refer to  The [Inference Script section]() for a description of this file.
-4. Testing your implemtation locally by running `<your_triton_folder>/1/test.py` with basic predefined tests.
-To avoid missing dependencies when deploying, recommend to use conda to create clean environment. Then install everything in `requirements.txt`. Follow instruction inside [test.py](./models/test.py) for implementing custom tests. Running the test by using pytest:
+4. Testing your implementation locally by running `<your_triton_folder>/1/test.py` with basic predefined tests.
+To avoid missing dependencies when deploying, recommend to use conda to create clean environment from [Clarifai base envs](./envs/). Then install everything in `requirements.txt`. Follow instruction inside [test.py](./models/test.py) for implementing custom tests.
+  * Create conda env: The base envs are attached in [./envs](./envs/), these are yaml file named as `triton_conda-python_version-torch_version-xxxx.yaml` format. Make sure base env that you're about to create is matched the one in your_triton_folder/triton_conda.yaml. To create conda env and install requirements run:
 ```bash
+# create env
+conda env create -n <your_env> -f <base env name>.yaml
+# activate it
+conda activate <your_env>
+# install dependencies
+pip install -r <your_triton_folder>/requirements.txt
+```
+* Then run the test by using pytest:
+
+```bash
+  # Run the test
   pytest ./your_triton_folder/1/test.py
-  #to see std output
+  # to see std output
   pytest --log-cli-level=INFO  -s ./your_triton_folder/1/test.py
 ```
 5. Generate a zip of your triton model for deployment via commandline.
