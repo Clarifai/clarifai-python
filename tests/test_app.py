@@ -88,7 +88,8 @@ class TestApp:
     assert module.id == CREATE_MODULE_ID and module.app_id == CREATE_APP_ID and module.user_id == CREATE_APP_USER_ID
 
   def test_create_runner(self, create_app):
-    runner = create_app.create_runner(CREATE_RUNNER_ID, description="CI test runner")
+    runner = create_app.create_runner(
+        CREATE_RUNNER_ID, labels=["ci runner"], description="CI test runner")
     assert runner.id == CREATE_RUNNER_ID and runner.app_id == CREATE_APP_ID and runner.user_id == CREATE_APP_USER_ID
 
   def test_delete_dataset(self, create_app, caplog):
