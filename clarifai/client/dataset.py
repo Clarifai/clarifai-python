@@ -223,6 +223,7 @@ class Dataset(Lister, BaseClient):
   def upload_from_csv(self,
                       csv_path: str,
                       input_type: str = 'text',
+                      csv_type: str = None,
                       labels: bool = True,
                       chunk_size: int = 128) -> None:
     """Uploads dataset from a csv file.
@@ -230,22 +231,31 @@ class Dataset(Lister, BaseClient):
     Args:
         csv_path (str): path to the csv file
         input_type (str): type of the dataset(text, image)
+        csv_type (str): type of the csv file(raw, url, file_path)
         labels (bool): True if csv file has labels column
         chunk_size (int): chunk size for concurrent upload of inputs and annotations
 
     Example:
         >>> from clarifai.client.dataset import Dataset
         >>> dataset = Dataset(user_id = 'user_id', app_id = 'demo_app', dataset_id = 'demo_dataset')
-        >>> dataset.upload_from_csv(csv_path='csv_path', labels=True)
+        >>> dataset.upload_from_csv(csv_path='csv_path', input_type='text', csv_type='raw, labels=True)
 
     Note: csv file should have either one(input) or two columns(input, labels).
     """
-    if input_type not in ['image', 'text']:  #TODO: add image
-      raise UserError('Invalid input type it should be image or text')
+    if input_type not in ['image', 'text', 'video', 'audio']:
+      raise UserError('Invalid input type, it should be image,text,audio or video')
+    if csv_type not in ['raw', 'url', 'file_path']:
+      raise UserError('Invalid csv type, it should be raw, url or file_path')
+    assert csv_path.endswith('.csv'), 'csv_path should be a csv file'
+    if csv_type == 'raw' and input_type != 'text':
+      raise UserError('Only text input type is supported for raw csv type')
     chunk_size = min(128, chunk_size)
-    if input_type == 'text':
-      input_protos = self.input_object.get_text_input_from_csv(
-          csv_path=csv_path, dataset_id=self.id, labels=labels)
+    input_protos = self.input_object.get_inputs_from_csv(
+        csv_path=csv_path,
+        input_type=input_type,
+        csv_type=csv_type,
+        dataset_id=self.id,
+        labels=labels)
     self.input_object._bulk_upload(inputs=input_protos, chunk_size=chunk_size)
 
   def upload_from_folder(self,
