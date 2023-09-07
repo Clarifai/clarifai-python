@@ -21,7 +21,7 @@ from typing import Callable, Type
 
 from .model_config.serializer import Serializer
 from .model_config.triton_config import TritonModelConfig
-from .models import inference, pb_model
+from .models import inference, pb_model, test
 
 
 class TritonModelRepository:
@@ -93,3 +93,12 @@ class TritonModelRepository:
     # generate model.py & inference.py modules
     self._module_to_file(pb_model, filename="model.py", destination_dir=model_version_path)
     self._module_to_file(inference, filename="inference.py", destination_dir=model_version_path)
+    # generate test.py
+    custom_test_path = os.path.join(model_version_path, "test.py")
+    test_source_code = inspect.getsource(test)
+    with open(custom_test_path, "w") as fp:
+      # change model type
+      test_source_code = test_source_code.replace("clarifai-model-type",
+                                                  self.model_config.model_type)
+      # write it to file
+      fp.write(test_source_code)

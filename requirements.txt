@@ -7,3 +7,4 @@ pycocotools==2.0.6
 opencv-python==4.7.0.68
 tritonclient==2.34.0
 rich==13.4.2
+pytest==7.4.1

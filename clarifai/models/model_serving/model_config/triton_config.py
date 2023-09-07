@@ -145,8 +145,8 @@ class TritonModelConfig:
   image_shape: List  #(H, W)
   input: List[InputConfig] = field(default_factory=list)
   output: List[OutputConfig] = field(default_factory=list)
-  instance_group: Device = Device()
-  dynamic_batching: DynamicBatching = DynamicBatching()
+  instance_group: Device = field(default_factory=Device)
+  dynamic_batching: DynamicBatching = field(default_factory=DynamicBatching)
   max_batch_size: int = 1
   backend: str = "python"
 
