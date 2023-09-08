@@ -88,7 +88,7 @@ dataset = app.create_dataset(dataset_id="demo_dataset")
 dataset.upload_dataset(task='visual_segmentation', split="train", dataset_loader='coco_segmentation')
 
 #upload text from csv
-dataset.upload_from_csv(csv_path='csv_path', labels=True)
+dataset.upload_from_csv(csv_path='csv_path', input_type='text', csv_type='raw', labels=True)
 
 #upload data from folder
 dataset.upload_from_folder(folder_path='folder_path', input_type='text', labels=True)

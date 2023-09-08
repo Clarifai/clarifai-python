@@ -146,15 +146,17 @@ class Inputs(Lister, BaseClient):
                           image_file: str = None,
                           video_file: str = None,
                           audio_file: str = None,
+                          text_file: str = None,
                           dataset_id: str = None,
                           **kwargs) -> Input:
     """Create input proto from files.
 
     Args:
         input_id (str): The input ID for the input to create.
-        image_file (str): The url for the image.
-        video_file (str): The url for the video.
-        audio_file (str): The url for the audio.
+        image_file (str): The file_path for the image.
+        video_file (str): The file_path for the video.
+        audio_file (str): The file_path for the audio.
+        text_file (str): The file_path for the text.
         dataset_id (str): The dataset ID for the dataset to add the input to.
 
     Returns:
@@ -165,17 +167,20 @@ class Inputs(Lister, BaseClient):
         >>> input_obj = Input()
         >>> input_proto = input_obj.get_input_from_file(input_id = 'demo', video_file='file_path')
     """
-    if not any((image_file, video_file, audio_file)):
-      raise ValueError("At least one of image_file, video_file, audio_file, must be provided.")
+    if not any((image_file, video_file, audio_file, text_file)):
+      raise ValueError(
+          "At least one of image_file, video_file, audio_file, text_file must be provided.")
     image_pb = resources_pb2.Image(base64=open(image_file, 'rb').read()) if image_file else None
     video_pb = resources_pb2.Video(base64=open(video_file, 'rb').read()) if video_file else None
     audio_pb = resources_pb2.Audio(base64=open(audio_file, 'rb').read()) if audio_file else None
+    text_pb = resources_pb2.Text(raw=open(text_file, 'rb').read()) if text_file else None
     return self._get_proto(
         input_id=input_id,
         dataset_id=dataset_id,
         imagepb=image_pb,
         video_pb=video_pb,
         audio_pb=audio_pb,
+        text_pb=text_pb,
         **kwargs)
 
   def get_input_from_bytes(self,
@@ -183,6 +188,7 @@ class Inputs(Lister, BaseClient):
                            image_bytes: bytes = None,
                            video_bytes: bytes = None,
                            audio_bytes: bytes = None,
+                           text_bytes: bytes = None,
                            dataset_id: str = None,
                            **kwargs) -> Input:
     """Create input proto from bytes.
@@ -192,6 +198,7 @@ class Inputs(Lister, BaseClient):
         image_bytes (str): The bytes for the image.
         video_bytes (str): The bytes for the video.
         audio_bytes (str): The bytes for the audio.
+        text_bytes (str): The bytes for the text.
         dataset_id (str): The dataset ID for the dataset to add the input to.
 
     Returns:
@@ -204,17 +211,20 @@ class Inputs(Lister, BaseClient):
         >>> video = open('demo.mp4', 'rb').read()
         >>> input_proto = input_obj.get_input_from_bytes(input_id = 'demo',image_bytes =image, video_bytes=video)
     """
-    if not any((image_bytes, video_bytes, audio_bytes)):
-      raise ValueError("At least one of image_bytes, video_bytes, audio_bytes, must be provided.")
+    if not any((image_bytes, video_bytes, audio_bytes, text_bytes)):
+      raise ValueError(
+          "At least one of image_bytes, video_bytes, audio_bytes, text_bytes must be provided.")
     image_pb = resources_pb2.Image(base64=image_bytes) if image_bytes else None
     video_pb = resources_pb2.Video(base64=video_bytes) if video_bytes else None
     audio_pb = resources_pb2.Audio(base64=audio_bytes) if audio_bytes else None
+    text_pb = resources_pb2.Text(raw=text_bytes) if text_bytes else None
     return self._get_proto(
         input_id=input_id,
         dataset_id=dataset_id,
         imagepb=image_pb,
         video_pb=video_pb,
         audio_pb=audio_pb,
+        text_pb=text_pb,
         **kwargs)
 
   def get_image_inputs_from_folder(self,
@@ -267,12 +277,18 @@ class Inputs(Lister, BaseClient):
     text_pb = resources_pb2.Text(raw=raw_text)
     return self._get_proto(input_id=input_id, dataset_id=dataset_id, text_pb=text_pb, **kwargs)
 
-  def get_text_input_from_csv(self, csv_path: str, dataset_id: str = None,
-                              labels: str = True) -> List[Text]:  #text specific
-    """Create input proto for text data type from cscv.
+  def get_inputs_from_csv(self,
+                          csv_path: str,
+                          input_type: str = 'text',
+                          csv_type: str = 'raw',
+                          dataset_id: str = None,
+                          labels: str = True) -> List[Text]:
+    """Create input protos from cscv.
 
     Args:
         csv_path (str): Path to the csv file.
+        input_type (str): Type of input. Options: 'text', 'image', 'video', 'audio'.
+        csv_type (str): Type of csv file. Options: 'raw', 'url', 'file_path'.
         dataset_id (str): The dataset ID for the dataset to add the input to.
         labels (str): True if csv file has labels column.
 
@@ -282,23 +298,49 @@ class Inputs(Lister, BaseClient):
     Example:
         >>> from clarifai.client.input import Input
         >>> input_obj = Input()
-        >>> input_protos = input_obj.get_text_input_from_csv(csv_path = 'filepath')
+        >>> input_protos = input_obj.get_inputs_from_csv(csv_path='filepath', input_type='text', csv_type='raw')
     """
     input_protos = []
     with open(csv_path) as _file:
       reader = csv.reader(_file)
       next(reader, None)  # skip header
       for id, input in enumerate(reader):
-        text = input[0]
         if labels:
           assert len(input) == 2, "csv file should have two columns(input, labels)"
           labels = input[1] if isinstance(input[1], list) else [input[1]]
         else:
           labels = None
+
         input_id = f"{dataset_id}-{id}"
-        input_protos.append(
-            self.get_text_input(
-                input_id=input_id, raw_text=text, dataset_id=dataset_id, labels=labels))
+        text = input[0] if input_type == 'text' else None
+        image = input[0] if input_type == 'image' else None
+        video = input[0] if input_type == 'video' else None
+        audio = input[0] if input_type == 'audio' else None
+
+        if csv_type == 'raw':
+          input_protos.append(
+              self.get_text_input(
+                  input_id=input_id, raw_text=text, dataset_id=dataset_id, labels=labels))
+        elif csv_type == 'url':
+          input_protos.append(
+              self.get_input_from_url(
+                  input_id=input_id,
+                  image_url=image,
+                  text_url=text,
+                  audio_url=audio,
+                  video_url=video,
+                  dataset_id=dataset_id,
+                  labels=labels))
+        else:
+          input_protos.append(
+              self.get_input_from_file(
+                  input_id=input_id,
+                  image_file=image,
+                  text_file=text,
+                  audio_file=audio,
+                  video_file=video,
+                  dataset_id=dataset_id,
+                  labels=labels))
 
     return input_protos
 
@@ -442,6 +484,7 @@ class Inputs(Lister, BaseClient):
                        image_file: str = None,
                        video_file: str = None,
                        audio_file: str = None,
+                       text_file: str = None,
                        dataset_id: str = None,
                        **kwargs) -> str:
     """Upload input from file.
@@ -451,6 +494,7 @@ class Inputs(Lister, BaseClient):
         image_file (str): The file for the image.
         video_file (str): The file for the video.
         audio_file (str): The file for the audio.
+        text_file (str): The file for the text.
         dataset_id (str): The dataset ID for the dataset to add the input to.
 
     Returns:
@@ -461,8 +505,8 @@ class Inputs(Lister, BaseClient):
         >>> input_obj = Input(user_id = 'user_id', app_id = 'demo_app')
         >>> input_obj.upload_from_file(input_id='demo', audio_file='demo.mp3')
     """
-    input_pb = self.get_input_from_file(input_id, image_file, video_file, audio_file, dataset_id,
-                                        **kwargs)
+    input_pb = self.get_input_from_file(input_id, image_file, video_file, audio_file, text_file,
+                                        dataset_id, **kwargs)
     return self.upload_inputs([input_pb])
 
   def upload_from_bytes(self,
@@ -470,6 +514,7 @@ class Inputs(Lister, BaseClient):
                         image_bytes: bytes = None,
                         video_bytes: bytes = None,
                         audio_bytes: bytes = None,
+                        text_bytes: bytes = None,
                         dataset_id: str = None,
                         **kwargs) -> str:
     """Upload input from bytes.
@@ -479,6 +524,7 @@ class Inputs(Lister, BaseClient):
         image_bytes (str): The bytes for the image.
         video_bytes (str): The bytes for the video.
         audio_bytes (str): The bytes for the audio.
+        text_bytes (str): The bytes for the text.
         dataset_id (str): The dataset ID for the dataset to add the input to.
 
     Returns:
@@ -491,7 +537,7 @@ class Inputs(Lister, BaseClient):
         >>> input_obj.upload_from_bytes(input_id='demo', image_bytes=image)
     """
     input_pb = self.get_input_from_bytes(input_id, image_bytes, video_bytes, audio_bytes,
-                                         dataset_id, **kwargs)
+                                         text_bytes, dataset_id, **kwargs)
     return self.upload_inputs([input_pb])
 
   def upload_text(self, input_id: str, raw_text: str, dataset_id: str = None,
