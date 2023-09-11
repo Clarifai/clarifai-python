@@ -107,7 +107,7 @@ class InputDownloader:
     self.num_inputs = 0
     self.split_prefix = None
     self.session = session
-    self.input_ext = dict(image=".jpg", text=".txt", audio=".mp3", video=".mp4")
+    self.input_ext = dict(image=".png", text=".txt", audio=".mp3", video=".mp4")
     if isinstance(self.input_iterator, DatasetExportReader):
       self.split_prefix = self.input_iterator.split_dir
 
@@ -118,7 +118,7 @@ class InputDownloader:
     p.feed(self.session.get(hosted_url).content)
     image = p.close()
     image_file = BytesIO()
-    image.save(image_file, 'JPEG')
+    image.save(image_file, 'PNG')
     new_archive.writestr(file_name, image_file.getvalue())
 
   def _save_text_to_archive(self, new_archive: zipfile.ZipFile, hosted_url: str,
