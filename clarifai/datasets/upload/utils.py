@@ -1,10 +1,9 @@
 import importlib
 import inspect
 import os
-import sys
 from typing import Union
 
-from .base import ClarifaiDataLoader
+from clarifai.datasets.upload.base import ClarifaiDataLoader
 
 
 def load_module_dataloader(module_dir: Union[str, os.PathLike], split: str) -> ClarifaiDataLoader:
@@ -20,16 +19,18 @@ def load_module_dataloader(module_dir: Union[str, os.PathLike], split: str) -> C
       ├──<Your local dir dataset>/
       └──dataset.py
   dataset.py must implement a class named following the convention,
-  <dataset_name>Dataset and this class must have a dataloader()
-  generator method
+  <dataset_name>DataLoader and this class must inherit from base ClarifaiDataLoader()
   """
-  sys.path.append(str(module_dir))
+  module_path = os.path.join(module_dir, "dataset.py")
+  spec = importlib.util.spec_from_file_location("dataset", module_path)
 
-  if not os.path.exists(os.path.join(module_dir, "__init__.py")):
-    with open(os.path.join(module_dir, "__init__.py"), "w"):
-      pass
+  if not spec:
+    raise ImportError(f"Module not found at {module_path}")
 
-  import dataset  # dataset module
+  # Load the module using the spec
+  dataset = importlib.util.module_from_spec(spec)
+  # Execute the module to make its contents available
+  spec.loader.exec_module(dataset)
 
   # get main module class
   main_module_cls = None
