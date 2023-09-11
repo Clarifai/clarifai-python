@@ -30,33 +30,26 @@ class Runner(BaseClient):
   Then on the subclass call start() to start the run loop.
   """
 
-  def __init__(self,
-               runner_id: str,
-               user_id: str = "",
-               app_id: str = "",
-               check_runner_exists: bool = True,
+  def __init__(self, runner_id: str, user_id: str = "", check_runner_exists: bool = True,
                **kwargs) -> None:
     """
     Args:
       runner_id (str): the id of the runner to use. Create the runner in the Clarifai API first
       user_id (str): Clarifai User ID
-      app_id (str): Clarifai App ID
     """
-    if user_id == "" or app_id == "":
+    if user_id == "":
       user_id = os.environ.get("CLARIFAI_USER_ID", "")
-      app_id = os.environ.get("CLARIFAI_APP_ID", "")
 
-    if user_id == "" or app_id == "":
+    if user_id == "":
       raise UserError(
           "Set CLARIFAI_USER_ID/CLARIFAI_APP_ID as environment variables or pass them as input arguments"
       )
 
     self.runner_id = runner_id
-    self.app_id = app_id
     self.logger = get_logger("INFO", __name__)
     self.kwargs = {**kwargs, 'id': runner_id, 'user_id': user_id}
     self.runner_info = resources_pb2.Runner(**self.kwargs)
-    BaseClient.__init__(self, user_id=self.user_id, app_id=app_id)
+    BaseClient.__init__(self, user_id=self.user_id, app_id="")
 
     # Check that the runner exists.
     if check_runner_exists:
@@ -64,8 +57,8 @@ class Runner(BaseClient):
       response = self._grpc_request(self.STUB.GetRunner, request)
       if response.status.code != status_code_pb2.SUCCESS:
         raise Exception(
-            f"""Error getting runner, are you use this is a valid runner id {runner_id} at the user_id/app_id
-            {self.user_app_id.user_id}/{self.user_app_id.app_id}.
+            f"""Error getting runner, are you use this is a valid runner id {runner_id} at the user_id
+            {self.user_app_id.user_id}.
             Error: {response.status.description}""")
 
   def start(self):

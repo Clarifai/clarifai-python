@@ -10,7 +10,6 @@ from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
 from clarifai.client.model import Model
 from clarifai.client.module import Module
-from clarifai.client.runner import Runner
 from clarifai.client.workflow import Workflow
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
@@ -183,31 +182,6 @@ class App(Lister, BaseClient):
         for imv_info in all_imv_infos
     ]
 
-  def list_runners(self, filter_by: Dict[str, Any] = {}) -> List[Runner]:
-    """List all runners for the app
-
-    Args:
-        filter_by (dict): A dictionary of filters to apply to the list of runners.
-
-    Returns:
-        List[Runner]: A list of Runner objects for the runners in the app.
-
-    Example:
-        >>> from clarifai.client.app import App
-        >>> app = App(app_id="app_id", user_id="user_id")
-        >>> all_runners= app.list_runners()
-
-    """
-    request_data = dict(user_app_id=self.user_app_id, per_page=self.default_page_size, **filter_by)
-    all_runners_info = list(
-        self.list_all_pages_generator(self.STUB.ListRunners, service_pb2.ListRunnersRequest,
-                                      request_data))
-
-    return [
-        Runner(app_id=self.id, check_runner_exists=False, **runner_info)
-        for runner_info in all_runners_info
-    ]
-
   def list_concepts(self):
     """Lists all the concepts for the app."""
     pass  # TODO
@@ -314,42 +288,6 @@ class App(Lister, BaseClient):
     kwargs.update({'app_id': self.id, 'user_id': self.user_id})
 
     return Module(module_id=module_id, **kwargs)
-
-  def create_runner(self, runner_id: str, labels: List[str], description: str) -> Runner:
-    """Create a runner for the App
-
-    Args:
-      runner_id (str): The Id of runner to create
-      labels (List[str]): Labels to match runner
-      description (str): Description of Runner
-
-    Returns:
-      Runner: A runner object for the specified Runner ID
-
-    Example:
-        >>> from clarifai.client.app import App
-        >>> app = App(app_id="app_id", user_id="user_id")
-        >>> runner = app.create_runner(runner_id="runner_id", labels=["label_xyz"], description="laptop runner")
-    """
-    if not isinstance(labels, List):
-      raise UserError("Labels must be a List of strings")
-
-    request = service_pb2.PostRunnersRequest(
-        user_app_id=self.user_app_id,
-        runners=[resources_pb2.Runner(id=runner_id, labels=labels, description=description)])
-    response = self._grpc_request(self.STUB.PostRunners, request)
-
-    if response.status.code != status_code_pb2.SUCCESS:
-      raise Exception(response.status)
-    self.logger.info("\nRunner created\n%s", response.status)
-
-    return Runner(
-        runner_id=runner_id,
-        user_id=self.user_id,
-        app_id=self.id,
-        labels=labels,
-        description=description,
-        check_runner_exists=False)
 
   def dataset(self, dataset_id: str, **kwargs) -> Dataset:
     """Returns a Dataset object for the existing dataset ID.
@@ -460,34 +398,6 @@ class App(Lister, BaseClient):
     """
     return Inputs(self.user_id, self.id)
 
-  def runner(self, runner_id: str) -> Runner:
-    """Returns a Runner object if exists.
-
-    Args:
-        runner_id (str): The runner ID to interact with
-
-    Returns:
-        Runner: A Runner object for the existing runner ID.
-
-    Example:
-        >>> from clarifai.client.app import App
-        >>> app = App(app_id="app_id", user_id="user_id")
-        >>> runner = app.runner(runner_id="runner_id")
-    """
-    request = service_pb2.GetRunnerRequest(user_app_id=self.user_app_id, runner_id=runner_id)
-    response = self._grpc_request(self.STUB.GetRunner, request)
-    if response.status.code != status_code_pb2.SUCCESS:
-      raise Exception(
-          f"""Error getting runner, are you use this is a valid runner id {runner_id} at the user_id/app_id
-          {self.user_app_id.user_id}/{self.user_app_id.app_id}.
-          Error: {response.status.description}""")
-
-    dict_response = MessageToDict(response, preserving_proto_field_name=True)
-    kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
-                                        list(dict_response.keys())[1])
-
-    return Runner(app_id=self.id, check_runner_exists=False, **kwargs)
-
   def delete_dataset(self, dataset_id: str) -> None:
     """Deletes an dataset for the user.
 
@@ -560,24 +470,6 @@ class App(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nModule Deleted\n%s", response.status)
-
-  def delete_runner(self, runner_id: str) -> None:
-    """Deletes all spectified runner ids
-
-    Args:
-        runner_ids (str): List of runners to delete
-
-    Example:
-        >>> from clarifai.client.app import App
-        >>> app = App(app_id="app_id", user_id="user_id")
-        >>> app.delete_runner(runner_id="runner_id")
-    """
-    request = service_pb2.DeleteRunnersRequest(user_app_id=self.user_app_id, ids=[runner_id])
-    response = self._grpc_request(self.STUB.DeleteRunners, request)
-
-    if response.status.code != status_code_pb2.SUCCESS:
-      raise Exception(response.status)
-    self.logger.info("\nRunner Deleted\n%s", response.status)
 
   def __getattr__(self, name):
     return getattr(self.app_info, name)

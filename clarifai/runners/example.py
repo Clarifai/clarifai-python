@@ -4,7 +4,7 @@ from clarifai.client.runner import Runner
 
 
 class MyRunner(Runner):
-  """ A custom runner that adds "Hello World" to the end of the text and replaces the domain of the
+  """A custom runner that adds "Hello World" to the end of the text and replaces the domain of the
   image URL as an example.
   """
 
@@ -28,7 +28,6 @@ if __name__ == '__main__':
   # Make sure you set these env vars before running the example.
   # CLARIFAI_PAT
   # CLARIFAI_USER_ID
-  # CLARIFAI_APP_ID
 
   # You need to first create a runner in the Clarifai API and then use the ID here.
   MyRunner(runner_id="sdk-test-runner").start()

@@ -87,10 +87,10 @@ class TestApp:
     module = create_app.create_module(CREATE_MODULE_ID, description="CI test module")
     assert module.id == CREATE_MODULE_ID and module.app_id == CREATE_APP_ID and module.user_id == CREATE_APP_USER_ID
 
-  def test_create_runner(self, create_app):
-    runner = create_app.create_runner(
+  def test_create_runner(self, client):
+    runner = client.create_runner(
         CREATE_RUNNER_ID, labels=["ci runner"], description="CI test runner")
-    assert runner.id == CREATE_RUNNER_ID and runner.app_id == CREATE_APP_ID and runner.user_id == CREATE_APP_USER_ID
+    assert runner.id == CREATE_RUNNER_ID and runner.user_id == CREATE_APP_USER_ID
 
   def test_delete_dataset(self, create_app, caplog):
     with caplog.at_level(logging.INFO):
@@ -112,9 +112,9 @@ class TestApp:
       create_app.delete_module(CREATE_MODULE_ID)
       assert "SUCCESS" in caplog.text
 
-  def test_delete_runner(self, create_app, caplog):
+  def test_delete_runner(self, client, caplog):
     with caplog.at_level(logging.INFO):
-      create_app.delete_runner(CREATE_RUNNER_ID)
+      client.delete_runner(CREATE_RUNNER_ID)
       assert "SUCCESS" in caplog.text
 
   def test_delete_app(self, caplog):
