@@ -6,7 +6,8 @@ import unittest
 
 import numpy as np
 
-from ..model_config.triton_config import TritonModelConfig
+from ..model_config import ModelTypes
+from ..model_config.config import get_model_config
 from .output import (ClassifierOutput, EmbeddingOutput, ImageOutput, MasksOutput, TextOutput,
                      VisualDetectorOutput)
 
@@ -75,18 +76,16 @@ class DefaultTestInferenceModel(unittest.TestCase):
             model_repository=os.path.join(repo_version_dir, ".."),
             model_instance_kind="GPU" if self.is_instance_kind_gpu else "cpu"))
     # Get default config of model and model_type
-    self.default_triton_model_config = TritonModelConfig(
-        model_name=self.model_type,
-        model_version="1",
-        model_type=self.model_type,
-        image_shape=[-1, -1])
+    self.default_triton_model_config = get_model_config(self.model_type).make_triton_model_config(
+        model_name=self.model_type, model_version="1", image_shape=[-1, -1])
     # Get current model config
     self.triton_model_config = self.triton_model.config_msg
     self.triton_model_input_name = self.triton_model.input_name
     self.preprocess = self._get_preprocess()
     # load labels
     self._required_label_model_types = [
-        "visual-detector", "visual-classifier", "text-classifier", "visual-segmenter"
+        ModelTypes.visual_detector, ModelTypes.visual_classifier, ModelTypes.text_classifier,
+        ModelTypes.visual_segmenter
     ]
     self.labels = []
     if self.model_type in self._required_label_model_types:
@@ -151,7 +150,7 @@ class DefaultTestInferenceModel(unittest.TestCase):
           f"Config {len(self.triton_model_config.output[0].dims)} != Output {len(getattr(output, field).shape)}"
       )
 
-      if self.model_type == "visual-detector":
+      if self.model_type == ModelTypes.visual_detector:
         logging.info(output.predicted_labels)
         self.assertEqual(
             type(output), VisualDetectorOutput,
@@ -166,7 +165,7 @@ class DefaultTestInferenceModel(unittest.TestCase):
             f"`predicted_labels` must be in [0, {len(self.labels) - 1}]")
         self.assertTrue(_is_integer(output.predicted_labels), "`predicted_labels` must be integer")
 
-      elif self.model_type == "visual-classifier":
+      elif self.model_type == ModelTypes.visual_classifier:
         self.assertEqual(
             type(output), ClassifierOutput,
             f"Output type must be `ClassifierOutput`, but got {type(output)}")
@@ -179,7 +178,7 @@ class DefaultTestInferenceModel(unittest.TestCase):
               f"`predicted_labels` must equal to {len(self.labels)}, however got {len(output.predicted_scores)}"
           )
 
-      elif self.model_type == "text-classifier":
+      elif self.model_type == ModelTypes.text_classifier:
         self.assertEqual(
             type(output), ClassifierOutput,
             f"Output type must be `ClassifierOutput`, but got {type(output)}")
@@ -192,29 +191,29 @@ class DefaultTestInferenceModel(unittest.TestCase):
               f"`predicted_labels` must equal to {len(self.labels)}, however got {len(output.predicted_scores)}"
           )
 
-      elif self.model_type == "text-embedder":
+      elif self.model_type == ModelTypes.text_embedder:
         self.assertEqual(
             type(output), EmbeddingOutput,
             f"Output type must be `EmbeddingOutput`, but got {type(output)}")
         self.assertNotEqual(output.embedding_vector.shape, [])
 
-      elif self.model_type == "text-to-text":
+      elif self.model_type == ModelTypes.text_to_text:
         self.assertEqual(
             type(output), TextOutput, f"Output type must be `TextOutput`, but got {type(output)}")
 
-      elif self.model_type == "text-to-image":
+      elif self.model_type == ModelTypes.text_to_image:
         self.assertEqual(
             type(output), ImageOutput,
             f"Output type must be `ImageOutput`, but got {type(output)}")
         self.assertTrue(_is_non_negative(output.image), "`image` elements must be >= 0")
 
-      elif self.model_type == "visual-embedder":
+      elif self.model_type == ModelTypes.visual_embedder:
         self.assertEqual(
             type(output), EmbeddingOutput,
             f"Output type must be `EmbeddingOutput`, but got {type(output)}")
         self.assertNotEqual(output.embedding_vector.shape, [])
 
-      elif self.model_type == "visual-segmenter":
+      elif self.model_type == ModelTypes.visual_segmenter:
         self.assertEqual(
             type(output), MasksOutput,
             f"Output type must be `MasksOutput`, but got {type(output)}")

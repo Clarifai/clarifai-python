@@ -15,17 +15,16 @@ $ clarifai-model-upload-init --model_name <Your model name> \
 
 ## Generating the triton model repository without the commandline
 
-The triton model repository can be generated via a python script specifying the same values as required in the commandline. Below is a sample of how the code would be structured.
+The triton model repository can be generated via a python script specifying the same values as required in the commandline. Below is a sample of how the code would be structured with `visual_classifier`.
 
 ```python
-from clarifai.models.model_serving.model_config.triton_config import TritonModelConfig
-from clarifai.models.model_serving pb_model_repository import TritonModelRepository
+from clarifai.models.model_serving.model_config import get_model_config, ModelTypes, TritonModelConfig
+from clarifai.models.model_serving.pb_model_repository import TritonModelRepository
 
-
-model_config = TritonModelConfig(
+model_type = ModelTypes.visual_classifier
+model_config: TritonModelConfig = get_model_config(model_type).make_triton_model_config(
 	model_name="<model_name>",
 	model_version="1",
-	model_type="<model_type>",
 	image_shape=<[H,W]>, # 0 < [H,W] <= 1024
 )
 
