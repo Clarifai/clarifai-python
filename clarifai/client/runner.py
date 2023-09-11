@@ -37,13 +37,11 @@ class Runner(BaseClient):
       runner_id (str): the id of the runner to use. Create the runner in the Clarifai API first
       user_id (str): Clarifai User ID
     """
-    if user_id == "":
-      user_id = os.environ.get("CLARIFAI_USER_ID", "")
+    user_id = user_id or os.environ.get("CLARIFAI_USER_ID", "")
 
     if user_id == "":
       raise UserError(
-          "Set CLARIFAI_USER_ID/CLARIFAI_APP_ID as environment variables or pass them as input arguments"
-      )
+          "Set CLARIFAI_USER_ID as environment variables or pass user_id as input arguments")
 
     self.runner_id = runner_id
     self.logger = get_logger("INFO", __name__)
