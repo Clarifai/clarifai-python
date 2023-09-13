@@ -13,6 +13,6 @@ inference:
   return_type: ClassifierOutput
 field_maps:
   input_fields_map:
-    image: image
+    text: text
   output_fields_map:
     concepts: softmax_predictions
