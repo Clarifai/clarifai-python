@@ -87,6 +87,7 @@ class DefaultTestInferenceModel(unittest.TestCase):
         ModelTypes.visual_detector, ModelTypes.visual_classifier, ModelTypes.text_classifier,
         ModelTypes.visual_segmenter
     ]
+    self._output_text_models = [ModelTypes.text_to_text]
     self.labels = []
     if self.model_type in self._required_label_model_types:
       with open(os.path.join(repo_version_dir, "../labels.txt"), 'r') as fp:
@@ -143,12 +144,13 @@ class DefaultTestInferenceModel(unittest.TestCase):
     for inp, output in zip(inputs, outputs):
 
       field = dataclasses.fields(output)[0].name
-      self.assertEqual(
-          len(self.triton_model_config.output[0].dims),
-          len(getattr(output, field).shape),
-          "Length of 'dims' of config and output must be matched, but get "
-          f"Config {len(self.triton_model_config.output[0].dims)} != Output {len(getattr(output, field).shape)}"
-      )
+      if self.model_type not in self._output_text_models:
+        self.assertEqual(
+            len(self.triton_model_config.output[0].dims),
+            len(getattr(output, field).shape),
+            "Length of 'dims' of config and output must be matched, but get "
+            f"Config {len(self.triton_model_config.output[0].dims)} != Output {len(getattr(output, field).shape)}"
+        )
 
       if self.model_type == ModelTypes.visual_detector:
         logging.info(output.predicted_labels)
