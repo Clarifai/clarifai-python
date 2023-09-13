@@ -286,9 +286,7 @@ def get_model_config(model_type: str) -> ModelConfigClass:
 
   """
   import os
-  types = ModelTypes()
-  types = types.all
-  assert model_type in types, f"`model_type` must be in {types}"
+  assert model_type in MODEL_TYPES, f"`model_type` must be in {MODEL_TYPES}"
   cfg = read_config(
       os.path.join(os.path.dirname(__file__), "model_types_config", f"{model_type}.yaml"))
   cfg.type = model_type
