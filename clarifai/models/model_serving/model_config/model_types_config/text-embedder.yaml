@@ -1,0 +1,18 @@
+triton:
+  input:
+    - name: text
+      data_type: TYPE_STRING
+      dims: [1]
+  output:
+    - name: embeddings
+      data_type: TYPE_FP32
+      dims: [-1]
+      labels: false
+inference:
+  wrap_func: text_embedder
+  return_type: EmbeddingOutput
+field_maps:
+  input_fields_map:
+    text: text
+  output_fields_map:
+    embeddings: embeddings

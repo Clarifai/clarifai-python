@@ -15,8 +15,7 @@ import argparse
 
 from clarifai.auth.helper import ClarifaiAuthHelper
 from clarifai.models.api import Models
-from clarifai.models.model_serving.constants import MODEL_TYPES
-from clarifai.models.model_serving.model_config.deploy import ClarifaiFieldsMap
+from clarifai.models.model_serving.model_config import MODEL_TYPES, get_model_config
 
 
 def deploy(model_url,
@@ -50,7 +49,7 @@ def deploy(model_url,
   assert model_type, "Can not parse model_type from url, please input it directly"
   # key map
   assert model_type in MODEL_TYPES, f"model_type should be one of {MODEL_TYPES}"
-  clarifai_key_map = ClarifaiFieldsMap(model_type=model_type)
+  clarifai_key_map = get_model_config(model_type=model_type).field_maps
   # if updating new version of existing model
   if update_version:
     resp = model_api.post_model_version(

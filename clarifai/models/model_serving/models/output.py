@@ -72,8 +72,8 @@ class TextOutput:
     """
     Validate input upon initialization.
     """
-    assert self.predicted_text.ndim == 1, \
-      f"All predictions must be 1-dimensional, Got text-dims: {self.predicted_text.ndim} instead."
+    assert self.predicted_text.ndim == 0, \
+      f"All predictions must be 0-dimensional, Got text-dims: {self.predicted_text.ndim} instead."
 
 
 @dataclass

@@ -19,8 +19,7 @@ import os
 from pathlib import Path
 from typing import Callable, Type
 
-from .model_config.serializer import Serializer
-from .model_config.triton_config import TritonModelConfig
+from .model_config import Serializer, TritonModelConfig
 from .models import inference, pb_model, test
 
 
