@@ -16,10 +16,14 @@ def clean_up_unused_keys(wf: dict):
     if key == "model":
       new_wf["model"] = {
           "model_id": wf["model"]["id"],
-          "model_version_id": wf["model"]["model_version"]["id"],
-          "app_id": wf["model"]["app_id"],
-          "user_id": wf["model"]["user_id"],
+          "model_version_id": wf["model"]["model_version"]["id"]
       }
+      # If the model is not from clarifai main, add the app_id and user_id to the model dict.
+      if wf["model"]["user_id"] != "clarifai" and wf["model"]["app_id"] != "main":
+        new_wf["model"].update({
+            "app_id": wf["model"]["app_id"],
+            "user_id": wf["model"]["user_id"]
+        })
     elif isinstance(val, dict):
       new_wf[key] = clean_up_unused_keys(val)
     elif isinstance(val, list):
