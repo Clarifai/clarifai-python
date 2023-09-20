@@ -21,7 +21,11 @@ class TestWorkflowCreate:
   @classmethod
   def setup_class(cls):
     cls.client = User(user_id=CREATE_APP_USER_ID)
-    cls.app = cls.client.create_app(app_id=CREATE_APP_ID, base_workflow="Empty")
+    try:
+      cls.app = cls.client.create_app(app_id=CREATE_APP_ID, base_workflow="Empty")
+    except Exception as e:
+      if "already exists" in str(e):
+        cls.app = cls.client.app(app_id=CREATE_APP_ID)
 
   @pytest.mark.parametrize("filename", get_test_parse_workflow_creation_workflows())
   def test_parse_workflow_creation(self, filename: str, caplog):
