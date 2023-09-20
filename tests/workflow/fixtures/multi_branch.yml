@@ -1,0 +1,11 @@
+workflow:
+  id: test-mb
+  nodes:
+    - id: detector
+      model:
+          model_id: face-detection
+          model_version_id: 45fb9a671625463fa646c3523a3087d5
+    - id: moderation
+      model:
+          model_id: moderation-recognition
+          model_version_id: 7cde8e92896340b0998b8260d47f1502

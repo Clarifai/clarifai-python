@@ -1,0 +1,17 @@
+workflow:
+  id: General
+  nodes:
+    - id: general-v1.5-concept
+      model:
+          model_id: general-image-recognition
+          model_version_id: aa7f35c01e0642fda5cf400f543e7c40
+    - id: general-v1.5-embed
+      model:
+          model_id: general-image-embedding
+          model_version_id: bb186755eda04f9cbb6fe32e816be104
+    - id: general-v1.5-cluster
+      model:
+          model_id: general-clusterering
+          model_version_id: cc2074cff6dc4c02b6f4e1b8606dcb54
+      node_inputs:
+        - node_id: general-v1.5-embed

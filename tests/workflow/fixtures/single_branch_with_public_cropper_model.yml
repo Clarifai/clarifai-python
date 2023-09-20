@@ -1,0 +1,13 @@
+workflow:
+  id: test-sb
+  nodes:
+    - id: detector
+      model:
+          model_id: face-detection
+          model_version_id: 45fb9a671625463fa646c3523a3087d5
+    - id: cropper
+      model:
+          model_id: margin-100-image-crop
+          model_version_id: e8c47b72e25148399ec2426b5b73add0
+      node_inputs:
+        - node_id: detector

@@ -1,0 +1,17 @@
+workflow:
+  id: test-sb
+  nodes:
+    - id: detector
+      model:
+          model_id: face-detection
+          model_version_id: 45fb9a671625463fa646c3523a3087d5
+    - id: cropper
+      model:
+          model_id: margin-100-image-crop-custom # such a model ID does not exist, so it will be created using the below model fields
+          model_type_id: image-crop
+          description: Custom crop model
+          output_info:
+            params:
+              margin: 1.33
+      node_inputs:
+        - node_id: detector

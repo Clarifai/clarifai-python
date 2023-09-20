@@ -1,0 +1,17 @@
+workflow:
+  id: test-sb
+  nodes:
+    - id: detector
+      model:
+          model_id: face-detection
+          model_version_id: 45fb9a671625463fa646c3523a3087d5
+    - id: cropper
+      model:
+          model_id: margin-100-image-crop-custom # Uses the same model ID as the other workflow with custom cropper model
+          model_type_id: image-crop
+          description: Custom crop model
+          output_info:
+            params:
+              margin: 1.5 # Uses different margin than previous model to trigger the creation of a new model version.
+      node_inputs:
+        - node_id: detector
