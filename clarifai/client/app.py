@@ -298,7 +298,7 @@ class App(Lister, BaseClient):
 
     # Convert nodes to resources_pb2.WorkflowNodes.
     nodes = []
-    for i, yml_node in zip(range(len(workflow['nodes'])), workflow['nodes']):
+    for i, yml_node in enumerate(workflow['nodes']):
       node = resources_pb2.WorkflowNode(
           id=yml_node['id'],
           model=all_models[i],
