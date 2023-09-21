@@ -12,10 +12,10 @@ def test_export_workflow_general():
   workflow.export('tests/workflow/fixtures/export_general.yml')
   # assert this to the reader result
   with open('tests/workflow/fixtures/general.yml', 'r') as file:
-    data = yaml.safe_load(file)
+    expected_data = yaml.safe_load(file)
   with open('tests/workflow/fixtures/export_general.yml', 'r') as file:
-    export_data = yaml.safe_load(file)
-  assert export_data == data, f"dicts did not match: actual: {export_data}"
+    actual_data = yaml.safe_load(file)
+  assert actual_data == expected_data, f"dicts did not match: actual: {actual_data}"
 
   # cleanup
   os.remove('tests/workflow/fixtures/export_general.yml')
