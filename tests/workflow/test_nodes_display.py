@@ -8,16 +8,16 @@ from rich.tree import Tree
 def get_workflow_tree_test_data() -> typing.List[typing.Dict]:
   test_data = [
         {   # Single Branch Single Node
-          "adjacency_dict": {0: [1]},
+          "adjacency_dict": {"Input": [1]},
           "expected_pattern": r"""
-0
+Input
 └── 1
 """
         },
         {   # Multi Branch Multiple Nodes
-            "adjacency_dict": {0: [1, 2], 2: [3, 4, 5], 4: [6, 7], 6: [8]},
+            "adjacency_dict": {"Input": [1, 2], 2: [3, 4, 5], 4: [6, 7], 6: [8]},
             "expected_pattern": r"""
-0
+Input
 ├── 1
 └── 2
     ├── 3
@@ -29,9 +29,9 @@ def get_workflow_tree_test_data() -> typing.List[typing.Dict]:
 """
       },
       {   # Single Branch Multiple Nodes
-          "adjacency_dict": {0: [1], 1: [2], 2: [3]},
+          "adjacency_dict": {"Input": [1], 1: [2], 2: [3]},
           "expected_pattern": r"""
-0
+Input
 └── 1
     └── 2
         └── 3
@@ -48,7 +48,7 @@ class TestDisplayWorkflowTree:
   def setup_method(self):
     self.console = Console()
 
-  def build_node_tree(self, adj, node_id=0):
+  def build_node_tree(self, adj, node_id="Input"):
     """Recursively builds a rich tree of the workflow nodes. Simplified version of the function in clarifai/utils/logging.py"""
     tree = Tree(str(node_id))
     for child in adj.get(node_id, []):
