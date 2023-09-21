@@ -283,7 +283,7 @@ class App(Lister, BaseClient):
               **{k: v
                  for k, v in node['model'].items() if k != 'output_info'})
           model_version = model.create_model_version(
-              node['model']['model_id'], output_info=output_info)
+              model_id=node['model']['model_id'], output_info=output_info)
           all_models.append(model_version.model_info)
           continue
 
@@ -292,7 +292,8 @@ class App(Lister, BaseClient):
           model.model_info, node["model"]):
         all_models.append(model.model_info)
       else:  # Create a new model version
-        model = model.create_model_version(node['model']['model_id'], output_info=output_info)
+        model = model.create_model_version(
+            model_id=node['model']['model_id'], output_info=output_info)
         all_models.append(model.model_info)
 
     # Convert nodes to resources_pb2.WorkflowNodes.
