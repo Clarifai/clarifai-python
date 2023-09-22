@@ -241,12 +241,16 @@ class App(Lister, BaseClient):
 
     return Model(model_id=model_id, **kwargs)
 
-  def create_workflow(self, config_filepath: str, generate_new_id: bool = False) -> Workflow:
+  def create_workflow(self,
+                      config_filepath: str,
+                      generate_new_id: bool = False,
+                      display: bool = True) -> Workflow:
     """Creates a workflow for the app.
 
     Args:
         config_filepath (str): The path to the yaml workflow config file.
         generate_new_id (bool): If True, generate a new workflow ID.
+        display (bool): If True, display the workflow nodes tree.
 
     Returns:
         Workflow: A Workflow object for the specified workflow config.
@@ -323,7 +327,8 @@ class App(Lister, BaseClient):
 
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
     # Display the workflow nodes tree.
-    display_workflow_tree(dict_response["workflows"][0]["nodes"])
+    if display:
+      display_workflow_tree(dict_response["workflows"][0]["nodes"])
     kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]][0],
                                         "workflow")
 
