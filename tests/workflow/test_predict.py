@@ -1,5 +1,3 @@
-import os
-
 import pytest
 from clarifai_grpc.grpc.api import resources_pb2
 
@@ -7,7 +5,7 @@ from clarifai.client.workflow import Workflow
 
 DOG_IMAGE_URL = "https://samples.clarifai.com/dog2.jpeg"
 NON_EXISTING_IMAGE_URL = "http://example.com/non-existing.jpg"
-RED_TRUCK_IMAGE_FILE_PATH = os.path.dirname(__file__) + "/assets/red-truck.png"
+RED_TRUCK_IMAGE_FILE_PATH = "tests/assets/red-truck.png"
 BEER_VIDEO_URL = "https://samples.clarifai.com/beer.mp4"
 
 MAIN_APP_ID = "main"

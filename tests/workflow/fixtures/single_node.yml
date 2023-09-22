@@ -1,0 +1,8 @@
+# A single node workflow
+workflow:
+  id: test-sn
+  nodes:
+    - id: detector
+      model:
+          model_id: face-detection
+          model_version_id: 45fb9a671625463fa646c3523a3087d5

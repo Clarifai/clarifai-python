@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 from typing import Any, Callable
 
-from google.protobuf.json_format import MessageToDict  # noqa
+from google.protobuf import struct_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 from google.protobuf.wrappers_pb2 import BoolValue
 
@@ -71,7 +71,10 @@ class BaseClient:
     try:
       datetime_obj = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S.%fZ')
     except ValueError:
-      datetime_obj = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%SZ')
+      try:
+        datetime_obj = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%SZ')
+      except ValueError:
+        return Timestamp()
 
     # Convert the datetime object to a Timestamp object
     timestamp_obj = Timestamp()
@@ -99,8 +102,12 @@ class BaseClient:
             value = self.convert_string_to_timestamp(value)
           elif key in ['workflow_recommended']:
             value = BoolValue(value=True)
-          elif key in ['metadata', 'fields_map', 'params']:
-            continue  # TODO Fix "app_duplication",proto struct
+          elif key in ['fields_map', 'params']:
+            value_s = struct_pb2.Struct()
+            value_s.update(value)
+            value = value_s
+          elif key in ['metadata']:
+            continue  # TODO Fix "app_duplication"
           new_item[key] = convert_recursive(value)
         return new_item
       elif isinstance(item, list):

@@ -195,7 +195,23 @@ all_workflow = app.list_workflow()
 # List all workflow in community filtered by description
 all_face_community_workflows = App().list_workflows(filter_by={"query": "face"}, only_in_app=False) # Get all face related workflows
 ```
+#### Workflow Create
+Create a new workflow specified by a yaml config file.
+```python
+# Note: CLARIFAI_PAT must be set as env variable.
+from clarifai.client.app import App
+app = App(app_id="app_id", user_id="user_id")
+workflow = app.create_workflow(config_filepath="config.yml")
+```
 
+#### Workflow Export
+Export an existing workflow from Clarifai as a local yaml file.
+```python
+# Note: CLARIFAI_PAT must be set as env variable.
+from clarifai.client.workflow import Workflow
+workflow = Workflow("https://clarifai.com/clarifai/main/workflows/Demographics")
+workflow.export('demographics_workflow.yml')
+```
 
 ## More Examples
 See many more code examples in this [repo](https://github.com/Clarifai/examples).

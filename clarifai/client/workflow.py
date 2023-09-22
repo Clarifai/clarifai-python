@@ -10,6 +10,7 @@ from clarifai.client.lister import Lister
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import get_logger
+from clarifai.workflows.export import Exporter
 
 
 class Workflow(Lister, BaseClient):
@@ -181,6 +182,28 @@ class Workflow(Lister, BaseClient):
         Workflow(workflow_id=self.id, **dict(self.kwargs, version=workflow_version_info))
         for workflow_version_info in all_workflow_versions_info
     ]
+
+  def export(self, out_path: str):
+    """Exports the workflow to a yaml file.
+
+    Args:
+        out_path (str): The path to save the yaml file to.
+
+    Example:
+        >>> from clarifai.client.workflow import Workflow
+        >>> workflow = Workflow("https://clarifai.com/clarifai/main/workflows/Demographics")
+        >>> workflow.export('out_path')
+    """
+    request = service_pb2.GetWorkflowRequest(user_app_id=self.user_app_id, workflow_id=self.id)
+    response = self._grpc_request(self.STUB.GetWorkflow, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(f"Workflow Export failed with response {response.status!r}")
+
+    with Exporter(response) as e:
+      e.parse()
+      e.export(out_path)
+
+    self.logger.info(f"Exported workflow to {out_path}")
 
   def __getattr__(self, name):
     return getattr(self.workflow_info, name)
