@@ -17,8 +17,7 @@ from clarifai.client.workflow import Workflow
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import display_workflow_tree, get_logger
-from clarifai.workflows.utils import (convert_yaml_model_output_info_to_api_model_output_info,
-                                      is_same_yaml_model)
+from clarifai.workflows.utils import get_yaml_output_info_proto, is_same_yaml_model
 from clarifai.workflows.validate import validate
 
 
@@ -269,8 +268,7 @@ class App(Lister, BaseClient):
     # Get all model objects from the workflow nodes.
     all_models = []
     for node in workflow['nodes']:
-      output_info = convert_yaml_model_output_info_to_api_model_output_info(
-          node['model'].get('output_info', None))
+      output_info = get_yaml_output_info_proto(node['model'].get('output_info', None))
       try:
         model = self.model(
             node['model']['model_id'],

@@ -5,19 +5,16 @@ from google.protobuf import struct_pb2
 from google.protobuf.json_format import MessageToDict
 
 
-def convert_yaml_model_output_info_to_api_model_output_info(
-    yaml_model_output_info: Dict) -> Optional[resources_pb2.OutputInfo]:
+def get_yaml_output_info_proto(yaml_model_output_info: Dict) -> Optional[resources_pb2.OutputInfo]:
   """Converts a yaml model output info to an api model output info."""
   if not yaml_model_output_info:
     return None
 
   return resources_pb2.OutputInfo(
-      params=convert_yaml_model_output_info_params_to_api_model_output_info_params(
-          yaml_model_output_info.get('params')))
+      params=convert_yaml_params_to_api_params(yaml_model_output_info.get('params')))
 
 
-def convert_yaml_model_output_info_params_to_api_model_output_info_params(
-    yaml_params: Dict) -> Optional[struct_pb2.Struct]:
+def convert_yaml_params_to_api_params(yaml_params: Dict) -> Optional[struct_pb2.Struct]:
   """Converts a yaml model output info params to an api model output info params."""
   if not yaml_params:
     return None
