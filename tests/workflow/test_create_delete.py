@@ -30,7 +30,7 @@ class TestWorkflowCreate:
   @pytest.mark.parametrize("filename", get_test_parse_workflow_creation_workflows())
   def test_parse_workflow_creation(self, filename: str, caplog):
     with caplog.at_level(logging.INFO):
-      if filename == "tests/workflow/fixtures/general.yml":
+      if "general.yml" in filename:
         generate_new_id = False
       else:
         generate_new_id = True
