@@ -35,7 +35,7 @@ class Model(Lister, BaseClient):
           max_concepts (int): The maximum number of concepts to return.
           select_concepts (list[Concept]): The concepts to select.
           sample_ms (int): The number of milliseconds to sample.
-        **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
+        **kwargs: Additional keyword arguments to be passed to the Model.
     """
     if url_init != "" and model_id != "":
       raise UserError("You can only specify one of url_init or model_id.")

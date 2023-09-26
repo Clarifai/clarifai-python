@@ -20,7 +20,7 @@ class User(Lister, BaseClient):
 
     Args:
         user_id (str): The user ID for the user to interact with.
-        **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
+        **kwargs: Additional keyword arguments to be passed to the User.
     """
     self.kwargs = {**kwargs, 'id': user_id}
     self.user_info = resources_pb2.User(**self.kwargs)
