@@ -19,7 +19,7 @@ from clarifai.utils.logging import get_logger
 class App(Lister, BaseClient):
   """App is a class that provides access to Clarifai API endpoints related to App information."""
 
-  def __init__(self, url_init: str = "", app_id: str = "", **kwargs):
+  def __init__(self, url_init: str = "", app_id: str = "", base_url: str = None, **kwargs):
     """Initializes an App object.
 
     Args:
@@ -37,7 +37,8 @@ class App(Lister, BaseClient):
     self.kwargs = {**kwargs, 'id': app_id}
     self.app_info = resources_pb2.App(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.id)
+    base_url = "https://api.clarifai.com" if not base_url else base_url
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.id, base = base_url)
     Lister.__init__(self)
 
   def list_datasets(self) -> List[Dataset]:
