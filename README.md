@@ -30,7 +30,7 @@ This is the official Python client for interacting with our powerful [API](https
 
 **Clarifai Community**: [https://clarifai.com/explore](https://clarifai.com/explore)
 
-**Python SDK Docs**: [https://clarifai-python.readthedocs.io/en/latest/index.html](https://clarifai-python.readthedocs.io/en/latest/index.html)
+**Python SDK Docs**: [https://docs.clarifai.com/python-sdk/api-reference](https://docs.clarifai.com/python-sdk/api-reference)
 
 
 ---

@@ -35,7 +35,7 @@ class Workflow(Lister, BaseClient):
           select_concepts (list[Concept]): The concepts to select.
           sample_ms (int): The number of milliseconds to sample.
         base_url (str): Base API url. Default "https://api.clarifai.com"
-        **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
+        **kwargs: Additional keyword arguments to be passed to the Workflow.
     """
     if url_init != "" and workflow_id != "":
       raise UserError("You can only specify one of url_init or workflow_id.")

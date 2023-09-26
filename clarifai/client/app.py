@@ -35,7 +35,7 @@ class App(Lister, BaseClient):
         url_init (str): The URL to initialize the app object.
         app_id (str): The App ID for the App to interact with.
         base_url (str): Base API url. Default "https://api.clarifai.com"
-        **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
+        **kwargs: Additional keyword arguments to be passed to the App.
             - name (str): The name of the app.
             - description (str): The description of the app.
     """
@@ -289,8 +289,7 @@ class App(Lister, BaseClient):
           model = self.create_model(
               **{k: v
                  for k, v in node['model'].items() if k != 'output_info'})
-          model_version = model.create_model_version(
-              model_id=node['model']['model_id'], output_info=output_info)
+          model_version = model.create_model_version(output_info=output_info)
           all_models.append(model_version.model_info)
           continue
 
@@ -299,8 +298,7 @@ class App(Lister, BaseClient):
           model.model_info, node["model"]):
         all_models.append(model.model_info)
       else:  # Create a new model version
-        model = model.create_model_version(
-            model_id=node['model']['model_id'], output_info=output_info)
+        model = model.create_model_version(output_info=output_info)
         all_models.append(model.model_info)
 
     # Convert nodes to resources_pb2.WorkflowNodes.

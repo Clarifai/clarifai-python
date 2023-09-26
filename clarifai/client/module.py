@@ -25,7 +25,7 @@ class Module(Lister, BaseClient):
             module_id (str): The Module ID to interact with.
             module_version (dict): The Module Version to interact with.
             base_url (str): Base API url. Default "https://api.clarifai.com"
-            **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
+            **kwargs: Additional keyword arguments to be passed to the Module.
         """
     if url_init != "" and module_id != "":
       raise UserError("You can only specify one of url_init or module_id.")
