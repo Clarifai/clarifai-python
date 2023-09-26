@@ -52,7 +52,7 @@ class Dataset(Lister, BaseClient):
     self.task = None  # Upload dataset type
     self.input_object = Inputs(user_id=self.user_id, app_id=self.app_id)
     base_url = "https://api.clarifai.com" if not base_url else base_url
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base = base_url)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
     Lister.__init__(self)
 
   def _concurrent_annot_upload(self, annots: List[List[resources_pb2.Annotation]]

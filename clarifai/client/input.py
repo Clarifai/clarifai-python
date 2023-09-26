@@ -23,7 +23,12 @@ from clarifai.utils.misc import BackoffIterator, Chunker
 class Inputs(Lister, BaseClient):
   """Inputs is a class that provides access to Clarifai API endpoints related to Input information."""
 
-  def __init__(self, user_id: str = "", app_id: str = "", logger_level: str = "INFO", base_url: str = None, **kwargs):
+  def __init__(self,
+               user_id: str = "",
+               app_id: str = "",
+               logger_level: str = "INFO",
+               base_url: str = None,
+               **kwargs):
     """Initializes an Input object.
 
     Args:
@@ -37,7 +42,7 @@ class Inputs(Lister, BaseClient):
     self.input_info = resources_pb2.Input(**self.kwargs)
     self.logger = get_logger(logger_level=logger_level, name=__name__)
     base_url = "https://api.clarifai.com" if not base_url else base_url
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base = base_url)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
     Lister.__init__(self)
 
   def _get_proto(self,

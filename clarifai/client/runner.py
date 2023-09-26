@@ -30,8 +30,12 @@ class Runner(BaseClient):
   Then on the subclass call start() to start the run loop.
   """
 
-  def __init__(self, runner_id: str, user_id: str = "", check_runner_exists: bool = True,
-               base_url: str = None, **kwargs) -> None:
+  def __init__(self,
+               runner_id: str,
+               user_id: str = "",
+               check_runner_exists: bool = True,
+               base_url: str = None,
+               **kwargs) -> None:
     """
     Args:
       runner_id (str): the id of the runner to use. Create the runner in the Clarifai API first
@@ -48,7 +52,7 @@ class Runner(BaseClient):
     self.kwargs = {**kwargs, 'id': runner_id, 'user_id': user_id}
     self.runner_info = resources_pb2.Runner(**self.kwargs)
     base_url = "https://api.clarifai.com" if not base_url else base_url
-    BaseClient.__init__(self, user_id=self.user_id, app_id="", base = base_url)
+    BaseClient.__init__(self, user_id=self.user_id, app_id="", base=base_url)
 
     # Check that the runner exists.
     if check_runner_exists:

@@ -26,7 +26,7 @@ class User(Lister, BaseClient):
     self.user_info = resources_pb2.User(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
     base_url = "https://api.clarifai.com" if not base_url else base_url
-    BaseClient.__init__(self, user_id=self.id, app_id="", base = base_url)
+    BaseClient.__init__(self, user_id=self.id, app_id="", base=base_url)
     Lister.__init__(self)
 
   def list_apps(self, filter_by: Dict[str, Any] = {}) -> List[App]:

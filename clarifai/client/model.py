@@ -51,7 +51,7 @@ class Model(Lister, BaseClient):
     self.model_info = resources_pb2.Model(**self.kwargs)
     self.logger = get_logger(logger_level="INFO")
     base_url = "https://api.clarifai.com" if not base_url else base_url
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base = base_url)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
     Lister.__init__(self)
 
   def predict(self, inputs: List[Input]):

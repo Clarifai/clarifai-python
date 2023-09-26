@@ -38,7 +38,7 @@ class App(Lister, BaseClient):
     self.app_info = resources_pb2.App(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
     base_url = "https://api.clarifai.com" if not base_url else base_url
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.id, base = base_url)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.id, base=base_url)
     Lister.__init__(self)
 
   def list_datasets(self) -> List[Dataset]:
