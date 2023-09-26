@@ -29,6 +29,7 @@ class App(Lister, BaseClient):
     Args:
         url_init (str): The URL to initialize the app object.
         app_id (str): The App ID for the App to interact with.
+        base_url (str): Base API url. Default "https://api.clarifai.com"
         **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
             - name (str): The name of the app.
             - description (str): The description of the app.

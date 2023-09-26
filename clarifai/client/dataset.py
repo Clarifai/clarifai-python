@@ -39,6 +39,7 @@ class Dataset(Lister, BaseClient):
     Args:
         url_init (str): The URL to initialize the dataset object.
         dataset_id (str): The Dataset ID within the App to interact with.
+        base_url (str): Base API url. Default "https://api.clarifai.com"
         **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
     """
     if url_init != "" and dataset_id != "":

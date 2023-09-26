@@ -40,6 +40,7 @@ class Runner(BaseClient):
     Args:
       runner_id (str): the id of the runner to use. Create the runner in the Clarifai API first
       user_id (str): Clarifai User ID
+      base_url (str): Base API url. Default "https://api.clarifai.com"
     """
     user_id = user_id or os.environ.get("CLARIFAI_USER_ID", "")
 

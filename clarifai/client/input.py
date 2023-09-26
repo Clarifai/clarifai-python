@@ -34,6 +34,7 @@ class Inputs(Lister, BaseClient):
     Args:
         user_id (str): A user ID for authentication.
         app_id (str): An app ID for the application to interact with.
+        base_url (str): Base API url. Default "https://api.clarifai.com"
         **kwargs: Additional keyword arguments to be passed to the Input
     """
     self.user_id = user_id

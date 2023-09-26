@@ -20,6 +20,7 @@ class User(Lister, BaseClient):
 
     Args:
         user_id (str): The user ID for the user to interact with.
+        base_url (str): Base API url. Default "https://api.clarifai.com"
         **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
     """
     self.kwargs = {**kwargs, 'id': user_id}
