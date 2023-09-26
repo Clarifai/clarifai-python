@@ -15,17 +15,18 @@ from clarifai.utils.logging import get_logger
 class User(Lister, BaseClient):
   """User is a class that provides access to Clarifai API endpoints related to user information."""
 
-  def __init__(self, user_id: str = "", **kwargs):
+  def __init__(self, user_id: str = "", base_url: str = "https://api.clarifai.com", **kwargs):
     """Initializes an User object.
 
     Args:
         user_id (str): The user ID for the user to interact with.
+        base_url (str): Base API url. Default "https://api.clarifai.com"
         **kwargs: Additional keyword arguments to be passed to the User.
     """
     self.kwargs = {**kwargs, 'id': user_id}
     self.user_info = resources_pb2.User(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
-    BaseClient.__init__(self, user_id=self.id, app_id="")
+    BaseClient.__init__(self, user_id=self.id, app_id="", base=base_url)
     Lister.__init__(self)
 
   def list_apps(self, filter_by: Dict[str, Any] = {}) -> List[App]:

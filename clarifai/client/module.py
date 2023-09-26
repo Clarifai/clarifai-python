@@ -16,6 +16,7 @@ class Module(Lister, BaseClient):
                url_init: str = "",
                module_id: str = "",
                module_version: Dict = {'id': ""},
+               base_url: str = "https://api.clarifai.com",
                **kwargs):
     """Initializes a Module object.
 
@@ -23,6 +24,7 @@ class Module(Lister, BaseClient):
             url_init (str): The URL to initialize the module object.
             module_id (str): The Module ID to interact with.
             module_version (dict): The Module Version to interact with.
+            base_url (str): Base API url. Default "https://api.clarifai.com"
             **kwargs: Additional keyword arguments to be passed to the Module.
         """
     if url_init != "" and module_id != "":
@@ -38,7 +40,7 @@ class Module(Lister, BaseClient):
     self.kwargs = {**kwargs, 'id': module_id, 'module_version': module_version}
     self.module_info = resources_pb2.Module(**self.kwargs)
     self.logger = get_logger(logger_level="INFO")
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
     Lister.__init__(self)
 
   def list_versions(self) -> List['Module']:

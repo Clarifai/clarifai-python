@@ -23,6 +23,7 @@ class Model(Lister, BaseClient):
                model_id: str = "",
                model_version: Dict = {'id': ""},
                output_config: Dict = {'min_value': 0},
+               base_url: str = "https://api.clarifai.com",
                **kwargs):
     """Initializes a Model object.
 
@@ -35,6 +36,7 @@ class Model(Lister, BaseClient):
           max_concepts (int): The maximum number of concepts to return.
           select_concepts (list[Concept]): The concepts to select.
           sample_ms (int): The number of milliseconds to sample.
+        base_url (str): Base API url. Default "https://api.clarifai.com"
         **kwargs: Additional keyword arguments to be passed to the Model.
     """
     if url_init != "" and model_id != "":
@@ -50,7 +52,7 @@ class Model(Lister, BaseClient):
                    'output_info': {'output_config': output_config}}
     self.model_info = resources_pb2.Model(**self.kwargs)
     self.logger = get_logger(logger_level="INFO")
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
     Lister.__init__(self)
 
   def create_model_version(self, **kwargs) -> 'Model':
