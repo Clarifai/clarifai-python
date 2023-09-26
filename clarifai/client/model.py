@@ -22,7 +22,7 @@ class Model(Lister, BaseClient):
                model_id: str = "",
                model_version: Dict = {'id': ""},
                output_config: Dict = {'min_value': 0},
-               base_url: str = None,
+               base_url: str = "https://api.clarifai.com",
                **kwargs):
     """Initializes a Model object.
 
@@ -50,7 +50,6 @@ class Model(Lister, BaseClient):
                    'output_info': {'output_config': output_config}}
     self.model_info = resources_pb2.Model(**self.kwargs)
     self.logger = get_logger(logger_level="INFO")
-    base_url = "https://api.clarifai.com" if not base_url else base_url
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
     Lister.__init__(self)
 

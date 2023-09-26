@@ -34,7 +34,7 @@ class Runner(BaseClient):
                runner_id: str,
                user_id: str = "",
                check_runner_exists: bool = True,
-               base_url: str = None,
+               base_url: str = "https://api.clarifai.com",
                **kwargs) -> None:
     """
     Args:
@@ -51,7 +51,6 @@ class Runner(BaseClient):
     self.logger = get_logger("INFO", __name__)
     self.kwargs = {**kwargs, 'id': runner_id, 'user_id': user_id}
     self.runner_info = resources_pb2.Runner(**self.kwargs)
-    base_url = "https://api.clarifai.com" if not base_url else base_url
     BaseClient.__init__(self, user_id=self.user_id, app_id="", base=base_url)
 
     # Check that the runner exists.

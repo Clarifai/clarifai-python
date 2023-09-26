@@ -27,7 +27,7 @@ class Inputs(Lister, BaseClient):
                user_id: str = "",
                app_id: str = "",
                logger_level: str = "INFO",
-               base_url: str = None,
+               base_url: str = "https://api.clarifai.com",
                **kwargs):
     """Initializes an Input object.
 
@@ -41,7 +41,6 @@ class Inputs(Lister, BaseClient):
     self.kwargs = {**kwargs}
     self.input_info = resources_pb2.Input(**self.kwargs)
     self.logger = get_logger(logger_level=logger_level, name=__name__)
-    base_url = "https://api.clarifai.com" if not base_url else base_url
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
     Lister.__init__(self)
 

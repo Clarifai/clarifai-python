@@ -29,7 +29,11 @@ ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset
 class Dataset(Lister, BaseClient):
   """Dataset is a class that provides access to Clarifai API endpoints related to Dataset information."""
 
-  def __init__(self, url_init: str = "", dataset_id: str = "", base_url: str = None, **kwargs):
+  def __init__(self,
+               url_init: str = "",
+               dataset_id: str = "",
+               base_url: str = "https://api.clarifai.com",
+               **kwargs):
     """Initializes a Dataset object.
 
     Args:
@@ -51,7 +55,6 @@ class Dataset(Lister, BaseClient):
     self.chunk_size = 128  # limit max protos in a req
     self.task = None  # Upload dataset type
     self.input_object = Inputs(user_id=self.user_id, app_id=self.app_id)
-    base_url = "https://api.clarifai.com" if not base_url else base_url
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
     Lister.__init__(self)
 
