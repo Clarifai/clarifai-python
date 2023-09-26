@@ -24,12 +24,17 @@ from clarifai.workflows.validate import validate
 class App(Lister, BaseClient):
   """App is a class that provides access to Clarifai API endpoints related to App information."""
 
-  def __init__(self, url_init: str = "", app_id: str = "", **kwargs):
+  def __init__(self,
+               url_init: str = "",
+               app_id: str = "",
+               base_url: str = "https://api.clarifai.com",
+               **kwargs):
     """Initializes an App object.
 
     Args:
         url_init (str): The URL to initialize the app object.
         app_id (str): The App ID for the App to interact with.
+        base_url (str): Base API url. Default "https://api.clarifai.com"
         **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
             - name (str): The name of the app.
             - description (str): The description of the app.
@@ -42,7 +47,7 @@ class App(Lister, BaseClient):
     self.kwargs = {**kwargs, 'id': app_id}
     self.app_info = resources_pb2.App(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.id)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.id, base=base_url)
     Lister.__init__(self)
 
   def list_datasets(self) -> List[Dataset]:

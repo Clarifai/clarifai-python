@@ -21,6 +21,7 @@ class Workflow(Lister, BaseClient):
                workflow_id: str = "",
                workflow_version: Dict = {'id': ""},
                output_config: Dict = {'min_value': 0},
+               base_url: str = "https://api.clarifai.com",
                **kwargs):
     """Initializes a Workflow object.
 
@@ -33,6 +34,7 @@ class Workflow(Lister, BaseClient):
           max_concepts (int): The maximum number of concepts to return.
           select_concepts (list[Concept]): The concepts to select.
           sample_ms (int): The number of milliseconds to sample.
+        base_url (str): Base API url. Default "https://api.clarifai.com"
         **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
     """
     if url_init != "" and workflow_id != "":
@@ -48,7 +50,7 @@ class Workflow(Lister, BaseClient):
     self.output_config = output_config
     self.workflow_info = resources_pb2.Workflow(**self.kwargs)
     self.logger = get_logger(logger_level="INFO")
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
     Lister.__init__(self)
 
   def predict(self, inputs: List[Input]):

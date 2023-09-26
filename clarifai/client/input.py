@@ -23,12 +23,18 @@ from clarifai.utils.misc import BackoffIterator, Chunker
 class Inputs(Lister, BaseClient):
   """Inputs is a class that provides access to Clarifai API endpoints related to Input information."""
 
-  def __init__(self, user_id: str = "", app_id: str = "", logger_level: str = "INFO", **kwargs):
+  def __init__(self,
+               user_id: str = "",
+               app_id: str = "",
+               logger_level: str = "INFO",
+               base_url: str = "https://api.clarifai.com",
+               **kwargs):
     """Initializes an Input object.
 
     Args:
         user_id (str): A user ID for authentication.
         app_id (str): An app ID for the application to interact with.
+        base_url (str): Base API url. Default "https://api.clarifai.com"
         **kwargs: Additional keyword arguments to be passed to the Input
     """
     self.user_id = user_id
@@ -36,7 +42,7 @@ class Inputs(Lister, BaseClient):
     self.kwargs = {**kwargs}
     self.input_info = resources_pb2.Input(**self.kwargs)
     self.logger = get_logger(logger_level=logger_level, name=__name__)
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
     Lister.__init__(self)
 
   def _get_proto(self,
@@ -121,8 +127,8 @@ class Inputs(Lister, BaseClient):
         Input: An Input object for the specified input ID.
 
     Example:
-        >>> from clarifai.client.input import Input
-        >>> input_obj = Input()
+        >>> from clarifai.client.input import Inputs
+        >>> input_obj = Inputs()
         >>> input_proto = input_obj.get_input_from_url(input_id = 'demo', image_url='https://samples.clarifai.com/metro-north.jpg')
     """
     if not any((image_url, video_url, audio_url, text_url)):
@@ -163,8 +169,8 @@ class Inputs(Lister, BaseClient):
         Input: An Input object for the specified input ID.
 
     Example:
-        >>> from clarifai.client.input import Input
-        >>> input_obj = Input()
+        >>> from clarifai.client.input import Inputs
+        >>> input_obj = Inputs()
         >>> input_proto = input_obj.get_input_from_file(input_id = 'demo', video_file='file_path')
     """
     if not any((image_file, video_file, audio_file, text_file)):
@@ -205,8 +211,8 @@ class Inputs(Lister, BaseClient):
         Input: An Input object for the specified input ID.
 
     Example:
-        >>> from clarifai.client.input import Input
-        >>> input_obj = Input()
+        >>> from clarifai.client.input import Inputs
+        >>> input_obj = Inputs()
         >>> image = open('demo.jpg', 'rb').read()
         >>> video = open('demo.mp4', 'rb').read()
         >>> input_proto = input_obj.get_input_from_bytes(input_id = 'demo',image_bytes =image, video_bytes=video)
@@ -240,8 +246,8 @@ class Inputs(Lister, BaseClient):
         list of Input: A list of Input objects for the specified folder.
 
     Example:
-        >>> from clarifai.client.input import Input
-        >>> input_obj = Input()
+        >>> from clarifai.client.input import Inputs
+        >>> input_obj = Inputs()
         >>> input_protos = input_obj.get_image_inputs_from_folder(folder_path='demo_folder')
     """
     input_protos = []
@@ -270,8 +276,8 @@ class Inputs(Lister, BaseClient):
         Text: An Input object for the specified input ID.
 
     Example:
-        >>> from clarifai.client.input import Input
-        >>> input_obj = Input()
+        >>> from clarifai.client.input import Inputs
+        >>> input_obj = Inputs()
         >>> input_protos = input_obj.get_text_input(input_id = 'demo', raw_text = 'This is a test')
     """
     text_pb = resources_pb2.Text(raw=raw_text)
@@ -296,8 +302,8 @@ class Inputs(Lister, BaseClient):
         inputs: List of inputs
 
     Example:
-        >>> from clarifai.client.input import Input
-        >>> input_obj = Input()
+        >>> from clarifai.client.input import Inputs
+        >>> input_obj = Inputs()
         >>> input_protos = input_obj.get_inputs_from_csv(csv_path='filepath', input_type='text', csv_type='raw')
     """
     input_protos = []
@@ -357,8 +363,8 @@ class Inputs(Lister, BaseClient):
         list of Input: A list of Input objects for the specified folder.
 
     Example:
-        >>> from clarifai.client.input import Input
-        >>> input_obj = Input()
+        >>> from clarifai.client.input import Inputs
+        >>> input_obj = Inputs()
         >>> input_protos = input_obj.get_text_inputs_from_folder(folder_path='demo_folder')
     """
     input_protos = []
@@ -385,8 +391,8 @@ class Inputs(Lister, BaseClient):
         An annotation object for the specified input ID.
 
     Example:
-        >>> from clarifai.client.input import Input
-        >>> input_obj = Input()
+        >>> from clarifai.client.input import Inputs
+        >>> input_obj = Inputs()
         >>> input_obj.get_annotation_proto(input_id='demo', label='demo', annotations=[x_min, y_min, x_max, y_max])
     """
     if not isinstance(annotations, list):
@@ -424,8 +430,8 @@ class Inputs(Lister, BaseClient):
         An annotation object for the specified input ID.
 
     Example:
-        >>> from clarifai.client.input import Input
-        >>> input_obj = Input()
+        >>> from clarifai.client.input import Inputs
+        >>> input_obj = Inputs()
         >>> input_obj.get_mask_proto(input_id='demo', label='demo', polygons=[[[x,y],...,[x,y]],...])
     """
     if not isinstance(polygons, list):
@@ -471,8 +477,8 @@ class Inputs(Lister, BaseClient):
         input_job_id: job id for the upload request.
 
     Example:
-        >>> from clarifai.client.input import Input
-        >>> input_obj = Input(user_id = 'user_id', app_id = 'demo_app')
+        >>> from clarifai.client.input import Inputs
+        >>> input_obj = Inputs(user_id = 'user_id', app_id = 'demo_app')
         >>> input_obj.upload_from_url(input_id='demo', image_url='https://samples.clarifai.com/metro-north.jpg')
     """
     input_pb = self.get_input_from_url(input_id, image_url, video_url, audio_url, text_url,
@@ -501,8 +507,8 @@ class Inputs(Lister, BaseClient):
         input_job_id: job id for the upload request.
 
     Example:
-        >>> from clarifai.client.input import Input
-        >>> input_obj = Input(user_id = 'user_id', app_id = 'demo_app')
+        >>> from clarifai.client.input import Inputs
+        >>> input_obj = Inputs(user_id = 'user_id', app_id = 'demo_app')
         >>> input_obj.upload_from_file(input_id='demo', audio_file='demo.mp3')
     """
     input_pb = self.get_input_from_file(input_id, image_file, video_file, audio_file, text_file,
@@ -531,8 +537,8 @@ class Inputs(Lister, BaseClient):
         input_job_id: job id for the upload request.
 
     Example:
-        >>> from clarifai.client.input import Input
-        >>> input_obj = Input(user_id = 'user_id', app_id = 'demo_app')
+        >>> from clarifai.client.input import Inputs
+        >>> input_obj = Inputs(user_id = 'user_id', app_id = 'demo_app')
         >>> image = open('demo.jpg', 'rb').read()
         >>> input_obj.upload_from_bytes(input_id='demo', image_bytes=image)
     """
@@ -553,8 +559,8 @@ class Inputs(Lister, BaseClient):
         input_job_id (str): job id for the upload request.
 
     Example:
-        >>> from clarifai.client.input import Input
-        >>> input_obj = Input(user_id = 'user_id', app_id = 'demo_app')
+        >>> from clarifai.client.input import Inputs
+        >>> input_obj = Inputs(user_id = 'user_id', app_id = 'demo_app')
         >>> input_obj.upload_text(input_id = 'demo', raw_text = 'This is a test')
     """
     input_pb = self._get_proto(

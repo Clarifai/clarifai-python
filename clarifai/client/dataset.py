@@ -29,12 +29,17 @@ ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset
 class Dataset(Lister, BaseClient):
   """Dataset is a class that provides access to Clarifai API endpoints related to Dataset information."""
 
-  def __init__(self, url_init: str = "", dataset_id: str = "", **kwargs):
+  def __init__(self,
+               url_init: str = "",
+               dataset_id: str = "",
+               base_url: str = "https://api.clarifai.com",
+               **kwargs):
     """Initializes a Dataset object.
 
     Args:
         url_init (str): The URL to initialize the dataset object.
         dataset_id (str): The Dataset ID within the App to interact with.
+        base_url (str): Base API url. Default "https://api.clarifai.com"
         **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
     """
     if url_init != "" and dataset_id != "":
@@ -51,7 +56,7 @@ class Dataset(Lister, BaseClient):
     self.chunk_size = 128  # limit max protos in a req
     self.task = None  # Upload dataset type
     self.input_object = Inputs(user_id=self.user_id, app_id=self.app_id)
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
     Lister.__init__(self)
 
   def _concurrent_annot_upload(self, annots: List[List[resources_pb2.Annotation]]
