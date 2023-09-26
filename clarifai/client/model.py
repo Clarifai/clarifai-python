@@ -53,11 +53,10 @@ class Model(Lister, BaseClient):
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id)
     Lister.__init__(self)
 
-  def create_model_version(self, model_id: str, **kwargs) -> 'Model':
+  def create_model_version(self, **kwargs) -> 'Model':
     """Creates a model version for the Model.
 
     Args:
-        model_id (str): The model ID for the model to create.
         **kwargs: Additional keyword arguments to be passed to Model Version.
           - description (str): The description of the model version.
           - concepts (list[Concept]): The concepts to associate with the model version.
@@ -71,11 +70,11 @@ class Model(Lister, BaseClient):
         >>> model = Model("model_url")
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model_version = model.create_model_version(model_id='model_id', description='model_version_description')
+        >>> model_version = model.create_model_version(description='model_version_description')
     """
     request = service_pb2.PostModelVersionsRequest(
         user_app_id=self.user_app_id,
-        model_id=model_id,
+        model_id=self.id,
         model_versions=[resources_pb2.ModelVersion(**kwargs)])
 
     response = self._grpc_request(self.STUB.PostModelVersions, request)
