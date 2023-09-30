@@ -127,15 +127,13 @@ def test_predict_video_url_with_custom_sample_ms():
     assert frame.frame_info.time == expected_time
     expected_time += 2000
 
+
 def test_text_embed_predict_with_raw_text():
   clip_dim = 512
   clip_embed_model = Model(
-    user_id=MAIN_APP_USER_ID,
-    app_id=MAIN_APP_ID,
-    model_id=CLIP_EMBED_MODEL_ID
-  )
+      user_id=MAIN_APP_USER_ID, app_id=MAIN_APP_ID, model_id=CLIP_EMBED_MODEL_ID)
 
-  response = clip_embed_model.predict_by_bytes(RAW_TEXT.encode(encoding = 'UTF-8'), "text")
+  response = clip_embed_model.predict_by_bytes(RAW_TEXT.encode(encoding='UTF-8'), "text")
   assert response.outputs[0].data.embeddings[0].num_dimensions == clip_dim
 
   response = clip_embed_model.predict_by_bytes(RAW_TEXT_BYTES, "text")
