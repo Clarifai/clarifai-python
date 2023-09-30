@@ -18,7 +18,7 @@ repos:
       - id: isort
   - repo: local
     hooks:
-      - id: autofalke
+      - id: autoflake
         name: autoflake
         entry: autoflake --remove-all-unused-imports --remove-unused-variables -i
         language: python
