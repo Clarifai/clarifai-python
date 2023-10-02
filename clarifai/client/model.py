@@ -5,6 +5,7 @@ from typing import Dict, List
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import Input
 from clarifai_grpc.grpc.api.status import status_code_pb2
+from google.protobuf.json_format import MessageToDict
 
 from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
@@ -22,6 +23,7 @@ class Model(Lister, BaseClient):
                model_id: str = "",
                model_version: Dict = {'id': ""},
                output_config: Dict = {'min_value': 0},
+               base_url: str = "https://api.clarifai.com",
                **kwargs):
     """Initializes a Model object.
 
@@ -34,7 +36,8 @@ class Model(Lister, BaseClient):
           max_concepts (int): The maximum number of concepts to return.
           select_concepts (list[Concept]): The concepts to select.
           sample_ms (int): The number of milliseconds to sample.
-        **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
+        base_url (str): Base API url. Default "https://api.clarifai.com"
+        **kwargs: Additional keyword arguments to be passed to the Model.
     """
     if url_init != "" and model_id != "":
       raise UserError("You can only specify one of url_init or model_id.")
@@ -49,8 +52,74 @@ class Model(Lister, BaseClient):
                    'output_info': {'output_config': output_config}}
     self.model_info = resources_pb2.Model(**self.kwargs)
     self.logger = get_logger(logger_level="INFO")
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
     Lister.__init__(self)
+
+  def create_model_version(self, **kwargs) -> 'Model':
+    """Creates a model version for the Model.
+
+    Args:
+        **kwargs: Additional keyword arguments to be passed to Model Version.
+          - description (str): The description of the model version.
+          - concepts (list[Concept]): The concepts to associate with the model version.
+          - output_info (resources_pb2.OutputInfo(): The output info to associate with the model version.
+
+    Returns:
+        Model: A Model object for the specified model ID.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model("model_url")
+                    or
+        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+        >>> model_version = model.create_model_version(description='model_version_description')
+    """
+    request = service_pb2.PostModelVersionsRequest(
+        user_app_id=self.user_app_id,
+        model_id=self.id,
+        model_versions=[resources_pb2.ModelVersion(**kwargs)])
+
+    response = self._grpc_request(self.STUB.PostModelVersions, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nModel Version created\n%s", response.status)
+
+    kwargs.update({'app_id': self.app_id, 'user_id': self.user_id})
+    dict_response = MessageToDict(response, preserving_proto_field_name=True)
+    kwargs = self.process_response_keys(dict_response['model'], 'model')
+
+    return Model(**kwargs)
+
+  def list_versions(self) -> List['Model']:
+    """Lists all the versions for the model.
+
+    Returns:
+        List[Model]: A list of Model objects for the versions of the model.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model("model_url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+                    or
+        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+        >>> all_model_versions = model.list_versions()
+    """
+    request_data = dict(
+        user_app_id=self.user_app_id,
+        model_id=self.id,
+        per_page=self.default_page_size,
+    )
+    all_model_versions_info = list(
+        self.list_all_pages_generator(self.STUB.ListModelVersions,
+                                      service_pb2.ListModelVersionsRequest, request_data))
+
+    for model_version_info in all_model_versions_info:
+      model_version_info['id'] = model_version_info['model_version_id']
+      del model_version_info['model_version_id']
+
+    return [
+        Model(model_id=self.id, **dict(self.kwargs, model_version=model_version_info))
+        for model_version_info in all_model_versions_info
+    ]
 
   def predict(self, inputs: List[Input]):
     """Predicts the model based on the given inputs.

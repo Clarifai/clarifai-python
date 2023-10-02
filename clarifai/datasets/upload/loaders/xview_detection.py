@@ -42,7 +42,7 @@ class xviewDetectionDataLoader(ClarifaiDataLoader):
     self.img_comp_dir = os.path.join(self.data_dir, "train_images_comp")
     self.label_file = os.path.join(self.data_dir, "xview_train.geojson")
 
-    # self.preprocess()
+    self.preprocess()
     self.all_data = self.xview_data_parser()
 
     self.load_data()

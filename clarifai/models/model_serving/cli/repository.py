@@ -14,8 +14,8 @@
 
 import argparse
 
-from ..constants import MODEL_TYPES
-from ..model_config.triton_config import TritonModelConfig
+from ..constants import MAX_HW_DIM
+from ..model_config import MODEL_TYPES, get_model_config
 from ..pb_model_repository import TritonModelRepository
 
 
@@ -63,7 +63,6 @@ def model_upload_init():
       help="Directory to create triton repository.")
 
   args = parser.parse_args()
-  MAX_HW_DIM = 1024
 
   if len(args.image_shape) != 2:
     raise ValueError(
@@ -75,10 +74,9 @@ def model_upload_init():
         f"H and W each have a maximum value of 1024. Got H: {args.image_shape[0]}, W: {args.image_shape[1]}"
     )
 
-  model_config = TritonModelConfig(
+  model_config = get_model_config(args.model_type).make_triton_model_config(
       model_name=args.model_name,
       model_version="1",
-      model_type=args.model_type,
       image_shape=args.image_shape,
   )
 

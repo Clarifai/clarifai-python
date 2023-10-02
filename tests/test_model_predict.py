@@ -14,6 +14,10 @@ BEER_VIDEO_URL = "https://samples.clarifai.com/beer.mp4"
 MAIN_APP_ID = "main"
 MAIN_APP_USER_ID = "clarifai"
 GENERAL_MODEL_ID = "aaa03c23b3724a16a56b629203edc62c"
+CLIP_EMBED_MODEL_ID = "multimodal-clip-embed"
+
+RAW_TEXT = "Hi my name is Jim."
+RAW_TEXT_BYTES = b"Hi my name is Jim."
 
 
 @pytest.fixture
@@ -122,3 +126,15 @@ def test_predict_video_url_with_custom_sample_ms():
   for frame in response.outputs[0].data.frames:
     assert frame.frame_info.time == expected_time
     expected_time += 2000
+
+
+def test_text_embed_predict_with_raw_text():
+  clip_dim = 512
+  clip_embed_model = Model(
+      user_id=MAIN_APP_USER_ID, app_id=MAIN_APP_ID, model_id=CLIP_EMBED_MODEL_ID)
+
+  response = clip_embed_model.predict_by_bytes(RAW_TEXT.encode(encoding='UTF-8'), "text")
+  assert response.outputs[0].data.embeddings[0].num_dimensions == clip_dim
+
+  response = clip_embed_model.predict_by_bytes(RAW_TEXT_BYTES, "text")
+  assert response.outputs[0].data.embeddings[0].num_dimensions == clip_dim

@@ -10,6 +10,7 @@ from clarifai.client.lister import Lister
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import get_logger
+from clarifai.workflows.export import Exporter
 
 
 class Workflow(Lister, BaseClient):
@@ -20,6 +21,7 @@ class Workflow(Lister, BaseClient):
                workflow_id: str = "",
                workflow_version: Dict = {'id': ""},
                output_config: Dict = {'min_value': 0},
+               base_url: str = "https://api.clarifai.com",
                **kwargs):
     """Initializes a Workflow object.
 
@@ -32,7 +34,8 @@ class Workflow(Lister, BaseClient):
           max_concepts (int): The maximum number of concepts to return.
           select_concepts (list[Concept]): The concepts to select.
           sample_ms (int): The number of milliseconds to sample.
-        **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
+        base_url (str): Base API url. Default "https://api.clarifai.com"
+        **kwargs: Additional keyword arguments to be passed to the Workflow.
     """
     if url_init != "" and workflow_id != "":
       raise UserError("You can only specify one of url_init or workflow_id.")
@@ -47,7 +50,7 @@ class Workflow(Lister, BaseClient):
     self.output_config = output_config
     self.workflow_info = resources_pb2.Workflow(**self.kwargs)
     self.logger = get_logger(logger_level="INFO")
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
     Lister.__init__(self)
 
   def predict(self, inputs: List[Input]):
@@ -181,6 +184,28 @@ class Workflow(Lister, BaseClient):
         Workflow(workflow_id=self.id, **dict(self.kwargs, version=workflow_version_info))
         for workflow_version_info in all_workflow_versions_info
     ]
+
+  def export(self, out_path: str):
+    """Exports the workflow to a yaml file.
+
+    Args:
+        out_path (str): The path to save the yaml file to.
+
+    Example:
+        >>> from clarifai.client.workflow import Workflow
+        >>> workflow = Workflow("https://clarifai.com/clarifai/main/workflows/Demographics")
+        >>> workflow.export('out_path')
+    """
+    request = service_pb2.GetWorkflowRequest(user_app_id=self.user_app_id, workflow_id=self.id)
+    response = self._grpc_request(self.STUB.GetWorkflow, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(f"Workflow Export failed with response {response.status!r}")
+
+    with Exporter(response) as e:
+      e.parse()
+      e.export(out_path)
+
+    self.logger.info(f"Exported workflow to {out_path}")
 
   def __getattr__(self, name):
     return getattr(self.workflow_info, name)

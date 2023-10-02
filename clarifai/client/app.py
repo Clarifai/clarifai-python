@@ -1,5 +1,8 @@
+import os
+import uuid
 from typing import Any, Dict, List
 
+import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
@@ -13,19 +16,26 @@ from clarifai.client.module import Module
 from clarifai.client.workflow import Workflow
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
-from clarifai.utils.logging import get_logger
+from clarifai.utils.logging import display_workflow_tree, get_logger
+from clarifai.workflows.utils import get_yaml_output_info_proto, is_same_yaml_model
+from clarifai.workflows.validate import validate
 
 
 class App(Lister, BaseClient):
   """App is a class that provides access to Clarifai API endpoints related to App information."""
 
-  def __init__(self, url_init: str = "", app_id: str = "", **kwargs):
+  def __init__(self,
+               url_init: str = "",
+               app_id: str = "",
+               base_url: str = "https://api.clarifai.com",
+               **kwargs):
     """Initializes an App object.
 
     Args:
         url_init (str): The URL to initialize the app object.
         app_id (str): The App ID for the App to interact with.
-        **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
+        base_url (str): Base API url. Default "https://api.clarifai.com"
+        **kwargs: Additional keyword arguments to be passed to the App.
             - name (str): The name of the app.
             - description (str): The description of the app.
     """
@@ -37,7 +47,7 @@ class App(Lister, BaseClient):
     self.kwargs = {**kwargs, 'id': app_id}
     self.app_info = resources_pb2.App(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.id)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.id, base=base_url)
     Lister.__init__(self)
 
   def list_datasets(self) -> List[Dataset]:
@@ -236,30 +246,96 @@ class App(Lister, BaseClient):
 
     return Model(model_id=model_id, **kwargs)
 
-  def create_workflow(self, workflow_id: str, **kwargs) -> Workflow:
+  def create_workflow(self,
+                      config_filepath: str,
+                      generate_new_id: bool = False,
+                      display: bool = True) -> Workflow:
     """Creates a workflow for the app.
 
     Args:
-        workflow_id (str): The workflow ID for the workflow to create.
-        **kwargs: Additional keyword arguments to be passed to the workflow.
+        config_filepath (str): The path to the yaml workflow config file.
+        generate_new_id (bool): If True, generate a new workflow ID.
+        display (bool): If True, display the workflow nodes tree.
 
     Returns:
-        Workflow: A Workflow object for the specified workflow ID.
+        Workflow: A Workflow object for the specified workflow config.
 
     Example:
         >>> from clarifai.client.app import App
         >>> app = App(app_id="app_id", user_id="user_id")
-        >>> workflow = app.create_workflow(workflow_id="workflow_id")
+        >>> workflow = app.create_workflow(config_filepath="config.yml")
     """
+    if not os.path.exists(config_filepath):
+      raise UserError(f"Workflow config file not found at {config_filepath}")
+
+    with open(config_filepath, 'r') as file:
+      data = yaml.safe_load(file)
+
+    data = validate(data)
+    workflow = data['workflow']
+
+    # Get all model objects from the workflow nodes.
+    all_models = []
+    for node in workflow['nodes']:
+      output_info = get_yaml_output_info_proto(node['model'].get('output_info', None))
+      try:
+        model = self.model(
+            node['model']['model_id'],
+            node['model'].get('model_version_id', ""),
+            user_id=node['model'].get('user_id', ""),
+            app_id=node['model'].get('app_id', ""))
+      except Exception as e:
+        if "Model does not exist" in str(e):
+          model = self.create_model(
+              **{k: v
+                 for k, v in node['model'].items() if k != 'output_info'})
+          model_version = model.create_model_version(output_info=output_info)
+          all_models.append(model_version.model_info)
+          continue
+
+      # If the model version ID is specified, or if the yaml model is the same as the one in the api
+      if node["model"].get("model_version_id", "") or is_same_yaml_model(
+          model.model_info, node["model"]):
+        all_models.append(model.model_info)
+      else:  # Create a new model version
+        model = model.create_model_version(output_info=output_info)
+        all_models.append(model.model_info)
+
+    # Convert nodes to resources_pb2.WorkflowNodes.
+    nodes = []
+    for i, yml_node in enumerate(workflow['nodes']):
+      node = resources_pb2.WorkflowNode(
+          id=yml_node['id'],
+          model=all_models[i],
+      )
+      # Add node inputs if they exist, i.e. if these nodes do not connect directly to the input.
+      if yml_node.get("node_inputs"):
+        for ni in yml_node.get("node_inputs"):
+          node.node_inputs.append(resources_pb2.NodeInput(node_id=ni['node_id']))
+      nodes.append(node)
+
+    workflow_id = workflow['id']
+    if generate_new_id:
+      workflow_id = str(uuid.uuid4())
+
+    # Create the workflow.
     request = service_pb2.PostWorkflowsRequest(
-        user_app_id=self.user_app_id, workflows=[resources_pb2.Workflow(id=workflow_id, **kwargs)])
+        user_app_id=self.user_app_id,
+        workflows=[resources_pb2.Workflow(id=workflow_id, nodes=nodes)])
+
     response = self._grpc_request(self.STUB.PostWorkflows, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nWorkflow created\n%s", response.status)
-    kwargs.update({'app_id': self.id, 'user_id': self.user_id})
 
-    return Workflow(workflow_id=workflow_id, **kwargs)
+    dict_response = MessageToDict(response, preserving_proto_field_name=True)
+    # Display the workflow nodes tree.
+    if display:
+      display_workflow_tree(dict_response["workflows"][0]["nodes"])
+    kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]][0],
+                                        "workflow")
+
+    return Workflow(**kwargs)
 
   def create_module(self, module_id: str, description: str, **kwargs) -> Module:
     """Creates a module for the app.
@@ -329,8 +405,16 @@ class App(Lister, BaseClient):
         >>> app = App(app_id="app_id", user_id="user_id")
         >>> model_v1 = app.model(model_id="model_id", model_version_id="model_version_id")
     """
-    request = service_pb2.GetModelRequest(
-        user_app_id=self.user_app_id, model_id=model_id, version_id=model_version_id)
+    # Change user_app_id based on whether user_id or app_id is specified.
+    if kwargs.get("user_id") or kwargs.get("app_id"):
+      request = service_pb2.GetModelRequest(
+          user_app_id=self.auth_helper.get_user_app_id_proto(
+              kwargs.get("user_id"), kwargs.get("app_id")),
+          model_id=model_id,
+          version_id=model_version_id)
+    else:
+      request = service_pb2.GetModelRequest(
+          user_app_id=self.user_app_id, model_id=model_id, version_id=model_version_id)
     response = self._grpc_request(self.STUB.GetModel, request)
 
     if response.status.code != status_code_pb2.SUCCESS:
