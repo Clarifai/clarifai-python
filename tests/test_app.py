@@ -5,6 +5,7 @@ import pytest
 
 from clarifai.client.app import App
 from clarifai.client.user import User
+from clarifai.constants.search import DEFAULT_TOP_K
 
 MAIN_APP_ID = "main"
 MAIN_APP_USER_ID = "clarifai"
@@ -69,6 +70,10 @@ class TestApp:
   def test_create_app(self):
     app = User(user_id=CREATE_APP_USER_ID).create_app(app_id=CREATE_APP_ID)
     assert app.id == CREATE_APP_ID and app.user_id == CREATE_APP_USER_ID
+
+  def test_create_dataset(self, create_app):
+    search = create_app.search()
+    assert search.page_size == DEFAULT_TOP_K and search.metric_distance == "COSINE_DISTANCE"
 
   def test_create_dataset(self, create_app):
     dataset = create_app.create_dataset(CREATE_DATASET_ID)
