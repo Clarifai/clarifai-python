@@ -4,12 +4,13 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.struct_pb2 import Struct
-from schema import And, Optional, Regex, Schema, SchemaError
+from schema import SchemaError
 
 from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
 from clarifai.errors import UserError
+from clarifai.schema.search import get_schema
 
 
 class Search(Lister, BaseClient):
@@ -35,68 +36,9 @@ class Search(Lister, BaseClient):
     self.data_proto = resources_pb2.Data()
 
     self.inputs = Inputs(user_id=self.user_id, app_id=self.app_id)
-    self.rank_filter_schema = self.init_schema()
+    self.rank_filter_schema = get_schema()
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id)
     Lister.__init__(self, page_size=top_k)
-
-  def init_schema(self) -> Schema:
-    """Initialize the schema for rank and filter.
-
-        This schema validates:
-
-        - Rank and filter must be a list
-        - Each item in the list must be a dict
-        - The dict can contain these optional keys:
-            - 'image_url': Valid URL string
-            - 'text_raw': Non-empty string
-            - 'metadata': Dict
-            - 'image_bytes': Bytes
-            - 'geo_point': Dict with 'longitude', 'latitude' and 'geo_limit' as float, float and int respectively
-            - 'concepts': List where each item is a concept dict
-        - Concept dict requires at least one of:
-            - 'name': Non-empty string with dashes/underscores
-            - 'id': Non-empty string
-            - 'language': Non-empty string
-            - 'value': 0 or 1 integer
-
-        Returns:
-            Schema: The schema for rank and filter.
-        """
-    # Schema for a single concept
-    concept_schema = Schema({
-        Optional('value'):
-            And(int, lambda x: x in [0, 1]),
-        Optional('id'):
-            And(str, len),
-        Optional('language'):
-            And(str, len),
-        # Non-empty strings with internal dashes and underscores.
-        Optional('name'):
-            And(str, len, Regex(r'^[0-9A-Za-z]+([-_][0-9A-Za-z]+)*$'))
-    })
-
-    # Schema for a rank or filter item
-    rank_filter_item_schema = Schema({
-        Optional('image_url'):
-            And(str, Regex(r'^https?://')),
-        Optional('text_raw'):
-            And(str, len),
-        Optional('metadata'):
-            dict,
-        Optional('image_bytes'):
-            bytes,
-        Optional('geo_point'): {
-            'longitude': float,
-            'latitude': float,
-            'geo_limit': int
-        },
-        Optional("concepts"):
-            And(list,
-                lambda x: all(concept_schema.is_valid(item) and len(item) > 0 for item in x)),
-    })
-
-    # Schema for rank and filter args
-    return Schema([rank_filter_item_schema])
 
   def _add_data_proto(self, resource_type, resource_proto):
     """Add data to the data_proto field.
