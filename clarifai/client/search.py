@@ -9,13 +9,18 @@ from schema import SchemaError
 from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
+from clarifai.constants.search import DEFAULT_SEARCH_METRIC, DEFAULT_TOP_K
 from clarifai.errors import UserError
 from clarifai.schema.search import get_schema
 
 
 class Search(Lister, BaseClient):
 
-  def __init__(self, user_id, app_id, top_k: int = 10, metric: str = "cosine"):
+  def __init__(self,
+               user_id,
+               app_id,
+               top_k: int = DEFAULT_TOP_K,
+               metric: str = DEFAULT_SEARCH_METRIC):
     """Initialize the Search object.
 
         Args:
@@ -99,6 +104,9 @@ class Search(Lister, BaseClient):
         geo_point_proto = self._get_geo_point_proto(value["longitude"], value["latitude"],
                                                     value["geo_limit"])
         self._add_data_proto("geo_point", geo_point_proto)
+
+      else:
+        raise UserError(f"kwargs contain key that is not supported: {key}")
     return resources_pb2.Annotation(data=self.data_proto)
 
   def _get_geo_point_proto(self, longitude: float, latitude: float,
