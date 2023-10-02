@@ -45,24 +45,6 @@ class Search(Lister, BaseClient):
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id)
     Lister.__init__(self, page_size=top_k)
 
-  def _add_data_proto(self, resource_type, resource_proto):
-    """Add data to the data_proto field.
-
-        Args:
-            resource_type (str): Indicates the type of resource.
-            resource_proto (Any): The resource data to add to data_proto.
-        """
-    if resource_type == "image":
-      self.data_proto.image.CopyFrom(resource_proto)
-    elif resource_type == "concept":
-      self.data_proto.concepts.add().CopyFrom(resource_proto)
-    elif resource_type == "text":
-      self.data_proto.text.CopyFrom(resource_proto)
-    elif resource_type == "metadata":
-      self.data_proto.metadata.CopyFrom(resource_proto)
-    elif resource_type == "geo_point":
-      self.data_proto.geo.CopyFrom(resource_proto)
-
   def _get_annot_proto(self, **kwargs):
     """Get an Annotation proto message based on keyword arguments.
 
@@ -79,31 +61,31 @@ class Search(Lister, BaseClient):
     for key, value in kwargs.items():
       if key == "image_bytes":
         image_proto = self.inputs.get_input_from_bytes("", image_bytes=value).data.image
-        self._add_data_proto("image", image_proto)
+        self.data_proto.image.CopyFrom(image_proto)
 
       elif key == "image_url":
         image_proto = self.inputs.get_input_from_url("", image_url=value).data.image
-        self._add_data_proto("image", image_proto)
+        self.data_proto.image.CopyFrom(image_proto)
 
       elif key == "concepts":
         for concept in value:
           concept_proto = resources_pb2.Concept(**concept)
-          self._add_data_proto("concept", concept_proto)
+          self.data_proto.concepts.add().CopyFrom(concept_proto)
 
       elif key == "text_raw":
         text_proto = self.inputs.get_input_from_bytes(
             "", text_bytes=bytes(value, 'utf-8')).data.text
-        self._add_data_proto("text", text_proto)
+        self.data_proto.text.CopyFrom(text_proto)
 
       elif key == "metadata":
         metadata_struct = Struct()
         metadata_struct.update(value)
-        self._add_data_proto("metadata", metadata_struct)
+        self.data_proto.metadata.CopyFrom(metadata_struct)
 
       elif key == "geo_point":
         geo_point_proto = self._get_geo_point_proto(value["longitude"], value["latitude"],
                                                     value["geo_limit"])
-        self._add_data_proto("geo_point", geo_point_proto)
+        self.data_proto.geo.CopyFrom(geo_point_proto)
 
       else:
         raise UserError(f"kwargs contain key that is not supported: {key}")
