@@ -8,6 +8,7 @@ from clarifai.errors import UserError
 
 CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
 CREATE_APP_ID = "ci_search_app"
+DOG_IMG_URL = "https://samples.clarifai.com/dog.tiff"
 
 
 @pytest.fixture
@@ -20,6 +21,24 @@ def search():
   return Search(user_id=CREATE_APP_USER_ID, app_id=CREATE_APP_ID, top_k=1)
 
 
+test_filters = [{
+    "geo_point": {
+        "longitude": -29.0,
+        "latitude": 40.0,
+        "geo_limit": 10
+    }
+}, {
+    "concepts": [{
+        "name": "dog",
+        "value": 1
+    }]
+}, {
+    "text_raw": "a dog"
+}, {
+    "image_url": [DOG_IMG_URL]
+}]
+
+
 class TestAnnotationSearch:
   __test__ = False
 
@@ -27,14 +46,14 @@ class TestAnnotationSearch:
     self.client = client
     self.search = search
     self.app_id = CREATE_APP_ID
-    self.dog_image_url = "https://samples.clarifai.com/dog.tiff"
+    self.dog_image_url = DOG_IMG_URL
     self.geo_info = [-30.0, 40.0]  # longitude, latitude
     self.concepts = ["dog"]
 
     self.upload_input()
 
   def upload_input(self):
-    inp_obj = self.client.create_app(app_id=self.app_id, base_workflow="General").inputs()
+    inp_obj = self.client.create_app(app_id=self.app_id, base_workflow="Universal").inputs()
     input_proto = inp_obj.get_input_from_url(
         input_id="dog-tiff",
         image_url=self.dog_image_url,
@@ -42,20 +61,16 @@ class TestAnnotationSearch:
         geo_info=self.geo_info)
     inp_obj.upload_inputs([input_proto])
 
-  def test_filter_search(self):
-    # Filter by geo_point
-    query = self.search.query(filters=[{
-        "geo_point": {
-            "longitude": -29.0,
-            "latitude": 40.0,
-            "geo_limit": 10
-        }
-    }])
+  @pytest.mark.parametrize("filter", test_filters)
+  def test_filter_search(self, filter: dict):
+    query = self.search.query(filters=[filter])
     for q in query:
       assert q.hits.input.id == "dog-tiff"
 
   def test_rank_search(self):
-    pass  # TODO
+    query = self.search.query(ranks=[{"image_url": ["https://samples.clarifai.com/dog.tiff"]}])
+    for q in query:
+      assert q.hits.input.id == "dog-tiff"
 
   def test_schema_error(self):
     with pytest.raises(UserError):
