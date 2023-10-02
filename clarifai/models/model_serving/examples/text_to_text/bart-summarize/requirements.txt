@@ -1,3 +1,4 @@
 clarifai>9.5.3
 tritonclient[all]
+torch==1.13.1
 transformers==4.30.2
