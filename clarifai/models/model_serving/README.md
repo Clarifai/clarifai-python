@@ -16,10 +16,10 @@ $ clarifai-model-upload-init --model_name <Your model name> \
 3. Add your model loading and inference code inside `inference.py` script of the generated model repository under the `setup()` and `predict()` functions respectively. Refer to  The [Inference Script section]() for a description of this file.
 4. Testing your implementation locally by running `<your_triton_folder>/1/test.py` with basic predefined tests.
 To avoid missing dependencies when deploying, recommend to use conda to create clean environment from [Clarifai base envs](./envs/). Then install everything in `requirements.txt`. Follow instruction inside [test.py](./models/test.py) for implementing custom tests.
-  * Create conda env: The base envs are attached in [./envs](./envs/), these are yaml file named as `triton_conda-python_version-torch_version-xxxx.yaml` format. Make sure base env that you're about to create is matched the one in your_triton_folder/triton_conda.yaml. To create conda env and install requirements run:
+  * Create conda env and install requirements:
 ```bash
-# create env
-conda env create -n <your_env> -f <base env name>.yaml
+# create env (note: only python version 3.8 is supported currently)
+conda create -n <your_env> python=3.8
 # activate it
 conda activate <your_env>
 # install dependencies
