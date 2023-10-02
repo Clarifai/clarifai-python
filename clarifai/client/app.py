@@ -13,6 +13,7 @@ from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
 from clarifai.client.model import Model
 from clarifai.client.module import Module
+from clarifai.client.search import Search
 from clarifai.client.workflow import Workflow
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
@@ -554,6 +555,22 @@ class App(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nModule Deleted\n%s", response.status)
+
+  def search(self, **kwargs) -> Model:
+    """Returns a Search object for the user and app ID.
+
+    Args:
+        see the Search class in clarifai.client.search for kwargs.
+
+    Returns:
+        Search: A Search object for the user and app ID.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> search_client = app.search(top_k=12, metric="euclidean")
+    """
+    return Search(**kwargs)
 
   def __getattr__(self, name):
     return getattr(self.app_info, name)
