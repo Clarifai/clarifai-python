@@ -31,7 +31,7 @@ def is_same_yaml_model(api_model: resources_pb2.Model, yaml_model: Dict) -> bool
 
   yaml_model_from_api = dict()
   for k, _ in yaml_model.items():
-    if k == "output_info":
+    if k == "output_info" and api_model["model_version"].get("output_info", "") != "":
       yaml_model_from_api[k] = dict(params=api_model["model_version"]["output_info"].get("params"))
     else:
       yaml_model_from_api[k] = api_model.get(k)

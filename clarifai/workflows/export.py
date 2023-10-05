@@ -1,14 +1,13 @@
-import yaml
+from typing import Any, Dict
 
+import yaml
 from google.protobuf.json_format import MessageToDict
 
 VALID_YAML_KEYS = ["workflow", "id", "nodes", "node_inputs", "node_id", "model"]
 
 
 def clean_up_unused_keys(wf: dict):
-  """Removes unused keys from dict before exporting to yaml.
-    Supports nested dicts.
-    """
+  """Removes unused keys from dict before exporting to yaml. Supports nested dicts."""
   new_wf = dict()
   for key, val in wf.items():
     if key not in VALID_YAML_KEYS:
@@ -44,10 +43,12 @@ class Exporter:
   def __enter__(self):
     return self
 
-  def parse(self):
+  def parse(self) -> Dict[str, Any]:
     """Reads a resources_pb2.Workflow object (e.g. from a GetWorkflow response)
-        Returns a cleaned workflow dict.
-        """
+
+    Returns:
+        dict: A dict representation of the workflow.
+    """
     if isinstance(self.wf, list):
       self.wf = self.wf[0]
     wf = {"workflow": MessageToDict(self.wf, preserving_proto_field_name=True)}
@@ -57,7 +58,7 @@ class Exporter:
 
   def export(self, out_path):
     with open(out_path, 'w') as out_file:
-      yaml.dump(self.wf_dict["workflow"], out_file, default_flow_style=True)
+      yaml.dump(self.wf_dict["workflow"], out_file, default_flow_style=False)
 
   def __exit__(self, *args):
     self.close()
