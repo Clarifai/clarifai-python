@@ -58,7 +58,7 @@ class Exporter:
 
   def export(self, out_path):
     with open(out_path, 'w') as out_file:
-      yaml.dump(self.wf_dict["workflow"], out_file, default_flow_style=True)
+      yaml.dump(self.wf_dict["workflow"], out_file, default_flow_style=False)
 
   def __exit__(self, *args):
     self.close()
