@@ -194,7 +194,7 @@ class Workflow(Lister, BaseClient):
     Example:
         >>> from clarifai.client.workflow import Workflow
         >>> workflow = Workflow("https://clarifai.com/clarifai/main/workflows/Demographics")
-        >>> workflow.export('out_path')
+        >>> workflow.export('out_path.yml')
     """
     request = service_pb2.GetWorkflowRequest(user_app_id=self.user_app_id, workflow_id=self.id)
     response = self._grpc_request(self.STUB.GetWorkflow, request)
