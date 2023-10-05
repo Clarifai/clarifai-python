@@ -78,11 +78,9 @@ class TritonModelRepository:
             pass
         else:
           continue
-      # gen requirements & conda yaml
+      # gen requirements
       with open(os.path.join(repository_path, "requirements.txt"), "w") as f:
         f.write("clarifai>9.5.3\ntritonclient[all]")  # for model upload utils
-      with open(os.path.join(repository_path, "triton_conda.yaml"), "w") as conda_env:
-        conda_env.write("name: triton_conda-cp3.8-torch1.13.1-19f97078")
 
     if not os.path.isdir(model_version_path):
       os.mkdir(model_version_path)
