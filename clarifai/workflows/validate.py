@@ -1,7 +1,7 @@
 from schema import And, Optional, Regex, Schema, SchemaError, Use
 
 # Non-empty, up to 32-character ASCII strings with internal dashes and underscores.
-_id_validator = And(str, lambda s: 0 < len(s) <= 32, Regex(r'^[0-9A-Za-z]+([-_][0-9A-Za-z]+)*$'))
+_id_validator = And(str, lambda s: 0 < len(s) <= 48, Regex(r'^[0-9A-Za-z]+([-_][0-9A-Za-z]+)*$'))
 
 # 32-character hex string, converted to lower-case.
 _hex_id_validator = And(str, Use(str.lower), Regex(r'^[0-9a-f]{32}'))
