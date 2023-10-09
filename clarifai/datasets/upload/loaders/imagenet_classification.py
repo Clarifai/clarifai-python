@@ -54,4 +54,6 @@ class ImageNetDataLoader(ClarifaiDataLoader):
 
   def __getitem__(self, idx):
     return VisualClassificationFeatures(
-        image_path=self.image_paths[idx], label=self.concepts[idx], id=None)
+        image_path=self.image_paths[idx],
+        label=self.concepts[idx],
+        id=self.image_paths[idx].split('.')[0].split('/')[-1])

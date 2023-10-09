@@ -317,7 +317,7 @@ class Inputs(Lister, BaseClient):
         else:
           labels = None
 
-        input_id = f"{dataset_id}-{id}"
+        input_id = uuid.uuid4().hex
         text = input[0] if input_type == 'text' else None
         image = input[0] if input_type == 'image' else None
         video = input[0] if input_type == 'video' else None
