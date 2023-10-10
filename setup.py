@@ -3,11 +3,14 @@ import setuptools
 with open("README.md", "r") as fh:
   long_description = fh.read()
 
+with open("VERSION", "r") as f:
+  version = f.read().strip()
+
 packages = setuptools.find_namespace_packages(include=["clarifai*"])
 
 setuptools.setup(
     name="clarifai",
-    version="9.9.0",
+    version=f"{version}",
     author="Clarifai",
     author_email="support@clarifai.com",
     description="Clarifai Python SDK",
