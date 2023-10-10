@@ -30,7 +30,7 @@ class TextClassificationDataset(ClarifaiDataset):
       text = datagen_item.text
       labels = datagen_item.labels if isinstance(
           datagen_item.labels, list) else [datagen_item.labels]  # clarifai concept
-      input_id = f"{self.dataset_id}-{self.split}-{id}" if datagen_item.id is None else f"{self.split}-{str(datagen_item.id)}"
+      input_id = f"{self.dataset_id}-{self.split}-{id}" if datagen_item.id is None else f"{self.dataset_id}-{self.split}-{str(datagen_item.id)}"
       metadata.update({"split": self.split})
 
       self.all_input_ids[id] = input_id

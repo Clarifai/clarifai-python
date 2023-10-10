@@ -289,7 +289,7 @@ class Inputs(Lister, BaseClient):
                           csv_type: str = 'raw',
                           dataset_id: str = None,
                           labels: str = True) -> List[Text]:
-    """Create input protos from cscv.
+    """Create input protos from csv.
 
     Args:
         csv_path (str): Path to the csv file.
@@ -317,7 +317,7 @@ class Inputs(Lister, BaseClient):
         else:
           labels = None
 
-        input_id = f"{dataset_id}-{id}"
+        input_id = uuid.uuid4().hex
         text = input[0] if input_type == 'text' else None
         image = input[0] if input_type == 'image' else None
         video = input[0] if input_type == 'video' else None
