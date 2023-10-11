@@ -1,8 +1,10 @@
+import json
 import os
 import tempfile
 import zipfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
-from typing import Any, Iterator, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 import requests
 from clarifai_grpc.grpc.api import resources_pb2
@@ -79,7 +81,6 @@ class DatasetExportReader:
         db = resources_pb2.InputBatch().FromString(self.archive.read(filename))
         for db_input in db.inputs:
           yield db_input
-      logger.info("DONE")
 
   def __enter__(self) -> 'DatasetExportReader':
     return self
@@ -94,17 +95,23 @@ class DatasetExportReader:
       self.temp_file.close()
 
 
-class InputDownloader:
+class InputAnnotationDownloader:
 
-  def __init__(self, session: requests.Session, input_iterator: DatasetExportReader):
-    """Downloads the input archive from the URL into an archive of inputs in the directory format {split}/{input_type}.
+  def __init__(self,
+               session: requests.Session,
+               input_iterator: DatasetExportReader,
+               num_workers: int = 4):
+    """Downloads the archive from the URL into an archive of inputs, annotations in the directory format
+    {split}/inputs and {split}/annotations.
 
     Args:
         session: requests.Session object
         input_iterator: Iterable of DatasetExportReader object
+        num_workers: Number of threads to use for downloading
     """
     self.input_iterator = input_iterator
-    self.num_inputs = 0
+    self.num_workers = min(num_workers, 10)  # Max 10 threads
+    self.num_inputs_annotations = 0
     self.split_prefix = None
     self.session = session
     self.input_ext = dict(image=".png", text=".txt", audio=".mp3", video=".mp4")
@@ -147,32 +154,42 @@ class InputDownloader:
       video_stream.write(chunk)
     new_archive.writestr(file_name, video_stream.getvalue())
 
-  def _write_input_archive(self, save_path: str, split: Optional[str] = None) -> None:
-    """Writes the input archive into prefix dir."""
-    try:
-      total = len(self.input_iterator)
-    except TypeError:
-      total = None
-    with zipfile.ZipFile(save_path, "a") as new_archive:
-      for input_ in tqdm(self.input_iterator, desc="Writing input archive", total=total):
-        # checks for input
-        data_dict = MessageToDict(input_.data)
-        input_type = list(
-            filter(lambda x: x in list(data_dict.keys()), list(self.input_ext.keys())))[0]
-        hosted = getattr(input_.data, input_type).hosted
-        if hosted.prefix:
-          assert 'orig' in hosted.sizes
-          hosted_url = f"{hosted.prefix}/orig/{hosted.suffix}"
-          file_name = os.path.join(split, input_.id + self.input_ext[input_type])
-          if input_type == "image":
-            self._save_image_to_archive(new_archive, hosted_url, file_name)
-          elif input_type == "text":
-            self._save_text_to_archive(new_archive, hosted_url, file_name)
-          elif input_type == "audio":
-            self._save_audio_to_archive(new_archive, hosted_url, file_name)
-          elif input_type == "video":
-            self._save_video_to_archive(new_archive, hosted_url, file_name)
-          self.num_inputs += 1
+  def _save_annotation_to_archive(self, new_archive: zipfile.ZipFile, annot_data: List[Dict],
+                                  file_name: str) -> None:
+    """Gets the annotation response bytestring (from requests) and append to zip file."""
+    # Serialize the dictionary to a JSON string
+    json_str = json.dumps(annot_data)
+    # Convert the JSON string to bytes
+    bytes_object = json_str.encode()
+
+    new_archive.writestr(file_name, bytes_object)
+
+  def _write_archive(self, input_, new_archive, split: Optional[str] = None) -> None:
+    """Writes the input, annotation archive into prefix dir."""
+    data_dict = MessageToDict(input_.data)
+    input_type = list(filter(lambda x: x in list(data_dict.keys()),
+                             list(self.input_ext.keys())))[0]
+    hosted = getattr(input_.data, input_type).hosted
+    if hosted.prefix:
+      assert 'orig' in hosted.sizes
+      hosted_url = f"{hosted.prefix}/orig/{hosted.suffix}"
+      file_name = os.path.join(split, "inputs", input_.id + self.input_ext[input_type])
+      if input_type == "image":
+        self._save_image_to_archive(new_archive, hosted_url, file_name)
+      elif input_type == "text":
+        self._save_text_to_archive(new_archive, hosted_url, file_name)
+      elif input_type == "audio":
+        self._save_audio_to_archive(new_archive, hosted_url, file_name)
+      elif input_type == "video":
+        self._save_video_to_archive(new_archive, hosted_url, file_name)
+      self.num_inputs_annotations += 1
+
+    if data_dict.get("concepts") or data_dict.get("regions"):
+      file_name = os.path.join(split, "annotations", input_.id + ".json")
+      annot_data = data_dict.get("concepts") or data_dict.get("regions")
+
+      self._save_annotation_to_archive(new_archive, annot_data, file_name)
+      self.num_inputs_annotations += 1
 
   def _check_output_archive(self, save_path: str) -> None:
     try:
@@ -180,10 +197,26 @@ class InputDownloader:
     except zipfile.BadZipFile as e:
       raise e
     assert len(
-        archive.namelist()) == self.num_inputs, "Archive has %d inputs | expecting %d inputs" % (
-            len(archive.namelist()), self.num_inputs)
+        archive.namelist()
+    ) == self.num_inputs_annotations, "Archive has %d inputs+annotations | expecting %d inputs+annotations" % (
+        len(archive.namelist()), self.num_inputs_annotations)
 
-  def download_input_archive(self, save_path: str, split: Optional[str] = None) -> None:
-    """Downloads the archive from the URL into an archive of inputs in the directory format {split}/{input_type}."""
-    self._write_input_archive(save_path, split=split or self.split_prefix)
+  def download_archive(self, save_path: str, split: Optional[str] = None) -> None:
+    """Downloads the archive from the URL into an archive of inputs, annotations in the directory format
+    {split}/inputs and {split}/annotations.
+    """
+    with zipfile.ZipFile(save_path, "a") as new_archive:
+      with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
+        with tqdm(total=len(self.input_iterator), desc='Downloading Dataset') as progress:
+          # Submit all jobs to the executor and store the returned futures
+          futures = [
+              executor.submit(self._write_archive, input_, new_archive, split)
+              for input_ in self.input_iterator
+          ]
+
+          for _ in as_completed(futures):
+            progress.update()
+
     self._check_output_archive(save_path)
+    logger.info("Downloaded %d inputs+annotations to %s" % (self.num_inputs_annotations,
+                                                            save_path))

@@ -7,12 +7,14 @@ import requests
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from google.protobuf.json_format import MessageToDict
+from requests.adapters import HTTPAdapter, Retry
 from tqdm import tqdm
 
 from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
-from clarifai.datasets.export.dataset_inputs import DatasetExportReader, InputDownloader
+from clarifai.datasets.export.inputs_annotations import (DatasetExportReader,
+                                                         InputAnnotationDownloader)
 from clarifai.datasets.upload.image import (VisualClassificationDataset, VisualDetectionDataset,
                                             VisualSegmentationDataset)
 from clarifai.datasets.upload.text import TextClassificationDataset
@@ -298,7 +300,8 @@ class Dataset(Lister, BaseClient):
              save_path: str,
              archive_url: str = None,
              local_archive_path: str = None,
-             split: str = None) -> None:
+             split: str = None,
+             num_workers: int = 4) -> None:
     """Exports the Clarifai protobuf dataset to a local archive.
 
     Args:
@@ -306,21 +309,23 @@ class Dataset(Lister, BaseClient):
         archive_url (str): The URL to the Clarifai protobuf archive.
         local_archive_path (str): The path to the local Clarifai protobuf archive.
         split (str): Export dataset inputs in the directory format {split}/{input_type}. Default is all.
+        num_workers (int): Number of workers to use for downloading the archive. Default is 4.
 
     Example:
         >>> from clarifai.client.dataset import Dataset
         >>> Dataset().export(save_path='output.zip', local_archive_path='clarifai-data-protobuf.zip')
-
-    Note: Currently only supports export of dataset inputs.
     """
     if local_archive_path and not os.path.exists(local_archive_path):
       raise UserError(f"Archive {local_archive_path} does not exist.")
     # Create a session object and set auth header
     session = requests.Session()
+    retries = Retry(total=5, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
+    session.mount('https://', HTTPAdapter(max_retries=retries))
     session.headers.update({'Authorization': self.metadata[0][1]})
     with DatasetExportReader(
         session=session, archive_url=archive_url, local_archive_path=local_archive_path) as reader:
-      InputDownloader(session, reader).download_input_archive(save_path=save_path, split=split)
+      InputAnnotationDownloader(session, reader, num_workers).download_archive(
+          save_path=save_path, split=split)
 
   def __getattr__(self, name):
     return getattr(self.dataset_info, name)
