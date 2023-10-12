@@ -38,7 +38,8 @@ class VisualDetectorOutput:
           {self.predicted_labels.shape[0]}, {self.predicted_scores.shape[0]} instead."
 
     if len(self.predicted_labels) > 0:
-      assert self.predicted_bboxes.shape[1] == 4, f"Box coordinates must have a length of 4."
+      assert self.predicted_bboxes.shape[
+          1] == 4, f"Box coordinates must have a length of 4. Actual:{self.predicted_bboxes.shape[1]}"
       assert np.all(np.logical_and(0 <= self.predicted_bboxes, self.predicted_bboxes <= 1)), \
        "Bounding box coordinates must be between 0 and 1"
 

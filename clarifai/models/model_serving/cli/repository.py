@@ -52,8 +52,7 @@ def model_upload_init():
       type=dims_type,
       default="[-1, -1]",
       required=False,
-      help=
-      f"(H, W) dims for models with an image input type. H and W each have a max value of 1024",
+      help="(H, W) dims for models with an image input type. H and W each have a max value of 1024",
   )
   parser.add_argument(
       "--repo_dir",

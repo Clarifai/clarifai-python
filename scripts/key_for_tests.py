@@ -36,7 +36,7 @@ def _request(method, url, payload={}, headers={}):
     error_body = e.read().decode()
     try:
       error_body = json.dumps(json.loads(error_body), indent=4)
-    except:
+    except Exception:
       pass
     raise Exception("ERROR after a HTTP request to: %s %s" % (method, full_url) +
                     ". Response: %d %s:\n%s" % (e.code, e.reason, error_body))

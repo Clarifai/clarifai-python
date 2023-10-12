@@ -38,7 +38,7 @@ class ImageNetDataLoader(ClarifaiDataLoader):
     for _folder in os.listdir(os.path.join(self.data_dir, self.split)):
       try:
         concept = self.label_map[_folder]  #concepts
-      except:
+      except Exception:
         continue
       folder_path = os.path.join(self.data_dir, self.split) + "/" + _folder
       for _img in os.listdir(folder_path):

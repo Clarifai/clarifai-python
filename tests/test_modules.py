@@ -132,7 +132,7 @@ def test_split_model_without_version_with_https_prefix():
   assert app_id == "main"
   assert resource_type == "models"
   assert model_id == "model_1"
-  assert model_version_id == None
+  assert model_version_id is None
 
   new = ClarifaiUrlHelper(auth).clarifai_url(user_id, app_id, resource_type, model_id,
                                              model_version_id)

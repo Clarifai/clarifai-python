@@ -615,7 +615,7 @@ class Inputs(Lister, BaseClient):
       try:
         self.logger.warning(
             f"Post annotations failed, status: {response.annotations[0].status.details}")
-      except:
+      except Exception:
         self.logger.warning(f"Post annotations failed, status: {response.status.details}")
       finally:
         retry_upload.extend(batch_annot)
