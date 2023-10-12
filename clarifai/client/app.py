@@ -570,7 +570,9 @@ class App(Lister, BaseClient):
         >>> app = App(app_id="app_id", user_id="user_id")
         >>> search_client = app.search(top_k=12, metric="euclidean")
     """
-    return Search(**kwargs)
+    user_id = kwargs.get("user_id", self.user_app_id.user_id)
+    app_id = kwargs.get("app_id", self.user_app_id.app_id)
+    return Search(user_id=user_id, app_id=app_id, **kwargs)
 
   def __getattr__(self, name):
     return getattr(self.app_info, name)
