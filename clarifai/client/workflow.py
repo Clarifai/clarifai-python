@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List
+from typing import Dict, Generator, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import Input
@@ -156,34 +156,41 @@ class Workflow(Lister, BaseClient):
 
     return self.predict(inputs=[input_proto])
 
-  def list_versions(self) -> List['Workflow']:
+  def list_versions(self, page_no: int = None,
+                    per_page: int = None) -> Generator['Workflow', None, None]:
     """Lists all the versions of the workflow.
 
-    Returns:
-        list[Workflow]: A list of Workflow objects.
+    Args:
+        page_no (int): The page number to list.
+        per_page (int): The number of items per page.
+
+    Yields:
+        Workflow: Workflow objects for versions of the workflow.
 
     Example:
         >>> from clarifai.client.workflow import Workflow
         >>> workflow = Workflow(user_id='user_id', app_id='app_id', workflow_id='workflow_id')
-        >>> workflow_versions = workflow.list_versions()
+        >>> workflow_versions = list(workflow.list_versions())
+
+    Note:
+        Defaults to 16 per page if page_no is specified and per_page is not specified.
+        If both page_no and per_page are None, then lists all the resources.
     """
     request_data = dict(
         user_app_id=self.user_app_id,
         workflow_id=self.id,
-        per_page=self.default_page_size,
     )
-    all_workflow_versions_info = list(
-        self.list_all_pages_generator(self.STUB.ListWorkflowVersions,
-                                      service_pb2.ListWorkflowVersionsRequest, request_data))
+    all_workflow_versions_info = self.list_pages_generator(
+        self.STUB.ListWorkflowVersions,
+        service_pb2.ListWorkflowVersionsRequest,
+        request_data,
+        per_page=per_page,
+        page_no=page_no)
 
     for workflow_version_info in all_workflow_versions_info:
       workflow_version_info['id'] = workflow_version_info['workflow_version_id']
       del workflow_version_info['workflow_version_id']
-
-    return [
-        Workflow(workflow_id=self.id, **dict(self.kwargs, version=workflow_version_info))
-        for workflow_version_info in all_workflow_versions_info
-    ]
+      yield Workflow(workflow_id=self.id, **dict(self.kwargs, version=workflow_version_info))
 
   def export(self, out_path: str):
     """Exports the workflow to a yaml file.

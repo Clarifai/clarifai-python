@@ -1,0 +1,28 @@
+<annotation>
+	<filename>2011_000430.jpg</filename>
+	<folder>VOC2012</folder>
+	<object>
+		<name>dog</name>
+		<bndbox>
+			<xmax>500</xmax>
+			<xmin>17</xmin>
+			<ymax>365</ymax>
+			<ymin>33</ymin>
+		</bndbox>
+		<difficult>0</difficult>
+		<occluded>0</occluded>
+		<pose>Left</pose>
+		<truncated>1</truncated>
+	</object>
+	<segmented>0</segmented>
+	<size>
+		<depth>3</depth>
+		<height>375</height>
+		<width>500</width>
+	</size>
+	<source>
+		<annotation>PASCAL VOC2011</annotation>
+		<database>The VOC2011 Database</database>
+		<image>flickr</image>
+	</source>
+</annotation>

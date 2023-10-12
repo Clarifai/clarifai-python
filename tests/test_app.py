@@ -48,16 +48,16 @@ class TestApp:
     """
 
   def test_list_models(self, app):
-    all_models = app.list_models()
-    assert len(all_models) > 0
+    all_models = list(app.list_models())
+    assert len(all_models) > 200
 
   def test_list_workflows(self, app):
-    all_workflows = app.list_workflows()
-    assert len(all_workflows) > 0
+    all_workflows = list(app.list_workflows(page_no=1, per_page=10))
+    assert len(all_workflows) == 10
 
   def test_list_apps(self, client):
-    all_apps = client.list_apps()
-    assert len(all_apps) > 0
+    all_apps = list(client.list_apps(page_no=2))
+    assert len(all_apps) == 16  #default per_page is 16
 
   def test_get_model(self, client):
     model = client.app(app_id=MAIN_APP_ID).model(model_id=GENERAL_MODEL_ID)
@@ -93,6 +93,14 @@ class TestApp:
         CREATE_RUNNER_ID, labels=["ci runner"], description="CI test runner")
     assert runner.id == CREATE_RUNNER_ID and runner.user_id == CREATE_APP_USER_ID
 
+  def test_get_dataset(self, create_app):
+    dataset = create_app.dataset(dataset_id=CREATE_DATASET_ID)
+    assert dataset.id == CREATE_DATASET_ID and dataset.app_id == CREATE_APP_ID and dataset.user_id == CREATE_APP_USER_ID
+
+  def test_list_datasets(self, create_app):
+    all_datasets = list(create_app.list_datasets())
+    assert len(all_datasets) == 1
+
   def test_delete_dataset(self, create_app, caplog):
     with caplog.at_level(logging.INFO):
       create_app.delete_dataset(CREATE_DATASET_ID)
@@ -118,9 +126,3 @@ class TestApp:
     with caplog.at_level(logging.INFO):
       User(user_id=CREATE_APP_USER_ID).delete_app(CREATE_APP_ID)
       assert "SUCCESS" in caplog.text
-
-  def test_get_dataset(self):
-    pass  # TODO
-
-  def test_list_datasets(self):
-    pass  # TODO

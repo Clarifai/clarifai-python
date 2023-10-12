@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Dict, List
+from typing import Dict, Generator, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import Input
@@ -90,36 +90,43 @@ class Model(Lister, BaseClient):
 
     return Model(**kwargs)
 
-  def list_versions(self) -> List['Model']:
+  def list_versions(self, page_no: int = None,
+                    per_page: int = None) -> Generator['Model', None, None]:
     """Lists all the versions for the model.
 
-    Returns:
-        List[Model]: A list of Model objects for the versions of the model.
+    Args:
+        page_no (int): The page number to list.
+        per_page (int): The number of items per page.
+
+    Yields:
+        Model: Model objects for the versions of the model.
 
     Example:
         >>> from clarifai.client.model import Model
         >>> model = Model("model_url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> all_model_versions = model.list_versions()
+        >>> all_model_versions = list(model.list_versions())
+
+    Note:
+        Defaults to 16 per page if page_no is specified and per_page is not specified.
+        If both page_no and per_page are None, then lists all the resources.
     """
     request_data = dict(
         user_app_id=self.user_app_id,
         model_id=self.id,
-        per_page=self.default_page_size,
     )
-    all_model_versions_info = list(
-        self.list_all_pages_generator(self.STUB.ListModelVersions,
-                                      service_pb2.ListModelVersionsRequest, request_data))
+    all_model_versions_info = self.list_pages_generator(
+        self.STUB.ListModelVersions,
+        service_pb2.ListModelVersionsRequest,
+        request_data,
+        per_page=per_page,
+        page_no=page_no)
 
     for model_version_info in all_model_versions_info:
       model_version_info['id'] = model_version_info['model_version_id']
       del model_version_info['model_version_id']
-
-    return [
-        Model(model_id=self.id, **dict(self.kwargs, model_version=model_version_info))
-        for model_version_info in all_model_versions_info
-    ]
+      yield Model(model_id=self.id, **dict(self.kwargs, model_version=model_version_info))
 
   def predict(self, inputs: List[Input]):
     """Predicts the model based on the given inputs.
