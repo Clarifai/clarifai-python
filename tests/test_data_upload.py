@@ -1,10 +1,12 @@
 import logging
 import os
+from datetime import datetime
 
 from clarifai.client.user import User
 
 CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
-CREATE_APP_ID = "ci_input_app"
+NOW = str(int(datetime.now().timestamp()))
+CREATE_APP_ID = f"ci_input_app_{NOW}"
 CREATE_DATASET_ID = "ci_input_test_dataset"
 
 #assets
