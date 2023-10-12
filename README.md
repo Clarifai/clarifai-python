@@ -20,10 +20,8 @@ Clarifai Python SDK</a>
 
 This is the official Python client for interacting with our powerful [API](https://docs.clarifai.com). The Clarifai Python SDK offers a comprehensive set of tools to integrate Clarifai's AI platform to leverage computer vision capabiities like classification , detection ,segementation and natural language capabilities like classification , summarisation , generation , Q&A ,etc into your applications. With just a few lines of code, you can leverage cutting-edge artificial intelligence to unlock valuable insights from visual and textual content.
 
-<br>
-<div align="center">
-  [Website](https://www.clarifai.com/) | [Demo](https://clarifai.com/demo) | [Free Signup](https://clarifai.com/signup) | [API Docs](https://docs.clarifai.com/) | [Community](https://clarifai.com/explore) | [Python SDK Docs](https://docs.clarifai.com/python-sdk/api-reference)
-</div>
+[Website](https://www.clarifai.com/) | [Demo](https://clarifai.com/demo) | [Signup for a Free Account](https://clarifai.com/signup) | [API Docs](https://docs.clarifai.com/) | [Clarifai Community](https://clarifai.com/explore) | [Python SDK Docs](https://docs.clarifai.com/python-sdk/api-reference) | [Examples](https://github.com/Clarifai/examples) | [Colab Notebooks](https://github.com/Clarifai/colab-notebooks)
+
 
 ---
 
