@@ -9,9 +9,10 @@ Clarifai Python SDK</a>
 
 
 <p align="center">
-  <a href="https://clarifaicommunity.slack.com/" target="_blank"> <img src="https://img.shields.io/badge/slack-chat-green.svg?logo=slack&color=4ec528" alt="Slack">
+  <a href="https://discord.gg/M32V7a7a" target="_blank"> <img src="https://img.shields.io/badge/discord-chat-green.svg?logo=discord&color=4ec528" alt="Discord">
   </a>
-
+  <a href="https://pypi.org/project/clarifai" target="_blank"> <img src="https://img.shields.io/pypi/dm/clarifai" alt="PyPI - Downloads">
+  </a>
 </p>
 
 
@@ -19,19 +20,10 @@ Clarifai Python SDK</a>
 
 This is the official Python client for interacting with our powerful [API](https://docs.clarifai.com). The Clarifai Python SDK offers a comprehensive set of tools to integrate Clarifai's AI platform to leverage computer vision capabiities like classification , detection ,segementation and natural language capabilities like classification , summarisation , generation , Q&A ,etc into your applications. With just a few lines of code, you can leverage cutting-edge artificial intelligence to unlock valuable insights from visual and textual content.
 
----
-**Website**: [https://www.clarifai.com](https://www.clarifai.com/)
-
-**Demo**: [https://clarifai.com/demo](https://clarifai.com/demo)
-
-**Sign up for a free Account**: [https://clarifai.com/signup](https://clarifai.com/signup)
-
-**Developer Guide**: [https://docs.clarifai.com](https://docs.clarifai.com/)
-
-**Clarifai Community**: [https://clarifai.com/explore](https://clarifai.com/explore)
-
-**Python SDK Docs**: [https://docs.clarifai.com/python-sdk/api-reference](https://docs.clarifai.com/python-sdk/api-reference)
-
+<br>
+<div align="center">
+  [Website](https://www.clarifai.com/) | [Demo](https://clarifai.com/demo) | [Free Signup](https://clarifai.com/signup) | [API Docs](https://docs.clarifai.com/) | [Community](https://clarifai.com/explore) | [Python SDK Docs](https://docs.clarifai.com/python-sdk/api-reference)
+</div>
 
 ---
 
