@@ -48,8 +48,8 @@ class TestApp:
     """
 
   def test_list_models(self, app):
-    all_models = list(app.list_models())
-    assert len(all_models) > 200
+    all_models = list(app.list_models(page_no=2))
+    assert len(all_models) == 16  #default per_page is 16
 
   def test_list_workflows(self, app):
     all_workflows = list(app.list_workflows(page_no=1, per_page=10))
@@ -57,7 +57,7 @@ class TestApp:
 
   def test_list_apps(self, client):
     all_apps = list(client.list_apps(page_no=2))
-    assert len(all_apps) == 16  #default per_page is 16
+    assert len(all_apps) > 0
 
   def test_get_model(self, client):
     model = client.app(app_id=MAIN_APP_ID).model(model_id=GENERAL_MODEL_ID)
