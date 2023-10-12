@@ -23,13 +23,6 @@ repos:
         args: [--fix, --exit-non-zero-on-fix]
   - repo: local
     hooks:
-      - id: autoflake
-        name: autoflake
-        entry: autoflake --remove-all-unused-imports --remove-unused-variables -i
-        language: python
-        types: [ python ]
-        pass_filenames: true
-        additional_dependencies: ["autoflake==1.4"]
       - id: yapf
         name: yapf
         entry: yapf -i
