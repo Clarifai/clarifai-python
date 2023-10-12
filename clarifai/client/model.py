@@ -244,37 +244,6 @@ class Model(Lister, BaseClient):
 
     return self.predict(inputs=[input_proto])
 
-  def list_versions(self) -> List['Model']:
-    """Lists all the versions for the model.
-
-    Returns:
-        List[Model]: A list of Model objects for the versions of the model.
-
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("model_url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
-                    or
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> all_model_versions = model.list_versions()
-    """
-    request_data = dict(
-        user_app_id=self.user_app_id,
-        model_id=self.id,
-        per_page=self.default_page_size,
-    )
-    all_model_versions_info = list(
-        self.list_all_pages_generator(self.STUB.ListModelVersions,
-                                      service_pb2.ListModelVersionsRequest, request_data))
-
-    for model_version_info in all_model_versions_info:
-      model_version_info['id'] = model_version_info['model_version_id']
-      del model_version_info['model_version_id']
-
-    return [
-        Model(model_id=self.id, **dict(self.kwargs, model_version=model_version_info))
-        for model_version_info in all_model_versions_info
-    ]
-
   def __getattr__(self, name):
     return getattr(self.model_info, name)
 
