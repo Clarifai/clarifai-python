@@ -56,7 +56,7 @@ class TestApp:
     assert len(all_workflows) == 10
 
   def test_list_apps(self, client):
-    all_apps = list(client.list_apps(page_no=2))
+    all_apps = list(client.list_apps())
     assert len(all_apps) > 0
 
   def test_get_model(self, client):
