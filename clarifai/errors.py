@@ -42,7 +42,6 @@ class ApiError(Exception):
  >> %(method)s %(resource)s
  >> REQUEST(%(time_ts)s) %(request)s
  >> RESPONSE(%(time_ts)s) %(response)s""" % {
-        'baseurl': '%s/v2/' % _base_url(self.resource),
         'method': method,
         'resource': resource,
         'error_code': self.error_code,
@@ -78,7 +77,7 @@ def _base_url(url: str) -> str:
   """
   try:
     return url[:_find_nth(url, '/', 4) + 1]
-  except:
+  except Exception:
     return ''
 
 

@@ -127,14 +127,14 @@ class COCOSegmentationDataLoader(ClarifaiDataLoader):
         img_annotations = self.coco.loadAnns(annot_ids)
         for ann in img_annotations:
           # get polygons
-          if type(ann['segmentation']) == list:
+          if isinstance(ann['segmentation'], list):
             for seg in ann['segmentation']:
               poly = np.array(seg).reshape((int(len(seg) / 2), 2))
               poly[:, 0], poly[:, 1] = poly[:, 0] / image_width, poly[:, 1] / image_height
               annots.append(poly.tolist())  #[[x=col, y=row],...]
               class_names.append(self.cat_id_map[cat_id])
           else:  # seg: {"counts":[...]}
-            if type(ann['segmentation']['counts']) == list:
+            if isinstance(ann['segmentation']['counts'], list):
               rle = maskUtils.frPyObjects([ann['segmentation']], image_height, image_width)
             else:
               rle = ann['segmentation']

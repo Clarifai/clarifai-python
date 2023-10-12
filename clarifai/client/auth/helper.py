@@ -228,16 +228,6 @@ Additionally, these optional params are supported:
           pat: CLARIFAI_PAT env var.
         base: CLARIFAI_API_BASE env var.
     """
-    error_description = """
-Please check the following required vars are in your env:
- - 'CLARIFAI_USER_ID': the user ID accessing the module.
- - 'CLARIFAI_APP_ID': the app the module is being accessed from.
- - 'CLARIFAI_SESSION_TOKEN' or 'CLARIFAI_PAT': to authenticate the calling user with a session token or personal access token.
-
-Additionally, these optional params are supported:
- - 'CLARIFAI_API_BASE': the base domain for the API such as https://api.clarifai.com
- - 'CLARIFAI_UI': the overall UI domain for redirects such as https://clarifai.com
-"""
     user_id = os.environ.get("CLARIFAI_USER_ID", "")
     app_id = os.environ.get("CLARIFAI_APP_ID", "")
     token = os.environ.get("CLARIFAI_SESSION_TOKEN", "")

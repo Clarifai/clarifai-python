@@ -1,10 +1,12 @@
 import logging
 import os
+from datetime import datetime
 
 from clarifai.client.user import User
 
 CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
-CREATE_APP_ID = "ci_input_app"
+NOW = str(int(datetime.now().timestamp()))
+CREATE_APP_ID = f"ci_input_app_{NOW}"
 CREATE_DATASET_ID = "ci_input_test_dataset"
 
 #assets
@@ -41,6 +43,7 @@ class Testdataupload:
   - Folder
   """
 
+  @classmethod
   def setup_class(self):
     self.app = create_app()
     self.input_object = self.app.inputs()
@@ -117,6 +120,7 @@ class Testdataupload:
     assert uploaded_inputs[0].data.concepts[0].name == 'test'  # label of the first input in the folder
     assert len(uploaded_inputs) == 3  # 3 inputs are uploaded from the folder
 
+  @classmethod
   def teardown_class(self):
     self.app.delete_dataset(dataset_id=CREATE_DATASET_ID)
     User(user_id=CREATE_APP_USER_ID).delete_app(app_id=CREATE_APP_ID)

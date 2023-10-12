@@ -71,9 +71,9 @@ class TestApp:
     app = User(user_id=CREATE_APP_USER_ID).create_app(app_id=CREATE_APP_ID)
     assert app.id == CREATE_APP_ID and app.user_id == CREATE_APP_USER_ID
 
-  def test_create_dataset(self, create_app):
+  def test_create_search(self, create_app):
     search = create_app.search()
-    assert search.page_size == DEFAULT_TOP_K and search.metric_distance == "COSINE_DISTANCE"
+    assert search.default_page_size == DEFAULT_TOP_K and search.metric_distance == "COSINE_DISTANCE"
 
   def test_create_dataset(self, create_app):
     dataset = create_app.create_dataset(CREATE_DATASET_ID)
