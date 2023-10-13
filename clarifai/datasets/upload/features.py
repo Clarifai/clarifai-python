@@ -9,6 +9,7 @@ class TextFeatures:
   text: str
   labels: List[Union[str, int]]  # List[str or int] to cater for multi-class tasks
   id: Optional[int] = None  # text_id
+  metadata: Optional[dict] = None
 
 
 @dataclass
@@ -18,6 +19,7 @@ class VisualClassificationFeatures:
   label: Union[str, int]
   geo_info: Optional[List[float]] = None  #[Longitude, Latitude]
   id: Optional[int] = None  # image_id
+  metadata: Optional[dict] = None
 
 
 @dataclass
@@ -28,6 +30,7 @@ class VisualDetectionFeatures:
   bboxes: List[List[float]]
   geo_info: Optional[List[float]] = None  #[Longitude, Latitude]
   id: Optional[int] = None  # image_id
+  metadata: Optional[dict] = None
 
 
 @dataclass
@@ -38,3 +41,4 @@ class VisualSegmentationFeatures:
   polygons: List[List[List[float]]]
   geo_info: Optional[List[float]] = None  #[Longitude, Latitude]
   id: Optional[int] = None  # image_id
+  metadata: Optional[dict] = None
