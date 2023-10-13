@@ -27,7 +27,7 @@ setuptools.setup(
     license="Apache 2.0",
     python_requires='>=3.8',
     install_requires=[
-        "clarifai-grpc>=9.8.1", "tritonclient==2.34.0", "packaging", "tqdm==4.64.1",
+        "clarifai-grpc>=9.8.1", "tritonclient==2.34.0", "packaging", "tqdm>=4.65.0",
         "rich==13.4.2", "PyYAML==6.0.1", "schema==0.7.5"
     ],
     entry_points={
