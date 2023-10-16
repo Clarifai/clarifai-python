@@ -62,8 +62,8 @@ from clarifai.client.user import User
 client = User(user_id="user_id")
 
 # Get all apps
-apps = client.list_apps()
-apps = list(apps)
+apps_generator = client.list_apps()
+apps = list(apps_generator)
 ```
 
 ### Interacting with Datasets
