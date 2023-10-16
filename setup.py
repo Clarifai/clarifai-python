@@ -6,6 +6,13 @@ with open("README.md", "r") as fh:
 with open("VERSION", "r") as f:
   version = f.read().strip()
 
+with open("requirements.txt", "r") as fh:
+  install_requires = fh.read().split('\n')
+
+if install_requires and install_requires[-1] == '':
+  # Remove the last empty line
+  install_requires = install_requires[:-1]
+
 packages = setuptools.find_namespace_packages(include=["clarifai*"])
 
 setuptools.setup(
@@ -26,10 +33,7 @@ setuptools.setup(
     ],
     license="Apache 2.0",
     python_requires='>=3.8',
-    install_requires=[
-        "clarifai-grpc>=9.8.1", "tritonclient==2.34.0", "packaging", "tqdm>=4.65.0",
-        "rich==13.4.2", "PyYAML==6.0.1", "schema==0.7.5"
-    ],
+    install_requires=install_requires,
     entry_points={
         "console_scripts": [
             "clarifai-model-upload-init = clarifai.models.model_serving.cli.repository:model_upload_init",
