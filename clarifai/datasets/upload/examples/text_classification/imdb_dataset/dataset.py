@@ -27,7 +27,12 @@ class IMDBMovieReviewsDataLoader(ClarifaiDataLoader):
       reader = csv.reader(_file)
       next(reader, None)  # skip header
       for review in reader:
-        self.data.append({"text": review[0], "labels": review[1], "id": None})
+        self.data.append({
+            "text": review[0],
+            "labels": review[1],
+            "id": None,
+            "metadata": dict(split=self.split)
+        })
 
   def __getitem__(self, idx):
     item = self.data[idx]

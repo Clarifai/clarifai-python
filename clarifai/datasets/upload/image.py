@@ -32,7 +32,10 @@ class VisualClassificationDataset(ClarifaiDataset):
                                                list) else [datagen_item.label]  # clarifai concept
       input_id = f"{self.dataset_id}-{self.split}-{id}" if datagen_item.id is None else f"{self.dataset_id}-{self.split}-{str(datagen_item.id)}"
       geo_info = datagen_item.geo_info
-      metadata.update({"filename": os.path.basename(image_path), "split": self.split})
+      if datagen_item.metadata is not None:
+        metadata.update(datagen_item.metadata)
+      else:
+        metadata.update({"filename": os.path.basename(image_path), "split": self.split})
 
       self.all_input_ids[id] = input_id
       input_protos.append(
@@ -76,7 +79,10 @@ class VisualDetectionDataset(ClarifaiDataset):
       labels = datagen_item.classes  # list:[l1,...,ln]
       bboxes = datagen_item.bboxes  # [[xmin,ymin,xmax,ymax],...,[xmin,ymin,xmax,ymax]]
       input_id = f"{self.dataset_id}-{self.split}-{id}" if datagen_item.id is None else f"{self.dataset_id}-{self.split}-{str(datagen_item.id)}"
-      metadata.update({"filename": os.path.basename(image), "split": self.split})
+      if datagen_item.metadata is not None:
+        metadata.update(datagen_item.metadata)
+      else:
+        metadata.update({"filename": os.path.basename(image), "split": self.split})
       geo_info = datagen_item.geo_info
 
       self.all_input_ids[id] = input_id
@@ -126,7 +132,10 @@ class VisualSegmentationDataset(ClarifaiDataset):
       labels = datagen_item.classes
       _polygons = datagen_item.polygons  # list of polygons: [[[x,y],...,[x,y]],...]
       input_id = f"{self.dataset_id}-{self.split}-{id}" if datagen_item.id is None else f"{self.dataset_id}-{self.split}-{str(datagen_item.id)}"
-      metadata.update({"filename": os.path.basename(image), "split": self.split})
+      if datagen_item.metadata is not None:
+        metadata.update(datagen_item.metadata)
+      else:
+        metadata.update({"filename": os.path.basename(image), "split": self.split})
       geo_info = datagen_item.geo_info
 
       self.all_input_ids[id] = input_id
