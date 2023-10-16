@@ -248,7 +248,11 @@ class Dataset(Lister, BaseClient):
         >>> dataset = Dataset(user_id = 'user_id', app_id = 'demo_app', dataset_id = 'demo_dataset')
         >>> dataset.upload_from_csv(csv_path='csv_path', input_type='text', csv_type='raw, labels=True)
 
-    Note: csv file should have either one(input) or two columns(input, labels).
+    Note:
+        CSV file supports 'inputid', 'input', 'concepts', 'metadata', 'geopoints' columns.
+        All the data in the CSV should be in double quotes.
+        metadata should be in single quotes format. Example: "{'key': 'value'}"
+        geopoints should be in "long,lat" format.
     """
     if input_type not in ['image', 'text', 'video', 'audio']:
       raise UserError('Invalid input type, it should be image,text,audio or video')
