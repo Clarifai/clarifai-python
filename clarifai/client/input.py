@@ -1,4 +1,5 @@
 import csv
+import json
 import os
 import time
 import uuid
@@ -308,25 +309,60 @@ class Inputs(Lister, BaseClient):
     """
     input_protos = []
     with open(csv_path) as _file:
-      reader = csv.reader(_file)
-      next(reader, None)  # skip header
+      reader = csv.DictReader(_file, delimiter=',', quotechar='"')
+      columns = reader.fieldnames
+      for column in columns:
+        if column not in ['inputid', 'input', 'concepts', 'metadata', 'geopoints']:
+          raise UserError(
+              "CSV file may have 'inputid', 'input', 'concepts', 'metadata', 'geopoints' columns. Does not support '{}' column".
+              format(column))
       for id, input in enumerate(reader):
         if labels:
-          assert len(input) == 2, "csv file should have two columns(input, labels)"
-          labels = input[1] if isinstance(input[1], list) else [input[1]]
+          labels_list = input['concepts'].split(',')
+          labels = labels_list if len(input['concepts']) > 0 else None
         else:
           labels = None
 
-        input_id = uuid.uuid4().hex
-        text = input[0] if input_type == 'text' else None
-        image = input[0] if input_type == 'image' else None
-        video = input[0] if input_type == 'video' else None
-        audio = input[0] if input_type == 'audio' else None
+        if 'metadata' in columns:
+          if len(input['metadata']) > 0:
+            metadata_str = input['metadata'].replace("'", '"')
+            try:
+              metadata_dict = json.loads(metadata_str)
+            except json.decoder.JSONDecodeError:
+              raise UserError("metadata column in CSV file should be a valid json")
+            metadata = Struct()
+            metadata.update(metadata_dict)
+          else:
+            metadata = None
+        else:
+          metadata = None
+
+        if 'geopoints' in columns:
+          if len(input['geopoints']) > 0:
+            geo_points = input['geopoints'].split(',')
+            geo_points = [float(geo_point) for geo_point in geo_points]
+            geo_info = geo_points if len(geo_points) == 2 else UserError(
+                "geopoints column in CSV file should have longitude,latitude")
+          else:
+            geo_info = None
+        else:
+          geo_info = None
+
+        input_id = input['inputid'] if 'inputid' in columns else uuid.uuid4().hex
+        text = input['input'] if input_type == 'text' else None
+        image = input['input'] if input_type == 'image' else None
+        video = input['input'] if input_type == 'video' else None
+        audio = input['input'] if input_type == 'audio' else None
 
         if csv_type == 'raw':
           input_protos.append(
               self.get_text_input(
-                  input_id=input_id, raw_text=text, dataset_id=dataset_id, labels=labels))
+                  input_id=input_id,
+                  raw_text=text,
+                  dataset_id=dataset_id,
+                  labels=labels,
+                  metadata=metadata,
+                  geo_info=geo_info))
         elif csv_type == 'url':
           input_protos.append(
               self.get_input_from_url(
@@ -336,7 +372,9 @@ class Inputs(Lister, BaseClient):
                   audio_url=audio,
                   video_url=video,
                   dataset_id=dataset_id,
-                  labels=labels))
+                  labels=labels,
+                  metadata=metadata,
+                  geo_info=geo_info))
         else:
           input_protos.append(
               self.get_input_from_file(
@@ -346,7 +384,9 @@ class Inputs(Lister, BaseClient):
                   audio_file=audio,
                   video_file=video,
                   dataset_id=dataset_id,
-                  labels=labels))
+                  labels=labels,
+                  metadata=metadata,
+                  geo_info=geo_info))
 
     return input_protos
 
