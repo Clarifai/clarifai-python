@@ -1,9 +1,10 @@
 import os
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict, Generator
 
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
+from clarifai_grpc.grpc.api.resources_pb2 import Concept
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 
@@ -51,151 +52,221 @@ class App(Lister, BaseClient):
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.id, base=base_url)
     Lister.__init__(self)
 
-  def list_datasets(self) -> List[Dataset]:
+  def list_datasets(self, page_no: int = None,
+                    per_page: int = None) -> Generator[Dataset, None, None]:
     """Lists all the datasets for the app.
 
-    Returns:
-        List[Dataset]: A list of Dataset objects for the datasets in the app.
+    Args:
+        page_no (int): The page number to list.
+        per_page (int): The number of items per page.
+
+    Yields:
+        Dataset: Dataset objects for the datasets in the app.
 
     Example:
         >>> from clarifai.client.app import App
         >>> app = App(app_id="app_id", user_id="user_id")
-        >>> all_datasets = app.list_datasets()
+        >>> all_datasets = list(app.list_datasets())
+
+    Note:
+        Defaults to 16 per page if page_no is specified and per_page is not specified.
+        If both page_no and per_page are None, then lists all the resources.
     """
-    request_data = dict(
-        user_app_id=self.user_app_id,
-        per_page=self.default_page_size,
-    )
-    all_datasets_info = list(
-        self.list_all_pages_generator(self.STUB.ListDatasets, service_pb2.ListDatasetsRequest,
-                                      request_data))
+    request_data = dict(user_app_id=self.user_app_id,)
+    all_datasets_info = self.list_pages_generator(
+        self.STUB.ListDatasets,
+        service_pb2.ListDatasetsRequest,
+        request_data,
+        per_page=per_page,
+        page_no=page_no)
     for dataset_info in all_datasets_info:
       if 'version' in list(dataset_info.keys()):
         del dataset_info['version']['metrics']
+      yield Dataset(**dataset_info)
 
-    return [Dataset(**dataset_info) for dataset_info in all_datasets_info]
-
-  def list_models(self, filter_by: Dict[str, Any] = {}, only_in_app: bool = True) -> List[Model]:
+  def list_models(self,
+                  filter_by: Dict[str, Any] = {},
+                  only_in_app: bool = True,
+                  page_no: int = None,
+                  per_page: int = None) -> Generator[Model, None, None]:
     """Lists all the available models for the user.
 
     Args:
         filter_by (dict): A dictionary of filters to apply to the list of models.
         only_in_app (bool): If True, only return models that are in the app.
+        page_no (int): The page number to list.
+        per_page (int): The number of items per page.
 
-    Returns:
-        List[Model]: A list of Model objects for the models in the app.
+    Yields:
+        Model: Model objects for the models in the app.
 
     Example:
         >>> from clarifai.client.user import User
         >>> app = User(user_id="user_id").app(app_id="app_id")
-        >>> all_models = app.list_models()
-    """
-    request_data = dict(user_app_id=self.user_app_id, per_page=self.default_page_size, **filter_by)
-    all_models_info = list(
-        self.list_all_pages_generator(self.STUB.ListModels, service_pb2.ListModelsRequest,
-                                      request_data))
+        >>> all_models = list(app.list_models())
 
-    filtered_models_info = []
+    Note:
+        Defaults to 16 per page if page_no is specified and per_page is not specified.
+        If both page_no and per_page are None, then lists all the resources.
+    """
+    request_data = dict(user_app_id=self.user_app_id, **filter_by)
+    all_models_info = self.list_pages_generator(
+        self.STUB.ListModels,
+        service_pb2.ListModelsRequest,
+        request_data,
+        per_page=per_page,
+        page_no=page_no)
+
     for model_info in all_models_info:
       if 'model_version' not in list(model_info.keys()):
         continue
       if only_in_app:
         if model_info['app_id'] != self.id:
           continue
-      filtered_models_info.append(model_info)
+      yield Model(**model_info)
 
-    return [Model(**model_info) for model_info in filtered_models_info]
-
-  def list_workflows(self, filter_by: Dict[str, Any] = {},
-                     only_in_app: bool = True) -> List[Workflow]:
+  def list_workflows(self,
+                     filter_by: Dict[str, Any] = {},
+                     only_in_app: bool = True,
+                     page_no: int = None,
+                     per_page: int = None) -> Generator[Workflow, None, None]:
     """Lists all the available workflows for the user.
 
     Args:
         filter_by (dict): A dictionary of filters to apply to the list of workflows.
         only_in_app (bool): If True, only return workflows that are in the app.
+        page_no (int): The page number to list.
+        per_page (int): The number of items per page.
 
-    Returns:
-        List[Workflow]: A list of Workflow objects for the workflows in the app.
+    Yields:
+        Workflow: Workflow objects for the workflows in the app.
 
     Example:
         >>> from clarifai.client.app import App
         >>> app = App(app_id="app_id", user_id="user_id")
-        >>> all_workflows = app.list_workflows()
-    """
-    request_data = dict(user_app_id=self.user_app_id, per_page=self.default_page_size, **filter_by)
-    all_workflows_info = list(
-        self.list_all_pages_generator(self.STUB.ListWorkflows, service_pb2.ListWorkflowsRequest,
-                                      request_data))
+        >>> all_workflows = list(app.list_workflows())
 
-    filtered_workflows_info = []
+    Note:
+        Defaults to 16 per page if page_no is specified and per_page is not specified.
+        If both page_no and per_page are None, then lists all the resources.
+    """
+    request_data = dict(user_app_id=self.user_app_id, **filter_by)
+    all_workflows_info = self.list_pages_generator(
+        self.STUB.ListWorkflows,
+        service_pb2.ListWorkflowsRequest,
+        request_data,
+        per_page=per_page,
+        page_no=page_no)
+
     for workflow_info in all_workflows_info:
       if only_in_app:
         if workflow_info['app_id'] != self.id:
           continue
-      filtered_workflows_info.append(workflow_info)
+      yield Workflow(**workflow_info)
 
-    return [Workflow(**workflow_info) for workflow_info in all_workflows_info]
-
-  def list_modules(self, filter_by: Dict[str, Any] = {}, only_in_app: bool = True) -> List[Module]:
+  def list_modules(self,
+                   filter_by: Dict[str, Any] = {},
+                   only_in_app: bool = True,
+                   page_no: int = None,
+                   per_page: int = None) -> Generator[Module, None, None]:
     """Lists all the available modules for the user.
 
     Args:
         filter_by (dict): A dictionary of filters to apply to the list of modules.
         only_in_app (bool): If True, only return modules that are in the app.
+        page_no (int): The page number to list.
+        per_page (int): The number of items per page.
 
-    Returns:
-        List[Module]: A list of Module objects for the modules in the app.
+    Yields:
+        Module: Module objects for the modules in the app.
 
     Example:
         >>> from clarifai.client.app import App
         >>> app = App(app_id="app_id", user_id="user_id")
-        >>> all_modules = app.list_modules()
-    """
-    request_data = dict(user_app_id=self.user_app_id, per_page=self.default_page_size, **filter_by)
-    all_modules_info = list(
-        self.list_all_pages_generator(self.STUB.ListModules, service_pb2.ListModulesRequest,
-                                      request_data))
+        >>> all_modules = list(app.list_modules())
 
-    filtered_modules_info = []
+    Note:
+        Defaults to 16 per page if page_no is specified and per_page is not specified.
+        If both page_no and per_page are None, then lists all the resources.
+    """
+    request_data = dict(user_app_id=self.user_app_id, **filter_by)
+    all_modules_info = self.list_pages_generator(
+        self.STUB.ListModules,
+        service_pb2.ListModulesRequest,
+        request_data,
+        per_page=per_page,
+        page_no=page_no)
+
     for module_info in all_modules_info:
       if only_in_app:
         if module_info['app_id'] != self.id:
           continue
-      filtered_modules_info.append(module_info)
+      yield Module(**module_info)
 
-    return [Module(**module_info) for module_info in filtered_modules_info]
-
-  def list_installed_module_versions(self, filter_by: Dict[str, Any] = {}) -> List[Module]:
+  def list_installed_module_versions(self,
+                                     filter_by: Dict[str, Any] = {},
+                                     page_no: int = None,
+                                     per_page: int = None) -> Generator[Module, None, None]:
     """Lists all installed module versions in the app.
 
     Args:
         filter_by (dict): A dictionary of filters to apply to the list of installed module versions.
+        page_no (int): The page number to list.
+        per_page (int): The number of items per page.
 
-    Returns:
-        List[Module]: A list of Module objects for the installed module versions in the app.
+    Yields:
+        Module: Module objects for the installed module versions in the app.
 
     Example:
         >>> from clarifai.client.app import App
         >>> app = App(app_id="app_id", user_id="user_id")
-        >>> all_installed_module_versions = app.list_installed_module_versions()
+        >>> all_installed_module_versions = list(app.list_installed_module_versions())
+
+    Note:
+        Defaults to 16 per page if page_no is specified and per_page is not specified.
+        If both page_no and per_page are None, then lists all the resources.
     """
-    request_data = dict(user_app_id=self.user_app_id, per_page=self.default_page_size, **filter_by)
-    all_imv_infos = list(
-        self.list_all_pages_generator(self.STUB.ListInstalledModuleVersions,
-                                      service_pb2.ListInstalledModuleVersionsRequest,
-                                      request_data))
+    request_data = dict(user_app_id=self.user_app_id, **filter_by)
+    all_imv_infos = self.list_pages_generator(
+        self.STUB.ListInstalledModuleVersions,
+        service_pb2.ListInstalledModuleVersionsRequest,
+        request_data,
+        per_page=per_page,
+        page_no=page_no)
     for imv_info in all_imv_infos:
       del imv_info['deploy_url']
       del imv_info['installed_module_version_id']  # TODO: remove this after the backend fix
+      yield Module(module_id=imv_info['module_version']['module_id'], **imv_info)
 
-    return [
-        Module(module_id=imv_info['module_version']['module_id'], **imv_info)
-        for imv_info in all_imv_infos
-    ]
+  def list_concepts(self, page_no: int = None,
+                    per_page: int = None) -> Generator[Concept, None, None]:
+    """Lists all the concepts for the app.
+    Args:
+        page_no (int): The page number to list.
+        per_page (int): The number of items per page.
 
-  def list_concepts(self):
-    """Lists all the concepts for the app."""
-    pass  # TODO
+    Yields:
+        Concept: Concepts in the app.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> all_concepts = list(app.list_concepts())
+
+    Note:
+        Defaults to 16 per page if page_no is specified and per_page is not specified.
+        If both page_no and per_page are None, then lists all the resources.
+    """
+    request_data = dict(user_app_id=self.user_app_id)
+    all_concepts_infos = self.list_pages_generator(
+        self.STUB.ListConcepts,
+        service_pb2.ListConceptsRequest,
+        request_data,
+        per_page=per_page,
+        page_no=page_no)
+    for concept_info in all_concepts_infos:
+      concept_info['id'] = concept_info.pop('concept_id')
+      yield Concept(**concept_info)
 
   def create_dataset(self, dataset_id: str, **kwargs) -> Dataset:
     """Creates a dataset for the app.

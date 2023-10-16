@@ -62,7 +62,8 @@ from clarifai.client.user import User
 client = User(user_id="user_id")
 
 # Get all apps
-apps = client.list_apps()
+apps_generator = client.list_apps()
+apps = list(apps_generator)
 ```
 
 ### Interacting with Datasets
@@ -92,6 +93,7 @@ Dataset().export(save_path='output.zip', local_archive_path='clarifai-data-proto
 
 ### Interacting with Inputs
 
+#### Input upload
 ```python
 # Note: CLARIFAI_PAT must be set as env variable.
 from clarifai.client.user import User
@@ -104,11 +106,22 @@ input_obj.upload_from_url(input_id = 'demo', image_url='https://samples.clarifai
 #input upload from filename
 input_obj.upload_from_file(input_id = 'demo', video_file='demo.mp4')
 
-#listing inputs
-input_obj.list_inputs()
-
 # text upload
 input_obj.upload_text(input_id = 'demo', raw_text = 'This is a test')
+```
+
+#### Input listing
+```python
+#listing inputs
+input_generator = input_obj.list_inputs(page_no=1,per_page=10,input_type='image')
+inputs_list = list(input_generator)
+
+#listing annotations
+annotation_generator = input_obj.list_annotations(batch_input=inputs_list)
+annotations_list = list(annotation_generator)
+
+#listing concepts
+all_concepts = list(app.list_concepts())
 ```
 
 
@@ -139,17 +152,18 @@ model_prediction = model.predict_by_url(url="VIDEO_URL", input_type="video")
 # Note: CLARIFAI_PAT must be set as env variable.
 
 # List all model versions
-all_model_versions = model.list_versions()
+all_model_versions = list(model.list_versions())
 
 # Go to specific model version
 model_v1 = client.app("app_id").model(model_id="model_id", model_version_id="model_version_id")
 
 # List all models in an app
-all_models = app.list_models()
+all_models = list(app.list_models())
 
 # List all models in community filtered by model_type, description
 all_llm_community_models = App().list_models(filter_by={"query": "LLM",
                                                         "model_type_id": "text-to-text"}, only_in_app=False)
+all_llm_community_models = list(all_llm_community_models)
 ```
 
 ### Interacting with Workflows
@@ -174,16 +188,17 @@ workflow_prediction = workflow.predict_by_filepath(filepath="local_filepath", in
 # Note: CLARIFAI_PAT must be set as env variable.
 
 # List all workflow versions
-all_workflow_versions = workflow.list_versions()
+all_workflow_versions = list(workflow.list_versions())
 
 # Go to specific workflow version
 workflow_v1 = Workflow(workflow_id="workflow_id", workflow_version=dict(id="workflow_version_id"), app_id="app_id", user_id="user_id")
 
 # List all workflow in an app
-all_workflow = app.list_workflow()
+all_workflow = list(app.list_workflow())
 
 # List all workflow in community filtered by description
 all_face_community_workflows = App().list_workflows(filter_by={"query": "face"}, only_in_app=False) # Get all face related workflows
+all_face_community_workflows = list(all_face_community_workflows)
 ```
 #### Workflow Create
 Create a new workflow specified by a yaml config file.

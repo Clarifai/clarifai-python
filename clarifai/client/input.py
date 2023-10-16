@@ -4,7 +4,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
-from typing import List, Union
+from typing import Generator, List, Union
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2  # noqa: F401
 from clarifai_grpc.grpc.api.resources_pb2 import Annotation, Audio, Image, Input, Text, Video
@@ -648,7 +648,7 @@ class Inputs(Lister, BaseClient):
     Example:
         >>> from clarifai.client.user import User
         >>> input_obj = User(user_id="user_id").app(app_id="app_id").inputs()
-        >>> input_obj.delete_inputs(input_obj.list_inputs())
+        >>> input_obj.delete_inputs(list(input_obj.list_inputs()))
     """
     if not isinstance(inputs, list):
       raise UserError("input_ids must be a list of input ids")
@@ -659,24 +659,94 @@ class Inputs(Lister, BaseClient):
       raise Exception(response.status)
     self.logger.info("\nInputs Deleted\n%s", response.status)
 
-  def list_inputs(self) -> List[Input]:  # TODO: update lister
+  def list_inputs(self,
+                  dataset_id: str = None,
+                  page_no: int = None,
+                  per_page: int = None,
+                  input_type: str = None) -> Generator[Input, None, None]:
     """Lists all the inputs for the app.
 
-    Returns:
-        list of Input: A list of Input objects for the app.
+    Args:
+        dataset_id (str): The dataset ID for the dataset to list inputs from.
+        page_no (int): The page number to list.
+        per_page (int): The number of items per page.
+        input_type (str): The type of input to list. Options: 'image', 'video', 'audio', 'text'.
+
+    Yields:
+        Input: Input objects for the app.
 
     Example:
         >>> from clarifai.client.user import User
         >>> input_obj = User(user_id="user_id").app(app_id="app_id").inputs()
-        >>> input_obj.list_inputs()
+        >>> all_inputs = list(input_obj.list_inputs(input_type='image'))
+
+    Note:
+        Defaults to 16 per page if page_no is specified and per_page is not specified.
+        If both page_no and per_page are None, then lists all the resources.
     """
-    request_data = dict(user_app_id=self.user_app_id, per_page=self.default_page_size)
-    all_inputs_info = list(
-        self.list_all_pages_generator(self.STUB.ListInputs, service_pb2.ListInputsRequest,
-                                      request_data))
+    if input_type not in ['image', 'text', 'video', 'audio', None]:
+      raise UserError('Invalid input type, it should be image,text,audio or video')
+    if dataset_id:
+      request_data = dict(user_app_id=self.user_app_id, dataset_id=dataset_id)
+      all_inputs_info = self.list_pages_generator(
+          self.STUB.ListDatasetInputs,
+          service_pb2.ListDatasetInputsRequest,
+          request_data,
+          per_page=per_page,
+          page_no=page_no)
+    else:
+      request_data = dict(user_app_id=self.user_app_id)
+      all_inputs_info = self.list_pages_generator(
+          self.STUB.ListInputs,
+          service_pb2.ListInputsRequest,
+          request_data,
+          per_page=per_page,
+          page_no=page_no)
     for input_info in all_inputs_info:
-      input_info['id'] = input_info.pop('input_id')
-    return [resources_pb2.Input(**input_info) for input_info in all_inputs_info]
+      input_info['id'] = input_info.pop('dataset_input_id') if dataset_id else input_info.pop(
+          'input_id')
+      if input_type:
+        if input_type not in input_info['data'].keys():
+          continue
+      yield resources_pb2.Input(**input_info)
+
+  def list_annotations(self,
+                       batch_input: List[Input] = None,
+                       page_no: int = None,
+                       per_page: int = None) -> Generator[Annotation, None, None]:
+    """Lists all the annotations for the app.
+
+    Args:
+        batch_input (List[Input]): The input objects to list annotations from.
+        page_no (int): The page number to list.
+        per_page (int): The number of items per page.
+
+    Yields:
+        Annotation: Annotation objects for the app.
+
+    Example:
+        >>> from clarifai.client.user import User
+        >>> input_obj = User(user_id="user_id").app(app_id="app_id").inputs()
+        >>> all_inputs = list(input_obj.list_inputs(input_type='image'))
+        >>> all_annotations = list(input_obj.list_annotations(batch_input=all_inputs))
+
+    Note:
+        If batch_input is not given, then lists all the annotations for the app.
+        Defaults to 16 per page if page_no is specified and per_page is not specified.
+        If both page_no and per_page are None, then lists all the resources.
+    """
+    request_data = dict(
+        user_app_id=self.user_app_id,
+        input_ids=[input.id for input in batch_input] if batch_input else None)
+    all_annotations_info = self.list_pages_generator(
+        self.STUB.ListAnnotations,
+        service_pb2.ListAnnotationsRequest,
+        request_data,
+        per_page=per_page,
+        page_no=page_no)
+    for annotations_info in all_annotations_info:
+      annotations_info['id'] = annotations_info.pop('annotation_id')
+      yield Annotation(**annotations_info)
 
   def _bulk_upload(self, inputs: List[Input], chunk_size: int = 128) -> None:
     """Uploads process for large number of inputs.

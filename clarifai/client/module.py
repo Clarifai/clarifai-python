@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, Generator
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 
@@ -43,34 +43,41 @@ class Module(Lister, BaseClient):
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
     Lister.__init__(self)
 
-  def list_versions(self) -> List['Module']:
+  def list_versions(self, page_no: int = None,
+                    per_page: int = None) -> Generator['Module', None, None]:
     """Lists all the module versions for the module.
 
-        Returns:
-            List[Moudle]: A list of Module objects for versions of the module.
+    Args:
+        page_no (int): The page number to list.
+        per_page (int): The number of items per page.
 
-        Example:
-            >>> from clarifai.client.module import Module
-            >>> module = Module(module_id='module_id', user_id='user_id', app_id='app_id')
-            >>> all_Module_versions = module.list_versions()
-        """
+    Yields:
+        Moudle: Module objects for versions of the module.
+
+    Example:
+        >>> from clarifai.client.module import Module
+        >>> module = Module(module_id='module_id', user_id='user_id', app_id='app_id')
+        >>> all_Module_versions = list(module.list_versions())
+
+    Note:
+        Defaults to 16 per page if page_no is specified and per_page is not specified.
+        If both page_no and per_page are None, then lists all the resources.
+    """
     request_data = dict(
         user_app_id=self.user_app_id,
         module_id=self.id,
-        per_page=self.default_page_size,
     )
-    all_module_versions_info = list(
-        self.list_all_pages_generator(self.STUB.ListModuleVersions,
-                                      service_pb2.ListModuleVersionsRequest, request_data))
+    all_module_versions_info = self.list_pages_generator(
+        self.STUB.ListModuleVersions,
+        service_pb2.ListModuleVersionsRequest,
+        request_data,
+        per_page=per_page,
+        page_no=page_no)
 
     for module_version_info in all_module_versions_info:
       module_version_info['id'] = module_version_info['module_version_id']
       del module_version_info['module_version_id']
-
-    return [
-        Module(module_id=self.id, **dict(self.kwargs, module_version=module_version_info))
-        for module_version_info in all_module_versions_info
-    ]
+      yield Module(module_id=self.id, **dict(self.kwargs, module_version=module_version_info))
 
   def __getattr__(self, name):
     return getattr(self.module_info, name)
