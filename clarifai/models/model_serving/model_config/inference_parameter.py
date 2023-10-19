@@ -70,11 +70,14 @@ class InferParamManager:
     for param in self.params:
       self._dict_params.update({param.path: param})
 
-  def export(self, path: str):
+  def get_list_params(self):
     list_params = []
     for each in self.params:
       list_params.append(each.todict())
+    return list_params
 
+  def export(self, path: str):
+    list_params = self.get_list_params()
     with open(path, "w") as fp:
       json.dump(list_params, fp, indent=2)
 
@@ -82,8 +85,9 @@ class InferParamManager:
     output_kwargs = {k: v.default_value for k, v in self._dict_params.items()}
     assert not (kwargs != {} and self.params == []), "kwargs are rejected since `params` is empty"
     for key, value in kwargs.items():
-      assert key in self._dict_params, f"param `{key}` is not in setting: {list(self._dict_params.keys())}"
-      self._dict_params[key].validate_type(value)
+      #assert key in self._dict_params, f"param `{key}` is not in setting: {list(self._dict_params.keys())}"
+      #if key in self._dict_params:
+      #  self._dict_params[key].validate_type(value)
       output_kwargs.update({key: value})
     return output_kwargs
 

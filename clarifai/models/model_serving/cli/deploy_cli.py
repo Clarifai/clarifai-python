@@ -16,13 +16,15 @@ import argparse
 from clarifai.auth.helper import ClarifaiAuthHelper
 from clarifai.models.api import Models
 from clarifai.models.model_serving.model_config import MODEL_TYPES, get_model_config
+from clarifai.models.model_serving.model_config.inference_parameter import InferParamManager
 
 
 def deploy(model_url,
            model_id: str = None,
            model_type: str = None,
            desc: str = "",
-           update_version: bool = False):
+           update_version: bool = False,
+           inference_params_file: str = ""):
   # init Auth from env vars
   auth = ClarifaiAuthHelper.from_env()
   # init api
@@ -50,6 +52,9 @@ def deploy(model_url,
   # key map
   assert model_type in MODEL_TYPES, f"model_type should be one of {MODEL_TYPES}"
   clarifai_key_map = get_model_config(model_type=model_type).field_maps
+  # inference parameters
+  inference_parameters = InferParamManager(json_path=inference_params_file).get_list_params()
+
   # if updating new version of existing model
   if update_version:
     resp = model_api.post_model_version(
@@ -57,7 +62,7 @@ def deploy(model_url,
         model_zip_url=model_url,
         input=clarifai_key_map.input_fields_map,
         outputs=clarifai_key_map.output_fields_map,
-    )
+        param_specs=inference_parameters)
   # creating new model
   else:
     # post model
@@ -68,13 +73,14 @@ def deploy(model_url,
         input=clarifai_key_map.input_fields_map,
         outputs=clarifai_key_map.output_fields_map,
         description=desc,
-    )
+        param_specs=inference_parameters)
   # response
   if resp["status"]["code"] != "SUCCESS":
     raise Exception("Post models failed, details: {}, {}".format(resp["status"]["description"],
                                                                  resp["status"]["details"]))
   else:
     print("Success!")
+    print(f'Model version: {resp["model"]["model_version"]["id"]}')
 
 
 def main():
@@ -96,13 +102,21 @@ def main():
       action="store_true",
       required=False,
       help="Update exist model with new version")
+
+  parser.add_argument(
+      "--infer_param",
+      required=False,
+      default="",
+      help="Path to json file contains inference parameters")
+
   args = parser.parse_args()
   deploy(
       model_url=args.url,
       model_id=args.model_id,
       desc=args.desc,
       model_type=args.model_type,
-      update_version=args.update_version)
+      update_version=args.update_version,
+      inference_params_file=args.infer_param)
 
 
 if __name__ == "__main__":

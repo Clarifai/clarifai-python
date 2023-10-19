@@ -12,14 +12,23 @@
 # limitations under the License.
 """Interface to Clarifai Models API."""
 
-from typing import Dict, Type
+from typing import Dict, List, Type
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from google.protobuf.json_format import MessageToDict
-from google.protobuf.struct_pb2 import Struct
+from google.protobuf.struct_pb2 import Struct, Value
 
 from clarifai.auth.helper import ClarifaiAuthHelper
 from clarifai.client import create_stub
+
+
+def _make_default_value_proto(dtype, value):
+  if dtype == 1:
+    return Value(bool_value=value)
+  elif dtype == 2:
+    return Value(string_value=value)
+  elif dtype == 3:
+    return Value(number_value=value)
 
 
 class Models:
@@ -126,13 +135,12 @@ class Models:
 
     return MessageToDict(post_models_response, preserving_proto_field_name=True)
 
-  def post_model_version(
-      self,
-      model_id: str,
-      model_zip_url: str,
-      input: dict,
-      outputs: dict,
-  ):
+  def post_model_version(self,
+                         model_id: str,
+                         model_zip_url: str,
+                         input: dict,
+                         outputs: dict,
+                         param_specs: List[dict] = None):
     """Post a new version of an existing model in the Clarifai platform.
 
     Args:
@@ -143,7 +151,7 @@ class Models:
             {clarifai_input_field: triton_input_filed}.
         outputs (dict): a dict where the keys are clarifai output fields and the values are triton model outputs,
             {clarifai_output_field1: triton_output_filed1, clarifai_output_field2: triton_output_filed2,...}.
-
+        param_specs (List[dict]): list of dicts - keys are path, field_type, default_value, description. Default is None
     Returns:
         dict: clarifai api response
     """
@@ -157,6 +165,20 @@ class Models:
 
     input_fields_map = _parse_fields_map(input)
     output_fields_map = _parse_fields_map(outputs)
+    #resources_pb2.ModelTypeField(path="abc", default_value=1, description="test")
+    if param_specs:
+      iterative_proto_params = []
+      for param in param_specs:
+        dtype = param.get("field_type")
+        proto_param = resources_pb2.ModelTypeField(
+            path=param.get("path"),
+            field_type=dtype,
+            default_value=_make_default_value_proto(dtype=dtype, value=param.get("default_value")),
+            description=param.get("description"),
+        )
+        iterative_proto_params.append(proto_param)
+      param_specs = iterative_proto_params
+
     post_model_versions = self.stub.PostModelVersions(
         service_pb2.PostModelVersionsRequest(
             user_app_id=user_data_object,
@@ -166,21 +188,21 @@ class Models:
                     pretrained_model_config=resources_pb2.PretrainedModelConfig(
                         model_zip_url=model_zip_url,
                         input_fields_map=input_fields_map,
-                        output_fields_map=output_fields_map))
+                        output_fields_map=output_fields_map),
+                    output_info=resources_pb2.OutputInfo(params_specs=param_specs))
             ]),
         metadata=self.auth.metadata)
 
     return MessageToDict(post_model_versions, preserving_proto_field_name=True)
 
-  def upload_model(
-      self,
-      model_id: str,
-      model_zip_url: str,
-      input: dict,
-      outputs: dict,
-      model_type: str,
-      description: str = "",
-  ):
+  def upload_model(self,
+                   model_id: str,
+                   model_zip_url: str,
+                   input: dict,
+                   outputs: dict,
+                   model_type: str,
+                   description: str = "",
+                   param_specs: List[dict] = None):
     """Doing 2 requests for initializing and creating version for a new trained model to the Clarifai platform.
 
     Args:
@@ -192,6 +214,7 @@ class Models:
             {clarifai_output_field1: triton_output_filed1, clarifai_output_field2: triton_output_filed2,...}
         model_type (str): Clarifai model type.
         description (str, optional): a description of the model. Defaults to "".
+        param_specs (List[dict]): list of dicts - keys are path, field_type, default_value, description. Default is None
 
     Returns:
         dict: Clarifai api response
@@ -199,7 +222,7 @@ class Models:
     init_resp = self.init_model(model_id, model_type, description)
     if init_resp["status"]["code"] != "SUCCESS":
       return init_resp
-    version_resp = self.post_model_version(model_id, model_zip_url, input, outputs)
+    version_resp = self.post_model_version(model_id, model_zip_url, input, outputs, param_specs)
 
     return version_resp
 
