@@ -60,6 +60,7 @@ class InputConfig:
   name: str
   data_type: int
   dims: List = field(default_factory=list)
+  optional: bool = False
 
 
 @dataclass
@@ -179,6 +180,7 @@ class ModelTypes:
   text_to_image: str = "text-to-image"
   visual_embedder: str = "visual-embedder"
   visual_segmenter: str = "visual-segmenter"
+  multimodal_embedder: str = "multimodal-embedder"
 
   def __post_init__(self):
     self.all = list(asdict(self).values())
@@ -245,7 +247,9 @@ def read_config(cfg: str):
           InputConfig(
               name=input["name"],
               data_type=eval(f"DType.{input['data_type']}"),
-              dims=input["dims"]) for input in input_triton_configs
+              dims=input["dims"],
+              optional=input.get("optional", False),
+          ) for input in input_triton_configs
       ],
       output=[
           OutputConfig(

@@ -16,8 +16,8 @@ per model type.
 """
 
 from functools import wraps
-from typing import Callable
-
+from itertools import zip_longest
+from typing import Callable, Dict
 import numpy as np
 
 try:
@@ -32,7 +32,7 @@ def visual_detector(func: Callable):
   """
 
   @wraps(func)
-  def parse_predictions(self, input_data: np.ndarray):
+  def parse_predictions(self, input_data: np.ndarray, *args, **kwargs):
     """
     Format predictions and return clarifai compatible output.
     """
@@ -40,7 +40,7 @@ def visual_detector(func: Callable):
     out_labels = []
     out_scores = []
     for item in input_data:
-      preds = func(self, item)
+      preds = func(self, item, *args, **kwargs)
       out_bboxes.append(preds.predicted_bboxes)
       out_labels.append(preds.predicted_labels)
       out_scores.append(preds.predicted_scores)
@@ -71,13 +71,13 @@ def visual_classifier(func: Callable):
   """
 
   @wraps(func)
-  def parse_predictions(self, input_data: np.ndarray):
+  def parse_predictions(self, input_data: np.ndarray, *args, **kwargs):
     """
     Format predictions and return clarifai compatible output.
     """
     out_scores = []
     for item in input_data:
-      preds = func(self, item)
+      preds = func(self, item, *args, **kwargs)
       out_scores.append(preds.predicted_scores)
 
     out_tensor_scores = pb_utils.Tensor("softmax_predictions",
@@ -95,14 +95,14 @@ def text_classifier(func: Callable):
   """
 
   @wraps(func)
-  def parse_predictions(self, input_data: np.ndarray):
+  def parse_predictions(self, input_data: np.ndarray, *args, **kwargs):
     """
     Format predictions and return clarifai compatible output.
     """
     out_scores = []
     input_data = [in_elem[0].decode() for in_elem in input_data]
     for item in input_data:
-      preds = func(self, item)
+      preds = func(self, item, *args, **kwargs)
       out_scores.append(preds.predicted_scores)
 
     out_tensor_scores = pb_utils.Tensor("softmax_predictions",
@@ -122,14 +122,14 @@ def text_to_text(func: Callable):
   """
 
   @wraps(func)
-  def parse_predictions(self, input_data: np.ndarray):
+  def parse_predictions(self, input_data: np.ndarray, *args, **kwargs):
     """
     Format predictions and return clarifai compatible output.
     """
     out_text = []
     input_data = [in_elem[0].decode() for in_elem in input_data]
     for item in input_data:
-      preds = func(self, item)
+      preds = func(self, item, *args, **kwargs)
       out_text.append(preds.predicted_text)
 
     out_text_tensor = pb_utils.Tensor("text", np.asarray(out_text, dtype=object))
@@ -147,14 +147,14 @@ def text_embedder(func: Callable):
   """
 
   @wraps(func)
-  def parse_predictions(self, input_data: np.ndarray):
+  def parse_predictions(self, input_data: np.ndarray, *args, **kwargs):
     """
     Format predictions and return clarifai compatible output.
     """
     out_embeddings = []
     input_data = [in_elem[0].decode() for in_elem in input_data]
     for item in input_data:
-      preds = func(self, item)
+      preds = func(self, item, *args, **kwargs)
       out_embeddings.append(preds.embedding_vector)
 
     out_embed_tensor = pb_utils.Tensor("embeddings", np.asarray(out_embeddings, dtype=np.float32))
@@ -172,13 +172,13 @@ def visual_embedder(func: Callable):
   """
 
   @wraps(func)
-  def parse_predictions(self, input_data: np.ndarray):
+  def parse_predictions(self, input_data: np.ndarray, *args, **kwargs):
     """
     Format predictions and return clarifai compatible output.
     """
     out_embeddings = []
     for item in input_data:
-      preds = func(self, item)
+      preds = func(self, item, *args, **kwargs)
       out_embeddings.append(preds.embedding_vector)
 
     out_embed_tensor = pb_utils.Tensor("embeddings", np.asarray(out_embeddings, dtype=np.float32))
@@ -195,13 +195,13 @@ def visual_segmenter(func: Callable):
   """
 
   @wraps(func)
-  def parse_predictions(self, input_data: np.ndarray):
+  def parse_predictions(self, input_data: np.ndarray, *args, **kwargs):
     """
     Format predictions and return clarifai compatible output.
     """
     masks = []
     for item in input_data:
-      preds = func(self, item)
+      preds = func(self, item, *args, **kwargs)
       masks.append(preds.predicted_mask)
 
     out_mask_tensor = pb_utils.Tensor("predicted_mask", np.asarray(masks, dtype=np.int64))
@@ -218,18 +218,47 @@ def text_to_image(func: Callable):
   """
 
   @wraps(func)
-  def parse_predictions(self, input_data: np.ndarray):
+  def parse_predictions(self, input_data: np.ndarray, *args, **kwargs):
     """
     Format predictions and return clarifai compatible output.
     """
     gen_images = []
     input_data = [in_elem[0].decode() for in_elem in input_data]
     for item in input_data:
-      preds = func(self, item)
+      preds = func(self, item, *args, **kwargs)
       gen_images.append(preds.image)
 
     out_image_tensor = pb_utils.Tensor("image", np.asarray(gen_images, dtype=np.uint8))
     inference_response = pb_utils.InferenceResponse(output_tensors=[out_image_tensor])
+
+    return inference_response
+
+  return parse_predictions
+
+
+def multimodal_embedder(func: Callable):
+  """
+  Visual embedder type output parser.
+  Generates embeddings for an input image.
+  """
+
+  @wraps(func)
+  def parse_predictions(self, input_data: Dict[str, np.ndarray], *args, **kwargs):
+    """
+    Format predictions and return clarifai compatible output.
+    """
+    out_embeddings = []
+    for group in zip_longest(*input_data.values()):
+      _input_data = dict(zip(input_data, group))
+      for k, v in _input_data.items():
+        # decode np.object to string
+        if isinstance(v, np.ndarray) and v.dtype == np.object_:
+          _input_data.update({k: v[0].decode()})
+      preds = func(self, _input_data, *args, **kwargs)
+      out_embeddings.append(preds.embedding_vector)
+
+    out_embed_tensor = pb_utils.Tensor("embeddings", np.asarray(out_embeddings, dtype=np.float32))
+    inference_response = pb_utils.InferenceResponse(output_tensors=[out_embed_tensor])
 
     return inference_response
 

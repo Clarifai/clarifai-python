@@ -39,8 +39,8 @@ class Serializer:
     """
     Parse InputConfig object to proto.
     """
-    input_config = self.config_proto.input.add()
     for in_field in self.model_config.input:
+      input_config = self.config_proto.input.add()
       for key, value in in_field.__dict__.items():
         try:
           setattr(input_config, key, value)
