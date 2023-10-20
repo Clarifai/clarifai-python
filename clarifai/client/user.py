@@ -106,7 +106,7 @@ class User(Lister, BaseClient):
     Example:
         >>> from clarifai.client.user import User
         >>> client = User(user_id="user_id")
-        >>> app = client.create_app(app_id="app_id",base_workflow="Universal")
+        >>> app = client.create_app(app_id="app_id",base_workflow="Empty")
     """
     workflow = resources_pb2.Workflow(id=base_workflow, app_id="main", user_id="clarifai")
     request = service_pb2.PostAppsRequest(
