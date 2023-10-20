@@ -99,7 +99,8 @@ class InferParamManager:
 
 def is_number(v: str):
   try:
-    return float(v)
+    _ = float(v)
+    return True
   except ValueError:
     return False
 
