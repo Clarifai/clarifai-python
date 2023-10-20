@@ -97,18 +97,26 @@ class InferParamManager:
     return output_kwargs
 
 
-def str_to_float(v: str):
+def is_number(v: str):
   try:
     return float(v)
-  except Exception:
-    return v
+  except ValueError:
+    return False
+
+
+def str_to_number(v: str):
+  try:
+    return int(v)
+  except ValueError:
+    return float(v)
 
 
 def parse_req_parameters(req_params: str):
   req_params = json.loads(req_params)
   for k, v in req_params.items():
     if isinstance(v, str):
-      v = str_to_float(v)
+      if is_number(v):
+        v = str_to_number(v)
     req_params.update({k: v})
 
   return req_params
