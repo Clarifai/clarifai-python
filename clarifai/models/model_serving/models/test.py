@@ -43,7 +43,7 @@ class CustomTestInferenceModel(DefaultTestInferenceModel):
   # Insert your inference parameters json path here
   # or insert a dictionary of your_parameter_name and value, e.g dict(x=1.5, y="text", c=True)
   # or Leave it as "" if you don't have it.
-  inference_paramters = ""
+  inference_parameters = ""
 
   ########### Initialization. Do not change it ###########
   __test__ = True
@@ -55,7 +55,7 @@ class CustomTestInferenceModel(DefaultTestInferenceModel):
         model_type,
         repo_version_dir=os.path.dirname(__file__),
         is_instance_kind_gpu=True,
-        inference_parameters=self.inference_paramters)
+        inference_parameters=self.inference_parameters)
 
   ########################################################
 

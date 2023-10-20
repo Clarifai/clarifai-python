@@ -25,7 +25,7 @@ from clarifai.client import create_stub
 def _make_default_value_proto(dtype, value):
   if dtype == 1:
     return Value(bool_value=value)
-  elif dtype == 2:
+  elif dtype == 2 or dtype == 21:
     return Value(string_value=value)
   elif dtype == 3:
     return Value(number_value=value)

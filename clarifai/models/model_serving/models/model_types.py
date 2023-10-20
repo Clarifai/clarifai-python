@@ -238,8 +238,8 @@ def text_to_image(func: Callable):
 
 def multimodal_embedder(func: Callable):
   """
-  Visual embedder type output parser.
-  Generates embeddings for an input image.
+  Multimodal embedder type output parser.
+  Generates embeddings for image or text input.
   """
 
   @wraps(func)

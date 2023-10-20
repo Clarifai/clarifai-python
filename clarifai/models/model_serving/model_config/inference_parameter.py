@@ -8,6 +8,7 @@ class InferParamType:
   BOOL: int = 1
   STRING: int = 2
   NUMBER: int = 3
+  ENCRYPTED_STRING: int = 21
 
 
 @dataclass
@@ -26,11 +27,13 @@ class InferParam:
   def validate_type(self, value):
     if self.field_type == InferParamType.BOOL:
       assert isinstance(value, bool), f"`field_type` is `BOOL` (bool), however got {type(value)}"
-    elif self.field_type == InferParamType.STRING:
-      assert isinstance(value, str), f"`field_type` is `STRING` (str), however got {type(value)}"
-    else:
+    elif self.field_type == InferParamType.NUMBER:
       assert isinstance(value, float) or isinstance(
           value, int), f"`field_type` is `NUMBER` (float or int), however got {type(value)}"
+    else:
+      assert isinstance(
+          value,
+          str), f"`field_type` is `STRING` or `ENCRYPTED_STRING` (str), however got {type(value)}"
 
   def todict(self):
     return {k: v for k, v in asdict(self).items()}
@@ -46,7 +49,9 @@ class InferParamManager:
   def from_kwargs(cls, **kwargs):
     params = list()
     for k, v in kwargs.items():
-      if isinstance(v, str):
+      if isinstance(v, str) and k.startswith("_"):
+        _type = InferParamType.ENCRYPTED_STRING
+      elif isinstance(v, str):
         _type = InferParamType.STRING
       elif isinstance(v, bool):
         _type = InferParamType.BOOL
@@ -85,9 +90,9 @@ class InferParamManager:
     output_kwargs = {k: v.default_value for k, v in self._dict_params.items()}
     assert not (kwargs != {} and self.params == []), "kwargs are rejected since `params` is empty"
     for key, value in kwargs.items():
-      #assert key in self._dict_params, f"param `{key}` is not in setting: {list(self._dict_params.keys())}"
-      #if key in self._dict_params:
-      #  self._dict_params[key].validate_type(value)
+      assert key in self._dict_params, f"param `{key}` is not in setting: {list(self._dict_params.keys())}"
+      if key in self._dict_params:
+        self._dict_params[key].validate_type(value)
       output_kwargs.update({key: value})
     return output_kwargs
 
