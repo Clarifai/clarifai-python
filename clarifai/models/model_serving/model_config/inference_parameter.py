@@ -88,7 +88,8 @@ class InferParamManager:
 
   def validate(self, **kwargs) -> dict:
     output_kwargs = {k: v.default_value for k, v in self._dict_params.items()}
-    assert not (kwargs != {} and self.params == []), "kwargs are rejected since `params` is empty"
+    assert kwargs == {} or self.params != [], "kwargs are rejected since `params` is empty"
+
     for key, value in kwargs.items():
       assert key in self._dict_params, f"param `{key}` is not in setting: {list(self._dict_params.keys())}"
       if key in self._dict_params:
