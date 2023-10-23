@@ -91,13 +91,12 @@ class User(Lister, BaseClient):
     for runner_info in all_runners_info:
       yield Runner(check_runner_exists=False, **runner_info)
 
-  def create_app(self, app_id: str, base_workflow: str = 'Language-Understanding',
-                 **kwargs) -> App:
+  def create_app(self, app_id: str, base_workflow: str = 'Empty', **kwargs) -> App:
     """Creates an app for the user.
 
     Args:
         app_id (str): The app ID for the app to create.
-        base_workflow (str): The base workflow to use for the app.(Examples: 'Universal', 'Empty', 'General')
+        base_workflow (str): The base workflow to use for the app.(Examples: 'Universal', 'Language-Understanding', 'General')
         **kwargs: Additional keyword arguments to be passed to the App.
 
     Returns:
@@ -106,7 +105,7 @@ class User(Lister, BaseClient):
     Example:
         >>> from clarifai.client.user import User
         >>> client = User(user_id="user_id")
-        >>> app = client.create_app(app_id="app_id",base_workflow="Empty")
+        >>> app = client.create_app(app_id="app_id",base_workflow="Universal")
     """
     workflow = resources_pb2.Workflow(id=base_workflow, app_id="main", user_id="clarifai")
     request = service_pb2.PostAppsRequest(
