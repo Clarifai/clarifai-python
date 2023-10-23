@@ -91,13 +91,12 @@ class User(Lister, BaseClient):
     for runner_info in all_runners_info:
       yield Runner(check_runner_exists=False, **runner_info)
 
-  def create_app(self, app_id: str, base_workflow: str = 'Language-Understanding',
-                 **kwargs) -> App:
+  def create_app(self, app_id: str, base_workflow: str = 'Empty', **kwargs) -> App:
     """Creates an app for the user.
 
     Args:
         app_id (str): The app ID for the app to create.
-        base_workflow (str): The base workflow to use for the app.(Examples: 'Universal', 'Empty', 'General')
+        base_workflow (str): The base workflow to use for the app.(Examples: 'Universal', 'Language-Understanding', 'General')
         **kwargs: Additional keyword arguments to be passed to the App.
 
     Returns:
