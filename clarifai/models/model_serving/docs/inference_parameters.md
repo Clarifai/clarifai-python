@@ -9,7 +9,7 @@ This document helps you to create your inference parameters that can be visibale
 ### JSON file structure:
 The file contains a list of object has 4 fields:
 * `path` (str): name of your parameter, it must be valid as python variable
-* `field_type` (int): the parameter data type is one of {1,2,21,3}, it means {boolean, string, encrypted_string, number} respectively. `Number` means `int` or `float`. `Encrypted_string` is simple a string can be used to store your secrets like API key...
+* `field_type` (int): the parameter data type is one of {1,2,21,3}, it means {boolean, string, encrypted_string, number} respectively. `Number` means `int` or `float`. "Encrypted_string is a string that can be used to store your secrets, like API key. The API will not return the values for this as plaintext.
 * `default_value`: a default value of the parameter.
 * `description` (str): short sentence describes what the parameter does
 

@@ -48,7 +48,7 @@ class DefaultTestInferenceModel(unittest.TestCase):
 
   def _get_preprocess(self, input):
     """ preprocess if input is image """
-    if "name" in input.name:
+    if "image" in input.name:
       h, w, _ = input.dims
       if h > -1 and w > -1:
         import cv2
