@@ -7,7 +7,7 @@ The predictions from user defined models in the [inference script](../README.md#
 
 Clarifai [model types](../models/model_types.py) are decorator functions that are responsible for passing input batch requests to user defined inference models to get predictions and format the resultant predictions into Triton Inference responses that are sent by the server for each client inference request.
 
-## Supported Model Types:
+## Supported Model Types Wrapper Functions:
 
 - visual_detector
 - visual_classifier
@@ -17,3 +17,4 @@ Clarifai [model types](../models/model_types.py) are decorator functions that ar
 - text_to_image
 - visual_embedder
 - visual_segmenter
+- multimodal_embedder

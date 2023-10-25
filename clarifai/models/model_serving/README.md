@@ -8,14 +8,15 @@ A step by step guide to building your own triton inference model and deploying i
 
 1. Generate a triton model repository via commandline.
 ```console
-$ clarifai-model-upload-init --model_name <Your model name> \
+clarifai-model-upload-init --model_name <Your model name> \
 		--model_type <select model type from available ones> \
 		--repo_dir <directory in which to create your model repository>
 ```
-2. Edit the `requirements.txt` file with dependencies needed to run inference on your model and the `labels.txt` (if available in dir) with the labels your model is to predict.
-3. Add your model loading and inference code inside `inference.py` script of the generated model repository under the `setup()` and `predict()` functions respectively. Refer to  The [Inference Script section]() for a description of this file.
-4. Testing your implementation locally by running `<your_triton_folder>/1/test.py` with basic predefined tests.
-To avoid missing dependencies when deploying, recommend to use conda to create clean environment from [Clarifai base envs](./envs/). Then install everything in `requirements.txt`. Follow instruction inside [test.py](./models/test.py) for implementing custom tests.
+2.  1. Edit the `requirements.txt` file with dependencies needed to run inference on your model and the `labels.txt` (if available in dir) with the labels your model is to predict.
+    2.  Add your model loading and inference code inside `inference.py` script of the generated model repository under the `setup()` and `predict()` functions respectively. Refer to  The [Inference Script section]() for a description of this file.
+    3. Inference parameters (optional): you can define some inference parameters that can be adjusted on model view of Clarifai platform when making prediction. Follow [this doc](./docs/inference_parameters.md) to build the json file.
+3. Testing (Recommend) your implementation locally by running `<your_triton_folder>/1/test.py` with basic predefined tests.
+To avoid missing dependencies when deploying, recommend to use conda to create clean environment. Then install everything in `requirements.txt`. Follow instruction inside [test.py](./models/test.py) for implementing custom tests.
   * Create conda env and install requirements:
 ```bash
 # create env (note: only python version 3.8 is supported currently)
@@ -33,41 +34,43 @@ pip install -r <your_triton_folder>/requirements.txt
   # to see std output
   pytest --log-cli-level=INFO  -s ./your_triton_folder/1/test.py
 ```
-5. Generate a zip of your triton model for deployment via commandline.
+4. Generate a zip of your triton model for deployment via commandline.
 ```console
-$ clarifai-triton-zip --triton_model_repository <path to triton model repository to be compressed> \
+clarifai-triton-zip --triton_model_repository <path to triton model repository to be compressed> \
     --zipfile_name <name of the triton model zip> (Recommended to use 	  <model_name>_<model-type> convention for naming)
 ```
-6. Upload the generated zip to a public file storage service to get a URL to the zip. This URL must be publicly accessible and downloadable as it's necessary for the last step: uploading the model to a Clarifai app.
-7. Set your Clarifai auth credentials as environment variables.
+5. Upload the generated zip to a public file storage service to get a URL to the zip. This URL must be publicly accessible and downloadable as it's necessary for the last step: uploading the model to a Clarifai app.
+6. Set your Clarifai auth credentials as environment variables.
 ```console
-$ export CLARIFAI_USER_ID=<your clarifai user_id>
-$ export CLARIFAI_APP_ID=<your clarifai app_id>
-$ export CLARIFAI_PAT=<your clarifai PAT>
+export CLARIFAI_USER_ID=<your clarifai user_id>
+export CLARIFAI_APP_ID=<your clarifai app_id>
+export CLARIFAI_PAT=<your clarifai PAT>
 ```
-8. Upload your model to Clarifai. Please ensure that your configuration field maps adhere to [this](https://github.com/Clarifai/clarifai-python-utils/blob/main/clarifai/models/model_serving/model_config/deploy.py)
+7. Upload your model to Clarifai. Please ensure that your configuration field maps adhere to [this](https://github.com/Clarifai/clarifai-python-utils/blob/main/clarifai/models/model_serving/model_config/deploy.py)
 ```console
-$ clarifai-upload-model --url <URL to your model zip. Your zip file name is expected to have "zipfile_name" format (in clarifai-triton-zip), if not you need to specify your model_id and model_type> \
+clarifai-upload-model --url <URL to your model zip. Your zip file name is expected to have "zipfile_name" format (in clarifai-triton-zip), if not you need to specify your model_id and model_type> \
     --model_id <Your model ID on the platform> \
     --model_type <Clarifai model types> \
-    --desc <A description of your model>
+    --desc <A description of your model> \
+    --update_version <Optional. Add new version of existing model>  \
+    --infer_param <Optional. Path to json file contains inference parameters>
 ```
 
 * Finally, navigate to your Clarifai app models and check that the deployed model appears. Click it on the model name to go the model versions table to track the status of the model deployment.
 
 ## Triton Model Repository
-
+```diff
     <model_name>/
     ├── config.pbtx
     ├── requirements.txt
     ├── labels.txt (If applicable for given model-type)
-    ├── triton_conda.yaml
-    |
+-   ├── triton_conda.yaml
     └── 1/
         ├── __init__.py
         ├── inference.py
         ├── test.py
         └── model.py
+```
 
 A generated triton model repository looks as illustrated in the directory tree above. Any additional files such as model checkpoints and folders needed at inference time must all be placed under the `1/` directory.
 
@@ -110,7 +113,7 @@ class InferenceModel:
     #self.model: Callable = <load_your_model_here from checkpoint or folder>
 
   #Add relevant model type decorator to the method below (see docs/model_types for ref.)
-  def get_predictions(self, input_data):
+  def get_predictions(self, input_data, **kwargs):
     """
     Main model inference method.
 

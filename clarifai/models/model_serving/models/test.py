@@ -40,16 +40,24 @@ class CustomTestInferenceModel(DefaultTestInferenceModel):
     logger.info(result)
   """
 
-  ########### Initialization. Do not change ###########
+  # Insert your inference parameters json path here
+  # or insert a dictionary of your_parameter_name and value, e.g dict(x=1.5, y="text", c=True)
+  # or Leave it as "" if you don't have it.
+  inference_parameters = ""
+
+  ########### Initialization. Do not change it ###########
   __test__ = True
 
   def setUp(self) -> None:
     logging.info("Initializing...")
     model_type = "clarifai-model-type"  # your model type
     self.intitialize(
-        model_type, repo_version_dir=os.path.dirname(__file__), is_instance_kind_gpu=True)
+        model_type,
+        repo_version_dir=os.path.dirname(__file__),
+        is_instance_kind_gpu=True,
+        inference_parameters=self.inference_parameters)
 
-  #########################################################
+  ########################################################
 
 
 if __name__ == '__main__':
