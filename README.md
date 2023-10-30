@@ -27,7 +27,7 @@ This is the official Python client for interacting with our powerful [API](https
 
 
 
-##Table Of Contents
+## Table Of Contents
 
 **[1. Installation](#installation)**
 **[2. Getting Started](#getting-started)**
@@ -74,15 +74,12 @@ pip3 install -r requirements.txt
 ## Getting started
 Clarifai uses **Personal Access Tokens(PATs)** to validate requests. You can create and manage PATs under your Clarifai account security settings.
 
-[Create PAT:](https://docs.clarifai.com/clarifai-basics/authentication/personal-access-tokens/)
-* ***Log into Portal &rarr; Profile Icon &rarr; Security Settings &rarr; Create Personal Access Token &rarr; Set the scopes &rarr; Confirm***
+* [Create PAT:](https://docs.clarifai.com/clarifai-basics/authentication/personal-access-tokens/) ***Log into Portal &rarr; Profile Icon &rarr; Security Settings &rarr; Create Personal Access Token &rarr; Set the scopes &rarr; Confirm***
+<br />
 
+* [Get User ID:](https://help.clarifai.com/hc/en-us/articles/4408131912727-How-do-I-find-my-user-id-app-id-and-PAT-) ***Log into Portal &rarr; Profile Icon &rarr; Account &rarr; Profile &rarr; User-ID***
 
 Export your PAT as an environment variable. Then, import and initialize the API Client.
-
-[Get User ID:](https://help.clarifai.com/hc/en-us/articles/4408131912727-How-do-I-find-my-user-id-app-id-and-PAT-)
-
-* ***Log into Portal &rarr; Profile Icon &rarr; Account &rarr; Profile &rarr; User-ID***
 
 Set PAT as environment variable through terminal:
 
