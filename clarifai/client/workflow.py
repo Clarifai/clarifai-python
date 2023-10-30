@@ -6,6 +6,7 @@ from clarifai_grpc.grpc.api.resources_pb2 import Input
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
 from clarifai.client.base import BaseClient
+from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
@@ -111,17 +112,13 @@ class Workflow(Lister, BaseClient):
       raise UserError('Invalid bytes.')
 
     if input_type == "image":
-      input_proto = resources_pb2.Input(
-          data=resources_pb2.Data(image=resources_pb2.Image(base64=input_bytes)))
+      input_proto = Inputs().get_input_from_bytes("", image_bytes=input_bytes)
     elif input_type == "text":
-      input_proto = resources_pb2.Input(
-          data=resources_pb2.Data(text=resources_pb2.Text(raw=input_bytes)))
+      input_proto = Inputs().get_input_from_bytes("", text_bytes=input_bytes)
     elif input_type == "video":
-      input_proto = resources_pb2.Input(
-          data=resources_pb2.Data(video=resources_pb2.Video(base64=input_bytes)))
+      input_proto = Inputs().get_input_from_bytes("", video_bytes=input_bytes)
     elif input_type == "audio":
-      input_proto = resources_pb2.Input(
-          data=resources_pb2.Data(audio=resources_pb2.Audio(base64=input_bytes)))
+      input_proto = Inputs().get_input_from_bytes("", audio_bytes=input_bytes)
 
     return self.predict(inputs=[input_proto])
 
@@ -143,16 +140,13 @@ class Workflow(Lister, BaseClient):
       raise UserError('Invalid input type it should be image, text, video or audio.')
 
     if input_type == "image":
-      input_proto = resources_pb2.Input(
-          data=resources_pb2.Data(image=resources_pb2.Image(url=url)))
+      input_proto = Inputs().get_input_from_url("", image_url=url)
     elif input_type == "text":
-      input_proto = resources_pb2.Input(data=resources_pb2.Data(text=resources_pb2.Text(url=url)))
+      input_proto = Inputs().get_input_from_url("", text_url=url)
     elif input_type == "video":
-      input_proto = resources_pb2.Input(
-          data=resources_pb2.Data(video=resources_pb2.Video(url=url)))
+      input_proto = Inputs().get_input_from_url("", video_url=url)
     elif input_type == "audio":
-      input_proto = resources_pb2.Input(
-          data=resources_pb2.Data(audio=resources_pb2.Audio(url=url)))
+      input_proto = Inputs().get_input_from_url("", audio_url=url)
 
     return self.predict(inputs=[input_proto])
 
