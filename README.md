@@ -18,7 +18,7 @@ Clarifai Python SDK</a>
 
 
 
-This is the official Python client for interacting with our powerful [API](https://docs.clarifai.com). The Clarifai Python SDK offers a comprehensive set of tools to integrate Clarifai's AI platform to leverage computer vision capabiities like classification , detection ,segementation and natural language capabilities like classification , summarisation , generation , Q&A ,etc into your applications. With just a few lines of code, you can leverage cutting-edge artificial intelligence to unlock valuable insights from visual and textual content.
+This is the official Python client for interacting with our powerful [API](https://docs.clarifai.com). The Clarifai Python SDK offers a comprehensive set of tools to integrate Clarifai's AI platform to leverage computer vision capabilities like classification , detection ,segementation and natural language capabilities like classification , summarisation , generation , Q&A ,etc into your applications. With just a few lines of code, you can leverage cutting-edge artificial intelligence to unlock valuable insights from visual and textual content.
 
 [Website](https://www.clarifai.com/) | [Demo](https://clarifai.com/demo) | [Signup for a Free Account](https://clarifai.com/signup) | [API Docs](https://docs.clarifai.com/) | [Clarifai Community](https://clarifai.com/explore) | [Python SDK Docs](https://docs.clarifai.com/python-sdk/api-reference) | [Examples](https://github.com/Clarifai/examples) | [Colab Notebooks](https://github.com/Clarifai/colab-notebooks)
 
@@ -29,20 +29,20 @@ This is the official Python client for interacting with our powerful [API](https
 
 ## Table Of Contents
 
-**[1. Installation](#installation)** \
-**[2. Getting Started](#getting-started)** \
-**[3. Interacting with Datasets](#interacting-with-datasets)** \
-**[4. Interacting with Inputs](#interacting-with-inputs)** 
-* [4.1 Input upload](#input-upload)
-* [4.2 Input listing](#input-listing)
+* **[Installation](#installation)** 
+* **[Getting Started](#getting-started)** 
+* **[Interacting with Datasets](#interacting-with-datasets)** 
+* **[Interacting with Inputs](#interacting-with-inputs)**
+  * [Input Upload](#input-upload)
+  * [Input Listing](#input-listing)
 
-**[5. Interacting with Models](#interacting-with-models)**
-* [5.1 Workflow Predict](#workflow-predict)
-* [5.2 Workflow Listing](#workflows-listing)
-* [5.3 Workflow Create](#workflow-create)
-* [5.4 Workflow Export](#workflow-export)
+* **[Interacting with Models](#interacting-with-models)**
+  * [Workflow Predict](#workflow-predict)
+  * [Workflow Listing](#workflows-listing)
+  * [Workflow Create](#workflow-create)
+  * [Workflow Export](#workflow-export)
 
-**[6. More Examples](#more-examples)**
+* **[More Examples](#more-examples)**
 
 
 
@@ -74,7 +74,7 @@ pip3 install -r requirements.txt
 ## Getting started
 Clarifai uses **Personal Access Tokens(PATs)** to validate requests. You can create and manage PATs under your Clarifai account security settings.
 
-* [Create PAT:](https://docs.clarifai.com/clarifai-basics/authentication/personal-access-tokens/) ***Log into Portal &rarr; Profile Icon &rarr; Security Settings &rarr; Create Personal Access Token &rarr; Set the scopes &rarr; Confirm***  
+* [Create PAT:](https://docs.clarifai.com/clarifai-basics/authentication/personal-access-tokens/) ***Log into Portal &rarr; Profile Icon &rarr; Security Settings &rarr; Create Personal Access Token &rarr; Set the scopes &rarr; Confirm***
 
 * [Get User ID:](https://help.clarifai.com/hc/en-us/articles/4408131912727-How-do-I-find-my-user-id-app-id-and-PAT-) ***Log into Portal &rarr; Profile Icon &rarr; Account &rarr; Profile &rarr; User-ID***
 
@@ -123,7 +123,7 @@ Dataset().export(save_path='output.zip', local_archive_path='clarifai-data-proto
 
 ### Interacting with Inputs
 
-#### Input upload
+#### Input Upload
 ```python
 # Note: CLARIFAI_PAT must be set as env variable.
 from clarifai.client.user import User
@@ -140,7 +140,7 @@ input_obj.upload_from_file(input_id = 'demo', video_file='demo.mp4')
 input_obj.upload_text(input_id = 'demo', raw_text = 'This is a test')
 ```
 
-#### Input listing
+#### Input Listing
 ```python
 #listing inputs
 input_generator = input_obj.list_inputs(page_no=1,per_page=10,input_type='image')
