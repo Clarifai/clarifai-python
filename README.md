@@ -29,10 +29,10 @@ This is the official Python client for interacting with our powerful [API](https
 
 ## Table Of Contents
 
-**[1. Installation](#installation)**
-**[2. Getting Started](#getting-started)**
-**[3. Interacting with Datasets](#interacting-with-datasets)**
-**[4. Interacting with Inputs](#interacting-with-inputs)**
+**[1. Installation](#installation)** \
+**[2. Getting Started](#getting-started)** \
+**[3. Interacting with Datasets](#interacting-with-datasets)** \
+**[4. Interacting with Inputs](#interacting-with-inputs)** 
 * [4.1 Input upload](#input-upload)
 * [4.2 Input listing](#input-listing)
 
