@@ -29,9 +29,9 @@ This is the official Python client for interacting with our powerful [API](https
 
 ## Table Of Contents
 
-* **[Installation](#installation)** 
-* **[Getting Started](#getting-started)** 
-* **[Interacting with Datasets](#interacting-with-datasets)** 
+* **[Installation](#installation)**
+* **[Getting Started](#getting-started)**
+* **[Interacting with Datasets](#interacting-with-datasets)**
 * **[Interacting with Inputs](#interacting-with-inputs)**
   * [Input Upload](#input-upload)
   * [Input Listing](#input-listing)
