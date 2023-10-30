@@ -91,6 +91,39 @@ class Search(Lister, BaseClient):
         raise UserError(f"kwargs contain key that is not supported: {key}")
     return resources_pb2.Annotation(data=self.data_proto)
 
+  def _get_input_proto(self, **kwargs):
+    """Get an Input proto message based on keyword arguments.
+
+        Args:
+            **kwargs: Keyword arguments specifying the resource.
+
+        Returns:
+            resources_pb2.Input: An Input proto message.
+        """
+    if not kwargs:
+      return resources_pb2.Input()
+
+    self.input_proto = resources_pb2.Input()
+    self.data_proto = resources_pb2.Data()
+    for key, value in kwargs.items():
+      if key == "input_image":
+        self.data_proto.image.CopyFrom(resources_pb2.Image())
+      elif key == "input_text":
+        self.data_proto.text.CopyFrom(resources_pb2.Text())
+      elif key == "input_audio":
+        self.data_proto.audio.CopyFrom(resources_pb2.Audio())
+      elif key == "input_video":
+        self.data_proto.video.CopyFrom(resources_pb2.Video())
+      elif key == "input_dataset_ids":
+        self.input_proto.dataset_ids = value
+        return self.input_proto
+      elif key == "input_status_code":
+        self.input_proto.status.code = value
+        return self.input_proto
+      else:
+        raise UserError(f"kwargs contain key that is not supported: {key}")
+    return resources_pb2.Input(data=self.data_proto)
+
   def _get_geo_point_proto(self, longitude: float, latitude: float,
                            geo_limit: float) -> resources_pb2.Geo:
     """Get a GeoPoint proto message based on geographical data.
@@ -149,6 +182,24 @@ class Search(Lister, BaseClient):
       self.rank_filter_schema.validate(filters)
     except SchemaError as err:
       raise UserError(f"Invalid rank or filter input: {err}")
+
+    ## Calls PostInpusSearches for input filters
+    if any(["input" in k for k in filters[0].keys()]):
+      filters_input_proto = []
+      for filter_dict in filters:
+        filters_input_proto.append(self._get_input_proto(**filter_dict))
+      all_filters = [
+          resources_pb2.Filter(input=filter_input) for filter_input in filters_input_proto
+      ]
+      request_data = dict(
+          user_app_id=self.user_app_id,
+          searches=[
+              resources_pb2.Search(
+                  query=resources_pb2.Query(filters=all_filters), metric=self.metric_distance)
+          ])
+
+      return self.list_all_pages_generator(self.STUB.PostInpusSearches,
+                                           service_pb2.PostInpusSearchesRequest, request_data)
 
     rank_annot_proto, filters_annot_proto = [], []
     for rank_dict in ranks:
