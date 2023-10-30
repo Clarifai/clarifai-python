@@ -31,12 +31,12 @@ def validate_concepts_length(response):
 
 
 def test_predict_image_url(model):
-  response = model.predict_by_url(DOG_IMAGE_URL)
+  response = model.predict_by_url(DOG_IMAGE_URL, 'image')
   validate_concepts_length(response)
 
 
 def test_predict_filepath(model):
-  response = model.predict_by_filepath(RED_TRUCK_IMAGE_FILE_PATH)
+  response = model.predict_by_filepath(RED_TRUCK_IMAGE_FILE_PATH, 'image')
   validate_concepts_length(response)
 
 
@@ -44,7 +44,7 @@ def test_predict_image_bytes(model):
   with open(RED_TRUCK_IMAGE_FILE_PATH, "rb") as f:
     image_bytes = f.read()
 
-  response = model.predict_by_bytes(image_bytes)
+  response = model.predict_by_bytes(image_bytes, 'image')
   validate_concepts_length(response)
 
 
@@ -57,7 +57,7 @@ def test_predict_image_url_with_selected_concepts():
       user_id=MAIN_APP_USER_ID, app_id=MAIN_APP_ID, model_id=GENERAL_MODEL_ID)
 
   response = model_with_selected_concepts.predict_by_url(
-      DOG_IMAGE_URL, output_config=dict(select_concepts=selected_concepts))
+      DOG_IMAGE_URL, 'image', output_config=dict(select_concepts=selected_concepts))
   concepts = response.outputs[0].data.concepts
 
   assert len(concepts) == 2
@@ -73,7 +73,8 @@ def test_predict_image_url_with_min_value():
       model_id=GENERAL_MODEL_ID,
   )
 
-  response = model_with_min_value.predict_by_url(DOG_IMAGE_URL, output_config=dict(min_value=0.98))
+  response = model_with_min_value.predict_by_url(
+      DOG_IMAGE_URL, 'image', output_config=dict(min_value=0.98))
   assert len(response.outputs[0].data.concepts) > 0
   for c in response.outputs[0].data.concepts:
     assert c.value >= 0.98
@@ -84,7 +85,7 @@ def test_predict_image_url_with_max_concepts():
       user_id=MAIN_APP_USER_ID, app_id=MAIN_APP_ID, model_id=GENERAL_MODEL_ID)
 
   response = model_with_max_concepts.predict_by_url(
-      DOG_IMAGE_URL, output_config=dict(max_concepts=3))
+      DOG_IMAGE_URL, 'image', output_config=dict(max_concepts=3))
   assert len(response.outputs[0].data.concepts) == 3
 
 
@@ -92,11 +93,15 @@ def test_failed_predicts(model):
   # Invalid FilePath
   false_filepath = "false_filepath"
   with pytest.raises(UserError):
-    model.predict_by_filepath(false_filepath)
+    model.predict_by_filepath(false_filepath, 'image')
 
   # Invalid URL
   with pytest.raises(Exception):
-    model.predict_by_url(NON_EXISTING_IMAGE_URL)
+    model.predict_by_url(NON_EXISTING_IMAGE_URL, 'image')
+
+  # Invalid Input Type
+  with pytest.raises(UserError):
+    model.predict_by_url(DOG_IMAGE_URL, 'invalid_input_type')
 
 
 def test_predict_video_url_with_custom_sample_ms():

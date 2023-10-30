@@ -11,7 +11,7 @@ from google.protobuf.struct_pb2 import Struct
 from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
-from clarifai.errors import ApiClientError, UserError
+from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import get_logger
 from clarifai.utils.misc import BackoffIterator
@@ -163,12 +163,14 @@ class Model(Lister, BaseClient):
 
   def predict_by_filepath(self,
                           filepath: str,
+                          input_type: str,
                           inference_params: Dict = {},
                           output_config: Dict = {}):
     """Predicts the model based on the given filepath.
 
     Args:
         filepath (str): The filepath to predict.
+        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -180,8 +182,8 @@ class Model(Lister, BaseClient):
         >>> model = Model("model_url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model_prediction = model.predict_by_filepath('/path/to/image.jpg')
-        >>> model_prediction = model.predict_by_filepath('/path/to/text.txt'])
+        >>> model_prediction = model.predict_by_filepath('/path/to/image.jpg', 'image')
+        >>> model_prediction = model.predict_by_filepath('/path/to/text.txt', 'text')
     """
     if not os.path.isfile(filepath):
       raise UserError('Invalid filepath.')
@@ -189,16 +191,18 @@ class Model(Lister, BaseClient):
     with open(filepath, "rb") as f:
       file_bytes = f.read()
 
-    return self.predict_by_bytes(file_bytes, inference_params, output_config)
+    return self.predict_by_bytes(file_bytes, input_type, inference_params, output_config)
 
   def predict_by_bytes(self,
                        input_bytes: bytes,
+                       input_type: str,
                        inference_params: Dict = {},
                        output_config: Dict = {}):
     """Predicts the model based on the given bytes.
 
     Args:
         input_bytes (bytes): File Bytes to predict on.
+        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -208,19 +212,13 @@ class Model(Lister, BaseClient):
     Example:
         >>> from clarifai.client.model import Model
         >>> model = Model("https://clarifai.com/openai/chat-completion/models/GPT-4")
-        >>> model_prediction = model.predict_by_bytes(b'Write a tweet on future of AI', inference_params=dict(temperature=str(0.7), max_tokens=30)))
+        >>> model_prediction = model.predict_by_bytes(b'Write a tweet on future of AI',
+                                                      input_type='text',
+                                                      inference_params=dict(temperature=str(0.7), max_tokens=30)))
     """
-    try:
-      input_type = next(iter(self.kwargs['model_version']['input_info']['fields_map']))
-    except KeyError:
-      self.load_info()
-      input_type = next(iter(self.kwargs['model_version']['input_info']['fields_map']))
-
-    if len(self.kwargs['model_version']['input_info']['fields_map']) > 1:
-      raise UserError('For MultiModal models, please use `predict` method.')
     if input_type not in {'image', 'text', 'video', 'audio'}:
-      raise ApiClientError(
-          f"Got input type {self.input_type} but expected one of image, text, video, audio.")
+      raise UserError(
+          f"Got input type {input_type} but expected one of image, text, video, audio.")
     if not isinstance(input_bytes, bytes):
       raise UserError('Invalid bytes.')
 
@@ -236,11 +234,16 @@ class Model(Lister, BaseClient):
     return self.predict(
         inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
-  def predict_by_url(self, url: str, inference_params: Dict = {}, output_config: Dict = {}):
+  def predict_by_url(self,
+                     url: str,
+                     input_type: str,
+                     inference_params: Dict = {},
+                     output_config: Dict = {}):
     """Predicts the model based on the given URL.
 
     Args:
         url (str): The URL to predict.
+        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -252,19 +255,11 @@ class Model(Lister, BaseClient):
         >>> model = Model("model_url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model_prediction = model.predict_by_url('url')
+        >>> model_prediction = model.predict_by_url('url', 'image')
     """
-    try:
-      input_type = next(iter(self.kwargs['model_version']['input_info']['fields_map']))
-    except KeyError:
-      self.load_info()
-      input_type = next(iter(self.kwargs['model_version']['input_info']['fields_map']))
-
-    if len(self.kwargs['model_version']['input_info']['fields_map']) > 1:
-      raise UserError('For MultiModal models, please use `predict` method.')
     if input_type not in {'image', 'text', 'video', 'audio'}:
-      raise ApiClientError(
-          f"Got input type {self.input_type} but expected one of image, text, video, audio.")
+      raise UserError(
+          f"Got input type {input_type} but expected one of image, text, video, audio.")
 
     if input_type == "image":
       input_proto = Inputs().get_input_from_url("", image_url=url)
