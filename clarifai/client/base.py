@@ -82,35 +82,22 @@ class BaseClient:
 
     return timestamp_obj
 
-  def process_response_keys(self, old_dict, listing_resource=None):
+  def process_response_keys(self, old_dict, listing_resource):
     """Converts keys in a response dictionary to resource proto format.
 
     Args:
         old_dict (dict): The dictionary to convert.
-        listing_resource (str): The resource type to convert to. Defaults to None.
 
     Returns:
         new_dict (dict): The dictionary with processed keys.
     """
-    if listing_resource:
-      old_dict[f'{listing_resource}_id'] = old_dict['id']
-      old_dict.pop('id')
+    old_dict[f'{listing_resource}_id'] = old_dict['id']
+    old_dict.pop('id')
 
     def convert_recursive(item):
       if isinstance(item, dict):
         new_item = {}
         for key, value in item.items():
-          if key == 'default_value':
-            # Map infer param value to proto value
-            value_map = dict(number_value=None, string_value=None, bool_value=None)
-
-            def map_fn(v):
-              return 'number_value' if isinstance(v, float) or isinstance(v, int) else \
-              'string_value' if isinstance(v, str) else \
-              'bool_value' if isinstance(v, bool) else None
-
-            value_map[map_fn(value)] = value
-            value = struct_pb2.Value(**value_map)
           if key in ['created_at', 'modified_at', 'completed_at']:
             value = self.convert_string_to_timestamp(value)
           elif key in ['workflow_recommended']:
