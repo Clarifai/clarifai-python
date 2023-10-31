@@ -35,7 +35,6 @@ This is the official Python client for interacting with our powerful [API](https
 * **[Interacting with Inputs](#interacting-with-inputs)**
   * [Input Upload](#input-upload)
   * [Input Listing](#input-listing)
-
 * **[Interacting with Models](#interacting-with-models)**
   * [Workflow Predict](#workflow-predict)
   * [Workflow Listing](#workflows-listing)
@@ -50,7 +49,7 @@ This is the official Python client for interacting with our powerful [API](https
 
 
 
-## Installation
+## 🚀 Installation
 
 
 Install from PyPi:
@@ -71,12 +70,12 @@ pip3 install -r requirements.txt
 
 
 
-## Getting started
+## :memo: Getting started
 Clarifai uses **Personal Access Tokens(PATs)** to validate requests. You can create and manage PATs under your Clarifai account security settings.
 
-* [Create PAT:](https://docs.clarifai.com/clarifai-basics/authentication/personal-access-tokens/) ***Log into Portal &rarr; Profile Icon &rarr; Security Settings &rarr; Create Personal Access Token &rarr; Set the scopes &rarr; Confirm***
+* 🔗 [Create PAT:](https://docs.clarifai.com/clarifai-basics/authentication/personal-access-tokens/) ***Log into Portal &rarr; Profile Icon &rarr; Security Settings &rarr; Create Personal Access Token &rarr; Set the scopes &rarr; Confirm***
 
-* [Get User ID:](https://help.clarifai.com/hc/en-us/articles/4408131912727-How-do-I-find-my-user-id-app-id-and-PAT-) ***Log into Portal &rarr; Profile Icon &rarr; Account &rarr; Profile &rarr; User-ID***
+* 🔗 [Get User ID:](https://help.clarifai.com/hc/en-us/articles/4408131912727-How-do-I-find-my-user-id-app-id-and-PAT-) ***Log into Portal &rarr; Profile Icon &rarr; Account &rarr; Profile &rarr; User-ID***
 
 Export your PAT as an environment variable. Then, import and initialize the API Client.
 
@@ -96,7 +95,8 @@ apps_generator = client.list_apps()
 apps = list(apps_generator)
 ```
 
-### Interacting with Datasets
+### 💾 Interacting with Datasets
+Clarifai datasets help in managing datasets used for model training and evaluation. It provides functionalities like creating datasets,uploading datasets and exporting datasets as .zip files. 
 
 ```python
 # Note: CLARIFAI_PAT must be set as env variable.
@@ -121,7 +121,8 @@ Dataset().export(save_path='output.zip', local_archive_path='clarifai-data-proto
 ```
 
 
-### Interacting with Inputs
+### ⌨️ Interacting with Inputs
+You can use ***inputs()*** for adding and interacting with input data. Inputs can be uploaded directly from a URL or a file. You can also view input annotations and concepts.
 
 #### Input Upload
 ```python
@@ -155,8 +156,8 @@ all_concepts = list(app.list_concepts())
 ```
 
 
-### Interacting with Models
-
+### 🥁 Interacting with Models
+Using Clarifai models, you can choose any models  by provding model URL or ID to perform prediction and  list all available models. It is also possible to modify model prediction outcomes by adding threshold. 
 #### Model Predict
 ```python
 # Note: CLARIFAI_PAT must be set as env variable.
@@ -196,7 +197,8 @@ all_llm_community_models = App().list_models(filter_by={"query": "LLM",
 all_llm_community_models = list(all_llm_community_models)
 ```
 
-### Interacting with Workflows
+### 🔥 Interacting with Workflows
+Using ***Workflow()***, you can interact with Calrifai workflows in many ways. It allows prediction and modification of inference thresholds to get desirable results. Creating and exporting of workflows can be done using local ***yaml*** file.
 
 #### Workflow Predict
 ```python
@@ -248,6 +250,6 @@ workflow = Workflow("https://clarifai.com/clarifai/main/workflows/Demographics")
 workflow.export('demographics_workflow.yml')
 ```
 
-## More Examples
+## 📌 More Examples
 See many more code examples in this [repo](https://github.com/Clarifai/examples).
 Also see the official [Python SDK docs](https://clarifai-python.readthedocs.io/en/latest/index.html)
