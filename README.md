@@ -40,7 +40,6 @@ This is the official Python client for interacting with our powerful [API](https
   * [Workflow Listing](#workflows-listing)
   * [Workflow Create](#workflow-create)
   * [Workflow Export](#workflow-export)
-
 * **[More Examples](#more-examples)**
 
 
@@ -96,7 +95,7 @@ apps = list(apps_generator)
 ```
 
 ### 💾 Interacting with Datasets
-Clarifai datasets help in managing datasets used for model training and evaluation. It provides functionalities like creating datasets,uploading datasets and exporting datasets as .zip files. 
+Clarifai datasets help in managing datasets used for model training and evaluation. It provides functionalities like creating datasets,uploading datasets and exporting datasets as .zip files.
 
 ```python
 # Note: CLARIFAI_PAT must be set as env variable.
@@ -157,7 +156,7 @@ all_concepts = list(app.list_concepts())
 
 
 ### 🥁 Interacting with Models
-Using Clarifai models, you can choose any models  by provding model URL or ID to perform prediction and  list all available models. It is also possible to modify model prediction outcomes by adding threshold. 
+Using Clarifai models, you can choose any models  by provding model URL or ID to perform prediction and  list all available models. It is also possible to modify model prediction outcomes by adding threshold.
 #### Model Predict
 ```python
 # Note: CLARIFAI_PAT must be set as env variable.
