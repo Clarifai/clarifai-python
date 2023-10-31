@@ -156,8 +156,8 @@ all_concepts = list(app.list_concepts())
 
 
 ## 🥁 Interacting with Models
-The **Model** Class allows you to perform predictions using Clarifai models. You can specify which model to use by providing the model URL or ID. This gives you flexibility in choosing models. The **App** Class also allows listing of all available Clarifai models for discovery. 
-For greater control over model predictions, you can pass in an `output_config` to modify the model output as demonstrated below. 
+The **Model** Class allows you to perform predictions using Clarifai models. You can specify which model to use by providing the model URL or ID. This gives you flexibility in choosing models. The **App** Class also allows listing of all available Clarifai models for discovery.
+For greater control over model predictions, you can pass in an `output_config` to modify the model output as demonstrated below.
 #### Model Predict
 ```python
 # Note: CLARIFAI_PAT must be set as env variable.
