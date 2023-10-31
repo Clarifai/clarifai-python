@@ -18,14 +18,37 @@ Clarifai Python SDK</a>
 
 
 
-This is the official Python client for interacting with our powerful [API](https://docs.clarifai.com). The Clarifai Python SDK offers a comprehensive set of tools to integrate Clarifai's AI platform to leverage computer vision capabiities like classification , detection ,segementation and natural language capabilities like classification , summarisation , generation , Q&A ,etc into your applications. With just a few lines of code, you can leverage cutting-edge artificial intelligence to unlock valuable insights from visual and textual content.
+This is the official Python client for interacting with our powerful [API](https://docs.clarifai.com). The Clarifai Python SDK offers a comprehensive set of tools to integrate Clarifai's AI platform to leverage computer vision capabilities like classification , detection ,segementation and natural language capabilities like classification , summarisation , generation , Q&A ,etc into your applications. With just a few lines of code, you can leverage cutting-edge artificial intelligence to unlock valuable insights from visual and textual content.
 
 [Website](https://www.clarifai.com/) | [Demo](https://clarifai.com/demo) | [Signup for a Free Account](https://clarifai.com/signup) | [API Docs](https://docs.clarifai.com/) | [Clarifai Community](https://clarifai.com/explore) | [Python SDK Docs](https://docs.clarifai.com/python-sdk/api-reference) | [Examples](https://github.com/Clarifai/examples) | [Colab Notebooks](https://github.com/Clarifai/colab-notebooks)
 
 
 ---
 
-## Installation
+
+
+## Table Of Contents
+
+* **[Installation](#installation)**
+* **[Getting Started](#getting-started)**
+* **[Interacting with Datasets](#interacting-with-datasets)**
+* **[Interacting with Inputs](#interacting-with-inputs)**
+  * [Input Upload](#input-upload)
+  * [Input Listing](#input-listing)
+* **[Interacting with Models](#interacting-with-models)**
+  * [Workflow Predict](#workflow-predict)
+  * [Workflow Listing](#workflows-listing)
+  * [Workflow Create](#workflow-create)
+  * [Workflow Export](#workflow-export)
+* **[More Examples](#more-examples)**
+
+
+
+
+
+
+
+## 🚀 Installation
 
 
 Install from PyPi:
@@ -46,11 +69,16 @@ pip3 install -r requirements.txt
 
 
 
-## Getting started
+## :memo: Getting started
 Clarifai uses **Personal Access Tokens(PATs)** to validate requests. You can create and manage PATs under your Clarifai account security settings.
+
+* 🔗 [Create PAT:](https://docs.clarifai.com/clarifai-basics/authentication/personal-access-tokens/) ***Log into Portal &rarr; Profile Icon &rarr; Security Settings &rarr; Create Personal Access Token &rarr; Set the scopes &rarr; Confirm***
+
+* 🔗 [Get User ID:](https://help.clarifai.com/hc/en-us/articles/4408131912727-How-do-I-find-my-user-id-app-id-and-PAT-) ***Log into Portal &rarr; Profile Icon &rarr; Account &rarr; Profile &rarr; User-ID***
 
 Export your PAT as an environment variable. Then, import and initialize the API Client.
 
+Set PAT as environment variable through terminal:
 
 ```cmd
 export CLARIFAI_PAT={your personal access token}
@@ -66,7 +94,8 @@ apps_generator = client.list_apps()
 apps = list(apps_generator)
 ```
 
-### Interacting with Datasets
+## 💾 Interacting with Datasets
+Clarifai datasets help in managing datasets used for model training and evaluation. It provides functionalities like creating datasets,uploading datasets and exporting datasets as .zip files.
 
 ```python
 # Note: CLARIFAI_PAT must be set as env variable.
@@ -91,9 +120,10 @@ Dataset().export(save_path='output.zip', local_archive_path='clarifai-data-proto
 ```
 
 
-### Interacting with Inputs
+## 💾  Interacting with Inputs
+You can use ***inputs()*** for adding and interacting with input data. Inputs can be uploaded directly from a URL or a file. You can also view input annotations and concepts.
 
-#### Input upload
+#### Input Upload
 ```python
 # Note: CLARIFAI_PAT must be set as env variable.
 from clarifai.client.user import User
@@ -110,7 +140,7 @@ input_obj.upload_from_file(input_id = 'demo', video_file='demo.mp4')
 input_obj.upload_text(input_id = 'demo', raw_text = 'This is a test')
 ```
 
-#### Input listing
+#### Input Listing
 ```python
 #listing inputs
 input_generator = input_obj.list_inputs(page_no=1,per_page=10,input_type='image')
@@ -125,8 +155,9 @@ all_concepts = list(app.list_concepts())
 ```
 
 
-### Interacting with Models
-
+## 🥁 Interacting with Models
+The **Model** Class allows you to perform predictions using Clarifai models. You can specify which model to use by providing the model URL or ID. This gives you flexibility in choosing models. The **App** Class also allows listing of all available Clarifai models for discovery.
+For greater control over model predictions, you can pass in an `output_config` to modify the model output as demonstrated below.
 #### Model Predict
 ```python
 # Note: CLARIFAI_PAT must be set as env variable.
@@ -166,7 +197,9 @@ all_llm_community_models = App().list_models(filter_by={"query": "LLM",
 all_llm_community_models = list(all_llm_community_models)
 ```
 
-### Interacting with Workflows
+## 🔥 Interacting with Workflows
+Workflows offer a versatile framework for constructing the inference pipeline, simplifying the integration of diverse models. You can use the **Workflow** class to create and manage workflows using **YAML** configuration.
+For starting or making quick adjustments to existing Clarifai community workflows using an initial YAML configuration, the SDK provides an export feature.
 
 #### Workflow Predict
 ```python
@@ -218,6 +251,6 @@ workflow = Workflow("https://clarifai.com/clarifai/main/workflows/Demographics")
 workflow.export('demographics_workflow.yml')
 ```
 
-## More Examples
+## 📌 More Examples
 See many more code examples in this [repo](https://github.com/Clarifai/examples).
 Also see the official [Python SDK docs](https://clarifai-python.readthedocs.io/en/latest/index.html)
