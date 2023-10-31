@@ -94,7 +94,7 @@ apps_generator = client.list_apps()
 apps = list(apps_generator)
 ```
 
-### 💾 Interacting with Datasets
+## 💾 Interacting with Datasets
 Clarifai datasets help in managing datasets used for model training and evaluation. It provides functionalities like creating datasets,uploading datasets and exporting datasets as .zip files.
 
 ```python
@@ -120,7 +120,7 @@ Dataset().export(save_path='output.zip', local_archive_path='clarifai-data-proto
 ```
 
 
-### ⌨️ Interacting with Inputs
+## 💾  Interacting with Inputs
 You can use ***inputs()*** for adding and interacting with input data. Inputs can be uploaded directly from a URL or a file. You can also view input annotations and concepts.
 
 #### Input Upload
@@ -155,8 +155,9 @@ all_concepts = list(app.list_concepts())
 ```
 
 
-### 🥁 Interacting with Models
-Using Clarifai models, you can choose any models  by provding model URL or ID to perform prediction and  list all available models. It is also possible to modify model prediction outcomes by adding threshold.
+## 🥁 Interacting with Models
+The **Model** Class allows you to perform predictions using Clarifai models. You can specify which model to use by providing the model URL or ID. This gives you flexibility in choosing models. The **App** Class also allows listing of all available Clarifai models for discovery. 
+For greater control over model predictions, you can pass in an `output_config` to modify the model output as demonstrated below. 
 #### Model Predict
 ```python
 # Note: CLARIFAI_PAT must be set as env variable.
@@ -196,8 +197,9 @@ all_llm_community_models = App().list_models(filter_by={"query": "LLM",
 all_llm_community_models = list(all_llm_community_models)
 ```
 
-### 🔥 Interacting with Workflows
-Using ***Workflow()***, you can interact with Calrifai workflows in many ways. It allows prediction and modification of inference thresholds to get desirable results. Creating and exporting of workflows can be done using local ***yaml*** file.
+## 🔥 Interacting with Workflows
+Workflows offer a versatile framework for constructing the inference pipeline, simplifying the integration of diverse models. You can use the **Workflow** class to create and manage workflows using **YAML** configuration.
+For starting or making quick adjustments to existing Clarifai community workflows using an initial YAML configuration, the SDK provides an export feature.
 
 #### Workflow Predict
 ```python
