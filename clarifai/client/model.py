@@ -147,8 +147,7 @@ class Model(Lister, BaseClient):
     while True:
       response = self._grpc_request(self.STUB.PostModelOutputs, request)
 
-      if response.outputs and \
-        response.outputs[0].status.code == status_code_pb2.MODEL_DEPLOYING and \
+      if response.status.code == status_code_pb2.MODEL_DEPLOYING and \
         time.time() - start_time < 60 * 10: # 10 minutes
         self.logger.info(f"{self.id} model is still deploying, please wait...")
         time.sleep(next(backoff_iterator))
