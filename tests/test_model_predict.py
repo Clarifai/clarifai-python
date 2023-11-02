@@ -134,3 +134,11 @@ def test_text_embed_predict_with_raw_text():
 
   response = clip_embed_model.predict([input_text_proto])
   assert response.outputs[0].data.embeddings[0].num_dimensions == clip_dim
+
+
+def test_model_load_info():
+  clip_embed_model = Model(
+      user_id=MAIN_APP_USER_ID, app_id=MAIN_APP_ID, model_id=CLIP_EMBED_MODEL_ID)
+  assert len(clip_embed_model.kwargs) == 4
+  clip_embed_model.load_info()
+  assert len(clip_embed_model.kwargs) > 10
