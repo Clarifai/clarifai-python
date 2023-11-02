@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import datetime
 
 import pytest
 
@@ -7,17 +8,18 @@ from clarifai.client.app import App
 from clarifai.client.user import User
 from clarifai.constants.search import DEFAULT_TOP_K
 
+NOW = str(int(datetime.now().timestamp()))
 MAIN_APP_ID = "main"
 MAIN_APP_USER_ID = "clarifai"
 GENERAL_MODEL_ID = "general-image-recognition"
 General_Workflow_ID = "General"
 
 CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
-CREATE_APP_ID = "ci_test_app"
-CREATE_MODEL_ID = "ci_test_model"
-CREATE_DATASET_ID = "ci_test_dataset"
-CREATE_MODULE_ID = "ci_test_module"
-CREATE_RUNNER_ID = "ci_test_runner"
+CREATE_APP_ID = f"ci_test_app_{NOW}"
+CREATE_MODEL_ID = f"ci_test_model_{NOW}"
+CREATE_DATASET_ID = f"ci_test_dataset_{NOW}"
+CREATE_MODULE_ID = f"ci_test_module_{NOW}"
+CREATE_RUNNER_ID = f"ci_test_runner_{NOW}"
 
 
 @pytest.fixture

@@ -163,20 +163,28 @@ For greater control over model predictions, you can pass in an `output_config` t
 # Note: CLARIFAI_PAT must be set as env variable.
 from clarifai.client.model import Model
 
-# Model Predict
-model_prediction = Model("https://clarifai.com/anthropic/completion/models/claude-v2").predict_by_bytes(b"Write a tweet on future of AI", "text")
+"""
+Get Model information on details of model(description, usecases..etc) and info on training or
+# other inference parameters(eg: temperature, top_k, max_tokens..etc for LLMs)
+"""
+gpt_4_model = Model("https://clarifai.com/openai/chat-completion/models/GPT-4")
+print(gpt_4_model)
 
-model = Model(user_id="user_id", app_id="app_id", model_id="model_id")
-model_prediction = model.predict_by_url(url="url", input_type="image") # Supports image, text, audio, video
+
+# Model Predict
+model_prediction = Model("https://clarifai.com/anthropic/completion/models/claude-v2").predict_by_bytes(b"Write a tweet on future of AI", input_type="text")
 
 # Customizing Model Inference Output
-model = Model(user_id="user_id", app_id="app_id", model_id="model_id",
-                  output_config={"min_value": 0.98}) # Return predictions having prediction confidence > 0.98
-model_prediction = model.predict_by_filepath(filepath="local_filepath", input_type="text") # Supports image, text, audio, video
+model_prediction = gpt_4_model.predict_by_bytes(b"Write a tweet on future of AI", "text", inference_params=dict(temperature=str(0.7), max_tokens=30))
+# Return predictions having prediction confidence > 0.98
+model_prediction = model.predict_by_filepath(filepath="local_filepath", input_type, output_config={"min_value": 0.98}) # Supports image, text, audio, video
 
-model = Model(user_id="user_id", app_id="app_id", model_id="model_id",
-                    output_config={"sample_ms": 2000}) # Return predictions for specified interval
-model_prediction = model.predict_by_url(url="VIDEO_URL", input_type="video")
+# Supports prediction by url
+model_prediction = model.predict_by_url(url="url", input_type) # Supports image, text, audio, video
+
+# Return predictions for specified interval of video
+video_input_proto = [input_obj.get_input_from_url("Input_id", video_url=BEER_VIDEO_URL)]
+model_prediction = model.predict(video_input_proto, input_type="video", output_config={"sample_ms": 2000})
 ```
 #### Models Listing
 ```python
