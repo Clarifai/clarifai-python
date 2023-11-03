@@ -97,7 +97,9 @@ apps_generator = client.list_apps()
 apps = list(apps_generator)
 ```
 
+
 ## :floppy_disk: Interacting with Datasets
+
 Clarifai datasets help in managing datasets used for model training and evaluation. It provides functionalities like creating datasets,uploading datasets and exporting datasets as .zip files.
 
 ```python
@@ -123,7 +125,9 @@ Dataset().export(save_path='output.zip', local_archive_path='clarifai-data-proto
 ```
 
 
+
 ## :floppy_disk: Interacting with Inputs
+
 You can use ***inputs()*** for adding and interacting with input data. Inputs can be uploaded directly from a URL or a file. You can also view input annotations and concepts.
 
 #### Input Upload
@@ -158,7 +162,9 @@ all_concepts = list(app.list_concepts())
 ```
 
 
+
 ## :brain: Interacting with Models
+
 The **Model** Class allows you to perform predictions using Clarifai models. You can specify which model to use by providing the model URL or ID. This gives you flexibility in choosing models. The **App** Class also allows listing of all available Clarifai models for discovery.
 For greater control over model predictions, you can pass in an `output_config` to modify the model output as demonstrated below.
 #### Model Predict
@@ -166,20 +172,28 @@ For greater control over model predictions, you can pass in an `output_config` t
 # Note: CLARIFAI_PAT must be set as env variable.
 from clarifai.client.model import Model
 
-# Model Predict
-model_prediction = Model("https://clarifai.com/anthropic/completion/models/claude-v2").predict_by_bytes(b"Write a tweet on future of AI", "text")
+"""
+Get Model information on details of model(description, usecases..etc) and info on training or
+# other inference parameters(eg: temperature, top_k, max_tokens..etc for LLMs)
+"""
+gpt_4_model = Model("https://clarifai.com/openai/chat-completion/models/GPT-4")
+print(gpt_4_model)
 
-model = Model(user_id="user_id", app_id="app_id", model_id="model_id")
-model_prediction = model.predict_by_url(url="url", input_type="image") # Supports image, text, audio, video
+
+# Model Predict
+model_prediction = Model("https://clarifai.com/anthropic/completion/models/claude-v2").predict_by_bytes(b"Write a tweet on future of AI", input_type="text")
 
 # Customizing Model Inference Output
-model = Model(user_id="user_id", app_id="app_id", model_id="model_id",
-                  output_config={"min_value": 0.98}) # Return predictions having prediction confidence > 0.98
-model_prediction = model.predict_by_filepath(filepath="local_filepath", input_type="text") # Supports image, text, audio, video
+model_prediction = gpt_4_model.predict_by_bytes(b"Write a tweet on future of AI", "text", inference_params=dict(temperature=str(0.7), max_tokens=30))
+# Return predictions having prediction confidence > 0.98
+model_prediction = model.predict_by_filepath(filepath="local_filepath", input_type, output_config={"min_value": 0.98}) # Supports image, text, audio, video
 
-model = Model(user_id="user_id", app_id="app_id", model_id="model_id",
-                    output_config={"sample_ms": 2000}) # Return predictions for specified interval
-model_prediction = model.predict_by_url(url="VIDEO_URL", input_type="video")
+# Supports prediction by url
+model_prediction = model.predict_by_url(url="url", input_type) # Supports image, text, audio, video
+
+# Return predictions for specified interval of video
+video_input_proto = [input_obj.get_input_from_url("Input_id", video_url=BEER_VIDEO_URL)]
+model_prediction = model.predict(video_input_proto, input_type="video", output_config={"sample_ms": 2000})
 ```
 #### Models Listing
 ```python
@@ -200,7 +214,9 @@ all_llm_community_models = App().list_models(filter_by={"query": "LLM",
 all_llm_community_models = list(all_llm_community_models)
 ```
 
+
 ## :fire: Interacting with Workflows
+
 Workflows offer a versatile framework for constructing the inference pipeline, simplifying the integration of diverse models. You can use the **Workflow** class to create and manage workflows using **YAML** configuration.
 For starting or making quick adjustments to existing Clarifai community workflows using an initial YAML configuration, the SDK provides an export feature.
 
@@ -254,6 +270,8 @@ workflow = Workflow("https://clarifai.com/clarifai/main/workflows/Demographics")
 workflow.export('demographics_workflow.yml')
 ```
 
+
 ## :pushpin: More Examples
+
 See many more code examples in this [repo](https://github.com/Clarifai/examples).
 Also see the official [Python SDK docs](https://clarifai-python.readthedocs.io/en/latest/index.html)
