@@ -3,6 +3,7 @@ import time
 import typing
 
 import pytest
+from google.protobuf import struct_pb2
 
 from clarifai.client.search import Search
 from clarifai.client.user import User
@@ -55,7 +56,42 @@ def get_filters_for_test() -> [(typing.List[typing.Dict], int)]:
                   }]
               }
           ],
-          0)
+          0),
+    (
+        [
+
+                {
+                "metadata": {"Breed": "Saint Bernard"}
+                }
+        ],
+        1),
+
+      # Input Search
+      (
+            [
+                { # AND
+                  "input_types": ["image"],
+                },
+                {
+                  "input_status_code": 30000 # Download Success
+                }
+            ],
+            1),
+      (
+            [
+                {
+                  "input_types": ["text", "audio", "video"],
+                }
+            ],
+            0),
+      (
+            [
+                { # OR
+                  "input_types": ["text", "audio", "video"],
+                  "input_status_code": 30000 # Download Success
+                },
+            ],
+            1)
   ]
 
 
@@ -71,12 +107,14 @@ class TestAnnotationSearch:
   @classmethod
   def upload_input(self):
     inp_obj = self.client.create_app(CREATE_APP_ID, base_workflow="General").inputs()
+    metadata = struct_pb2.Struct()
+    metadata.update({"Breed": "Saint Bernard"})
     input_proto = inp_obj.get_input_from_url(
         input_id="dog-tiff",
         image_url=DOG_IMG_URL,
         labels=["dog"],
-        geo_info=[-30.0, 40.0]  # longitude, latitude
-    )
+        geo_info=[-30.0, 40.0],  # longitude, latitude
+        metadata=metadata)
     inp_obj.upload_inputs([input_proto])
 
   @pytest.mark.parametrize("filter_dict_list,expected_hits", get_filters_for_test())
@@ -127,6 +165,14 @@ class TestAnnotationSearch:
               "value": 1
           }]
       }])
+
+    # Incorrect input type search
+    with pytest.raises(UserError):
+      _ = self.search.query(filters=[{"input_types": ["imaage"]}])
+
+    # Incorrect input search filter key
+    with pytest.raises(UserError):
+      _ = self.search.query(filters=[{"input_id": "test"}])
 
   def teardown_class(cls):
     cls.client.delete_app(app_id=CREATE_APP_ID)
