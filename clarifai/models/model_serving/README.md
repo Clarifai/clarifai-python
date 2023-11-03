@@ -148,10 +148,8 @@ Additional methods can be added to this script's `Infer` class by the user as de
 
 ## Prerequisites
 
-* To test infer with your built triton inference model on your computer/laptop, you need to have the [Triton Inference Server]((https://github.com/triton-inference-server/server/blob/main/docs/customization_guide/build.md#building-with-docker)) installed.
-
 * For deployment to Clarifai, you need a [Clarifai account](https://clarifai.com/signup).
 
-## Notes
+## Testing
 
-* Ability to run inference tests locally with built triton models to be added in later release.
+* Please see https://github.com/Clarifai/clarifai-python/blob/master/clarifai/models/model_serving/models/test.py
