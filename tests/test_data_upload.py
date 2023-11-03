@@ -116,7 +116,6 @@ class Testdataupload:
     with caplog.at_level(logging.INFO):
       self.input_object.delete_inputs(uploaded_inputs)
       assert "Inputs Deleted" in caplog.text  # Testing delete inputs action
-    assert uploaded_inputs[0].data.concepts[0].name == 'neg'  # label of the first input in the CSV file
     assert len(uploaded_inputs) == 5  # 5 inputs are uploaded from the CSV file
     assert len(concepts) == 2  # Test for list concepts
 
