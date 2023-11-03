@@ -178,7 +178,18 @@ class Search(Lister, BaseClient):
     Returns:
         Generator[Dict[str, Any], None, None]: A generator of query results.
 
-    Example: # TODO: Add example
+    Examples:
+        Get successful inputs of type image or text
+        >>> from clarifai.client.search import Search
+        >>> search = Search(user_id='user_id', app_id='app_id', top_k=10, metric='cosine')
+        >>> res = search.query(filters=[{'input_types': ['image', 'text']}, {'input_status_code': 30000}])
+
+        Vector search over inputs
+        >>> from clarifai.client.search import Search
+        >>> search = Search(user_id='user_id', app_id='app_id', top_k=10, metric='cosine')
+        >>> res = search.query(ranks=[{'image_url': 'https://samples.clarifai.com/dog.tiff'}])
+
+    Note: For more detailed search examples, please refer to [examples](https://github.com/Clarifai/examples/tree/main/search).
     """
     try:
       self.rank_filter_schema.validate(ranks)
