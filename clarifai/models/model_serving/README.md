@@ -152,4 +152,4 @@ Additional methods can be added to this script's `Infer` class by the user as de
 
 ## Testing
 
-* Please see https://github.com/Clarifai/clarifai-python/blob/cf6e127a1a83db390f0a51622a5a6d3a5396c026/clarifai/models/model_serving/models/test.py
+* Please see https://github.com/Clarifai/clarifai-python/blob/master/clarifai/models/model_serving/models/test.py
