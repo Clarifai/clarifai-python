@@ -23,15 +23,15 @@ class Search(Lister, BaseClient):
                metric: str = DEFAULT_SEARCH_METRIC):
     """Initialize the Search object.
 
-        Args:
-            user_id (str): User ID.
-            app_id (str): App ID.
-            top_k (int, optional): Top K results to retrieve. Defaults to 10.
-            metric (str, optional): Similarity metric (either 'cosine' or 'euclidean'). Defaults to 'cosine'.
+    Args:
+        user_id (str): User ID.
+        app_id (str): App ID.
+        top_k (int, optional): Top K results to retrieve. Defaults to 10.
+        metric (str, optional): Similarity metric (either 'cosine' or 'euclidean'). Defaults to 'cosine'.
 
-        Raises:
-            UserError: If the metric is not 'cosine' or 'euclidean'.
-        """
+    Raises:
+        UserError: If the metric is not 'cosine' or 'euclidean'.
+    """
     if metric not in ["cosine", "euclidean"]:
       raise UserError("Metric should be either cosine or euclidean")
 
@@ -48,12 +48,12 @@ class Search(Lister, BaseClient):
   def _get_annot_proto(self, **kwargs):
     """Get an Annotation proto message based on keyword arguments.
 
-        Args:
-            **kwargs: Keyword arguments specifying the resource.
+    Args:
+        **kwargs: Keyword arguments specifying the resource.
 
-        Returns:
-            resources_pb2.Annotation: An Annotation proto message.
-        """
+    Returns:
+        resources_pb2.Annotation: An Annotation proto message.
+    """
     if not kwargs:
       return resources_pb2.Annotation()
 
@@ -94,48 +94,49 @@ class Search(Lister, BaseClient):
   def _get_input_proto(self, **kwargs):
     """Get an Input proto message based on keyword arguments.
 
-        Args:
-            **kwargs: Keyword arguments specifying the resource.
+    Args:
+        **kwargs: Keyword arguments specifying the resource.
 
-        Returns:
-            resources_pb2.Input: An Input proto message.
-        """
+    Returns:
+        resources_pb2.Input: An Input proto message.
+    """
     if not kwargs:
       return resources_pb2.Input()
 
     self.input_proto = resources_pb2.Input()
     self.data_proto = resources_pb2.Data()
     for key, value in kwargs.items():
-      if key == "input_image":
-        self.data_proto.image.CopyFrom(resources_pb2.Image())
-      elif key == "input_text":
-        self.data_proto.text.CopyFrom(resources_pb2.Text())
-      elif key == "input_audio":
-        self.data_proto.audio.CopyFrom(resources_pb2.Audio())
-      elif key == "input_video":
-        self.data_proto.video.CopyFrom(resources_pb2.Video())
+      if key == "input_types":
+        for input_type in value:
+          if input_type == "image":
+            self.data_proto.image.CopyFrom(resources_pb2.Image())
+          elif input_type == "text":
+            self.data_proto.text.CopyFrom(resources_pb2.Text())
+          elif input_type == "audio":
+            self.data_proto.audio.CopyFrom(resources_pb2.Audio())
+          elif input_type == "video":
+            self.data_proto.video.CopyFrom(resources_pb2.Video())
+        self.input_proto.data.CopyFrom(self.data_proto)
       elif key == "input_dataset_ids":
         self.input_proto.dataset_ids = value
-        return self.input_proto
       elif key == "input_status_code":
         self.input_proto.status.code = value
-        return self.input_proto
       else:
         raise UserError(f"kwargs contain key that is not supported: {key}")
-    return resources_pb2.Input(data=self.data_proto)
+    return self.input_proto
 
   def _get_geo_point_proto(self, longitude: float, latitude: float,
                            geo_limit: float) -> resources_pb2.Geo:
     """Get a GeoPoint proto message based on geographical data.
 
-        Args:
-            longitude (float): Longitude coordinate.
-            latitude (float): Latitude coordinate.
-            geo_limit (float): Geographical limit.
+    Args:
+        longitude (float): Longitude coordinate.
+        latitude (float): Latitude coordinate.
+        geo_limit (float): Geographical limit.
 
-        Returns:
-            resources_pb2.Geo: A Geo proto message.
-        """
+    Returns:
+        resources_pb2.Geo: A Geo proto message.
+    """
     return resources_pb2.Geo(
         geo_point=resources_pb2.GeoPoint(longitude=longitude, latitude=latitude),
         geo_limit=resources_pb2.GeoLimit(type="withinKilometers", value=geo_limit))
@@ -170,20 +171,22 @@ class Search(Lister, BaseClient):
   def query(self, ranks=[{}], filters=[{}]):
     """Perform a query with rank and filters.
 
-        Args:
-            ranks (List[Dict], optional): List of rank parameters. Defaults to [{}].
-            filters (List[Dict], optional): List of filter parameters. Defaults to [{}].
+    Args:
+        ranks (List[Dict], optional): List of rank parameters. Defaults to [{}].
+        filters (List[Dict], optional): List of filter parameters. Defaults to [{}].
 
-        Returns:
-            Generator[Dict[str, Any], None, None]: A generator of query results.
-        """
+    Returns:
+        Generator[Dict[str, Any], None, None]: A generator of query results.
+
+    Example: # TODO: Add example
+    """
     try:
       self.rank_filter_schema.validate(ranks)
       self.rank_filter_schema.validate(filters)
     except SchemaError as err:
       raise UserError(f"Invalid rank or filter input: {err}")
 
-    ## Calls PostInpusSearches for input filters
+    ## Calls PostInputsSearches for input filters
     if any(["input" in k for k in filters[0].keys()]):
       filters_input_proto = []
       for filter_dict in filters:
@@ -198,9 +201,10 @@ class Search(Lister, BaseClient):
                   query=resources_pb2.Query(filters=all_filters), metric=self.metric_distance)
           ])
 
-      return self.list_all_pages_generator(self.STUB.PostInpusSearches,
-                                           service_pb2.PostInpusSearchesRequest, request_data)
+      return self.list_all_pages_generator(self.STUB.PostInputsSearches,
+                                           service_pb2.PostInputsSearchesRequest, request_data)
 
+    # Calls PostAnnotationsSearches for annotation ranks, filters
     rank_annot_proto, filters_annot_proto = [], []
     for rank_dict in ranks:
       rank_annot_proto.append(self._get_annot_proto(**rank_dict))
