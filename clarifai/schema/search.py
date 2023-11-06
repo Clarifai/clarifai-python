@@ -54,6 +54,15 @@ def get_schema() -> Schema:
       },
       Optional("concepts"):
           And(list, lambda x: all(concept_schema.is_valid(item) and len(item) > 0 for item in x)),
+
+      ## input filters
+      Optional('input_types'):
+          And(list, lambda input_types: all(input_type in ('image', 'video', 'text', 'audio')
+                                            for input_type in input_types)),
+      Optional('input_dataset_ids'):
+          list,
+      Optional('input_status_code'):
+          int,
   })
 
   # Schema for rank and filter args
