@@ -1,7 +1,7 @@
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
-from typing import List, Tuple, TypeVar, Union
+from typing import Generator, List, Tuple, TypeVar, Union
 
 import requests
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -21,6 +21,7 @@ from clarifai.datasets.upload.text import TextClassificationDataset
 from clarifai.datasets.upload.utils import load_dataloader, load_module_dataloader
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
+from clarifai.utils.logging import get_logger
 from clarifai.utils.misc import Chunker
 
 ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset,
@@ -58,8 +59,104 @@ class Dataset(Lister, BaseClient):
     self.chunk_size = 128  # limit max protos in a req
     self.task = None  # Upload dataset type
     self.input_object = Inputs(user_id=self.user_id, app_id=self.app_id)
+    self.logger = get_logger(logger_level="INFO")
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
     Lister.__init__(self)
+
+  def create_version(self, **kwargs) -> 'Dataset':
+    """Creates a dataset version for the Dataset.
+
+    Args:
+        **kwargs: Additional keyword arguments to be passed to Dataset Version.
+          - description (str): The description of the dataset version.
+          - metadata (dict): The metadata of the dataset version.
+
+    Returns:
+        Dataset: A Dataset object for the specified dataset ID.
+
+    Example:
+        >>> from clarifai.client.dataset import Dataset
+        >>> dataset = Dataset(dataset_id='dataset_id', user_id='user_id', app_id='app_id')
+        >>> dataset_version = dataset.create_dataset_version(description='dataset_version_description')
+    """
+    request = service_pb2.PostDatasetVersionsRequest(
+        user_app_id=self.user_app_id,
+        dataset_id=self.id,
+        dataset_versions=[resources_pb2.DatasetVersion(**kwargs)])
+
+    response = self._grpc_request(self.STUB.PostDatasetVersions, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nDataset Version created\n%s", response.status)
+    kwargs.update({
+        'dataset_id': self.id,
+        'app_id': self.app_id,
+        'user_id': self.user_id,
+        'version': response.dataset_versions[0]
+    })
+    return Dataset(**kwargs)
+
+  def delete_version(self, version_id: str) -> None:
+    """Deletes a dataset version for the Dataset.
+
+    Args:
+        version_id (str): The version ID to delete.
+
+    Example:
+        >>> from clarifai.client.dataset import Dataset
+        >>> dataset = Dataset(dataset_id='dataset_id', user_id='user_id', app_id='app_id')
+        >>> dataset.delete_version(version_id='version_id')
+    """
+    request = service_pb2.DeleteDatasetVersionsRequest(
+        user_app_id=self.user_app_id, dataset_id=self.id, dataset_version_ids=[version_id])
+
+    response = self._grpc_request(self.STUB.DeleteDatasetVersions, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nDataset Version Deleted\n%s", response.status)
+
+  def list_versions(self, page_no: int = None,
+                    per_page: int = None) -> Generator['Dataset', None, None]:
+    """Lists all the versions for the dataset.
+
+    Args:
+        page_no (int): The page number to list.
+        per_page (int): The number of items per page.
+
+    Yields:
+        Dataset: Dataset objects for the versions of the dataset.
+
+    Example:
+        >>> from clarifai.client.dataset import Dataset
+        >>> dataset = Dataset(dataset_id='dataset_id', user_id='user_id', app_id='app_id')
+        >>> all_dataset_versions = list(dataset.list_versions())
+
+    Note:
+        Defaults to 16 per page if page_no is specified and per_page is not specified.
+        If both page_no and per_page are None, then lists all the resources.
+    """
+    request_data = dict(
+        user_app_id=self.user_app_id,
+        dataset_id=self.id,
+    )
+    all_dataset_versions_info = self.list_pages_generator(
+        self.STUB.ListDatasetVersions,
+        service_pb2.ListDatasetVersionsRequest,
+        request_data,
+        per_page=per_page,
+        page_no=page_no)
+
+    for dataset_version_info in all_dataset_versions_info:
+      dataset_version_info['id'] = dataset_version_info['dataset_version_id']
+      del dataset_version_info['dataset_version_id']
+      del dataset_version_info['metrics']
+      kwargs = {
+          'dataset_id': self.id,
+          'app_id': self.app_id,
+          'user_id': self.user_id,
+          'version': resources_pb2.DatasetVersion(**dataset_version_info)
+      }
+      yield Dataset(**kwargs)
 
   def _concurrent_annot_upload(self, annots: List[List[resources_pb2.Annotation]]
                               ) -> Union[List[resources_pb2.Annotation], List[None]]:

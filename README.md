@@ -37,6 +37,7 @@ This is the official Python client for interacting with our powerful [API](https
   * [Input Listing](#input-listing)
 * **[Interacting with Models](#brain-interacting-with-models)**
   * [Model Predict](#model-predict)
+  * [Model Training](#model-training)
   * [Model Listing](#models-listing)
 * **[Interacting with Workflows](#fire-interacting-with-workflows)**
   * [Workflow Predict](#workflow-predict)
@@ -195,6 +196,44 @@ model_prediction = model.predict_by_url(url="url", input_type) # Supports image,
 video_input_proto = [input_obj.get_input_from_url("Input_id", video_url=BEER_VIDEO_URL)]
 model_prediction = model.predict(video_input_proto, input_type="video", output_config={"sample_ms": 2000})
 ```
+#### Model Training
+```python
+# Note: CLARIFAI_PAT must be set as env variable.
+from clarifai.client.app import App
+from clarifai.client.model import Model
+
+"""
+Create model with trainable model_type
+"""
+app = App(user_id="user_id", app_id="app_id")
+model = app.create_model(model_id="model_id", model_type_id="visual-classifier")
+               (or)
+model = Model('url')
+
+"""
+List training templates for the model_type
+"""
+templates = model.list_training_templates()
+print(templates)
+
+"""
+Get parameters for the model.
+"""
+params = model.get_params(template='classification_basemodel_v1', yaml_file='model_params.yaml'
+)
+
+"""
+Update the model params yaml and pass it to model.train()
+"""
+model_version_id = model.train('model_params.yaml')
+
+"""
+Training status and saving logs
+"""
+status = model.training_status(version_id=model_version_id,training_logs=True)
+print(status)
+```
+
 #### Models Listing
 ```python
 # Note: CLARIFAI_PAT must be set as env variable.

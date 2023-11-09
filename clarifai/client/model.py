@@ -1,7 +1,9 @@
 import os
 import time
-from typing import Dict, Generator, List
+from typing import Any, Dict, Generator, List
 
+import requests
+import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import Input
 from clarifai_grpc.grpc.api.status import status_code_pb2
@@ -15,6 +17,14 @@ from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import get_logger
 from clarifai.utils.misc import BackoffIterator
+from clarifai.utils.model_train import (find_and_replace_key, params_parser,
+                                        response_to_model_params, response_to_param_info,
+                                        response_to_templates)
+
+TRAINABLE_MODEL_TYPES = [
+    'visual-classifier', 'visual-detector', 'visual-segmenter', 'visual-anomaly-heatmap',
+    'visual-embedder', 'clusterer', 'text-classifier', 'embedding-classifier', 'text-to-text'
+]
 
 
 class Model(Lister, BaseClient):
@@ -47,10 +57,243 @@ class Model(Lister, BaseClient):
     self.kwargs = {**kwargs, 'id': model_id, 'model_version': model_version,}
     self.model_info = resources_pb2.Model(**self.kwargs)
     self.logger = get_logger(logger_level="INFO")
+    self.training_params = {}
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
     Lister.__init__(self)
 
-  def create_model_version(self, **kwargs) -> 'Model':
+  def list_training_templates(self) -> List[str]:
+    """Lists all the training templates for the model type.
+
+    Returns:
+        templates (List): List of training templates for the model type.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+        >>> model.list_training_templates()
+    """
+    if not self.model_info.model_type_id:
+      self.load_info()
+    if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
+      raise UserError(f"Model type {self.model_info.model_type_id} is not trainable")
+    request = service_pb2.ListModelTypesRequest(user_app_id=self.user_app_id,)
+    response = self._grpc_request(self.STUB.ListModelTypes, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    templates = response_to_templates(
+        response=response, model_type_id=self.model_info.model_type_id)
+
+    return templates
+
+  def get_params(self, template: str = None, yaml_file: str = 'params.yaml') -> Dict[str, Any]:
+    """Returns the model params for the model type and yaml file.
+
+    Args:
+        template (str): The template to use for the model type.
+        yaml_file (str): The yaml file to save the model params.
+
+    Returns:
+        params (Dict): Dictionary of model params for the model type.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+        >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
+    """
+    if not self.model_info.model_type_id:
+      self.load_info()
+    if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
+      raise UserError(f"Model type {self.model_info.model_type_id} is not trainable")
+    if template is None and self.model_info.model_type_id not in [
+        "clusterer", "embedding-classifier"
+    ]:
+      raise UserError(
+          f"Template should be provided for {self.model_info.model_type_id} model type")
+    if template is not None and self.model_info.model_type_id in [
+        "clusterer", "embedding-classifier"
+    ]:
+      raise UserError(
+          f"Template should not be provided for {self.model_info.model_type_id} model type")
+
+    request = service_pb2.ListModelTypesRequest(user_app_id=self.user_app_id,)
+    response = self._grpc_request(self.STUB.ListModelTypes, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    params = response_to_model_params(
+        response=response, model_type_id=self.model_info.model_type_id, template=template)
+    #yaml file
+    with open(yaml_file, 'w') as f:
+      yaml.dump(params, f, default_flow_style=False, sort_keys=False)
+    #updating the global model params
+    self.training_params.update(params)
+
+    return params
+
+  def update_params(self, **kwargs) -> None:
+    """Updates the model params for the model.
+
+    Args:
+        **kwargs: model params to update.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+        >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
+        >>> model.update_params({param1:value1, param2:value2})
+    """
+    if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
+      raise UserError(f"Model type {self.model_info.model_type_id} is not trainable")
+    if len(self.training_params) == 0:
+      raise UserError(
+          f"Run 'model.get_params' to get the params for the {self.model_info.model_type_id} model type"
+      )
+
+    all_keys = [key for key in self.training_params.keys()] + [
+        key for key in self.training_params.values() if isinstance(key, dict) for key in key
+    ]
+    if not set(kwargs.keys()).issubset(all_keys):
+      raise UserError("Invalid params")
+
+    for key, value in kwargs.items():
+      find_and_replace_key(self.training_params, key, value)
+
+  def get_param_info(self, param: str) -> Dict[str, Any]:
+    """Returns the param info for the param.
+
+    Args:
+        param (str): The param to get the info for.
+
+    Returns:
+        param_info (Dict): Dictionary of model param info for the param.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+        >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
+        >>> model.get_param_info('param')
+    """
+    if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
+      raise UserError(f"Model type {self.model_info.model_type_id} is not trainable")
+    if len(self.training_params) == 0:
+      raise UserError(
+          f"Run 'model.get_params' to get the params for the {self.model_info.model_type_id} model type"
+      )
+
+    all_keys = [key for key in self.training_params.keys()] + [
+        key for key in self.training_params.values() if isinstance(key, dict) for key in key
+    ]
+    if param not in all_keys:
+      raise UserError(f"Invalid param: '{param}' for model type '{self.model_info.model_type_id}'")
+    template = self.training_params['train_params']['template'] if 'template' in all_keys else None
+
+    request = service_pb2.ListModelTypesRequest(user_app_id=self.user_app_id,)
+    response = self._grpc_request(self.STUB.ListModelTypes, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    param_info = response_to_param_info(
+        response=response,
+        model_type_id=self.model_info.model_type_id,
+        param=param,
+        template=template)
+
+    return param_info
+
+  def train(self, yaml_file: str = None) -> str:
+    """Trains the model based on the given yaml file or model params.
+
+    Args:
+        yaml_file (str): The yaml file for the model params.
+
+    Returns:
+        model_version_id (str): The model version ID for the model.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+        >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
+        >>> model.train('model_params.yaml')
+    """
+    if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
+      raise UserError(f"Model type {self.model_info.model_type_id} is not trainable")
+    if not yaml_file and len(self.training_params) == 0:
+      raise UserError("Provide yaml file or run 'model.get_params()'")
+
+    if yaml_file:
+      with open(yaml_file, 'r') as file:
+        params_dict = yaml.safe_load(file)
+    else:
+      params_dict = self.training_params
+
+    train_dict = params_parser(params_dict)
+    request = service_pb2.PostModelVersionsRequest(
+        user_app_id=self.user_app_id,
+        model_id=self.id,
+        model_versions=[resources_pb2.ModelVersion(**train_dict)])
+    response = self._grpc_request(self.STUB.PostModelVersions, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nModel Training Started\n%s", response.status)
+
+    return response.model.model_version.id
+
+  def training_status(self, version_id: str, training_logs: bool = False) -> Dict[str, str]:
+    """Returns the training status for the model version.
+
+    Args:
+        version_id (str): The version ID to get the training status for.
+        training_logs (bool): Whether to save the training logs in a file.
+
+    Returns:
+        training_status (Dict): Dictionary of training status for the model version.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+        >>> model.training_status(version_id='version_id',training_logs=True)
+    """
+    if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
+      raise UserError(f"Model type {self.model_info.model_type_id} is not trainable")
+
+    request = service_pb2.GetModelVersionRequest(
+        user_app_id=self.user_app_id, model_id=self.id, version_id=version_id)
+    response = self._grpc_request(self.STUB.GetModelVersion, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+
+    if training_logs:
+      try:
+        if response.model_version.train_log:
+          log_response = requests.get(response.model_version.train_log)
+          log_response.raise_for_status()  # Check for any HTTP errors
+          with open(version_id + '.log', 'wb') as file:
+            file.write(log_response.content)
+          self.logger.info(f"\nTraining logs are saving in '{version_id+'.log'}' file")
+
+      except requests.exceptions.RequestException as e:
+        raise Exception(f"An error occurred while getting training logs: {e}")
+
+    return response.model_version.status
+
+  def delete_version(self, version_id: str) -> None:
+    """Deletes a model version for the Model.
+
+    Args:
+        version_id (str): The version ID to delete.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+        >>> model.delete_version(version_id='version_id')
+    """
+    request = service_pb2.DeleteModelVersionRequest(
+        user_app_id=self.user_app_id, model_id=self.id, version_id=version_id)
+
+    response = self._grpc_request(self.STUB.DeleteModelVersion, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nModel Version Deleted\n%s", response.status)
+
+  def create_version(self, **kwargs) -> 'Model':
     """Creates a model version for the Model.
 
     Args:
@@ -67,8 +310,13 @@ class Model(Lister, BaseClient):
         >>> model = Model("model_url")
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model_version = model.create_model_version(description='model_version_description')
+        >>> model_version = model.create_version(description='model_version_description')
     """
+    if self.model_info.model_type_id in TRAINABLE_MODEL_TYPES:
+      raise UserError(
+          f"{self.model_info.model_type_id} is a trainable model type. Use 'model.train()' to train the model"
+      )
+
     request = service_pb2.PostModelVersionsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
@@ -121,6 +369,10 @@ class Model(Lister, BaseClient):
     for model_version_info in all_model_versions_info:
       model_version_info['id'] = model_version_info['model_version_id']
       del model_version_info['model_version_id']
+      try:
+        del model_version_info['train_info']['dataset']['version']['metrics']
+      except KeyError:
+        pass
       yield Model(model_id=self.id, **dict(self.kwargs, model_version=model_version_info))
 
   def predict(self, inputs: List[Input], inference_params: Dict = {}, output_config: Dict = {}):
