@@ -1,6 +1,6 @@
 import os
 import uuid
-from typing import Any, Dict, Generator
+from typing import Any, Dict, Generator, List
 
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -16,6 +16,7 @@ from clarifai.client.model import Model
 from clarifai.client.module import Module
 from clarifai.client.search import Search
 from clarifai.client.workflow import Workflow
+from clarifai.constants.model import TRAINABLE_MODEL_TYPES
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import display_workflow_tree, get_logger
@@ -268,6 +269,18 @@ class App(Lister, BaseClient):
       concept_info['id'] = concept_info.pop('concept_id')
       yield Concept(**concept_info)
 
+  def list_trainable_model_types(self) -> List[str]:
+    """Lists all the trainable model types.
+
+    Returns:
+        templates (List): List all the trainable model types.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> print(app.list_trainable_model_types())
+    """
+    return TRAINABLE_MODEL_TYPES
+
   def create_dataset(self, dataset_id: str, **kwargs) -> Dataset:
     """Creates a dataset for the app.
 
@@ -314,7 +327,11 @@ class App(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nModel created\n%s", response.status)
-    kwargs.update({'app_id': self.id, 'user_id': self.user_id})
+    kwargs.update({
+        'app_id': self.id,
+        'user_id': self.user_id,
+        'model_type_id': response.model.model_type_id
+    })
 
     return Model(model_id=model_id, **kwargs)
 
@@ -361,7 +378,7 @@ class App(Lister, BaseClient):
           model = self.create_model(
               **{k: v
                  for k, v in node['model'].items() if k != 'output_info'})
-          model_version = model.create_model_version(output_info=output_info)
+          model_version = model.create_version(output_info=output_info)
           all_models.append(model_version.model_info)
           continue
 
@@ -370,7 +387,7 @@ class App(Lister, BaseClient):
           model.model_info, node["model"]):
         all_models.append(model.model_info)
       else:  # Create a new model version
-        model = model.create_model_version(output_info=output_info)
+        model = model.create_version(output_info=output_info)
         all_models.append(model.model_info)
 
     # Convert nodes to resources_pb2.WorkflowNodes.
@@ -459,7 +476,7 @@ class App(Lister, BaseClient):
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
     kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
                                         list(dict_response.keys())[1])
-
+    kwargs['version'] = response.dataset.version if response.dataset.version else None
     return Dataset(**kwargs)
 
   def model(self, model_id: str, model_version_id: str = "", **kwargs) -> Model:
@@ -493,6 +510,9 @@ class App(Lister, BaseClient):
       raise Exception(response.status)
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
     kwargs = self.process_response_keys(dict_response['model'], 'model')
+    kwargs[
+        'model_version'] = response.model.model_version if response.model.model_version else None
+
     return Model(**kwargs)
 
   def workflow(self, workflow_id: str, **kwargs) -> Workflow:
