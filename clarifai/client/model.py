@@ -66,7 +66,7 @@ class Model(Lister, BaseClient):
     Example:
         >>> from clarifai.client.model import Model
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> print(odel.list_training_templates())
+        >>> print(model.list_training_templates())
     """
     if not self.model_info.model_type_id:
       self.load_info()
