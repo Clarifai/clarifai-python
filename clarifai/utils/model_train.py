@@ -32,12 +32,15 @@ def response_to_model_params(response: MultiModelTypeResponse,
 
   for model_type in dict_response['modelTypes']:
     if model_type['id'] == model_type_id:
+      #iterate through the model type fields
       for modeltypefield in model_type['modelTypeFields']:
         _path = modeltypefield['path'].split('.')
+        #removing the fields which are not required
         if (_path[0] in ["'eval_info'"]) or (_path[1] in ["dataset", "data"]) or (_path[-1] in [
             "dataset_id", "dataset_version_id"
         ]):
           continue
+        #checking the template model type fields
         if _path[-1] != "template":
           if _path[0] == 'train_info' or _path[0] == 'input_info':
             try:
@@ -58,8 +61,10 @@ def response_to_model_params(response: MultiModelTypeResponse,
               raise ValueError(f"Invalid template {template} for model type {model_type_id}. "
                                f"Valid templates are {all_templates}")
             for modeltypeenum in modeltypefield['modelTypeEnumOptions']:
+              #finding the given template
               if modeltypeenum['id'] == template:
                 params['train_params']["template"] = modeltypeenum['id']
+                #iterate through the template fields
                 for modeltypeenumfield in modeltypeenum['modelTypeFields']:
                   try:
                     params["train_params"][modeltypeenumfield['path'].split('.')[
@@ -121,6 +126,7 @@ def response_to_param_info(response: MultiModelTypeResponse,
   dict_response = MessageToDict(response)
   for model_type in dict_response['modelTypes']:
     if model_type['id'] == model_type_id:
+      #iterate through the model type fields
       for modeltypefield in model_type['modelTypeFields']:
         if modeltypefield['path'].split('.')[-1] == param:
           if param == 'template':
@@ -130,9 +136,11 @@ def response_to_param_info(response: MultiModelTypeResponse,
           modeltypefield['param'] = modeltypefield.pop('path').split('.')[-1]
           del modeltypefield['placeholder']
           return modeltypefield
+        #checking the template model type fields
         if modeltypefield['path'].split('.')[-1] == "template":
           for modeltypeenum in modeltypefield['modelTypeEnumOptions']:
             if modeltypeenum['id'] == template:
+              #iterate through the template fields
               for modeltypeenumfield in modeltypeenum['modelTypeFields']:
                 if modeltypeenumfield['path'].split('.')[-1] == param:
                   modeltypeenumfield['param'] = modeltypeenumfield.pop('path').split('.')[-1]

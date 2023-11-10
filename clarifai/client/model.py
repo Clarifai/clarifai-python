@@ -13,6 +13,7 @@ from google.protobuf.struct_pb2 import Struct
 from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
+from clarifai.constants.model import TRAINABLE_MODEL_TYPES
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import get_logger
@@ -20,11 +21,6 @@ from clarifai.utils.misc import BackoffIterator
 from clarifai.utils.model_train import (find_and_replace_key, params_parser,
                                         response_to_model_params, response_to_param_info,
                                         response_to_templates)
-
-TRAINABLE_MODEL_TYPES = [
-    'visual-classifier', 'visual-detector', 'visual-segmenter', 'visual-anomaly-heatmap',
-    'visual-embedder', 'clusterer', 'text-classifier', 'embedding-classifier', 'text-to-text'
-]
 
 
 class Model(Lister, BaseClient):
@@ -70,7 +66,7 @@ class Model(Lister, BaseClient):
     Example:
         >>> from clarifai.client.model import Model
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model.list_training_templates()
+        >>> print(odel.list_training_templates())
     """
     if not self.model_info.model_type_id:
       self.load_info()
@@ -85,7 +81,7 @@ class Model(Lister, BaseClient):
 
     return templates
 
-  def get_params(self, template: str = None, yaml_file: str = 'params.yaml') -> Dict[str, Any]:
+  def get_params(self, template: str = None, save_to: str = 'params.yaml') -> Dict[str, Any]:
     """Returns the model params for the model type and yaml file.
 
     Args:
@@ -122,7 +118,8 @@ class Model(Lister, BaseClient):
     params = response_to_model_params(
         response=response, model_type_id=self.model_info.model_type_id, template=template)
     #yaml file
-    with open(yaml_file, 'w') as f:
+    assert save_to.endswith('.yaml'), "File extension should be .yaml"
+    with open(save_to, 'w') as f:
       yaml.dump(params, f, default_flow_style=False, sort_keys=False)
     #updating the global model params
     self.training_params.update(params)
@@ -139,7 +136,7 @@ class Model(Lister, BaseClient):
         >>> from clarifai.client.model import Model
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
         >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
-        >>> model.update_params({param1:value1, param2:value2})
+        >>> model.update_params(batch_size = 8, dataset_version = 'dataset_version_id')
     """
     if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
       raise UserError(f"Model type {self.model_info.model_type_id} is not trainable")
@@ -147,13 +144,14 @@ class Model(Lister, BaseClient):
       raise UserError(
           f"Run 'model.get_params' to get the params for the {self.model_info.model_type_id} model type"
       )
-
+    #getting all the keys in nested dictionary
     all_keys = [key for key in self.training_params.keys()] + [
         key for key in self.training_params.values() if isinstance(key, dict) for key in key
     ]
+    #checking if the given params are valid
     if not set(kwargs.keys()).issubset(all_keys):
       raise UserError("Invalid params")
-
+    #updating the global model params
     for key, value in kwargs.items():
       find_and_replace_key(self.training_params, key, value)
 
@@ -237,7 +235,7 @@ class Model(Lister, BaseClient):
     return response.model.model_version.id
 
   def training_status(self, version_id: str, training_logs: bool = False) -> Dict[str, str]:
-    """Returns the training status for the model version.
+    """Get the training status for the model version. Also stores training logs
 
     Args:
         version_id (str): The version ID to get the training status for.
@@ -266,7 +264,8 @@ class Model(Lister, BaseClient):
           log_response = requests.get(response.model_version.train_log)
           log_response.raise_for_status()  # Check for any HTTP errors
           with open(version_id + '.log', 'wb') as file:
-            file.write(log_response.content)
+            for chunk in log_response.iter_content(chunk_size=4096):  # 4KB
+              file.write(chunk)
           self.logger.info(f"\nTraining logs are saving in '{version_id+'.log'}' file")
 
       except requests.exceptions.RequestException as e:

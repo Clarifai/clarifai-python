@@ -12,10 +12,11 @@ from clarifai.client.base import BaseClient
 from clarifai.client.dataset import Dataset
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
-from clarifai.client.model import TRAINABLE_MODEL_TYPES, Model
+from clarifai.client.model import Model
 from clarifai.client.module import Module
 from clarifai.client.search import Search
 from clarifai.client.workflow import Workflow
+from clarifai.constants.model import TRAINABLE_MODEL_TYPES
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import display_workflow_tree, get_logger

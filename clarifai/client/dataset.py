@@ -77,7 +77,7 @@ class Dataset(Lister, BaseClient):
     Example:
         >>> from clarifai.client.dataset import Dataset
         >>> dataset = Dataset(dataset_id='dataset_id', user_id='user_id', app_id='app_id')
-        >>> dataset_version = dataset.create_dataset_version(description='dataset_version_description')
+        >>> dataset_version = dataset.create_version(description='dataset_version_description')
     """
     request = service_pb2.PostDatasetVersionsRequest(
         user_app_id=self.user_app_id,

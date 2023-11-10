@@ -219,8 +219,7 @@ print(templates)
 """
 Get parameters for the model.
 """
-params = model.get_params(template='classification_basemodel_v1', yaml_file='model_params.yaml'
-)
+params = model.get_params(template='classification_basemodel_v1', yaml_file='model_params.yaml')
 
 """
 Update the model params yaml and pass it to model.train()
