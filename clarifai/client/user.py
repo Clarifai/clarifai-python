@@ -57,7 +57,7 @@ class User(Lister, BaseClient):
         per_page=per_page,
         page_no=page_no)
     for app_info in all_apps_info:
-      yield App(**app_info)
+      yield App(base_url=self.base, **app_info)
 
   def list_runners(self, filter_by: Dict[str, Any] = {}, page_no: int = None,
                    per_page: int = None) -> Generator[Runner, None, None]:
@@ -89,7 +89,7 @@ class User(Lister, BaseClient):
         page_no=page_no)
 
     for runner_info in all_runners_info:
-      yield Runner(check_runner_exists=False, **runner_info)
+      yield Runner(check_runner_exists=False, base_url=self.base, **runner_info)
 
   def create_app(self, app_id: str, base_workflow: str = 'Empty', **kwargs) -> App:
     """Creates an app for the user.
@@ -115,7 +115,7 @@ class User(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nApp created\n%s", response.status)
-    kwargs.update({'user_id': self.id})
+    kwargs.update({'user_id': self.id, 'base_url': self.base})
     return App(app_id=app_id, **kwargs)
 
   def create_runner(self, runner_id: str, labels: List[str], description: str) -> Runner:
@@ -151,7 +151,8 @@ class User(Lister, BaseClient):
         user_id=self.id,
         labels=labels,
         description=description,
-        check_runner_exists=False)
+        check_runner_exists=False,
+        base_url=self.base)
 
   def app(self, app_id: str, **kwargs) -> App:
     """Returns an App object for the specified app ID.
@@ -174,6 +175,7 @@ class User(Lister, BaseClient):
       raise Exception(response.status)
 
     kwargs['user_id'] = self.id
+    kwargs.update({'base_url': self.base})
     return App(app_id=app_id, **kwargs)
 
   def runner(self, runner_id: str) -> Runner:
@@ -202,7 +204,7 @@ class User(Lister, BaseClient):
     kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
                                         list(dict_response.keys())[1])
 
-    return Runner(check_runner_exists=False, **kwargs)
+    return Runner(check_runner_exists=False, base_url=self.base, **kwargs)
 
   def delete_app(self, app_id: str) -> None:
     """Deletes an app for the user.
