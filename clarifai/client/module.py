@@ -13,7 +13,7 @@ class Module(Lister, BaseClient):
   """Module is a class that provides access to Clarifai API endpoints related to Module information."""
 
   def __init__(self,
-               url_init: str = "",
+               module_url: str = "",
                module_id: str = "",
                module_version: Dict = {'id': ""},
                base_url: str = "https://api.clarifai.com",
@@ -21,19 +21,19 @@ class Module(Lister, BaseClient):
     """Initializes a Module object.
 
         Args:
-            url_init (str): The URL to initialize the module object.
+            module_url (str): The URL to initialize the module object.
             module_id (str): The Module ID to interact with.
             module_version (dict): The Module Version to interact with.
             base_url (str): Base API url. Default "https://api.clarifai.com"
             **kwargs: Additional keyword arguments to be passed to the Module.
         """
-    if url_init != "" and module_id != "":
-      raise UserError("You can only specify one of url_init or module_id.")
-    if url_init == "" and module_id == "":
-      raise UserError("You must specify one of url_init or module_id.")
-    if url_init != "":
+    if module_url != "" and module_id != "":
+      raise UserError("You can only specify one of module_url or module_id.")
+    if module_url == "" and module_id == "":
+      raise UserError("You must specify one of module_url or module_id.")
+    if module_url != "":
       user_id, app_id, module_id, module_version_id = ClarifaiUrlHelper.split_module_ui_url(
-          url_init)
+          module_url)
       module_version = {'id': module_version_id}
       kwargs = {'user_id': user_id, 'app_id': app_id}
 
