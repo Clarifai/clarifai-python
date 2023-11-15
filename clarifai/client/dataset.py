@@ -13,7 +13,7 @@ from tqdm import tqdm
 from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
-from clarifai.constants.dataset import DATASET_UPLOAD_TYPES
+from clarifai.constants.dataset import DATASET_UPLOAD_TASKS
 from clarifai.datasets.export.inputs_annotations import (DatasetExportReader,
                                                          InputAnnotationDownloader)
 from clarifai.datasets.upload.base import ClarifaiDataLoader
@@ -306,7 +306,7 @@ class Dataset(Lister, BaseClient):
 
     self.batch_size = min(self.batch_size, batch_size)
     self.task = datagen_object.task
-    if self.task not in DATASET_UPLOAD_TYPES:
+    if self.task not in DATASET_UPLOAD_TASKS:
       raise UserError("Task should be one of \
                       'text_classification', 'visual_classification', \
                       'visual_detection', 'visual_segmentation', 'visual_captioning'")
