@@ -330,7 +330,7 @@ class Model(Lister, BaseClient):
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
     kwargs = self.process_response_keys(dict_response['model'], 'model')
 
-    return Model(**kwargs)
+    return Model(base_url=self.base, **kwargs)
 
   def list_versions(self, page_no: int = None,
                     per_page: int = None) -> Generator['Model', None, None]:
@@ -372,7 +372,10 @@ class Model(Lister, BaseClient):
         del model_version_info['train_info']['dataset']['version']['metrics']
       except KeyError:
         pass
-      yield Model(model_id=self.id, **dict(self.kwargs, model_version=model_version_info))
+      yield Model(
+          model_id=self.id,
+          base_url=self.base,
+          **dict(self.kwargs, model_version=model_version_info))
 
   def predict(self, inputs: List[Input], inference_params: Dict = {}, output_config: Dict = {}):
     """Predicts the model based on the given inputs.
