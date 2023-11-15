@@ -16,10 +16,9 @@ OutputFeaturesType = TypeVar(
 class ClarifaiDataset:
   """Clarifai datasets base class."""
 
-  def __init__(self, datagen_object: Iterator, dataset_id: str, split: str) -> None:
+  def __init__(self, datagen_object: Iterator, dataset_id: str) -> None:
     self.datagen_object = datagen_object
     self.dataset_id = dataset_id
-    self.split = split
     self.all_input_ids = {}
     self._all_input_protos = {}
     self._all_annotation_protos = defaultdict(list)
@@ -53,8 +52,14 @@ class ClarifaiDataset:
 class ClarifaiDataLoader:
   """Clarifai data loader base class."""
 
-  def __init__(self, split: str) -> None:
+  def __init__(self) -> None:
     pass
+
+  @property
+  def task(self):
+    raise NotImplementedError("Task should be one of \
+                              'text_classification', 'visual-classification', \
+                              'visual_detection', 'visual_segmentation', 'visual-captioning'")
 
   def load_data(self) -> None:
     raise NotImplementedError()

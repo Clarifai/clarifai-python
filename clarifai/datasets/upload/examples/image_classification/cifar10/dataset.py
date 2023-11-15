@@ -22,6 +22,10 @@ class Cifar10DataLoader(ClarifaiDataLoader):
     }
     self.data = self.load_data()
 
+  @property
+  def task(self):
+    return "visual_classification"
+
   def load_data(self):
     data = []
     with open(self.data_dirs[self.split]) as _file:
@@ -35,7 +39,7 @@ class Cifar10DataLoader(ClarifaiDataLoader):
     item = self.data[index]
     return VisualClassificationFeatures(
         image_path=os.path.join(os.path.dirname(__file__), item[0]),
-        label=item[1],
+        labels=item[1],
         id=os.path.basename(item[0]).split(".")[0],
         metadata={
             "split": self.split,

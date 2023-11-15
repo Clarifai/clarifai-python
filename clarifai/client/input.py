@@ -788,16 +788,16 @@ class Inputs(Lister, BaseClient):
       annotations_info['id'] = annotations_info.pop('annotation_id')
       yield Annotation(**annotations_info)
 
-  def _bulk_upload(self, inputs: List[Input], chunk_size: int = 128) -> None:
+  def _bulk_upload(self, inputs: List[Input], batch_size: int = 128) -> None:
     """Uploads process for large number of inputs.
 
     Args:
         inputs (List[Input]): input protos
-        chunk_size (int): chunk size for each request
+        batch_size (int): batch size for each request
     """
     num_workers: int = min(10, cpu_count())  # limit max workers to 10
-    chunk_size = min(128, chunk_size)  # limit max protos in a req
-    chunked_inputs = Chunker(inputs, chunk_size).chunk()
+    batch_size = min(128, batch_size)  # limit max protos in a req
+    chunked_inputs = Chunker(inputs, batch_size).chunk()
     with ThreadPoolExecutor(max_workers=num_workers) as executor:
       with tqdm(total=len(chunked_inputs), desc='Uploading inputs') as progress:
         # Submit all jobs to the executor and store the returned futures

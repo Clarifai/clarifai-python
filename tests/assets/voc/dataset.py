@@ -21,6 +21,10 @@ class VOCDetectionDataLoader(ClarifaiDataLoader):
 
     self.load_data()
 
+  @property
+  def task(self):
+    return "visual_detection"
+
   def load_data(self):
     all_imgs = os.listdir(self.image_dir[self.split])
     img_ids = [img_filename.split('.')[0] for img_filename in all_imgs]

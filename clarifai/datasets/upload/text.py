@@ -10,8 +10,8 @@ from .base import ClarifaiDataset
 class TextClassificationDataset(ClarifaiDataset):
   """Upload text classification datasets to clarifai datasets"""
 
-  def __init__(self, datagen_object: Iterator, dataset_id: str, split: str) -> None:
-    super().__init__(datagen_object, dataset_id, split)
+  def __init__(self, datagen_object: Iterator, dataset_id: str) -> None:
+    super().__init__(datagen_object, dataset_id)
 
   def _extract_protos(self, batch_input_ids: List[int]
                      ) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:

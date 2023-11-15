@@ -10,8 +10,8 @@ from .base import ClarifaiDataset
 
 class VisualClassificationDataset(ClarifaiDataset):
 
-  def __init__(self, datagen_object: Iterator, dataset_id: str, split: str) -> None:
-    super().__init__(datagen_object, dataset_id, split)
+  def __init__(self, datagen_object: Iterator, dataset_id: str) -> None:
+    super().__init__(datagen_object, dataset_id)
 
   def _extract_protos(self, batch_input_ids: List[str]
                      ) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:
@@ -28,14 +28,14 @@ class VisualClassificationDataset(ClarifaiDataset):
       datagen_item = self.datagen_object[id]
       metadata = Struct()
       image_path = datagen_item.image_path
-      label = datagen_item.label if isinstance(datagen_item.label,
-                                               list) else [datagen_item.label]  # clarifai concept
-      input_id = f"{self.dataset_id}-{self.split}-{id}" if datagen_item.id is None else f"{self.dataset_id}-{self.split}-{str(datagen_item.id)}"
+      labels = datagen_item.labels if isinstance(
+          datagen_item.labels, list) else [datagen_item.labels]  # clarifai concept
+      input_id = f"{self.dataset_id}-{id}" if datagen_item.id is None else f"{self.dataset_id}-{str(datagen_item.id)}"
       geo_info = datagen_item.geo_info
       if datagen_item.metadata is not None:
         metadata.update(datagen_item.metadata)
       else:
-        metadata.update({"filename": os.path.basename(image_path), "split": self.split})
+        metadata.update({"filename": os.path.basename(image_path)})
 
       self.all_input_ids[id] = input_id
       input_protos.append(
@@ -43,7 +43,7 @@ class VisualClassificationDataset(ClarifaiDataset):
               input_id=input_id,
               image_file=image_path,
               dataset_id=self.dataset_id,
-              labels=label,
+              labels=labels,
               geo_info=geo_info,
               metadata=metadata))
 
@@ -58,8 +58,8 @@ class VisualClassificationDataset(ClarifaiDataset):
 class VisualDetectionDataset(ClarifaiDataset):
   """Visual detection dataset proto class."""
 
-  def __init__(self, datagen_object: Iterator, dataset_id: str, split: str) -> None:
-    super().__init__(datagen_object, dataset_id, split)
+  def __init__(self, datagen_object: Iterator, dataset_id: str) -> None:
+    super().__init__(datagen_object, dataset_id)
 
   def _extract_protos(self, batch_input_ids: List[int]
                      ) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:
@@ -76,13 +76,13 @@ class VisualDetectionDataset(ClarifaiDataset):
       datagen_item = self.datagen_object[id]
       metadata = Struct()
       image = datagen_item.image_path
-      labels = datagen_item.classes  # list:[l1,...,ln]
+      labels = datagen_item.labels  # list:[l1,...,ln]
       bboxes = datagen_item.bboxes  # [[xmin,ymin,xmax,ymax],...,[xmin,ymin,xmax,ymax]]
-      input_id = f"{self.dataset_id}-{self.split}-{id}" if datagen_item.id is None else f"{self.dataset_id}-{self.split}-{str(datagen_item.id)}"
+      input_id = f"{self.dataset_id}-{id}" if datagen_item.id is None else f"{self.dataset_id}-{str(datagen_item.id)}"
       if datagen_item.metadata is not None:
         metadata.update(datagen_item.metadata)
       else:
-        metadata.update({"filename": os.path.basename(image), "split": self.split})
+        metadata.update({"filename": os.path.basename(image)})
       geo_info = datagen_item.geo_info
 
       self.all_input_ids[id] = input_id
@@ -93,7 +93,7 @@ class VisualDetectionDataset(ClarifaiDataset):
               dataset_id=self.dataset_id,
               geo_info=geo_info,
               metadata=metadata))
-      # iter over bboxes and classes
+      # iter over bboxes and labels
       # one id could have more than one bbox and label
       for i in range(len(bboxes)):
         annotation_protos.append(
@@ -111,8 +111,8 @@ class VisualDetectionDataset(ClarifaiDataset):
 class VisualSegmentationDataset(ClarifaiDataset):
   """Visual segmentation dataset proto class."""
 
-  def __init__(self, datagen_object: Iterator, dataset_id: str, split: str) -> None:
-    super().__init__(datagen_object, dataset_id, split)
+  def __init__(self, datagen_object: Iterator, dataset_id: str) -> None:
+    super().__init__(datagen_object, dataset_id)
 
   def _extract_protos(self, batch_input_ids: List[str]
                      ) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:
@@ -129,13 +129,13 @@ class VisualSegmentationDataset(ClarifaiDataset):
       datagen_item = self.datagen_object[id]
       metadata = Struct()
       image = datagen_item.image_path
-      labels = datagen_item.classes
+      labels = datagen_item.labels
       _polygons = datagen_item.polygons  # list of polygons: [[[x,y],...,[x,y]],...]
-      input_id = f"{self.dataset_id}-{self.split}-{id}" if datagen_item.id is None else f"{self.dataset_id}-{self.split}-{str(datagen_item.id)}"
+      input_id = f"{self.dataset_id}-{id}" if datagen_item.id is None else f"{self.dataset_id}-{str(datagen_item.id)}"
       if datagen_item.metadata is not None:
         metadata.update(datagen_item.metadata)
       else:
-        metadata.update({"filename": os.path.basename(image), "split": self.split})
+        metadata.update({"filename": os.path.basename(image)})
       geo_info = datagen_item.geo_info
 
       self.all_input_ids[id] = input_id

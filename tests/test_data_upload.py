@@ -129,7 +129,7 @@ class Testdataupload:
     assert len(uploaded_inputs) == 3  # 3 inputs are uploaded from the folder
 
   def test_upload_dataset(self, caplog):
-    self.dataset.upload_dataset(task="visual_detection", split="train", module_dir=MODULE_DIR)
+    self.dataset.upload_dataset(module_dir=MODULE_DIR)
     uploaded_inputs = list(self.input_object.list_inputs())
     annotations = list(self.input_object.list_annotations(batch_input=uploaded_inputs))
     with caplog.at_level(logging.INFO):
