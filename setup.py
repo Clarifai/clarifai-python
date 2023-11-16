@@ -35,7 +35,7 @@ setuptools.setup(
     python_requires='>=3.8',
     install_requires=install_requires,
     extras_require={
-        'all': ["pycocotools=2.0.6"],
+        'all': ["pycocotools==2.0.6"],
     },
     entry_points={
         "console_scripts": [
