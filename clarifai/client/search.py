@@ -1,3 +1,4 @@
+from math import ceil
 from typing import Any, Callable, Dict, Generator
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -9,7 +10,7 @@ from schema import SchemaError
 from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
-from clarifai.constants.search import DEFAULT_SEARCH_METRIC, DEFAULT_TOP_K
+from clarifai.constants.search import DEFAULT_SEARCH_METRIC, DEFAULT_TOP_K, MAX_TOP_K
 from clarifai.errors import UserError
 from clarifai.schema.search import get_schema
 
@@ -34,16 +35,19 @@ class Search(Lister, BaseClient):
     """
     if metric not in ["cosine", "euclidean"]:
       raise UserError("Metric should be either cosine or euclidean")
+    if top_k > MAX_TOP_K:
+      raise UserError("top_k cannot exceed 4000 for a visual search request")
 
     self.user_id = user_id
     self.app_id = app_id
     self.metric_distance = dict(cosine="COSINE_DISTANCE", euclidean="EUCLIDEAN_DISTANCE")[metric]
     self.data_proto = resources_pb2.Data()
+    self.top_k = top_k
 
     self.inputs = Inputs(user_id=self.user_id, app_id=self.app_id)
     self.rank_filter_schema = get_schema()
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id)
-    Lister.__init__(self, page_size=top_k)
+    Lister.__init__(self, page_size=128)
 
   def _get_annot_proto(self, **kwargs):
     """Get an Annotation proto message based on keyword arguments.
@@ -118,7 +122,7 @@ class Search(Lister, BaseClient):
             self.data_proto.video.CopyFrom(resources_pb2.Video())
         self.input_proto.data.CopyFrom(self.data_proto)
       elif key == "input_dataset_ids":
-        self.input_proto.dataset_ids = value
+        self.input_proto.dataset_ids.extend(value)
       elif key == "input_status_code":
         self.input_proto.status.code = value
       else:
@@ -154,10 +158,15 @@ class Search(Lister, BaseClient):
         Yields:
             response_dict: The next item in the listing.
         """
+    max_pages = ceil(self.top_k / self.default_page_size)
+    total_hits = 0
     page = 1
-    request_data['pagination'] = service_pb2.Pagination(page=page, per_page=self.default_page_size)
-    while True:
-      request_data['pagination'].page = page
+    while (page <= max_pages):
+      if (page == max_pages):
+        per_page = self.top_k - total_hits
+      else:
+        per_page = self.default_page_size
+      request_data['pagination'] = service_pb2.Pagination(page=page, per_page=per_page)
       response = self._grpc_request(endpoint, proto_message(**request_data))
       dict_response = MessageToDict(response, preserving_proto_field_name=True)
       if response.status.code != status_code_pb2.SUCCESS:
@@ -166,6 +175,7 @@ class Search(Lister, BaseClient):
       if 'hits' not in list(dict_response.keys()):
         break
       page += 1
+      total_hits += per_page
       yield response
 
   def query(self, ranks=[{}], filters=[{}]):
@@ -186,7 +196,7 @@ class Search(Lister, BaseClient):
 
         Vector search over inputs
         >>> from clarifai.client.search import Search
-        >>> search = Search(user_id='user_id', app_id='app_id', top_k=10, metric='cosine')
+        >>> search = Search(user_id='user_id', app_id='app_id', top_k=1, metric='cosine')
         >>> res = search.query(ranks=[{'image_url': 'https://samples.clarifai.com/dog.tiff'}])
 
     Note: For more detailed search examples, please refer to [examples](https://github.com/Clarifai/examples/tree/main/search).
