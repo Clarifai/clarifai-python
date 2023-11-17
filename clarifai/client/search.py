@@ -10,7 +10,7 @@ from schema import SchemaError
 from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
-from clarifai.constants.search import DEFAULT_SEARCH_METRIC, DEFAULT_TOP_K, MAX_TOP_K
+from clarifai.constants.search import DEFAULT_SEARCH_METRIC, DEFAULT_TOP_K
 from clarifai.errors import UserError
 from clarifai.schema.search import get_schema
 
@@ -35,8 +35,6 @@ class Search(Lister, BaseClient):
     """
     if metric not in ["cosine", "euclidean"]:
       raise UserError("Metric should be either cosine or euclidean")
-    if top_k > MAX_TOP_K:
-      raise UserError("top_k cannot exceed 4000 for a visual search request")
 
     self.user_id = user_id
     self.app_id = app_id
@@ -47,7 +45,7 @@ class Search(Lister, BaseClient):
     self.inputs = Inputs(user_id=self.user_id, app_id=self.app_id)
     self.rank_filter_schema = get_schema()
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id)
-    Lister.__init__(self, page_size=128)
+    Lister.__init__(self, page_size=1000)
 
   def _get_annot_proto(self, **kwargs):
     """Get an Annotation proto message based on keyword arguments.
@@ -170,7 +168,14 @@ class Search(Lister, BaseClient):
       response = self._grpc_request(endpoint, proto_message(**request_data))
       dict_response = MessageToDict(response, preserving_proto_field_name=True)
       if response.status.code != status_code_pb2.SUCCESS:
-        raise Exception(f"Listing failed with response {response!r}")
+        if "page * perPage cannot exceed" in str(response.status.details):
+          msg = (f"Your top_k is set to {self.top_k}. "
+                 f"The current pagination settings exceed the limit. Please reach out to "
+                 f"support@clarifai.com to request an increase for your use case.\n"
+                 f"req_id: {response.status.req_id}")
+          raise UserError(msg)
+        else:
+          raise Exception(f"Listing failed with response {response!r}")
 
       if 'hits' not in list(dict_response.keys()):
         break
