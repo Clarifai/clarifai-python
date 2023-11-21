@@ -20,7 +20,6 @@ from clarifai.datasets.upload.base import ClarifaiDataLoader
 from clarifai.datasets.upload.image import (VisualClassificationDataset, VisualDetectionDataset,
                                             VisualSegmentationDataset)
 from clarifai.datasets.upload.text import TextClassificationDataset
-from clarifai.datasets.upload.utils import load_module_dataloader
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import get_logger
@@ -284,44 +283,32 @@ class Dataset(Lister, BaseClient):
           progress.update()
 
   def upload_dataset(self,
-                     module_dir: str = None,
-                     dataloader: Type[ClarifaiDataLoader] = None,
+                     dataloader: Type[ClarifaiDataLoader],
                      batch_size: int = 32) -> None:
     """Uploads a dataset to the app.
 
     Args:
-      module_dir (str): path to the module directory
       dataloader (Type[ClarifaiDataLoader]): ClarifaiDataLoader object
       batch_size (int): batch size for concurrent upload of inputs and annotations (max: 128)
     """
-    datagen_object = dataloader
-    if module_dir is None and dataloader is None:
-      raise UserError("One of `from_module` and `dataloader` must be \
-      specified. Both can't be None or defined at the same time.")
-    elif module_dir is not None and dataloader is not None:
-      raise UserError("Use either of `from_module` or `dataloader` \
-      but NOT both.")
-    elif module_dir is not None:
-      datagen_object = load_module_dataloader(module_dir)
-
     self.batch_size = min(self.batch_size, batch_size)
-    self.task = datagen_object.task
+    self.task = dataloader.task
     if self.task not in DATASET_UPLOAD_TASKS:
       raise UserError("Task should be one of \
                       'text_classification', 'visual_classification', \
                       'visual_detection', 'visual_segmentation', 'visual_captioning'")
 
     if self.task == "text_classification":
-      dataset_obj = TextClassificationDataset(datagen_object, self.id)
+      dataset_obj = TextClassificationDataset(dataloader, self.id)
 
     elif self.task == "visual_detection":
-      dataset_obj = VisualDetectionDataset(datagen_object, self.id)
+      dataset_obj = VisualDetectionDataset(dataloader, self.id)
 
     elif self.task == "visual_segmentation":
-      dataset_obj = VisualSegmentationDataset(datagen_object, self.id)
+      dataset_obj = VisualSegmentationDataset(dataloader, self.id)
 
     else:  # visual_classification & visual_captioning
-      dataset_obj = VisualClassificationDataset(datagen_object, self.id)
+      dataset_obj = VisualClassificationDataset(dataloader, self.id)
 
     self._data_upload(dataset_obj)
 
