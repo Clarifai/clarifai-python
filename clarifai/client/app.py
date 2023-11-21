@@ -663,7 +663,7 @@ class App(Lister, BaseClient):
     """
     user_id = kwargs.get("user_id", self.user_app_id.user_id)
     app_id = kwargs.get("app_id", self.user_app_id.app_id)
-    return Search(user_id=user_id, app_id=app_id, **kwargs)
+    return Search(user_id=user_id, app_id=app_id, base_url=self.base, **kwargs)
 
   def __getattr__(self, name):
     return getattr(self.app_info, name)
