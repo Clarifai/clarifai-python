@@ -1,6 +1,6 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Iterator, List, Tuple, Type
+from typing import List, Tuple, Type
 
 from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.struct_pb2 import Struct
@@ -60,7 +60,7 @@ class VisualClassificationDataset(ClarifaiDataset):
 class VisualDetectionDataset(ClarifaiDataset):
   """Visual detection dataset proto class."""
 
-  def __init__(self, data_generator: Iterator, dataset_id: str) -> None:
+  def __init__(self, data_generator: Type[ClarifaiDataLoader], dataset_id: str) -> None:
     self.input_object = Inputs()
     super().__init__(data_generator, dataset_id)
 
@@ -114,7 +114,7 @@ class VisualDetectionDataset(ClarifaiDataset):
 class VisualSegmentationDataset(ClarifaiDataset):
   """Visual segmentation dataset proto class."""
 
-  def __init__(self, data_generator: Iterator, dataset_id: str) -> None:
+  def __init__(self, data_generator: Type[ClarifaiDataLoader], dataset_id: str) -> None:
     self.input_object = Inputs()
     super().__init__(data_generator, dataset_id)
 
