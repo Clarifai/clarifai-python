@@ -76,7 +76,10 @@ class Module(Lister, BaseClient):
     for module_version_info in all_module_versions_info:
       module_version_info['id'] = module_version_info['module_version_id']
       del module_version_info['module_version_id']
-      yield Module(module_id=self.id, **dict(self.kwargs, module_version=module_version_info))
+      yield Module(
+          module_id=self.id,
+          base_url=self.base,
+          **dict(self.kwargs, module_version=module_version_info))
 
   def __getattr__(self, name):
     return getattr(self.module_info, name)

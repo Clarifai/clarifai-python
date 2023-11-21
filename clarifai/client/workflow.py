@@ -184,7 +184,10 @@ class Workflow(Lister, BaseClient):
     for workflow_version_info in all_workflow_versions_info:
       workflow_version_info['id'] = workflow_version_info['workflow_version_id']
       del workflow_version_info['workflow_version_id']
-      yield Workflow(workflow_id=self.id, **dict(self.kwargs, version=workflow_version_info))
+      yield Workflow(
+          workflow_id=self.id,
+          base_url=self.base,
+          **dict(self.kwargs, version=workflow_version_info))
 
   def export(self, out_path: str):
     """Exports the workflow to a yaml file.

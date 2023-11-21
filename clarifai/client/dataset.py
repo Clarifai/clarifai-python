@@ -93,7 +93,8 @@ class Dataset(Lister, BaseClient):
         'dataset_id': self.id,
         'app_id': self.app_id,
         'user_id': self.user_id,
-        'version': response.dataset_versions[0]
+        'version': response.dataset_versions[0],
+        'base_url': self.base
     })
     return Dataset(**kwargs)
 
@@ -155,7 +156,8 @@ class Dataset(Lister, BaseClient):
           'dataset_id': self.id,
           'app_id': self.app_id,
           'user_id': self.user_id,
-          'version': resources_pb2.DatasetVersion(**dataset_version_info)
+          'version': resources_pb2.DatasetVersion(**dataset_version_info),
+          'base_url': self.base
       }
       yield Dataset(**kwargs)
 
