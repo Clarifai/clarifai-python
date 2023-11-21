@@ -16,8 +16,8 @@ OutputFeaturesType = TypeVar(
 class ClarifaiDataset:
   """Clarifai datasets base class."""
 
-  def __init__(self, datagen_object: Iterator, dataset_id: str) -> None:
-    self.datagen_object = datagen_object
+  def __init__(self, data_generator: 'ClarifaiDataLoader', dataset_id: str) -> None:
+    self.data_generator = data_generator
     self.dataset_id = dataset_id
     self.all_input_ids = {}
     self._all_input_protos = {}
@@ -25,7 +25,7 @@ class ClarifaiDataset:
 
   def __len__(self) -> int:
     """Get size of all input protos"""
-    return len(self.datagen_object)
+    return len(self.data_generator)
 
   def _to_list(self, input_protos: Iterator) -> List:
     """Parse protos iterator to list."""
