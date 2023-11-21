@@ -3,6 +3,7 @@ from typing import Iterator, List, Tuple, TypeVar, Union
 
 from clarifai_grpc.grpc.api import resources_pb2
 
+from clarifai.constants.dataset import DATASET_UPLOAD_TASKS
 from clarifai.datasets.upload.features import (TextFeatures, VisualClassificationFeatures,
                                                VisualDetectionFeatures, VisualSegmentationFeatures)
 
@@ -55,9 +56,7 @@ class ClarifaiDataLoader:
 
   @property
   def task(self):
-    raise NotImplementedError("Task should be one of \
-                              'text_classification', 'visual-classification', \
-                              'visual_detection', 'visual_segmentation', 'visual-captioning'")
+    raise NotImplementedError("Task should be one of {}".format(DATASET_UPLOAD_TASKS))
 
   def load_data(self) -> None:
     raise NotImplementedError()
