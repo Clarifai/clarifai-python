@@ -26,16 +26,16 @@ class VisualClassificationDataset(ClarifaiDataset):
     """
     input_protos, annotation_protos = [], []
 
-    def process_datagen_item(id):
-      datagen_item = self.data_generator[id]
+    def process_data_item(id):
+      data_item = self.data_generator[id]
       metadata = Struct()
-      image_path = datagen_item.image_path
-      labels = datagen_item.labels if isinstance(
-          datagen_item.labels, list) else [datagen_item.labels]  # clarifai concept
-      input_id = f"{self.dataset_id}-{id}" if datagen_item.id is None else f"{self.dataset_id}-{str(datagen_item.id)}"
-      geo_info = datagen_item.geo_info
-      if datagen_item.metadata is not None:
-        metadata.update(datagen_item.metadata)
+      image_path = data_item.image_path
+      labels = data_item.labels if isinstance(data_item.labels,
+                                              list) else [data_item.labels]  # clarifai concept
+      input_id = f"{self.dataset_id}-{id}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
+      geo_info = data_item.geo_info
+      if data_item.metadata is not None:
+        metadata.update(data_item.metadata)
       else:
         metadata.update({"filename": os.path.basename(image_path)})
 
@@ -50,7 +50,7 @@ class VisualClassificationDataset(ClarifaiDataset):
               metadata=metadata))
 
     with ThreadPoolExecutor(max_workers=4) as executor:
-      futures = [executor.submit(process_datagen_item, id) for id in batch_input_ids]
+      futures = [executor.submit(process_data_item, id) for id in batch_input_ids]
       for job in futures:
         job.result()
 
@@ -75,18 +75,18 @@ class VisualDetectionDataset(ClarifaiDataset):
     """
     input_protos, annotation_protos = [], []
 
-    def process_datagen_item(id):
-      datagen_item = self.data_generator[id]
+    def process_data_item(id):
+      data_item = self.data_generator[id]
       metadata = Struct()
-      image = datagen_item.image_path
-      labels = datagen_item.labels  # list:[l1,...,ln]
-      bboxes = datagen_item.bboxes  # [[xmin,ymin,xmax,ymax],...,[xmin,ymin,xmax,ymax]]
-      input_id = f"{self.dataset_id}-{id}" if datagen_item.id is None else f"{self.dataset_id}-{str(datagen_item.id)}"
-      if datagen_item.metadata is not None:
-        metadata.update(datagen_item.metadata)
+      image = data_item.image_path
+      labels = data_item.labels  # list:[l1,...,ln]
+      bboxes = data_item.bboxes  # [[xmin,ymin,xmax,ymax],...,[xmin,ymin,xmax,ymax]]
+      input_id = f"{self.dataset_id}-{id}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
+      if data_item.metadata is not None:
+        metadata.update(data_item.metadata)
       else:
         metadata.update({"filename": os.path.basename(image)})
-      geo_info = datagen_item.geo_info
+      geo_info = data_item.geo_info
 
       self.all_input_ids[id] = input_id
       input_protos.append(
@@ -104,7 +104,7 @@ class VisualDetectionDataset(ClarifaiDataset):
                 input_id=input_id, label=labels[i], annotations=bboxes[i]))
 
     with ThreadPoolExecutor(max_workers=4) as executor:
-      futures = [executor.submit(process_datagen_item, id) for id in batch_input_ids]
+      futures = [executor.submit(process_data_item, id) for id in batch_input_ids]
       for job in futures:
         job.result()
 
@@ -129,18 +129,18 @@ class VisualSegmentationDataset(ClarifaiDataset):
     """
     input_protos, annotation_protos = [], []
 
-    def process_datagen_item(id):
-      datagen_item = self.data_generator[id]
+    def process_data_item(id):
+      data_item = self.data_generator[id]
       metadata = Struct()
-      image = datagen_item.image_path
-      labels = datagen_item.labels
-      _polygons = datagen_item.polygons  # list of polygons: [[[x,y],...,[x,y]],...]
-      input_id = f"{self.dataset_id}-{id}" if datagen_item.id is None else f"{self.dataset_id}-{str(datagen_item.id)}"
-      if datagen_item.metadata is not None:
-        metadata.update(datagen_item.metadata)
+      image = data_item.image_path
+      labels = data_item.labels
+      _polygons = data_item.polygons  # list of polygons: [[[x,y],...,[x,y]],...]
+      input_id = f"{self.dataset_id}-{id}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
+      if data_item.metadata is not None:
+        metadata.update(data_item.metadata)
       else:
         metadata.update({"filename": os.path.basename(image)})
-      geo_info = datagen_item.geo_info
+      geo_info = data_item.geo_info
 
       self.all_input_ids[id] = input_id
       input_protos.append(
@@ -162,7 +162,7 @@ class VisualSegmentationDataset(ClarifaiDataset):
           continue
 
     with ThreadPoolExecutor(max_workers=4) as executor:
-      futures = [executor.submit(process_datagen_item, id) for id in batch_input_ids]
+      futures = [executor.submit(process_data_item, id) for id in batch_input_ids]
       for job in futures:
         job.result()
 

@@ -27,15 +27,15 @@ class TextClassificationDataset(ClarifaiDataset):
     """
     input_protos, annotation_protos = [], []
 
-    def process_datagen_item(id):
-      datagen_item = self.data_generator[id]
+    def process_data_item(id):
+      data_item = self.data_generator[id]
       metadata = Struct()
-      text = datagen_item.text
-      labels = datagen_item.labels if isinstance(
-          datagen_item.labels, list) else [datagen_item.labels]  # clarifai concept
-      input_id = f"{self.dataset_id}-{self.split}-{id}" if datagen_item.id is None else f"{self.dataset_id}-{self.split}-{str(datagen_item.id)}"
-      if datagen_item.metadata is not None:
-        metadata.update(datagen_item.metadata)
+      text = data_item.text
+      labels = data_item.labels if isinstance(data_item.labels,
+                                              list) else [data_item.labels]  # clarifai concept
+      input_id = f"{self.dataset_id}-{self.split}-{id}" if data_item.id is None else f"{self.dataset_id}-{self.split}-{str(data_item.id)}"
+      if data_item.metadata is not None:
+        metadata.update(data_item.metadata)
       else:
         metadata.update({"split": self.split})
 
@@ -49,7 +49,7 @@ class TextClassificationDataset(ClarifaiDataset):
               metadata=metadata))
 
     with ThreadPoolExecutor(max_workers=4) as executor:
-      futures = [executor.submit(process_datagen_item, id) for id in batch_input_ids]
+      futures = [executor.submit(process_data_item, id) for id in batch_input_ids]
       for job in futures:
         job.result()
 
