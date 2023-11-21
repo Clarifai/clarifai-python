@@ -18,7 +18,7 @@ class Workflow(Lister, BaseClient):
   """Workflow is a class that provides access to Clarifai API endpoints related to Workflow information."""
 
   def __init__(self,
-               workflow_url: str = "",
+               url: str = "",
                workflow_id: str = "",
                workflow_version: Dict = {'id': ""},
                output_config: Dict = {'min_value': 0},
@@ -27,7 +27,7 @@ class Workflow(Lister, BaseClient):
     """Initializes a Workflow object.
 
     Args:
-        workflow_url (str): The URL to initialize the workflow object.
+        url (str): The URL to initialize the workflow object.
         workflow_id (str): The Workflow ID to interact with.
         workflow_version (dict): The Workflow Version to interact with.
         output_config (dict): The output config to interact with.
@@ -38,13 +38,13 @@ class Workflow(Lister, BaseClient):
         base_url (str): Base API url. Default "https://api.clarifai.com"
         **kwargs: Additional keyword arguments to be passed to the Workflow.
     """
-    if workflow_url != "" and workflow_id != "":
-      raise UserError("You can only specify one of workflow_url or workflow_id.")
-    if workflow_url == "" and workflow_id == "":
-      raise UserError("You must specify one of workflow_url or workflow_id.")
-    if workflow_url != "":
+    if url != "" and workflow_id != "":
+      raise UserError("You can only specify one of url or workflow_id.")
+    if url == "" and workflow_id == "":
+      raise UserError("You must specify one of url or workflow_id.")
+    if url != "":
       user_id, app_id, _, workflow_id, workflow_version_id = ClarifaiUrlHelper.split_clarifai_url(
-          workflow_url)
+          url)
       workflow_version = {'id': workflow_version_id}
       kwargs = {'user_id': user_id, 'app_id': app_id}
     self.kwargs = {**kwargs, 'id': workflow_id, 'version': workflow_version}
@@ -84,7 +84,7 @@ class Workflow(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.workflow import Workflow
-        >>> workflow = Workflow("workflow_url") # Example: https://clarifai.com/clarifai/main/workflows/Face-Sentiment
+        >>> workflow = Workflow("url") # Example: https://clarifai.com/clarifai/main/workflows/Face-Sentiment
                       or
         >>> workflow = Workflow(user_id='user_id', app_id='app_id', workflow_id='workflow_id')
         >>> workflow_prediction = workflow.predict_by_filepath('filepath', 'image')
@@ -131,7 +131,7 @@ class Workflow(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.workflow import Workflow
-        >>> workflow = Workflow("workflow_url") # Example: https://clarifai.com/clarifai/main/workflows/Face-Sentiment
+        >>> workflow = Workflow("url") # Example: https://clarifai.com/clarifai/main/workflows/Face-Sentiment
                       or
         >>> workflow = Workflow(user_id='user_id', app_id='app_id', workflow_id='workflow_id')
         >>> workflow_prediction = workflow.predict_by_url('url', 'image')

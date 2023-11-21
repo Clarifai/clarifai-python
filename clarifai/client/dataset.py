@@ -34,22 +34,22 @@ class Dataset(Lister, BaseClient):
   """Dataset is a class that provides access to Clarifai API endpoints related to Dataset information."""
 
   def __init__(self,
-               dataset_url: str = "",
+               url: str = "",
                dataset_id: str = "",
                base_url: str = "https://api.clarifai.com",
                **kwargs):
     """Initializes a Dataset object.
 
     Args:
-        dataset_url (str): The URL to initialize the dataset object.
+        url (str): The URL to initialize the dataset object.
         dataset_id (str): The Dataset ID within the App to interact with.
         base_url (str): Base API url. Default "https://api.clarifai.com"
         **kwargs: Additional keyword arguments to be passed to the Dataset.
     """
-    if dataset_url != "" and dataset_id != "":
-      raise UserError("You can only specify one of dataset_url or dataset_id.")
-    if dataset_url != "":
-      user_id, app_id, _, dataset_id, _ = ClarifaiUrlHelper.split_clarifai_url(dataset_url)
+    if url != "" and dataset_id != "":
+      raise UserError("You can only specify one of url or dataset_id.")
+    if url != "":
+      user_id, app_id, _, dataset_id, _ = ClarifaiUrlHelper.split_clarifai_url(url)
       kwargs = {'user_id': user_id, 'app_id': app_id}
     self.kwargs = {**kwargs, 'id': dataset_id}
     self.dataset_info = resources_pb2.Dataset(**self.kwargs)

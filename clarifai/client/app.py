@@ -28,24 +28,24 @@ class App(Lister, BaseClient):
   """App is a class that provides access to Clarifai API endpoints related to App information."""
 
   def __init__(self,
-               app_url: str = "",
+               url: str = "",
                app_id: str = "",
                base_url: str = "https://api.clarifai.com",
                **kwargs):
     """Initializes an App object.
 
     Args:
-        app_url (str): The URL to initialize the app object.
+        url (str): The URL to initialize the app object.
         app_id (str): The App ID for the App to interact with.
         base_url (str): Base API url. Default "https://api.clarifai.com"
         **kwargs: Additional keyword arguments to be passed to the App.
             - name (str): The name of the app.
             - description (str): The description of the app.
     """
-    if app_url != "" and app_id != "":
-      raise UserError("You can only specify one of app_url or app_id.")
-    if app_url != "":
-      user_id, app_id, _, _, _ = ClarifaiUrlHelper.split_clarifai_url(app_url)
+    if url != "" and app_id != "":
+      raise UserError("You can only specify one of url or app_id.")
+    if url != "":
+      user_id, app_id, _, _, _ = ClarifaiUrlHelper.split_clarifai_url(url)
       kwargs = {'user_id': user_id}
     self.kwargs = {**kwargs, 'id': app_id}
     self.app_info = resources_pb2.App(**self.kwargs)
