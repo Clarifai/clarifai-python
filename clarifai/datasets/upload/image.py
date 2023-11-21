@@ -1,19 +1,19 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Iterator, List, Tuple
+from typing import Iterator, List, Tuple, Type
 
 from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.struct_pb2 import Struct
 
 from clarifai.client.input import Inputs
-from clarifai.datasets.upload.base import ClarifaiDataset
+from clarifai.datasets.upload.base import ClarifaiDataLoader, ClarifaiDataset
 
 
 class VisualClassificationDataset(ClarifaiDataset):
 
-  def __init__(self, datagen_object: Iterator, dataset_id: str) -> None:
+  def __init__(self, data_generator: Type[ClarifaiDataLoader], dataset_id: str) -> None:
     self.input_object = Inputs()
-    super().__init__(datagen_object, dataset_id)
+    super().__init__(data_generator, dataset_id)
 
   def _extract_protos(self, batch_input_ids: List[str]
                      ) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:
@@ -27,7 +27,7 @@ class VisualClassificationDataset(ClarifaiDataset):
     input_protos, annotation_protos = [], []
 
     def process_datagen_item(id):
-      datagen_item = self.datagen_object[id]
+      datagen_item = self.data_generator[id]
       metadata = Struct()
       image_path = datagen_item.image_path
       labels = datagen_item.labels if isinstance(
@@ -60,9 +60,9 @@ class VisualClassificationDataset(ClarifaiDataset):
 class VisualDetectionDataset(ClarifaiDataset):
   """Visual detection dataset proto class."""
 
-  def __init__(self, datagen_object: Iterator, dataset_id: str) -> None:
+  def __init__(self, data_generator: Iterator, dataset_id: str) -> None:
     self.input_object = Inputs()
-    super().__init__(datagen_object, dataset_id)
+    super().__init__(data_generator, dataset_id)
 
   def _extract_protos(self, batch_input_ids: List[int]
                      ) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:
@@ -76,7 +76,7 @@ class VisualDetectionDataset(ClarifaiDataset):
     input_protos, annotation_protos = [], []
 
     def process_datagen_item(id):
-      datagen_item = self.datagen_object[id]
+      datagen_item = self.data_generator[id]
       metadata = Struct()
       image = datagen_item.image_path
       labels = datagen_item.labels  # list:[l1,...,ln]
@@ -114,9 +114,9 @@ class VisualDetectionDataset(ClarifaiDataset):
 class VisualSegmentationDataset(ClarifaiDataset):
   """Visual segmentation dataset proto class."""
 
-  def __init__(self, datagen_object: Iterator, dataset_id: str) -> None:
+  def __init__(self, data_generator: Iterator, dataset_id: str) -> None:
     self.input_object = Inputs()
-    super().__init__(datagen_object, dataset_id)
+    super().__init__(data_generator, dataset_id)
 
   def _extract_protos(self, batch_input_ids: List[str]
                      ) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:
@@ -130,7 +130,7 @@ class VisualSegmentationDataset(ClarifaiDataset):
     input_protos, annotation_protos = [], []
 
     def process_datagen_item(id):
-      datagen_item = self.datagen_object[id]
+      datagen_item = self.data_generator[id]
       metadata = Struct()
       image = datagen_item.image_path
       labels = datagen_item.labels
