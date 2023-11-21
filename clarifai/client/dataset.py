@@ -282,9 +282,7 @@ class Dataset(Lister, BaseClient):
           self._retry_uploads(retry_input_ids, retry_annot_protos, dataset_obj)
           progress.update()
 
-  def upload_dataset(self,
-                     dataloader: Type[ClarifaiDataLoader],
-                     batch_size: int = 32) -> None:
+  def upload_dataset(self, dataloader: Type[ClarifaiDataLoader], batch_size: int = 32) -> None:
     """Uploads a dataset to the app.
 
     Args:

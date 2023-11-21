@@ -3,7 +3,6 @@ from typing import Iterator, List, Tuple, TypeVar, Union
 
 from clarifai_grpc.grpc.api import resources_pb2
 
-from clarifai.client.input import Inputs
 from clarifai.datasets.upload.features import (TextFeatures, VisualClassificationFeatures,
                                                VisualDetectionFeatures, VisualSegmentationFeatures)
 
@@ -22,7 +21,6 @@ class ClarifaiDataset:
     self.all_input_ids = {}
     self._all_input_protos = {}
     self._all_annotation_protos = defaultdict(list)
-    self.input_object = Inputs()
 
   def __len__(self) -> int:
     """Get size of all input protos"""

@@ -5,12 +5,14 @@ from typing import Iterator, List, Tuple
 from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.struct_pb2 import Struct
 
-from .base import ClarifaiDataset
+from clarifai.client.input import Inputs
+from clarifai.datasets.upload.base import ClarifaiDataset
 
 
 class VisualClassificationDataset(ClarifaiDataset):
 
   def __init__(self, datagen_object: Iterator, dataset_id: str) -> None:
+    self.input_object = Inputs()
     super().__init__(datagen_object, dataset_id)
 
   def _extract_protos(self, batch_input_ids: List[str]
@@ -59,6 +61,7 @@ class VisualDetectionDataset(ClarifaiDataset):
   """Visual detection dataset proto class."""
 
   def __init__(self, datagen_object: Iterator, dataset_id: str) -> None:
+    self.input_object = Inputs()
     super().__init__(datagen_object, dataset_id)
 
   def _extract_protos(self, batch_input_ids: List[int]
@@ -112,6 +115,7 @@ class VisualSegmentationDataset(ClarifaiDataset):
   """Visual segmentation dataset proto class."""
 
   def __init__(self, datagen_object: Iterator, dataset_id: str) -> None:
+    self.input_object = Inputs()
     super().__init__(datagen_object, dataset_id)
 
   def _extract_protos(self, batch_input_ids: List[str]
