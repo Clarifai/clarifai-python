@@ -1,4 +1,5 @@
-from typing import List
+import os
+from typing import List, Any, Dict, Optional
 
 
 class Chunker:
@@ -31,3 +32,23 @@ class BackoffIterator:
       return 0.01 * (2**(self.count + 4))
     else:
       return 0.01 * (2**10)  # 10 seconds
+
+
+def get_from_dict_or_env(data: Dict[str, Any], key: str, env_key: str) -> str:
+  """Get a value from a dictionary or an environment variable."""
+  if key in data and data[key]:
+      return data[key]
+  else:
+      return get_from_env(key, env_key)
+
+
+def get_from_env(key: str, env_key: str) -> str:
+  """Get a value from a dictionary or an environment variable."""
+  if env_key in os.environ and os.environ[env_key]:
+      return os.environ[env_key]
+  else:
+      raise ValueError(
+          f"Did not find {key}, please add an environment variable"
+          f" `{env_key}` which contains it, or pass"
+          f"  `{key}` as a named parameter."
+      )
