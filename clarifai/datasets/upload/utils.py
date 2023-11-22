@@ -89,12 +89,12 @@ class DisplayUploadStatus:
     console = Console()
     console.print(panel_layout)
 
-  def get_dataloader_stats(self) -> Tuple[int, dict[str, int]]:
+  def get_dataloader_stats(self) -> Tuple[int, Dict[str, int]]:
     """Get the number of inputs and annotations in a dataloader.
 
     Returns:
       local_inputs_count (int): total number of inputs in the dataloader
-      local_annotations_dict (dict[str, int]): total number of annotations in the dataloader
+      local_annotations_dict (Dict[str, int]): total number of annotations in the dataloader
     """
     from clarifai.constants.dataset import DATASET_UPLOAD_TASKS
 
@@ -119,12 +119,12 @@ class DisplayUploadStatus:
 
     return local_inputs_count, local_annotations_dict
 
-  def get_uploaded_dataset_stats(self) -> Tuple[dict[str, int], dict[str, int]]:
+  def get_uploaded_dataset_stats(self) -> Tuple[Dict[str, int], Dict[str, int]]:
     """Parse the response from the server for the dataset version metrics groups.
 
     Returns:
-      uploaded_inputs_dict (dict[str, int]): The input statistics for the dataset.
-      uploaded_annotations_dict (dict[str, int]): The annotation statistics for the dataset.
+      uploaded_inputs_dict (Dict[str, int]): The input statistics for the dataset.
+      uploaded_annotations_dict (Dict[str, int]): The annotation statistics for the dataset.
     """
     dataset_statistics = []
     uploaded_inputs_dict = {}
