@@ -1,0 +1,5 @@
+clarifai
+tritonclient[all]
+transformers==4.34.1
+torch==2.0.1
+vllm==0.2.1.post1
