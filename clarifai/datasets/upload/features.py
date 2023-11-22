@@ -16,7 +16,7 @@ class TextFeatures:
 class VisualClassificationFeatures:
   """Image classification datasets preprocessing output features."""
   image_path: str
-  label: Union[str, int]
+  labels: List[Union[str, int]]  # List[str or int] to cater for multi-class tasks
   geo_info: Optional[List[float]] = None  #[Longitude, Latitude]
   id: Optional[int] = None  # image_id
   metadata: Optional[dict] = None
@@ -26,7 +26,7 @@ class VisualClassificationFeatures:
 class VisualDetectionFeatures:
   """Image Detection datasets preprocessing output features."""
   image_path: str
-  classes: List[Union[str, int]]
+  labels: List[Union[str, int]]
   bboxes: List[List[float]]
   geo_info: Optional[List[float]] = None  #[Longitude, Latitude]
   id: Optional[int] = None  # image_id
@@ -37,7 +37,7 @@ class VisualDetectionFeatures:
 class VisualSegmentationFeatures:
   """Image Segmentation datasets preprocessing output features."""
   image_path: str
-  classes: List[Union[str, int]]
+  labels: List[Union[str, int]]
   polygons: List[List[List[float]]]
   geo_info: Optional[List[float]] = None  #[Longitude, Latitude]
   id: Optional[int] = None  # image_id

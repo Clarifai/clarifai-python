@@ -1,7 +1,7 @@
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
-from typing import Generator, List, Tuple, TypeVar, Union
+from typing import Generator, List, Tuple, Type, TypeVar, Union
 
 import requests
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -13,12 +13,13 @@ from tqdm import tqdm
 from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
+from clarifai.constants.dataset import DATASET_UPLOAD_TASKS
 from clarifai.datasets.export.inputs_annotations import (DatasetExportReader,
                                                          InputAnnotationDownloader)
+from clarifai.datasets.upload.base import ClarifaiDataLoader
 from clarifai.datasets.upload.image import (VisualClassificationDataset, VisualDetectionDataset,
                                             VisualSegmentationDataset)
 from clarifai.datasets.upload.text import TextClassificationDataset
-from clarifai.datasets.upload.utils import load_dataloader, load_module_dataloader
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import get_logger
@@ -33,22 +34,22 @@ class Dataset(Lister, BaseClient):
   """Dataset is a class that provides access to Clarifai API endpoints related to Dataset information."""
 
   def __init__(self,
-               url_init: str = "",
+               url: str = "",
                dataset_id: str = "",
                base_url: str = "https://api.clarifai.com",
                **kwargs):
     """Initializes a Dataset object.
 
     Args:
-        url_init (str): The URL to initialize the dataset object.
+        url (str): The URL to initialize the dataset object.
         dataset_id (str): The Dataset ID within the App to interact with.
         base_url (str): Base API url. Default "https://api.clarifai.com"
         **kwargs: Additional keyword arguments to be passed to the Dataset.
     """
-    if url_init != "" and dataset_id != "":
-      raise UserError("You can only specify one of url_init or dataset_id.")
-    if url_init != "":
-      user_id, app_id, _, dataset_id, _ = ClarifaiUrlHelper.split_clarifai_url(url_init)
+    if url != "" and dataset_id != "":
+      raise UserError("You can only specify one of url or dataset_id.")
+    if url != "":
+      user_id, app_id, _, dataset_id, _ = ClarifaiUrlHelper.split_clarifai_url(url)
       kwargs = {'user_id': user_id, 'app_id': app_id}
     self.kwargs = {**kwargs, 'id': dataset_id}
     self.dataset_info = resources_pb2.Dataset(**self.kwargs)
@@ -56,7 +57,7 @@ class Dataset(Lister, BaseClient):
     self.num_workers: int = min(10, cpu_count())  #15 req/sec rate limit
     self.annot_num_workers = 4
     self.max_retires = 10
-    self.chunk_size = 128  # limit max protos in a req
+    self.batch_size = 128  # limit max protos in a req
     self.task = None  # Upload dataset type
     self.input_object = Inputs(user_id=self.user_id, app_id=self.app_id)
     self.logger = get_logger(logger_level="INFO")
@@ -241,7 +242,7 @@ class Dataset(Lister, BaseClient):
 
     if self.task in ["visual_detection", "visual_segmentation"]:
       _, annotation_protos = dataset_obj.get_protos(success_input_ids)
-      chunked_annotation_protos = Chunker(annotation_protos, self.chunk_size).chunk()
+      chunked_annotation_protos = Chunker(annotation_protos, self.batch_size).chunk()
       retry_annot_protos.extend(self._concurrent_annot_upload(chunked_annotation_protos))
 
     return failed_input_ids, retry_annot_protos
@@ -259,7 +260,7 @@ class Dataset(Lister, BaseClient):
     if failed_input_ids:
       self._upload_inputs_annotations(failed_input_ids, dataset_obj)
     if retry_annot_protos:
-      chunked_annotation_protos = Chunker(retry_annot_protos, self.chunk_size).chunk()
+      chunked_annotation_protos = Chunker(retry_annot_protos, self.batch_size).chunk()
       _ = self._concurrent_annot_upload(chunked_annotation_protos)
 
   def _data_upload(self, dataset_obj: ClarifaiDatasetType) -> None:
@@ -269,7 +270,7 @@ class Dataset(Lister, BaseClient):
       dataset_obj: ClarifaiDataset object
     """
     input_ids = list(range(len(dataset_obj)))
-    chunk_input_ids = Chunker(input_ids, self.chunk_size).chunk()
+    chunk_input_ids = Chunker(input_ids, self.batch_size).chunk()
     with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
       with tqdm(total=len(chunk_input_ids), desc='Uploading Dataset') as progress:
         # Submit all jobs to the executor and store the returned futures
@@ -283,47 +284,31 @@ class Dataset(Lister, BaseClient):
           self._retry_uploads(retry_input_ids, retry_annot_protos, dataset_obj)
           progress.update()
 
-  def upload_dataset(self,
-                     task: str,
-                     split: str,
-                     module_dir: str = None,
-                     dataset_loader: str = None,
-                     chunk_size: int = 128) -> None:
+  def upload_dataset(self, dataloader: Type[ClarifaiDataLoader], batch_size: int = 32) -> None:
     """Uploads a dataset to the app.
 
     Args:
-      task (str): task type(text_clf, visual-classification, visual_detection, visual_segmentation, visual-captioning)
-      split (str): split type(train, test, val)
-      module_dir (str): path to the module directory
-      dataset_loader (str): name of the dataset loader
-      chunk_size (int): chunk size for concurrent upload of inputs and annotations
+      dataloader (Type[ClarifaiDataLoader]): ClarifaiDataLoader object
+      batch_size (int): batch size for concurrent upload of inputs and annotations (max: 128)
     """
-    self.chunk_size = min(self.chunk_size, chunk_size)
-    self.task = task
-    datagen_object = None
+    self.batch_size = min(self.batch_size, batch_size)
+    self.task = dataloader.task
+    if self.task not in DATASET_UPLOAD_TASKS:
+      raise UserError("Task should be one of \
+                      'text_classification', 'visual_classification', \
+                      'visual_detection', 'visual_segmentation', 'visual_captioning'")
 
-    if module_dir is None and dataset_loader is None:
-      raise UserError("One of `from_module` and `dataset_loader` must be \
-      specified. Both can't be None or defined at the same time.")
-    elif module_dir is not None and dataset_loader is not None:
-      raise UserError("Use either of `from_module` or `dataset_loader` \
-      but NOT both.")
-    elif module_dir is not None:
-      datagen_object = load_module_dataloader(module_dir, split)
-    else:
-      datagen_object = load_dataloader(dataset_loader, split)
-
-    if self.task == "text_clf":
-      dataset_obj = TextClassificationDataset(datagen_object, self.id, split)
+    if self.task == "text_classification":
+      dataset_obj = TextClassificationDataset(dataloader, self.id)
 
     elif self.task == "visual_detection":
-      dataset_obj = VisualDetectionDataset(datagen_object, self.id, split)
+      dataset_obj = VisualDetectionDataset(dataloader, self.id)
 
     elif self.task == "visual_segmentation":
-      dataset_obj = VisualSegmentationDataset(datagen_object, self.id, split)
+      dataset_obj = VisualSegmentationDataset(dataloader, self.id)
 
     else:  # visual_classification & visual_captioning
-      dataset_obj = VisualClassificationDataset(datagen_object, self.id, split)
+      dataset_obj = VisualClassificationDataset(dataloader, self.id)
 
     self._data_upload(dataset_obj)
 
@@ -332,7 +317,7 @@ class Dataset(Lister, BaseClient):
                       input_type: str = 'text',
                       csv_type: str = None,
                       labels: bool = True,
-                      chunk_size: int = 128) -> None:
+                      batch_size: int = 128) -> None:
     """Uploads dataset from a csv file.
 
     Args:
@@ -340,7 +325,7 @@ class Dataset(Lister, BaseClient):
         input_type (str): type of the dataset(text, image)
         csv_type (str): type of the csv file(raw, url, file_path)
         labels (bool): True if csv file has labels column
-        chunk_size (int): chunk size for concurrent upload of inputs and annotations
+        batch_size (int): batch size for concurrent upload of inputs and annotations
 
     Example:
         >>> from clarifai.client.dataset import Dataset
@@ -360,27 +345,27 @@ class Dataset(Lister, BaseClient):
     assert csv_path.endswith('.csv'), 'csv_path should be a csv file'
     if csv_type == 'raw' and input_type != 'text':
       raise UserError('Only text input type is supported for raw csv type')
-    chunk_size = min(128, chunk_size)
+    batch_size = min(128, batch_size)
     input_protos = self.input_object.get_inputs_from_csv(
         csv_path=csv_path,
         input_type=input_type,
         csv_type=csv_type,
         dataset_id=self.id,
         labels=labels)
-    self.input_object._bulk_upload(inputs=input_protos, chunk_size=chunk_size)
+    self.input_object._bulk_upload(inputs=input_protos, batch_size=batch_size)
 
   def upload_from_folder(self,
                          folder_path: str,
                          input_type: str,
                          labels: bool = False,
-                         chunk_size: int = 128) -> None:
+                         batch_size: int = 128) -> None:
     """Upload dataset from folder.
 
     Args:
         folder_path (str): Path to the folder containing images.
         input_type (str): type of the dataset(text, image)
         labels (bool): True if folder name is the label for the inputs
-        chunk_size (int): chunk size for concurrent upload of inputs and annotations
+        batch_size (int): batch size for concurrent upload of inputs and annotations
 
     Example:
         >>> from clarifai.client.dataset import Dataset
@@ -397,7 +382,7 @@ class Dataset(Lister, BaseClient):
     if input_type == 'text':
       input_protos = self.input_object.get_text_inputs_from_folder(
           folder_path=folder_path, dataset_id=self.id, labels=labels)
-    self.input_object._bulk_upload(inputs=input_protos, chunk_size=chunk_size)
+    self.input_object._bulk_upload(inputs=input_protos, batch_size=batch_size)
 
   def export(self,
              save_path: str,

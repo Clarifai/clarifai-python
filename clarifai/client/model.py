@@ -27,7 +27,7 @@ class Model(Lister, BaseClient):
   """Model is a class that provides access to Clarifai API endpoints related to Model information."""
 
   def __init__(self,
-               url_init: str = "",
+               url: str = "",
                model_id: str = "",
                model_version: Dict = {'id': ""},
                base_url: str = "https://api.clarifai.com",
@@ -35,19 +35,18 @@ class Model(Lister, BaseClient):
     """Initializes a Model object.
 
     Args:
-        url_init (str): The URL to initialize the model object.
+        url (str): The URL to initialize the model object.
         model_id (str): The Model ID to interact with.
         model_version (dict): The Model Version to interact with.
         base_url (str): Base API url. Default "https://api.clarifai.com"
         **kwargs: Additional keyword arguments to be passed to the Model.
     """
-    if url_init != "" and model_id != "":
-      raise UserError("You can only specify one of url_init or model_id.")
-    if url_init == "" and model_id == "":
-      raise UserError("You must specify one of url_init or model_id.")
-    if url_init != "":
-      user_id, app_id, _, model_id, model_version_id = ClarifaiUrlHelper.split_clarifai_url(
-          url_init)
+    if url != "" and model_id != "":
+      raise UserError("You can only specify one of url or model_id.")
+    if url == "" and model_id == "":
+      raise UserError("You must specify one of url or model_id.")
+    if url != "":
+      user_id, app_id, _, model_id, model_version_id = ClarifaiUrlHelper.split_clarifai_url(url)
       model_version = {'id': model_version_id}
       kwargs = {'user_id': user_id, 'app_id': app_id}
     self.kwargs = {**kwargs, 'id': model_id, 'model_version': model_version,}
@@ -306,7 +305,7 @@ class Model(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.model import Model
-        >>> model = Model("model_url")
+        >>> model = Model("url")
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
         >>> model_version = model.create_version(description='model_version_description')
@@ -345,7 +344,7 @@ class Model(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.model import Model
-        >>> model = Model("model_url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
         >>> all_model_versions = list(model.list_versions())
@@ -432,7 +431,7 @@ class Model(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.model import Model
-        >>> model = Model("model_url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
         >>> model_prediction = model.predict_by_filepath('/path/to/image.jpg', 'image')
@@ -505,7 +504,7 @@ class Model(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.model import Model
-        >>> model = Model("model_url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
         >>> model_prediction = model.predict_by_url('url', 'image')
@@ -537,8 +536,8 @@ class Model(Lister, BaseClient):
           select_concepts (list[Concept]): The concepts to select.
           sample_ms (int): The number of milliseconds to sample.
     """
+    params = Struct()
     if inference_params is not None:
-      params = Struct()
       params.update(inference_params)
 
     self.model_info.model_version.output_info.CopyFrom(

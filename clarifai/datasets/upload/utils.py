@@ -6,12 +6,12 @@ from typing import Union
 from clarifai.datasets.upload.base import ClarifaiDataLoader
 
 
-def load_module_dataloader(module_dir: Union[str, os.PathLike], split: str) -> ClarifaiDataLoader:
+def load_module_dataloader(module_dir: Union[str, os.PathLike], **kwargs) -> ClarifaiDataLoader:
   """Validate and import dataset module data generator.
   Args:
     `module_dir`: relative path to the module directory
     The directory must contain a `dataset.py` script and the data itself.
-    `split`: "train" or "val"/"test" dataset split
+    kwargs: keyword arguments to be passed to the dataloader class
   Module Directory Structure:
   ---------------------------
       <folder_name>/
@@ -40,24 +40,4 @@ def load_module_dataloader(module_dir: Union[str, os.PathLike], split: str) -> C
     else:
       continue
 
-  return main_module_cls(split)
-
-
-def load_dataloader(name: str, split: str) -> ClarifaiDataLoader:
-  """Get dataset generator object from dataset loaders.
-  Args:
-    `name`: dataset module name in datasets/upload/loaders/.
-    `split`: "train" or "val"/"test" dataset split
-  Returns:
-    Data generator object
-  """
-  loader_dataset = importlib.import_module(f"clarifai.datasets.upload.loaders.{name}")
-  # get main module class
-  main_module_cls = None
-  for name, obj in loader_dataset.__dict__.items():
-    if inspect.isclass(obj) and "DataLoader" in name:
-      main_module_cls = obj
-    else:
-      continue
-
-  return main_module_cls(split)
+  return main_module_cls(**kwargs)

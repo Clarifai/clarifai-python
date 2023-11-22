@@ -31,13 +31,13 @@ class xviewDetectionDataLoader(ClarifaiDataLoader):
       'Shipping container lot', 'Shipping Container', 'Pylon', 'Tower'
   ]
 
-  def __init__(self, split: str = "train") -> None:
+  def __init__(self, data_dir) -> None:
     """Initialize and Compress xview dataset.
     Args:
-    split: "train"
+    data_dir: the local dataset directory.
     """
 
-    self.data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    self.data_dir = data_dir
     self.img_dir = os.path.join(self.data_dir, "train_images")
     self.img_comp_dir = os.path.join(self.data_dir, "train_images_comp")
     self.label_file = os.path.join(self.data_dir, "xview_train.geojson")

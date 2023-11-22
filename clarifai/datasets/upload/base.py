@@ -3,7 +3,7 @@ from typing import Iterator, List, Tuple, TypeVar, Union
 
 from clarifai_grpc.grpc.api import resources_pb2
 
-from clarifai.client.input import Inputs
+from clarifai.constants.dataset import DATASET_UPLOAD_TASKS
 from clarifai.datasets.upload.features import (TextFeatures, VisualClassificationFeatures,
                                                VisualDetectionFeatures, VisualSegmentationFeatures)
 
@@ -16,18 +16,16 @@ OutputFeaturesType = TypeVar(
 class ClarifaiDataset:
   """Clarifai datasets base class."""
 
-  def __init__(self, datagen_object: Iterator, dataset_id: str, split: str) -> None:
-    self.datagen_object = datagen_object
+  def __init__(self, data_generator: 'ClarifaiDataLoader', dataset_id: str) -> None:
+    self.data_generator = data_generator
     self.dataset_id = dataset_id
-    self.split = split
     self.all_input_ids = {}
     self._all_input_protos = {}
     self._all_annotation_protos = defaultdict(list)
-    self.input_object = Inputs()
 
   def __len__(self) -> int:
     """Get size of all input protos"""
-    return len(self.datagen_object)
+    return len(self.data_generator)
 
   def _to_list(self, input_protos: Iterator) -> List:
     """Parse protos iterator to list."""
@@ -53,8 +51,12 @@ class ClarifaiDataset:
 class ClarifaiDataLoader:
   """Clarifai data loader base class."""
 
-  def __init__(self, split: str) -> None:
+  def __init__(self) -> None:
     pass
+
+  @property
+  def task(self):
+    raise NotImplementedError("Task should be one of {}".format(DATASET_UPLOAD_TASKS))
 
   def load_data(self) -> None:
     raise NotImplementedError()

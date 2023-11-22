@@ -9,7 +9,7 @@ from ..features import VisualClassificationFeatures
 class ImageNetDataLoader(ClarifaiDataLoader):
   """ImageNet Dataset."""
 
-  def __init__(self, split: str = "train"):
+  def __init__(self, data_dir, split: str = "train"):
     """
     Initialize dataset params.
     Args:
@@ -17,8 +17,7 @@ class ImageNetDataLoader(ClarifaiDataLoader):
       split: "train" or "test"
     """
     self.split = split
-    self.data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                 "data")  # data storage directory
+    self.data_dir = data_dir
     self.label_map = dict()
     self.concepts = []
     self.image_paths = []

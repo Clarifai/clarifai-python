@@ -1,17 +1,20 @@
 from concurrent.futures import ThreadPoolExecutor
-from typing import Iterator, List, Tuple
+from typing import List, Tuple, Type
 
 from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.struct_pb2 import Struct
 
-from .base import ClarifaiDataset
+from clarifai.client.input import Inputs
+
+from .base import ClarifaiDataLoader, ClarifaiDataset
 
 
 class TextClassificationDataset(ClarifaiDataset):
   """Upload text classification datasets to clarifai datasets"""
 
-  def __init__(self, datagen_object: Iterator, dataset_id: str, split: str) -> None:
-    super().__init__(datagen_object, dataset_id, split)
+  def __init__(self, data_generator: Type[ClarifaiDataLoader], dataset_id: str) -> None:
+    self.input_object = Inputs()
+    super().__init__(data_generator, dataset_id)
 
   def _extract_protos(self, batch_input_ids: List[int]
                      ) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:
@@ -24,15 +27,15 @@ class TextClassificationDataset(ClarifaiDataset):
     """
     input_protos, annotation_protos = [], []
 
-    def process_datagen_item(id):
-      datagen_item = self.datagen_object[id]
+    def process_data_item(id):
+      data_item = self.data_generator[id]
       metadata = Struct()
-      text = datagen_item.text
-      labels = datagen_item.labels if isinstance(
-          datagen_item.labels, list) else [datagen_item.labels]  # clarifai concept
-      input_id = f"{self.dataset_id}-{self.split}-{id}" if datagen_item.id is None else f"{self.dataset_id}-{self.split}-{str(datagen_item.id)}"
-      if datagen_item.metadata is not None:
-        metadata.update(datagen_item.metadata)
+      text = data_item.text
+      labels = data_item.labels if isinstance(data_item.labels,
+                                              list) else [data_item.labels]  # clarifai concept
+      input_id = f"{self.dataset_id}-{self.split}-{id}" if data_item.id is None else f"{self.dataset_id}-{self.split}-{str(data_item.id)}"
+      if data_item.metadata is not None:
+        metadata.update(data_item.metadata)
       else:
         metadata.update({"split": self.split})
 
@@ -46,7 +49,7 @@ class TextClassificationDataset(ClarifaiDataset):
               metadata=metadata))
 
     with ThreadPoolExecutor(max_workers=4) as executor:
-      futures = [executor.submit(process_datagen_item, id) for id in batch_input_ids]
+      futures = [executor.submit(process_data_item, id) for id in batch_input_ids]
       for job in futures:
         job.result()
 
