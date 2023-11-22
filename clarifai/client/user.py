@@ -10,6 +10,7 @@ from clarifai.client.lister import Lister
 from clarifai.client.runner import Runner
 from clarifai.errors import UserError
 from clarifai.utils.logging import get_logger
+from clarifai.utils.misc import get_from_dict_or_env
 
 
 class User(Lister, BaseClient):
@@ -26,7 +27,8 @@ class User(Lister, BaseClient):
     self.kwargs = {**kwargs, 'id': user_id}
     self.user_info = resources_pb2.User(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
-    BaseClient.__init__(self, user_id=self.id, app_id="", base=base_url)
+    BaseClient.__init__(self, user_id=self.id, app_id="",
+                        base=base_url, pat=get_from_dict_or_env(**kwargs, key="pat", env_key="CLARIFAI_PAT"))
     Lister.__init__(self)
 
   def list_apps(self, filter_by: Dict[str, Any] = {}, page_no: int = None,

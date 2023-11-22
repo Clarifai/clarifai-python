@@ -31,9 +31,9 @@ class BaseClient:
   """
 
   def __init__(self, **kwargs):
-    pat = os.environ.get('CLARIFAI_PAT', "")
-    if pat == "":
-      raise UserError("CLARIFAI_PAT must be set as env vars")
+    # pat = os.environ.get('CLARIFAI_PAT', "")
+    # if pat == "":
+    #   raise UserError("CLARIFAI_PAT must be set as env vars")
     self.auth_helper = ClarifaiAuthHelper(**kwargs, pat=pat, validate=False)
     self.STUB = create_stub(self.auth_helper)
     self.metadata = self.auth_helper.metadata

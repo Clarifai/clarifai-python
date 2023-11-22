@@ -1,5 +1,6 @@
 import os
 from typing import List, Any, Dict, Optional
+from clarifai.errors import UserError
 
 
 class Chunker:
@@ -47,7 +48,7 @@ def get_from_env(key: str, env_key: str) -> str:
   if env_key in os.environ and os.environ[env_key]:
       return os.environ[env_key]
   else:
-      raise ValueError(
+      raise UserError(
           f"Did not find {key}, please add an environment variable"
           f" `{env_key}` which contains it, or pass"
           f"  `{key}` as a named parameter."
