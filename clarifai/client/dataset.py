@@ -1,4 +1,6 @@
 import os
+import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
 from typing import Generator, List, Tuple, Type, TypeVar, Union
@@ -20,10 +22,11 @@ from clarifai.datasets.upload.base import ClarifaiDataLoader
 from clarifai.datasets.upload.image import (VisualClassificationDataset, VisualDetectionDataset,
                                             VisualSegmentationDataset)
 from clarifai.datasets.upload.text import TextClassificationDataset
+from clarifai.datasets.upload.utils import DisplayUploadStatus
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import get_logger
-from clarifai.utils.misc import Chunker
+from clarifai.utils.misc import BackoffIterator, Chunker
 
 ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset,
                               VisualDetectionDataset, VisualSegmentationDataset,
@@ -383,6 +386,61 @@ class Dataset(Lister, BaseClient):
       input_protos = self.input_object.get_text_inputs_from_folder(
           folder_path=folder_path, dataset_id=self.id, labels=labels)
     self.input_object._bulk_upload(inputs=input_protos, batch_size=batch_size)
+
+  def get_upload_status(self, dataloader: Type[ClarifaiDataLoader],
+                        delete_version: bool = False) -> None:
+    """Displays the upload status of the dataset.
+
+    Args:
+        dataloader (Type[ClarifaiDataLoader]): ClarifaiDataLoader object
+        delete_version (bool): True if you want to delete the version after getting the upload status
+
+    Example:
+        >>> from clarifai.client.dataset import Dataset
+        >>> dataset = Dataset(dataset_id='dataset_id', user_id='user_id', app_id='app_id')
+        >>> dataset.get_upload_status(dataloader)
+
+    Note:
+        This is a beta feature and is subject to change.
+    """
+    dataset_version_id = uuid.uuid4().hex
+    _ = self.create_version(id=dataset_version_id, description="SDK Upload Status")
+
+    request_data = dict(
+        user_app_id=self.user_app_id,
+        dataset_id=self.id,
+        dataset_version_id=dataset_version_id,
+    )
+
+    start_time = time.time()
+    backoff_iterator = BackoffIterator()
+    while (True):
+      dataset_metrics_response = self._grpc_request(
+          self.STUB.ListDatasetVersionMetricsGroups,
+          service_pb2.ListDatasetVersionMetricsGroupsRequest(**request_data),
+      )
+
+      if dataset_metrics_response.status.code != status_code_pb2.SUCCESS:
+        self.delete_version(dataset_version_id)
+        raise Exception("Failed to get dataset metrics {}".format(dataset_metrics_response.status))
+
+      dict_response = MessageToDict(dataset_metrics_response)
+      if len(dict_response.keys()) == 1 and time.time() - start_time < 60 * 10:  # 10 minutes
+        self.logger.info("Crunching the dataset metrics. Please wait...")
+        time.sleep(next(backoff_iterator))
+        continue
+      else:
+        if time.time() - start_time > 60 * 10:  # 10 minutes
+          self.delete_version(dataset_version_id)
+          raise UserError(
+              "Dataset metrics are taking too long to process. Please try again later.")
+        break
+
+    dataset_info_dict = dict(user_id=self.user_id, app_id=self.app_id, dataset_id=self.id)
+    DisplayUploadStatus(dataloader, dataset_metrics_response, dataset_info_dict)
+
+    if delete_version:
+      self.delete_version(dataset_version_id)
 
   def export(self,
              save_path: str,
