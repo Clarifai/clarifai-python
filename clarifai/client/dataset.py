@@ -394,13 +394,16 @@ class Dataset(Lister, BaseClient):
           folder_path=folder_path, dataset_id=self.id, labels=labels)
     self.input_object._bulk_upload(inputs=input_protos, batch_size=batch_size)
 
-  def get_upload_status(self, dataloader: Type[ClarifaiDataLoader],
-                        delete_version: bool = False) -> None:
+  def get_upload_status(self,
+                        dataloader: Type[ClarifaiDataLoader],
+                        delete_version: bool = False,
+                        timeout: int = 600) -> None:
     """Creates a new dataset version and displays the upload status of the dataset.
 
     Args:
         dataloader (Type[ClarifaiDataLoader]): ClarifaiDataLoader object
         delete_version (bool): True if you want to delete the version after getting the upload status
+        timeout (int): Timeout in seconds for getting the upload status. Default is 600 seconds.
 
     Example:
         >>> from clarifai.client.dataset import Dataset
@@ -413,7 +416,6 @@ class Dataset(Lister, BaseClient):
     self.logger.info("Getting dataset upload status...")
     dataset_version_id = uuid.uuid4().hex
     _ = self.create_version(id=dataset_version_id, description="SDK Upload Status")
-    timeout = 60 * 10  # 10 minutes
 
     request_data = dict(
         user_app_id=self.user_app_id,
