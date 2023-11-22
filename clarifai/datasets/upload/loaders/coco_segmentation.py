@@ -38,7 +38,7 @@ class COCOSegmentationDataLoader(ClarifaiDataLoader):
     self.map_ids = {i: img_id for i, img_id in enumerate(list(self.coco.imgs.keys()))}
 
   def __len__(self):
-    return len(self.img_ids)
+    return len(self.coco.imgs)
 
   def __getitem__(self, index):
     """Get image and annotations for a given index."""
@@ -59,9 +59,11 @@ class COCOSegmentationDataLoader(ClarifaiDataLoader):
 
       # get polygons
       if isinstance(ann['segmentation'], list):
-        poly = np.array(ann['segmentation']).reshape((int(len(ann['segmentation'][0]) / 2), 2))
-        annots.append(poly.tolist())  #[[x=col, y=row],...]
+        poly = np.array(ann['segmentation']).reshape((int(len(ann['segmentation'][0]) / 2),
+                                                      2)).astype(float)
         poly[:, 0], poly[:, 1] = poly[:, 0] / value['width'], poly[:, 1] / value['height']
+        poly = np.clip(poly, 0, 1)
+        annots.append(poly.tolist())  #[[x=col, y=row],...]
         concept_ids.append(concept_id)
       else:  # seg: {"counts":[...]}
         if isinstance(ann['segmentation']['counts'], list):
@@ -82,10 +84,11 @@ class COCOSegmentationDataLoader(ClarifaiDataLoader):
         del mask
         gc.collect()
 
-        polygons = np.array(polygons_flattened).reshape((int(len(polygons_flattened) / 2), 2))
+        polygons = np.array(polygons_flattened).reshape((int(len(polygons_flattened) / 2),
+                                                         2)).astype(float)
         polygons[:, 0] = polygons[:, 0] / value['width']
         polygons[:, 1] = polygons[:, 1] / value['height']
-
+        polygons = np.clip(polygons, 0, 1)
         annots.append(polygons.tolist())  #[[x=col, y=row],...,[x=col, y=row]]
         concept_ids.append(concept_id)
 

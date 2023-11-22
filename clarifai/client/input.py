@@ -653,8 +653,7 @@ class Inputs(Lister, BaseClient):
     response = self._grpc_request(self.STUB.PostAnnotations, request)
     if response.status.code != status_code_pb2.SUCCESS:
       try:
-        self.logger.warning(
-            f"Post annotations failed, status: {response.annotations[0].status.details}")
+        self.logger.warning(f"Post annotations failed, status: {response.annotations[0].status}")
       except Exception:
         self.logger.warning(f"Post annotations failed, status: {response.status.details}")
       finally:
