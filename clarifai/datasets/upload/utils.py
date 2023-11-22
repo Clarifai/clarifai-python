@@ -6,6 +6,7 @@ from typing import Dict, Tuple, Type, Union
 from clarifai_grpc.grpc.api.service_pb2 import MultiDatasetVersionMetricsGroupResponse
 from google.protobuf.json_format import MessageToDict
 
+from clarifai.constants.dataset import TASK_TO_ANNOTATION_TYPE
 from clarifai.datasets.upload.base import ClarifaiDataLoader
 from clarifai.errors import UserError
 
@@ -108,15 +109,8 @@ class DisplayUploadStatus:
     local_inputs_count = len(self.dataloader)
     local_annotations_dict = dict(concepts=0, bboxes=0, polygons=0)
     for i in range(local_inputs_count):
-      if task == "visual_segmentation":
-        local_annotations_dict["polygons"] += len(self.dataloader[i].polygons)
-      elif task == "visual_detection":
-        local_annotations_dict["bboxes"] += len(self.dataloader[i].bboxes)
-      elif task == "text_classification":
-        local_annotations_dict["concepts"] += len(self.dataloader[i].labels)
-      elif task == "visual_classification" or task == "visual_captioning":
-        local_annotations_dict["concepts"] += len(self.dataloader[i].labels)
-
+      key, attr = [(k, v) for k, v in TASK_TO_ANNOTATION_TYPE.get(task).items()][0]
+      local_annotations_dict[key] += len(getattr(self.dataloader[i], attr))
     return local_inputs_count, local_annotations_dict
 
   def get_uploaded_dataset_stats(self) -> Tuple[Dict[str, int], Dict[str, int]]:
@@ -128,7 +122,7 @@ class DisplayUploadStatus:
     """
     dataset_statistics = []
     uploaded_inputs_dict = {}
-    uploaded_annotations_dict = {"concepts": 0, "bboxes": 0, "polygons": 0}
+    uploaded_annotations_dict = dict(concepts=0, bboxes=0, polygons=0)
     dict_response = MessageToDict(self.dataset_metrics_response)
 
     for data in dict_response["datasetVersionMetricsGroups"]:

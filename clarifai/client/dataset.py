@@ -287,12 +287,16 @@ class Dataset(Lister, BaseClient):
           self._retry_uploads(retry_input_ids, retry_annot_protos, dataset_obj)
           progress.update()
 
-  def upload_dataset(self, dataloader: Type[ClarifaiDataLoader], batch_size: int = 32) -> None:
+  def upload_dataset(self,
+                     dataloader: Type[ClarifaiDataLoader],
+                     batch_size: int = 32,
+                     get_upload_status: bool = False) -> None:
     """Uploads a dataset to the app.
 
     Args:
       dataloader (Type[ClarifaiDataLoader]): ClarifaiDataLoader object
       batch_size (int): batch size for concurrent upload of inputs and annotations (max: 128)
+      get_upload_status (bool): True if you want to get the upload status of the dataset
     """
     self.batch_size = min(self.batch_size, batch_size)
     self.task = dataloader.task
@@ -314,6 +318,9 @@ class Dataset(Lister, BaseClient):
       dataset_obj = VisualClassificationDataset(dataloader, self.id)
 
     self._data_upload(dataset_obj)
+
+    if get_upload_status:
+      self.get_upload_status(dataloader)
 
   def upload_from_csv(self,
                       csv_path: str,
@@ -389,7 +396,7 @@ class Dataset(Lister, BaseClient):
 
   def get_upload_status(self, dataloader: Type[ClarifaiDataLoader],
                         delete_version: bool = False) -> None:
-    """Displays the upload status of the dataset.
+    """Creates a new dataset version and displays the upload status of the dataset.
 
     Args:
         dataloader (Type[ClarifaiDataLoader]): ClarifaiDataLoader object
@@ -403,8 +410,10 @@ class Dataset(Lister, BaseClient):
     Note:
         This is a beta feature and is subject to change.
     """
+    self.logger.info("Getting dataset upload status...")
     dataset_version_id = uuid.uuid4().hex
     _ = self.create_version(id=dataset_version_id, description="SDK Upload Status")
+    timeout = 60 * 10  # 10 minutes
 
     request_data = dict(
         user_app_id=self.user_app_id,
@@ -425,12 +434,12 @@ class Dataset(Lister, BaseClient):
         raise Exception("Failed to get dataset metrics {}".format(dataset_metrics_response.status))
 
       dict_response = MessageToDict(dataset_metrics_response)
-      if len(dict_response.keys()) == 1 and time.time() - start_time < 60 * 10:  # 10 minutes
+      if len(dict_response.keys()) == 1 and time.time() - start_time < timeout:
         self.logger.info("Crunching the dataset metrics. Please wait...")
         time.sleep(next(backoff_iterator))
         continue
       else:
-        if time.time() - start_time > 60 * 10:  # 10 minutes
+        if time.time() - start_time > timeout:
           self.delete_version(dataset_version_id)
           raise UserError(
               "Dataset metrics are taking too long to process. Please try again later.")
