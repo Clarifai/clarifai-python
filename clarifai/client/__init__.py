@@ -1,4 +1,3 @@
-# # Note: V2Stub, create_stub is just added for backwards compatibility. It will be removed in the future.
 from clarifai.client.app import App
 from clarifai.client.auth.register import V2Stub
 from clarifai.client.auth.stub import create_stub

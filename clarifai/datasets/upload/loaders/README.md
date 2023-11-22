@@ -28,7 +28,7 @@ dataset.upload_dataset(dataloader=coco_seg_dataloader)
  |       | Captions | `coco_captions` |
  |[xVIEW](http://xviewdataset.org/)  | Detection | `xview_detection` |
  | [ImageNet](https://www.image-net.org/)  | Classification | `imagenet_classification` |
-## Contributing Modules
+## Contributing To Loaders
 
 A dataloader (preprocessing) module is a python script that contains a dataloader class which implements dataloader methods.
 
