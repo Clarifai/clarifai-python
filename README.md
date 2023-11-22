@@ -9,7 +9,7 @@ Clarifai Python SDK</a>
 
 
 <p align="center">
-  <a href="https://discord.gg/M32V7a7a" target="_blank"> <img src="https://img.shields.io/badge/discord-chat-green.svg?logo=discord&color=4ec528" alt="Discord">
+  <a href="https://discord.gg/M32V7a7a" target="_blank"> <img src="https://img.shields.io/discord/1145701543228735582" alt="Discord">
   </a>
   <a href="https://pypi.org/project/clarifai" target="_blank"> <img src="https://img.shields.io/pypi/dm/clarifai" alt="PyPI - Downloads">
   </a>
@@ -20,7 +20,7 @@ Clarifai Python SDK</a>
 
 This is the official Python client for interacting with our powerful [API](https://docs.clarifai.com). The Clarifai Python SDK offers a comprehensive set of tools to integrate Clarifai's AI platform to leverage computer vision capabilities like classification , detection ,segementation and natural language capabilities like classification , summarisation , generation , Q&A ,etc into your applications. With just a few lines of code, you can leverage cutting-edge artificial intelligence to unlock valuable insights from visual and textual content.
 
-[Website](https://www.clarifai.com/) | [Demo](https://clarifai.com/demo) | [Signup for a Free Account](https://clarifai.com/signup) | [API Docs](https://docs.clarifai.com/) | [Clarifai Community](https://clarifai.com/explore) | [Python SDK Docs](https://docs.clarifai.com/python-sdk/api-reference) | [Examples](https://github.com/Clarifai/examples) | [Colab Notebooks](https://github.com/Clarifai/colab-notebooks)
+[Website](https://www.clarifai.com/) | [Demo](https://clarifai.com/demo) | [Signup for a Free Account](https://clarifai.com/signup) | [API Docs](https://docs.clarifai.com/) | [Clarifai Community](https://clarifai.com/explore) | [Python SDK Docs](https://docs.clarifai.com/python-sdk/api-reference) | [Examples](https://github.com/Clarifai/examples) | [Colab Notebooks](https://github.com/Clarifai/colab-notebooks) | [Discord](https://discord.gg/XAPE3Vtg)
 
 
 ---
