@@ -27,11 +27,11 @@ class Model(Lister, BaseClient):
   """Model is a class that provides access to Clarifai API endpoints related to Model information."""
 
   def __init__(self,
-               url: str = "",
-               model_id: str = "",
+               url: str = None,
+               model_id: str = None,
                model_version: Dict = {'id': ""},
                base_url: str = "https://api.clarifai.com",
-               pat: str = "",
+               pat: str = None,
                **kwargs):
     """Initializes a Model object.
 
@@ -43,11 +43,11 @@ class Model(Lister, BaseClient):
         pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
         **kwargs: Additional keyword arguments to be passed to the Model.
     """
-    if url != "" and model_id != "":
+    if url and model_id:
       raise UserError("You can only specify one of url or model_id.")
-    if url == "" and model_id == "":
+    if not url and not model_id:
       raise UserError("You must specify one of url or model_id.")
-    if url != "":
+    if url:
       user_id, app_id, _, model_id, model_version_id = ClarifaiUrlHelper.split_clarifai_url(url)
       model_version = {'id': model_version_id}
       kwargs = {'user_id': user_id, 'app_id': app_id}

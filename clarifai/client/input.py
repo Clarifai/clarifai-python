@@ -25,11 +25,11 @@ class Inputs(Lister, BaseClient):
   """Inputs is a class that provides access to Clarifai API endpoints related to Input information."""
 
   def __init__(self,
-               user_id: str = "",
-               app_id: str = "",
+               user_id: str = None,
+               app_id: str = None,
                logger_level: str = "INFO",
                base_url: str = "https://api.clarifai.com",
-               pat: str = "",
+               pat: str = None,
                **kwargs):
     """Initializes an Input object.
 

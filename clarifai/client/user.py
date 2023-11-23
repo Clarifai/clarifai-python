@@ -16,9 +16,9 @@ class User(Lister, BaseClient):
   """User is a class that provides access to Clarifai API endpoints related to user information."""
 
   def __init__(self,
-               user_id: str = "",
+               user_id: str = None,
                base_url: str = "https://api.clarifai.com",
-               pat: str = "",
+               pat: str = None,
                **kwargs):
     """Initializes an User object.
 

@@ -34,10 +34,10 @@ class Dataset(Lister, BaseClient):
   """Dataset is a class that provides access to Clarifai API endpoints related to Dataset information."""
 
   def __init__(self,
-               url: str = "",
-               dataset_id: str = "",
+               url: str = None,
+               dataset_id: str = None,
                base_url: str = "https://api.clarifai.com",
-               pat: str = "",
+               pat: str = None,
                **kwargs):
     """Initializes a Dataset object.
 
@@ -48,9 +48,9 @@ class Dataset(Lister, BaseClient):
         pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
         **kwargs: Additional keyword arguments to be passed to the Dataset.
     """
-    if url != "" and dataset_id != "":
+    if url and dataset_id:
       raise UserError("You can only specify one of url or dataset_id.")
-    if url != "":
+    if url:
       user_id, app_id, _, dataset_id, _ = ClarifaiUrlHelper.split_clarifai_url(url)
       kwargs = {'user_id': user_id, 'app_id': app_id}
     self.kwargs = {**kwargs, 'id': dataset_id}

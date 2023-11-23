@@ -23,7 +23,7 @@ class Search(Lister, BaseClient):
                top_k: int = DEFAULT_TOP_K,
                metric: str = DEFAULT_SEARCH_METRIC,
                base_url: str = "https://api.clarifai.com",
-               pat: str = ""):
+               pat: str = None):
     """Initialize the Search object.
 
     Args:

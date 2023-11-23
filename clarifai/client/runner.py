@@ -32,10 +32,10 @@ class Runner(BaseClient):
 
   def __init__(self,
                runner_id: str,
-               user_id: str = "",
+               user_id: str = None,
                check_runner_exists: bool = True,
                base_url: str = "https://api.clarifai.com",
-               pat: str = "",
+               pat: str = None,
                **kwargs) -> None:
     """
     Args:
@@ -46,7 +46,7 @@ class Runner(BaseClient):
     """
     user_id = user_id or os.environ.get("CLARIFAI_USER_ID", "")
 
-    if user_id == "":
+    if not user_id:
       raise UserError(
           "Set CLARIFAI_USER_ID as environment variables or pass user_id as input arguments")
 

@@ -18,12 +18,12 @@ class Workflow(Lister, BaseClient):
   """Workflow is a class that provides access to Clarifai API endpoints related to Workflow information."""
 
   def __init__(self,
-               url: str = "",
-               workflow_id: str = "",
+               url: str = None,
+               workflow_id: str = None,
                workflow_version: Dict = {'id': ""},
                output_config: Dict = {'min_value': 0},
                base_url: str = "https://api.clarifai.com",
-               pat: str = "",
+               pat: str = None,
                **kwargs):
     """Initializes a Workflow object.
 
@@ -39,11 +39,11 @@ class Workflow(Lister, BaseClient):
         base_url (str): Base API url. Default "https://api.clarifai.com"
         **kwargs: Additional keyword arguments to be passed to the Workflow.
     """
-    if url != "" and workflow_id != "":
+    if url and workflow_id:
       raise UserError("You can only specify one of url or workflow_id.")
-    if url == "" and workflow_id == "":
+    if not url and not workflow_id:
       raise UserError("You must specify one of url or workflow_id.")
-    if url != "":
+    if url:
       user_id, app_id, _, workflow_id, workflow_version_id = ClarifaiUrlHelper.split_clarifai_url(
           url)
       workflow_version = {'id': workflow_version_id}

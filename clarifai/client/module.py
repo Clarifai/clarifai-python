@@ -13,11 +13,11 @@ class Module(Lister, BaseClient):
   """Module is a class that provides access to Clarifai API endpoints related to Module information."""
 
   def __init__(self,
-               url: str = "",
-               module_id: str = "",
+               url: str = None,
+               module_id: str = None,
                module_version: Dict = {'id': ""},
                base_url: str = "https://api.clarifai.com",
-               pat: str = "",
+               pat: str = None,
                **kwargs):
     """Initializes a Module object.
 
@@ -29,11 +29,11 @@ class Module(Lister, BaseClient):
             pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
             **kwargs: Additional keyword arguments to be passed to the Module.
         """
-    if url != "" and module_id != "":
+    if url and module_id:
       raise UserError("You can only specify one of url or module_id.")
-    if url == "" and module_id == "":
+    if not url and not module_id:
       raise UserError("You must specify one of url or module_id.")
-    if url != "":
+    if url:
       user_id, app_id, module_id, module_version_id = ClarifaiUrlHelper.split_module_ui_url(url)
       module_version = {'id': module_version_id}
       kwargs = {'user_id': user_id, 'app_id': app_id}
