@@ -12,7 +12,6 @@ from clarifai.datasets.upload.base import ClarifaiDataLoader, ClarifaiDataset
 class VisualClassificationDataset(ClarifaiDataset):
 
   def __init__(self, data_generator: Type[ClarifaiDataLoader], dataset_id: str) -> None:
-    self.input_object = Inputs()
     super().__init__(data_generator, dataset_id)
 
   def _extract_protos(self, batch_input_ids: List[str]
@@ -41,7 +40,7 @@ class VisualClassificationDataset(ClarifaiDataset):
 
       self.all_input_ids[id] = input_id
       input_protos.append(
-          self.input_object.get_input_from_file(
+          Inputs.get_input_from_file(
               input_id=input_id,
               image_file=image_path,
               dataset_id=self.dataset_id,
@@ -61,7 +60,6 @@ class VisualDetectionDataset(ClarifaiDataset):
   """Visual detection dataset proto class."""
 
   def __init__(self, data_generator: Type[ClarifaiDataLoader], dataset_id: str) -> None:
-    self.input_object = Inputs()
     super().__init__(data_generator, dataset_id)
 
   def _extract_protos(self, batch_input_ids: List[int]
@@ -90,7 +88,7 @@ class VisualDetectionDataset(ClarifaiDataset):
 
       self.all_input_ids[id] = input_id
       input_protos.append(
-          self.input_object.get_input_from_file(
+          Inputs.get_input_from_file(
               input_id=input_id,
               image_file=image,
               dataset_id=self.dataset_id,
@@ -100,8 +98,7 @@ class VisualDetectionDataset(ClarifaiDataset):
       # one id could have more than one bbox and label
       for i in range(len(bboxes)):
         annotation_protos.append(
-            self.input_object.get_annotation_proto(
-                input_id=input_id, label=labels[i], annotations=bboxes[i]))
+            Inputs.get_annotation_proto(input_id=input_id, label=labels[i], annotations=bboxes[i]))
 
     with ThreadPoolExecutor(max_workers=4) as executor:
       futures = [executor.submit(process_data_item, id) for id in batch_input_ids]
@@ -115,7 +112,6 @@ class VisualSegmentationDataset(ClarifaiDataset):
   """Visual segmentation dataset proto class."""
 
   def __init__(self, data_generator: Type[ClarifaiDataLoader], dataset_id: str) -> None:
-    self.input_object = Inputs()
     super().__init__(data_generator, dataset_id)
 
   def _extract_protos(self, batch_input_ids: List[str]
@@ -144,7 +140,7 @@ class VisualSegmentationDataset(ClarifaiDataset):
 
       self.all_input_ids[id] = input_id
       input_protos.append(
-          self.input_object.get_input_from_file(
+          Inputs.get_input_from_file(
               input_id=input_id,
               image_file=image,
               dataset_id=self.dataset_id,
@@ -156,8 +152,7 @@ class VisualSegmentationDataset(ClarifaiDataset):
       for i, _polygon in enumerate(_polygons):
         try:
           annotation_protos.append(
-              self.input_object.get_mask_proto(
-                  input_id=input_id, label=labels[i], polygons=_polygon))
+              Inputs.get_mask_proto(input_id=input_id, label=labels[i], polygons=_polygon))
         except IndexError:
           continue
 

@@ -113,13 +113,13 @@ class Workflow(Lister, BaseClient):
       raise UserError('Invalid bytes.')
 
     if input_type == "image":
-      input_proto = Inputs().get_input_from_bytes("", image_bytes=input_bytes)
+      input_proto = Inputs.get_input_from_bytes("", image_bytes=input_bytes)
     elif input_type == "text":
-      input_proto = Inputs().get_input_from_bytes("", text_bytes=input_bytes)
+      input_proto = Inputs.get_input_from_bytes("", text_bytes=input_bytes)
     elif input_type == "video":
-      input_proto = Inputs().get_input_from_bytes("", video_bytes=input_bytes)
+      input_proto = Inputs.get_input_from_bytes("", video_bytes=input_bytes)
     elif input_type == "audio":
-      input_proto = Inputs().get_input_from_bytes("", audio_bytes=input_bytes)
+      input_proto = Inputs.get_input_from_bytes("", audio_bytes=input_bytes)
 
     return self.predict(inputs=[input_proto])
 
@@ -141,13 +141,13 @@ class Workflow(Lister, BaseClient):
       raise UserError('Invalid input type it should be image, text, video or audio.')
 
     if input_type == "image":
-      input_proto = Inputs().get_input_from_url("", image_url=url)
+      input_proto = Inputs.get_input_from_url("", image_url=url)
     elif input_type == "text":
-      input_proto = Inputs().get_input_from_url("", text_url=url)
+      input_proto = Inputs.get_input_from_url("", text_url=url)
     elif input_type == "video":
-      input_proto = Inputs().get_input_from_url("", video_url=url)
+      input_proto = Inputs.get_input_from_url("", video_url=url)
     elif input_type == "audio":
-      input_proto = Inputs().get_input_from_url("", audio_url=url)
+      input_proto = Inputs.get_input_from_url("", audio_url=url)
 
     return self.predict(inputs=[input_proto])
 

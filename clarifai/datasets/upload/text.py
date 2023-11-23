@@ -13,7 +13,6 @@ class TextClassificationDataset(ClarifaiDataset):
   """Upload text classification datasets to clarifai datasets"""
 
   def __init__(self, data_generator: Type[ClarifaiDataLoader], dataset_id: str) -> None:
-    self.input_object = Inputs()
     super().__init__(data_generator, dataset_id)
 
   def _extract_protos(self, batch_input_ids: List[int]
@@ -41,7 +40,7 @@ class TextClassificationDataset(ClarifaiDataset):
 
       self.all_input_ids[id] = input_id
       input_protos.append(
-          self.input_object.get_text_input(
+          Inputs.get_text_input(
               input_id=input_id,
               raw_text=text,
               dataset_id=self.dataset_id,
