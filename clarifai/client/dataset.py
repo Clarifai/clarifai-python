@@ -64,7 +64,7 @@ class Dataset(Lister, BaseClient):
     self.max_retires = 10
     self.batch_size = 128  # limit max protos in a req
     self.task = None  # Upload dataset type
-    self.input_object = Inputs(user_id=self.user_id, app_id=self.app_id)
+    self.input_object = Inputs(user_id=self.user_id, app_id=self.app_id, pat=pat)
     self.logger = get_logger(logger_level="INFO")
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
     Lister.__init__(self)
