@@ -31,6 +31,7 @@ class App(Lister, BaseClient):
                url: str = "",
                app_id: str = "",
                base_url: str = "https://api.clarifai.com",
+               pat: str = "",
                **kwargs):
     """Initializes an App object.
 
@@ -38,6 +39,7 @@ class App(Lister, BaseClient):
         url (str): The URL to initialize the app object.
         app_id (str): The App ID for the App to interact with.
         base_url (str): Base API url. Default "https://api.clarifai.com"
+        pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
         **kwargs: Additional keyword arguments to be passed to the App.
             - name (str): The name of the app.
             - description (str): The description of the app.
@@ -50,7 +52,7 @@ class App(Lister, BaseClient):
     self.kwargs = {**kwargs, 'id': app_id}
     self.app_info = resources_pb2.App(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.id, base=base_url)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.id, base=base_url, pat=pat)
     Lister.__init__(self)
 
   def list_datasets(self, page_no: int = None,
@@ -83,7 +85,7 @@ class App(Lister, BaseClient):
     for dataset_info in all_datasets_info:
       if 'version' in list(dataset_info.keys()):
         del dataset_info['version']['metrics']
-      yield Dataset(base_url=self.base, **dataset_info)
+      yield Dataset(base_url=self.base, pat=self.pat, **dataset_info)
 
   def list_models(self,
                   filter_by: Dict[str, Any] = {},
@@ -124,7 +126,7 @@ class App(Lister, BaseClient):
       if only_in_app:
         if model_info['app_id'] != self.id:
           continue
-      yield Model(base_url=self.base, **model_info)
+      yield Model(base_url=self.base, pat=self.pat, **model_info)
 
   def list_workflows(self,
                      filter_by: Dict[str, Any] = {},
@@ -163,7 +165,7 @@ class App(Lister, BaseClient):
       if only_in_app:
         if workflow_info['app_id'] != self.id:
           continue
-      yield Workflow(base_url=self.base, **workflow_info)
+      yield Workflow(base_url=self.base, pat=self.pat, **workflow_info)
 
   def list_modules(self,
                    filter_by: Dict[str, Any] = {},
@@ -202,7 +204,7 @@ class App(Lister, BaseClient):
       if only_in_app:
         if module_info['app_id'] != self.id:
           continue
-      yield Module(base_url=self.base, **module_info)
+      yield Module(base_url=self.base, pat=self.pat, **module_info)
 
   def list_installed_module_versions(self,
                                      filter_by: Dict[str, Any] = {},
@@ -238,7 +240,10 @@ class App(Lister, BaseClient):
       del imv_info['deploy_url']
       del imv_info['installed_module_version_id']  # TODO: remove this after the backend fix
       yield Module(
-          module_id=imv_info['module_version']['module_id'], base_url=self.base, **imv_info)
+          module_id=imv_info['module_version']['module_id'],
+          base_url=self.base,
+          pat=self.pat,
+          **imv_info)
 
   def list_concepts(self, page_no: int = None,
                     per_page: int = None) -> Generator[Concept, None, None]:
@@ -303,7 +308,12 @@ class App(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nDataset created\n%s", response.status)
-    kwargs.update({'app_id': self.id, 'user_id': self.user_id, 'base_url': self.base})
+    kwargs.update({
+        'app_id': self.id,
+        'user_id': self.user_id,
+        'base_url': self.base,
+        'pat': self.pat
+    })
 
     return Dataset(dataset_id=dataset_id, **kwargs)
 
@@ -332,7 +342,8 @@ class App(Lister, BaseClient):
         'app_id': self.id,
         'user_id': self.user_id,
         'model_type_id': response.model.model_type_id,
-        'base_url': self.base
+        'base_url': self.base,
+        'pat': self.pat
     })
 
     return Model(model_id=model_id, **kwargs)
@@ -425,7 +436,7 @@ class App(Lister, BaseClient):
       display_workflow_tree(dict_response["workflows"][0]["nodes"])
     kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]][0],
                                         "workflow")
-    kwargs.update({'base_url': self.base})
+    kwargs.update({'base_url': self.base, 'pat': self.pat})
 
     return Workflow(**kwargs)
 
@@ -453,7 +464,12 @@ class App(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nModule created\n%s", response.status)
-    kwargs.update({'app_id': self.id, 'user_id': self.user_id, 'base_url': self.base})
+    kwargs.update({
+        'app_id': self.id,
+        'user_id': self.user_id,
+        'base_url': self.base,
+        'pat': self.pat
+    })
 
     return Module(module_id=module_id, **kwargs)
 
@@ -480,7 +496,7 @@ class App(Lister, BaseClient):
     kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
                                         list(dict_response.keys())[1])
     kwargs['version'] = response.dataset.version if response.dataset.version else None
-    kwargs.update({'base_url': self.base})
+    kwargs.update({'base_url': self.base, 'pat': self.pat})
     return Dataset(**kwargs)
 
   def model(self, model_id: str, model_version_id: str = "", **kwargs) -> Model:
@@ -516,7 +532,7 @@ class App(Lister, BaseClient):
     kwargs = self.process_response_keys(dict_response['model'], 'model')
     kwargs[
         'model_version'] = response.model.model_version if response.model.model_version else None
-    kwargs.update({'base_url': self.base})
+    kwargs.update({'base_url': self.base, 'pat': self.pat})
 
     return Model(**kwargs)
 
@@ -542,7 +558,7 @@ class App(Lister, BaseClient):
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
     kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
                                         list(dict_response.keys())[1])
-    kwargs.update({'base_url': self.base})
+    kwargs.update({'base_url': self.base, 'pat': self.pat})
 
     return Workflow(**kwargs)
 
@@ -569,7 +585,7 @@ class App(Lister, BaseClient):
       raise Exception(response.status)
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
     kwargs = self.process_response_keys(dict_response['module'], 'module')
-    kwargs.update({'base_url': self.base})
+    kwargs.update({'base_url': self.base, 'pat': self.pat})
 
     return Module(**kwargs)
 
@@ -579,7 +595,7 @@ class App(Lister, BaseClient):
     Returns:
         Inputs: An input object.
     """
-    return Inputs(self.user_id, self.id, base_url=self.base)
+    return Inputs(self.user_id, self.id, base_url=self.base, pat=self.pat)
 
   def delete_dataset(self, dataset_id: str) -> None:
     """Deletes an dataset for the user.
@@ -670,7 +686,7 @@ class App(Lister, BaseClient):
     """
     user_id = kwargs.get("user_id", self.user_app_id.user_id)
     app_id = kwargs.get("app_id", self.user_app_id.app_id)
-    return Search(user_id=user_id, app_id=app_id, base_url=self.base, **kwargs)
+    return Search(user_id=user_id, app_id=app_id, base_url=self.base, pat=self.pat, **kwargs)
 
   def __getattr__(self, name):
     return getattr(self.app_info, name)

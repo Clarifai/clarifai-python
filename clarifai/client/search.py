@@ -22,7 +22,8 @@ class Search(Lister, BaseClient):
                app_id,
                top_k: int = DEFAULT_TOP_K,
                metric: str = DEFAULT_SEARCH_METRIC,
-               base_url: str = "https://api.clarifai.com"):
+               base_url: str = "https://api.clarifai.com",
+               pat: str = ""):
     """Initialize the Search object.
 
     Args:
@@ -31,6 +32,7 @@ class Search(Lister, BaseClient):
         top_k (int, optional): Top K results to retrieve. Defaults to 10.
         metric (str, optional): Similarity metric (either 'cosine' or 'euclidean'). Defaults to 'cosine'.
         base_url (str, optional): Base API url. Defaults to "https://api.clarifai.com".
+        pat (str, optional): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
 
     Raises:
         UserError: If the metric is not 'cosine' or 'euclidean'.
@@ -46,7 +48,7 @@ class Search(Lister, BaseClient):
 
     self.inputs = Inputs(user_id=self.user_id, app_id=self.app_id)
     self.rank_filter_schema = get_schema()
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
     Lister.__init__(self, page_size=1000)
 
   def _get_annot_proto(self, **kwargs):

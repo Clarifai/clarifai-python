@@ -21,20 +21,22 @@ CREATE_DATASET_ID = f"ci_test_dataset_{NOW}"
 CREATE_MODULE_ID = f"ci_test_module_{NOW}"
 CREATE_RUNNER_ID = f"ci_test_runner_{NOW}"
 
+CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
+
 
 @pytest.fixture
 def create_app():
-  return App(user_id=CREATE_APP_USER_ID, app_id=CREATE_APP_ID)
+  return App(user_id=CREATE_APP_USER_ID, app_id=CREATE_APP_ID, pat=CLARIFAI_PAT)
 
 
 @pytest.fixture
 def app():
-  return App(user_id=MAIN_APP_USER_ID, app_id=MAIN_APP_ID)
+  return App(user_id=MAIN_APP_USER_ID, app_id=MAIN_APP_ID, pat=CLARIFAI_PAT)
 
 
 @pytest.fixture
 def client():
-  return User(user_id=MAIN_APP_USER_ID)
+  return User(user_id=MAIN_APP_USER_ID, pat=CLARIFAI_PAT)
 
 
 class TestApp:
@@ -70,7 +72,7 @@ class TestApp:
     assert workflow.id == General_Workflow_ID and workflow.app_id == MAIN_APP_ID and workflow.user_id == MAIN_APP_USER_ID
 
   def test_create_app(self):
-    app = User(user_id=CREATE_APP_USER_ID).create_app(app_id=CREATE_APP_ID)
+    app = User(user_id=CREATE_APP_USER_ID, pat=CLARIFAI_PAT).create_app(app_id=CREATE_APP_ID)
     assert app.id == CREATE_APP_ID and app.user_id == CREATE_APP_USER_ID
 
   def test_create_search(self, create_app):
@@ -90,7 +92,7 @@ class TestApp:
     assert module.id == CREATE_MODULE_ID and module.app_id == CREATE_APP_ID and module.user_id == CREATE_APP_USER_ID
 
   def test_create_runner(self, client):
-    client = User(user_id=CREATE_APP_USER_ID)
+    client = User(user_id=CREATE_APP_USER_ID, pat=CLARIFAI_PAT)
     runner = client.create_runner(
         CREATE_RUNNER_ID, labels=["ci runner"], description="CI test runner")
     assert runner.id == CREATE_RUNNER_ID and runner.user_id == CREATE_APP_USER_ID

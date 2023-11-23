@@ -23,6 +23,7 @@ class Workflow(Lister, BaseClient):
                workflow_version: Dict = {'id': ""},
                output_config: Dict = {'min_value': 0},
                base_url: str = "https://api.clarifai.com",
+               pat: str = "",
                **kwargs):
     """Initializes a Workflow object.
 
@@ -51,7 +52,7 @@ class Workflow(Lister, BaseClient):
     self.output_config = output_config
     self.workflow_info = resources_pb2.Workflow(**self.kwargs)
     self.logger = get_logger(logger_level="INFO")
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
     Lister.__init__(self)
 
   def predict(self, inputs: List[Input]):
@@ -187,6 +188,7 @@ class Workflow(Lister, BaseClient):
       yield Workflow(
           workflow_id=self.id,
           base_url=self.base,
+          pat=self.pat,
           **dict(self.kwargs, version=workflow_version_info))
 
   def export(self, out_path: str):

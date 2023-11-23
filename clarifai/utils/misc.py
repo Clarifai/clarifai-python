@@ -1,5 +1,6 @@
 import os
-from typing import List, Any, Dict, Optional
+from typing import List
+
 from clarifai.errors import UserError
 
 
@@ -35,21 +36,19 @@ class BackoffIterator:
       return 0.01 * (2**10)  # 10 seconds
 
 
-def get_from_dict_or_env(data: Dict[str, Any], key: str, env_key: str) -> str:
+def get_from_dict_or_env(key: str, env_key: str, **data) -> str:
   """Get a value from a dictionary or an environment variable."""
   if key in data and data[key]:
-      return data[key]
+    return data[key]
   else:
-      return get_from_env(key, env_key)
+    return get_from_env(key, env_key)
 
 
 def get_from_env(key: str, env_key: str) -> str:
   """Get a value from a dictionary or an environment variable."""
   if env_key in os.environ and os.environ[env_key]:
-      return os.environ[env_key]
+    return os.environ[env_key]
   else:
-      raise UserError(
-          f"Did not find {key}, please add an environment variable"
-          f" `{env_key}` which contains it, or pass"
-          f"  `{key}` as a named parameter."
-      )
+    raise UserError(f"Did not find `{key}`, please add an environment variable"
+                    f" `{env_key}` which contains it, or pass"
+                    f"  `{key}` as a named parameter.")

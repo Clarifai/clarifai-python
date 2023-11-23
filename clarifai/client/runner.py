@@ -35,12 +35,14 @@ class Runner(BaseClient):
                user_id: str = "",
                check_runner_exists: bool = True,
                base_url: str = "https://api.clarifai.com",
+               pat: str = "",
                **kwargs) -> None:
     """
     Args:
       runner_id (str): the id of the runner to use. Create the runner in the Clarifai API first
       user_id (str): Clarifai User ID
       base_url (str): Base API url. Default "https://api.clarifai.com"
+      pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
     """
     user_id = user_id or os.environ.get("CLARIFAI_USER_ID", "")
 
@@ -52,7 +54,7 @@ class Runner(BaseClient):
     self.logger = get_logger("INFO", __name__)
     self.kwargs = {**kwargs, 'id': runner_id, 'user_id': user_id}
     self.runner_info = resources_pb2.Runner(**self.kwargs)
-    BaseClient.__init__(self, user_id=self.user_id, app_id="", base=base_url)
+    BaseClient.__init__(self, user_id=self.user_id, app_id="", base=base_url, pat=pat)
 
     # Check that the runner exists.
     if check_runner_exists:
