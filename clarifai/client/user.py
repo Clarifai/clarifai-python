@@ -15,18 +15,23 @@ from clarifai.utils.logging import get_logger
 class User(Lister, BaseClient):
   """User is a class that provides access to Clarifai API endpoints related to user information."""
 
-  def __init__(self, user_id: str = "", base_url: str = "https://api.clarifai.com", **kwargs):
+  def __init__(self,
+               user_id: str = None,
+               base_url: str = "https://api.clarifai.com",
+               pat: str = None,
+               **kwargs):
     """Initializes an User object.
 
     Args:
         user_id (str): The user ID for the user to interact with.
         base_url (str): Base API url. Default "https://api.clarifai.com"
+        pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
         **kwargs: Additional keyword arguments to be passed to the User.
     """
     self.kwargs = {**kwargs, 'id': user_id}
     self.user_info = resources_pb2.User(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
-    BaseClient.__init__(self, user_id=self.id, app_id="", base=base_url)
+    BaseClient.__init__(self, user_id=self.id, app_id="", base=base_url, pat=pat)
     Lister.__init__(self)
 
   def list_apps(self, filter_by: Dict[str, Any] = {}, page_no: int = None,
@@ -57,7 +62,7 @@ class User(Lister, BaseClient):
         per_page=per_page,
         page_no=page_no)
     for app_info in all_apps_info:
-      yield App(base_url=self.base, **app_info)
+      yield App(base_url=self.base, pat=self.pat, **app_info)
 
   def list_runners(self, filter_by: Dict[str, Any] = {}, page_no: int = None,
                    per_page: int = None) -> Generator[Runner, None, None]:
@@ -89,7 +94,7 @@ class User(Lister, BaseClient):
         page_no=page_no)
 
     for runner_info in all_runners_info:
-      yield Runner(check_runner_exists=False, base_url=self.base, **runner_info)
+      yield Runner(check_runner_exists=False, base_url=self.base, pat=self.pat, **runner_info)
 
   def create_app(self, app_id: str, base_workflow: str = 'Empty', **kwargs) -> App:
     """Creates an app for the user.
@@ -115,7 +120,7 @@ class User(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nApp created\n%s", response.status)
-    kwargs.update({'user_id': self.id, 'base_url': self.base})
+    kwargs.update({'user_id': self.id, 'base_url': self.base, 'pat': self.pat})
     return App(app_id=app_id, **kwargs)
 
   def create_runner(self, runner_id: str, labels: List[str], description: str) -> Runner:
@@ -152,7 +157,8 @@ class User(Lister, BaseClient):
         labels=labels,
         description=description,
         check_runner_exists=False,
-        base_url=self.base)
+        base_url=self.base,
+        pat=self.pat)
 
   def app(self, app_id: str, **kwargs) -> App:
     """Returns an App object for the specified app ID.
@@ -175,7 +181,7 @@ class User(Lister, BaseClient):
       raise Exception(response.status)
 
     kwargs['user_id'] = self.id
-    kwargs.update({'base_url': self.base})
+    kwargs.update({'base_url': self.base, 'pat': self.pat})
     return App(app_id=app_id, **kwargs)
 
   def runner(self, runner_id: str) -> Runner:
@@ -204,7 +210,7 @@ class User(Lister, BaseClient):
     kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
                                         list(dict_response.keys())[1])
 
-    return Runner(check_runner_exists=False, base_url=self.base, **kwargs)
+    return Runner(check_runner_exists=False, base_url=self.base, pat=self.pat, **kwargs)
 
   def delete_app(self, app_id: str) -> None:
     """Deletes an app for the user.

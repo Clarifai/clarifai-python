@@ -1,3 +1,4 @@
+import os
 import pytest
 from clarifai_grpc.grpc.api import resources_pb2
 
@@ -12,6 +13,8 @@ MAIN_APP_ID = "main"
 MAIN_APP_USER_ID = "clarifai"
 WORKFLOW_ID = "General"
 
+CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
+
 
 @pytest.fixture
 def workflow():
@@ -19,7 +22,8 @@ def workflow():
       user_id=MAIN_APP_USER_ID,
       app_id=MAIN_APP_ID,
       workflow_id=WORKFLOW_ID,
-      output_config=resources_pb2.OutputConfig(max_concepts=3))
+      output_config=resources_pb2.OutputConfig(max_concepts=3),
+      pat=CLARIFAI_PAT)
 
 
 def test_workflow_predict_image_url(workflow):

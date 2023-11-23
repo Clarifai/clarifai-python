@@ -25,10 +25,11 @@ class Inputs(Lister, BaseClient):
   """Inputs is a class that provides access to Clarifai API endpoints related to Input information."""
 
   def __init__(self,
-               user_id: str = "",
-               app_id: str = "",
+               user_id: str = None,
+               app_id: str = None,
                logger_level: str = "INFO",
                base_url: str = "https://api.clarifai.com",
+               pat: str = None,
                **kwargs):
     """Initializes an Input object.
 
@@ -43,11 +44,11 @@ class Inputs(Lister, BaseClient):
     self.kwargs = {**kwargs}
     self.input_info = resources_pb2.Input(**self.kwargs)
     self.logger = get_logger(logger_level=logger_level, name=__name__)
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
     Lister.__init__(self)
 
-  def _get_proto(self,
-                 input_id: str,
+  @staticmethod
+  def _get_proto(input_id: str,
                  dataset_id: Union[str, None],
                  imagepb: Image = None,
                  video_pb: Video = None,
@@ -106,8 +107,8 @@ class Inputs(Lister, BaseClient):
             concepts=concepts,
             metadata=metadata))
 
-  def get_input_from_url(self,
-                         input_id: str,
+  @staticmethod
+  def get_input_from_url(input_id: str,
                          image_url: str = None,
                          video_url: str = None,
                          audio_url: str = None,
@@ -129,8 +130,7 @@ class Inputs(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.input import Inputs
-        >>> input_obj = Inputs()
-        >>> input_proto = input_obj.get_input_from_url(input_id = 'demo', image_url='https://samples.clarifai.com/metro-north.jpg')
+        >>> input_proto = Inputs.get_input_from_url(input_id = 'demo', image_url='https://samples.clarifai.com/metro-north.jpg')
     """
     if not any((image_url, video_url, audio_url, text_url)):
       raise ValueError(
@@ -139,7 +139,7 @@ class Inputs(Lister, BaseClient):
     video_pb = resources_pb2.Video(url=video_url) if video_url else None
     audio_pb = resources_pb2.Audio(url=audio_url) if audio_url else None
     text_pb = resources_pb2.Text(url=text_url) if text_url else None
-    return self._get_proto(
+    return Inputs._get_proto(
         input_id=input_id,
         dataset_id=dataset_id,
         imagepb=image_pb,
@@ -148,8 +148,8 @@ class Inputs(Lister, BaseClient):
         text_pb=text_pb,
         **kwargs)
 
-  def get_input_from_file(self,
-                          input_id: str,
+  @staticmethod
+  def get_input_from_file(input_id: str,
                           image_file: str = None,
                           video_file: str = None,
                           audio_file: str = None,
@@ -171,8 +171,7 @@ class Inputs(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.input import Inputs
-        >>> input_obj = Inputs()
-        >>> input_proto = input_obj.get_input_from_file(input_id = 'demo', video_file='file_path')
+        >>> input_proto = Inputs.get_input_from_file(input_id = 'demo', video_file='file_path')
     """
     if not any((image_file, video_file, audio_file, text_file)):
       raise ValueError(
@@ -181,7 +180,7 @@ class Inputs(Lister, BaseClient):
     video_pb = resources_pb2.Video(base64=open(video_file, 'rb').read()) if video_file else None
     audio_pb = resources_pb2.Audio(base64=open(audio_file, 'rb').read()) if audio_file else None
     text_pb = resources_pb2.Text(raw=open(text_file, 'rb').read()) if text_file else None
-    return self._get_proto(
+    return Inputs._get_proto(
         input_id=input_id,
         dataset_id=dataset_id,
         imagepb=image_pb,
@@ -190,8 +189,8 @@ class Inputs(Lister, BaseClient):
         text_pb=text_pb,
         **kwargs)
 
-  def get_input_from_bytes(self,
-                           input_id: str,
+  @staticmethod
+  def get_input_from_bytes(input_id: str,
                            image_bytes: bytes = None,
                            video_bytes: bytes = None,
                            audio_bytes: bytes = None,
@@ -213,10 +212,9 @@ class Inputs(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.input import Inputs
-        >>> input_obj = Inputs()
         >>> image = open('demo.jpg', 'rb').read()
         >>> video = open('demo.mp4', 'rb').read()
-        >>> input_proto = input_obj.get_input_from_bytes(input_id = 'demo',image_bytes =image, video_bytes=video)
+        >>> input_proto = Inputs.get_input_from_bytes(input_id = 'demo',image_bytes =image, video_bytes=video)
     """
     if not any((image_bytes, video_bytes, audio_bytes, text_bytes)):
       raise ValueError(
@@ -225,7 +223,7 @@ class Inputs(Lister, BaseClient):
     video_pb = resources_pb2.Video(base64=video_bytes) if video_bytes else None
     audio_pb = resources_pb2.Audio(base64=audio_bytes) if audio_bytes else None
     text_pb = resources_pb2.Text(raw=text_bytes) if text_bytes else None
-    return self._get_proto(
+    return Inputs._get_proto(
         input_id=input_id,
         dataset_id=dataset_id,
         imagepb=image_pb,
@@ -234,9 +232,8 @@ class Inputs(Lister, BaseClient):
         text_pb=text_pb,
         **kwargs)
 
-  def get_image_inputs_from_folder(self,
-                                   folder_path: str,
-                                   dataset_id: str = None,
+  @staticmethod
+  def get_image_inputs_from_folder(folder_path: str, dataset_id: str = None,
                                    labels: bool = False) -> List[Input]:  #image specific
     """Create input protos for image data type from folder.
 
@@ -248,8 +245,7 @@ class Inputs(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.input import Inputs
-        >>> input_obj = Inputs()
-        >>> input_protos = input_obj.get_image_inputs_from_folder(folder_path='demo_folder')
+        >>> input_protos = Inputs.get_image_inputs_from_folder(folder_path='demo_folder')
     """
     input_protos = []
     labels = [folder_path.split('/')[-1]] if labels else None
@@ -259,11 +255,12 @@ class Inputs(Lister, BaseClient):
       input_id = filename.split('.')[0]
       image_pb = resources_pb2.Image(base64=open(os.path.join(folder_path, filename), 'rb').read())
       input_protos.append(
-          self._get_proto(
+          Inputs._get_proto(
               input_id=input_id, dataset_id=dataset_id, imagepb=image_pb, labels=labels))
     return input_protos
 
-  def get_text_input(self, input_id: str, raw_text: str, dataset_id: str = None,
+  @staticmethod
+  def get_text_input(input_id: str, raw_text: str, dataset_id: str = None,
                      **kwargs) -> Text:  #text specific
     """Create input proto for text data type from rawtext.
 
@@ -278,14 +275,13 @@ class Inputs(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.input import Inputs
-        >>> input_obj = Inputs()
-        >>> input_protos = input_obj.get_text_input(input_id = 'demo', raw_text = 'This is a test')
+        >>> input_protos = Inputs.get_text_input(input_id = 'demo', raw_text = 'This is a test')
     """
     text_pb = resources_pb2.Text(raw=raw_text)
-    return self._get_proto(input_id=input_id, dataset_id=dataset_id, text_pb=text_pb, **kwargs)
+    return Inputs._get_proto(input_id=input_id, dataset_id=dataset_id, text_pb=text_pb, **kwargs)
 
-  def get_inputs_from_csv(self,
-                          csv_path: str,
+  @staticmethod
+  def get_inputs_from_csv(csv_path: str,
                           input_type: str = 'text',
                           csv_type: str = 'raw',
                           dataset_id: str = None,
@@ -304,8 +300,7 @@ class Inputs(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.input import Inputs
-        >>> input_obj = Inputs()
-        >>> input_protos = input_obj.get_inputs_from_csv(csv_path='filepath', input_type='text', csv_type='raw')
+        >>> input_protos = Inputs.get_inputs_from_csv(csv_path='filepath', input_type='text', csv_type='raw')
     """
     input_protos = []
     with open(csv_path) as _file:
@@ -356,7 +351,7 @@ class Inputs(Lister, BaseClient):
 
         if csv_type == 'raw':
           input_protos.append(
-              self.get_text_input(
+              Inputs.get_text_input(
                   input_id=input_id,
                   raw_text=text,
                   dataset_id=dataset_id,
@@ -365,7 +360,7 @@ class Inputs(Lister, BaseClient):
                   geo_info=geo_info))
         elif csv_type == 'url':
           input_protos.append(
-              self.get_input_from_url(
+              Inputs.get_input_from_url(
                   input_id=input_id,
                   image_url=image,
                   text_url=text,
@@ -377,7 +372,7 @@ class Inputs(Lister, BaseClient):
                   geo_info=geo_info))
         else:
           input_protos.append(
-              self.get_input_from_file(
+              Inputs.get_input_from_file(
                   input_id=input_id,
                   image_file=image,
                   text_file=text,
@@ -390,9 +385,8 @@ class Inputs(Lister, BaseClient):
 
     return input_protos
 
-  def get_text_inputs_from_folder(self,
-                                  folder_path: str,
-                                  dataset_id: str = None,
+  @staticmethod
+  def get_text_inputs_from_folder(folder_path: str, dataset_id: str = None,
                                   labels: bool = False) -> List[Text]:  #text specific
     """Create input protos for text data type from folder.
 
@@ -404,8 +398,7 @@ class Inputs(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.input import Inputs
-        >>> input_obj = Inputs()
-        >>> input_protos = input_obj.get_text_inputs_from_folder(folder_path='demo_folder')
+        >>> input_protos = Inputs.get_text_inputs_from_folder(folder_path='demo_folder')
     """
     input_protos = []
     labels = [folder_path.split('/')[-1]] if labels else None
@@ -415,11 +408,12 @@ class Inputs(Lister, BaseClient):
       input_id = filename.split('.')[0]
       text_pb = resources_pb2.Text(raw=open(os.path.join(folder_path, filename), 'rb').read())
       input_protos.append(
-          self._get_proto(
+          Inputs._get_proto(
               input_id=input_id, dataset_id=dataset_id, text_pb=text_pb, labels=labels))
     return input_protos
 
-  def get_annotation_proto(self, input_id: str, label: str, annotations: List) -> Annotation:
+  @staticmethod
+  def get_annotation_proto(input_id: str, label: str, annotations: List) -> Annotation:
     """Create an annotation proto for each bounding box, label input pair.
 
     Args:
@@ -432,8 +426,7 @@ class Inputs(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.input import Inputs
-        >>> input_obj = Inputs()
-        >>> input_obj.get_annotation_proto(input_id='demo', label='demo', annotations=[x_min, y_min, x_max, y_max])
+        >>> Inputs.get_annotation_proto(input_id='demo', label='demo', annotations=[x_min, y_min, x_max, y_max])
     """
     if not isinstance(annotations, list):
       raise UserError("annotations must be a list of bbox cooridnates")
@@ -458,7 +451,8 @@ class Inputs(Lister, BaseClient):
 
     return input_annot_proto
 
-  def get_mask_proto(self, input_id: str, label: str, polygons: List[List[float]]) -> Annotation:
+  @staticmethod
+  def get_mask_proto(input_id: str, label: str, polygons: List[List[float]]) -> Annotation:
     """Create an annotation proto for each polygon box, label input pair.
 
     Args:
@@ -471,8 +465,7 @@ class Inputs(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.input import Inputs
-        >>> input_obj = Inputs()
-        >>> input_obj.get_mask_proto(input_id='demo', label='demo', polygons=[[[x,y],...,[x,y]],...])
+        >>> Inputs.get_mask_proto(input_id='demo', label='demo', polygons=[[[x,y],...,[x,y]],...])
     """
     if not isinstance(polygons, list):
       raise UserError("polygons must be a list of points")

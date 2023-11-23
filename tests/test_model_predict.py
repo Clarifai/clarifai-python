@@ -20,10 +20,13 @@ CLIP_EMBED_MODEL_ID = "multimodal-clip-embed"
 RAW_TEXT = "Hi my name is Jim."
 RAW_TEXT_BYTES = b"Hi my name is Jim."
 
+CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
+
 
 @pytest.fixture
 def model():
-  return Model(user_id=MAIN_APP_USER_ID, app_id=MAIN_APP_ID, model_id=GENERAL_MODEL_ID)
+  return Model(
+      user_id=MAIN_APP_USER_ID, app_id=MAIN_APP_ID, model_id=GENERAL_MODEL_ID, pat=CLARIFAI_PAT)
 
 
 def validate_concepts_length(response):
@@ -110,7 +113,7 @@ def test_predict_video_url_with_custom_sample_ms():
       app_id=MAIN_APP_ID,
       model_id=GENERAL_MODEL_ID,
   )
-  video_proto = Inputs().get_input_from_url("", video_url=BEER_VIDEO_URL)
+  video_proto = Inputs.get_input_from_url("", video_url=BEER_VIDEO_URL)
   response = model_with_custom_sample_ms.predict([video_proto], output_config=dict(sample_ms=2000))
   # The expected time per frame is the middle between the start and the end of the frame
   # (in milliseconds).
@@ -127,8 +130,7 @@ def test_text_embed_predict_with_raw_text():
   clip_embed_model = Model(
       user_id=MAIN_APP_USER_ID, app_id=MAIN_APP_ID, model_id=CLIP_EMBED_MODEL_ID)
 
-  input_text_proto = Inputs().get_input_from_bytes(
-      "", text_bytes=RAW_TEXT.encode(encoding='UTF-8'))
+  input_text_proto = Inputs.get_input_from_bytes("", text_bytes=RAW_TEXT.encode(encoding='UTF-8'))
   response = clip_embed_model.predict([input_text_proto])
   assert response.outputs[0].data.embeddings[0].num_dimensions == clip_dim
 

@@ -18,11 +18,12 @@ class Workflow(Lister, BaseClient):
   """Workflow is a class that provides access to Clarifai API endpoints related to Workflow information."""
 
   def __init__(self,
-               url: str = "",
-               workflow_id: str = "",
+               url: str = None,
+               workflow_id: str = None,
                workflow_version: Dict = {'id': ""},
                output_config: Dict = {'min_value': 0},
                base_url: str = "https://api.clarifai.com",
+               pat: str = None,
                **kwargs):
     """Initializes a Workflow object.
 
@@ -38,11 +39,11 @@ class Workflow(Lister, BaseClient):
         base_url (str): Base API url. Default "https://api.clarifai.com"
         **kwargs: Additional keyword arguments to be passed to the Workflow.
     """
-    if url != "" and workflow_id != "":
+    if url and workflow_id:
       raise UserError("You can only specify one of url or workflow_id.")
-    if url == "" and workflow_id == "":
+    if not url and not workflow_id:
       raise UserError("You must specify one of url or workflow_id.")
-    if url != "":
+    if url:
       user_id, app_id, _, workflow_id, workflow_version_id = ClarifaiUrlHelper.split_clarifai_url(
           url)
       workflow_version = {'id': workflow_version_id}
@@ -51,7 +52,7 @@ class Workflow(Lister, BaseClient):
     self.output_config = output_config
     self.workflow_info = resources_pb2.Workflow(**self.kwargs)
     self.logger = get_logger(logger_level="INFO")
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
     Lister.__init__(self)
 
   def predict(self, inputs: List[Input]):
@@ -112,13 +113,13 @@ class Workflow(Lister, BaseClient):
       raise UserError('Invalid bytes.')
 
     if input_type == "image":
-      input_proto = Inputs().get_input_from_bytes("", image_bytes=input_bytes)
+      input_proto = Inputs.get_input_from_bytes("", image_bytes=input_bytes)
     elif input_type == "text":
-      input_proto = Inputs().get_input_from_bytes("", text_bytes=input_bytes)
+      input_proto = Inputs.get_input_from_bytes("", text_bytes=input_bytes)
     elif input_type == "video":
-      input_proto = Inputs().get_input_from_bytes("", video_bytes=input_bytes)
+      input_proto = Inputs.get_input_from_bytes("", video_bytes=input_bytes)
     elif input_type == "audio":
-      input_proto = Inputs().get_input_from_bytes("", audio_bytes=input_bytes)
+      input_proto = Inputs.get_input_from_bytes("", audio_bytes=input_bytes)
 
     return self.predict(inputs=[input_proto])
 
@@ -140,13 +141,13 @@ class Workflow(Lister, BaseClient):
       raise UserError('Invalid input type it should be image, text, video or audio.')
 
     if input_type == "image":
-      input_proto = Inputs().get_input_from_url("", image_url=url)
+      input_proto = Inputs.get_input_from_url("", image_url=url)
     elif input_type == "text":
-      input_proto = Inputs().get_input_from_url("", text_url=url)
+      input_proto = Inputs.get_input_from_url("", text_url=url)
     elif input_type == "video":
-      input_proto = Inputs().get_input_from_url("", video_url=url)
+      input_proto = Inputs.get_input_from_url("", video_url=url)
     elif input_type == "audio":
-      input_proto = Inputs().get_input_from_url("", audio_url=url)
+      input_proto = Inputs.get_input_from_url("", audio_url=url)
 
     return self.predict(inputs=[input_proto])
 
@@ -187,6 +188,7 @@ class Workflow(Lister, BaseClient):
       yield Workflow(
           workflow_id=self.id,
           base_url=self.base,
+          pat=self.pat,
           **dict(self.kwargs, version=workflow_version_info))
 
   def export(self, out_path: str):

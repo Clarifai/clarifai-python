@@ -37,9 +37,10 @@ class Dataset(Lister, BaseClient):
   """Dataset is a class that provides access to Clarifai API endpoints related to Dataset information."""
 
   def __init__(self,
-               url: str = "",
-               dataset_id: str = "",
+               url: str = None,
+               dataset_id: str = None,
                base_url: str = "https://api.clarifai.com",
+               pat: str = None,
                **kwargs):
     """Initializes a Dataset object.
 
@@ -47,11 +48,12 @@ class Dataset(Lister, BaseClient):
         url (str): The URL to initialize the dataset object.
         dataset_id (str): The Dataset ID within the App to interact with.
         base_url (str): Base API url. Default "https://api.clarifai.com"
+        pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
         **kwargs: Additional keyword arguments to be passed to the Dataset.
     """
-    if url != "" and dataset_id != "":
+    if url and dataset_id:
       raise UserError("You can only specify one of url or dataset_id.")
-    if url != "":
+    if url:
       user_id, app_id, _, dataset_id, _ = ClarifaiUrlHelper.split_clarifai_url(url)
       kwargs = {'user_id': user_id, 'app_id': app_id}
     self.kwargs = {**kwargs, 'id': dataset_id}
@@ -64,7 +66,7 @@ class Dataset(Lister, BaseClient):
     self.task = None  # Upload dataset type
     self.input_object = Inputs(user_id=self.user_id, app_id=self.app_id)
     self.logger = get_logger(logger_level="INFO")
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
     Lister.__init__(self)
 
   def create_version(self, **kwargs) -> 'Dataset':
@@ -97,7 +99,8 @@ class Dataset(Lister, BaseClient):
         'app_id': self.app_id,
         'user_id': self.user_id,
         'version': response.dataset_versions[0],
-        'base_url': self.base
+        'base_url': self.base,
+        'pat': self.pat
     })
     return Dataset(**kwargs)
 
@@ -160,7 +163,8 @@ class Dataset(Lister, BaseClient):
           'app_id': self.app_id,
           'user_id': self.user_id,
           'version': resources_pb2.DatasetVersion(**dataset_version_info),
-          'base_url': self.base
+          'base_url': self.base,
+          'pat': self.pat
       }
       yield Dataset(**kwargs)
 

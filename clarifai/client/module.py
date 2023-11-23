@@ -13,10 +13,11 @@ class Module(Lister, BaseClient):
   """Module is a class that provides access to Clarifai API endpoints related to Module information."""
 
   def __init__(self,
-               url: str = "",
-               module_id: str = "",
+               url: str = None,
+               module_id: str = None,
                module_version: Dict = {'id': ""},
                base_url: str = "https://api.clarifai.com",
+               pat: str = None,
                **kwargs):
     """Initializes a Module object.
 
@@ -25,13 +26,14 @@ class Module(Lister, BaseClient):
             module_id (str): The Module ID to interact with.
             module_version (dict): The Module Version to interact with.
             base_url (str): Base API url. Default "https://api.clarifai.com"
+            pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
             **kwargs: Additional keyword arguments to be passed to the Module.
         """
-    if url != "" and module_id != "":
+    if url and module_id:
       raise UserError("You can only specify one of url or module_id.")
-    if url == "" and module_id == "":
+    if not url and not module_id:
       raise UserError("You must specify one of url or module_id.")
-    if url != "":
+    if url:
       user_id, app_id, module_id, module_version_id = ClarifaiUrlHelper.split_module_ui_url(url)
       module_version = {'id': module_version_id}
       kwargs = {'user_id': user_id, 'app_id': app_id}
@@ -39,7 +41,7 @@ class Module(Lister, BaseClient):
     self.kwargs = {**kwargs, 'id': module_id, 'module_version': module_version}
     self.module_info = resources_pb2.Module(**self.kwargs)
     self.logger = get_logger(logger_level="INFO")
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url)
+    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
     Lister.__init__(self)
 
   def list_versions(self, page_no: int = None,
@@ -79,6 +81,7 @@ class Module(Lister, BaseClient):
       yield Module(
           module_id=self.id,
           base_url=self.base,
+          pat=self.pat,
           **dict(self.kwargs, module_version=module_version_info))
 
   def __getattr__(self, name):
