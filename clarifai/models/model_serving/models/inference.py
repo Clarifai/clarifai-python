@@ -25,7 +25,7 @@ class InferenceModel:
     #self.model: Callable = <load_your_model_here from checkpoint or folder>
 
   #Add relevant model type decorator to the method below (see docs/model_types for ref.)
-  def get_predictions(self, input_data, **kwargs):
+  def get_predictions(self, input_data: list, **kwargs):
     """
     Main model inference method.
 
