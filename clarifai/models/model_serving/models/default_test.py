@@ -155,7 +155,7 @@ class DefaultTestInferenceModel(unittest.TestCase):
         inputs = [self.preprocess["image"](inp) for inp in PREDEFINED_IMAGES]
       else:
         inputs = PREDEFINED_TEXTS
-      outputs = [self.triton_get_predictions(inp) for inp in inputs]
+      outputs = self.triton_get_predictions(inputs)
 
       # Test for specific model type:
       # 1. length of output array vs config
@@ -259,9 +259,12 @@ class DefaultTestInferenceModel(unittest.TestCase):
         input_texts = PREDEFINED_TEXTS
 
         def _assert(input_data):
+          batch_inputs = []
           for group in zip_longest(*input_data.values()):
             _input = dict(zip(input_data, group))
-            output = self.triton_get_predictions(input_data=_input)
+            batch_inputs.append(_input)
+          outputs = self.triton_get_predictions(input_data=batch_inputs)
+          for output in outputs:
             self.assertEqual(
                 type(output), EmbeddingOutput,
                 f"Output type must be `EmbeddingOutput`, but got {type(output)}")
