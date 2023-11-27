@@ -284,8 +284,11 @@ def get_model_config(model_type: str) -> ModelConfigClass:
     ModelConfigClass
 
   ### Example:
+  >>> from clarifai.models.model_serving.models.output import ClassifierOutput
+  >>> from clarifai.models.model_serving.model_config import get_model_config, ModelTypes
   >>> cfg = get_model_config(ModelTypes.text_classifier)
   >>> custom_triton_config = cfg.make_triton_model_config(**kwargs)
+  >>> cfg.inference.return_type is ClassifierOutput # True
 
 
   """

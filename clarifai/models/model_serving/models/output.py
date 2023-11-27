@@ -67,12 +67,13 @@ class TextOutput:
   """
   Takes model text predictions
   """
-  predicted_text: np.ndarray
+  predicted_text: str
 
   def __post_init__(self):
     """
     Validate input upon initialization.
     """
+    self.predicted_text = np.array(self.predicted_text, dtype=object)
     assert self.predicted_text.ndim == 0, \
       f"All predictions must be 0-dimensional, Got text-dims: {self.predicted_text.ndim} instead."
 
