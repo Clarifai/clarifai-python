@@ -10,6 +10,11 @@
 import os
 from pathlib import Path
 
+from clarifai.models.model_serving.model_config import (  # noqa # pylint: disable=unused-import
+    ModelTypes, get_model_config)
+
+#config = get_model_config("clarifai-model-type")
+
 
 class InferenceModel:
   """User model inference class."""
@@ -24,19 +29,22 @@ class InferenceModel:
     #self.checkpoint_path: Path = os.path.join(self.base_path, "your checkpoint filename/path")
     #self.model: Callable = <load_your_model_here from checkpoint or folder>
 
-  #Add relevant model type decorator to the method below (see docs/model_types for ref.)
-  def get_predictions(self, input_data: list, **kwargs):
+  #@config.inference.wrap_func
+  def get_predictions(self, input_data: list, **kwargs) -> list:
     """
     Main model inference method.
 
     Args:
     -----
-      input_data: A single input data item to predict on.
+      input_data: A list of input data item to predict on.
         Input data can be an image or text, etc depending on the model type.
+
+      **kwargs: your inference parameters.
 
     Returns:
     --------
-      One of the clarifai.models.model_serving.models.output types. Refer to the README/docs
+      List of one of the `clarifai.models.model_serving.models.output types` or `config.inference.return_type(your_output)`. Refer to the README/docs
     """
+
     # Delete/Comment out line below and add your inference code
     raise NotImplementedError()
