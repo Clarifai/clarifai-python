@@ -82,7 +82,7 @@ class TritonModelRepository:
           continue
       # gen requirements
       with open(os.path.join(repository_path, "requirements.txt"), "w") as f:
-        f.write("clarifai>9.10.3\ntritonclient[all]")  # for model upload utils
+        f.write("clarifai>9.10.4\ntritonclient[all]")  # for model upload utils
 
     if not os.path.isdir(model_version_path):
       os.mkdir(model_version_path)
