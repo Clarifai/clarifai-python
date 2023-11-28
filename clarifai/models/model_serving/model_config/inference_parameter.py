@@ -59,7 +59,7 @@ class InferParamManager:
         _type = InferParamType.NUMBER
       else:
         raise TypeError(f"Unsupported type {type(v)} of argument {k}, support {InferParamType}")
-      param = InferParam(path=k, field_type=_type, default_value=v, description="")
+      param = InferParam(path=k, field_type=_type, default_value=v, description=k)
       params.append(param)
 
     return cls(params=params)
