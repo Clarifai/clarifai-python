@@ -4,6 +4,7 @@ These can be used on the fly with minimal or no changes to test deploy text to i
 
 * ### [sd-v1.5 (Stable-Diffusion-v1.5)](./sd-v1.5/)
 
-	Requirements to run tests locally:
-
-	* Download/Clone the [huggingface model](https://huggingface.co/runwayml/stable-diffusion-v1-5) into the **sd-v1.5/1/** directory then start the triton server.
+	* Download the [model checkpoint](https://huggingface.co/runwayml/stable-diffusion-v1-5/tree/main) and store it under `sd-v1.5/1/checkpoint`
+	```
+	huggingface-cli download runwayml/stable-diffusion-v1-5 --local-dir sd-v1.5/1/checkpoint --local-dir-use-symlinks False
+	```

@@ -1,0 +1,4 @@
+clarifai>9.10.5
+tritonclient[all]
+transformers==4.34.1
+torch==2.0.1

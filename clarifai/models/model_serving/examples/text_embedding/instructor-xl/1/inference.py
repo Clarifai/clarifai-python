@@ -9,16 +9,22 @@
 
 import os
 from pathlib import Path
-from typing import Callable
 
-import torch
-from scipy.special import softmax
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+# Set up env for huggingface
+ROOT_PATH = os.path.join(os.path.dirname(__file__))
+PIPELINE_PATH = os.path.join(ROOT_PATH, 'checkpoint')
 
-from clarifai.models.model_serving.model_config import ModelTypes, get_model_config
-from clarifai.models.model_serving.models.output import ClassifierOutput
+os.environ["TRANSFORMERS_OFFLINE"] = "1"  # noqa
+os.environ['TRANSFORMERS_CACHE'] = PIPELINE_PATH  # noqa
+os.environ['TORCH_HOME'] = PIPELINE_PATH
 
-config = get_model_config(ModelTypes.text_classifier)
+import torch  # noqa
+from InstructorEmbedding import INSTRUCTOR  # noqa
+
+from clarifai.models.model_serving.model_config import (  # noqa # pylint: disable=unused-import
+    ModelTypes, get_model_config)
+
+config = get_model_config("text-embedder")
 
 
 class InferenceModel:
@@ -30,10 +36,11 @@ class InferenceModel:
     in this method so they are loaded only once for faster inference.
     """
     self.base_path: Path = os.path.dirname(__file__)
-    self.checkpoint_path: Path = os.path.join(self.base_path, "checkpoint")
-    self.model: Callable = AutoModelForSequenceClassification.from_pretrained(self.checkpoint_path)
-    self.tokenizer: Callable = AutoTokenizer.from_pretrained(self.checkpoint_path)
+    ## sample model loading code:
+    #self.checkpoint_path: Path = os.path.join(self.base_path, "your checkpoint filename/path")
+    #self.model: Callable = <load_your_model_here from checkpoint or folder>
     self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    self.model = INSTRUCTOR('hkunlp/instructor-xl')
 
   @config.inference.wrap_func
   def get_predictions(self, input_data: list, **kwargs) -> list:
@@ -51,12 +58,6 @@ class InferenceModel:
     --------
       List of one of the `clarifai.models.model_serving.models.output types` or `config.inference.return_type(your_output)`. Refer to the README/docs
     """
-    outputs = []
-    for inp in input_data:
-      encoded_input = self.tokenizer(inp, return_tensors='pt')
-      output = self.model(**encoded_input)
-      scores = output[0][0].detach().numpy()
-      scores = softmax(scores)
-      outputs.append(ClassifierOutput(predicted_scores=scores))
+    batch_preds = self.model.encode(input_data, device=self.device)
 
-    return outputs
+    return [config.inference.return_type(each) for each in batch_preds]

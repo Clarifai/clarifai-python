@@ -6,4 +6,7 @@ These can be used on the fly with minimal or no changes to test deploy text clas
 
 	Required files to run tests locally:
 
-	* Download the [model checkpoint & sentencepiece bpe model from huggingface](https://huggingface.co/cardiffnlp/twitter-xlm-roberta-base-sentiment/tree/main) and store it under `xlm-roberta/1/twitter-xlm-roberta-base-sentiment/`
+	* Download the [model checkpoint](https://huggingface.co/cardiffnlp/twitter-xlm-roberta-base-sentiment/tree/main) and store it under `xlm-roberta/1/checkpoint/`
+	```
+	huggingface-cli download cardiffnlp/twitter-xlm-roberta-base-sentiment --local-dir xlm-roberta/1/checkpoint/ --local-dir-use-symlinks False
+	```

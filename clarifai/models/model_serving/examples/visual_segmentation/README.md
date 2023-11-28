@@ -6,4 +6,7 @@ These can be used on the fly with minimal or no changes to test deploy visual se
 
 	Requirements to run tests locally:
 
-	* Download/Clone the [huggingface model](https://huggingface.co/mattmdjaga/segformer_b2_clothes) into the **segformer-b2/1/** directory then start the triton server.
+	* Download/Clone the [huggingface model](https://huggingface.co/mattmdjaga/segformer_b2_clothes) into the **segformer-b2/1/checkpoint** directory then start the triton server.
+	```
+	huggingface-cli download mattmdjaga/segformer_b2_clothes --local-dir segformer-b2/1/checkpoint --local-dir-use-symlinks False --exclude *.safetensors optimizer.pt
+	```
