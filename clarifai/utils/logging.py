@@ -73,11 +73,21 @@ def _get_library_name() -> str:
   return __name__.split(".")[0]
 
 
-def _configure_logger(logger_level: str = "ERROR") -> None:
-  logging.basicConfig(
-      level=logger_level,
-      datefmt='%Y-%m-%d %H:%M:%S',
-      handlers=[RichHandler(rich_tracebacks=True)])
+def _configure_logger(name: str, logger_level: str = "ERROR") -> None:
+  """Configure the logger with the specified name."""
+
+  logger = logging.getLogger(name)
+  logger.setLevel(logger_level)
+
+  # Remove existing handlers
+  for handler in logger.handlers[:]:
+    logger.removeHandler(handler)
+
+  # Add the new rich handler and formatter
+  handler = RichHandler(rich_tracebacks=True)
+  formatter = logging.Formatter('%(name)s:  %(message)s')
+  handler.setFormatter(formatter)
+  logger.addHandler(handler)
 
 
 def get_logger(logger_level: str = "ERROR", name: Optional[str] = None) -> logging.Logger:
@@ -86,5 +96,5 @@ def get_logger(logger_level: str = "ERROR", name: Optional[str] = None) -> loggi
   if name is None:
     name = _get_library_name()
 
-  _configure_logger(logger_level)
+  _configure_logger(name, logger_level)
   return logging.getLogger(name)
