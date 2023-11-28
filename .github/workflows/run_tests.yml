@@ -6,7 +6,7 @@ name: Run tests
 on:
   push:
     branches: [ master ]
-  pull_request_target:
+  pull_request:
 
 jobs:
   build:
@@ -25,10 +25,7 @@ jobs:
           - os: windows-latest
             python-version: 3.8.10
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-      with:
-        ref: ${{ github.event.pull_request.head.sha }}
+    - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
       with:
@@ -50,4 +47,8 @@ jobs:
         export PYTHONPATH=.
         export CLARIFAI_USER_ID="$(python scripts/key_for_tests.py --get-userid)"
         export CLARIFAI_PAT="$(python scripts/key_for_tests.py --create-pat)"
-        pytest tests/
+        if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
+          pytest tests/
+        else
+          echo "Skipping tests for PRs from forks"
+        fi
