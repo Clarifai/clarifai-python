@@ -83,8 +83,8 @@ ipm.export("your_file.json")
 ```
 
 ##### 2.2. Shorten
-`NOTE`: in this way `description` field will be set as empty aka "".
-*You need to modify* `description` in order to be able to upload the settings to Clarifai.
+`NOTE`: in this way `description` field will be set as ~~empty aka "".
+*You need to modify* `description` in order to be able to upload the settings to Clarifai.~~ the key of dictionary.
 
 `NOTE`: in this way `ENCRYPTED_STRING` type must be defined with "_" prefix
 
