@@ -105,6 +105,15 @@ apps_generator = client.list_apps()
 apps = list(apps_generator)
 ```
 
+OR <br>
+
+PAT can be passed as constructor argument
+
+```python
+from clarifai.client.user import User
+client = User(user_id="user_id", pat="your personal access token")
+```
+
 
 ## :floppy_disk: Interacting with Datasets
 
@@ -118,7 +127,9 @@ app = client.create_app(app_id="demo_app", base_workflow="Universal")
 dataset = app.create_dataset(dataset_id="demo_dataset")
 
 # execute data upload to Clarifai app dataset
-dataset.upload_dataset(task='visual_segmentation', split="train", dataset_loader='coco_segmentation')
+from clarifai.datasets.upload.laoders.coco_detection import COCODetectionDataLoader
+coco_dataloader = COCODetectionDataLoader("images_dir", "coco_annotation_filepath")
+dataset.upload_dataset(dataloader=coco_dataloader, get_upload_status=True)
 
 #upload text from csv
 dataset.upload_from_csv(csv_path='csv_path', input_type='text', csv_type='raw', labels=True)
