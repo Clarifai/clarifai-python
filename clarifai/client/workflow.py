@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Dict, Generator, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -11,6 +12,7 @@ from clarifai.client.lister import Lister
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import get_logger
+from clarifai.utils.misc import BackoffIterator
 from clarifai.workflows.export import Exporter
 
 
@@ -70,9 +72,22 @@ class Workflow(Lister, BaseClient):
         inputs=inputs,
         output_config=self.output_config)
 
-    response = self._grpc_request(self.STUB.PostWorkflowResults, request)
-    if response.status.code != status_code_pb2.SUCCESS:
-      raise Exception(f"Workflow Predict failed with response {response.status!r}")
+    start_time = time.time()
+    backoff_iterator = BackoffIterator()
+
+    while True:
+      response = self._grpc_request(self.STUB.PostWorkflowResults, request)
+
+      if response.status.code == status_code_pb2.MODEL_DEPLOYING and \
+          time.time() - start_time < 60:
+        self.logger.info(f"{self.id} Workflow is still deploying, please wait...")
+        time.sleep(next(backoff_iterator))
+        continue
+
+      if response.status.code != status_code_pb2.SUCCESS:
+        raise Exception(f"Workflow Predict failed with response {response.status!r}")
+      else:
+        break
 
     return response
 
