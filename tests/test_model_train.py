@@ -38,7 +38,7 @@ class Testmodeltrain:
     model_types = self.app.list_trainable_model_types()
     templates = self.visual_classifier_model.list_training_templates()
     assert self.visual_classifier_model.model_type_id == 'visual-classifier'  #create model test
-    assert len(model_types) == 9  #list trainable model types test
+    assert len(model_types) == 8  #list trainable model types test
     assert len(templates) >= 11  #list training templates test
 
   def test_model_params(self):
@@ -69,8 +69,8 @@ class Testmodeltrain:
     concepts = [concept.id for concept in self.app.list_concepts()]
     self.text_classifier_model.get_params(
         template='HF_GPTNeo_125m_lora', save_to='tests/assets/model_params.yaml')
-    param_info = self.text_classifier_model.get_param_info(param='num_gpus')
-    assert param_info['param'] == 'num_gpus'  #test get param info
+    param_info = self.text_classifier_model.get_param_info(param='tokenizer_config')
+    assert param_info['param'] == 'tokenizer_config'  #test get param info
     assert len(concepts) == 2  #test data upload for training
     self.text_classifier_model.update_params(
         dataset_id=CREATE_DATASET_ID,
