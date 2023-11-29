@@ -2,6 +2,8 @@ import logging
 import os
 from datetime import datetime
 
+import pytest
+
 from clarifai.client.user import User
 from clarifai.datasets.upload.utils import load_module_dataloader
 
@@ -29,6 +31,7 @@ def create_app():
   return client.create_app(app_id=CREATE_APP_ID, base_workflow="Empty")
 
 
+@pytest.mark.requires_secrets
 class Testdataupload:
   """Tests for data uploads.
   Uploads are tested for each of the following resources:

@@ -50,5 +50,5 @@ jobs:
         if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
           pytest tests/
         else
-          echo "Skipping tests for PRs from forks"
+          pytest -m "not requires_secrets" tests/
         fi

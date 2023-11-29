@@ -18,6 +18,7 @@ def get_test_parse_workflow_creation_workflows() -> typing.List[str]:
   return filenames
 
 
+@pytest.mark.requires_secrets
 class TestWorkflowCreate:
 
   @classmethod

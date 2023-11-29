@@ -1,10 +1,12 @@
 import os
 
+import pytest
 import yaml
 
 from clarifai.client.workflow import Workflow
 
 
+@pytest.mark.requires_secrets
 def test_export_workflow_general():
 
   workflow = Workflow("https://clarifai.com/clarifai/main/workflows/General")

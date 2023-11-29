@@ -1,0 +1,2 @@
+[tool.pytest.ini_options]
+markers = ["requires_secrets: mark a test as requiring secrets to run"]
