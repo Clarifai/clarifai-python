@@ -24,8 +24,9 @@ def response_to_model_params(response: MultiModelTypeResponse,
   """Converts the response from the API to a dictionary of model params for the given model type id."""
   dict_response = MessageToDict(response)
   params = {}
-  params["dataset_id"] = ""
-  params["dataset_version_id"] = ""
+  if model_type_id != "clusterer":
+    params["dataset_id"] = ""
+    params["dataset_version_id"] = ""
   if model_type_id not in ["clusterer", "text-to-text"]:
     params["concepts"] = []
   params["train_params"] = dict()
@@ -38,7 +39,7 @@ def response_to_model_params(response: MultiModelTypeResponse,
         #removing the fields which are not required
         if (_path[0] in ["'eval_info'"]) or (_path[1] in ["dataset", "data"]) or (_path[-1] in [
             "dataset_id", "dataset_version_id"
-        ]):
+        ]) or ("internalOnly" in modeltypefield.keys()):
           continue
         #checking the template model type fields
         if _path[-1] != "template":
@@ -66,6 +67,8 @@ def response_to_model_params(response: MultiModelTypeResponse,
                 params['train_params']["template"] = modeltypeenum['id']
                 #iterate through the template fields
                 for modeltypeenumfield in modeltypeenum['modelTypeFields']:
+                  if "internalOnly" in modeltypeenumfield.keys():
+                    continue
                   try:
                     params["train_params"][modeltypeenumfield['path'].split('.')[
                         -1]] = modeltypeenumfield['defaultValue']
@@ -103,8 +106,9 @@ def params_parser(params_dict: dict) -> Dict[str, Any]:
     del params_dict['train_params']['base_embed_model']
 
   train_dict["train_info"]['params'].update(params_dict["train_params"])
-  train_dict["train_info"]['params']['dataset_id'] = params_dict['dataset_id']
-  train_dict["train_info"]['params']['dataset_version_id'] = params_dict['dataset_version_id']
+  if 'dataset_id' in params_dict.keys():
+    train_dict["train_info"]['params']['dataset_id'] = params_dict['dataset_id']
+    train_dict["train_info"]['params']['dataset_version_id'] = params_dict['dataset_version_id']
   train_dict['train_info'] = resources_pb2.TrainInfo(**train_dict['train_info'])
 
   if 'concepts' in params_dict.keys():
