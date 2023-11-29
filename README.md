@@ -48,9 +48,6 @@ This is the official Python client for interacting with our powerful [API](https
   * [Smart Image Search](#smart-image-search)
   * [Smart Text Search](#smart-text-search)
   * [Filters](#filters)
-
-
-
 * **[More Examples](#pushpin-more-examples)**
 
 
