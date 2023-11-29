@@ -9,6 +9,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
+from clarifai.constants.workflow import MAX_WORKFLOW_PREDICT_INPUTS
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import get_logger
@@ -63,8 +64,9 @@ class Workflow(Lister, BaseClient):
     Args:
         inputs (list[Input]): The inputs to predict.
     """
-    if len(inputs) > 128:
-      raise UserError("Too many inputs. Max is 128.")  # TODO Use Chunker for inputs len > 128
+    if len(inputs) > MAX_WORKFLOW_PREDICT_INPUTS:
+      raise UserError(f"Too many inputs. Max is {MAX_WORKFLOW_PREDICT_INPUTS}."
+                     )  # TODO Use Chunker for inputs len > 32
     request = service_pb2.PostWorkflowResultsRequest(
         user_app_id=self.user_app_id,
         workflow_id=self.id,

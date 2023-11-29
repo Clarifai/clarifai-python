@@ -13,7 +13,7 @@ from google.protobuf.struct_pb2 import Struct
 from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
-from clarifai.constants.model import TRAINABLE_MODEL_TYPES
+from clarifai.constants.model import MAX_MODEL_PREDICT_INPUTS, TRAINABLE_MODEL_TYPES
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import get_logger
@@ -387,8 +387,9 @@ class Model(Lister, BaseClient):
     """
     if not isinstance(inputs, list):
       raise UserError('Invalid inputs, inputs must be a list of Input objects.')
-    if len(inputs) > 128:
-      raise UserError("Too many inputs. Max is 128.")  # TODO Use Chunker for inputs len > 128
+    if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
+      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}."
+                     )  # TODO Use Chunker for inputs len > 128
 
     self._override_model_version(inference_params, output_config)
     request = service_pb2.PostModelOutputsRequest(
