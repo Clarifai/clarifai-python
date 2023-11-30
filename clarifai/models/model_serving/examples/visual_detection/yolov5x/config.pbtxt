@@ -1,4 +1,4 @@
-name: "yolov5_test"
+name: "yolov5x"
 max_batch_size: 1
 input {
   name: "image"

@@ -10,7 +10,6 @@
 import os
 from pathlib import Path
 
-import numpy as np
 from vllm import LLM, SamplingParams
 
 from clarifai.models.model_serving.model_config import ModelTypes, get_model_config
@@ -37,7 +36,7 @@ class InferenceModel:
     )
 
   @config.inference.wrap_func
-  def get_predictions(self, input_data, **kwargs):
+  def get_predictions(self, input_data: list, **kwargs):
     """
     Main model inference method.
 
@@ -48,10 +47,10 @@ class InferenceModel:
 
     Returns:
     --------
-      One of the clarifai.models.model_serving.models.output types. Refer to the README/docs
+      List of one of the `clarifai.models.model_serving.models.output types` or `config.inference.return_type(your_output)`. Refer to the README/docs
     """
     sampling_params = SamplingParams(**kwargs)
-    output = self.model.generate(input_data, sampling_params)
-    generated_text = np.asarray(output[0].outputs[0].text, dtype=object)
+    preds = self.model.generate(input_data, sampling_params)
+    outputs = [config.inference.return_type(each.outputs[0].text) for each in preds]
 
-    return config.inference.return_type(generated_text)
+    return outputs

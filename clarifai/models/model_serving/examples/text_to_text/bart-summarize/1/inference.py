@@ -9,11 +9,13 @@
 
 import os
 from pathlib import Path
-import numpy as np
+
 from transformers import pipeline
 
-from clarifai.models.model_serving.models.model_types import text_to_text
+from clarifai.models.model_serving.model_config import ModelTypes, get_model_config
 from clarifai.models.model_serving.models.output import TextOutput
+
+config = get_model_config(ModelTypes.text_to_text)
 
 
 class InferenceModel:
@@ -25,23 +27,33 @@ class InferenceModel:
     in this method so they are loaded only once for faster inference.
     """
     self.base_path: Path = os.path.dirname(__file__)
-    self.huggingface_model_path = os.path.join(self.base_path, "bart-large-summarizer")
+    self.huggingface_model_path = os.path.join(self.base_path, "checkpoint")
     self.pipeline = pipeline("summarization", model=self.huggingface_model_path)
 
-  @text_to_text
-  def get_predictions(self, input_data):
+  @config.inference.wrap_func
+  def get_predictions(self, input_data: list, **kwargs) -> list:
     """
-    Generates summaries of input text.
+    Main model inference method.
 
     Args:
     -----
-      input_data: A single input data item to predict on.
+      input_data: A list of input data item to predict on.
         Input data can be an image or text, etc depending on the model type.
+
+      **kwargs: your inference parameters.
 
     Returns:
     --------
-      One of the clarifai.models.model_serving.models.output types. Refer to the README/docs
+      List of one of the `clarifai.models.model_serving.models.output types` or `config.inference.return_type(your_output)`. Refer to the README/docs
     """
-    summary = self.pipeline(input_data, max_length=50, min_length=30, do_sample=False)
-    generated_text = np.array([summary[0]['summary_text']], dtype=object)
-    return TextOutput(predicted_text=generated_text)
+    # convert to top_k to int
+    outputs = []
+    top_k = int(kwargs.get("top_k", 50))
+    kwargs.pop("top_k", top_k)
+
+    summaries = self.pipeline(input_data, **kwargs)
+    for summary in summaries:
+      generated_text = summary['summary_text']
+      outputs.append(TextOutput(predicted_text=generated_text))
+
+    return outputs

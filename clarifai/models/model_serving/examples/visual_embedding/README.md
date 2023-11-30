@@ -6,4 +6,7 @@ These can be used on the fly with minimal or no changes to test deploy visual em
 
 	Requirements to run tests locally:
 
-	* Download/Clone the [huggingface model](https://huggingface.co/google/vit-base-patch16-224) into the **vit-base/1/** directory then start the triton server.
+	* Download the [model checkpoint & sentencepiece bpe model from huggingface](https://huggingface.co/google/vit-base-patch16-224/tree/main) and store it under `vit-base/1/checkpoint`
+	```
+	huggingface-cli download google/vit-base-patch16-224 --local-dir vit-base/1/checkpoint --local-dir-use-symlinks False --exclude *.msgpack *.h5 *.safetensors
+	```

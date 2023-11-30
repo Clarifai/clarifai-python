@@ -1,5 +1,5 @@
 name: "xlm-roberta"
-max_batch_size: 1
+max_batch_size: 2
 input {
   name: "text"
   data_type: TYPE_STRING
