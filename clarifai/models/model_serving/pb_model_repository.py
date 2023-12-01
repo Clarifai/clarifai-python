@@ -38,7 +38,7 @@ class TritonModelRepository:
 
     Args:
     -----
-      module_name: Python module name to write to file
+      module: Python module to write to file
       file_path: Path of file to write module code into.
       func: A function to process code of module. It contains only 1 argument, text of module. If it is None, then only save text to `file_path`
     Returns:
