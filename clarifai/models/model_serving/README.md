@@ -10,7 +10,9 @@ A step by step guide to building your own triton inference model and deploying i
 ```console
 clarifai-model-upload-init --model_name <Your model name> \
 		--model_type <select model type from available ones> \
-		--repo_dir <directory in which to create your model repository>
+		--repo_dir <directory in which to create your model repository> \
+    --image_shape <(H, W) dims for models with an image input type. H and W each have a max value of 1024> \
+    --max_bs <Max batch size. Default is 1.>
 ```
 2.  1. Edit the `requirements.txt` file with dependencies needed to run inference on your model and the `labels.txt` (if available in dir) with the labels your model is to predict.
     2.  Add your model loading and inference code inside `inference.py` script of the generated model repository under the `setup()` and `predict()` functions respectively. Refer to  The [Inference Script section]() for a description of this file.
