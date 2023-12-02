@@ -101,7 +101,7 @@ from pathlib import Path
 
 from clarifai.models.model_serving.model_config import (ModelTypes, get_model_config)
 
-config = get_model_config("clarifai-model-type") # Input your model type
+config = get_model_config("MODEL_TYPE_PLACEHOLDER") # Input your model type
 
 
 class InferenceModel:

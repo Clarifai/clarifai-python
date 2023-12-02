@@ -13,7 +13,7 @@ from pathlib import Path
 from clarifai.models.model_serving.model_config import (  # noqa # pylint: disable=unused-import
     ModelTypes, get_model_config)
 
-#config = get_model_config("clarifai-model-type")
+config = get_model_config("MODEL_TYPE_PLACEHOLDER")
 
 
 class InferenceModel:
@@ -29,7 +29,7 @@ class InferenceModel:
     #self.checkpoint_path: Path = os.path.join(self.base_path, "your checkpoint filename/path")
     #self.model: Callable = <load_your_model_here from checkpoint or folder>
 
-  #@config.inference.wrap_func
+  @config.inference.wrap_func
   def get_predictions(self, input_data: list, **kwargs) -> list:
     """
     Main model inference method.
