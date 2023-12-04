@@ -39,8 +39,9 @@ def visual_detector(func: Callable):
     out_bboxes = []
     out_labels = []
     out_scores = []
-    input_data = [each for each in input_data]
-    preds = func(self, input_data, *args, **kwargs)
+
+    # input_data passed as list of images
+    preds = func(self, input_data[:], *args, **kwargs)
     for pred in preds:
       out_bboxes.append(pred.predicted_bboxes)
       out_labels.append(pred.predicted_labels)
@@ -77,8 +78,8 @@ def visual_classifier(func: Callable):
     Format predictions and return clarifai compatible output.
     """
     out_scores = []
-    input_data = [each for each in input_data]
-    preds = func(self, input_data, *args, **kwargs)
+    # input_data passed as list of images
+    preds = func(self, input_data[:], *args, **kwargs)
 
     for pred in preds:
       out_scores.append(pred.predicted_scores)
@@ -183,8 +184,8 @@ def visual_embedder(func: Callable):
     Format predictions and return clarifai compatible output.
     """
     out_embeddings = []
-    input_data = [each for each in input_data]
-    preds = func(self, input_data, *args, **kwargs)
+    # input_data passed as list of images
+    preds = func(self, input_data[:], *args, **kwargs)
 
     for pred in preds:
       out_embeddings.append(pred.embedding_vector)
@@ -208,8 +209,8 @@ def visual_segmenter(func: Callable):
     Format predictions and return clarifai compatible output.
     """
     masks = []
-    input_data = [each for each in input_data]
-    preds = func(self, input_data, *args, **kwargs)
+    # input_data passed as list of images
+    preds = func(self, input_data[:], *args, **kwargs)
 
     for pred in preds:
       masks.append(pred.predicted_mask)

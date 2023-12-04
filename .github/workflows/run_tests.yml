@@ -47,4 +47,8 @@ jobs:
         export PYTHONPATH=.
         export CLARIFAI_USER_ID="$(python scripts/key_for_tests.py --get-userid)"
         export CLARIFAI_PAT="$(python scripts/key_for_tests.py --create-pat)"
-        pytest tests/
+        if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
+          pytest tests/
+        else
+          echo "Skipping tests for PRs from forks"
+        fi

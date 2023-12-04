@@ -1,8 +1,8 @@
-## Image Classification Triton Model Examples
+## Multimodal Embedder Triton Model Examples
 
 These can be used on the fly with minimal or no changes to test deploy image classification models to the Clarifai platform. See the required files section for each model below.
 
-* ### [VIT Age Classifier](./clip/)
+* ### [CLIP](./clip/)
 
 	Required files to run tests locally:
 

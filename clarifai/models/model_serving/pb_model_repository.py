@@ -15,12 +15,15 @@ Triton python backend inference model controller.
 """
 
 import inspect
+import logging
 import os
 from pathlib import Path
 from typing import Type
 
-from .model_config import Serializer, TritonModelConfig
-from .models import inference, pb_model, test
+logging.getLogger("clarifai.models.model_serving.model_config.config").setLevel(logging.ERROR)
+
+from .model_config import Serializer, TritonModelConfig  # noqa: E402
+from .models import inference, pb_model, test  # noqa: E402
 
 
 class TritonModelRepository:
@@ -38,7 +41,7 @@ class TritonModelRepository:
 
     Args:
     -----
-      module_name: Python module name to write to file
+      module: Python module to write to file
       file_path: Path of file to write module code into.
       func: A function to process code of module. It contains only 1 argument, text of module. If it is None, then only save text to `file_path`
     Returns:
@@ -94,14 +97,11 @@ class TritonModelRepository:
     self._module_to_file(pb_model, model_py_path, func=None)
 
     # generate inference.py
-    def inference_insert_model_type_func(x):
-      x = x.replace("""#config = get_model_config("clarifai-model-type")""",
-                    f"""config = get_model_config("{self.model_config.model_type}")""")
-      x = x.replace("#@config.inference.wrap_func", "@config.inference.wrap_func")
-      return x
+    def insert_model_type_func(x):
+      return x.replace("MODEL_TYPE_PLACEHOLDER", self.model_config.model_type)
 
     inference_py_path = os.path.join(model_version_path, "inference.py")
-    self._module_to_file(inference, inference_py_path, inference_insert_model_type_func)
+    self._module_to_file(inference, inference_py_path, insert_model_type_func)
 
     # generate test.py
     def insert_model_type_func(x):
