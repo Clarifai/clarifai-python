@@ -281,6 +281,33 @@ class Inputs(Lister, BaseClient):
     return Inputs._get_proto(input_id=input_id, dataset_id=dataset_id, text_pb=text_pb, **kwargs)
 
   @staticmethod
+  def get_multimodal_input(input_id: str,
+                           raw_text: str,
+                           image_url: str = None,
+                           image_bytes: bytes = None,
+                           dataset_id: str = None,
+                           **kwargs) -> Text:
+    """Create input proto for text data type from rawtext.
+
+    Args:
+        input_id (str): The input ID for the input to create.
+        raw_text (str): The raw text input.
+        image_url (str): The url for the image.
+        image_bytes (str): The bytes for the image.
+        dataset_id (str): The dataset ID for the dataset to add the input to.
+        **kwargs: Additional keyword arguments to be passed to the Input
+
+    Returns:
+        Input: An Input object for the specified input ID.
+
+    Example:
+        >>> from clarifai.client.input import Inputs
+        >>> input_protos = Inputs.get_multimodal_input(input_id = 'demo', raw_text = 'What time of day is it?', image_url='https://samples.clarifai.com/metro-north.jpg')
+    """
+    text_pb = resources_pb2.Text(raw=raw_text)
+    return Inputs._get_proto(input_id=input_id, dataset_id=dataset_id, text_pb=text_pb, **kwargs)
+
+  @staticmethod
   def get_inputs_from_csv(csv_path: str,
                           input_type: str = 'text',
                           csv_type: str = 'raw',
