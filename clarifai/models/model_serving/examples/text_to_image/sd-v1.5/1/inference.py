@@ -14,8 +14,10 @@ import numpy as np
 import torch
 from diffusers import StableDiffusionPipeline
 
-from clarifai.models.model_serving.models.model_types import text_to_image
+from clarifai.models.model_serving.model_config import ModelTypes, get_model_config
 from clarifai.models.model_serving.models.output import ImageOutput
+
+config = get_model_config(ModelTypes.text_to_image)
 
 
 class InferenceModel:
@@ -27,14 +29,14 @@ class InferenceModel:
     in this method so they are loaded only once for faster inference.
     """
     self.base_path: Path = os.path.dirname(__file__)
-    self.huggingface_model_path = os.path.join(self.base_path, "stable-diffusion-v1-5")
+    self.huggingface_model_path = os.path.join(self.base_path, "checkpoint")
     self.device = "cuda" if torch.cuda.is_available() else "cpu"
     self.pipeline = StableDiffusionPipeline.from_pretrained(
         self.huggingface_model_path, torch_dtype=torch.float16)
     self.pipeline = self.pipeline.to(self.device)
 
-  @text_to_image
-  def get_predictions(self, input_data):
+  @config.inference.wrap_func
+  def get_predictions(self, input_data: list, **kwargs):
     """
     Main model inference method.
 
@@ -47,6 +49,10 @@ class InferenceModel:
     --------
       One of the clarifai.models.model_serving.models.output types. Refer to the README/docs
     """
-    out_image = self.pipeline(input_data).images[0]
-    out_image = np.asarray(out_image)
-    return ImageOutput(image=out_image)
+    outputs = []
+    for inp in input_data:
+      out_image = self.pipeline(inp).images[0]
+      out_image = np.asarray(out_image)
+      outputs.append(ImageOutput(image=out_image))
+
+    return outputs

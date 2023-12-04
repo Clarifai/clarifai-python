@@ -15,12 +15,15 @@ Triton python backend inference model controller.
 """
 
 import inspect
+import logging
 import os
 from pathlib import Path
-from typing import Callable, Type
+from typing import Type
 
-from .model_config import Serializer, TritonModelConfig
-from .models import inference, pb_model, test
+logging.getLogger("clarifai.models.model_serving.model_config.config").setLevel(logging.ERROR)
+
+from .model_config import Serializer, TritonModelConfig  # noqa: E402
+from .models import inference, pb_model, test  # noqa: E402
 
 
 class TritonModelRepository:
@@ -32,24 +35,26 @@ class TritonModelRepository:
     self.model_config = model_config
     self.config_proto = Serializer(model_config)
 
-  def _module_to_file(self, module_name: Callable, filename: str, destination_dir: str) -> None:
+  def _module_to_file(self, module, file_path: str, func: callable = None):
     """
     Write Python Module to file.
 
     Args:
     -----
-    module_name: Python module name to write to file
-    filename: Name of the file to write to destination_dir
-    destination_dir: Directory to save the generated triton model file.
-
+      module: Python module to write to file
+      file_path: Path of file to write module code into.
+      func: A function to process code of module. It contains only 1 argument, text of module. If it is None, then only save text to `file_path`
     Returns:
     --------
-    None
+      None
     """
-    module_path: Path = os.path.join(destination_dir, filename)
-    source_code = inspect.getsource(module_name)
-    with open(module_path, "w") as pb_model:
-      pb_model.write(source_code)
+    source_code = inspect.getsource(module)
+    with open(file_path, "w") as fp:
+      # change model type
+      if func:
+        source_code = func(source_code)
+      # write it to file
+      fp.write(source_code)
 
   def build_repository(self, repository_dir: Path = os.curdir):
     """
@@ -80,22 +85,24 @@ class TritonModelRepository:
           continue
       # gen requirements
       with open(os.path.join(repository_path, "requirements.txt"), "w") as f:
-        f.write("clarifai>9.5.3\ntritonclient[all]")  # for model upload utils
+        f.write("clarifai>9.10.4\ntritonclient[all]")  # for model upload utils
 
     if not os.path.isdir(model_version_path):
       os.mkdir(model_version_path)
     if not os.path.exists(os.path.join(model_version_path, "__init__.py")):
       with open(os.path.join(model_version_path, "__init__.py"), "w"):
         pass
-    # generate model.py & inference.py modules
-    self._module_to_file(pb_model, filename="model.py", destination_dir=model_version_path)
-    self._module_to_file(inference, filename="inference.py", destination_dir=model_version_path)
+    # generate model.py
+    model_py_path = os.path.join(model_version_path, "model.py")
+    self._module_to_file(pb_model, model_py_path, func=None)
+
+    # generate inference.py
+    def insert_model_type_func(x):
+      return x.replace("MODEL_TYPE_PLACEHOLDER", self.model_config.model_type)
+
+    inference_py_path = os.path.join(model_version_path, "inference.py")
+    self._module_to_file(inference, inference_py_path, insert_model_type_func)
+
     # generate test.py
     custom_test_path = os.path.join(model_version_path, "test.py")
-    test_source_code = inspect.getsource(test)
-    with open(custom_test_path, "w") as fp:
-      # change model type
-      test_source_code = test_source_code.replace("clarifai-model-type",
-                                                  self.model_config.model_type)
-      # write it to file
-      fp.write(test_source_code)
+    self._module_to_file(test, custom_test_path, insert_model_type_func)

@@ -6,5 +6,7 @@ These can be used on the fly with minimal or no changes to test deploy all model
 
 	Requirements to run tests locally:
 
-	* Download/Clone the [huggingface model](https://huggingface.co/com3dian/Bart-large-paper2slides-summarizer) and store it under the **bart-summarize/1/** directory.
-	* Rename the downloaded folder to **bart-large-summarizer** OR change the **self.huggingface_model_path** attribute in the [inference.py script](./bart-summarize/1/inference.py) to match the folder name
+	* Download/Clone the [huggingface model](https://huggingface.co/com3dian/Bart-large-paper2slides-summarizer) and store it under the **bart-summarize/1/checkpoint** directory.
+		```
+		huggingface-cli download com3dian/Bart-large-paper2slides-summarizer --local-dir bart-summarize/1/checkpoint --local-dir-use-symlinks False --exclude *.safetensors
+		```

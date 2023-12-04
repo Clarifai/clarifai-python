@@ -1,4 +1,4 @@
-clarifai>9.5.3
+clarifai>9.10.5
 tritonclient[all]
 torch==1.13.1
 transformers==4.30.2

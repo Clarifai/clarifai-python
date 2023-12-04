@@ -12,6 +12,7 @@
 # limitations under the License.
 """ Model Config classes."""
 
+import logging
 from dataclasses import asdict, dataclass, field
 from typing import List
 
@@ -19,6 +20,8 @@ import yaml
 
 from ..models.model_types import *  # noqa # pylint: disable=unused-import
 from ..models.output import *  # noqa # pylint: disable=unused-import
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["get_model_config", "MODEL_TYPES", "TritonModelConfig", "ModelTypes"]
 
@@ -284,11 +287,23 @@ def get_model_config(model_type: str) -> ModelConfigClass:
     ModelConfigClass
 
   ### Example:
+  >>> from clarifai.models.model_serving.models.output import ClassifierOutput
+  >>> from clarifai.models.model_serving.model_config import get_model_config, ModelTypes
   >>> cfg = get_model_config(ModelTypes.text_classifier)
   >>> custom_triton_config = cfg.make_triton_model_config(**kwargs)
+  >>> cfg.inference.return_type is ClassifierOutput # True
 
 
   """
+  if model_type == "MODEL_TYPE_PLACEHOLDER":
+    logger.warning(
+        "Warning: A placeholder value has been detected for obtaining the model configuration. This will result in empty `ModelConfigClass` object."
+    )
+    return ModelConfigClass(
+        triton=None,
+        inference=InferenceConfig(wrap_func=lambda x: x, return_type=None),
+        field_maps=None)
+
   import os
   assert model_type in MODEL_TYPES, f"`model_type` must be in {MODEL_TYPES}"
   cfg = read_config(

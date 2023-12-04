@@ -10,7 +10,9 @@ A step by step guide to building your own triton inference model and deploying i
 ```console
 clarifai-model-upload-init --model_name <Your model name> \
 		--model_type <select model type from available ones> \
-		--repo_dir <directory in which to create your model repository>
+		--repo_dir <directory in which to create your model repository> \
+    --image_shape <(H, W) dims for models with an image input type. H and W each have a max value of 1024> \
+    --max_bs <Max batch size. Default is 1.>
 ```
 2.  1. Edit the `requirements.txt` file with dependencies needed to run inference on your model and the `labels.txt` (if available in dir) with the labels your model is to predict.
     2.  Add your model loading and inference code inside `inference.py` script of the generated model repository under the `setup()` and `predict()` functions respectively. Refer to  The [Inference Script section]() for a description of this file.
@@ -81,7 +83,6 @@ A generated triton model repository looks as illustrated in the directory tree a
 | `config.pbtxt` | Contains the triton model configuration used by the triton inference server to guide inference requests processing. |
 | `requirements.txt` | Contains dependencies needed by a user model to successfully make predictions.|
 | `labels.txt` | Contains labels listed one per line, a model is trained to predict. The order of labels should match the model predicted class indexes. |
-| `triton_conda.yaml` | Contains dependencies available in pre-configured execution environment. |
 | `1/inference.py` | The inference script where users write their inference code. |
 | `1/model.py` | The triton python backend model file run to serve inference requests. |
 | `1/test.py` | Contains some predefined tests in order to test inference implementation and dependencies locally. |
@@ -97,7 +98,11 @@ This script is composed of a single class that contains a default init method an
 
 import os
 from pathlib import Path
-from typing import Callable
+
+from clarifai.models.model_serving.model_config import (ModelTypes, get_model_config)
+
+config = get_model_config("MODEL_TYPE_PLACEHOLDER") # Input your model type
+
 
 class InferenceModel:
   """User model inference class."""
@@ -112,29 +117,32 @@ class InferenceModel:
     #self.checkpoint_path: Path = os.path.join(self.base_path, "your checkpoint filename/path")
     #self.model: Callable = <load_your_model_here from checkpoint or folder>
 
-  #Add relevant model type decorator to the method below (see docs/model_types for ref.)
-  def get_predictions(self, input_data, **kwargs):
+  @config.inference.wrap_func
+  def get_predictions(self, input_data: list, **kwargs) -> list:
     """
     Main model inference method.
 
     Args:
     -----
-      input_data: A single input data item to predict on.
+      input_data: A list of input data item to predict on.
         Input data can be an image or text, etc depending on the model type.
+
+      **kwargs: your inference parameters.
 
     Returns:
     --------
-      One of the clarifai.models.model_serving.models.output types. Refer to the README/docs
+      List of one of the `clarifai.models.model_serving.models.output types` or `config.inference.return_type(your_output)`. Refer to the README/docs
     """
+
     # Delete/Comment out line below and add your inference code
     raise NotImplementedError()
 ```
 
 - `__init__()` used for one-time loading of inference time artifacts such as models, tokenizers, etc that are frequently called during inference to improve inference speed.
 
-- `get_predictions()` takes an input data item whose type depends on the task the model solves, & returns predictions for an input data item.
+- `get_predictions()` takes a list of input data items whose type depends on the task the model solves, & returns list of predictions.
 
-`get_predictions()` should return any of the output types defined under [output](docs/output.md) and the predict function MUST be decorated with a task corresponding [model type decorator](docs/model_types.md). The model type decorators are responsible for passing input request batches for prediction and formatting the resultant predictions into triton inference responses.
+`get_predictions()` should return a list of any of the output types defined under [output](docs/output.md) and the predict function MUST be decorated with a task corresponding [@config.inference.wrap_func](docs/model_types.md). The model type decorators are responsible for passing input request batches for prediction and formatting the resultant predictions into triton inference responses.
 
 Additional methods can be added to this script's `Infer` class by the user as deemed necessary for their model inference provided they are invoked inside `get_predictions()` if used at inference time.
 
