@@ -262,7 +262,7 @@ class Inputs(Lister, BaseClient):
   @staticmethod
   def get_text_input(input_id: str, raw_text: str, dataset_id: str = None,
                      **kwargs) -> Text:  #text specific
-    """Create input proto for text data type from rawtext.
+    """Create input proto for text data type from raw text.
 
     Args:
         input_id (str): The input ID for the input to create.
@@ -287,7 +287,7 @@ class Inputs(Lister, BaseClient):
                            image_bytes: bytes = None,
                            dataset_id: str = None,
                            **kwargs) -> Text:
-    """Create input proto for text data type from rawtext.
+    """Create input proto for text data type from raw text and image from bytes or url.
 
     Args:
         input_id (str): The input ID for the input to create.
