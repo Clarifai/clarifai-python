@@ -50,7 +50,7 @@ class CustomTestInferenceModel(DefaultTestInferenceModel):
 
   def setUp(self) -> None:
     logging.info("Initializing...")
-    model_type = "MODEL_TYPE_PLACEHOLDER"  # your model type
+    model_type = "multimodal-embedder"  # your model type
     self.intitialize(
         model_type,
         repo_version_dir=os.path.dirname(__file__),

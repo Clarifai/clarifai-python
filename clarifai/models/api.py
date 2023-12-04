@@ -18,8 +18,8 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.struct_pb2 import Struct, Value
 
-from clarifai.auth.helper import ClarifaiAuthHelper
 from clarifai.client import create_stub
+from clarifai.client.auth.helper import ClarifaiAuthHelper
 
 
 def _make_default_value_proto(dtype, value):

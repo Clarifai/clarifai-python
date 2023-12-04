@@ -13,7 +13,7 @@
 """Commandline interface for model upload utils."""
 import argparse
 
-from clarifai.auth.helper import ClarifaiAuthHelper
+from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.models.api import Models
 from clarifai.models.model_serving.model_config import MODEL_TYPES, get_model_config
 from clarifai.models.model_serving.model_config.inference_parameter import InferParamManager
