@@ -304,8 +304,11 @@ class Inputs(Lister, BaseClient):
         >>> from clarifai.client.input import Inputs
         >>> input_protos = Inputs.get_multimodal_input(input_id = 'demo', raw_text = 'What time of day is it?', image_url='https://samples.clarifai.com/metro-north.jpg')
     """
+    image_pb = resources_pb2.Image(base64=image_bytes) if image_bytes and not image_url else None
+    image_pb = resources_pb2.Image(url=image_url) if image_url and not image_bytes else None
     text_pb = resources_pb2.Text(raw=raw_text)
-    return Inputs._get_proto(input_id=input_id, dataset_id=dataset_id, text_pb=text_pb, **kwargs)
+    return Inputs._get_proto(
+        input_id=input_id, dataset_id=dataset_id, imagepb=image_pb, text_pb=text_pb, **kwargs)
 
   @staticmethod
   def get_inputs_from_csv(csv_path: str,
