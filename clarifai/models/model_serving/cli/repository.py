@@ -60,6 +60,7 @@ def model_upload_init():
       default=".",
       required=True,
       help="Directory to create triton repository.")
+  parser.add_argument("--max_bs", type=int, default=1, required=False, help="Max batch size")
 
   args = parser.parse_args()
 
@@ -77,6 +78,7 @@ def model_upload_init():
       model_name=args.model_name,
       model_version="1",
       image_shape=args.image_shape,
+      max_batch_size=args.max_bs,
   )
 
   triton_repo = TritonModelRepository(model_config)
