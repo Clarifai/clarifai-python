@@ -13,8 +13,10 @@ from pathlib import Path
 import torch
 from transformers import AutoModelForSemanticSegmentation, SegformerImageProcessor
 
-from clarifai.models.model_serving.models.model_types import visual_segmenter
+from clarifai.models.model_serving.model_config import ModelTypes, get_model_config
 from clarifai.models.model_serving.models.output import MasksOutput
+
+config = get_model_config(ModelTypes.visual_segmenter)
 
 
 class InferenceModel:
@@ -26,30 +28,35 @@ class InferenceModel:
     in this method so they are loaded only once for faster inference.
     """
     self.base_path: Path = os.path.dirname(__file__)
-    self.huggingface_model_path = os.path.join(self.base_path, "segformer_b2_clothes")
+    self.huggingface_model_path = os.path.join(self.base_path, "checkpoint")
     #self.labels_path = os.path.join(Path(self.base_path).parents[0], "labels.txt")
     self.processor = SegformerImageProcessor.from_pretrained(self.huggingface_model_path)
     self.model = AutoModelForSemanticSegmentation.from_pretrained(self.huggingface_model_path)
 
-  @visual_segmenter
-  def get_predictions(self, input_data):
+  @config.inference.wrap_func
+  def get_predictions(self, input_data: list, **kwargs) -> list:
     """
     Main model inference method.
 
     Args:
     -----
-      input_data: A single input data item to predict on.
+      input_data: A list of input data item to predict on.
         Input data can be an image or text, etc depending on the model type.
+
+      **kwargs: your inference parameters.
 
     Returns:
     --------
-      One of the clarifai.models.model_serving.models.output types. Refer to the README/docs
+      List of one of the `clarifai.models.model_serving.models.output types` or `config.inference.return_type(your_output)`. Refer to the README/docs
     """
+    outputs = []
+
     inputs = self.processor(images=input_data, return_tensors="pt")
     with torch.no_grad():
       output = self.model(**inputs)
-
     logits = output.logits.cpu()
-    mask = logits.argmax(dim=1)[0].numpy()
+    for logit in logits:
+      mask = logit.argmax(dim=0).numpy()
+      outputs.append(MasksOutput(predicted_mask=mask))
 
-    return MasksOutput(predicted_mask=mask)
+    return outputs
