@@ -18,15 +18,15 @@ class MyRunner(Runner):
     data = input.data
 
     # Optional use of output_info
-    example_param = ""
+    params_dict = {}
     if "params" in output_info:
-      example_param = output_info["params"]["example_param"]
+      params_dict = output_info["params"]
 
     if data.text.raw != "":
-      output.data.text.raw = data.text.raw + "Hello World" + example_param
+      output.data.text.raw = data.text.raw + "Hello World" + params_dict.get("hello", "")
     if data.image.url != "":
       output.data.text.raw = data.image.url.replace("samples.clarifai.com",
-                                                    "newdomain.com" + example_param)
+                                                    "newdomain.com" + params_dict.get("domain",)
     return output
 
 

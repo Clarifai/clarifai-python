@@ -1,5 +1,10 @@
+import time
+
+import requests
+
 from clarifai.client.runner import Runner
 from clarifai_grpc.grpc.api import resources_pb2
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
 # This example requires to run the following before running this example:
 # pip install transformers
@@ -16,14 +21,14 @@ class Llama2Runner(Runner):
   """
 
   def __init__(self, *args, **kwargs):
-    print("Starting to load the model...")
+    super(Llama2Runner, self).__init__(*args, **kwargs)
+    self.logger.info("Starting to load the model...")
     st = time.time()
     self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=True)
     self.model = AutoModelForCausalLM.from_pretrained(model_name_or_path, device_map='auto')
 
     self.logger.info("Loading model complete in (%f seconds), ready to loop for requests." %
                      (time.time() - st))
-    super(MyRunner, self).__init__(*args, **kwargs)
 
   def run_input(self, input: resources_pb2.Input,
                 output_info: resources_pb2.OutputInfo) -> resources_pb2.Output:
@@ -40,8 +45,12 @@ class Llama2Runner(Runner):
     else:
       raise Exception("Need to include data.text.raw or data.text.url in your inputs.")
 
+    if "params" in output_info:
+      params_dict = output_info["params"]
+      self.logger.info("params_dict: %s", params_dict)
+
     st = time.time()
-    max_tokens = 4096
+    max_tokens = 1024
     # # Method 1
     # input_ids = self.tokenizer(input_text, return_tensors='pt').input_ids.cuda()
     # out = self.model.generate(inputs=input_ids, temperature=0.7, max_new_tokens=max_tokens)

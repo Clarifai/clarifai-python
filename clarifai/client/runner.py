@@ -169,9 +169,10 @@ class Runner(BaseClient):
         # Long poll waiting for work.
         try:
           self.logger.info(f"Loop iteration: {c} for thread {threading.get_ident()}")
-          work_response = self.stub.ListRunnerItems(
-              service_pb2.ListRunnerItemsRequest(
-                  user_app_id=self.auth.get_user_app_id_proto(), runner_id=self.runner_id))
+          work_response = self._grpc_request(self.STUB.ListRunnerItems,
+                                             service_pb2.ListRunnerItemsRequest(
+                                                 user_app_id=self.user_app_id,
+                                                 runner_id=self.runner_id))
           if work_response.status.code == status_code_pb2.RUNNER_NEEDS_RETRY:
             c += 1
             continue  # immediate restart the long poll
@@ -192,9 +193,10 @@ class Runner(BaseClient):
             # run this batch of data through the model.
             result = self._run(item.post_model_outputs_request)
 
-            result_response = self.stub.PostRunnerItemOutputs(
+            result_response = self._grpc_request(
+                self.STUB.PostRunnerItemOutputs,
                 service_pb2.PostRunnerItemOutputsRequest(
-                    user_app_id=self.auth.get_user_app_id_proto(),
+                    user_app_id=self.user_app_id,
                     item_id=item.id,
                     runner_id=self.runner_id,
                     runner_item_outputs=[
