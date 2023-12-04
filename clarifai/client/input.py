@@ -311,10 +311,10 @@ class Inputs(Lister, BaseClient):
     if (text_bytes and raw_text) or (not text_bytes and not raw_text):
       return UserError("Please supply only one of text_bytes or raw_text, and not both.")
 
-    image_pb = resources_pb2.Image(base64=image_bytes) if image_bytes else None
-    image_pb = resources_pb2.Image(url=image_url) if image_url else None
-    text_pb = resources_pb2.Text(raw=text_bytes) if text_bytes else None
-    text_pb = resources_pb2.Text(raw=raw_text)
+    image_pb = resources_pb2.Image(base64=image_bytes) if image_bytes else resources_pb2.Image(
+        url=image_url) if image_url else None
+    text_pb = resources_pb2.Text(raw=text_bytes) if text_bytes else resources_pb2.Text(
+        raw=raw_text) if raw_text else None
     return Inputs._get_proto(
         input_id=input_id, dataset_id=dataset_id, imagepb=image_pb, text_pb=text_pb, **kwargs)
 
