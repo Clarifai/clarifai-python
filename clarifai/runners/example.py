@@ -1,6 +1,5 @@
-from clarifai_grpc.grpc.api import resources_pb2
-
 from clarifai.client.runner import Runner
+from clarifai_grpc.grpc.api import resources_pb2
 
 
 class MyRunner(Runner):
@@ -8,7 +7,8 @@ class MyRunner(Runner):
   image URL as an example.
   """
 
-  def run_input(self, input: resources_pb2.Input) -> resources_pb2.Output:
+  def run_input(self, input: resources_pb2.Input,
+                output_info: resources_pb2.OutputInfo) -> resources_pb2.Output:
     """This is the method that will be called when the runner is run. It takes in an input and
     returns an output.
     """
@@ -17,10 +17,16 @@ class MyRunner(Runner):
 
     data = input.data
 
+    # Optional use of output_info
+    example_param = ""
+    if "params" in output_info:
+      example_param = output_info["params"]["example_param"]
+
     if data.text.raw != "":
-      output.data.text.raw = data.text.raw + "Hello World"
+      output.data.text.raw = data.text.raw + "Hello World" + example_param
     if data.image.url != "":
-      output.data.text.raw = data.image.url.replace("samples.clarifai.com", "newdomain.com")
+      output.data.text.raw = data.image.url.replace("samples.clarifai.com",
+                                                    "newdomain.com" + example_param)
     return output
 
 
