@@ -7,3 +7,6 @@ These can be used on the fly with minimal or no changes to test deploy text embe
 	Requirements to run tests locally:
 
 	* Download/Clone the [huggingface model](https://huggingface.co/hkunlp/instructor-xl) into the **instructor-xl/1/** directory then start the triton server.
+	```
+	huggingface-cli download hkunlp/instructor-xl --local-dir instructor-xl/1/checkpoint/sentence_transformers/hkunlp_instructor-xl --local-dir-use-symlinks False
+	```
