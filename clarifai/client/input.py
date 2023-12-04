@@ -262,7 +262,7 @@ class Inputs(Lister, BaseClient):
   @staticmethod
   def get_text_input(input_id: str, raw_text: str, dataset_id: str = None,
                      **kwargs) -> Text:  #text specific
-    """Create input proto for text data type from rawtext.
+    """Create input proto for text data type from raw text.
 
     Args:
         input_id (str): The input ID for the input to create.
@@ -279,6 +279,44 @@ class Inputs(Lister, BaseClient):
     """
     text_pb = resources_pb2.Text(raw=raw_text)
     return Inputs._get_proto(input_id=input_id, dataset_id=dataset_id, text_pb=text_pb, **kwargs)
+
+  @staticmethod
+  def get_multimodal_input(input_id: str,
+                           raw_text: str = None,
+                           text_bytes: bytes = None,
+                           image_url: str = None,
+                           image_bytes: bytes = None,
+                           dataset_id: str = None,
+                           **kwargs) -> Text:
+    """Create input proto for text and image from bytes or url.
+
+    Args:
+        input_id (str): The input ID for the input to create.
+        raw_text (str): The raw text input.
+        text_bytes (str): The bytes for the text.
+        image_url (str): The url for the image.
+        image_bytes (str): The bytes for the image.
+        dataset_id (str): The dataset ID for the dataset to add the input to.
+        **kwargs: Additional keyword arguments to be passed to the Input
+
+    Returns:
+        Input: An Input object for the specified input ID.
+
+    Example:
+        >>> from clarifai.client.input import Inputs
+        >>> input_protos = Inputs.get_multimodal_input(input_id = 'demo', raw_text = 'What time of day is it?', image_url='https://samples.clarifai.com/metro-north.jpg')
+    """
+    if (image_bytes and image_url) or (not image_url and not image_url):
+      return UserError("Please supply only one of image_bytes or image_url, and not both.")
+    if (text_bytes and raw_text) or (not text_bytes and not raw_text):
+      return UserError("Please supply only one of text_bytes or raw_text, and not both.")
+
+    image_pb = resources_pb2.Image(base64=image_bytes) if image_bytes else resources_pb2.Image(
+        url=image_url) if image_url else None
+    text_pb = resources_pb2.Text(raw=text_bytes) if text_bytes else resources_pb2.Text(
+        raw=raw_text) if raw_text else None
+    return Inputs._get_proto(
+        input_id=input_id, dataset_id=dataset_id, imagepb=image_pb, text_pb=text_pb, **kwargs)
 
   @staticmethod
   def get_inputs_from_csv(csv_path: str,
