@@ -8,7 +8,8 @@ class MyRunner(Runner):
   image URL as an example.
   """
 
-  def run_input(self, input: resources_pb2.Input) -> resources_pb2.Output:
+  def run_input(self, input: resources_pb2.Input,
+                output_info: resources_pb2.OutputInfo) -> resources_pb2.Output:
     """This is the method that will be called when the runner is run. It takes in an input and
     returns an output.
     """
@@ -17,10 +18,16 @@ class MyRunner(Runner):
 
     data = input.data
 
+    # Optional use of output_info
+    params_dict = {}
+    if "params" in output_info:
+      params_dict = output_info["params"]
+
     if data.text.raw != "":
-      output.data.text.raw = data.text.raw + "Hello World"
+      output.data.text.raw = data.text.raw + "Hello World" + params_dict.get("hello", "")
     if data.image.url != "":
-      output.data.text.raw = data.image.url.replace("samples.clarifai.com", "newdomain.com")
+      output.data.text.raw = data.image.url.replace("samples.clarifai.com",
+                                                    "newdomain.com" + params_dict.get("domain",))
     return output
 
 
