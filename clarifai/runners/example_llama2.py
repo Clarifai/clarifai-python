@@ -1,10 +1,10 @@
 import time
 
 import requests
-
-from clarifai.client.runner import Runner
 from clarifai_grpc.grpc.api import resources_pb2
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+
+from clarifai.client.runner import Runner
 
 # This example requires to run the following before running this example:
 # pip install transformers
@@ -49,7 +49,7 @@ class Llama2Runner(Runner):
       params_dict = output_info["params"]
       self.logger.info("params_dict: %s", params_dict)
 
-    st = time.time()
+    time.time()
     max_tokens = 1024
     # # Method 1
     # input_ids = self.tokenizer(input_text, return_tensors='pt').input_ids.cuda()
