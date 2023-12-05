@@ -59,7 +59,7 @@ class Runner(BaseClient):
     self.logger = get_logger("INFO", __name__)
     self.kwargs = {**kwargs, 'id': runner_id, 'user_id': user_id}
     self.runner_info = resources_pb2.Runner(**self.kwargs)
-    self.num_parallel_polls = num_parallel_polls
+    self.num_parallel_polls = min(10, num_parallel_polls)
     BaseClient.__init__(self, user_id=self.user_id, app_id="", base=base_url, pat=pat)
 
     # Check that the runner exists.
