@@ -17,13 +17,13 @@ import threading
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 
+from clarifai_grpc.grpc.api import resources_pb2, service_pb2
+from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from google.protobuf import json_format
 
 from clarifai.client.base import BaseClient
 from clarifai.errors import UserError
 from clarifai.utils.logging import get_logger
-from clarifai_grpc.grpc.api import resources_pb2, service_pb2
-from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
 
 class Runner(BaseClient):

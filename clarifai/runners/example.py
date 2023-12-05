@@ -1,5 +1,6 @@
-from clarifai.client.runner import Runner
 from clarifai_grpc.grpc.api import resources_pb2
+
+from clarifai.client.runner import Runner
 
 
 class MyRunner(Runner):
@@ -26,7 +27,7 @@ class MyRunner(Runner):
       output.data.text.raw = data.text.raw + "Hello World" + params_dict.get("hello", "")
     if data.image.url != "":
       output.data.text.raw = data.image.url.replace("samples.clarifai.com",
-                                                    "newdomain.com" + params_dict.get("domain",)
+                                                    "newdomain.com" + params_dict.get("domain",))
     return output
 
 
