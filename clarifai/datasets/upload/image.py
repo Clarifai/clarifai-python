@@ -98,7 +98,7 @@ class VisualDetectionDataset(ClarifaiDataset):
       # one id could have more than one bbox and label
       for i in range(len(bboxes)):
         annotation_protos.append(
-            Inputs.get_annotation_proto(input_id=input_id, label=labels[i], annotations=bboxes[i]))
+            Inputs.get_bbox_proto(input_id=input_id, label=labels[i], bbox=bboxes[i]))
 
     with ThreadPoolExecutor(max_workers=4) as executor:
       futures = [executor.submit(process_data_item, id) for id in batch_input_ids]

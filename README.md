@@ -44,6 +44,10 @@ This is the official Python client for interacting with our powerful [API](https
   * [Workflow Listing](#workflows-listing)
   * [Workflow Create](#workflow-create)
   * [Workflow Export](#workflow-export)
+* **[Search](#mag-search)**
+  * [Smart Image Search](#smart-image-search)
+  * [Smart Text Search](#smart-text-search)
+  * [Filters](#filters)
 * **[More Examples](#pushpin-more-examples)**
 
 
@@ -98,6 +102,15 @@ apps_generator = client.list_apps()
 apps = list(apps_generator)
 ```
 
+OR <br>
+
+PAT can be passed as constructor argument
+
+```python
+from clarifai.client.user import User
+client = User(user_id="user_id", pat="your personal access token")
+```
+
 
 ## :floppy_disk: Interacting with Datasets
 
@@ -111,7 +124,9 @@ app = client.create_app(app_id="demo_app", base_workflow="Universal")
 dataset = app.create_dataset(dataset_id="demo_dataset")
 
 # execute data upload to Clarifai app dataset
-dataset.upload_dataset(task='visual_segmentation', split="train", dataset_loader='coco_segmentation')
+from clarifai.datasets.upload.laoders.coco_detection import COCODetectionDataLoader
+coco_dataloader = COCODetectionDataLoader("images_dir", "coco_annotation_filepath")
+dataset.upload_dataset(dataloader=coco_dataloader, get_upload_status=True)
 
 #upload text from csv
 dataset.upload_from_csv(csv_path='csv_path', input_type='text', csv_type='raw', labels=True)
@@ -308,6 +323,64 @@ workflow = Workflow("https://clarifai.com/clarifai/main/workflows/Demographics")
 workflow.export('demographics_workflow.yml')
 ```
 
+## :mag: Search
+
+#### Smart Image Search
+Clarifai's Smart Search feature leverages vector search capabilities to power the search experience. Vector search is a type of search engine that uses vectors to search and retrieve text, images, and videos.
+
+Instead of traditional keyword-based search, where exact matches are sought, vector search allows for searching based on visual and/or semantic similarity by calculating distances between vector embedding representations of the data.
+
+Here is an example of how to use vector search to find similar images:
+
+```python
+# Note: CLARIFAI_PAT must be set as env variable.
+from clarifai.client.search import Search
+search = Search(user_id="user_id", app_id="app_id", top_k=1, metric="cosine")
+
+# Search by image url
+results = search.query(ranks=[{"image_url": "https://samples.clarifai.com/metro-north.jpg"}])
+
+for data in results:
+  print(data.hits[0].input.data.image.url)
+```
+
+#### Smart Text Search
+Smart Text Search is our proprietary feature that uses deep learning techniques to sort, rank, and retrieve text data based on their content and semantic similarity.
+
+Here is an example of how to use Smart Text Search to find similar text:
+
+```python
+# Note: CLARIFAI_PAT must be set as env variable.
+
+# Search by text
+results = search.query(ranks=[{"text_raw": "I love my dog"}])
+```
+
+#### Filters
+
+You can use filters to narrow down your search results. Filters can be used to filter by concepts, metadata, and Geo Point.
+
+It is possible to add together multiple search parameters to expand your search. You can even combine negated search terms for more advanced tasks.
+
+For example, you can combine two concepts as below.
+
+```python
+# query for images that contain concept "deer" or "dog"
+results = search.query(ranks=[{"image_url": "https://samples.clarifai.com/metro-north.jpg"}],
+                        filters=[{"concepts": [{"name": "deer", "value":1},
+                                              {"name": "dog", "value":1}]}])
+
+# query for images that contain concepts "deer" and "dog"
+results = search.query(ranks=[{"image_url": "https://samples.clarifai.com/metro-north.jpg"}],
+                        filters=[{"concepts": [{"name": "deer", "value":1}],
+                                  "concepts": [{"name": "dog", "value":1}]}])
+```
+
+Input filters allows to filter by input_type, status of inputs and by inputs_dataset_id
+
+```python
+results = search.query(filters=[{'input_types': ['image', 'text']}])
+```
 
 ## :pushpin: More Examples
 

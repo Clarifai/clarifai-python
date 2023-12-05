@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Dict, Generator, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -8,9 +9,11 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
+from clarifai.constants.workflow import MAX_WORKFLOW_PREDICT_INPUTS
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import get_logger
+from clarifai.utils.misc import BackoffIterator
 from clarifai.workflows.export import Exporter
 
 
@@ -61,8 +64,9 @@ class Workflow(Lister, BaseClient):
     Args:
         inputs (list[Input]): The inputs to predict.
     """
-    if len(inputs) > 128:
-      raise UserError("Too many inputs. Max is 128.")  # TODO Use Chunker for inputs len > 128
+    if len(inputs) > MAX_WORKFLOW_PREDICT_INPUTS:
+      raise UserError(f"Too many inputs. Max is {MAX_WORKFLOW_PREDICT_INPUTS}."
+                     )  # TODO Use Chunker for inputs len > 32
     request = service_pb2.PostWorkflowResultsRequest(
         user_app_id=self.user_app_id,
         workflow_id=self.id,
@@ -70,9 +74,22 @@ class Workflow(Lister, BaseClient):
         inputs=inputs,
         output_config=self.output_config)
 
-    response = self._grpc_request(self.STUB.PostWorkflowResults, request)
-    if response.status.code != status_code_pb2.SUCCESS:
-      raise Exception(f"Workflow Predict failed with response {response.status!r}")
+    start_time = time.time()
+    backoff_iterator = BackoffIterator()
+
+    while True:
+      response = self._grpc_request(self.STUB.PostWorkflowResults, request)
+
+      if response.status.code == status_code_pb2.MODEL_DEPLOYING and \
+          time.time() - start_time < 60:
+        self.logger.info(f"{self.id} Workflow is still deploying, please wait...")
+        time.sleep(next(backoff_iterator))
+        continue
+
+      if response.status.code != status_code_pb2.SUCCESS:
+        raise Exception(f"Workflow Predict failed with response {response.status!r}")
+      else:
+        break
 
     return response
 

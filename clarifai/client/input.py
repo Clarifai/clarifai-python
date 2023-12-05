@@ -451,35 +451,35 @@ class Inputs(Lister, BaseClient):
     return input_protos
 
   @staticmethod
-  def get_annotation_proto(input_id: str, label: str, annotations: List) -> Annotation:
+  def get_bbox_proto(input_id: str, label: str, bbox: List) -> Annotation:
     """Create an annotation proto for each bounding box, label input pair.
 
     Args:
         input_id (str): The input ID for the annotation to create.
         label (str): annotation label
-        annotations (List): a list of a single bbox's coordinates. # Annotations ordering: [xmin, ymin, xmax, ymax]
+        bbox (List): a list of a single bbox's coordinates. # bbox ordering: [xmin, ymin, xmax, ymax]
 
     Returns:
         An annotation object for the specified input ID.
 
     Example:
         >>> from clarifai.client.input import Inputs
-        >>> Inputs.get_annotation_proto(input_id='demo', label='demo', annotations=[x_min, y_min, x_max, y_max])
+        >>> Inputs.get_bbox_proto(input_id='demo', label='demo', bbox=[x_min, y_min, x_max, y_max])
     """
-    if not isinstance(annotations, list):
-      raise UserError("annotations must be a list of bbox cooridnates")
+    if not isinstance(bbox, list):
+      raise UserError("must be a list of bbox cooridnates")
     input_annot_proto = resources_pb2.Annotation(
         input_id=input_id,
         data=resources_pb2.Data(regions=[
             resources_pb2.Region(
                 region_info=resources_pb2.RegionInfo(bounding_box=resources_pb2.BoundingBox(
-                    # Annotations ordering: [xmin, ymin, xmax, ymax]
+                    # bbox ordering: [xmin, ymin, xmax, ymax]
                     # top_row must be less than bottom row
                     # left_col must be less than right col
-                    top_row=annotations[1],  #y_min
-                    left_col=annotations[0],  #x_min
-                    bottom_row=annotations[3],  #y_max
-                    right_col=annotations[2]  #x_max
+                    top_row=bbox[1],  #y_min
+                    left_col=bbox[0],  #x_min
+                    bottom_row=bbox[3],  #y_max
+                    right_col=bbox[2]  #x_max
                 )),
                 data=resources_pb2.Data(concepts=[
                     resources_pb2.Concept(
