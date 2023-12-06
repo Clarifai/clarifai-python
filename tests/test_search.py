@@ -104,6 +104,7 @@ def get_filters_for_test() -> [(typing.List[typing.Dict], int)]:
   ]
 
 
+@pytest.mark.requires_secrets
 class TestAnnotationSearch:
 
   @classmethod

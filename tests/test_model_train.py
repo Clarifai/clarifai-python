@@ -2,6 +2,7 @@ import logging
 import os
 from datetime import datetime
 
+import pytest
 import yaml
 
 from clarifai.client.user import User
@@ -20,6 +21,7 @@ def create_app():
   return client.create_app(app_id=CREATE_APP_ID, base_workflow="Empty")
 
 
+@pytest.mark.requires_secrets
 class Testmodeltrain:
   """Tests for model training.
   """
