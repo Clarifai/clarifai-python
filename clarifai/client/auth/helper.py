@@ -1,6 +1,7 @@
 import os
 import urllib.request
 from typing import Any, Dict
+from urllib.parse import urlparse
 
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2_grpc
@@ -35,7 +36,8 @@ def https_cache(cache: dict, url: str) -> str:
     cache[url] = HTTP
   elif url not in cache:
     # We know our endpoints are https.
-    if ".clarifai.com" in url:
+    hostname = urlparse(url).hostname
+    if hostname and ".clarifai.com" in hostname:
       cache[url] = HTTPS
     else:  # need to test it.
       try:  # make request to https endpoint.
