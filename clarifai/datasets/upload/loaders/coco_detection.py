@@ -55,7 +55,7 @@ class COCODetectionDataLoader(ClarifaiDataLoader):
           'left_col': max(0, coco_bbox[0] / value['width']),
           'top_row': max(0, coco_bbox[1] / value['height']),
           'right_col': min(1, (coco_bbox[0] + coco_bbox[2]) / value['width']),
-          'bottom_row': min(1, (coco_bbox[1] + coco_bbox[3]) / value['width'])
+          'bottom_row': min(1, (coco_bbox[1] + coco_bbox[3]) / value['height'])
       }
       if (clarifai_bbox['left_col'] >=
           clarifai_bbox['right_col']) or (clarifai_bbox['top_row'] >= clarifai_bbox['bottom_row']):
