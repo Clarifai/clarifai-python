@@ -36,8 +36,8 @@ def https_cache(cache: dict, url: str) -> str:
     cache[url] = HTTP
   elif url not in cache:
     # We know our endpoints are https.
-    hostname = urlparse(url).hostname
-    if hostname and ".clarifai.com" in hostname:
+    host_name = urlparse(url).hostname
+    if host_name and host_name.endswith(".clarifai.com"):
       cache[url] = HTTPS
     else:  # need to test it.
       try:  # make request to https endpoint.
