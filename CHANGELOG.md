@@ -1,3 +1,27 @@
+## [[9.11.0]](https://github.com/Clarifai/clarifai-python/releases/tag/9.11.0) - [PyPI](https://pypi.org/project/clarifai/9.11.0/) - 2023-12-11
+
+### Fixed
+- CocoDetectionDataloader bug (#241)
+
+### Changed
+- Codeql Change (#241)
+- Seperate tests requiring secrets (#233)
+- SDK Pending tasks (#232)
+    - add retry for workflow predict
+    - add constants for max inputs count in predict
+    - change annotation proto to bbox
+    - add search to README.md
+    - Add CHANGELOG.md
+- Updated runner logic with parallel and error catching (#238)
+- Removing internal_only Training Params (#231)
+- Remove pytest requirement (#225)
+- Remove omegaconf requirement (#235)
+- Update clarifai-grpc to 9.11.0
+
+### Added
+- Support multimodal inputs for inference (#239)
+- Ensure support for Python 3.10-3.12 (#226)
+
 ## [[9.10.4]](https://github.com/Clarifai/clarifai-python/releases/tag/9.10.4) - [PyPI](https://pypi.org/project/clarifai/9.10.4/) - 2023-11-23
 
 ### Fixed

@@ -112,7 +112,7 @@ class BaseClient:
             value = struct_pb2.Value(**value_map)
           if key in ['created_at', 'modified_at', 'completed_at']:
             value = self.convert_string_to_timestamp(value)
-          elif key in ['workflow_recommended']:
+          elif key in ['workflow_recommended', 'is_template']:
             value = BoolValue(value=True)
           elif key in ['fields_map', 'params']:
             value_s = struct_pb2.Struct()
