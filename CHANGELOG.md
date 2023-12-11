@@ -12,7 +12,6 @@
     - change annotation proto to bbox
     - add search to README.md
     - Add CHANGELOG.md
-- Update README.md (#231)
 - Updated runner logic with parallel and error catching (#238)
 - Removing internal_only Training Params (#231)
 - Remove pytest requirement (#225)
