@@ -8,14 +8,18 @@
 """User model inference script."""
 
 import os
-from pathlib import Path
 
-import numpy as np
-import torch
-from ultralytics import YOLO
+ROOT = os.path.dirname(__file__)
+os.environ['TORCH_HOME'] = os.path.join(ROOT, "model_store")
 
-from clarifai.models.model_serving.model_config import ModelTypes, get_model_config
-from clarifai.models.model_serving.models.output import VisualDetectorOutput
+from pathlib import Path  # noqa: E402
+import numpy as np  # noqa: E402
+import torch  # noqa: E402
+from PIL import Image  # noqa: E402
+from torchvision import models, transforms  # noqa: E402
+
+from clarifai.models.model_serving.model_config import ModelTypes, get_model_config  # noqa: E402
+from clarifai.models.model_serving.models.output import VisualDetectorOutput  # noqa: E402
 
 config = get_model_config(ModelTypes.visual_detector)
 
@@ -29,11 +33,15 @@ class InferenceModel:
     in this method so they are loaded only once for faster inference.
     """
     self.base_path: Path = os.path.dirname(__file__)
-    self.checkpoint_path = os.path.join(self.base_path, "/model_store/yolov8n.pt")  #yolov5x
-
+    #self.checkpoint = os.path.join(ROOT, "model_store/hub/checkpoints/fasterrcnn_resnet50_fpn_coco-258fb6c6.pth")
     self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    self.model = YOLO(self.checkpoint_path)
-    self.model.to(self.device)
+
+    self.transform = transforms.Compose([
+        transforms.ToTensor(),
+    ])
+    self.model = models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
+    self.model = self.model.to(self.device)
+    self.model.eval()
 
   @config.inference.wrap_func
   def get_predictions(self, input_data: list, **kwargs) -> list:
@@ -57,15 +65,20 @@ class InferenceModel:
     if isinstance(input_data, np.ndarray) and len(input_data.shape) == 4:
       input_data = list(input_data)
 
-    predictions = self.model(input_data)
+    input_tensor = [self.transform(Image.fromarray(each)) for each in input_data]
+    input_tensor = torch.stack(input_tensor).to(self.device)
+
+    with torch.no_grad():
+      predictions = self.model(input_tensor)
 
     for inp_data, preds in zip(input_data, predictions):
-      boxes = preds.boxes.xyxy.cpu().numpy()
-      labels = [[pred] for pred in preds.boxes.cls.cpu().numpy()]
-      scores = [[pred] for pred in preds.boxes.conf.cpu().numpy()]
+      boxes = preds["boxes"].cpu().numpy()
+      labels = [[pred] for pred in preds["labels"].detach().cpu().numpy()]
+      scores = [[pred] for pred in preds["scores"].detach().cpu().numpy()]
       h, w, _ = inp_data.shape  # input image shape
       bboxes = [[x[1] / h, x[0] / w, x[3] / h, x[2] / w]
                 for x in boxes]  # normalize the bboxes to [0,1]
+      bboxes = np.clip(bboxes, 0, 1)
       if len(bboxes) != 0:
         bboxes = np.concatenate((bboxes, np.zeros((max_bbox_count - len(bboxes), 4))))
         scores = np.concatenate((scores, np.zeros((max_bbox_count - len(scores), 1))))

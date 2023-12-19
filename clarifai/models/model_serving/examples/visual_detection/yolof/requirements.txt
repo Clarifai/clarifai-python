@@ -1,0 +1,8 @@
+mmdet==3.0.0rc3
+mmcv==2.0.0rc3
+-f https://download.openmmlab.com/mmcv/dist/cu117/torch1.13/index.html
+
+tritonclient[all]
+clarifai>9.10.4
+torch==1.13.1
+numpy==1.23.1
