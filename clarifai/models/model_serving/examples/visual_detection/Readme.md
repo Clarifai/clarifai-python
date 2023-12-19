@@ -35,7 +35,7 @@ For example: faster-rcnn, suppose you already have .mar file following the torch
 
 unzip it to ./faster-rcnn_torchserve/1/model_store/hub/checkpoints
 ```bash
-unzip faster_rcnn.mar -d ./faster-rcnn_torchserve/1/model_store/hub/checkpoints
+unzip faster_rcnn.mar -d ./faster-rcnn_torchserve/1/model_store/
 ```
 
 ```bash
@@ -45,6 +45,11 @@ model_store/
 │   └── MANIFEST.json
 ├── model.py
 └── fasterrcnn_resnet50_fpn_coco-258fb6c6.pth
+```
+```bash
+# then relocate the checkpoint to ./faster-rcnn_torchserve/1/model_store/hub/checkpoints
+# as the Torch cache is configured to use this folder in inference.py.
+mv ./faster-rcnn_torchserve/1/model_store/fasterrcnn_resnet50_fpn_coco-258fb6c6.pth ./faster-rcnn_torchserve/1/model_store/hub/checkpoints/
 ```
 
 test, zip and upload the model
