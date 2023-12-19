@@ -9,13 +9,17 @@
 
 import os
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 import torch
+from mmdet.apis import inference_detector, init_detector
+from mmdet.utils import register_all_modules
 
 from clarifai.models.model_serving.model_config import ModelTypes, get_model_config
 from clarifai.models.model_serving.models.output import VisualDetectorOutput
+
+# Initialize the DetInferencer
+register_all_modules()
 
 config = get_model_config(ModelTypes.visual_detector)
 
@@ -29,14 +33,11 @@ class InferenceModel:
     in this method so they are loaded only once for faster inference.
     """
     self.base_path: Path = os.path.dirname(__file__)
-    self.checkpoint_path = os.path.join(self.base_path, "model.pt")  #yolov5x
-    self.model: Callable = torch.hub.load(
-        os.path.join(self.base_path, 'yolov5'),
-        'custom',
-        autoshape=True,
-        path=self.checkpoint_path,
-        source='local')
+    self.checkpoint = os.path.join(self.base_path,
+                                   "config/yolof_r50_c5_8x8_1x_coco_20210425_024427-8e864411.pth")
+    self.config_path = os.path.join(self.base_path, "config/yolof_r50_c5_8x8_1x_coco.py")
     self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    self.model = init_detector(self.config_path, self.checkpoint, device=self.device)
 
   @config.inference.wrap_func
   def get_predictions(self, input_data: list, **kwargs) -> list:
@@ -54,16 +55,24 @@ class InferenceModel:
     --------
       List of one of the `clarifai.models.model_serving.models.output types` or `config.inference.return_type(your_output)`. Refer to the README/docs
     """
-    max_bbox_count = 300  # max allowed detected bounding boxes per image
+    max_bbox_count = 500  # max allowed detected bounding boxes per image
     outputs = []
-    predictions = self.model(input_data)
-    for inp_data, preds in zip(input_data, predictions.xyxy):
-      preds = preds.cpu().numpy()
-      labels = [[pred[5]] for pred in preds]
-      scores = [[pred[4]] for pred in preds]
+
+    if isinstance(input_data, np.ndarray) and len(input_data.shape) == 4:
+      input_data = list(input_data)
+
+    predictions = inference_detector(self.model, input_data)
+    for inp_data, preds in zip(input_data, predictions):
+
+      labels = preds.pred_instances.labels.cpu().numpy()
+      bboxes = preds.pred_instances.bboxes.cpu().numpy()
+      scores = preds.pred_instances.scores.cpu().numpy()
+      labels = [[each] for each in labels]
+      scores = [[each] for each in scores]
       h, w, _ = inp_data.shape  # input image shape
       bboxes = [[x[1] / h, x[0] / w, x[3] / h, x[2] / w]
-                for x in preds]  # normalize the bboxes to [0,1]
+                for x in bboxes]  # normalize the bboxes to [0,1]
+      bboxes = np.clip(bboxes, 0, 1.)
       if len(bboxes) != 0:
         bboxes = np.concatenate((bboxes, np.zeros((max_bbox_count - len(bboxes), 4))))
         scores = np.concatenate((scores, np.zeros((max_bbox_count - len(scores), 1))))

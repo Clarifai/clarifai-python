@@ -2,14 +2,29 @@
 
 These can be used on the fly with minimal or no changes to test deploy visual detection models to the Clarifai platform. See the required files section for each model below.
 
-* ### [Yolov5x](./yolov5x/)
+* [YOLOF](https://github.com/open-mmlab/mmdetection/tree/v3.0.0rc3/configs/yolof)
 
-	Required files (not included here due to upload size limits):
+	Requirements to run tests locally:
 
-	* Download the `Yolov5 repo` and the `yolov5-x checkpoint` and store them under the `1/` directory of the yolov5x folder.
-		```
-		cd yolov5x/1/
-		git clone https://github.com/ultralytics/yolov5.git
-		wget -O model.pt https://github.com/ultralytics/yolov5/releases/download/v7.0/yolov5x.pt
-		```
-	* zip and test deploy to your Clarifai app
+	- Download checkpoint and save it in `yolof/1/config/`:
+	```bash
+	wget -P yolof/1/config https://download.openmmlab.com/mmdetection/v2.0/yolof/yolof_r50_c5_8x8_1x_coco/yolof_r50_c5_8x8_1x_coco_20210425_024427-8e864411.pth
+	```
+
+	- Install dependecies
+	```bash
+	pip install -r yolof/requirements.txt
+	```
+
+	- Test locally:
+	```bash
+	pip install pytest
+	python -m pytest -s yolof/1/test.py
+	```
+
+	- Zip it and upload to Clarifai
+	```bash
+	clarifai-triton-zip --triton_model_repository yolof --zipfile_name yolof.zip
+	# then upload your zip to cloud and obtain url
+	clarifai-upload-model --model_type visual-detector --model_id <your model id> --url <url>
+	```
