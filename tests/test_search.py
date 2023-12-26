@@ -143,6 +143,18 @@ class TestAnnotationSearch:
       assert len(q.hits) == 1
       assert q.hits[0].input.id == "dog-tiff"
 
+  def test_rank_filter_search(self):
+    query = self.search.query(
+        ranks=[{
+            "image_url": "https://samples.clarifai.com/dog.tiff"
+        }],
+        filters=[{
+            "input_types": ["image"]
+        }])
+    for q in query:
+      assert len(q.hits) == 1
+      assert q.hits[0].input.id == "dog-tiff"
+
   def test_schema_error(self):
     with pytest.raises(UserError):
       _ = self.search.query(filters=[{

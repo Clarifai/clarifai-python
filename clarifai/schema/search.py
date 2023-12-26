@@ -20,6 +20,9 @@ def get_schema() -> Schema:
             - 'id': Non-empty string
             - 'language': Non-empty string
             - 'value': 0 or 1 integer
+        - 'input_types': List of 'image', 'video', 'text' or 'audio'
+        - 'input_dataset_ids': List of strings
+        - 'input_status_code': Integer
 
         Returns:
             Schema: The schema for rank and filter.

@@ -18,8 +18,8 @@ from clarifai.schema.search import get_schema
 class Search(Lister, BaseClient):
 
   def __init__(self,
-               user_id,
-               app_id,
+               user_id: str,
+               app_id: str,
                top_k: int = DEFAULT_TOP_K,
                metric: str = DEFAULT_SEARCH_METRIC,
                base_url: str = "https://api.clarifai.com",
@@ -208,7 +208,9 @@ class Search(Lister, BaseClient):
         >>> search = Search(user_id='user_id', app_id='app_id', top_k=1, metric='cosine')
         >>> res = search.query(ranks=[{'image_url': 'https://samples.clarifai.com/dog.tiff'}])
 
-    Note: For more detailed search examples, please refer to [examples](https://github.com/Clarifai/examples/tree/main/search).
+    Note:
+        For schema of rank and filter, please refer to [schema](https://github.com/Clarifai/clarifai-python/tree/master/clarifai/schema/search.py).
+        For more detailed search examples, please refer to [examples](https://github.com/Clarifai/examples/tree/main/search).
     """
     try:
       self.rank_filter_schema.validate(ranks)
@@ -216,7 +218,13 @@ class Search(Lister, BaseClient):
     except SchemaError as err:
       raise UserError(f"Invalid rank or filter input: {err}")
 
-    ## Calls PostInputsSearches for input filters
+    # For each rank, create a Rank proto message
+    rank_annot_proto = []
+    for rank_dict in ranks:
+      rank_annot_proto.append(self._get_annot_proto(**rank_dict))
+    all_ranks = [resources_pb2.Rank(annotation=rank_annot) for rank_annot in rank_annot_proto]
+
+    # Calls PostInputsSearches for annotation ranks, input filters
     if any(["input" in k for k in filters[0].keys()]):
       filters_input_proto = []
       for filter_dict in filters:
@@ -228,20 +236,18 @@ class Search(Lister, BaseClient):
           user_app_id=self.user_app_id,
           searches=[
               resources_pb2.Search(
-                  query=resources_pb2.Query(filters=all_filters), metric=self.metric_distance)
+                  query=resources_pb2.Query(ranks=all_ranks, filters=all_filters),
+                  metric=self.metric_distance)
           ])
 
       return self.list_all_pages_generator(self.STUB.PostInputsSearches,
                                            service_pb2.PostInputsSearchesRequest, request_data)
 
     # Calls PostAnnotationsSearches for annotation ranks, filters
-    rank_annot_proto, filters_annot_proto = [], []
-    for rank_dict in ranks:
-      rank_annot_proto.append(self._get_annot_proto(**rank_dict))
+    filters_annot_proto = []
     for filter_dict in filters:
       filters_annot_proto.append(self._get_annot_proto(**filter_dict))
 
-    all_ranks = [resources_pb2.Rank(annotation=rank_annot) for rank_annot in rank_annot_proto]
     all_filters = [
         resources_pb2.Filter(annotation=filter_annot) for filter_annot in filters_annot_proto
     ]
