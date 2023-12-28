@@ -67,6 +67,9 @@ class DefaultTestInferenceModel(unittest.TestCase):
                   is_instance_kind_gpu: bool = True,
                   inference_parameters: Union[str, Dict[str, Any]] = ""):
     import sys
+    #
+    if 'inference' in sys.modules:
+      del sys.modules['inference']
     sys.path.append(repo_version_dir)
     self.model_type = model_type
     self.is_instance_kind_gpu = is_instance_kind_gpu
