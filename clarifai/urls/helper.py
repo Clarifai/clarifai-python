@@ -70,9 +70,9 @@ class ClarifaiUrlHelper(object):
     path = o.path
     path = path.lstrip("/")
     parts = path.split("/")
-    if len(parts) != 2:
+    if len(parts) != 3:
       raise ValueError(
-          "Provided url must have 2 parts after the domain name. These are: {user_id}/{app_id}")
+          f"Provided url must have 2 parts after the domain name. The current parts are: {parts}")
     return tuple(parts[1:])
 
   @classmethod
