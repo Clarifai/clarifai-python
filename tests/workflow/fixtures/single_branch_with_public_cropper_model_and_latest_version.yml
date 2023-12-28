@@ -7,7 +7,7 @@ workflow:
           model_version_id: 34ce21a40cc24b6b96ffee54aabff139
     - id: cropper
       model:
-          model_id: margin-100-image-crop
+          model_id: margin-110-image-crop
 
       node_inputs:
         - node_id: detector
