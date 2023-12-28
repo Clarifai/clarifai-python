@@ -1,0 +1,32 @@
+name: Run triton test
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+
+jobs:
+  triton-model-test:
+    runs-on: ubuntu-latest
+
+    container:
+      image: nvcr.io/nvidia/tritonserver:23.10-py3
+
+    steps:
+      - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r tests/requirements.txt
+
+      - name: start triton
+        run: |
+          tritonserver --model-repository ./tests/dummy_triton_models --exit-on-error false &
+        background: true
+
+      - name: Wait for Triton to Initialize
+        run: sleep 10
+
+      - name: Start Model Tests
+        run: |
+          python3 -m pytest tests/dummy_triton_models/_test_all_dummies.py -s
