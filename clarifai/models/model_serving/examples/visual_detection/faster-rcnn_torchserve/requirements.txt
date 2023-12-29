@@ -1,3 +1,0 @@
-tritonclient[all]
-clarifai>9.10.4
-torch==2.0.1
