@@ -151,7 +151,7 @@ Additional methods can be added to this script's `Infer` class by the user as de
 - [Model types docs](docs/model_types.md)
 - [Model Output types docs](docs/output.md)
 - [Dependencies](docs/dependencies.md)
-- [Examples](examples/)
+- [Examples](https://github.com/Clarifai/examples)
 - [Custom Configs](docs/custom_config.md/)
 
 ## Prerequisites
