@@ -1,3 +1,16 @@
+## [[9.11.1]](https://github.com/Clarifai/clarifai-python/releases/tag/9.11.1) - [PyPI](https://pypi.org/project/clarifai/9.11.1/) - 2023-12-29
+
+### Fixed
+- Use specific URL method for apps (#257)
+
+### Changed
+- Loosen requirement constraints (#243)
+- Update clarifai-grpc to 9.11.5
+
+### Added
+- Support Rank for PostInputsSearch (#255)
+
+
 ## [[9.11.0]](https://github.com/Clarifai/clarifai-python/releases/tag/9.11.0) - [PyPI](https://pypi.org/project/clarifai/9.11.0/) - 2023-12-11
 
 ### Fixed
