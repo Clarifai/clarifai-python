@@ -59,6 +59,23 @@ class ClarifaiUrlHelper(object):
                                            resource_id, version_id)
 
   @classmethod
+  def split_clarifai_app_url(cls, url):
+    """
+    clarifai.com uses fully qualified urls to resources.
+    They are in the format of:
+    https://clarifai.com/{user_id}/{app_id}/
+    """
+    url = url.replace("https://", "", 1).replace("http://", "", 1)
+    o = urlparse(url)
+    path = o.path
+    path = path.lstrip("/")
+    parts = path.split("/")
+    if len(parts) != 3:
+      raise ValueError(
+          f"Provided url must have 2 parts after the domain name. The current parts are: {parts}")
+    return tuple(parts[1:])
+
+  @classmethod
   def split_clarifai_url(cls, url):
     """
     clarifai.com uses fully qualified urls to resources.

@@ -47,7 +47,7 @@ class App(Lister, BaseClient):
     if url and app_id:
       raise UserError("You can only specify one of url or app_id.")
     if url:
-      user_id, app_id, _, _, _ = ClarifaiUrlHelper.split_clarifai_url(url)
+      user_id, app_id = ClarifaiUrlHelper.split_clarifai_app_url(url)
       kwargs = {'user_id': user_id}
     self.kwargs = {**kwargs, 'id': app_id}
     self.app_info = resources_pb2.App(**self.kwargs)
