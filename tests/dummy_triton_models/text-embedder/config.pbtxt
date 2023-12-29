@@ -12,7 +12,7 @@ output {
 }
 instance_group {
   count: 1
-  kind: KIND_GPU
+  kind: KIND_CPU # Use CPU only for test
 }
 dynamic_batching {
   max_queue_delay_microseconds: 500

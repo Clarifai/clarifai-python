@@ -7,11 +7,11 @@ from tritonclient.utils import np_to_triton_dtype
 
 MAX_BATCH_SIZE = 4
 MAX_TRIES = 5
-INTERVAL = 3
+INTERVAL = 10
 count = 0
 while count < MAX_TRIES:
   try:
-    _ = InferenceServerClient('localhost:8001').is_server_live()
+    _ = InferenceServerClient('0.0.0.0:8001').is_server_live()
     break
   except Exception as e:
     print(e)
@@ -21,7 +21,7 @@ while count < MAX_TRIES:
 
 @pytest.fixture
 def triton_client():
-  return InferenceServerClient('localhost:8001')
+  return InferenceServerClient('0.0.0.0:8001')
 
 
 def make_input(name, inputs):

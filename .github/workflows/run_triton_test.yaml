@@ -16,17 +16,14 @@ jobs:
     container:
       image: nvcr.io/nvidia/tritonserver:23.10-py3
     steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
     - name: Install dependencies
-    run: |
-      python -m pip install --upgrade pip
-      pip install -r requirements.txt
-      pip install -r tests/requirements.txt
+      run: |
+        python3 -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r tests/requirements.txt
     - name: start triton
       run: |
-        tritonserver --model-repository ./tests/dummy_triton_models --exit-on-error false &
-      background: true
-    - name: Wait for Triton to Initialize
-      run: sleep 10
-    - name: Start Model Tests
-      run: |
+        tritonserver --model-repository ./tests/dummy_triton_models --exit-on-error false &>/dev/null &
         python3 -m pytest tests/dummy_triton_models/_test_all_dummies.py -s
