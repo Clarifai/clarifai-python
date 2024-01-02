@@ -14,7 +14,7 @@ jobs:
 
     runs-on: ubuntu-latest
     container:
-      image: nvcr.io/nvidia/tritonserver:23.10-py3
+      image: nvcr.io/nvidia/tritonserver:23.03-py3
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
