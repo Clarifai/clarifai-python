@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: nvcr.io/nvidia/tritonserver:23.03-py3
+      options: --shm-size 2g
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
