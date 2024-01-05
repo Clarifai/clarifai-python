@@ -306,7 +306,7 @@ class Inputs(Lister, BaseClient):
         >>> from clarifai.client.input import Inputs
         >>> input_protos = Inputs.get_multimodal_input(input_id = 'demo', raw_text = 'What time of day is it?', image_url='https://samples.clarifai.com/metro-north.jpg')
     """
-    if (image_bytes and image_url) or (not image_url and not image_url):
+    if (image_bytes and image_url) or (not image_bytes and not image_url):
       return UserError("Please supply only one of image_bytes or image_url, and not both.")
     if (text_bytes and raw_text) or (not text_bytes and not raw_text):
       return UserError("Please supply only one of text_bytes or raw_text, and not both.")
