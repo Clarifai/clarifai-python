@@ -75,7 +75,7 @@ class Workflow(Lister, BaseClient):
         output_config=self.output_config)
 
     if workflow_state_id:
-      request.workflow_state = resources_pb2.WorkFlowState(id=workflow_state_id)
+      request.workflow_state.id = workflow_state_id
 
     start_time = time.time()
     backoff_iterator = BackoffIterator()

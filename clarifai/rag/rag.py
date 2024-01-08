@@ -144,8 +144,8 @@ class RAG:
     """
     if client_manage_state:
       single_prompt = convert_messages_to_str(messages)
-      input_proto = Inputs._get_proto(text_pb=resources_pb2.Text(raw=single_prompt))
-      response = self._prompt_workflow.predict([input_proto], "text")
+      input_proto = Inputs._get_proto("", "", text_pb=resources_pb2.Text(raw=single_prompt))
+      response = self._prompt_workflow.predict([input_proto])
       messages.append(format_assistant_message(response.results[0].outputs[-1].data.text.raw))
       return messages
 
@@ -158,7 +158,7 @@ class RAG:
     chat_state_id = "init" if self.chat_state_id is None else self.chat_state_id
 
     # call predict
-    input_proto = Inputs._get_proto(text_pb=resources_pb2.Text(raw=message))
+    input_proto = Inputs._get_proto("", "", text_pb=resources_pb2.Text(raw=message))
     response = self._prompt_workflow.predict([input_proto], workflow_state_id=chat_state_id)
 
     # store chat state id
