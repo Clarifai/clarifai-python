@@ -102,6 +102,8 @@ class Testdataupload:
   def test_list_inputs(self):
     paginated_inputs = list(self.input_object.list_inputs(page_no=1, per_page=5))
     image_filterd_inputs = list(self.input_object.list_inputs(input_type='image'))
+    downloaded_inputs = self.input_object.download_inputs(image_filterd_inputs)
+    assert len(downloaded_inputs) == 2  #download inputs check
     assert len(paginated_inputs) == 5
     assert len(image_filterd_inputs) == 2  # 2 images uploaded in the above tests
 
