@@ -63,6 +63,7 @@ class Workflow(Lister, BaseClient):
 
     Args:
         inputs (list[Input]): The inputs to predict.
+        workflow_state_id (str): key for the workflow state cache that stores the workflow node predictions.
     """
     if len(inputs) > MAX_WORKFLOW_PREDICT_INPUTS:
       raise UserError(f"Too many inputs. Max is {MAX_WORKFLOW_PREDICT_INPUTS}."
