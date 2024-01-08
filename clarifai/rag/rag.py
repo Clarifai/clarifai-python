@@ -1,12 +1,17 @@
 from datetime import datetime
+from typing import List
 
 import yaml
+from clarifai_grpc.grpc.api import resources_pb2  # noqa: F401
 from google.protobuf.struct_pb2 import Struct
 
 from clarifai.client.app import App
+from clarifai.client.input import Inputs
 from clarifai.client.model import Model
 from clarifai.client.user import User
 from clarifai.client.workflow import Workflow
+from clarifai.errors import UserError
+from clarifai.rag.utils import convert_messages_to_str, format_assistant_message
 from clarifai.utils.logging import get_logger
 
 
@@ -18,6 +23,7 @@ class RAG:
         >>> from clarifai.rag import RAG
         >>> rag_agent = RAG()
     """
+  chat_state_id = None
 
   def __init__(self,
                workflow_url: str = None,
@@ -120,10 +126,41 @@ class RAG:
     """
     pass
 
-  # TODO: Implement this.
-  def chat(message: str) -> str:
-    """Call self._prompt_workflow.predict_by_bytes.
+  def chat(self, messages: List[dict], client_manage_state: bool = False) -> List[dict]:
+    """Chat interface in OpenAI API format.
+
+    Args:
+        messages List[dict]: A list of dictionary in the following format:
+        ```
+        [
+          {"role": "user", "content": "Hello there."},
+          {"role": "assistant", "content": "Hi, I'm Claude. How can I help you?"},
+          {"role": "user", "content": "Can you explain LLMs in plain English?"},
+        ]
+        ```
+        client_manage_state (bool): Whether the client will handle chat state management. Default is false.
 
     This will pass back the workflow state ID for the server to store chat state.
     """
-    pass
+    if client_manage_state:
+      single_prompt = convert_messages_to_str(messages)
+      input_proto = Inputs._get_proto(text_pb=resources_pb2.Text(raw=single_prompt))
+      response = self._prompt_workflow.predict([input_proto], "text")
+      messages.append(format_assistant_message(response.results[0].outputs[-1].data.text.raw))
+      return messages
+
+    # server-side state management
+    message = messages[-1].get("content", "")
+    if len(message) == 0:
+      raise UserError("Empty message supplied.")
+
+    # get chat state id
+    chat_state_id = "init" if self.chat_state_id is None else self.chat_state_id
+
+    # call predict
+    input_proto = Inputs._get_proto(text_pb=resources_pb2.Text(raw=message))
+    response = self._prompt_workflow.predict([input_proto], workflow_state_id=chat_state_id)
+
+    # store chat state id
+    self.chat_state_id = response.workflow_state.id
+    return [format_assistant_message(response.results[0].outputs[-1].data.text.raw)]

@@ -58,7 +58,7 @@ class Workflow(Lister, BaseClient):
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
     Lister.__init__(self)
 
-  def predict(self, inputs: List[Input]):
+  def predict(self, inputs: List[Input], workflow_state_id: str = None):
     """Predicts the workflow based on the given inputs.
 
     Args:
@@ -73,6 +73,9 @@ class Workflow(Lister, BaseClient):
         version_id=self.version.id,
         inputs=inputs,
         output_config=self.output_config)
+
+    if workflow_state_id:
+      request.workflow_state = resources_pb2.WorkFlowState(id=workflow_state_id)
 
     start_time = time.time()
     backoff_iterator = BackoffIterator()
