@@ -7,6 +7,7 @@ from clarifai.client.app import App
 from clarifai.client.model import Model
 from clarifai.client.user import User
 from clarifai.client.workflow import Workflow
+from clarifai.utils.logging import get_logger
 
 
 class RAG:
@@ -20,18 +21,24 @@ class RAG:
 
   def __init__(self,
                workflow_url: str = None,
+               workflow: Workflow = None,
                base_url: str = "https://api.clarifai.com",
                pat: str = None,
                **kwargs):
+    """Initialize an empty or existing RAG.
     """
-        Initialize an empty or existing RAG.
-        """
-    w = Workflow(url=workflow_url, base_url=base_url, pat=pat)
-    self._prompt_workflow = w
-    self._app = App(app_id=w.app_id, base_url=w.base, pat=w.pat)
-    del w
+    self.logger = get_logger(logger_level="INFO", name=__name__)
+    if workflow_url is not None and workflow is None:
+      self.logger.info("workflow_url:%s", workflow_url)
+      w = Workflow(workflow_url, base_url=base_url, pat=pat)
+      self._prompt_workflow = w
+      self._app = App(app_id=w.app_id, base_url=w.base, pat=w.pat)
+    elif workflow_url is None and workflow is not None:
+      self._prompt_workflow = workflow
+      self._app = App(app_id=workflow.app_id, base_url=workflow.base, pat=workflow.pat)
 
-  def setup(self,
+  @classmethod
+  def setup(cls,
             user_id: str = None,
             llm_url: str = "https://clarifai.com/mistralai/completion/models/mistral-7B-Instruct",
             base_workflow: str = "Text",
@@ -39,12 +46,12 @@ class RAG:
             base_url: str = "https://api.clarifai.com",
             pat: str = None,
             **kwargs):
-    """
-        Creates an app with `Text` as base workflow, create prompt model, create prompt workflow.
-        Example:
+    """Creates an app with `Text` as base workflow, create prompt model, create prompt workflow.
+
+    Example:
         >>> from clarifai.rag import RAG
-        >>> rag_agent = RAG().setup()
-        """
+        >>> rag_agent = RAG.setup()
+    """
     user = User(user_id=user_id, base_url=base_url, pat=pat)
     llm = Model(llm_url)
 
@@ -81,7 +88,8 @@ class RAG:
                 "id": "llm",
                 "model": {
                     "model_id": llm.id,
-                    "model_version_id": prompter_model.model_version.id
+                    "user_id": llm.user_id,
+                    "app_id": llm.app_id
                 },
                 "node_inputs": [{
                     "node_id": "rag-prompter"
@@ -93,30 +101,29 @@ class RAG:
       yaml.dump(workflow_dict, out_file, default_flow_style=False)
 
     ## Create prompt workflow
-    self._prompt_workflow = app.create_workflow(config_filepath=workflow_yaml_filename)
-    self._app = app
-
+    wf = app.create_workflow(config_filepath=workflow_yaml_filename)
     del user, llm, prompter_model, prompter_model_params
+    return cls(workflow=wf)
 
   # TODO: Implement this.
   def upload():
-    """
+    """Does the following:
         - Read from a local directory or public url or local filename.
         - Parse the document(s) into chunks.
         - Ingest chunks into the app with metadata.
 
-        Example:
+    Example:
         >>> from clarifai.rag import RAG
         >>> rag_agent = RAG().setup()
         >>> rag_agent.upload("~/work/docs")
         >>> rag_agent.upload("~/work/docs/manual.pdf")
-        """
+    """
     pass
 
   # TODO: Implement this.
   def chat(message: str) -> str:
+    """Call self._prompt_workflow.predict_by_bytes.
+
+    This will pass back the workflow state ID for the server to store chat state.
     """
-        Call self._prompt_workflow.predict_by_bytes.
-        This will pass back the workflow state ID for the server to store chat state.
-        """
     pass
