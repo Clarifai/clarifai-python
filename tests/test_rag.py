@@ -33,3 +33,9 @@ class TestRAG:
     messages = [{"role": "human", "content": "What is 1 + 1?"}]
     new_messages = self.rag.chat(messages, client_manage_state=True)
     assert len(new_messages) == 2
+
+  @pytest.mark.skip(reason="Not yet supported. Work in progress.")
+  def test_predict_server_manage_state(self):
+    messages = [{"role": "human", "content": "What is 1 + 1?"}]
+    new_messages = self.rag.chat(messages)
+    assert len(new_messages) == 1
