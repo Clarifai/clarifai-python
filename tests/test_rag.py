@@ -13,18 +13,29 @@ auth_obj = namedtuple("auth", "ui")
 
 @pytest.mark.requires_secrets
 class TestRAG:
-  workflow_url = ""
-  app_id = ""
 
-  def test_setup(self):
-    app = RAG.setup(user_id=CREATE_APP_USER_ID)
-    wf = app._prompt_workflow
-    assert len(wf.workflow_info.nodes) == 2
+  @classmethod
+  def setup_class(self):
+    self.rag = RAG.setup(user_id=CREATE_APP_USER_ID)
+    wf = self.rag._prompt_workflow
     auth = auth_obj(ui="https://clarifai.com")
     self.workflow_url = ClarifaiUrlHelper(auth).clarifai_url(wf.user_id, wf.app_id, "workflows",
                                                              wf.id)
-    self.app_id = app._app.id
 
-    ## test_from_existing_workflow
+  def test_setup_correct(self):
+    assert len(self.rag._prompt_workflow.workflow_info.nodes) == 2
+
+  def test_from_existing_workflow(self):
     app = RAG(workflow_url=self.workflow_url)
-    assert app._app.id == self.app_id
+    assert app._app.id == self.rag._app.id
+
+  def test_predict_client_manage_state(self):
+    messages = [{"role": "human", "content": "What is 1 + 1?"}]
+    new_messages = self.rag.chat(messages, client_manage_state=True)
+    assert len(new_messages) == 2
+
+  @pytest.mark.skip(reason="Not yet supported. Work in progress.")
+  def test_predict_server_manage_state(self):
+    messages = [{"role": "human", "content": "What is 1 + 1?"}]
+    new_messages = self.rag.chat(messages)
+    assert len(new_messages) == 1

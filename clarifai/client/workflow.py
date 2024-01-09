@@ -58,11 +58,12 @@ class Workflow(Lister, BaseClient):
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
     Lister.__init__(self)
 
-  def predict(self, inputs: List[Input]):
+  def predict(self, inputs: List[Input], workflow_state_id: str = None):
     """Predicts the workflow based on the given inputs.
 
     Args:
         inputs (list[Input]): The inputs to predict.
+        workflow_state_id (str): key for the workflow state cache that stores the workflow node predictions.
     """
     if len(inputs) > MAX_WORKFLOW_PREDICT_INPUTS:
       raise UserError(f"Too many inputs. Max is {MAX_WORKFLOW_PREDICT_INPUTS}."
@@ -73,6 +74,9 @@ class Workflow(Lister, BaseClient):
         version_id=self.version.id,
         inputs=inputs,
         output_config=self.output_config)
+
+    if workflow_state_id:
+      request.workflow_state.id = workflow_state_id
 
     start_time = time.time()
     backoff_iterator = BackoffIterator()
