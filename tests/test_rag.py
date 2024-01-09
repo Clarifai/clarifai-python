@@ -1,12 +1,16 @@
 import os
+import logging
 from collections import namedtuple
 
 import pytest
 
 from clarifai.rag import RAG
 from clarifai.urls.helper import ClarifaiUrlHelper
+from clarifai.client import User
 
 CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
+
+TEXT_FILE_PATH = os.path.dirname(__file__) + "/assets/sample.txt"
 
 auth_obj = namedtuple("auth", "ui")
 
@@ -33,3 +37,18 @@ class TestRAG:
     messages = [{"role": "human", "content": "What is 1 + 1?"}]
     new_messages = self.rag.chat(messages, client_manage_state=True)
     assert len(new_messages) == 2
+
+  @pytest.mark.skip(reason="Not yet supported. Work in progress.")
+  def test_predict_server_manage_state(self):
+    messages = [{"role": "human", "content": "What is 1 + 1?"}]
+    new_messages = self.rag.chat(messages)
+    assert len(new_messages) == 1
+
+  def test_upload_docs(self, caplog):
+    with caplog.at_level(logging.INFO):
+      self.rag.upload(file_path=TEXT_FILE_PATH)
+      assert "SUCCESS" in caplog.text
+
+  @classmethod
+  def teardown_class(self):
+    User(user_id=CREATE_APP_USER_ID).delete_app(self.rag._app.id)

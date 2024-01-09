@@ -146,19 +146,16 @@ class RAG:
     if batch_size > MAX_UPLOAD_BATCH_SIZE:
       raise ValueError(f"batch_size cannot be greater than {MAX_UPLOAD_BATCH_SIZE}")
 
+    #check if only one of file_path, folder_path, or url is specified
+    if file_path and (folder_path or url):
+      raise ValueError("Only one of file_path, folder_path, or url can be specified.")
+    if folder_path and (file_path or url):
+      raise ValueError("Only one of file_path, folder_path, or url can be specified.")
+    if url and (file_path or folder_path):
+      raise ValueError("Only one of file_path, folder_path, or url can be specified.")
+
     #loading documents
-    if file_path:
-      if (folder_path or url):
-        raise ValueError("Only one of file_path, folder_path, or url can be specified.")
-      documents = load_documents(file_path=file_path)
-    if folder_path:
-      if (file_path or url):
-        raise ValueError("Only one of file_path, folder_path, or url can be specified.")
-      documents = load_documents(folder_path=folder_path)
-    if url:
-      if (file_path or folder_path):
-        raise ValueError("Only one of file_path, folder_path, or url can be specified.")
-      documents = load_documents(url=url)
+    documents = load_documents(file_path=file_path, folder_path=folder_path, url=url)
 
     #splitting documents into chunks
     text_chunks = []
@@ -166,7 +163,7 @@ class RAG:
 
     #iterate through documents
     for doc in documents:
-      cur_text_chunks = split_document(doc.text)
+      cur_text_chunks = split_document(text=doc.text,chunk_size=chunk_size,chunk_overlap=chunk_overlap,**kwargs)
       text_chunks.extend(cur_text_chunks)
       metadata.extend([doc.metadata for _ in range(len(cur_text_chunks))])
       #if batch size is reached, upload the batch

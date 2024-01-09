@@ -8,3 +8,4 @@ rich>=13.4.2
 PyYAML>=6.0.1
 schema>=0.7.5
 Pillow>=9.5.0
+llama-index>=0.9.27

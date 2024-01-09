@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import List
+import requests
 
 from llama_index import Document, SimpleDirectoryReader, download_loader
 from llama_index.node_parser.text import SentenceSplitter
@@ -62,6 +63,14 @@ def load_documents(file_path: str = None, folder_path: str = None,
   if folder_path:
     documents = SimpleDirectoryReader(
         input_dir=Path(folder_path), required_exts=[".pdf", ".docx"]).load_data()
+
+  #document loaders for url
+  if url:
+    response = requests.get(url)
+    if response.status_code == 200:
+      documents = [Document(text=response.content)]
+    else:
+      raise ValueError(f"Invalid url {url}.")
 
   return documents
 
