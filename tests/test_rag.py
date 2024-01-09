@@ -1,12 +1,12 @@
-import os
 import logging
+import os
 from collections import namedtuple
 
 import pytest
 
+from clarifai.client import User
 from clarifai.rag import RAG
 from clarifai.urls.helper import ClarifaiUrlHelper
-from clarifai.client import User
 
 CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
 

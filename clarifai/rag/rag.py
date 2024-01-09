@@ -163,7 +163,8 @@ class RAG:
 
     #iterate through documents
     for doc in documents:
-      cur_text_chunks = split_document(text=doc.text,chunk_size=chunk_size,chunk_overlap=chunk_overlap,**kwargs)
+      cur_text_chunks = split_document(
+          text=doc.text, chunk_size=chunk_size, chunk_overlap=chunk_overlap, **kwargs)
       text_chunks.extend(cur_text_chunks)
       metadata.extend([doc.metadata for _ in range(len(cur_text_chunks))])
       #if batch size is reached, upload the batch
