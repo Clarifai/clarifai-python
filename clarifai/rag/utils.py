@@ -71,7 +71,7 @@ def load_documents(file_path: str = None, folder_path: str = None,
     response = requests.get(url)
     if response.status_code != 200:
       raise ValueError(f"Invalid url {url}.")
-      #for text files
+    #for text files
     try:
       documents = [Document(text=response.content)]
     #for pdf files
