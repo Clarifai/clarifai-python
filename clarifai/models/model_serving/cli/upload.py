@@ -18,6 +18,40 @@ from clarifai.models.api import Models
 from clarifai.models.model_serving.model_config import MODEL_TYPES, get_model_config
 from clarifai.models.model_serving.model_config.inference_parameter import InferParamManager
 
+from .base import BaseClarifaiCli
+
+
+class UploadCli(BaseClarifaiCli):
+
+  @staticmethod
+  def register(parser: argparse._SubParsersAction):
+    upload_parser = parser.add_parser("upload", help="Upload Clarifai model")
+    upload_parser.add_argument(
+        "--url", type=str, required=True, help="Direct download url of zip file")
+    upload_parser.add_argument(
+        "--config", type=str, required=True, help="Path to Clarifai config.yaml")
+    upload_parser.set_defaults(func=UploadCli)
+
+  def __init__(self, args: argparse.Namespace) -> None:
+    self.url: str = args.url
+    self.config_path: str = args.config
+
+    # TODO: parse config
+    #self._parse_config()
+
+  def _parse_config(self):
+    # do something with self.config_path
+    raise NotImplementedError()
+
+  def run(self):
+    deploy(
+        model_url=self.url,
+        model_id=self.model_id,
+        desc=self.desc,
+        model_type=self.model_type,
+        update_version=self.update_version,
+        inference_params_file=self.infer_param)
+
 
 def deploy(model_url,
            model_id: str = None,
@@ -81,43 +115,3 @@ def deploy(model_url,
   else:
     print("Success!")
     print(f'Model version: {resp["model"]["model_version"]["id"]}')
-
-
-def main():
-  parser = argparse.ArgumentParser(description=__doc__)
-  # args
-  parser.add_argument("--url", type=str, required=True, help="Direct download url of zip file")
-  parser.add_argument("--model_id", type=str, required=False, default="", help="Custom model id.")
-  parser.add_argument(
-      "--model_type",
-      type=str,
-      required=False,
-      choices=MODEL_TYPES,
-      default="",
-      help="Clarifai model type")
-  parser.add_argument(
-      "--desc", type=str, required=False, default="", help="Short desccription of model")
-  parser.add_argument(
-      "--update_version",
-      action="store_true",
-      required=False,
-      help="Update exist model with new version")
-
-  parser.add_argument(
-      "--infer_param",
-      required=False,
-      default="",
-      help="Path to json file contains inference parameters")
-
-  args = parser.parse_args()
-  deploy(
-      model_url=args.url,
-      model_id=args.model_id,
-      desc=args.desc,
-      model_type=args.model_type,
-      update_version=args.update_version,
-      inference_params_file=args.infer_param)
-
-
-if __name__ == "__main__":
-  main()
