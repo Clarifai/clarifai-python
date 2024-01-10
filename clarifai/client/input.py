@@ -750,24 +750,15 @@ class Inputs(Lister, BaseClient):
     retries = Retry(total=3, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
     session.mount('https://', HTTPAdapter(max_retries=retries))
     session.headers.update({'Authorization': self.metadata[0][1]})
-    #download inputs
+    # download inputs
+    data_types = ['image', 'video', 'audio', 'text']
     for input in inputs:
-      if input.data.image.url:
-        response = session.get(input.data.image.url, stream=True)
-        if response.status_code == 200:
-          final_inputs.append(response.content)
-      if input.data.video.url:
-        response = session.get(input.data.video.url, stream=True)
-        if response.status_code == 200:
-          final_inputs.append(response.content)
-      if input.data.audio.url:
-        response = session.get(input.data.audio.url, stream=True)
-        if response.status_code == 200:
-          final_inputs.append(response.content)
-      if input.data.text.url:
-        response = session.get(input.data.text.url, stream=True)
-        if response.status_code == 200:
-          final_inputs.append(response.content)
+      for data_type in data_types:
+        url = getattr(input.data, data_type).url
+        if url:
+          response = session.get(url, stream=True)
+          if response.status_code == 200:
+            final_inputs.append(response.content)
 
     return final_inputs
 
