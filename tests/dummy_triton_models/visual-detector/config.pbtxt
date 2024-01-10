@@ -1,0 +1,36 @@
+name: "visual-detector"
+max_batch_size: 4
+input {
+  name: "image"
+  data_type: TYPE_UINT8
+  dims: -1
+  dims: -1
+  dims: 3
+}
+output {
+  name: "predicted_bboxes"
+  data_type: TYPE_FP32
+  dims: -1
+  dims: 4
+}
+output {
+  name: "predicted_labels"
+  data_type: TYPE_INT32
+  dims: -1
+  dims: 1
+  label_filename: "labels.txt"
+}
+output {
+  name: "predicted_scores"
+  data_type: TYPE_FP32
+  dims: -1
+  dims: 1
+}
+instance_group {
+  count: 1
+  kind: KIND_CPU # Use CPU only for test
+}
+dynamic_batching {
+  max_queue_delay_microseconds: 500
+}
+backend: "python"
