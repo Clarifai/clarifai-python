@@ -138,7 +138,7 @@ class RAG:
 
     Example:
         >>> from clarifai.rag import RAG
-        >>> rag_agent = RAG().setup()
+        >>> rag_agent = RAG.setup()
         >>> rag_agent.upload(folder_path = "~/work/docs")
         >>> rag_agent.upload(file_path = "~/work/docs/manual.pdf")
     """

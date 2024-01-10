@@ -1,9 +1,11 @@
+import io
 from pathlib import Path
 from typing import List
-import requests
 
+import requests
 from llama_index import Document, SimpleDirectoryReader, download_loader
 from llama_index.node_parser.text import SentenceSplitter
+from pypdf import PdfReader
 
 
 ## TODO: Make this token-aware.
@@ -68,7 +70,19 @@ def load_documents(file_path: str = None, folder_path: str = None,
   if url:
     response = requests.get(url)
     if response.status_code == 200:
-      documents = [Document(text=response.content)]
+      #for text files
+      try:
+        documents = [Document(text=response.content)]
+      #for pdf files
+      except Exception:
+        documents = []
+        pdf_file = PdfReader(io.BytesIO(response.content))
+        num_pages = len(pdf_file.pages)
+        for page in range(num_pages):
+          page_text = pdf_file.pages[page].extract_text()
+          documents.append(Document(text=page_text))
+      else:
+        raise ValueError(f"Invalid url {url}.")
     else:
       raise ValueError(f"Invalid url {url}.")
 

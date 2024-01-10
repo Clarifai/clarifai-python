@@ -11,6 +11,7 @@ from clarifai.urls.helper import ClarifaiUrlHelper
 CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
 
 TEXT_FILE_PATH = os.path.dirname(__file__) + "/assets/sample.txt"
+PDF_URL = "https://samples.clarifai.com/test_doc.pdf"
 
 auth_obj = namedtuple("auth", "ui")
 
@@ -44,9 +45,14 @@ class TestRAG:
     new_messages = self.rag.chat(messages)
     assert len(new_messages) == 1
 
-  def test_upload_docs(self, caplog):
+  def test_upload_docs_filepath(self, caplog):
     with caplog.at_level(logging.INFO):
       self.rag.upload(file_path=TEXT_FILE_PATH)
+      assert "SUCCESS" in caplog.text
+
+  def test_upload_docs_from_url(self, caplog):
+    with caplog.at_level(logging.INFO):
+      self.rag.upload(url=PDF_URL)
       assert "SUCCESS" in caplog.text
 
   @classmethod
