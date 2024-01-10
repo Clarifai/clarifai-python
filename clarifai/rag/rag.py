@@ -61,6 +61,9 @@ class RAG:
         >>> from clarifai.rag import RAG
         >>> rag_agent = RAG.setup()
     """
+    if not user_id:
+      raise UserError(
+          "user_id must be provided. It can be found at https://clarifai.com/settings.")
     user = User(user_id=user_id, base_url=base_url, pat=pat)
     llm = Model(llm_url)
 
