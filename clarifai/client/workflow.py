@@ -85,7 +85,7 @@ class Workflow(Lister, BaseClient):
       response = self._grpc_request(self.STUB.PostWorkflowResults, request)
 
       if response.status.code == status_code_pb2.MODEL_DEPLOYING and \
-          time.time() - start_time < 60:
+          time.time() - start_time < 60*10:  # 10 minutes
         self.logger.info(f"{self.id} Workflow is still deploying, please wait...")
         time.sleep(next(backoff_iterator))
         continue
