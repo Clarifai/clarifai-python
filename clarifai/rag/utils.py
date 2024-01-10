@@ -69,20 +69,19 @@ def load_documents(file_path: str = None, folder_path: str = None,
   #document loaders for url
   if url:
     response = requests.get(url)
-    if response.status_code == 200:
+    if response.status_code != 200:
+      raise ValueError(f"Invalid url {url}.")
       #for text files
-      try:
-        documents = [Document(text=response.content)]
-      #for pdf files
-      except Exception:
-        documents = []
-        pdf_file = PdfReader(io.BytesIO(response.content))
-        num_pages = len(pdf_file.pages)
-        for page in range(num_pages):
-          page_text = pdf_file.pages[page].extract_text()
-          documents.append(Document(text=page_text))
-      else:
-        raise ValueError(f"Invalid url {url}.")
+    try:
+      documents = [Document(text=response.content)]
+    #for pdf files
+    except Exception:
+      documents = []
+      pdf_file = PdfReader(io.BytesIO(response.content))
+      num_pages = len(pdf_file.pages)
+      for page in range(num_pages):
+        page_text = pdf_file.pages[page].extract_text()
+        documents.append(Document(text=page_text))
     else:
       raise ValueError(f"Invalid url {url}.")
 
