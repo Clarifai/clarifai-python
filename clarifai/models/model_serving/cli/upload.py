@@ -12,12 +12,14 @@
 # limitations under the License.
 """Commandline interface for model upload utils."""
 import argparse
+import os
 
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.models.api import Models
 from clarifai.models.model_serving.model_config import MODEL_TYPES, get_model_config
 from clarifai.models.model_serving.model_config.inference_parameter import InferParamManager
 
+from ..utils import login
 from .base import BaseClarifaiCli
 
 
@@ -28,16 +30,63 @@ class UploadCli(BaseClarifaiCli):
     upload_parser = parser.add_parser("upload", help="Upload Clarifai model")
     upload_parser.add_argument(
         "--url", type=str, required=True, help="Direct download url of zip file")
+    upload_parser.add_argument("--id", type=str, required=True, help="Model ID")
     upload_parser.add_argument(
-        "--config", type=str, required=True, help="Path to Clarifai config.yaml")
+        "--user-app",
+        type=str,
+        required=False,
+        help="User ID and App ID separated by '/', e.g., <user_id>/<app_id>")
+    upload_parser.add_argument(
+        "--type",
+        type=str,
+        required=False,
+        choices=MODEL_TYPES,
+        default="",
+        help="Clarifai model type")
+    upload_parser.add_argument(
+        "--desc", type=str, required=False, default="", help="Short desccription of model")
+    upload_parser.add_argument(
+        "--update-version",
+        action="store_true",
+        required=False,
+        help="Update exist model with new version")
+    upload_parser.add_argument(
+        "--infer-param",
+        required=False,
+        default="",
+        help="Path to json file contains inference parameters")
+
+    upload_parser.add_argument(
+        "--config", type=str, required=False, help="Path to Clarifai config.yaml")
+
     upload_parser.set_defaults(func=UploadCli)
 
   def __init__(self, args: argparse.Namespace) -> None:
     self.url: str = args.url
-    self.config_path: str = args.config
 
-    # TODO: parse config
+    assert self.url.startswith("http") or self.url.startswith(
+        "s3"), f"Invalid url supported http or s3 url. Got {self.url}"
+
+    self.config_path: str = args.config
+    # TODO: parse config and assign value for all below vars
     #self._parse_config()
+
+    self.id = args.id
+    self.type = args.type
+    self.desc = args.desc
+    self.infer_param = args.infer_param
+    self.update_version = args.update_version
+    self.user_id, self.app_id = "", ""
+    if args.user_app:
+      assert '/' in args.user_app, f"id must be combination of user_id and app_id separated by `/`, e.g. <user_id>/<app_id>. Got {args.id}"
+      self.user_id, self.app_id = args.user_app.split('/')
+
+    if self.user_id:
+      os.environ["CLARIFAI_USER_ID"] = self.user_id
+    if self.app_id:
+      os.environ["CLARIFAI_APP_ID"] = self.app_id
+
+    login()
 
   def _parse_config(self):
     # do something with self.config_path
@@ -46,9 +95,9 @@ class UploadCli(BaseClarifaiCli):
   def run(self):
     deploy(
         model_url=self.url,
-        model_id=self.model_id,
+        model_id=self.id,
         desc=self.desc,
-        model_type=self.model_type,
+        model_type=self.type,
         update_version=self.update_version,
         inference_params_file=self.infer_param)
 
@@ -68,21 +117,7 @@ def deploy(model_url,
   # if filename having this format: <model_id>_<model-type>
   # e.i yolov5s_coco_visual-dectector
   # else user has to input model_type and model_id
-  zip_filename = model_url.split('/')[-1]
-  zip_filename = zip_filename.split('.')[0]
 
-  def _parse_name(name):
-    *id_, type_ = name.split('_')
-    return "_".join(id_), type_
-
-  # parse model_id
-  if not model_id and "_" in zip_filename:
-    model_id = _parse_name(zip_filename)[0]
-  assert model_id, "Can not parse model_id from url, please input it directly"
-  # parse model_type
-  if not model_type and "_" in zip_filename:
-    model_type = _parse_name(zip_filename)[-1]
-  assert model_type, "Can not parse model_type from url, please input it directly"
   # key map
   assert model_type in MODEL_TYPES, f"model_type should be one of {MODEL_TYPES}"
   clarifai_key_map = get_model_config(model_type=model_type).field_maps
