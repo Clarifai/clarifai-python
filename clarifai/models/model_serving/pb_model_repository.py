@@ -80,67 +80,40 @@ class TritonModelRepository:
     model_version = self.model_config.model_version
     model_version_path = os.path.join(repository_dir, model_version)
 
-    overwrite_single_file = False
-    if os.path.exists(repository_dir):
-      ans = input(f"The folder {repository_dir} already exists. "
-                  f"Do you want to overwrite all files? (A: yes to all/ y: yes/ n: no): ")
-      if ans == "n":
-        print("Cancel command.")
-        exit(1)
-      elif ans == "y":
-        overwrite_single_file = True
-      elif ans == "A":
-        overwrite_single_file = False
-      else:
-        raise ValueError(f"Expected [A, Y, N], got {ans}")
-
-    def _is_overwrite(filename):
-      if overwrite_single_file and os.path.exists(filename):
-        return confirm_action(filename)
-      else:
-        return True
-
     os.makedirs(repository_dir, exist_ok=True)
 
-    config_pbtxt_path = os.path.join(repository_dir, "config.pbtxt")
-    if _is_overwrite(config_pbtxt_path):
-      self.config_proto.to_file(repository_dir)
+    os.path.join(repository_dir, "config.pbtxt")
+    self.config_proto.to_file(repository_dir)
 
     for out_field in self.model_config.output:
       #predicted int labels must have corresponding names in file
       if hasattr(out_field, "label_filename"):
         labels_txt_path = os.path.join(repository_dir, "labels.txt")
-        if _is_overwrite(labels_txt_path):
-          with open(labels_txt_path, "w"):
-            pass
+        with open(labels_txt_path, "w"):
+          pass
       else:
         continue
     # gen requirements
     requirements_txt_path = os.path.join(repository_dir, "requirements.txt")
-    if _is_overwrite(requirements_txt_path):
-      with open(requirements_txt_path, "w") as f:
-        f.write("clarifai>9.10.4\ntritonclient[all]")  # for model upload utils
+    with open(requirements_txt_path, "w") as f:
+      f.write("clarifai>9.10.4\ntritonclient[all]")  # for model upload utils
 
     os.makedirs(model_version_path, exist_ok=True)
     _init_py_path = os.path.join(model_version_path, "__init__.py")
-    if _is_overwrite(_init_py_path):
-      with open(os.path.join(model_version_path, "__init__.py"), "w"):
-        pass
+    with open(_init_py_path, "w"):
+      pass
 
     # generate model.py
     model_py_path = os.path.join(model_version_path, "model.py")
-    if _is_overwrite(model_py_path):
-      self._module_to_file(pb_model, model_py_path, func=None)
+    self._module_to_file(pb_model, model_py_path, func=None)
 
     # generate inference.py
     def insert_model_type_func(x):
       return x.replace("MODEL_TYPE_PLACEHOLDER", self.model_config.model_type)
 
     inference_py_path = os.path.join(model_version_path, "inference.py")
-    if _is_overwrite(inference_py_path):
-      self._module_to_file(inference, inference_py_path, insert_model_type_func)
+    self._module_to_file(inference, inference_py_path, insert_model_type_func)
 
     # generate test.py
     custom_test_path = os.path.join(model_version_path, "test.py")
-    if _is_overwrite(custom_test_path):
-      self._module_to_file(test, custom_test_path, insert_model_type_func)
+    self._module_to_file(test, custom_test_path, insert_model_type_func)
