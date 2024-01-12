@@ -9,7 +9,7 @@ class LoginCli(BaseClarifaiCli):
 
   @staticmethod
   def register(parser: argparse._SubParsersAction):
-    upload_parser = parser.add_parser("login", help="Upload Clarifai model")
+    upload_parser = parser.add_parser("login", help="Login to Clarifai and save PAT locally")
     upload_parser.set_defaults(func=LoginCli)
 
   def __init__(self, args: argparse.Namespace) -> None:
