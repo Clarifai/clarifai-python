@@ -60,7 +60,7 @@ class SubCreateModelCli(BaseClarifaiCli):
         help="H W dims for models with an image input type. H and W each have a max value of 1024",
         default=[-1, -1])
     model_parser.add_argument(
-        "--max_bs", type=int, default=1, required=False, help="Max batch size")
+        "--max-bs", type=int, default=1, required=False, help="Max batch size")
 
     model_parser.add_argument(
         "--overwrite", action="store_true", help="Overwrite working-dir if exists")
