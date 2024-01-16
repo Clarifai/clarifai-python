@@ -119,7 +119,12 @@ class BaseClient:
             value_s.update(value)
             value = value_s
           elif key in ['metadata']:
-            continue  # TODO Fix "app_duplication"
+            if isinstance(value, dict) and value != {}:
+              value_s = struct_pb2.Struct()
+              value_s.update(value)
+              value = value_s
+            else:
+              continue
           new_item[key] = convert_recursive(value)
         return new_item
       elif isinstance(item, list):
