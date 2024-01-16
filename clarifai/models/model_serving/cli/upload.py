@@ -13,6 +13,7 @@
 """Commandline interface for model upload utils."""
 import argparse
 import os
+import subprocess
 
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.models.api import Models
@@ -57,11 +58,28 @@ class UploadCli(BaseClarifaiCli):
         help="Path to json file contains inference parameters")
 
     upload_parser.add_argument(
+        "--test-path",
+        required=False,
+        default=os.path.join(os.getcwd(), "test.py"),
+        help=
+        "Path to python test file executed before uploading, the file must be in working repository. Default is current_dir/test.py"
+    )
+    upload_parser.add_argument(
+        "--no-test",
+        action="store_true",
+        help="Trigger this flag to skip testing before uploading")
+
+    upload_parser.add_argument(
         "--config", type=str, required=False, help="Path to Clarifai config.yaml")
 
     upload_parser.set_defaults(func=UploadCli)
 
   def __init__(self, args: argparse.Namespace) -> None:
+    self.test_path = args.test_path
+    self.no_test = args.no_test
+    if not self.no_test:
+      assert os.path.exists(self.test_path), FileNotFoundError(f"Not found {self.test_path}")
+
     self.url: str = args.url
 
     assert self.url.startswith("http") or self.url.startswith(
@@ -93,6 +111,12 @@ class UploadCli(BaseClarifaiCli):
     raise NotImplementedError()
 
   def run(self):
+
+    # Run test before uploading
+    if not self.no_test:
+      result = subprocess.run(f"pytest -s --log-level=INFO {self.test_path}")
+      assert result.returncode == 0, "Test is failed. Please make sure no error exists in your code."
+
     deploy(
         model_url=self.url,
         model_id=self.id,
