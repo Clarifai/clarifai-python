@@ -28,7 +28,19 @@ class UploadCli(BaseClarifaiCli):
 
   @staticmethod
   def register(parser: argparse._SubParsersAction):
-    upload_parser = parser.add_parser("upload", help="Upload Clarifai model")
+    creator_parser = parser.add_parser("upload", help="Upload component to Clarifai platform")
+    sub_creator_parser = creator_parser.add_subparsers()
+
+    UploadModelSubCli.register(sub_creator_parser)
+
+    creator_parser.set_defaults(func=UploadCli)
+
+
+class UploadModelSubCli(BaseClarifaiCli):
+
+  @staticmethod
+  def register(parser: argparse._SubParsersAction):
+    upload_parser = parser.add_parser("model", help="Upload Clarifai model")
     upload_parser.add_argument(
         "--url", type=str, required=True, help="Direct download url of zip file")
     upload_parser.add_argument("--id", type=str, required=True, help="Model ID")
@@ -72,7 +84,7 @@ class UploadCli(BaseClarifaiCli):
     upload_parser.add_argument(
         "--config", type=str, required=False, help="Path to Clarifai config.yaml")
 
-    upload_parser.set_defaults(func=UploadCli)
+    upload_parser.set_defaults(func=UploadModelSubCli)
 
   def __init__(self, args: argparse.Namespace) -> None:
     self.test_path = args.test_path
