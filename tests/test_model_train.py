@@ -45,7 +45,7 @@ class Testmodeltrain:
 
   def test_model_params(self):
     model_params = self.visual_classifier_model.get_params(
-        template='MMClassification', save_to='tests/assets/model_params.yaml')
+        template='MMClassification_AdvancedConfig', save_to='tests/assets/model_params.yaml')
     with open('tests/assets/model_params.yaml', 'r') as file:
       expected_data = yaml.safe_load(file)
     with open(expected_data['train_params']['custom_config'], 'r') as python_file:
@@ -55,7 +55,7 @@ class Testmodeltrain:
         'train_params'].keys()  #test yaml model params
     assert len(model_params['concepts']) == 0  #test model params concepts
     assert 'custom_config' in expected_data['train_params'].keys()  #test custom config in yaml
-    assert expected_data['train_params']['template'] == 'MMClassification'  #test template param in yaml
+    assert expected_data['train_params']['template'] == 'MMClassification_AdvancedConfig'  #test template param in yaml
     assert 'image_size' in expected_data['train_params'].keys()  #test image size param in yaml
     assert 'dataset_id' in expected_data.keys()  #test dataset id param in yaml
     assert '_base_' in custom_config  #test custom config script
