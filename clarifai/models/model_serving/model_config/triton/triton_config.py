@@ -12,6 +12,7 @@
 # limitations under the License.
 """ Model Config classes."""
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import List, Union
 
@@ -143,7 +144,8 @@ class TritonModelConfig:
   #model_type: str
   model_name: str = ""
   model_version: str = "1"
-  image_shape: tuple[Union[int, float], Union[int, float]] = field(default_factory=list)  #(H, W)
+  image_shape: tuple[Union[int, float], Union[int, float]] = field(
+      default_factory=lambda: [-1, -1])  #(H, W)
   input: List[InputConfig] = field(default_factory=list)
   output: List[OutputConfig] = field(default_factory=list)
   instance_group: Device = field(default_factory=Device)
@@ -153,6 +155,6 @@ class TritonModelConfig:
 
   def __post_init__(self):
     if "image" in [each.name for each in self.input]:
-      image_dims = self.image_shape
+      image_dims = deepcopy(self.image_shape)
       image_dims.append(3)  # add channel dim
       self.input[0].dims = image_dims

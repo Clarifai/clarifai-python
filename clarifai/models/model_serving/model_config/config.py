@@ -1,13 +1,18 @@
 import logging
-from dataclasses import asdict, dataclass
+from copy import deepcopy
+from dataclasses import asdict, dataclass, field
 from typing import List
 
 import yaml
 
+from .inference_parameter import InferParam
 from .output import EmbeddingOutput  # noqa # pylint: disable=unused-import
-from .triton import Device, DynamicBatching, InputConfig, OutputConfig, TritonModelConfig
+from .triton import DynamicBatching  # noqa # pylint: disable=unused-import
+from .triton import Device, InputConfig, OutputConfig, TritonModelConfig
 
 logger = logging.getLogger(__name__)
+
+__all__ = ["ModelTypes", "ModelConfigClass", "MODEL_TYPES"]
 
 
 # Clarifai model types
@@ -29,8 +34,8 @@ class ModelTypes:
 
 @dataclass
 class FieldMapsConfig:
-  input_fields_map: dict
-  output_fields_map: dict
+  input_fields_map: dict = field(default_factory=dict)
+  output_fields_map: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -40,11 +45,12 @@ class ServingBackendConfig:
 
 @dataclass
 class ClarfaiModelConfig:
-  output_type: dataclass
-  field_maps: FieldMapsConfig
+
+  field_maps: FieldMapsConfig = None
+  output_type: dataclass = None
   labels: list = None
-  inference_parameters: list = None
-  model_id: str = ""
+  inference_parameters: List[InferParam] = None
+  clarifai_model_id: str = ""
   type: str = ""
 
   def __post_init__(self):
@@ -53,7 +59,7 @@ class ClarfaiModelConfig:
 
 
 @dataclass
-class ModelConfigClass:
+class ModelConfigClass():
   clarifai_model: ClarfaiModelConfig
   serving_backend: ServingBackendConfig
 
@@ -79,6 +85,28 @@ class ModelConfigClass:
         input=self.serving_backend.triton.input,
         output=self.serving_backend.triton.output)
 
+  def dump_to_user_config(self):
+    data = asdict(self)
+    _self = deepcopy(self)
+    # dump backend
+    if hasattr(_self.serving_backend, "triton"):
+      for k, v in asdict(_self.serving_backend.triton).items():
+        if (k == "max_batch_size" and v > 1) or (k == "image_shape" and v != [-1, -1]):
+          continue
+        else:
+          data["serving_backend"]["triton"].pop(k, None)
+
+      if not data["serving_backend"]["triton"]:
+        data["serving_backend"].pop("triton", None)
+    if not data["serving_backend"]:
+      data.pop("serving_backend", None)
+
+    # dump clarifai model
+    data["clarifai_model"].pop("field_maps", None)
+    data["clarifai_model"].pop("output_type", None)
+
+    return data
+
 
 def read_yaml(path: str) -> dict:
   with open(path, encoding="utf-8") as f:
@@ -98,7 +126,8 @@ def parse_config(config: dict):
           dict(input=[
               InputConfig(
                   name=input["name"],
-                  data_type=eval(f"DType.{input['data_type']}"),
+                  data_type=eval(f"DType.{input['data_type']}") if isinstance(
+                      input['data_type'], str) else input['data_type'],
                   dims=input["dims"],
                   optional=input.get("optional", False),
               ) for input in input_triton_configs
@@ -108,7 +137,8 @@ def parse_config(config: dict):
           dict(output=[
               OutputConfig(
                   name=output["name"],
-                  data_type=eval(f"DType.{output['data_type']}"),
+                  data_type=eval(f"DType.{output['data_type']}") if isinstance(
+                      output['data_type'], str) else output['data_type'],
                   dims=output["dims"],
                   labels=output["labels"],
               ) for output in output_triton_configs
@@ -121,7 +151,8 @@ def parse_config(config: dict):
   clarifai_model.update(dict(field_maps=FieldMapsConfig(**field_maps)))
   output_type = clarifai_model.pop("output_type", None)
   if output_type:
-    output_type = eval(output_type)
+    if isinstance(output_type, str):
+      output_type = eval(output_type)
     clarifai_model.update(dict(output_type=output_type))
 
   clarifai_model = ClarfaiModelConfig(**clarifai_model)
@@ -141,12 +172,9 @@ def get_model_config(model_type: str) -> ModelConfigClass:
     ModelConfigClass
 
   ### Example:
-  >>> from clarifai.models.model_serving.models.output import ClassifierOutput
   >>> from clarifai.models.model_serving.model_config import get_model_config, ModelTypes
   >>> cfg = get_model_config(ModelTypes.text_classifier)
   >>> custom_triton_config = cfg.make_triton_model_config(**kwargs)
-  >>> cfg.inference.return_type is ClassifierOutput # True
-
 
   """
   if model_type == "MODEL_TYPE_PLACEHOLDER":
@@ -160,7 +188,7 @@ def get_model_config(model_type: str) -> ModelConfigClass:
   cfg = read_yaml(
       os.path.join(os.path.dirname(__file__), "model_types_config", f"{model_type}.yaml"))
   cfg = parse_config(cfg)
-  cfg.type = model_type
+  cfg.clarifai_model.type = model_type
   return cfg
 
 

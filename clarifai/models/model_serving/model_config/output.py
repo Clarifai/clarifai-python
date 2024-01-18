@@ -19,11 +19,6 @@ import numpy as np
 
 
 @dataclass
-class _BaseOutput:
-  ...
-
-
-@dataclass
 class VisualDetectorOutput:
   predicted_bboxes: np.ndarray
   predicted_labels: np.ndarray
@@ -50,7 +45,7 @@ class VisualDetectorOutput:
 
 
 @dataclass
-class ClassifierOutput(_BaseOutput):
+class ClassifierOutput:
   """
   Takes model softmax predictions
   """

@@ -25,6 +25,7 @@ class _TypeCheckModelOutput(type):
         return base_fn(base, out)
 
       new_fn.__name__ = "wrapped_%s" % fn_name
+      new_fn.__doc__ = other_fn.__doc__
       return new_fn
 
     if name != "_BaseClarifaiModel":
