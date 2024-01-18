@@ -1,4 +1,4 @@
-## [[10.0.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.0.1) - [PyPI](https://pypi.org/project/clarifai/10.0.1/) - 2024-01-17
+## [[10.0.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.0.1) - [PyPI](https://pypi.org/project/clarifai/10.0.1/) - 2024-01-18
 
 ### Fixed
 - Modified process_response_keys functions to fetch metadata info (#270)
