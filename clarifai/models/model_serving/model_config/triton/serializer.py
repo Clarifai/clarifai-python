@@ -21,7 +21,7 @@ from typing import Type
 from google.protobuf.text_format import MessageToString
 from tritonclient.grpc import model_config_pb2
 
-from .config import TritonModelConfig
+from .triton_config import TritonModelConfig
 
 
 class Serializer:

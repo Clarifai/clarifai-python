@@ -23,7 +23,7 @@ from typing import Type
 logging.getLogger("clarifai.models.model_serving.model_config.config").setLevel(logging.ERROR)
 
 from .model_config import Serializer, TritonModelConfig  # noqa: E402
-from .models import inference, pb_model, test  # noqa: E402
+from .models import inference, test, triton_python_model  # noqa: E402
 
 
 class TritonModelRepository:
@@ -94,7 +94,7 @@ class TritonModelRepository:
         pass
     # generate model.py
     model_py_path = os.path.join(model_version_path, "model.py")
-    self._module_to_file(pb_model, model_py_path, func=None)
+    self._module_to_file(triton_python_model, model_py_path, func=None)
 
     # generate inference.py
     def insert_model_type_func(x):

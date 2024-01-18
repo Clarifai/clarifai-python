@@ -19,8 +19,6 @@ try:
   import triton_python_backend_utils as pb_utils
 except ModuleNotFoundError:
   pass
-from google.protobuf import text_format
-from tritonclient.grpc.model_config_pb2 import ModelConfig
 from clarifai.models.model_serving.model_config.inference_parameter import parse_req_parameters
 
 
@@ -33,18 +31,13 @@ class TritonPythonModel:
     """
     Triton server init.
     """
-    args["model_repository"] = args["model_repository"].replace("/1/model.py", "")
     sys.path.append(os.path.dirname(__file__))
     from inference import InferenceModel
 
     self.inference_obj = InferenceModel()
 
     # Read input_name from config file
-    self.config_msg = ModelConfig()
-    with open(os.path.join(args["model_repository"], "config.pbtxt"), "r") as f:
-      cfg = f.read()
-    text_format.Merge(cfg, self.config_msg)
-    self.input_names = [inp.name for inp in self.config_msg.input]
+    self.input_names = [inp.name for inp in self.inference_obj.config.serving_backend.triton.input]
 
   def execute(self, requests):
     """
@@ -53,22 +46,29 @@ class TritonPythonModel:
     responses = []
 
     for request in requests:
-      parameters = request.parameters()
+      try:
+        parameters = request.parameters()
+      except Exception:
+        print(
+            "It seems this triton version does not support `parameters()` in request. "
+            "Please upgrade tritonserver version otherwise can not use `inference_parameters`. Error message: {e}"
+        )
+        parameters = None
+
       parameters = parse_req_parameters(parameters) if parameters else {}
 
       if len(self.input_names) == 1:
         in_batch = pb_utils.get_input_tensor_by_name(request, self.input_names[0])
         in_batch = in_batch.as_numpy()
-        inference_response = self.inference_obj.get_predictions(in_batch, **parameters)
+        data = in_batch
       else:
-        multi_in_batch_dict = {}
+        data = {}
         for input_name in self.input_names:
           in_batch = pb_utils.get_input_tensor_by_name(request, input_name)
           in_batch = in_batch.as_numpy() if in_batch is not None else []
-          multi_in_batch_dict.update({input_name: in_batch})
+          data.update({input_name: in_batch})
 
-        inference_response = self.inference_obj.get_predictions(multi_in_batch_dict, **parameters)
-
+      inference_response = self.inference_obj._tritonserver_predict(data, parameters)
       responses.append(inference_response)
 
     return responses

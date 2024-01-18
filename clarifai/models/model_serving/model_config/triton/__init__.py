@@ -10,5 +10,5 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from .base import *  # noqa
-from .output import *  # noqa
+from .serializer import Serializer  # noqa # pylint: disable=unused-import
+from .triton_config import *  # noqa # pylint: disable=unused-import

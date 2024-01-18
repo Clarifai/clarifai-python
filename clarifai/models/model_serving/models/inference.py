@@ -9,11 +9,7 @@
 
 import os
 from pathlib import Path
-
-from clarifai.models.model_serving.model_config import (  # noqa # pylint: disable=unused-import
-    ModelTypes, get_model_config)
-
-config = get_model_config("MODEL_TYPE_PLACEHOLDER")
+from typing import Dict, Union
 
 
 class InferenceModel:
@@ -29,8 +25,8 @@ class InferenceModel:
     #self.checkpoint_path: Path = os.path.join(self.base_path, "your checkpoint filename/path")
     #self.model: Callable = <load_your_model_here from checkpoint or folder>
 
-  @config.inference.wrap_func
-  def get_predictions(self, input_data: list, **kwargs) -> list:
+  def predict(self, input_data: list,
+              inference_paramters: Dict[str, Union[str, float, int]]) -> list:
     """
     Main model inference method.
 
@@ -39,11 +35,11 @@ class InferenceModel:
       input_data: A list of input data item to predict on.
         Input data can be an image or text, etc depending on the model type.
 
-      **kwargs: your inference parameters.
+      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameters.
 
     Returns:
     --------
-      List of one of the `clarifai.models.model_serving.models.output types` or `config.inference.return_type(your_output)`. Refer to the README/docs
+      List of one of the `clarifai.models.model_serving.config.output types`. Refer to the README/docs
     """
 
     # Delete/Comment out line below and add your inference code

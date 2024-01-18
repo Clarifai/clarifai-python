@@ -10,8 +10,8 @@ import numpy as np
 from ..model_config import ModelTypes
 from ..model_config.config import get_model_config
 from ..model_config.inference_parameter import InferParamManager
-from .output import (ClassifierOutput, EmbeddingOutput, ImageOutput, MasksOutput, TextOutput,
-                     VisualDetectorOutput)
+from ..model_config.output import (ClassifierOutput, EmbeddingOutput, ImageOutput, MasksOutput,
+                                   TextOutput, VisualDetectorOutput)
 
 PREDEFINED_TEXTS = ["Photo of a cat", "A cat is playing around"]
 
