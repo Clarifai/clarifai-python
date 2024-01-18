@@ -1,3 +1,9 @@
+## [[10.0.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.0.1) - [PyPI](https://pypi.org/project/clarifai/10.0.1/) - 2024-01-18
+
+### Fixed
+- Modified process_response_keys functions to fetch metadata info (#270)
+- Assert user_id condition for RAG (#268)
+
 ## [[10.0.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.0.0) - [PyPI](https://pypi.org/project/clarifai/10.0.0/) - 2024-01-10
 
 ### Fixed
