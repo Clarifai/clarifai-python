@@ -71,7 +71,7 @@ class ClarfaiModelConfig:
   output_type: str = None
   labels: list = field(default_factory=list)
   inference_parameters: List[InferParam] = field(default_factory=list)
-  clarifai_model_id: str = ""
+  clarifai_model_id: str = ""  # TODO: Must ensure name is valid
   type: str = ""
 
   def __post_init__(self):
@@ -175,7 +175,7 @@ def parse_config(config: dict):
                   data_type=eval(f"DType.{output['data_type']}") if isinstance(
                       output['data_type'], str) else output['data_type'],
                   dims=output["dims"],
-                  labels=output["labels"],
+                  label_filename=output["label_filename"],
               ) for output in output_triton_configs
           ]))
       serving_backend.update(dict(triton=TritonModelConfig(**triton)))

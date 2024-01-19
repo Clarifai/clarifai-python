@@ -61,6 +61,8 @@ class Serializer:
       output_config = self.config_proto.output.add()
       for key, value in out_field.__dict__.items():
         try:
+          if not value:
+            continue
           setattr(output_config, key, value)
         except AttributeError:  #Proto Repeated Field assignment not allowed
           field = getattr(output_config, key)

@@ -5,8 +5,8 @@ from typing import List
 
 from InquirerPy import prompt
 
-from ..build import RepositoryBuilder
 from ..model_config import MODEL_TYPES
+from ..repo_build import RepositoryBuilder
 from ._utils import list_model_upload_examples
 from .base import BaseClarifaiCli
 

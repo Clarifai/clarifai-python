@@ -1,0 +1,25 @@
+# Sample config of inference_parameters and labels
+# For detail, please refer to docs
+# --------------------
+# inference_parameters:
+#   - path: boolean_var
+#     default_value: true
+#     field_type: 1
+#     description: a boolean variable
+#   - path: string_var
+#     default_value: "a string"
+#     field_type: 2
+#     description: a string variable
+#   - path: number_var
+#     default_value: 1
+#     field_type: 3
+#     description: a number variable
+#   - path: secret_string_var
+#     default_value: "YOUR_SECRET"
+#     field_type: 21
+#     description: a string variable contains secret like API key
+# labels:
+#   - concept1
+#   - concept2
+#   - concept3
+#   - concept4

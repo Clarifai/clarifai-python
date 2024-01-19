@@ -8,7 +8,7 @@ serving_backend:
       - name: softmax_predictions
         data_type: TYPE_FP32
         dims: [-1]
-        labels: true
+        label_filename: "labels.txt"
 clarifai_model:
   type: text-classifier
   output_type: ClassifierOutput

@@ -8,7 +8,7 @@ serving_backend:
       - name: text
         data_type: TYPE_STRING
         dims: [1]
-        labels: false
+        label_filename: null
 clarifai_model:
   type: text-to-text
   output_type: TextOutput

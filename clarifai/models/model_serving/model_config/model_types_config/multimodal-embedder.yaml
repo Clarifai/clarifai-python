@@ -13,7 +13,7 @@ serving_backend:
       - name: embeddings
         data_type: TYPE_FP32
         dims: [-1]
-        labels: false
+        label_filename: null
 clarifai_model:
   type: multimodal-embedder
   output_type: EmbeddingOutput

@@ -2,6 +2,8 @@ import os
 
 MAX_HW_DIM = 1024
 
+BUILT_MODEL_EXT = ".clarifai"
+
 default_home = os.path.join(os.path.expanduser("~"), ".cache")
 CLARIFAI_HOME = os.path.expanduser(
     os.getenv(

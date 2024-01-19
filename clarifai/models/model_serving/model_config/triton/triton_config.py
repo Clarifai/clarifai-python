@@ -75,12 +75,7 @@ class OutputConfig:
   name: str
   data_type: int
   dims: List = field(default_factory=list)
-  labels: bool = False
-
-  def __post_init__(self):
-    if self.labels:
-      self.label_filename = "labels.txt"
-    del self.labels
+  label_filename: str = ""
 
 
 @dataclass

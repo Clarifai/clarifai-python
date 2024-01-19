@@ -8,7 +8,7 @@ serving_backend:
       - name: predicted_mask
         data_type: TYPE_INT64
         dims: [-1, -1]
-        labels: true
+        label_filename: "labels.txt"
 clarifai_model:
   type: visual-segmenter
   output_type: MasksOutput
