@@ -48,6 +48,7 @@ This is the official Python client for interacting with our powerful [API](https
   * [Smart Image Search](#smart-image-search)
   * [Smart Text Search](#smart-text-search)
   * [Filters](#filters)
+* **[RAG](#retrieval-augmented-generation-rag)**
 * **[More Examples](#pushpin-more-examples)**
 
 
@@ -391,6 +392,26 @@ Input filters allows to filter by input_type, status of inputs and by inputs_dat
 
 ```python
 results = search.query(filters=[{'input_types': ['image', 'text']}])
+```
+
+## Retrieval Augmented Generation (RAG)
+
+You can setup and start your RAG pipeline in 4 lines of code. The setup method automatically creates a new app and the necessary components under the hood. By default it uses the [mistral-7B-Instruct](https://clarifai.com/mistralai/completion/models/mistral-7B-Instruct) model.
+
+```python
+from clarifai.rag import RAG
+
+rag_agent = RAG.setup(user_id="USER_ID")
+rag_agent.upload(folder_path="~/docs")
+rag_agent.chat(messages=[{"role":"human", "content":"What is Clarifai"}])
+```
+
+If you have previously run the setup method, you can instantiate the RAG class with the prompter workflow URL:
+
+```python
+from clarifai.rag import RAG
+
+rag_agent = RAG(workflow_url="WORKFLOW_URL")
 ```
 
 ## :pushpin: More Examples

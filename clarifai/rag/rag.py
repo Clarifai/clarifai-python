@@ -24,7 +24,7 @@ class RAG:
 
     Example:
         >>> from clarifai.rag import RAG
-        >>> rag_agent = RAG()
+        >>> rag_agent = RAG(workflow_url=YOUR_WORKFLOW_URL)
     """
   chat_state_id = None
 
@@ -59,7 +59,7 @@ class RAG:
 
     Example:
         >>> from clarifai.rag import RAG
-        >>> rag_agent = RAG.setup()
+        >>> rag_agent = RAG.setup(user_id=YOUR_USER_ID)
     """
     if not user_id:
       raise UserError(
