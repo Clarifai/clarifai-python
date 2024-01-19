@@ -25,6 +25,7 @@ class RAG:
     Example:
         >>> from clarifai.rag import RAG
         >>> rag_agent = RAG(workflow_url=YOUR_WORKFLOW_URL)
+        >>> rag_agent.chat(messages=[{"role":"human", "content":"What is Clarifai"}])
     """
   chat_state_id = None
 
@@ -49,6 +50,7 @@ class RAG:
   @classmethod
   def setup(cls,
             user_id: str = None,
+            app_url: str = None,
             llm_url: str = "https://clarifai.com/mistralai/completion/models/mistral-7B-Instruct",
             base_workflow: str = "Text",
             workflow_yaml_filename: str = 'prompter_wf.yaml',
@@ -60,24 +62,35 @@ class RAG:
     Example:
         >>> from clarifai.rag import RAG
         >>> rag_agent = RAG.setup(user_id=YOUR_USER_ID)
-    """
-    if not user_id:
-      raise UserError(
-          "user_id must be provided. It can be found at https://clarifai.com/settings.")
-    user = User(user_id=user_id, base_url=base_url, pat=pat)
-    llm = Model(llm_url)
+        >>> rag_agent.chat(messages=[{"role":"human", "content":"What is Clarifai"}])
 
+    Or if you already have an existing app with ingested data:
+        >>> rag_agent = RAG.setup(app_url=YOUR_APP_URL)
+        >>> rag_agent.chat(messages=[{"role":"human", "content":"What is Clarifai"}])
+    """
+
+    if user_id and not app_url:
+      user = User(user_id=user_id, base_url=base_url, pat=pat)
+      ## Create an App
+      now_ts = str(int(datetime.now().timestamp()))
+      app_id = f"rag_app_{now_ts}"
+      app = user.create_app(app_id=app_id, base_workflow=base_workflow)
+
+    if not user_id and app_url:
+      app = App(url=app_url, pat=pat)
+
+    if not user_id and not app_url:
+      raise UserError(
+          "user_id or app_url must be provided. The user_id can be found at https://clarifai.com/settings."
+      )
+
+    llm = Model(llm_url)
     params = Struct()
     params.update({
         "prompt_template":
             "Context information is below:\n{data.hits}\nGiven the context information and not prior knowledge, answer the query.\nQuery: {data.text.raw}\nAnswer: "
     })
     prompter_model_params = {"params": params}
-
-    ## Create an App
-    now_ts = str(int(datetime.now().timestamp()))
-    app_id = f"rag_app_{now_ts}"
-    app = user.create_app(app_id=app_id, base_workflow=base_workflow)
 
     ## Create rag-prompter model and version
     prompter_model = app.create_model(
@@ -141,9 +154,10 @@ class RAG:
 
     Example:
         >>> from clarifai.rag import RAG
-        >>> rag_agent = RAG.setup()
+        >>> rag_agent = RAG.setup(user_id=YOUR_USER_ID)
         >>> rag_agent.upload(folder_path = "~/work/docs")
         >>> rag_agent.upload(file_path = "~/work/docs/manual.pdf")
+        >>> rag_agent.chat(messages=[{"role":"human", "content":"What is Clarifai"}])
     """
     #set batch size
     if batch_size > MAX_UPLOAD_BATCH_SIZE:
