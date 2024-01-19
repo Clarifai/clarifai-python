@@ -6,9 +6,9 @@ from typing import List
 import yaml
 
 from .inference_parameter import InferParam
-from .output import EmbeddingOutput  # noqa # pylint: disable=unused-import
-from .triton import DynamicBatching  # noqa # pylint: disable=unused-import
-from .triton import Device, InputConfig, OutputConfig, TritonModelConfig
+from .output import *  # noqa: F403
+from .triton import DType  # noqa
+from .triton import Device, DynamicBatching, InputConfig, OutputConfig, TritonModelConfig
 
 logger = logging.getLogger(__name__)
 

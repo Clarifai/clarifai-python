@@ -255,7 +255,7 @@ class VisualDetector(_BaseClarifaiModel):
       inference_paramters (Dict[str, Union[str, float, int]]): your inference parameter
 
     Returns:
-      list of ClassifierOutput
+      list of VisualDetectorOutput
     """
     raise NotImplementedError
 
