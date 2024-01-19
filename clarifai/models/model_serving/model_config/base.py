@@ -49,7 +49,7 @@ class _BaseClarifaiModel(metaclass=_TypeCheckModelOutput):
       #assert isinstance(x, output_type), f"Expected output is instance of `{output_type}` type, got `{x}`"
       raise ValueError(f"Expected output is iteration of `{output_type}` type, got `{x}`")
     else:
-      assert all(isinstance(each, output_type) for each in
+      assert all(each.__class__.__name__ == output_type for each in
                  x), f"Expected output is iteration of `{output_type}` type, got iteration `{x}`"
     return x
 

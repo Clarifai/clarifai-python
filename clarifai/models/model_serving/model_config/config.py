@@ -18,6 +18,8 @@ __all__ = ["ModelTypes", "ModelConfigClass", "MODEL_TYPES"]
 # Clarifai model types
 @dataclass
 class ModelTypes:
+  """ All supported Clarifai model type names
+  """
   visual_detector: str = "visual-detector"
   visual_classifier: str = "visual-classifier"
   text_classifier: str = "text-classifier"
@@ -31,6 +33,13 @@ class ModelTypes:
   def __post_init__(self):
     self.all = list(asdict(self).values())
 
+  @property
+  def image_input_models(self):
+    """ Return list of model types having image as input or one of inputs"""
+    _visual = [each for each in self.all if each.startswith("visual")]
+
+    return _visual + [self.multimodal_embedder]
+
 
 @dataclass
 class FieldMapsConfig:
@@ -40,16 +49,28 @@ class FieldMapsConfig:
 
 @dataclass
 class ServingBackendConfig:
+  """
+  """
   triton: TritonModelConfig = None
 
 
 @dataclass
 class ClarfaiModelConfig:
+  """Clarifai necessary configs for building/uploading/creation
 
+  Args:
+    field_maps (FieldMapsConfig): Field maps config
+    output_type (dataclass): model output type
+    labels (list): list of concept names
+    inference_parameters (List[InferParam]): list of inference parameters
+    clarifai_model_id (str): Clarifai model id on the platform
+    type (str): one of `MODEL_TYPES`
+
+  """
   field_maps: FieldMapsConfig = None
-  output_type: dataclass = None
-  labels: list = None
-  inference_parameters: List[InferParam] = None
+  output_type: str = None
+  labels: list = field(default_factory=list)
+  inference_parameters: List[InferParam] = field(default_factory=list)
   clarifai_model_id: str = ""
   type: str = ""
 
@@ -60,6 +81,11 @@ class ClarfaiModelConfig:
 
 @dataclass
 class ModelConfigClass():
+  """All config of model
+  Args:
+    clarifai_model (ClarfaiModelConfig): Clarifai model config
+    serving_backend (ServingBackendConfig): Custom serving backend config. Only support triton for now
+  """
   clarifai_model: ClarfaiModelConfig
   serving_backend: ServingBackendConfig
 
@@ -90,8 +116,10 @@ class ModelConfigClass():
     _self = deepcopy(self)
     # dump backend
     if hasattr(_self.serving_backend, "triton"):
-      for k, v in asdict(_self.serving_backend.triton).items():
-        if (k == "max_batch_size" and v > 1) or (k == "image_shape" and v != [-1, -1]):
+      dict_triton_config = asdict(_self.serving_backend.triton)
+      for k, v in dict_triton_config.items():
+        if (k == "max_batch_size" and v > 1) \
+        or (k == "image_shape" and v != [-1, -1] and self.clarifai_model.type in ModelTypes().image_input_models):
           continue
         else:
           data["serving_backend"]["triton"].pop(k, None)
@@ -106,6 +134,13 @@ class ModelConfigClass():
     data["clarifai_model"].pop("output_type", None)
 
     return data
+
+  @classmethod
+  def custom_doc(cls):
+    msg = f"{cls.__doc__}\nWhere: \n\n"
+    for k, v in cls.__annotations__.items():
+      msg += f"* {k}:\n------\n {v.__doc__}\n"
+    return msg
 
 
 def read_yaml(path: str) -> dict:
@@ -149,10 +184,17 @@ def parse_config(config: dict):
   # parse field maps for deployment
   field_maps = clarifai_model.pop("field_maps", {})
   clarifai_model.update(dict(field_maps=FieldMapsConfig(**field_maps)))
+  # parse inference_paramters
+  inference_parameters = clarifai_model.pop("inference_parameters", [])
+  if inference_parameters is None:
+    inference_parameters = []
+  clarifai_model.update(
+      dict(inference_parameters=[InferParam(**each) for each in inference_parameters]))
+  # parse output type
   output_type = clarifai_model.pop("output_type", None)
   if output_type:
-    if isinstance(output_type, str):
-      output_type = eval(output_type)
+    #if isinstance(output_type, str):
+    #  output_type = eval(output_type)
     clarifai_model.update(dict(output_type=output_type))
 
   clarifai_model = ClarfaiModelConfig(**clarifai_model)
@@ -195,3 +237,50 @@ def get_model_config(model_type: str) -> ModelConfigClass:
 _model_types = ModelTypes()
 MODEL_TYPES = _model_types.all
 del _model_types
+
+
+def load_user_config(cfg_path: str) -> ModelConfigClass:
+  """Read `clarifai_config.yaml` in user working dir
+
+  Args:
+      cfg_path (str): path to config
+
+  Returns:
+      ModelConfigClass
+  """
+  cfg = read_yaml(cfg_path)
+  return _ensure_user_config(cfg)
+
+
+def _ensure_user_config(user_config: dict) -> ModelConfigClass:
+  """Ensure user config with default one
+
+  Args:
+      user_config (dict): ModelConfigClass as dict
+
+  Raises:
+      e: Exception when loading user config
+
+  Returns:
+      ModelConfigClass
+  """
+
+  try:
+    user_config_obj: ModelConfigClass = parse_config(user_config)
+  except Exception as e:
+    raise e
+
+  default_config = get_model_config(user_config_obj.clarifai_model.type)
+
+  for _model_cfg, value in asdict(user_config_obj.clarifai_model).items():
+
+    if value and _model_cfg != "field_maps":
+      setattr(default_config.clarifai_model, _model_cfg, value)
+
+  if user_config_obj.serving_backend.triton:
+    if user_config_obj.serving_backend.triton.max_batch_size > 1:
+      default_config.serving_backend.triton.max_batch_size = user_config_obj.serving_backend.triton.max_batch_size
+    if user_config_obj.serving_backend.triton.image_shape != [-1, -1]:
+      default_config.serving_backend.triton.image_shape = user_config_obj.serving_backend.triton.image_shape
+
+  return default_config
