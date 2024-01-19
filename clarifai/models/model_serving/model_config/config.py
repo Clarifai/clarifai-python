@@ -12,7 +12,7 @@ from .triton import Device, DynamicBatching, InputConfig, OutputConfig, TritonMo
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["ModelTypes", "ModelConfigClass", "MODEL_TYPES"]
+__all__ = ["ModelTypes", "ModelConfigClass", "MODEL_TYPES", "get_model_config", "load_user_config"]
 
 
 # Clarifai model types

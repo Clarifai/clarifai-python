@@ -15,6 +15,7 @@
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import List, Union
+from ...constants import MAX_HW_DIM
 
 
 ### Triton Model Config classes.###
@@ -155,6 +156,14 @@ class TritonModelConfig:
 
   def __post_init__(self):
     if "image" in [each.name for each in self.input]:
+      if len(self.image_shape) != 2:
+        raise ValueError(
+            f"image_shape takes 2 values, Height and Width. Got {len(self.image_shape)} values instead."
+        )
+      if self.image_shape[0] > MAX_HW_DIM or self.image_shape[1] > MAX_HW_DIM:
+        raise ValueError(
+            f"H and W each have a maximum value of {MAX_HW_DIM}. Got H: {self.image_shape[0]}, W: {self.image_shape[1]}"
+        )
       image_dims = deepcopy(self.image_shape)
       image_dims.append(3)  # add channel dim
       self.input[0].dims = image_dims
