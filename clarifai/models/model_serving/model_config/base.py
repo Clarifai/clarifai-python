@@ -47,10 +47,10 @@ class _BaseClarifaiModel(metaclass=_TypeCheckModelOutput):
     output_type = self._config.clarifai_model.output_type
     if not isinstance(x, Iterable):
       #assert isinstance(x, output_type), f"Expected output is instance of `{output_type}` type, got `{x}`"
-      raise ValueError(f"Expected output is squence of `{output_type}` type, got `{x}`")
+      raise ValueError(f"Expected output is iteration of `{output_type}` type, got `{x}`")
     else:
       assert all(isinstance(each, output_type) for each in
-                 x), f"Expected output is squence of `{output_type}` type, got squence `{x}`"
+                 x), f"Expected output is iteration of `{output_type}` type, got iteration `{x}`"
     return x
 
   def predict(self,
