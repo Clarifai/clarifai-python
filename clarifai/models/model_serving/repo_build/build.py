@@ -176,7 +176,8 @@ class RepositoryBuilder:
       # copy requirements.txt
       shutil.copy(os.path.join(working_dir, "requirements.txt"), temp_folder)
       # copy all other files
-      copy_folder(working_dir, triton_1_ver, exclude_items=["requirements.txt", ".cache"])
+      copy_folder(
+          working_dir, triton_1_ver, exclude_items=["requirements.txt", ".cache", "__pycache__"])
       # generate config.pbtxt
       _config_pbtxt_serializer = Serializer(user_config.serving_backend.triton)
       _config_pbtxt_serializer.to_file(temp_folder)
