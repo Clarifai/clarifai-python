@@ -65,6 +65,8 @@ class ClarfaiModelConfig:
     inference_parameters (List[InferParam]): list of inference parameters
     clarifai_model_id (str): Clarifai model id on the platform
     type (str): one of `MODEL_TYPES`
+    clarifai_user_app_id (str): User ID and App ID separated by '/', e.g., <user_id>/<app_id>
+    description (str): model description
 
   """
   field_maps: FieldMapsConfig = None
@@ -74,6 +76,7 @@ class ClarfaiModelConfig:
   clarifai_model_id: str = ""
   type: str = ""
   clarifai_user_app_id: str = ""
+  description: str = ""
 
   def _checking(self, var_name: str, var_value: Any):
     if var_name == "type":
