@@ -132,6 +132,9 @@ class TritonModelConfig:
   dynamic_batching: Triton dynamic batching settings.
   max_batch_size: max request batch size
   backend: Triton Python Backend. Constant
+  image_shape: List of Height and Width of input image. *
+
+  (*): This attribute won't be serialized in config.pbtxt
 
   Returns:
   --------
