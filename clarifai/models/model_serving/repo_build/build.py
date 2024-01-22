@@ -44,9 +44,14 @@ def __parse_type_to_class():
 _TYPE_TO_CLASS = __parse_type_to_class()
 
 
-def _read_static_file(relative_path: str):
+def _get_static_file_path(relative_path: str):
   curr_dir = os.path.dirname(__file__)
-  with open(os.path.join(curr_dir, "static_files", relative_path), "r") as f:
+  return os.path.join(curr_dir, "static_files", relative_path)
+
+
+def _read_static_file(relative_path: str):
+  path = _get_static_file_path(relative_path)
+  with open(path, "r") as f:
     return f.read()
 
 
@@ -69,7 +74,7 @@ def copy_folder(src_folder, dest_folder, exclude_items=None):
     dest_item = os.path.join(dest_folder, item)
 
     # Skip items in the exclude list
-    if item in exclude_items:
+    if item in exclude_items or item.endswith(BUILT_MODEL_EXT):
       continue
 
     # Copy files directly
@@ -154,9 +159,9 @@ class RepositoryBuilder:
 
     if backend == "triton":
       triton_1_ver = os.path.join(temp_folder, "1")
+      os.makedirs(triton_1_ver, exist_ok=True)
       # check if labels exists
       for output_config in user_config.serving_backend.triton.output:
-        print(output_config.label_filename)
         if output_config.label_filename:
           user_labels = user_config.clarifai_model.labels
           assert user_labels, f"Model type `{user_config.clarifai_model.type}` requires labels, "\
@@ -166,10 +171,10 @@ class RepositoryBuilder:
               user_labels = [user_labels]
             f.write("\n".join(user_labels) + "\n")
 
-      os.makedirs(triton_1_ver, exist_ok=True)
-
+      # copy model.py
+      shutil.copy(_get_static_file_path("triton/model.py"), triton_1_ver)
       # copy requirements.txt
-      shutil.copy(os.path.join(working_dir, "requirements.txt"), os.path.join(temp_folder))
+      shutil.copy(os.path.join(working_dir, "requirements.txt"), temp_folder)
       # copy all other files
       copy_folder(working_dir, triton_1_ver, exclude_items=["requirements.txt", ".cache"])
       # generate config.pbtxt
