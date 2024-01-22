@@ -1,5 +1,6 @@
 from argparse import ArgumentParser
 
+from .build import BuildCli
 from .create import CreateCli
 from .example_cli import ExampleCli
 from .login import LoginCli
@@ -15,6 +16,7 @@ def main():
   CreateCli.register(cmd_parser)
   LoginCli.register(cmd_parser)
   ExampleCli.register(cmd_parser)
+  BuildCli.register(cmd_parser)
 
   args = parser.parse_args()
 

@@ -138,11 +138,8 @@ class RepositoryBuilder:
     # create requirements.txt
     __write_to("requirements.txt", _read_static_file("_requirements.txt"))
 
-  def build(self,
-            working_dir: str,
-            name: str = None,
-            backend=Literal['triton'],
-            output_dir: str = None):
+  @staticmethod
+  def build(working_dir: str, output_dir: str = None, name: str = None, backend=Literal['triton']):
     if not output_dir:
       output_dir = working_dir
     else:
@@ -185,7 +182,7 @@ class RepositoryBuilder:
     else:
       raise ValueError(f"backend must be ['triton'], got {backend}")
 
-    clarifai_model_name = user_config.clarifai_model.clarifai_model_id or "model" or name
+    clarifai_model_name = name or user_config.clarifai_model.clarifai_model_id or "model"
     clarifai_model_name += BUILT_MODEL_EXT
     clarifai_model_name = os.path.join(output_dir, clarifai_model_name)
 
