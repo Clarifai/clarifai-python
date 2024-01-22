@@ -14,7 +14,7 @@
 
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import List, Union
+from typing import Any, List, Union
 from ...constants import MAX_HW_DIM
 
 
@@ -140,25 +140,29 @@ class TritonModelConfig:
   #model_type: str
   model_name: str = ""
   model_version: str = "1"
-  image_shape: tuple[Union[int, float], Union[int, float]] = field(
-      default_factory=lambda: [-1, -1])  #(H, W)
   input: List[InputConfig] = field(default_factory=list)
   output: List[OutputConfig] = field(default_factory=list)
   instance_group: Device = field(default_factory=Device)
   dynamic_batching: DynamicBatching = field(default_factory=DynamicBatching)
   max_batch_size: int = 1
   backend: str = "python"
+  image_shape: tuple[Union[int, float], Union[int, float]] = field(
+      default_factory=lambda: [-1, -1])  #(H, W)
 
-  def __post_init__(self):
+  def __setattr__(self, __name: str, __value: Any) -> None:
+    if __name == "image_shape":
+      self._check_and_assign_image_shape_value(__value)
+
+    super().__setattr__(__name, __value)
+
+  def _check_and_assign_image_shape_value(self, value):
     if "image" in [each.name for each in self.input]:
-      if len(self.image_shape) != 2:
+      if len(value) != 2:
         raise ValueError(
-            f"image_shape takes 2 values, Height and Width. Got {len(self.image_shape)} values instead."
-        )
-      if self.image_shape[0] > MAX_HW_DIM or self.image_shape[1] > MAX_HW_DIM:
+            f"image_shape takes 2 values, Height and Width. Got {len(value)} values instead.")
+      if value[0] > MAX_HW_DIM or value[1] > MAX_HW_DIM:
         raise ValueError(
-            f"H and W each have a maximum value of {MAX_HW_DIM}. Got H: {self.image_shape[0]}, W: {self.image_shape[1]}"
-        )
-      image_dims = deepcopy(self.image_shape)
+            f"H and W each have a maximum value of {MAX_HW_DIM}. Got H: {value[0]}, W: {value[1]}")
+      image_dims = deepcopy(value)
       image_dims.append(3)  # add channel dim
       self.input[0].dims = image_dims
