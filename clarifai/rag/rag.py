@@ -79,6 +79,9 @@ class RAG:
     if not user_id and app_url:
       app = App(url=app_url, pat=pat)
 
+    if user_id and app_url:
+      raise UserError("Must provide one of user_id or app_url, not both.")
+
     if not user_id and not app_url:
       raise UserError(
           "user_id or app_url must be provided. The user_id can be found at https://clarifai.com/settings."
