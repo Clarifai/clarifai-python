@@ -48,7 +48,7 @@ This is the official Python client for interacting with our powerful [API](https
   * [Smart Image Search](#smart-image-search)
   * [Smart Text Search](#smart-text-search)
   * [Filters](#filters)
-* **[RAG](#retrieval-augmented-generation-rag)**
+* **[Retrieval Augmented Generation (RAG)](#retrieval-augmented-generation-rag)**
 * **[More Examples](#pushpin-more-examples)**
 
 

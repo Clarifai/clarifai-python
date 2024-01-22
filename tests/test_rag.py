@@ -31,8 +31,8 @@ class TestRAG:
     assert len(self.rag._prompt_workflow.workflow_info.nodes) == 2
 
   def test_from_existing_workflow(self):
-    app = RAG(workflow_url=self.workflow_url)
-    assert app._app.id == self.rag._app.id
+    agent = RAG(workflow_url=self.workflow_url)
+    assert agent._app.id == self.rag._app.id
 
   def test_predict_client_manage_state(self):
     messages = [{"role": "human", "content": "What is 1 + 1?"}]
