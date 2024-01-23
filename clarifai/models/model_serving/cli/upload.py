@@ -127,7 +127,7 @@ class UploadModelSubCli(BaseClarifaiCli):
     # Run test before uploading
     if not self.no_test:
       result = subprocess.run(f"pytest -s --log-level=INFO {self.test_path}")
-      assert result.returncode == 0, "Test is failed. Please make sure no error exists in your code."
+      assert result.returncode == 0, "Test has failed. Please make sure no error exists in your code."
 
     deploy(
         model_url=self.url,
@@ -148,11 +148,6 @@ def deploy(model_url,
   auth = ClarifaiAuthHelper.from_env()
   # init api
   model_api = Models(auth)
-
-  # parsing model name/type.
-  # if filename having this format: <model_id>_<model-type>
-  # e.i yolov5s_coco_visual-dectector
-  # else user has to input model_type and model_id
 
   # key map
   assert model_type in MODEL_TYPES, f"model_type should be one of {MODEL_TYPES}"
