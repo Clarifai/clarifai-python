@@ -26,6 +26,15 @@ from .model_config import Serializer, TritonModelConfig  # noqa: E402
 from .models import inference, pb_model, test  # noqa: E402
 
 
+def confirm_action(filename):
+  while True:
+    user_input = input(f"Do you want to overwrite file `{filename}`? (y: yes/ n: no): ")
+    if user_input in ["y", "n"]:
+      return user_input == 'y'
+    else:
+      print(f"Expected input in [y, n], got {user_input}")
+
+
 class TritonModelRepository:
   """
   Triton Python BE Model Repository Generator.
@@ -68,30 +77,32 @@ class TritonModelRepository:
     --------
     None
     """
-    model_repository = self.model_config.model_name
     model_version = self.model_config.model_version
-    repository_path = os.path.join(repository_dir, model_repository)
-    model_version_path = os.path.join(repository_path, model_version)
+    model_version_path = os.path.join(repository_dir, model_version)
 
-    if not os.path.isdir(repository_path):
-      os.mkdir(repository_path)
-      self.config_proto.to_file(repository_path)
-      for out_field in self.model_config.output:
-        #predicted int labels must have corresponding names in file
-        if hasattr(out_field, "label_filename"):
-          with open(os.path.join(repository_path, "labels.txt"), "w"):
-            pass
-        else:
-          continue
-      # gen requirements
-      with open(os.path.join(repository_path, "requirements.txt"), "w") as f:
-        f.write("clarifai>9.10.4\ntritonclient[all]")  # for model upload utils
+    os.makedirs(repository_dir, exist_ok=True)
 
-    if not os.path.isdir(model_version_path):
-      os.mkdir(model_version_path)
-    if not os.path.exists(os.path.join(model_version_path, "__init__.py")):
-      with open(os.path.join(model_version_path, "__init__.py"), "w"):
-        pass
+    os.path.join(repository_dir, "config.pbtxt")
+    self.config_proto.to_file(repository_dir)
+
+    for out_field in self.model_config.output:
+      #predicted int labels must have corresponding names in file
+      if hasattr(out_field, "label_filename"):
+        labels_txt_path = os.path.join(repository_dir, "labels.txt")
+        with open(labels_txt_path, "w"):
+          pass
+      else:
+        continue
+    # gen requirements
+    requirements_txt_path = os.path.join(repository_dir, "requirements.txt")
+    with open(requirements_txt_path, "w") as f:
+      f.write("clarifai>9.10.4\ntritonclient[all]")  # for model upload utils
+
+    os.makedirs(model_version_path, exist_ok=True)
+    _init_py_path = os.path.join(model_version_path, "__init__.py")
+    with open(_init_py_path, "w"):
+      pass
+
     # generate model.py
     model_py_path = os.path.join(model_version_path, "model.py")
     self._module_to_file(pb_model, model_py_path, func=None)
