@@ -73,12 +73,6 @@ class SubCreateModelCli(BaseClarifaiCli):
     self.overwrite = args.overwrite
 
     if os.path.exists(self.working_dir):
-      #confirm = inquirer.confirm(f"Do you want to overwrite `{self.working_dir}`?", confirm_letter="Y", reject_letter="n").execute()
-      #if not confirm:
-      #  print("Cancel process.")
-      #  exit(1)
-      #else:
-      #  pass
       if self.overwrite:
         print(f"Overwrite {self.working_dir}")
       else:
@@ -88,7 +82,6 @@ class SubCreateModelCli(BaseClarifaiCli):
 
     # prevent wrong args when creating from example
     if not self.from_example:
-
       self.image_shape: List[int] = args.image_shape
 
       self.type: str = args.type

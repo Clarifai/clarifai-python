@@ -68,7 +68,7 @@ class _BaseClarifaiModel(metaclass=_TypeCheckModelOutput):
         input_data is list of dict where key is input type name e.i. `image`, `text` and value is list.
         {"image": List[np.ndarray], "text": List[str]}
 
-    - inference_paramters (Dict[str, Union[str, float, int]]): your inference parameters.
+    - inference_paramters (Dict[str, Union[str, float, int]]): your inference parameterss.
 
     Returns:
     --------
@@ -100,7 +100,7 @@ class MultiModalEmbedder(_BaseClarifaiModel):
 
     Args:
       input_data (_MultiModalEmbdderInputTypeDict): dict of key-value: `image`(List[np.ndarray]) and `text` (List[str])
-      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameter
+      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameters
 
     Returns:
       list of EmbeddingOutput
@@ -126,7 +126,7 @@ class TextClassifier(_BaseClarifaiModel):
 
     Args:
       input_data (List[str]): List of text
-      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameter
+      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameters
 
     Returns:
       list of ClassifierOutput
@@ -151,7 +151,7 @@ class TextEmbedder(_BaseClarifaiModel):
 
     Args:
       input_data (List[str]): List of text
-      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameter
+      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameters
 
     Returns:
       list of EmbeddingOutput
@@ -176,7 +176,7 @@ class TextToImage(_BaseClarifaiModel):
 
     Args:
       input_data (List[str]): List of text
-      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameter
+      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameters
 
     Returns:
       list of ImageOutput
@@ -200,7 +200,7 @@ class TextToText(_BaseClarifaiModel):
 
     Args:
       input_data (List[str]): List of text
-      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameter
+      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameters
 
     Returns:
       list of TextOutput
@@ -226,7 +226,7 @@ class VisualClassifier(_BaseClarifaiModel):
 
     Args:
       input_data (List[np.ndarray]): List of image
-      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameter
+      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameters
 
     Returns:
       list of ClassifierOutput
@@ -252,7 +252,7 @@ class VisualDetector(_BaseClarifaiModel):
 
     Args:
       input_data (List[np.ndarray]): List of image
-      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameter
+      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameters
 
     Returns:
       list of VisualDetectorOutput
@@ -278,7 +278,7 @@ class VisualEmbedder(_BaseClarifaiModel):
 
     Args:
       input_data (List[np.ndarray]): List of image
-      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameter
+      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameters
 
     Returns:
       list of EmbeddingOutput
@@ -304,7 +304,7 @@ class VisualSegmenter(_BaseClarifaiModel):
 
     Args:
       input_data (List[np.ndarray]): List of image
-      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameter
+      inference_paramters (Dict[str, Union[str, float, int]]): your inference parameters
 
     Returns:
       list of MasksOutput
