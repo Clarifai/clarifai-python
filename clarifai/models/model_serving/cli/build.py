@@ -39,6 +39,7 @@ class BuildModelSubCli(BaseClarifaiCli):
     sub_parser.add_argument(
         "path",
         type=str,
+        nargs='?',
         help="Path to working directory, default is current directory",
         default=".")
     sub_parser.add_argument(
