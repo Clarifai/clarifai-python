@@ -175,7 +175,7 @@ class TextToImage(_BaseClarifaiModel):
               input_data: List[str],
               inference_paramters: Dict[str, Union[str, float, int]] = {}
              ) -> Iterable[ImageOutput]:
-    """ Custom prediction function for `text-classifier` model.
+    """ Custom prediction function for `text-to-image` model.
 
     Args:
       input_data (List[str]): List of text
