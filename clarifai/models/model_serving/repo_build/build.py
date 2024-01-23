@@ -100,12 +100,12 @@ def zip_dir(input: Union[Path, str], zip_filename: Union[Path, str]):
 
 class RepositoryBuilder:
 
-  def __init__(self, model_type: str) -> None:
+  @staticmethod
+  def init_repository(model_type: str, working_dir: str, backend=Literal['triton'], **kwargs):
     assert model_type in MODEL_TYPES
-    self.model_type = model_type
-    self._config: ModelConfigClass = get_model_config(model_type)
+    model_type = model_type
+    default_model_type_config: ModelConfigClass = get_model_config(model_type)
 
-  def init_repository(self, working_dir: str, backend=Literal['triton'], **kwargs):
     os.makedirs(working_dir, exist_ok=True)
 
     def __write_to(filename, data):
@@ -116,12 +116,11 @@ class RepositoryBuilder:
     _filename = "inference.py"
     inference_py = _read_static_file(_filename)
     inference_py = inference_py.replace("InferenceModel()",
-                                        f"InferenceModel({_TYPE_TO_CLASS[self.model_type]})")
+                                        f"InferenceModel({_TYPE_TO_CLASS[model_type]})")
     inference_py = inference_py.replace("predict_docstring",
-                                        eval(_TYPE_TO_CLASS[self.model_type]).predict.__doc__)
-    __write_to(_filename, inference_py)
+                                        eval(_TYPE_TO_CLASS[model_type]).predict.__doc__)
     # create config
-    config = asdict(self._config)
+    config = asdict(default_model_type_config)
     if backend == "triton":
       max_batch_size = kwargs.get("max_batch_size", None)
       image_shape = kwargs.get("image_shape", None)
@@ -135,6 +134,8 @@ class RepositoryBuilder:
       config_data = sample_yaml + "\n\n" + config_data
       __write_to("clarifai_config.yaml", config_data)
       #
+    # create inference.py after checking all configs
+    __write_to(_filename, inference_py)
     # create requirements.txt
     __write_to("requirements.txt", _read_static_file("_requirements.txt"))
 

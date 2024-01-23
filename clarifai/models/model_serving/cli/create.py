@@ -108,8 +108,8 @@ class SubCreateModelCli(BaseClarifaiCli):
         shutil.copy(readme, os.path.join(self.working_dir, "readme.md"))
 
     else:
-      builder = RepositoryBuilder(self.type)
-      builder.init_repository(
+      RepositoryBuilder.init_repository(
+          self.type,
           self.working_dir,
           backend="triton",
           max_batch_size=self.max_bs,
