@@ -184,15 +184,10 @@ class ModelTypes:
   visual_embedder: str = "visual-embedder"
   visual_segmenter: str = "visual-segmenter"
   multimodal_embedder: str = "multimodal-embedder"
+  model_type_placeholder: str = "model-type-placeholder"  # for templating
 
   def __post_init__(self):
     self.all = list(asdict(self).values())
-
-
-@dataclass
-class InferenceConfig:
-  wrap_func: callable
-  return_type: dataclass
 
 
 @dataclass
@@ -211,7 +206,6 @@ class DefaultTritonConfig:
 class ModelConfigClass:
   type: str = field(init=False)
   triton: DefaultTritonConfig
-  inference: InferenceConfig
   field_maps: FieldMapsConfig
 
   def make_triton_model_config(
@@ -263,16 +257,11 @@ def read_config(cfg: str):
           ) for output in output_triton_configs
       ])
 
-  # parse inference config
-  inference = InferenceConfig(
-      wrap_func=eval(config["inference"]["wrap_func"]),
-      return_type=eval(config["inference"]["return_type"]),
-  )
 
   # parse field maps for deployment
   field_maps = FieldMapsConfig(**config["field_maps"])
 
-  return ModelConfigClass(triton=triton, inference=inference, field_maps=field_maps)
+  return ModelConfigClass(triton=triton, field_maps=field_maps)
 
 
 def get_model_config(model_type: str) -> ModelConfigClass:
@@ -291,7 +280,6 @@ def get_model_config(model_type: str) -> ModelConfigClass:
   >>> from clarifai.models.model_serving.model_config import get_model_config, ModelTypes
   >>> cfg = get_model_config(ModelTypes.text_classifier)
   >>> custom_triton_config = cfg.make_triton_model_config(**kwargs)
-  >>> cfg.inference.return_type is ClassifierOutput # True
 
 
   """
@@ -301,7 +289,6 @@ def get_model_config(model_type: str) -> ModelConfigClass:
     )
     return ModelConfigClass(
         triton=None,
-        inference=InferenceConfig(wrap_func=lambda x: x, return_type=None),
         field_maps=None)
 
   import os
@@ -312,6 +299,4 @@ def get_model_config(model_type: str) -> ModelConfigClass:
   return cfg
 
 
-_model_types = ModelTypes()
-MODEL_TYPES = _model_types.all
-del _model_types
+MODEL_TYPES = ModelTypes().all

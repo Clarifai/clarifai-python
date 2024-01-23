@@ -10,14 +10,11 @@
 import os
 from pathlib import Path
 
-from clarifai.models.model_serving.model_config import (  # noqa # pylint: disable=unused-import
-    ModelTypes, get_model_config)
-
-config = get_model_config("MODEL_TYPE_PLACEHOLDER")
-
 
 class InferenceModel:
   """User model inference class."""
+
+  model_type = 'model-type-placeholder'  # filled in by templating, or change to your model type
 
   def __init__(self) -> None:
     """
@@ -29,8 +26,7 @@ class InferenceModel:
     #self.checkpoint_path: Path = os.path.join(self.base_path, "your checkpoint filename/path")
     #self.model: Callable = <load_your_model_here from checkpoint or folder>
 
-  @config.inference.wrap_func
-  def get_predictions(self, input_data: list, **kwargs) -> list:
+  def predict(self, input_data: list, **kwargs) -> list:
     """
     Main model inference method.
 
