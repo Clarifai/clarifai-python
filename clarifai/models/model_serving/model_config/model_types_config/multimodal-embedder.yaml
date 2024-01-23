@@ -13,9 +13,6 @@ triton:
       data_type: TYPE_FP32
       dims: [-1]
       labels: false
-inference:
-  wrap_func: multimodal_embedder
-  return_type: EmbeddingOutput
 field_maps:
   input_fields_map:
     image: image
