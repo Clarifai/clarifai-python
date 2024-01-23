@@ -35,6 +35,11 @@ class InferParam:
           value,
           str), f"`field_type` is `STRING` or `ENCRYPTED_STRING` (str), however got {type(value)}"
 
+  def __setattr__(self, __name: str, __value: Any) -> None:
+    if __name == "default_value":
+      self.validate_type(__value)
+    super().__setattr__(__name, __value)
+
   def todict(self):
     return {k: v for k, v in asdict(self).items()}
 
