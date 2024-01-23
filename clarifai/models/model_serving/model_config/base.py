@@ -22,7 +22,7 @@ class _TypeCheckModelOutput(type):
         # Run child class
         out = other_fn(_self, input_data, inference_paramters=inference_paramters)
         # Run type check
-        return base_fn(base, out)
+        return base_fn(base, input_data, out)
 
       new_fn.__name__ = "wrapped_%s" % fn_name
       new_fn.__doc__ = other_fn.__doc__
@@ -43,15 +43,18 @@ class _BaseClarifaiModel(metaclass=_TypeCheckModelOutput):
   def config(self):
     return self._config
 
-  def _output_type_check(self, x):
+  def _output_type_check(self, input, output):
     output_type = self._config.clarifai_model.output_type
-    if not isinstance(x, Iterable):
-      #assert isinstance(x, output_type), f"Expected output is instance of `{output_type}` type, got `{x}`"
-      raise ValueError(f"Expected output is iteration of `{output_type}` type, got `{x}`")
+    if isinstance(output, Iterable):
+      assert all(
+          each.__class__.__name__ == output_type for each in output
+      ), f"Expected output is iteration of `{output_type}` type, got iteration `{output}`"
+      assert len(output) == len(
+          input
+      ), f"Input length and output length must be equal, but got input length of {len(input)} and output length of {len(output)}"
     else:
-      assert all(each.__class__.__name__ == output_type for each in
-                 x), f"Expected output is iteration of `{output_type}` type, got iteration `{x}`"
-    return x
+      raise ValueError(f"Expected output is iteration of `{output_type}` type, got `{output}`")
+    return output
 
   def predict(self,
               input_data: Union[List[np.ndarray], Dict[str, List[np.ndarray]]],
