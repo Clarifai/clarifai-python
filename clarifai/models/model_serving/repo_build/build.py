@@ -136,6 +136,8 @@ class RepositoryBuilder:
       #
     # create inference.py after checking all configs
     __write_to(_filename, inference_py)
+    # create test.py
+    __write_to("test.py", _read_static_file("test.py"))
     # create requirements.txt
     __write_to("requirements.txt", _read_static_file("_requirements.txt"))
 
