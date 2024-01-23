@@ -184,7 +184,7 @@ def parse_config(config: dict):
   # parse field maps for deployment
   field_maps = clarifai_model.pop("field_maps", {})
   clarifai_model.update(dict(field_maps=FieldMapsConfig(**field_maps)))
-  # parse inference_paramters
+  # parse inference_parameters
   inference_parameters = clarifai_model.pop("inference_parameters", [])
   if inference_parameters is None:
     inference_parameters = []

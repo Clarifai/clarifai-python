@@ -18,7 +18,7 @@ class InferenceModel():
     self.base_path: Path = os.path.dirname(__file__)
 
   def predict(self, input_data: list,
-              inference_paramters: Dict[str, Union[str, float, int]]) -> list:
+              inference_parameters: Dict[str, Union[str, float, int]]) -> list:
     """predict_docstring
     """
 
