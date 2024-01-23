@@ -148,10 +148,6 @@ class UploadModelSubCli(BaseClarifaiCli):
     assert _user_id or _app_id, f"Missing user-id or app-id, got user-id {_user_id} and app-id {_app_id}"
     login()
 
-  def _parse_config(self):
-    # do something with self.config_path
-    raise NotImplementedError()
-
   def run(self):
 
     # Run test before uploading
