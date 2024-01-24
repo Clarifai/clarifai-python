@@ -69,7 +69,7 @@ class TritonPythonModel:
           data.update({input_name: in_batch})
 
       inference_response = self.inference_obj._tritonserver_predict(
-          input_data=data, inference_paramters=parameters)
+          input_data=data, inference_parameters=parameters)
       responses.append(inference_response)
 
     return responses
