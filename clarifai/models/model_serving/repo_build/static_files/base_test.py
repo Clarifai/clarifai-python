@@ -153,9 +153,12 @@ class BaseTest:
   def test_with_default_inputs(self):
     model_type = self.user_config.clarifai_model.type
     if model_type == ModelTypes.multimodal_embedder:
-      self.predict(input_data=dict(image=_default_images))
-      self.predict(input_data={"text": _default_texts})
-      self.predict(input_data={"text": _default_texts, "image": _default_images})
+      self.predict(input_data=[{"image": each} for each in _default_images])
+      self.predict(input_data=[{"text": each} for each in _default_texts])
+      self.predict(input_data=[{
+          "text": text,
+          "image": img
+      } for text, img in zip(_default_texts, _default_images)])
     elif model_type.startswith("visual"):
       self.predict(input_data=_default_images)
     else:
