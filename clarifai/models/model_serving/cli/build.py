@@ -80,7 +80,7 @@ class BuildModelSubCli(BaseClarifaiCli):
     # Run test before uploading
     if not self.no_test:
       result = subprocess.run(f"pytest -s --log-level=INFO {self.test_path}")
-      assert result.returncode == 0, "Test is failed. Please make sure no error exists in your code."
+      assert result.returncode == 0, "Test has failed. Please make sure no error exists in your code."
 
     # build
     RepositoryBuilder.build(
