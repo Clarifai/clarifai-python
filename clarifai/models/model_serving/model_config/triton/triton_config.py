@@ -11,10 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ Model Config classes."""
+from __future__ import annotations  # isort: skip
 
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, List, Union
+
 from ...constants import MAX_HW_DIM
 
 

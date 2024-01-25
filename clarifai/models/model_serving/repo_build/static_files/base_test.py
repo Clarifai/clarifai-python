@@ -34,6 +34,9 @@ class BaseTest:
   init_inference_parameters = {}
 
   def __init__(self, init_inference_parameters={}) -> None:
+    import sys
+    if 'inference' in sys.modules:
+      del sys.modules['inference']
     import inference
     from inference import InferenceModel
     self.model = InferenceModel()
