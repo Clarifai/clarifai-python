@@ -55,7 +55,7 @@ class ServingBackendConfig:
 
 
 @dataclass
-class ClarfaiModelConfig:
+class ClarifaiModelConfig:
   """Clarifai necessary configs for building/uploading/creation
 
   Args:
@@ -109,7 +109,7 @@ class ModelConfigClass():
     clarifai_model (ClarfaiModelConfig): Clarifai model config
     serving_backend (ServingBackendConfig): Custom serving backend config. Only support triton for now
   """
-  clarifai_model: ClarfaiModelConfig
+  clarifai_model: ClarifaiModelConfig
   serving_backend: ServingBackendConfig
 
   def make_triton_model_config(
@@ -220,7 +220,7 @@ def parse_config(config: dict):
     #  output_type = eval(output_type)
     clarifai_model.update(dict(output_type=output_type))
 
-  clarifai_model = ClarfaiModelConfig(**clarifai_model)
+  clarifai_model = ClarifaiModelConfig(**clarifai_model)
 
   return ModelConfigClass(clarifai_model=clarifai_model, serving_backend=serving_backend)
 

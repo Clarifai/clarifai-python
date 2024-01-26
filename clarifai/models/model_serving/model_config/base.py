@@ -71,7 +71,7 @@ class _BaseClarifaiModel(metaclass=_TypeCheckModelOutput):
         input_data is list of dict where key is input type name e.i. `image`, `text` and value is list.
         {"image": List[np.ndarray], "text": List[str]}
 
-    - inference_parameters (Dict[str, Union[str, float, int]]): your inference parameterss.
+    - inference_parameters (Dict[str, Union[str, float, int]]): your inference parameters.
 
     Returns:
     --------
