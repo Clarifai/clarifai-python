@@ -2,7 +2,7 @@ import logging
 import os
 import unittest
 
-from clarifai.models.model_serving.models.default_test import DefaultTestInferenceModel
+from clarifai.models.model_serving.repo_build.default_test import DefaultTestInferenceModel
 
 
 class CustomTestInferenceModel(DefaultTestInferenceModel):

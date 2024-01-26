@@ -5,9 +5,8 @@ from typing import List
 
 from InquirerPy import prompt
 
-from ..constants import MAX_HW_DIM
-from ..model_config import MODEL_TYPES, get_model_config
-from ..pb_model_repository import TritonModelRepository
+from ..model_config import MODEL_TYPES
+from ..repo_build import RepositoryBuilder
 from ._utils import list_model_upload_examples
 from .base import BaseClarifaiCli
 
@@ -83,14 +82,6 @@ class SubCreateModelCli(BaseClarifaiCli):
 
     # prevent wrong args when creating from example
     if not self.from_example:
-      if len(args.image_shape) != 2:
-        raise ValueError(
-            f"image_shape takes 2 values, Height and Width. Got {len(args.image_shape)} values instead."
-        )
-      if args.image_shape[0] > MAX_HW_DIM or args.image_shape[1] > MAX_HW_DIM:
-        raise ValueError(
-            f"H and W each have a maximum value of {MAX_HW_DIM}. Got H: {args.image_shape[0]}, W: {args.image_shape[1]}"
-        )
       self.image_shape: List[int] = args.image_shape
 
       self.type: str = args.type
@@ -117,15 +108,12 @@ class SubCreateModelCli(BaseClarifaiCli):
         shutil.copy(readme, os.path.join(self.working_dir, "readme.md"))
 
     else:
-      model_config = get_model_config(self.type).make_triton_model_config(
-          model_name="",
-          model_version="1",
-          image_shape=self.image_shape,
+      RepositoryBuilder.init_repository(
+          self.type,
+          self.working_dir,
+          backend="triton",
           max_batch_size=self.max_bs,
-      )
-
-      triton_repo = TritonModelRepository(model_config)
-      triton_repo.build_repository(self.working_dir)
+          image_shape=self.image_shape)
 
     from itertools import islice
     from pathlib import Path
