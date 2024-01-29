@@ -46,7 +46,7 @@ class xviewDetectionDataLoader(ClarifaiDataLoader):
     self.all_data = self.xview_data_parser()
 
     self.load_data()
-  
+
   @property
   def task(self):
     return "visual_detection"
