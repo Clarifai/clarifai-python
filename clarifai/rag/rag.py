@@ -17,6 +17,8 @@ from clarifai.rag.utils import (convert_messages_to_str, format_assistant_messag
                                 split_document)
 from clarifai.utils.logging import get_logger
 
+DEFAULT_RAG_PROMPT_TEMPLATE = "Context information is below:\n{data.hits}\nGiven the context information and not prior knowledge, answer the query.\nQuery: {data.text.raw}\nAnswer: "
+
 
 class RAG:
   """
@@ -59,6 +61,11 @@ class RAG:
             **kwargs):
     """Creates an app with `Text` as base workflow, create prompt model, create prompt workflow.
 
+    **kwargs: Additional keyword arguments to be passed to rag-promter model.
+          - min_score (float): The minimum score for search hits.
+          - max_results (float): The maximum number of search hits.
+          - prompt_template (str): The prompt template used. Must contain {data.hits} for the search hits and {data.text.raw} for the query string.
+
     Example:
         >>> from clarifai.rag import RAG
         >>> rag_agent = RAG.setup(user_id=YOUR_USER_ID)
@@ -88,10 +95,15 @@ class RAG:
       )
 
     llm = Model(llm_url)
+
+    min_score = kwargs.get("min_score", 0.95)
+    max_results = kwargs.get("max_results", 5)
+    prompt_template = kwargs.get("prompt_template", DEFAULT_RAG_PROMPT_TEMPLATE)
     params = Struct()
     params.update({
-        "prompt_template":
-            "Context information is below:\n{data.hits}\nGiven the context information and not prior knowledge, answer the query.\nQuery: {data.text.raw}\nAnswer: "
+        "min_score": min_score,
+        "max_results": max_results,
+        "prompt_template": prompt_template
     })
     prompter_model_params = {"params": params}
 
