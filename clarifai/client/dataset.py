@@ -3,7 +3,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
-from typing import Generator, List, Tuple, Type, TypeVar, Union
+from typing import Dict, Generator, List, Tuple, Type, TypeVar, Union
 
 import requests
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -321,10 +321,13 @@ class Dataset(Lister, BaseClient):
     else:  # visual_classification & visual_captioning
       dataset_obj = VisualClassificationDataset(dataloader, self.id)
 
+    if get_upload_status:
+      pre_upload_stats = self.get_upload_status(pre_upload=True)
+
     self._data_upload(dataset_obj)
 
     if get_upload_status:
-      self.get_upload_status(dataloader)
+      self.get_upload_status(dataloader=dataloader, pre_upload_stats=pre_upload_stats)
 
   def upload_from_csv(self,
                       csv_path: str,
@@ -399,15 +402,19 @@ class Dataset(Lister, BaseClient):
     self.input_object._bulk_upload(inputs=input_protos, batch_size=batch_size)
 
   def get_upload_status(self,
-                        dataloader: Type[ClarifaiDataLoader],
+                        dataloader: Type[ClarifaiDataLoader] = None,
                         delete_version: bool = False,
-                        timeout: int = 600) -> None:
+                        timeout: int = 600,
+                        pre_upload_stats: Tuple[Dict[str, int], Dict[str, int]] = None,
+                        pre_upload: bool = False) -> None:
     """Creates a new dataset version and displays the upload status of the dataset.
 
     Args:
         dataloader (Type[ClarifaiDataLoader]): ClarifaiDataLoader object
         delete_version (bool): True if you want to delete the version after getting the upload status
         timeout (int): Timeout in seconds for getting the upload status. Default is 600 seconds.
+        pre_upload_stats (Tuple[Dict[str, int], Dict[str, int]]): The pre upload stats for the dataset.
+        pre_upload (bool): True if you want to get the pre upload stats for the dataset.
 
     Example:
         >>> from clarifai.client.dataset import Dataset
@@ -450,9 +457,12 @@ class Dataset(Lister, BaseClient):
           raise UserError(
               "Dataset metrics are taking too long to process. Please try again later.")
         break
+    #get pre upload stats
+    if pre_upload:
+      return DisplayUploadStatus.get_dataset_version_stats(dataset_metrics_response)
 
     dataset_info_dict = dict(user_id=self.user_id, app_id=self.app_id, dataset_id=self.id)
-    DisplayUploadStatus(dataloader, dataset_metrics_response, dataset_info_dict)
+    DisplayUploadStatus(dataloader, dataset_metrics_response, dataset_info_dict, pre_upload_stats)
 
     if delete_version:
       self.delete_version(dataset_version_id)

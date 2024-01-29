@@ -39,14 +39,24 @@ class VisualClassificationDataset(ClarifaiDataset):
         metadata.update({"filename": os.path.basename(image_path)})
 
       self.all_input_ids[id] = input_id
-      input_protos.append(
-          Inputs.get_input_from_file(
-              input_id=input_id,
-              image_file=image_path,
-              dataset_id=self.dataset_id,
-              labels=labels,
-              geo_info=geo_info,
-              metadata=metadata))
+      if data_item.image_bytes is not None:
+        input_protos.append(
+            Inputs.get_input_from_bytes(
+                input_id=input_id,
+                image_bytes=data_item.image_bytes,
+                dataset_id=self.dataset_id,
+                labels=labels,
+                geo_info=geo_info,
+                metadata=metadata))
+      else:
+        input_protos.append(
+            Inputs.get_input_from_file(
+                input_id=input_id,
+                image_file=image_path,
+                dataset_id=self.dataset_id,
+                labels=labels,
+                geo_info=geo_info,
+                metadata=metadata))
 
     with ThreadPoolExecutor(max_workers=4) as executor:
       futures = [executor.submit(process_data_item, id) for id in batch_input_ids]
@@ -87,13 +97,22 @@ class VisualDetectionDataset(ClarifaiDataset):
       geo_info = data_item.geo_info
 
       self.all_input_ids[id] = input_id
-      input_protos.append(
-          Inputs.get_input_from_file(
-              input_id=input_id,
-              image_file=image,
-              dataset_id=self.dataset_id,
-              geo_info=geo_info,
-              metadata=metadata))
+      if data_item.image_bytes is not None:
+        input_protos.append(
+            Inputs.get_input_from_bytes(
+                input_id=input_id,
+                image_bytes=data_item.image_bytes,
+                dataset_id=self.dataset_id,
+                geo_info=geo_info,
+                metadata=metadata))
+      else:
+        input_protos.append(
+            Inputs.get_input_from_file(
+                input_id=input_id,
+                image_file=image,
+                dataset_id=self.dataset_id,
+                geo_info=geo_info,
+                metadata=metadata))
       # iter over bboxes and labels
       # one id could have more than one bbox and label
       for i in range(len(bboxes)):
@@ -139,13 +158,22 @@ class VisualSegmentationDataset(ClarifaiDataset):
       geo_info = data_item.geo_info
 
       self.all_input_ids[id] = input_id
-      input_protos.append(
-          Inputs.get_input_from_file(
-              input_id=input_id,
-              image_file=image,
-              dataset_id=self.dataset_id,
-              geo_info=geo_info,
-              metadata=metadata))
+      if data_item.image_bytes is not None:
+        input_protos.append(
+            Inputs.get_input_from_bytes(
+                input_id=input_id,
+                image_bytes=data_item.image_bytes,
+                dataset_id=self.dataset_id,
+                geo_info=geo_info,
+                metadata=metadata))
+      else:
+        input_protos.append(
+            Inputs.get_input_from_file(
+                input_id=input_id,
+                image_file=image,
+                dataset_id=self.dataset_id,
+                geo_info=geo_info,
+                metadata=metadata))
 
       ## Iterate over each masked image and create a proto for upload to clarifai
       ## The length of masks/polygons-list and labels must be equal
