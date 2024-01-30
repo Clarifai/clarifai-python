@@ -35,8 +35,10 @@ class VisualClassificationDataset(ClarifaiDataset):
       geo_info = data_item.geo_info
       if data_item.metadata is not None:
         metadata.update(data_item.metadata)
-      else:
+      elif image_path is not None:
         metadata.update({"filename": os.path.basename(image_path)})
+      else:
+        metadata = None
 
       self.all_input_ids[id] = input_id
       if data_item.image_bytes is not None:
