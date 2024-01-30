@@ -1,7 +1,7 @@
 import logging
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field
-from typing import List
+from typing import Any, List
 
 import yaml
 
@@ -65,25 +65,48 @@ class ClarifaiModelConfig:
     inference_parameters (List[InferParam]): list of inference parameters
     clarifai_model_id (str): Clarifai model id on the platform
     type (str): one of `MODEL_TYPES`
+    clarifai_user_app_id (str): User ID and App ID separated by '/', e.g., <user_id>/<app_id>
+    description (str): model description
 
   """
   field_maps: FieldMapsConfig = None
   output_type: str = None
   labels: list = field(default_factory=list)
   inference_parameters: List[InferParam] = field(default_factory=list)
-  clarifai_model_id: str = ""  # TODO: Must ensure name is valid
+  clarifai_model_id: str = ""
   type: str = ""
+  clarifai_user_app_id: str = ""
+  description: str = ""
+
+  def _checking(self, var_name: str, var_value: Any):
+    if var_name == "type":
+      _model_types = MODEL_TYPES + [""]
+      assert self.type in _model_types
+    elif var_name == "clarifai_model_id" and var_value:
+      # TODO: Must ensure name is valid
+      pass
+    elif var_name == "clarifai_user_app_id" and var_value:
+      _user_app = var_value.split("/")
+      assert len(_user_app) == 2, ValueError(
+          f"id must be combination of user_id and app_id separated by `/`, e.g. <user_id>/<app_id>. Got {var_value}"
+      )
 
   def __post_init__(self):
-    _model_types = MODEL_TYPES + [""]
-    assert self.type in _model_types
+    self._checking("clarifai_model_id", self.clarifai_model_id)
+    self._checking("type", self.type)
+    self._checking("clarifai_user_app_id", self.clarifai_user_app_id)
+
+  def __setattr__(self, __name: str, __value: Any) -> None:
+    self._checking(__name, __value)
+
+    super().__setattr__(__name, __value)
 
 
 @dataclass
 class ModelConfigClass():
   """All config of model
   Args:
-    clarifai_model (ClarifaiModelConfig): Clarifai model config
+    clarifai_model (ClarfaiModelConfig): Clarifai model config
     serving_backend (ServingBackendConfig): Custom serving backend config. Only support triton for now
   """
   clarifai_model: ClarifaiModelConfig
