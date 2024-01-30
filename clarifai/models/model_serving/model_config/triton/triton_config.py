@@ -16,7 +16,6 @@ from __future__ import annotations  # isort: skip
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, List, Union
-
 from ...constants import MAX_HW_DIM
 
 
