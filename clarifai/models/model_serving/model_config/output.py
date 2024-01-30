@@ -28,6 +28,10 @@ class VisualDetectorOutput:
     """
     Validate input upon initialization.
     """
+    assert isinstance(self.predicted_scores, np.ndarray), "`predicted_scores` must be numpy array"
+    assert isinstance(self.predicted_labels, np.ndarray), "`predicted_labels` must be numpy array"
+    assert isinstance(self.predicted_scores, np.ndarray), "`predicted_scores` must be numpy array"
+
     assert self.predicted_bboxes.ndim == self.predicted_labels.ndim == \
       self.predicted_scores.ndim==2, f"All predictions must be 2-dimensional, \
         Got bbox-dims: {self.predicted_bboxes.ndim}, label-dims: {self.predicted_labels.ndim}, \
@@ -58,6 +62,7 @@ class ClassifierOutput:
     """
     Validate input upon initialization.
     """
+    assert isinstance(self.predicted_scores, np.ndarray), "`predicted_scores` must be numpy array"
     assert self.predicted_scores.ndim == 1, \
       f"All predictions must be 1-dimensional, Got scores-dims: {self.predicted_scores.ndim} instead."
 
@@ -89,6 +94,7 @@ class EmbeddingOutput:
     """
     Validate input upon initialization.
     """
+    assert isinstance(self.embedding_vector, np.ndarray), "`embedding_vector` must be numpy array"
     assert self.embedding_vector.ndim == 1, \
       f"Embeddings must be 1-dimensional, Got embedding-dims: {self.embedding_vector.ndim} instead."
 
@@ -104,6 +110,7 @@ class MasksOutput:
     """
     Validate input upon initialization.
     """
+    assert isinstance(self.predicted_mask, np.ndarray), "`predicted_mask` must be numpy array"
     assert self.predicted_mask.ndim == 2, \
       f"predicted_mask must be 2-dimensional, Got mask dims: {self.predicted_mask.ndim} instead."
 
@@ -119,6 +126,7 @@ class ImageOutput:
     """
     Validate input upon initialization.
     """
+    assert isinstance(self.image, np.ndarray), "`image` must be numpy array"
     assert self.image.ndim == 3, \
       f"Generated image must be 3-dimensional, Got image-dims: {self.image.ndim} instead."
     assert self.image.shape[2] == 3, \

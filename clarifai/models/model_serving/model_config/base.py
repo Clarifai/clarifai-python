@@ -86,9 +86,9 @@ class _BaseClarifaiModel(metaclass=_TypeCheckModelOutput):
     raise NotImplementedError
 
 
-_MultiModalEmbdderInputTypeDict = TypedDict("_MultiModalEmbdderInputTypeDict", {
-    "image": List[np.ndarray],
-    "text": List[str]
+_MultiModalInputTypeDict = TypedDict("_MultiModalInputTypeDict", {
+    "image": np.ndarray,
+    "text": str
 })
 
 
@@ -97,12 +97,12 @@ class MultiModalEmbedder(_BaseClarifaiModel):
 
   def predict(
       self,
-      input_data: _MultiModalEmbdderInputTypeDict,
+      input_data: List[_MultiModalInputTypeDict],
       inference_parameters: Dict[str, Union[str, float, int]] = {}) -> Iterable[EmbeddingOutput]:
     """ Custom prediction function for `multimodal-embedder` model.
 
     Args:
-      input_data (_MultiModalEmbdderInputTypeDict): dict of key-value: `image`(List[np.ndarray]) and `text` (List[str])
+      input_data (List[_MultiModalInputTypeDict]): List of dict of key-value: `image`(np.ndarray) and `text` (str)
       inference_parameters (Dict[str, Union[str, float, int]]): your inference parameters
 
     Returns:

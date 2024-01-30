@@ -106,7 +106,7 @@ class ClarifaiModelConfig:
 class ModelConfigClass():
   """All config of model
   Args:
-    clarifai_model (ClarfaiModelConfig): Clarifai model config
+    clarifai_model (ClarifaiModelConfig): Clarifai model config
     serving_backend (ServingBackendConfig): Custom serving backend config. Only support triton for now
   """
   clarifai_model: ClarifaiModelConfig
@@ -300,10 +300,11 @@ def _ensure_user_config(user_config: dict) -> ModelConfigClass:
     if value and _model_cfg != "field_maps":
       setattr(default_config.clarifai_model, _model_cfg, value)
 
-  if user_config_obj.serving_backend.triton:
-    if user_config_obj.serving_backend.triton.max_batch_size > 1:
-      default_config.serving_backend.triton.max_batch_size = user_config_obj.serving_backend.triton.max_batch_size
-    if user_config_obj.serving_backend.triton.image_shape != [-1, -1]:
-      default_config.serving_backend.triton.image_shape = user_config_obj.serving_backend.triton.image_shape
+  if hasattr(user_config_obj, "serving_backend"):
+    if hasattr(user_config_obj.serving_backend, "triton"):
+      if user_config_obj.serving_backend.triton.max_batch_size > 1:
+        default_config.serving_backend.triton.max_batch_size = user_config_obj.serving_backend.triton.max_batch_size
+      if user_config_obj.serving_backend.triton.image_shape != [-1, -1]:
+        default_config.serving_backend.triton.image_shape = user_config_obj.serving_backend.triton.image_shape
 
   return default_config

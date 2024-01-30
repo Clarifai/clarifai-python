@@ -12,4 +12,5 @@
 # limitations under the License.
 from .base import *  # noqa
 from .config import *  # noqa
+from .inference_parameter import InferParam, InferParamManager  # noqa
 from .output import *  # noqa

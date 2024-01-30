@@ -54,34 +54,26 @@ class BuildModelSubCli(BaseClarifaiCli):
         "--no-test",
         action="store_true",
         help="Trigger this flag to skip testing before uploading")
-    sub_parser.add_argument(
-        "--test-path",
-        required=False,
-        default=os.path.join(os.getcwd(), "test.py"),
-        help=
-        "Path to python test file executed before uploading, the file must be in working repository. Default is current_dir/test.py"
-    )
     sub_parser.set_defaults(func=BuildModelSubCli)
 
   def __init__(self, args: argparse.Namespace) -> None:
     self.path = args.path
-    self.no_test = True  #args.no_test # TODO: Allow to use args after implementing test
-    self.test_path = args.test_path
+    self.no_test = args.no_test
+    self.test_path = os.path.join(self.path, "test.py")
     self.output_path = args.out_path or self.path
     self.serving_backend = "triton"
     self.name = args.name
-
-  def _parse_config(self):
-    # do something with self.config_path
-    raise NotImplementedError()
 
   def run(self):
 
     # Run test before uploading
     if not self.no_test:
+      assert os.path.exists(
+          self.test_path), FileNotFoundError(f"Could not find `test.py` in {self.path}")
       result = subprocess.run(f"pytest -s --log-level=INFO {self.test_path}")
       assert result.returncode == 0, "Test has failed. Please make sure no error exists in your code."
 
     # build
+    print("Start building...")
     RepositoryBuilder.build(
         self.path, backend=self.serving_backend, output_dir=self.output_path, name=self.name)
