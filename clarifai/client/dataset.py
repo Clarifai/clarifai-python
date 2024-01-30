@@ -3,7 +3,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
-from typing import Dict, Generator, List, Tuple, Type, TypeVar, Union
+from typing import Dict, Generator, List, Optional, Tuple, Type, TypeVar, Union
 
 import requests
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -401,12 +401,13 @@ class Dataset(Lister, BaseClient):
           folder_path=folder_path, dataset_id=self.id, labels=labels)
     self.input_object._bulk_upload(inputs=input_protos, batch_size=batch_size)
 
-  def get_upload_status(self,
-                        dataloader: Type[ClarifaiDataLoader] = None,
-                        delete_version: bool = False,
-                        timeout: int = 600,
-                        pre_upload_stats: Tuple[Dict[str, int], Dict[str, int]] = None,
-                        pre_upload: bool = False) -> None:
+  def get_upload_status(
+      self,
+      dataloader: Type[ClarifaiDataLoader] = None,
+      delete_version: bool = False,
+      timeout: int = 600,
+      pre_upload_stats: Tuple[Dict[str, int], Dict[str, int]] = None,
+      pre_upload: bool = False) -> Optional[Tuple[Dict[str, int], Dict[str, int]]]:
     """Creates a new dataset version and displays the upload status of the dataset.
 
     Args:
