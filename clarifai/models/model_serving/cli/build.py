@@ -54,7 +54,6 @@ class BuildModelSubCli(BaseClarifaiCli):
         "--no-test",
         action="store_true",
         help="Trigger this flag to skip testing before uploading")
-
     sub_parser.set_defaults(func=BuildModelSubCli)
 
   def __init__(self, args: argparse.Namespace) -> None:
