@@ -37,7 +37,8 @@ class TritonPythonModel:
     sys.path.append(os.path.dirname(__file__))
     from inference import InferenceModel
 
-    self.inference_obj = InferenceModel()
+    self.inference_model = InferenceModel()
+    self.model_type = self.inference_model.model_type
 
     # Read input_name from config file
     self.config_msg = ModelConfig()
@@ -56,19 +57,22 @@ class TritonPythonModel:
       parameters = request.parameters()
       parameters = parse_req_parameters(parameters) if parameters else {}
 
+      inputs_dict = {}
+      for input_name in self.input_names:
+        batch = pb_utils.get_input_tensor_by_name(request, input_name).as_numpy()
+        # TODO this squeeze and decode should probably go into inference.py for text models
+        if self.model_type.startswith('text'):
+          batch = batch.squeeze(axis=1)  # bsize, 1 with np object for text
+          if batch.ndim == 1:
+            batch = [x.decode() if isinstance(x, bytes) else x for x in batch]
+        inputs_dict[input_name] = batch
+
       if len(self.input_names) == 1:
-        in_batch = pb_utils.get_input_tensor_by_name(request, self.input_names[0])
-        in_batch = in_batch.as_numpy()
-        inference_response = self.inference_obj.get_predictions(in_batch, **parameters)
+        input_data = inputs_dict[self.input_names[0]]
+        outputs = self.inference_model.predict(input_data, **parameters)
       else:
-        multi_in_batch_dict = {}
-        for input_name in self.input_names:
-          in_batch = pb_utils.get_input_tensor_by_name(request, input_name)
-          in_batch = in_batch.as_numpy() if in_batch is not None else []
-          multi_in_batch_dict.update({input_name: in_batch})
+        outputs = self.inference_model.predict(**inputs_dict, **parameters)
 
-        inference_response = self.inference_obj.get_predictions(multi_in_batch_dict, **parameters)
-
-      responses.append(inference_response)
+      responses.append(outputs_to_triton_response(outputs, self.model_type))
 
     return responses

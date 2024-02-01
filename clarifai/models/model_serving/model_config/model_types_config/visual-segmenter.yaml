@@ -8,9 +8,6 @@ triton:
       data_type: TYPE_INT64
       dims: [-1, -1]
       labels: true
-inference:
-  wrap_func: visual_segmenter
-  return_type: MasksOutput
 field_maps:
   input_fields_map:
     image: image

@@ -17,9 +17,15 @@ Output Predictions format for different model types.
 from dataclasses import dataclass
 import numpy as np
 
+class InferenceOutput:
+  """
+  Base class for inference output.
+  """
+  pass
+
 
 @dataclass
-class VisualDetectorOutput:
+class VisualDetectorOutput(InferenceOutput):
   predicted_bboxes: np.ndarray
   predicted_labels: np.ndarray
   predicted_scores: np.ndarray
@@ -45,7 +51,7 @@ class VisualDetectorOutput:
 
 
 @dataclass
-class ClassifierOutput:
+class ClassifierOutput(InferenceOutput):
   """
   Takes model softmax predictions
   """
@@ -63,7 +69,7 @@ class ClassifierOutput:
 
 
 @dataclass
-class TextOutput:
+class TextOutput(InferenceOutput):
   """
   Takes model text predictions
   """
@@ -79,7 +85,7 @@ class TextOutput:
 
 
 @dataclass
-class EmbeddingOutput:
+class EmbeddingOutput(InferenceOutput):
   """
   Takes embedding vector returned by a model.
   """
@@ -94,7 +100,7 @@ class EmbeddingOutput:
 
 
 @dataclass
-class MasksOutput:
+class MasksOutput(InferenceOutput):
   """
   Takes image segmentation masks returned by a model.
   """
@@ -109,7 +115,7 @@ class MasksOutput:
 
 
 @dataclass
-class ImageOutput:
+class ImageOutput(InferenceOutput):
   """
   Takes a predicted/generated image array as returned by a model.
   """

@@ -8,9 +8,6 @@ triton:
       data_type: TYPE_STRING
       dims: [1]
       labels: false
-inference:
-  wrap_func: text_to_text
-  return_type: TextOutput
 field_maps:
   input_fields_map:
     text: text
