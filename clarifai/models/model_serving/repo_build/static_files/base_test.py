@@ -5,6 +5,7 @@ from typing import Dict, Iterable, List, Union
 import numpy as np
 import yaml
 
+from ...constants import IMAGE_TENSOR_NAME, TEXT_TENSOR_NAME
 from ...model_config import (ClassifierOutput, EmbeddingOutput, ImageOutput, InferParam,
                              InferParamManager, MasksOutput, ModelTypes, TextOutput,
                              VisualDetector, load_user_config)
@@ -156,11 +157,11 @@ class BaseTest:
   def test_with_default_inputs(self):
     model_type = self.user_config.clarifai_model.type
     if model_type == ModelTypes.multimodal_embedder:
-      self.predict(input_data=[{"image": each} for each in _default_images])
-      self.predict(input_data=[{"text": each} for each in _default_texts])
+      self.predict(input_data=[{IMAGE_TENSOR_NAME: each} for each in _default_images])
+      self.predict(input_data=[{TEXT_TENSOR_NAME: each} for each in _default_texts])
       self.predict(input_data=[{
-          "text": text,
-          "image": img
+          TEXT_TENSOR_NAME: text,
+          IMAGE_TENSOR_NAME: img
       } for text, img in zip(_default_texts, _default_images)])
     elif model_type.startswith("visual"):
       self.predict(input_data=_default_images)

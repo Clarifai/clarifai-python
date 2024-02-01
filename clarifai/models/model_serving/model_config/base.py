@@ -2,6 +2,7 @@ from typing import Dict, Iterable, List, TypedDict, Union
 
 import numpy as np
 
+from ..constants import IMAGE_TENSOR_NAME, TEXT_TENSOR_NAME
 from .config import ModelConfigClass, ModelTypes, get_model_config
 from .output import (ClassifierOutput, EmbeddingOutput, ImageOutput, MasksOutput, TextOutput,
                      VisualDetectorOutput)
@@ -87,8 +88,8 @@ class _BaseClarifaiModel(metaclass=_TypeCheckModelOutput):
 
 
 _MultiModalInputTypeDict = TypedDict("_MultiModalInputTypeDict", {
-    "image": np.ndarray,
-    "text": str
+    IMAGE_TENSOR_NAME: np.ndarray,
+    TEXT_TENSOR_NAME: str
 })
 
 

@@ -1,6 +1,8 @@
 import os
 
 MAX_HW_DIM = 1024
+IMAGE_TENSOR_NAME = "image"
+TEXT_TENSOR_NAME = "text"
 
 BUILT_MODEL_EXT = ".clarifai"
 

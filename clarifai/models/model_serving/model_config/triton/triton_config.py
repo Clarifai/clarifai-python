@@ -16,7 +16,8 @@ from __future__ import annotations  # isort: skip
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, List, Union
-from ...constants import MAX_HW_DIM
+
+from ...constants import IMAGE_TENSOR_NAME, MAX_HW_DIM
 
 
 ### Triton Model Config classes.###
@@ -162,7 +163,7 @@ class TritonModelConfig:
   def _check_and_assign_image_shape_value(self, value):
     _has_image = False
     for each in self.input:
-      if "image" in each.name:
+      if IMAGE_TENSOR_NAME in each.name:
         _has_image = True
         if len(value) != 2:
           raise ValueError(
