@@ -17,8 +17,8 @@ Quick example for deploying a `text-to-text` model
 Suppose your working directory name is `your_model_dir`. Then run
 
 ```bash
-clarifai create model --type text-to-text --working-dir your_model_dir
-cd your_model_dir
+$ clarifai create model --type text-to-text --working-dir your_model_dir
+$ cd your_model_dir
 ```
 
 In `your_model_dir` folder you will see essential files for deployment process
