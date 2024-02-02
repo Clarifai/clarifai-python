@@ -1,0 +1,15 @@
+clarifai_model:
+  clarifai_model_id: ''
+  clarifai_user_app_id: ''
+  description: ''
+  inference_parameters: []
+  labels:
+  - '0'
+  - '1'
+  type: visual-segmenter
+serving_backend:
+  triton:
+    image_shape:
+    - 200
+    - 200
+    max_batch_size: 4

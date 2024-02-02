@@ -11,11 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """ Model Config classes."""
+from __future__ import annotations  # isort: skip
 
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, List, Union
-from ...constants import MAX_HW_DIM
+
+from ...constants import IMAGE_TENSOR_NAME, MAX_HW_DIM
 
 
 ### Triton Model Config classes.###
@@ -154,18 +156,27 @@ class TritonModelConfig:
 
   def __setattr__(self, __name: str, __value: Any) -> None:
     if __name == "image_shape":
-      self._check_and_assign_image_shape_value(__value)
+      __value = self._check_and_assign_image_shape_value(__value)
 
     super().__setattr__(__name, __value)
 
   def _check_and_assign_image_shape_value(self, value):
-    if "image" in [each.name for each in self.input]:
-      if len(value) != 2:
-        raise ValueError(
-            f"image_shape takes 2 values, Height and Width. Got {len(value)} values instead.")
-      if value[0] > MAX_HW_DIM or value[1] > MAX_HW_DIM:
-        raise ValueError(
-            f"H and W each have a maximum value of {MAX_HW_DIM}. Got H: {value[0]}, W: {value[1]}")
-      image_dims = deepcopy(value)
-      image_dims.append(3)  # add channel dim
-      self.input[0].dims = image_dims
+    _has_image = False
+    for each in self.input:
+      if IMAGE_TENSOR_NAME in each.name:
+        _has_image = True
+        if len(value) != 2:
+          raise ValueError(
+              f"image_shape takes 2 values, Height and Width. Got {len(value)} values instead.")
+        if value[0] > MAX_HW_DIM or value[1] > MAX_HW_DIM:
+          raise ValueError(
+              f"H and W each have a maximum value of {MAX_HW_DIM}. Got H: {value[0]}, W: {value[1]}"
+          )
+        image_dims = deepcopy(value)
+        image_dims.append(3)  # add channel dim
+        each.dims = image_dims
+
+    if not _has_image and self.input:
+      return [-1, -1]
+    else:
+      return value

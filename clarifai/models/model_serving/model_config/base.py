@@ -2,6 +2,7 @@ from typing import Dict, Iterable, List, TypedDict, Union
 
 import numpy as np
 
+from ..constants import IMAGE_TENSOR_NAME, TEXT_TENSOR_NAME
 from .config import ModelConfigClass, ModelTypes, get_model_config
 from .output import (ClassifierOutput, EmbeddingOutput, ImageOutput, MasksOutput, TextOutput,
                      VisualDetectorOutput)
@@ -18,7 +19,9 @@ class _TypeCheckModelOutput(type):
 
     def wrap_function(fn_name, base, base_fn, other_fn):
 
-      def new_fn(_self, input_data, inference_parameters: Dict[str, Union[str, float, int]] = {}):
+      def new_fn(_self,
+                 input_data,
+                 inference_parameters: Dict[str, Union[bool, str, float, int]] = {}):
         # Run child class
         out = other_fn(_self, input_data, inference_parameters=inference_parameters)
         # Run type check
@@ -58,7 +61,7 @@ class _BaseClarifaiModel(metaclass=_TypeCheckModelOutput):
 
   def predict(self,
               input_data: Union[List[np.ndarray], Dict[str, List[np.ndarray]]],
-              inference_parameters: Dict[str, Union[str, float, int]] = {}) -> Iterable:
+              inference_parameters: Dict[str, Union[bool, str, float, int]] = {}) -> Iterable:
     """
     Prediction method.
 
@@ -71,7 +74,7 @@ class _BaseClarifaiModel(metaclass=_TypeCheckModelOutput):
         input_data is list of dict where key is input type name e.i. `image`, `text` and value is list.
         {"image": List[np.ndarray], "text": List[str]}
 
-    - inference_parameters (Dict[str, Union[str, float, int]]): your inference parameters.
+    - inference_parameters (Dict[str, Union[bool, str, float, int]]): your inference parameters.
 
     Returns:
     --------
@@ -81,29 +84,29 @@ class _BaseClarifaiModel(metaclass=_TypeCheckModelOutput):
 
   def _tritonserver_predict(self,
                             input_data,
-                            inference_parameters: Dict[str, Union[str, float, int]] = {}):
+                            inference_parameters: Dict[str, Union[bool, str, float, int]] = {}):
     """ This method is invoked within tritonserver, specifically in the model.py of the Python backend. Attempting to execute it outside of the triton environment will result in failure."""
     raise NotImplementedError
 
 
 _MultiModalInputTypeDict = TypedDict("_MultiModalInputTypeDict", {
-    "image": np.ndarray,
-    "text": str
+    IMAGE_TENSOR_NAME: np.ndarray,
+    TEXT_TENSOR_NAME: str
 })
 
 
 class MultiModalEmbedder(_BaseClarifaiModel):
   _config: ModelConfigClass = get_model_config(ModelTypes.multimodal_embedder)
 
-  def predict(
-      self,
-      input_data: List[_MultiModalInputTypeDict],
-      inference_parameters: Dict[str, Union[str, float, int]] = {}) -> Iterable[EmbeddingOutput]:
+  def predict(self,
+              input_data: List[_MultiModalInputTypeDict],
+              inference_parameters: Dict[str, Union[bool, str, float, int]] = {}
+             ) -> Iterable[EmbeddingOutput]:
     """ Custom prediction function for `multimodal-embedder` model.
 
     Args:
       input_data (List[_MultiModalInputTypeDict]): List of dict of key-value: `image`(np.ndarray) and `text` (str)
-      inference_parameters (Dict[str, Union[str, float, int]]): your inference parameters
+      inference_parameters (Dict[str, Union[bool, str, float, int]]): your inference parameters
 
     Returns:
       list of EmbeddingOutput
@@ -113,7 +116,7 @@ class MultiModalEmbedder(_BaseClarifaiModel):
   @triton_wrapper.multimodal_embedder
   def _tritonserver_predict(self,
                             input_data,
-                            inference_parameters: Dict[str, Union[str, float, int]] = {}):
+                            inference_parameters: Dict[str, Union[bool, str, float, int]] = {}):
     """ This method is invoked within tritonserver, specifically in the model.py of the Python backend. Attempting to execute it outside of the triton environment will result in failure."""
     return self.predict(input_data, inference_parameters=inference_parameters)
 
@@ -123,13 +126,13 @@ class TextClassifier(_BaseClarifaiModel):
 
   def predict(self,
               input_data: List[str],
-              inference_parameters: Dict[str, Union[str, float, int]] = {}
+              inference_parameters: Dict[str, Union[bool, str, float, int]] = {}
              ) -> Iterable[ClassifierOutput]:
     """ Custom prediction function for `text-classifier` model.
 
     Args:
       input_data (List[str]): List of text
-      inference_parameters (Dict[str, Union[str, float, int]]): your inference parameters
+      inference_parameters (Dict[str, Union[bool, str, float, int]]): your inference parameters
 
     Returns:
       list of ClassifierOutput
@@ -139,7 +142,7 @@ class TextClassifier(_BaseClarifaiModel):
   @triton_wrapper.text_classifier
   def _tritonserver_predict(self,
                             input_data,
-                            inference_parameters: Dict[str, Union[str, float, int]] = {}):
+                            inference_parameters: Dict[str, Union[bool, str, float, int]] = {}):
     return self.predict(input_data, inference_parameters=inference_parameters)
 
 
@@ -148,13 +151,13 @@ class TextEmbedder(_BaseClarifaiModel):
 
   def predict(self,
               input_data: List[str],
-              inference_parameters: Dict[str, Union[str, float, int]] = {}
+              inference_parameters: Dict[str, Union[bool, str, float, int]] = {}
              ) -> Iterable[EmbeddingOutput]:
     """ Custom prediction function for `text-embedder` model.
 
     Args:
       input_data (List[str]): List of text
-      inference_parameters (Dict[str, Union[str, float, int]]): your inference parameters
+      inference_parameters (Dict[str, Union[bool, str, float, int]]): your inference parameters
 
     Returns:
       list of EmbeddingOutput
@@ -164,22 +167,22 @@ class TextEmbedder(_BaseClarifaiModel):
   @triton_wrapper.text_embedder
   def _tritonserver_predict(self,
                             input_data,
-                            inference_parameters: Dict[str, Union[str, float, int]] = {}):
+                            inference_parameters: Dict[str, Union[bool, str, float, int]] = {}):
     return self.predict(input_data, inference_parameters=inference_parameters)
 
 
 class TextToImage(_BaseClarifaiModel):
   _config: ModelConfigClass = get_model_config(ModelTypes.text_to_image)
 
-  def predict(self,
-              input_data: List[str],
-              inference_parameters: Dict[str, Union[str, float, int]] = {}
-             ) -> Iterable[ImageOutput]:
+  def predict(
+      self,
+      input_data: List[str],
+      inference_parameters: Dict[str, Union[bool, str, float, int]] = {}) -> Iterable[ImageOutput]:
     """ Custom prediction function for `text-to-image` model.
 
     Args:
       input_data (List[str]): List of text
-      inference_parameters (Dict[str, Union[str, float, int]]): your inference parameters
+      inference_parameters (Dict[str, Union[bool, str, float, int]]): your inference parameters
 
     Returns:
       list of ImageOutput
@@ -189,22 +192,22 @@ class TextToImage(_BaseClarifaiModel):
   @triton_wrapper.text_to_image
   def _tritonserver_predict(self,
                             input_data,
-                            inference_parameters: Dict[str, Union[str, float, int]] = {}):
+                            inference_parameters: Dict[str, Union[bool, str, float, int]] = {}):
     return self.predict(input_data, inference_parameters=inference_parameters)
 
 
 class TextToText(_BaseClarifaiModel):
   _config: ModelConfigClass = get_model_config(ModelTypes.text_to_text)
 
-  def predict(self,
-              input_data: List[str],
-              inference_parameters: Dict[str, Union[str, float, int]] = {}
-             ) -> Iterable[TextOutput]:
+  def predict(
+      self,
+      input_data: List[str],
+      inference_parameters: Dict[str, Union[bool, str, float, int]] = {}) -> Iterable[TextOutput]:
     """ Custom prediction function for `text-to-text` (also called as `text generation`) model.
 
     Args:
       input_data (List[str]): List of text
-      inference_parameters (Dict[str, Union[str, float, int]]): your inference parameters
+      inference_parameters (Dict[str, Union[bool, str, float, int]]): your inference parameters
 
     Returns:
       list of TextOutput
@@ -214,7 +217,7 @@ class TextToText(_BaseClarifaiModel):
   @triton_wrapper.text_to_text
   def _tritonserver_predict(self,
                             input_data,
-                            inference_parameters: Dict[str, Union[str, float, int]] = {}):
+                            inference_parameters: Dict[str, Union[bool, str, float, int]] = {}):
     """ This method is invoked within tritonserver, specifically in the model.py of the Python backend. Attempting to execute it outside of the triton environment will result in failure."""
     return self.predict(input_data, inference_parameters=inference_parameters)
 
@@ -222,15 +225,15 @@ class TextToText(_BaseClarifaiModel):
 class VisualClassifier(_BaseClarifaiModel):
   _config: ModelConfigClass = get_model_config(ModelTypes.visual_classifier)
 
-  def predict(
-      self,
-      input_data: List[np.ndarray],
-      inference_parameters: Dict[str, Union[str, float, int]] = {}) -> Iterable[ClassifierOutput]:
+  def predict(self,
+              input_data: List[np.ndarray],
+              inference_parameters: Dict[str, Union[bool, str, float, int]] = {}
+             ) -> Iterable[ClassifierOutput]:
     """ Custom prediction function for `visual-classifier` model.
 
     Args:
       input_data (List[np.ndarray]): List of image
-      inference_parameters (Dict[str, Union[str, float, int]]): your inference parameters
+      inference_parameters (Dict[str, Union[bool, str, float, int]]): your inference parameters
 
     Returns:
       list of ClassifierOutput
@@ -240,7 +243,7 @@ class VisualClassifier(_BaseClarifaiModel):
   @triton_wrapper.visual_classifier
   def _tritonserver_predict(self,
                             input_data,
-                            inference_parameters: Dict[str, Union[str, float, int]] = {}):
+                            inference_parameters: Dict[str, Union[bool, str, float, int]] = {}):
     """ This method is invoked within tritonserver, specifically in the model.py of the Python backend. Attempting to execute it outside of the triton environment will result in failure."""
     return self.predict(input_data, inference_parameters=inference_parameters)
 
@@ -250,13 +253,13 @@ class VisualDetector(_BaseClarifaiModel):
 
   def predict(self,
               input_data: List[np.ndarray],
-              inference_parameters: Dict[str, Union[str, float, int]] = {}
+              inference_parameters: Dict[str, Union[bool, str, float, int]] = {}
              ) -> Iterable[VisualDetectorOutput]:
     """ Custom prediction function for `visual-detector` model.
 
     Args:
       input_data (List[np.ndarray]): List of image
-      inference_parameters (Dict[str, Union[str, float, int]]): your inference parameters
+      inference_parameters (Dict[str, Union[bool, str, float, int]]): your inference parameters
 
     Returns:
       list of VisualDetectorOutput
@@ -266,7 +269,7 @@ class VisualDetector(_BaseClarifaiModel):
   @triton_wrapper.visual_detector
   def _tritonserver_predict(self,
                             input_data,
-                            inference_parameters: Dict[str, Union[str, float, int]] = {}):
+                            inference_parameters: Dict[str, Union[bool, str, float, int]] = {}):
     """ This method is invoked within tritonserver, specifically in the model.py of the Python backend. Attempting to execute it outside of the triton environment will result in failure."""
     return self.predict(input_data, inference_parameters=inference_parameters)
 
@@ -274,15 +277,15 @@ class VisualDetector(_BaseClarifaiModel):
 class VisualEmbedder(_BaseClarifaiModel):
   _config: ModelConfigClass = get_model_config(ModelTypes.visual_embedder)
 
-  def predict(
-      self,
-      input_data: List[np.ndarray],
-      inference_parameters: Dict[str, Union[str, float, int]] = {}) -> Iterable[EmbeddingOutput]:
+  def predict(self,
+              input_data: List[np.ndarray],
+              inference_parameters: Dict[str, Union[bool, str, float, int]] = {}
+             ) -> Iterable[EmbeddingOutput]:
     """ Custom prediction function for `visual-embedder` model.
 
     Args:
       input_data (List[np.ndarray]): List of image
-      inference_parameters (Dict[str, Union[str, float, int]]): your inference parameters
+      inference_parameters (Dict[str, Union[bool, str, float, int]]): your inference parameters
 
     Returns:
       list of EmbeddingOutput
@@ -292,7 +295,7 @@ class VisualEmbedder(_BaseClarifaiModel):
   @triton_wrapper.visual_embedder
   def _tritonserver_predict(self,
                             input_data,
-                            inference_parameters: Dict[str, Union[str, float, int]] = {}):
+                            inference_parameters: Dict[str, Union[bool, str, float, int]] = {}):
     """ This method is invoked within tritonserver, specifically in the model.py of the Python backend. Attempting to execute it outside of the triton environment will result in failure."""
     return self.predict(input_data, inference_parameters=inference_parameters)
 
@@ -303,12 +306,12 @@ class VisualSegmenter(_BaseClarifaiModel):
   def predict(
       self,
       input_data: List[np.ndarray],
-      inference_parameters: Dict[str, Union[str, float, int]] = {}) -> Iterable[MasksOutput]:
+      inference_parameters: Dict[str, Union[bool, str, float, int]] = {}) -> Iterable[MasksOutput]:
     """ Custom prediction function for `visual-segmenter` model.
 
     Args:
       input_data (List[np.ndarray]): List of image
-      inference_parameters (Dict[str, Union[str, float, int]]): your inference parameters
+      inference_parameters (Dict[str, Union[bool, str, float, int]]): your inference parameters
 
     Returns:
       list of MasksOutput
@@ -318,6 +321,6 @@ class VisualSegmenter(_BaseClarifaiModel):
   @triton_wrapper.visual_segmenter
   def _tritonserver_predict(self,
                             input_data,
-                            inference_parameters: Dict[str, Union[str, float, int]] = {}):
+                            inference_parameters: Dict[str, Union[bool, str, float, int]] = {}):
     """ This method is invoked within tritonserver, specifically in the model.py of the Python backend. Attempting to execute it outside of the triton environment will result in failure."""
     return self.predict(input_data, inference_parameters=inference_parameters)

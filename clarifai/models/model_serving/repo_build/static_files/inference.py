@@ -17,8 +17,9 @@ class InferenceModel():
     # current directory
     self.base_path: Path = os.path.dirname(__file__)
 
-  def predict(self, input_data: list,
-              inference_parameters: Dict[str, Union[str, float, int]]) -> list:
+  def predict(self,
+              input_data: list,
+              inference_parameters: Dict[str, Union[bool, str, float, int]] = {}) -> list:
     """predict_docstring
     """
 

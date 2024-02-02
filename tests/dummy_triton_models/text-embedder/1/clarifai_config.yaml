@@ -1,0 +1,10 @@
+clarifai_model:
+  clarifai_model_id: ''
+  clarifai_user_app_id: ''
+  description: ''
+  inference_parameters: []
+  labels: []
+  type: text-embedder
+serving_backend:
+  triton:
+    max_batch_size: 4
