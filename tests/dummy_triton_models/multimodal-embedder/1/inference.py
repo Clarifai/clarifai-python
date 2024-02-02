@@ -20,13 +20,14 @@ class InferenceModel(MultiModalEmbedder):
     # current directory
     self.base_path: Path = os.path.dirname(__file__)
 
-  def predict(self, input_data: list,
-              inference_parameters: Dict[str, Union[str, float, int]]) -> list:
+  def predict(self,
+              input_data: list,
+              inference_parameters: Dict[str, Union[bool, str, float, int]] = {}) -> list:
     """ Custom prediction function for `multimodal-embedder` model.
 
     Args:
       input_data (_MultiModalEmbdderInputTypeDict): dict of key-value: `image`(List[np.ndarray]) and `text` (List[str])
-      inference_parameters (Dict[str, Union[str, float, int]]): your inference parameters
+      inference_parameters (Dict[str, Union[bool, str, float, int]]): your inference parameters
 
     Returns:
       list of EmbeddingOutput

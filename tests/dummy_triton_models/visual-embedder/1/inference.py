@@ -20,13 +20,14 @@ class InferenceModel(VisualEmbedder):
     # current directory
     self.base_path: Path = os.path.dirname(__file__)
 
-  def predict(self, input_data: list,
-              inference_parameters: Dict[str, Union[str, float, int]]) -> list:
+  def predict(self,
+              input_data: list,
+              inference_parameters: Dict[str, Union[bool, str, float, int]] = {}) -> list:
     """ Custom prediction function for `visual-embedder` model.
 
     Args:
       input_data (List[np.ndarray]): List of image
-      inference_parameters (Dict[str, Union[str, float, int]]): your inference parameters
+      inference_parameters (Dict[str, Union[bool, str, float, int]]): your inference parameters
 
     Returns:
       list of EmbeddingOutput
