@@ -273,6 +273,49 @@ class VisualDetector(_BaseClarifaiModel):
     """ This method is invoked within tritonserver, specifically in the model.py of the Python backend. Attempting to execute it outside of the triton environment will result in failure."""
     return self.predict(input_data, inference_parameters=inference_parameters)
 
+  @staticmethod
+  def postprocess(width: int,
+                  height: int,
+                  labels: list,
+                  scores: list,
+                  xyxy_boxes: list,
+                  max_bbox_count: int = 500) -> VisualDetectorOutput:
+    """Convert detection output to Clarifai detector output format
+
+    Args:
+        width (int): image width
+        height (int): image height
+        labels (list): list of labels
+        scores (list): list of scores
+        xyxy_boxes (list): list of bounding boxes in x_min, y_min, x_max, y_max format
+        max_bbox_count (int, optional): Maximum detection result. Defaults to 500.
+
+    Returns:
+        VisualDetectorOutput
+    """
+    assert len(labels) == len(scores) == len(
+        xyxy_boxes
+    ), f"Length of `labels`, `scores` and `bboxes` must be equal, got {len(labels)}, {len(scores)} and {len(xyxy_boxes)} "
+    labels = [[each] for each in labels]
+    scores = [[each] for each in scores]
+    bboxes = [[x[1] / height, x[0] / width, x[3] / height, x[2] / width]
+              for x in xyxy_boxes]  # normalize the bboxes to [0,1] and [y1 x1 y2 x2]
+    bboxes = np.clip(bboxes, 0, 1.)
+    if len(bboxes) != 0:
+      bboxes = np.concatenate((bboxes, np.zeros((max_bbox_count - len(bboxes), 4))))
+      scores = np.concatenate((scores, np.zeros((max_bbox_count - len(scores), 1))))
+      labels = np.concatenate((labels, np.zeros((max_bbox_count - len(labels), 1),
+                                                dtype=np.int32)))
+    else:
+      bboxes = np.zeros((max_bbox_count, 4), dtype=np.float32)
+      scores = np.zeros((max_bbox_count, 1), dtype=np.float32)
+      labels = np.zeros((max_bbox_count, 1), dtype=np.int32)
+
+    output = VisualDetectorOutput(
+        predicted_bboxes=bboxes, predicted_labels=labels, predicted_scores=scores)
+
+    return output
+
 
 class VisualEmbedder(_BaseClarifaiModel):
   _config: ModelConfigClass = get_model_config(ModelTypes.visual_embedder)
