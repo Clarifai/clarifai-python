@@ -1,3 +1,4 @@
+from __future__ import annotations  # isort: skip
 import os
 import subprocess
 from typing import Dict, Union

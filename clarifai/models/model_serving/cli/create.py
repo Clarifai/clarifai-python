@@ -42,7 +42,6 @@ class SubCreateModelCli(BaseClarifaiCli):
         "--example-id",
         required=False,
         type=str,
-        choices=list_model_upload_examples(),
         help="Example id, run `clarifai example list` to list of examples")
 
     model_parser.add_argument(
@@ -98,6 +97,10 @@ class SubCreateModelCli(BaseClarifaiCli):
         ]
         result = prompt(questions)
         self.example_id = result[0]
+
+      else:
+        available_examples = list(list_model_upload_examples().keys())
+        assert self.example_id in available_examples, f"Available examples are: {available_examples}, got {self.example_id}."
 
   def run(self):
     if self.from_example:
