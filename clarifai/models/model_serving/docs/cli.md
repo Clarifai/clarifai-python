@@ -147,9 +147,4 @@ optional arguments:
   --update-version      Update exist model with new version
   --no-test             Trigger this flag to skip testing before uploading
 
-# The following arguments are utilized for uploading a zip URL without specifying the repository location. Will be removed soon.
-  --type                Clarifai model type
-  --desc                Short desccription of model
-  --infer-param         Path to json file contains inference parameters
-  --test-path           Path to python test file executed before uploading, the file must be in working repository. Default is current_dir/test.py
 ```
