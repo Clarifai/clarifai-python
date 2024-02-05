@@ -71,9 +71,10 @@ Install from Source:
 ```bash
 git clone https://github.com/Clarifai/clarifai-python.git
 cd clarifai-python
-python3 -m venv env
-source env/bin/activate
-pip3 install -r requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python setup.py install
 ```
 
 
