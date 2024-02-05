@@ -94,6 +94,19 @@ Set PAT as environment variable through terminal:
 export CLARIFAI_PAT={your personal access token}
 ```
 
+As an **Experiment**, a clarifai CLI capability is underway, wherein we can, just like `aws configure`, shall be able to:<br>
+<br>§. configure various profiles per user_id, identifiable by a Personal Access Token, for instance.
+<br>§. further this capability to interact with models, workflows, datasets, and more via CLI.
+<br>The motivation as of now, was to evade setting Environment Variables in the terminal session / `.bashrc` entries.
+
+
+As an example, the `clarifai-cli` which shall install with the python install / setup.py install of clarifai-python,<br>
+would be able to support various "actions", e.g:
+- configure: to generate a `$HOME/.clarifai` directory. This shall contain configuration/other information associated with the user for Clarifai platform. 
+- datasets: To perform C|R|U|D and List etc. operations for datasets
+<br>...
+- many other utilities, making `clarifai-cli` a very handy-tool for integrations, interactions, automations and more.
+
 ```python
 # Note: CLARIFAI_PAT must be set as env variable.
 from clarifai.client.user import User
