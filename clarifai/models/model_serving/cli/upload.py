@@ -64,46 +64,30 @@ class UploadModelSubCli(BaseClarifaiCli):
         help="Trigger this flag to skip testing before uploading")
 
     upload_parser.add_argument(
-        "--type",
-        type=str,
-        required=False,
-        choices=MODEL_TYPES,
-        default="",
-        help="Clarifai model type")
-    upload_parser.add_argument(
-        "--desc", type=str, required=False, default="", help="Short desccription of model")
-    upload_parser.add_argument(
         "--update-version",
         action="store_true",
         required=False,
         help="Update exist model with new version")
-    upload_parser.add_argument(
-        "--infer-param",
-        required=False,
-        default="",
-        help="Path to json file contains inference parameters")
 
     upload_parser.set_defaults(func=UploadModelSubCli)
 
   def __init__(self, args: argparse.Namespace) -> None:
     self.no_test = args.no_test
-    self.config = None
 
-    working_dir_or_config = args.path or ""
-    if working_dir_or_config:
-      # if input a config file, then not running test
-      if working_dir_or_config.endswith(".yaml"):
-        config_yaml_path = working_dir_or_config
-        self.test_path = None
-        self.no_test = True
-      # if it is a directory - working dir then it must contain config and test
-      else:
-        config_yaml_path = os.path.join(working_dir_or_config, "clarifai_config.yaml")
-        self.test_path = os.path.join(working_dir_or_config, "test.py")
+    working_dir_or_config = args.path
+    # if input a config file, then not running test
+    if working_dir_or_config.endswith(".yaml"):
+      config_yaml_path = working_dir_or_config
+      self.test_path = None
+      self.no_test = True
+    # if it is a directory - working dir then it must contain config and test
+    else:
+      config_yaml_path = os.path.join(working_dir_or_config, "clarifai_config.yaml")
+      self.test_path = os.path.join(working_dir_or_config, "test.py")
 
-      assert os.path.exists(config_yaml_path), FileNotFoundError(
-          f"`{config_yaml_path}` does not exist")
-      self.config = load_user_config(cfg_path=config_yaml_path)
+    assert os.path.exists(config_yaml_path), FileNotFoundError(
+        f"`{config_yaml_path}` does not exist")
+    self.config = load_user_config(cfg_path=config_yaml_path)
 
     self.user_id, self.app_id = "", ""
     user_app = args.user_app
@@ -112,22 +96,13 @@ class UploadModelSubCli(BaseClarifaiCli):
     assert self.url.startswith("http") or self.url.startswith(
         "s3"), f"Invalid url supported http or s3 url. Got {self.url}"
 
-    if self.config:
-      clarifai_cfg = self.config.clarifai_model
-      self.url: str = args.url
-      self.id = args.id or clarifai_cfg.clarifai_model_id
-      self.type = clarifai_cfg.type
-      self.desc = args.desc or clarifai_cfg.description
-      self.infer_param = clarifai_cfg.inference_parameters
-      user_app = user_app or clarifai_cfg.clarifai_user_app_id
-
-    else:
-      self.id = args.id
-      self.type = args.type
-      self.desc = args.desc
-      self.infer_param = args.infer_param
-      assert self.id, "Please provide `id` for Clarifai model id"
-      assert self.type, f"Please provide `type` for model type, supported model types {MODEL_TYPES}"
+    clarifai_cfg = self.config.clarifai_model
+    self.url: str = args.url
+    self.id = args.id or clarifai_cfg.clarifai_model_id
+    self.type = clarifai_cfg.type
+    self.desc = clarifai_cfg.description
+    self.infer_param = clarifai_cfg.inference_parameters
+    user_app = user_app or clarifai_cfg.clarifai_user_app_id
 
     if user_app:
       user_app = user_app.split('/')
