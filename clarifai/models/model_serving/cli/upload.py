@@ -101,10 +101,9 @@ class UploadModelSubCli(BaseClarifaiCli):
     self.config = None
     config_yaml_path = args.path or ""
     if config_yaml_path:
-      if config_yaml_path == ".":
-        config_yaml_path = os.path.join(config_yaml_path, "clarifai_config.yaml")
-        assert os.path.exists(config_yaml_path), FileNotFoundError(
-            f"`{config_yaml_path}` does not exist")
+      config_yaml_path = os.path.join(config_yaml_path, "clarifai_config.yaml")
+      assert os.path.exists(config_yaml_path), FileNotFoundError(
+          f"`{config_yaml_path}` does not exist")
       self.config = load_user_config(cfg_path=config_yaml_path)
 
     self.user_id, self.app_id = "", ""
