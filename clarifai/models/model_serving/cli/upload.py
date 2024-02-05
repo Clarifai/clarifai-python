@@ -49,7 +49,7 @@ class UploadModelSubCli(BaseClarifaiCli):
         nargs='?',
         help=
         "Path to working dir to get clarifai_config.yaml or path to yaml. Default is current directory",
-        default=None)
+        default=".")
     upload_parser.add_argument(
         "--url", type=str, required=True, help="Direct download url of zip file")
     upload_parser.add_argument("--id", type=str, required=False, help="Model ID")
@@ -58,6 +58,11 @@ class UploadModelSubCli(BaseClarifaiCli):
         type=str,
         required=False,
         help="User ID and App ID separated by '/', e.g., <user_id>/<app_id>")
+    upload_parser.add_argument(
+        "--no-test",
+        action="store_true",
+        help="Trigger this flag to skip testing before uploading")
+
     upload_parser.add_argument(
         "--type",
         type=str,
@@ -78,30 +83,24 @@ class UploadModelSubCli(BaseClarifaiCli):
         default="",
         help="Path to json file contains inference parameters")
 
-    upload_parser.add_argument(
-        "--test-path",
-        required=False,
-        default=os.path.join(os.getcwd(), "test.py"),
-        help=
-        "Path to python test file executed before uploading, the file must be in working repository. Default is current_dir/test.py"
-    )
-    upload_parser.add_argument(
-        "--no-test",
-        action="store_true",
-        help="Trigger this flag to skip testing before uploading")
-
     upload_parser.set_defaults(func=UploadModelSubCli)
 
   def __init__(self, args: argparse.Namespace) -> None:
-    self.test_path = args.test_path
     self.no_test = args.no_test
-    if not self.no_test:
-      assert os.path.exists(self.test_path), FileNotFoundError(f"Not found {self.test_path}")
-
     self.config = None
-    config_yaml_path = args.path or ""
-    if config_yaml_path:
-      config_yaml_path = os.path.join(config_yaml_path, "clarifai_config.yaml")
+
+    working_dir_or_config = args.path or ""
+    if working_dir_or_config:
+      # if input a config file, then not running test
+      if working_dir_or_config.endswith(".yaml"):
+        config_yaml_path = working_dir_or_config
+        self.test_path = None
+        self.no_test = True
+      # if it is a directory - working dir then it must contain config and test
+      else:
+        config_yaml_path = os.path.join(working_dir_or_config, "clarifai_config.yaml")
+        self.test_path = os.path.join(working_dir_or_config, "test.py")
+
       assert os.path.exists(config_yaml_path), FileNotFoundError(
           f"`{config_yaml_path}` does not exist")
       self.config = load_user_config(cfg_path=config_yaml_path)
@@ -151,6 +150,7 @@ class UploadModelSubCli(BaseClarifaiCli):
 
     # Run test before uploading
     if not self.no_test:
+      assert os.path.exists(self.test_path), FileNotFoundError(f"Not found {self.test_path}")
       result = subprocess.run(f"pytest -s --log-level=INFO {self.test_path}")
       assert result.returncode == 0, "Test has failed. Please make sure no error exists in your code."
 
