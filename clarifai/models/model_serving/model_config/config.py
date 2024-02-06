@@ -61,7 +61,7 @@ class ClarifaiModelConfig:
   Args:
     field_maps (FieldMapsConfig): Field maps config
     output_type (dataclass): model output type
-    labels (list): list of concept names
+    labels (List[str]): list of concept names
     inference_parameters (List[InferParam]): list of inference parameters
     clarifai_model_id (str): Clarifai model id on the platform
     type (str): one of `MODEL_TYPES`
@@ -71,7 +71,7 @@ class ClarifaiModelConfig:
   """
   field_maps: FieldMapsConfig = None
   output_type: str = None
-  labels: list = field(default_factory=list)
+  labels: List[str] = field(default_factory=list)
   inference_parameters: List[InferParam] = field(default_factory=list)
   clarifai_model_id: str = ""
   type: str = ""
@@ -90,14 +90,16 @@ class ClarifaiModelConfig:
       assert len(_user_app) == 2, ValueError(
           f"id must be combination of user_id and app_id separated by `/`, e.g. <user_id>/<app_id>. Got {var_value}"
       )
+    elif var_name == "labels":
+      if var_value:
+        assert isinstance(var_value, tuple) or isinstance(
+            var_value, list), f"labels must be tuple or list, got {type(var_value)}"
+        var_value = [str(each) for each in var_value]
 
-  def __post_init__(self):
-    self._checking("clarifai_model_id", self.clarifai_model_id)
-    self._checking("type", self.type)
-    self._checking("clarifai_user_app_id", self.clarifai_user_app_id)
+    return var_value
 
   def __setattr__(self, __name: str, __value: Any) -> None:
-    self._checking(__name, __value)
+    __value = self._checking(__name, __value)
 
     super().__setattr__(__name, __value)
 

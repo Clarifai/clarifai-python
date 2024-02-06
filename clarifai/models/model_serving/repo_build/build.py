@@ -169,7 +169,7 @@ class RepositoryBuilder:
           with open(os.path.join(temp_folder, "labels.txt"), "w") as f:
             if not isinstance(user_labels, Iterable):
               user_labels = [user_labels]
-            f.write("\n".join(user_labels) + "\n")
+            f.write("\n".join([str(lb) for lb in user_labels]) + "\n")
 
       # copy model.py
       shutil.copy(_get_static_file_path("triton/model.py"), triton_1_ver)

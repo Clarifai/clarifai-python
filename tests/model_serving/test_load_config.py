@@ -151,3 +151,17 @@ def test_inference_params():
     elif param.path == "_secret":
       assert param.field_type == InferParamType.ENCRYPTED_STRING
       assert param.default_value == kwargs["_secret"]
+
+
+def test_clarifai_config():
+
+  for m in MODEL_TYPES:
+    # Test with wrong user app format
+    _ensure_user_config(init_config(type=m, clarifai_user_app_id=""))
+    with pytest.raises(Exception):
+      _ensure_user_config(init_config(type=m, clarifai_user_app_id="xyz abc"))
+    # Test with Non iterable labels
+    with pytest.raises(Exception):
+      _ensure_user_config(init_config(type=m, labels="12"))
+    with pytest.raises(Exception):
+      _ensure_user_config(init_config(type=m, labels=12))
