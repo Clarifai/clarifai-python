@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Any, Dict, Generator, List
+from typing import Any, Dict, Generator, List, Union
 
 import requests
 import yaml
@@ -576,3 +576,179 @@ class Model(Lister, BaseClient):
         if hasattr(self.model_info, param)
     ]
     return f"Model Details: \n{', '.join(attribute_strings)}\n"
+
+  def list_evaluations(self) -> List[resources_pb2.EvalMetrics]:
+    """List all eval_metrics of current model version
+
+    Raises:
+        Exception: Failed to call API
+
+    Returns:
+        List[resources_pb2.EvalMetrics]: list of eval_metrics
+    """
+    request = service_pb2.ListModelVersionEvaluationsRequest(
+        user_app_id=self.user_app_id,
+        model_id=self.id,
+        model_version_id=self.model_info.model_version.id)
+    response = self._grpc_request(self.STUB.ListModelVersionEvaluations, request)
+
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+
+    results = []
+    fields = [
+        "status",
+        "summary",
+        "id",
+        "eval_info",
+        "ground_truth_dataset",
+    ]
+    for eval_metric in response.eval_metrics:
+      for field in eval_metric.DESCRIPTOR.fields_by_name.keys():
+        if field not in fields:
+          eval_metric.ClearField(field)
+      results.append(eval_metric)
+
+    return results
+
+  def evaluate(self,
+               dataset_id: str,
+               dataset_app_id: str = None,
+               dataset_user_id: str = None,
+               eval_id: str = None,
+               extended_metrics: dict = None,
+               eval_info: dict = None) -> resources_pb2.EvalMetrics:
+    """ Run evaluation
+
+    Args:
+      dataset_id (str): Dataset Id.
+      dataset_app_id (str): App ID for cross app evaluation, leave it as None to use Model App ID. Default is None.
+      dataset_user_id (str): User ID for cross app evaluation, leave it as None to use Model User ID. Default is None.
+      eval_id (str): Specific ID for the evaluation. You must specify this parameter to either overwrite the result with the dataset ID or format your evaluation in an informative manner. If you don't, it will use random ID from system. Default is None.
+      extended_metrics (dict): user custom metrics result. Default is None.
+      eval_info (dict): custom eval info. Default is empty dict.
+
+    Return
+      eval_metrics
+
+    """
+
+    metrics = None
+    if isinstance(extended_metrics, dict):
+      metrics = Struct()
+      metrics.update(extended_metrics)
+      metrics = resources_pb2.ExtendedMetrics(user_metrics=metrics)
+
+    eval_info_params = None
+    if isinstance(eval_info, dict):
+      eval_info_params = Struct()
+      eval_info_params.update(eval_info)
+      eval_info_params = resources_pb2.EvalInfo(params=eval_info_params)
+
+    eval_metric = resources_pb2.EvalMetrics(
+        id=eval_id,
+        model=resources_pb2.Model(
+            id=self.id,
+            app_id=self.auth_helper.app_id,
+            user_id=self.auth_helper.user_id,
+            model_version=resources_pb2.ModelVersion(id=self.model_info.model_version.id),
+        ),
+        extended_metrics=metrics,
+        ground_truth_dataset=resources_pb2.Dataset(
+            id=dataset_id,
+            app_id=dataset_app_id or self.auth_helper.app_id,
+            user_id=dataset_user_id or self.auth_helper.user_id,
+        ),
+        eval_info=eval_info_params,
+    )
+    request = service_pb2.PostEvaluationsRequest(
+        user_app_id=self.user_app_id,
+        eval_metrics=[eval_metric],
+    )
+    response = self._grpc_request(self.STUB.PostEvaluations, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+
+    return response.eval_metrics
+
+  def get_eval_by_id(
+      self,
+      eval_id: str,
+      label_counts=False,
+      test_set=False,
+      binary_metrics=False,
+      confusion_matrix=False,
+      metrics_by_class=False,
+      metrics_by_area=False,
+  ) -> resources_pb2.EvalMetrics:
+    """Get detail eval_metrics by eval_id with extra metric fields
+
+    Args:
+        eval_id (str): eval id
+        label_counts (bool, optional): Set True to get label counts. Defaults to False.
+        test_set (bool, optional): Set True to get test set. Defaults to False.
+        binary_metrics (bool, optional): Set True to get binary metric. Defaults to False.
+        confusion_matrix (bool, optional): Set True to get confusion matrix. Defaults to False.
+        metrics_by_class (bool, optional): Set True to get metrics by class. Defaults to False.
+        metrics_by_area (bool, optional): Set True to get metrics by area. Defaults to False.
+
+    Raises:
+        Exception: Failed to call API
+
+    Returns:
+        resources_pb2.EvalMetrics: eval_metrics
+    """
+    request = service_pb2.GetEvaluationRequest(
+        user_app_id=self.user_app_id,
+        evaluation_id=eval_id,
+        fields=resources_pb2.FieldsValue(
+            label_counts=label_counts,
+            test_set=test_set,
+            binary_metrics=binary_metrics,
+            confusion_matrix=confusion_matrix,
+            metrics_by_class=metrics_by_class,
+            metrics_by_area=metrics_by_area,
+        ))
+    response = self._grpc_request(self.STUB.GetEvaluation, request)
+
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+
+    return response.eval_metrics
+
+  def get_latest_eval(self,
+                      label_counts=False,
+                      test_set=False,
+                      binary_metrics=False,
+                      confusion_matrix=False,
+                      metrics_by_class=False,
+                      metrics_by_area=False) -> Union[resources_pb2.EvalMetrics, None]:
+    """
+    Run `get_eval_by_id` method with latest `eval_id`
+
+    Args:
+      label_counts (bool, optional): Set True to get label counts. Defaults to False.
+      test_set (bool, optional): Set True to get test set. Defaults to False.
+      binary_metrics (bool, optional): Set True to get binary metric. Defaults to False.
+      confusion_matrix (bool, optional): Set True to get confusion matrix. Defaults to False.
+      metrics_by_class (bool, optional): Set True to get metrics by class. Defaults to False.
+      metrics_by_area (bool, optional): Set True to get metrics by area. Defaults to False.
+
+    Returns:
+      eval_metric if model is evaluated otherwise None.
+
+    """
+
+    _latest = self.list_evaluations()[0]
+    result = None
+    if _latest.status.code == status_code_pb2.MODEL_EVALUATED:
+      result = self.get_eval_by_id(
+          eval_id=_latest.id,
+          label_counts=label_counts,
+          test_set=test_set,
+          binary_metrics=binary_metrics,
+          confusion_matrix=confusion_matrix,
+          metrics_by_class=metrics_by_class,
+          metrics_by_area=metrics_by_area)
+
+    return result
