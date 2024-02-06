@@ -1,5 +1,6 @@
 from __future__ import annotations  # isort: skip
 import os
+import shutil
 import subprocess
 from typing import Dict, Union
 
@@ -8,13 +9,24 @@ from ..constants import (CLARIFAI_EXAMPLES_REPO, CLARIFAI_EXAMPLES_REPO_PATH,
 
 
 def download_examples_repo(forced_download: bool = False):
+
+  def _pull():
+    subprocess.run(f"git clone {CLARIFAI_EXAMPLES_REPO} {CLARIFAI_EXAMPLES_REPO_PATH}")
+
   if not os.path.isdir(CLARIFAI_EXAMPLES_REPO_PATH):
     print(f"Download examples to {CLARIFAI_EXAMPLES_REPO_PATH}")
-    subprocess.run(f"git clone {CLARIFAI_EXAMPLES_REPO} {CLARIFAI_EXAMPLES_REPO_PATH}")
+    _pull()
   else:
     if forced_download:
-      os.chdir(CLARIFAI_EXAMPLES_REPO_PATH)
-      subprocess.run("git pull")
+
+      def _rm_dir_readonly(func, path, _):
+        import stat
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+
+      print("Removing old examples...")
+      shutil.rmtree(CLARIFAI_EXAMPLES_REPO_PATH, onerror=_rm_dir_readonly)
+      _pull()
 
 
 def list_model_upload_examples(
