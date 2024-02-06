@@ -7,11 +7,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing import cpu_count
 from typing import Generator, List, Union
 
+import requests
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2  # noqa: F401
 from clarifai_grpc.grpc.api.resources_pb2 import Annotation, Audio, Image, Input, Text, Video
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.struct_pb2 import Struct
+from requests.adapters import HTTPAdapter, Retry
 from tqdm import tqdm
 
 from clarifai.client.base import BaseClient
@@ -728,6 +730,37 @@ class Inputs(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nInputs Deleted\n%s", response.status)
+
+  def download_inputs(self, inputs: List[Input]) -> List[bytes]:
+    """Download list of input objects from the app.
+
+    Args:
+        input_ids (Input): List of input objects to download.
+
+    Example:
+        >>> from clarifai.client.user import User
+        >>> input_obj = User(user_id="user_id").app(app_id="app_id").inputs()
+        >>> input_obj.download_inputs(list(input_obj.list_inputs()))
+    """
+    if not isinstance(inputs, list):
+      raise UserError("input_ids must be a list of input ids")
+    final_inputs = []
+    #initiate session
+    session = requests.Session()
+    retries = Retry(total=3, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
+    session.mount('https://', HTTPAdapter(max_retries=retries))
+    session.headers.update({'Authorization': self.metadata[0][1]})
+    # download inputs
+    data_types = ['image', 'video', 'audio', 'text']
+    for input in inputs:
+      for data_type in data_types:
+        url = getattr(input.data, data_type).url
+        if url:
+          response = session.get(url, stream=True)
+          if response.status_code == 200:
+            final_inputs.append(response.content)
+
+    return final_inputs
 
   def list_inputs(self,
                   dataset_id: str = None,

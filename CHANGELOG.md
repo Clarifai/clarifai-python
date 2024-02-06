@@ -1,3 +1,29 @@
+## [[10.0.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.0.1) - [PyPI](https://pypi.org/project/clarifai/10.0.1/) - 2024-01-18
+
+### Fixed
+- Modified process_response_keys functions to fetch metadata info (#270)
+- Assert user_id condition for RAG (#268)
+
+## [[10.0.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.0.0) - [PyPI](https://pypi.org/project/clarifai/10.0.0/) - 2024-01-10
+
+### Fixed
+- Changed demo link in README (#260)
+- Fixed Mulitmodal input bug (#261)
+
+### Changed
+- Workflow predict retry time to 10 minutes (#266)
+- Update clarifai-grpc to 10.0.1 (#267)
+
+### Added
+- Test Cases for Model Upload (#256)
+- Download Inputs functionality (#263)
+- Added RAG base class (#262)
+- RAG Chat Method (#264)
+- RAG Upload Method (#265)
+
+### Removed
+- Model upload examples moved to examples repo (#258)
+
 ## [[9.11.1]](https://github.com/Clarifai/clarifai-python/releases/tag/9.11.1) - [PyPI](https://pypi.org/project/clarifai/9.11.1/) - 2023-12-29
 
 ### Fixed

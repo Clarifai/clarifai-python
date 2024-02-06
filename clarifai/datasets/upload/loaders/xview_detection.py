@@ -47,6 +47,10 @@ class xviewDetectionDataLoader(ClarifaiDataLoader):
 
     self.load_data()
 
+  @property
+  def task(self):
+    return "visual_detection"
+
   def compress_tiff(self, img_path: str) -> None:
     """Compress tiff image"""
     img_comp_path = os.path.join(self.img_comp_dir, os.path.basename(img_path))

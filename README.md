@@ -48,6 +48,7 @@ This is the official Python client for interacting with our powerful [API](https
   * [Smart Image Search](#smart-image-search)
   * [Smart Text Search](#smart-text-search)
   * [Filters](#filters)
+* **[Retrieval Augmented Generation (RAG)](#retrieval-augmented-generation-rag)**
 * **[More Examples](#pushpin-more-examples)**
 
 
@@ -70,9 +71,10 @@ Install from Source:
 ```bash
 git clone https://github.com/Clarifai/clarifai-python.git
 cd clarifai-python
-python3 -m venv env
-source env/bin/activate
-pip3 install -r requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python setup.py install
 ```
 
 
@@ -177,6 +179,17 @@ annotations_list = list(annotation_generator)
 all_concepts = list(app.list_concepts())
 ```
 
+#### Input Download
+```python
+#listing inputs
+input_generator = input_obj.list_inputs(page_no=1,per_page=1,input_type='image')
+inputs_list = list(input_generator)
+
+#downloading_inputs
+input_bytes = input_obj.download_inputs(inputs_list)
+with open('demo.jpg','wb') as f:
+  f.write(input_bytes[0])
+```
 
 
 ## :brain: Interacting with Models
@@ -380,6 +393,26 @@ Input filters allows to filter by input_type, status of inputs and by inputs_dat
 
 ```python
 results = search.query(filters=[{'input_types': ['image', 'text']}])
+```
+
+## Retrieval Augmented Generation (RAG)
+
+You can setup and start your RAG pipeline in 4 lines of code. The setup method automatically creates a new app and the necessary components under the hood. By default it uses the [mistral-7B-Instruct](https://clarifai.com/mistralai/completion/models/mistral-7B-Instruct) model.
+
+```python
+from clarifai.rag import RAG
+
+rag_agent = RAG.setup(user_id="USER_ID")
+rag_agent.upload(folder_path="~/docs")
+rag_agent.chat(messages=[{"role":"human", "content":"What is Clarifai"}])
+```
+
+If you have previously run the setup method, you can instantiate the RAG class with the prompter workflow URL:
+
+```python
+from clarifai.rag import RAG
+
+rag_agent = RAG(workflow_url="WORKFLOW_URL")
 ```
 
 ## :pushpin: More Examples

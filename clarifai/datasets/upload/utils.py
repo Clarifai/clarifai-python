@@ -53,16 +53,19 @@ class DisplayUploadStatus:
 
   def __init__(self, dataloader: ClarifaiDataLoader,
                dataset_metrics_response: Type[MultiDatasetVersionMetricsGroupResponse],
-               dataset_info_dict: Dict[str, str]) -> None:
+               dataset_info_dict: Dict[str, str],
+               pre_upload_stats: Tuple[Dict[str, int], Dict[str, int]]) -> None:
     """Initialize the class.
     Args:
       dataloader: ClarifaiDataLoader object
       dataset_metrics_response: The dataset version metrics response from the server.
       dataset_info_dict: The dataset info dictionary.
+      pre_upload_stats: The pre upload stats for the dataset.
     """
     self.dataloader = dataloader
     self.dataset_metrics_response = dataset_metrics_response
     self.dataset_info_dict = dataset_info_dict
+    self.pre_upload_stats = pre_upload_stats
 
     self.display()
 
@@ -71,7 +74,18 @@ class DisplayUploadStatus:
     from rich.console import Console
 
     local_inputs_count, local_annotations_dict = self.get_dataloader_stats()
-    uploaded_inputs_dict, uploaded_annotations_dict = self.get_uploaded_dataset_stats()
+    uploaded_inputs_dict, uploaded_annotations_dict = self.get_dataset_version_stats(
+        self.dataset_metrics_response)
+
+    # Subtract the pre upload stats from the uploaded stats
+    uploaded_inputs_dict = {
+        key: int(uploaded_inputs_dict[key]) - int(self.pre_upload_stats[0].get(key, 0))
+        for key in uploaded_inputs_dict
+    }
+    uploaded_annotations_dict = {
+        key: uploaded_annotations_dict[key] - self.pre_upload_stats[1].get(key, 0)
+        for key in uploaded_annotations_dict
+    }
 
     self.local_annotations_count = sum(local_annotations_dict.values())
     self.uploaded_annotations_count = sum(uploaded_annotations_dict.values())
@@ -99,9 +113,6 @@ class DisplayUploadStatus:
     """
     from clarifai.constants.dataset import DATASET_UPLOAD_TASKS
 
-    if not isinstance(self.dataloader, ClarifaiDataLoader):
-      raise UserError("Dataloader is not an instance of ClarifaiDataLoader")
-
     task = self.dataloader.task
     if task not in DATASET_UPLOAD_TASKS:
       raise UserError(
@@ -113,8 +124,13 @@ class DisplayUploadStatus:
       local_annotations_dict[key] += len(getattr(self.dataloader[i], attr))
     return local_inputs_count, local_annotations_dict
 
-  def get_uploaded_dataset_stats(self) -> Tuple[Dict[str, int], Dict[str, int]]:
+  @staticmethod
+  def get_dataset_version_stats(
+      dataset_metrics_response: Type[MultiDatasetVersionMetricsGroupResponse]
+  ) -> Tuple[Dict[str, int], Dict[str, int]]:
     """Parse the response from the server for the dataset version metrics groups.
+    Args:
+      dataset_metrics_response: The dataset version metrics response from the server.
 
     Returns:
       uploaded_inputs_dict (Dict[str, int]): The input statistics for the dataset.
@@ -123,7 +139,7 @@ class DisplayUploadStatus:
     dataset_statistics = []
     uploaded_inputs_dict = {}
     uploaded_annotations_dict = dict(concepts=0, bboxes=0, polygons=0)
-    dict_response = MessageToDict(self.dataset_metrics_response)
+    dict_response = MessageToDict(dataset_metrics_response)
 
     for data in dict_response["datasetVersionMetricsGroups"]:
       if isinstance(data["value"], str):

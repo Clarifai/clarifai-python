@@ -20,6 +20,7 @@ class VisualClassificationFeatures:
   geo_info: Optional[List[float]] = None  #[Longitude, Latitude]
   id: Optional[int] = None  # image_id
   metadata: Optional[dict] = None
+  image_bytes: Optional[bytes] = None
 
 
 @dataclass
@@ -31,6 +32,7 @@ class VisualDetectionFeatures:
   geo_info: Optional[List[float]] = None  #[Longitude, Latitude]
   id: Optional[int] = None  # image_id
   metadata: Optional[dict] = None
+  image_bytes: Optional[bytes] = None
 
 
 @dataclass
@@ -42,3 +44,4 @@ class VisualSegmentationFeatures:
   geo_info: Optional[List[float]] = None  #[Longitude, Latitude]
   id: Optional[int] = None  # image_id
   metadata: Optional[dict] = None
+  image_bytes: Optional[bytes] = None

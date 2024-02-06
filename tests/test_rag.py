@@ -1,12 +1,17 @@
+import logging
 import os
 from collections import namedtuple
 
 import pytest
 
+from clarifai.client import User
 from clarifai.rag import RAG
 from clarifai.urls.helper import ClarifaiUrlHelper
 
 CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
+
+TEXT_FILE_PATH = os.path.dirname(__file__) + "/assets/sample.txt"
+PDF_URL = "https://samples.clarifai.com/test_doc.pdf"
 
 auth_obj = namedtuple("auth", "ui")
 
@@ -26,8 +31,8 @@ class TestRAG:
     assert len(self.rag._prompt_workflow.workflow_info.nodes) == 2
 
   def test_from_existing_workflow(self):
-    app = RAG(workflow_url=self.workflow_url)
-    assert app._app.id == self.rag._app.id
+    agent = RAG(workflow_url=self.workflow_url)
+    assert agent._app.id == self.rag._app.id
 
   def test_predict_client_manage_state(self):
     messages = [{"role": "human", "content": "What is 1 + 1?"}]
@@ -39,3 +44,17 @@ class TestRAG:
     messages = [{"role": "human", "content": "What is 1 + 1?"}]
     new_messages = self.rag.chat(messages)
     assert len(new_messages) == 1
+
+  def test_upload_docs_filepath(self, caplog):
+    with caplog.at_level(logging.INFO):
+      self.rag.upload(file_path=TEXT_FILE_PATH)
+      assert "SUCCESS" in caplog.text
+
+  def test_upload_docs_from_url(self, caplog):
+    with caplog.at_level(logging.INFO):
+      self.rag.upload(url=PDF_URL)
+      assert "SUCCESS" in caplog.text
+
+  @classmethod
+  def teardown_class(self):
+    User(user_id=CREATE_APP_USER_ID).delete_app(self.rag._app.id)
