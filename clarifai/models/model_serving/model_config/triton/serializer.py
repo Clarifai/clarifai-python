@@ -21,7 +21,7 @@ from typing import Type
 from google.protobuf.text_format import MessageToString
 from tritonclient.grpc import model_config_pb2
 
-from .config import TritonModelConfig
+from .triton_config import TritonModelConfig
 
 
 class Serializer:
@@ -61,6 +61,8 @@ class Serializer:
       output_config = self.config_proto.output.add()
       for key, value in out_field.__dict__.items():
         try:
+          if not value:
+            continue
           setattr(output_config, key, value)
         except AttributeError:  #Proto Repeated Field assignment not allowed
           field = getattr(output_config, key)

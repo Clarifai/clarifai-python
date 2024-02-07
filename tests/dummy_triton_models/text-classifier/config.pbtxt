@@ -1,4 +1,3 @@
-name: "text-classifier"
 max_batch_size: 4
 input {
   name: "text"

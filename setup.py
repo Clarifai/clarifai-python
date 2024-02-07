@@ -45,10 +45,6 @@ setuptools.setup(
         'all': ["pycocotools==2.0.6"],
     },
     entry_points={
-        "console_scripts": [
-            "clarifai-model-upload-init = clarifai.models.model_serving.cli.repository:model_upload_init",
-            "clarifai-triton-zip = clarifai.models.model_serving.cli.model_zip:main",
-            "clarifai-upload-model = clarifai.models.model_serving.cli.deploy_cli:main"
-        ],
+        "console_scripts": ["clarifai = clarifai.models.model_serving.cli.clarifai_clis:main",],
     },
     include_package_data=True)
