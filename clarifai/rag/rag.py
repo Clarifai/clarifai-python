@@ -56,6 +56,7 @@ class RAG:
             llm_url: str = "https://clarifai.com/mistralai/completion/models/mistral-7B-Instruct",
             base_workflow: str = "Text",
             workflow_yaml_filename: str = 'prompter_wf.yaml',
+            workflow_id: str = None,
             base_url: str = "https://api.clarifai.com",
             pat: str = None,
             **kwargs):
@@ -113,7 +114,7 @@ class RAG:
     prompter_model = prompter_model.create_version(output_info=prompter_model_params)
 
     ## Generate a tmp yaml file for workflow creation
-    workflow_id = f"rag-wf-{now_ts}"
+    workflow_id = f"rag-wf-{now_ts}" if workflow_id is None else workflow_id
     workflow_dict = {
         "workflow": {
             "id":
