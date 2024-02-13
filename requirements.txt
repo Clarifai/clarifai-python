@@ -9,5 +9,5 @@ PyYAML>=6.0.1
 schema>=0.7.5
 Pillow>=9.5.0
 inquirerpy==0.3.4
-llama-index>=0.9.27
+llama-index-core>=0.10.1
 pypdf>=3.17.4

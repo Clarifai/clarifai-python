@@ -1,3 +1,16 @@
+## [[10.1.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.1.0) - [PyPI](https://pypi.org/project/clarifai/10.1.0/) - 2024-02-13
+
+### Added
+- Model Upload v2 CLI (#269)
+- Support Existing App in RAG (#275)
+- Support RAG Prompter kwargs (#280)
+- Custom Workflow id support in RAG (#291)
+
+### Fixed
+- Model Template Change in Model Train Test (#273)
+- Dataset Upload summary fix (#282)
+- Update Model Serving Docs (#287)
+
 ## [[10.0.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.0.1) - [PyPI](https://pypi.org/project/clarifai/10.0.1/) - 2024-01-18
 
 ### Fixed
