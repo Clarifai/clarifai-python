@@ -660,15 +660,15 @@ class Inputs(Lister, BaseClient):
         user_app_id=self.user_app_id, inputs=inputs, inputs_add_job_id=input_job_id)
     response = self._grpc_request(self.STUB.PostInputs, request)
     if response.status.code != status_code_pb2.SUCCESS:
-      try:
-        self.logger.warning(response.inputs[0].status)
-      except IndexError:
-        self.logger.warning(response.status)
+      if show_log:
+        self.logger.warning(response)
+      else:
+        return input_job_id, response
     else:
       if show_log:
         self.logger.info("\nInputs Uploaded\n%s", response.status)
 
-    return input_job_id
+    return input_job_id, response
 
   def upload_annotations(self, batch_annot: List[resources_pb2.Annotation], show_log: bool = True
                         ) -> Union[List[resources_pb2.Annotation], List[None]]:
@@ -705,7 +705,7 @@ class Inputs(Lister, BaseClient):
     Returns:
         input_job_id: job id for the upload request.
     """
-    input_job_id = self.upload_inputs(inputs, False)
+    input_job_id, _ = self.upload_inputs(inputs, False)
     self._wait_for_inputs(input_job_id)
     failed_inputs = self._delete_failed_inputs(inputs)
 

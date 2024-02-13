@@ -53,7 +53,7 @@ class Model(Lister, BaseClient):
       kwargs = {'user_id': user_id, 'app_id': app_id}
     self.kwargs = {**kwargs, 'id': model_id, 'model_version': model_version,}
     self.model_info = resources_pb2.Model(**self.kwargs)
-    self.logger = get_logger(logger_level="INFO")
+    self.logger = get_logger(logger_level="INFO", name=__name__)
     self.training_params = {}
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
     Lister.__init__(self)

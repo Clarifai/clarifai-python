@@ -118,6 +118,8 @@ class BaseClient:
             value_s = struct_pb2.Struct()
             value_s.update(value)
             value = value_s
+          elif key == 'metrics':
+            continue
           elif key in ['metadata']:
             if isinstance(value, dict) and value != {}:
               value_s = struct_pb2.Struct()

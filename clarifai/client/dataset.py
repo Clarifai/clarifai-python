@@ -2,11 +2,13 @@ import os
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from multiprocessing import cpu_count
 from typing import Dict, Generator, List, Optional, Tuple, Type, TypeVar, Union
 
 import requests
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
+from clarifai_grpc.grpc.api.service_pb2 import MultiInputResponse
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from google.protobuf.json_format import MessageToDict
 from requests.adapters import HTTPAdapter, Retry
@@ -25,7 +27,7 @@ from clarifai.datasets.upload.text import TextClassificationDataset
 from clarifai.datasets.upload.utils import DisplayUploadStatus
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
-from clarifai.utils.logging import get_logger
+from clarifai.utils.logging import add_file_handler, get_logger
 from clarifai.utils.misc import BackoffIterator, Chunker
 
 ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset,
@@ -65,7 +67,7 @@ class Dataset(Lister, BaseClient):
     self.batch_size = 128  # limit max protos in a req
     self.task = None  # Upload dataset type
     self.input_object = Inputs(user_id=self.user_id, app_id=self.app_id, pat=pat)
-    self.logger = get_logger(logger_level="INFO")
+    self.logger = get_logger(logger_level="INFO", name=__name__)
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
     Lister.__init__(self)
 
@@ -194,13 +196,17 @@ class Dataset(Lister, BaseClient):
 
     return retry_annot_upload
 
-  def _delete_failed_inputs(self, batch_input_ids: List[int],
-                            dataset_obj: ClarifaiDatasetType) -> Tuple[List[int], List[int]]:
+  def _delete_failed_inputs(
+      self,
+      batch_input_ids: List[int],
+      dataset_obj: ClarifaiDatasetType,
+      upload_response: MultiInputResponse = None) -> Tuple[List[int], List[int]]:
     """Delete failed input ids from clarifai platform dataset.
 
     Args:
       batch_input_ids: batch input ids
       dataset_obj: ClarifaiDataset object
+      upload_response: upload response proto
 
     Returns:
       success_inputs: upload success input ids
@@ -220,7 +226,19 @@ class Dataset(Lister, BaseClient):
     success_inputs = response_dict.get('inputs', [])
 
     success_input_ids = [input.get('id') for input in success_inputs]
-    failed_input_ids = list(set(input_ids) - set(success_input_ids))
+    failed_input_ids = list(set(input_ids) - set(success_input_ids.copy()))
+    #check duplicate input ids
+    duplicate_input_ids = [
+        input.id for input in upload_response.inputs
+        if input.status.details == 'Input has a duplicate ID.'
+    ]  #handling duplicte ID failures.
+    if duplicate_input_ids:
+      success_input_ids = list(set(success_input_ids.copy()) - set(duplicate_input_ids.copy()))
+      failed_input_ids = list(set(failed_input_ids) - set(duplicate_input_ids))
+      self.logger.warning(
+          f"Upload Failed for {len(duplicate_input_ids)} inputs in current batch: Duplicate input ids: {duplicate_input_ids}"
+      )
+
     #delete failed inputs
     self._grpc_request(
         self.STUB.DeleteInputs,
@@ -228,8 +246,9 @@ class Dataset(Lister, BaseClient):
     )
     return [input_ids[id] for id in success_input_ids], [input_ids[id] for id in failed_input_ids]
 
-  def _upload_inputs_annotations(self, batch_input_ids: List[int], dataset_obj: ClarifaiDatasetType
-                                ) -> Tuple[List[int], List[resources_pb2.Annotation]]:
+  def _upload_inputs_annotations(
+      self, batch_input_ids: List[int], dataset_obj: ClarifaiDatasetType
+  ) -> Tuple[List[int], List[resources_pb2.Annotation], MultiInputResponse]:
     """Uploads batch of inputs and annotations concurrently to clarifai platform dataset.
 
     Args:
@@ -239,20 +258,22 @@ class Dataset(Lister, BaseClient):
     Returns:
       failed_input_ids: failed input ids
       retry_annot_protos: failed annot protos
+      response: upload response proto
     """
     input_protos, _ = dataset_obj.get_protos(batch_input_ids)
-    input_job_id = self.input_object.upload_inputs(inputs=input_protos, show_log=False)
+    input_job_id, _response = self.input_object.upload_inputs(inputs=input_protos, show_log=False)
     retry_annot_protos = []
 
     self.input_object._wait_for_inputs(input_job_id)
-    success_input_ids, failed_input_ids = self._delete_failed_inputs(batch_input_ids, dataset_obj)
+    success_input_ids, failed_input_ids = self._delete_failed_inputs(batch_input_ids, dataset_obj,
+                                                                     _response)
 
-    if self.task in ["visual_detection", "visual_segmentation"]:
+    if self.task in ["visual_detection", "visual_segmentation"] and success_input_ids:
       _, annotation_protos = dataset_obj.get_protos(success_input_ids)
       chunked_annotation_protos = Chunker(annotation_protos, self.batch_size).chunk()
       retry_annot_protos.extend(self._concurrent_annot_upload(chunked_annotation_protos))
 
-    return failed_input_ids, retry_annot_protos
+    return failed_input_ids, retry_annot_protos, _response
 
   def _retry_uploads(self, failed_input_ids: List[int],
                      retry_annot_protos: List[resources_pb2.Annotation],
@@ -265,7 +286,25 @@ class Dataset(Lister, BaseClient):
       dataset_obj: ClarifaiDataset object
     """
     if failed_input_ids:
-      self._upload_inputs_annotations(failed_input_ids, dataset_obj)
+      retry_input_ids = [dataset_obj.all_input_ids[id] for id in failed_input_ids]
+      #Log Retrying inputs
+      self.logger.warning(
+          f"Retrying upload for {len(failed_input_ids)} inputs in current batch: {retry_input_ids}"
+      )
+      failed_retrying_inputs, _, retry_response = self._upload_inputs_annotations(
+          failed_input_ids, dataset_obj)
+      #Log failed inputs
+      if failed_retrying_inputs:
+        failed_retrying_input_ids = [
+            dataset_obj.all_input_ids[id] for id in failed_retrying_inputs
+        ]
+        failed_inputs_logs = {
+            input.id: input.status.details
+            for input in retry_response.inputs if input.id in failed_retrying_input_ids
+        }
+        self.logger.warning(
+            f"Failed to upload {len(failed_retrying_inputs)} inputs in current batch: {failed_inputs_logs}"
+        )
     if retry_annot_protos:
       chunked_annotation_protos = Chunker(retry_annot_protos, self.batch_size).chunk()
       _ = self._concurrent_annot_upload(chunked_annotation_protos)
@@ -287,21 +326,27 @@ class Dataset(Lister, BaseClient):
         ]
 
         for job in as_completed(futures):
-          retry_input_ids, retry_annot_protos = job.result()
+          retry_input_ids, retry_annot_protos, _ = job.result()
           self._retry_uploads(retry_input_ids, retry_annot_protos, dataset_obj)
           progress.update()
 
   def upload_dataset(self,
                      dataloader: Type[ClarifaiDataLoader],
                      batch_size: int = 32,
-                     get_upload_status: bool = False) -> None:
+                     get_upload_status: bool = False,
+                     log_warnings: bool = False) -> None:
     """Uploads a dataset to the app.
 
     Args:
       dataloader (Type[ClarifaiDataLoader]): ClarifaiDataLoader object
       batch_size (int): batch size for concurrent upload of inputs and annotations (max: 128)
       get_upload_status (bool): True if you want to get the upload status of the dataset
+      log_warnings (bool): True if you want to save log warnings in a file
     """
+    #add file handler to log warnings
+    if log_warnings:
+      add_file_handler(self.logger, f"Dataset_Upload{str(int(datetime.now().timestamp()))}.log")
+    #set batch size and task
     self.batch_size = min(self.batch_size, batch_size)
     self.task = dataloader.task
     if self.task not in DATASET_UPLOAD_TASKS:

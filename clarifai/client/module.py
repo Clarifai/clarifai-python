@@ -40,7 +40,7 @@ class Module(Lister, BaseClient):
 
     self.kwargs = {**kwargs, 'id': module_id, 'module_version': module_version}
     self.module_info = resources_pb2.Module(**self.kwargs)
-    self.logger = get_logger(logger_level="INFO")
+    self.logger = get_logger(logger_level="INFO", name=__name__)
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
     Lister.__init__(self)
 

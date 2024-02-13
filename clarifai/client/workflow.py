@@ -54,7 +54,7 @@ class Workflow(Lister, BaseClient):
     self.kwargs = {**kwargs, 'id': workflow_id, 'version': workflow_version}
     self.output_config = output_config
     self.workflow_info = resources_pb2.Workflow(**self.kwargs)
-    self.logger = get_logger(logger_level="INFO")
+    self.logger = get_logger(logger_level="INFO", name=__name__)
     BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
     Lister.__init__(self)
 

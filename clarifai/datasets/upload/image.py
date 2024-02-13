@@ -1,4 +1,5 @@
 import os
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Tuple, Type
 
@@ -31,7 +32,7 @@ class VisualClassificationDataset(ClarifaiDataset):
       image_path = data_item.image_path
       labels = data_item.labels if isinstance(data_item.labels,
                                               list) else [data_item.labels]  # clarifai concept
-      input_id = f"{self.dataset_id}-{id}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
+      input_id = f"{self.dataset_id}-{uuid.uuid4().hex[:8]}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
       geo_info = data_item.geo_info
       if data_item.metadata is not None:
         metadata.update(data_item.metadata)
@@ -91,7 +92,7 @@ class VisualDetectionDataset(ClarifaiDataset):
       image = data_item.image_path
       labels = data_item.labels  # list:[l1,...,ln]
       bboxes = data_item.bboxes  # [[xmin,ymin,xmax,ymax],...,[xmin,ymin,xmax,ymax]]
-      input_id = f"{self.dataset_id}-{id}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
+      input_id = f"{self.dataset_id}-{uuid.uuid4().hex[:8]}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
       if data_item.metadata is not None:
         metadata.update(data_item.metadata)
       else:
@@ -152,7 +153,7 @@ class VisualSegmentationDataset(ClarifaiDataset):
       image = data_item.image_path
       labels = data_item.labels
       _polygons = data_item.polygons  # list of polygons: [[[x,y],...,[x,y]],...]
-      input_id = f"{self.dataset_id}-{id}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
+      input_id = f"{self.dataset_id}-{uuid.uuid4().hex[:8]}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
       if data_item.metadata is not None:
         metadata.update(data_item.metadata)
       else:
