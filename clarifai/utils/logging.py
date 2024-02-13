@@ -99,3 +99,10 @@ def get_logger(logger_level: Union[int, str] = logging.NOTSET,
 
   _configure_logger(name, logger_level)
   return logging.getLogger(name)
+
+
+def add_file_handler(logger: logging.Logger, file_path: str, log_level: str = 'WARNING') -> None:
+  """Add a file handler to the logger."""
+  file_handler = logging.FileHandler(file_path)
+  file_handler.setLevel(log_level)
+  logger.addHandler(file_handler)
