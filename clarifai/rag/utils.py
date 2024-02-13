@@ -3,8 +3,9 @@ from pathlib import Path
 from typing import List
 
 import requests
-from llama_index import Document, SimpleDirectoryReader, download_loader
-from llama_index.node_parser.text import SentenceSplitter
+from llama_index.core import Document, SimpleDirectoryReader
+from llama_index.core.node_parser.text import SentenceSplitter
+from llama_index.core.readers.download import download_loader
 from pypdf import PdfReader
 
 
