@@ -85,6 +85,8 @@ class RAG:
 
     if not user_id and app_url:
       app = App(url=app_url, pat=pat)
+      uid = app_url.split(".com/")[1].split("/")[0]
+      user = User(user_id=uid, base_url=base_url, pat=pat)
 
     if user_id and app_url:
       raise UserError("Must provide one of user_id or app_url, not both.")
@@ -152,6 +154,7 @@ class RAG:
              batch_size: int = 128,
              chunk_size: int = 1024,
              chunk_overlap: int = 200,
+             dataset_id: str = None,
              **kwargs) -> None:
     """Uploads documents to the app.
         - Read from a local directory or public url or local filename.
@@ -195,6 +198,7 @@ class RAG:
 
     #iterate through documents
     for doc in documents:
+      doc_i = 0
       cur_text_chunks = split_document(
           text=doc.text, chunk_size=chunk_size, chunk_overlap=chunk_overlap, **kwargs)
       text_chunks.extend(cur_text_chunks)
@@ -212,13 +216,16 @@ class RAG:
           for meta in batch_metadatas:
             meta_struct = Struct()
             meta_struct.update(meta)
+            meta_struct.update({"doc_chunk_no": doc_i})
             meta_list.append(meta_struct)
+            doc_i+=1
           del batch_metadatas
           #creating input proto
           input_batch = [
               self._app.inputs().get_text_input(
                   input_id=batch_ids[i],
                   raw_text=text,
+                  dataset_id=dataset_id,
                   metadata=meta_list[i],
               ) for i, text in enumerate(batch_texts)
           ]
@@ -238,13 +245,16 @@ class RAG:
       for meta in batch_metadatas:
         meta_struct = Struct()
         meta_struct.update(meta)
+        meta_struct.update({"doc_chunk_no": doc_i})
         meta_list.append(meta_struct)
+        doc_i+=1
       del batch_metadatas
       #creating input proto
       input_batch = [
           self._app.inputs().get_text_input(
               input_id=batch_ids[i],
               raw_text=text,
+              dataset_id=dataset_id,
               metadata=meta_list[i],
           ) for i, text in enumerate(text_chunks)
       ]
@@ -291,3 +301,4 @@ class RAG:
     # store chat state id
     self.chat_state_id = response.workflow_state.id
     return [format_assistant_message(response.results[0].outputs[-1].data.text.raw)]
+  
