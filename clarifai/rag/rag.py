@@ -76,11 +76,10 @@ class RAG:
         >>> rag_agent = RAG.setup(app_url=YOUR_APP_URL)
         >>> rag_agent.chat(messages=[{"role":"human", "content":"What is Clarifai"}])
     """
-
+    now_ts = str(int(datetime.now().timestamp()))
     if user_id and not app_url:
       user = User(user_id=user_id, base_url=base_url, pat=pat)
       ## Create an App
-      now_ts = str(int(datetime.now().timestamp()))
       app_id = f"rag_app_{now_ts}"
       app = user.create_app(app_id=app_id, base_workflow=base_workflow)
 
@@ -95,7 +94,7 @@ class RAG:
           "user_id or app_url must be provided. The user_id can be found at https://clarifai.com/settings."
       )
 
-    llm = Model(llm_url)
+    llm = Model(url=llm_url, pat=pat)
 
     min_score = kwargs.get("min_score", 0.95)
     max_results = kwargs.get("max_results", 5)
