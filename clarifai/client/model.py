@@ -586,6 +586,7 @@ class Model(Lister, BaseClient):
     Returns:
         List[resources_pb2.EvalMetrics]: list of eval_metrics
     """
+    assert self.model_info.model_version.id, "Model version is empty. Please provide `model_version` as arguments or with a URL as the format '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
     request = service_pb2.ListModelVersionEvaluationsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
@@ -632,7 +633,7 @@ class Model(Lister, BaseClient):
       eval_metrics
 
     """
-
+    assert self.model_info.model_version.id, "Model version is empty. Please provide `model_version` as arguments or with a URL as the format '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
     metrics = None
     if isinstance(extended_metrics, dict):
       metrics = Struct()
