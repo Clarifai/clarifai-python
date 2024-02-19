@@ -1,3 +1,4 @@
+import os
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
@@ -469,6 +470,12 @@ class DetectionResultHandler(_BaseEvalResultHandler):
         _valid_eval_data, metric_name='precision_recall_curve', x='recall', y='precision')
     return outputs
 
+  def roc_curve(self, index=0, **kwargs) -> None:
+    return None
+
+  def confusion_matrix(self, index=0, **kwargs) -> None:
+    return None
+
 
 ########################## Comparison ###########################
 
@@ -553,7 +560,8 @@ class EvalResultCompare:
 
   def _loop_eval_handlers(self, func_name: str, **kwargs):
     outs = []
-    comparator = []
+    comparators = []
+    logger.info(f'Running `{func_name}`')
     for _, each in enumerate(self.eval_handlers):
       for ds_index, _ in enumerate(each.eval_data):
         func = eval(f'each.{func_name}')
@@ -564,18 +572,21 @@ class EvalResultCompare:
         else:
           name = each.get_dataset_name_by_index(ds_index, pretify=True)
         if out is None:
-          print(f'{self.comparator}:{name} does not have valid data for {func_name}')
+          logger.warning(f'{self.comparator}:{name} does not have valid data for `{func_name}`')
           continue
-        comparator.append(name)
+        comparators.append(name)
         outs.append(out)
 
     # remove app_id if models a
     if self.mode == CompareMode.MANY_MODELS_TO_ONE_DATA:
-      apps = set([comp.split('/')[0] for comp in comparator])
+      apps = set([comp.split('/')[0] for comp in comparators])
       if len(apps) == 1:
-        comparator = ['/'.join(comp.split('/')[1:]) for comp in comparator]
+        comparators = ['/'.join(comp.split('/')[1:]) for comp in comparators]
 
-    return outs, comparator
+    if not outs:
+      logger.warning(f'Model type {self.model_type} does not support `{func_name}`')
+
+    return outs, comparators
 
   def detailed_summary(self,
                        confidence_threshold: float = .5,
@@ -587,7 +598,7 @@ class EvalResultCompare:
     df = []
     total = []
     # loop over all eval_handlers/dataset and call its method
-    outs, comparator = self._loop_eval_handlers(
+    outs, comparators = self._loop_eval_handlers(
         'detailed_summary',
         confidence_threshold=confidence_threshold,
         iou_threshold=iou_threshold,
@@ -595,9 +606,9 @@ class EvalResultCompare:
         bypass_const=bypass_const)
     for indx, out in enumerate(outs):
       _df, _total = out
-      _df[self.comparator] = [comparator[indx] for _ in range(len(_df))]
+      _df[self.comparator] = [comparators[indx] for _ in range(len(_df))]
       _total['Concept'].replace(
-          to_replace=['Total'], value=f'{self.comparator}:{comparator[indx]}', inplace=True)
+          to_replace=['Total'], value=f'{self.comparator}:{comparators[indx]}', inplace=True)
       _total.rename({'Concept': 'Total Concept'}, axis=1, inplace=True)
       df.append(_df)
       total.append(_total)
@@ -609,16 +620,17 @@ class EvalResultCompare:
     else:
       return None
 
-  def confusion_matrix(self, show=True, save_path: str = None) -> Union[np.ndarray, None]:
+  def confusion_matrix(self, show=True, save_path: str = None,
+                       cm_kwargs: dict = {}) -> Union[np.ndarray, None]:
     """Return image as graph of confusion of models. If models don't have confusion matrix, return None
     Args:
         show (bool, optional): Show graph. Defaults to True.
     Returns:
         Union[np.ndarray, None]: Graph as image
     """
-    outs, comparator = self._loop_eval_handlers("confusion_matrix")
+    outs, comparators = self._loop_eval_handlers("confusion_matrix", **cm_kwargs)
     all_dfs = []
-    for _, (df, anchor) in enumerate(zip(outs, comparator)):
+    for _, (df, anchor) in enumerate(zip(outs, comparators)):
       df[self.comparator] = [anchor for _ in range(len(df))]
       all_dfs.append(df)
 
@@ -627,8 +639,8 @@ class EvalResultCompare:
       if save_path or show:
 
         def _facet_heatmap(data, **kws):
-          data.dropna(axis=1, inplace=True)
-          data.drop(self.comparator, axis=1, inplace=True)
+          data = data.dropna(axis=1)
+          data = data.drop(self.comparator, axis=1)
           concepts = data.columns
           colnames = pd.MultiIndex.from_arrays([concepts], names=['Predicted'])
           data.columns = colnames
@@ -659,8 +671,11 @@ class EvalResultCompare:
 
     return all_dfs
 
-  def roc_curve_plot(self, show=True, save_path: str = None,
-                     **relplot_kwargs) -> Union[np.ndarray, None]:
+  def roc_curve_plot(self,
+                     show=True,
+                     save_path: str = None,
+                     roc_curve_kwargs: dict = {},
+                     relplot_kwargs: dict = {}) -> Union[np.ndarray, None]:
     """Show roc curve for classification model
     Args:
         show (bool, optional): Show graph. Defaults to True.
@@ -668,7 +683,8 @@ class EvalResultCompare:
     Returns:
         Union[np.ndarray, None]: Graph as image
     """
-    outs, comparator = self._loop_eval_handlers("roc_curve")
+    sns.color_palette("Paired")
+    outs, comparator = self._loop_eval_handlers("roc_curve", **roc_curve_kwargs)
     all_dfs = []
     for _, (df, anchor) in enumerate(zip(outs, comparator)):
       df[self.comparator] = [anchor for _ in range(len(df))]
@@ -693,14 +709,19 @@ class EvalResultCompare:
 
     return all_dfs
 
-  def pr_plot(self, show=True, save_path: str = None, **relplot_kwargs) -> Union[np.ndarray, None]:
+  def pr_plot(self,
+              show=True,
+              save_path: str = None,
+              pr_curve_kwargs: dict = {},
+              relplot_kwargs: dict = {}) -> Union[np.ndarray, None]:
     """Show Precision Recall plot
     Args:
         show (bool, optional): Show graph. Defaults to True.
     Returns:
         Union[np.ndarray, None]: Graph as image
     """
-    outs, comparator = self._loop_eval_handlers("pr_curve")
+    sns.color_palette("Paired")
+    outs, comparator = self._loop_eval_handlers("pr_curve", **pr_curve_kwargs)
     all_dfs = []
     for _, (df, anchor) in enumerate(zip(outs, comparator)):
       df[self.comparator] = [anchor for _ in range(len(df))]
@@ -725,23 +746,70 @@ class EvalResultCompare:
 
     return all_dfs
 
-  def f1_plot(self, show=True) -> Union[np.ndarray, None]:
-    """Show F1 plot
-    Args:
-        show (bool, optional): Show graph. Defaults to True.
-    Returns:
-        Union[numpy.ndarray, None]: Graph as image
-    """
-
-  def all(self, output_folder: str):
+  def all(
+      self,
+      output_folder: str,
+      confidence_threshold: float = 0.5,
+      iou_threshold: float = 0.5,
+      overwrite: bool = False,
+      metric_kwargs: dict = {},
+      pr_plot_kwargs: dict = {},
+      roc_plot_kwargs: dict = {},
+      cm_plot_kwargs: dict = {},
+  ):
     """Run all comparison methods one by one:
     - summary
     - confusion_matrix (if applicable)
     - roc_curve (if applicable)
     - pr_plot
-    - f1 plot
     And save to output_folder
 
     Args:
         output_folder (str): path to output
     """
+    eval_type = get_eval_type(self.model_type)
+    area = metric_kwargs.pop("area", "all")
+    bypass_const = metric_kwargs.pop("bypass_const", False)
+
+    fname = f"conf-{confidence_threshold}"
+    if eval_type == EvalType.DETECTION:
+      fname = f"{fname}_iou-{iou_threshold}_area-{area}"
+
+    def join_root(*args):
+      return os.path.join(output_folder, *args)
+
+    output_folder = join_root(fname)
+    if os.path.exists(output_folder) and not overwrite:
+      raise RuntimeError(f"{output_folder} exists. If you want to overwrite, set `overwrite=True`")
+
+    os.makedirs(output_folder, exist_ok=True)
+
+    logger.info("Making summary tables...")
+    dfs = self.detailed_summary(
+        confidence_threshold=confidence_threshold,
+        iou_threshold=iou_threshold,
+        area=area,
+        bypass_const=bypass_const)
+    if dfs is not None:
+      concept_df, total_df = dfs
+      concept_df.to_csv(join_root("concepts_summary.csv"))
+      total_df.to_csv(join_root("total_summary.csv"))
+
+    curve_metric_kwargs = dict(
+        confidence_threshold=confidence_threshold, iou_threshold=iou_threshold)
+    curve_metric_kwargs.update(metric_kwargs)
+
+    self.roc_curve_plot(
+        show=False,
+        save_path=join_root("roc.jpg"),
+        roc_curve_kwargs=curve_metric_kwargs,
+        relplot_kwargs=roc_plot_kwargs)
+
+    self.pr_plot(
+        show=False,
+        save_path=join_root("pr.jpg"),
+        pr_curve_kwargs=curve_metric_kwargs,
+        relplot_kwargs=pr_plot_kwargs)
+
+    self.confusion_matrix(
+        show=False, save_path=join_root("confusion_matrix.jpg"), cm_kwargs=cm_plot_kwargs)
