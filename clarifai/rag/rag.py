@@ -155,6 +155,7 @@ class RAG:
              chunk_size: int = 1024,
              chunk_overlap: int = 200,
              dataset_id: str = None,
+             metadata: dict = None,
              **kwargs) -> None:
     """Uploads documents to the app.
         - Read from a local directory or public url or local filename.
@@ -194,7 +195,7 @@ class RAG:
 
     #splitting documents into chunks
     text_chunks = []
-    metadata = []
+    metadata_list = []
 
     #iterate through documents
     for doc in documents:
@@ -202,7 +203,7 @@ class RAG:
       cur_text_chunks = split_document(
           text=doc.text, chunk_size=chunk_size, chunk_overlap=chunk_overlap, **kwargs)
       text_chunks.extend(cur_text_chunks)
-      metadata.extend([doc.metadata for _ in range(len(cur_text_chunks))])
+      metadata_list.extend([doc.metadata for _ in range(len(cur_text_chunks))])
       #if batch size is reached, upload the batch
       if len(text_chunks) > batch_size:
         for idx in range(0, len(text_chunks), batch_size):
@@ -211,12 +212,14 @@ class RAG:
           batch_texts = text_chunks[0:batch_size]
           batch_ids = [uuid.uuid4().hex for _ in range(batch_size)]
           #metadata
-          batch_metadatas = metadata[0:batch_size]
+          batch_metadatas = metadata_list[0:batch_size]
           meta_list = []
           for meta in batch_metadatas:
             meta_struct = Struct()
             meta_struct.update(meta)
             meta_struct.update({"doc_chunk_no": doc_i})
+            if metadata and type(metadata) == dict:
+              meta_struct.update(metadata)
             meta_list.append(meta_struct)
             doc_i+=1
           del batch_metadatas
@@ -233,19 +236,21 @@ class RAG:
           self._app.inputs().upload_inputs(inputs=input_batch)
           #delete uploaded chunks
           del text_chunks[0:batch_size]
-          del metadata[0:batch_size]
+          del metadata_list[0:batch_size]
 
     #uploading the remaining chunks
     if len(text_chunks) > 0:
       batch_size = len(text_chunks)
       batch_ids = [uuid.uuid4().hex for _ in range(batch_size)]
       #metadata
-      batch_metadatas = metadata[0:batch_size]
+      batch_metadatas = metadata_list[0:batch_size]
       meta_list = []
       for meta in batch_metadatas:
         meta_struct = Struct()
         meta_struct.update(meta)
         meta_struct.update({"doc_chunk_no": doc_i})
+        if metadata and type(metadata) == dict:
+          meta_struct.update(metadata)
         meta_list.append(meta_struct)
         doc_i+=1
       del batch_metadatas
@@ -261,7 +266,7 @@ class RAG:
       #uploading input with metadata
       self._app.inputs().upload_inputs(inputs=input_batch)
       del text_chunks
-      del metadata
+      del metadata_list
 
   def chat(self, messages: List[dict], client_manage_state: bool = False) -> List[dict]:
     """Chat interface in OpenAI API format.
