@@ -130,6 +130,7 @@ class _BaseEvalResultHandler:
 
   def get_threshold_index(self, threshold_list: list, selected_value: float = 0.5) -> int:
     assert 0 <= selected_value <= 1 and isinstance(selected_value, float)
+    threshold_list = [round(each, 2) for each in threshold_list]
 
     def parse_precision(x):
       return len(str(x).split(".")[1])
@@ -558,7 +559,19 @@ class EvalResultCompare:
   def eval_handlers(self):
     return self._eval_handlers
 
-  def _loop_eval_handlers(self, func_name: str, **kwargs):
+  def _loop_eval_handlers(self, func_name: str, **kwargs) -> Tuple[list, list]:
+    """ Run methods of `eval_handlers[...].model`
+
+    Args:
+      func_name (str): method name, see `_BaseEvalResultHandler` child classes
+      kwargs: keyword arguments of the method
+
+    Return:
+      tuple:
+        - list of outputs
+        - list of comparator names
+
+    """
     outs = []
     comparators = []
     logger.info(f'Running `{func_name}`')
@@ -592,8 +605,18 @@ class EvalResultCompare:
                        confidence_threshold: float = .5,
                        iou_threshold: float = .5,
                        area: str = "all",
-                       bypass_const=False) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Compare summary metrics of models and other metrics such as P/R, TP, FP, FN, TN per concept and total
+                       bypass_const=False) -> Union[Tuple[pd.DataFrame, pd.DataFrame], None]:
+    """
+    Retrieve and compute popular metrics of model.
+
+    Args:
+      confidence_threshold (float): confidence threshold, applicable for classification and detection. Default is 0.5
+      iou_threshold (float): iou threshold, support in range(0.5, 1., step=0.1) applicable for detection
+      area (float): size of area, support {all, small, medium}, applicable for detection
+
+    Return:
+      None or tuple of dataframe: df summary per concept and total concepts
+
     """
     df = []
     total = []
@@ -621,12 +644,14 @@ class EvalResultCompare:
       return None
 
   def confusion_matrix(self, show=True, save_path: str = None,
-                       cm_kwargs: dict = {}) -> Union[np.ndarray, None]:
-    """Return image as graph of confusion of models. If models don't have confusion matrix, return None
+                       cm_kwargs: dict = {}) -> Union[pd.DataFrame, None]:
+    """Return dataframe of confusion matrix
     Args:
-        show (bool, optional): Show graph. Defaults to True.
+        show (bool, optional): Show the chart. Defaults to True.
+        save_path (str): path to save rendered chart.
+        cm_kwargs (dict): keyword args of `eval_handler[...].model.cm_kwargs` method.
     Returns:
-        Union[np.ndarray, None]: Graph as image
+        None or pd.Dataframe, If models don't have confusion matrix, return None
     """
     outs, comparators = self._loop_eval_handlers("confusion_matrix", **cm_kwargs)
     all_dfs = []
@@ -669,19 +694,21 @@ class EvalResultCompare:
           if save_path:
             g.savefig(save_path)
 
-    return all_dfs
+    return all_dfs if isinstance(all_dfs, pd.DataFrame) else None
 
   def roc_curve_plot(self,
                      show=True,
                      save_path: str = None,
                      roc_curve_kwargs: dict = {},
-                     relplot_kwargs: dict = {}) -> Union[np.ndarray, None]:
-    """Show roc curve for classification model
+                     relplot_kwargs: dict = {}) -> Union[pd.DataFrame, None]:
+    """Return dataframe of ROC curve
     Args:
-        show (bool, optional): Show graph. Defaults to True.
-
+        show (bool, optional): Show the chart. Defaults to True.
+        save_path (str): path to save rendered chart.
+        pr_curve_kwargs (dict): keyword args of `eval_handler[...].model.roc_curve` method.
+        relplot_kwargs (dict): keyword args of `sns.relplot` except {data,x,y,hue,kind,col}.
     Returns:
-        Union[np.ndarray, None]: Graph as image
+        None or pd.Dataframe, If models don't have ROC curve, return None
     """
     sns.color_palette("Paired")
     outs, comparator = self._loop_eval_handlers("roc_curve", **roc_curve_kwargs)
@@ -707,18 +734,21 @@ class EvalResultCompare:
         if save_path:
           g.savefig(save_path)
 
-    return all_dfs
+    return all_dfs if isinstance(all_dfs, pd.DataFrame) else None
 
   def pr_plot(self,
               show=True,
               save_path: str = None,
               pr_curve_kwargs: dict = {},
-              relplot_kwargs: dict = {}) -> Union[np.ndarray, None]:
-    """Show Precision Recall plot
+              relplot_kwargs: dict = {}) -> Union[pd.DataFrame, None]:
+    """Return dataframe of PR curve
     Args:
-        show (bool, optional): Show graph. Defaults to True.
+        show (bool, optional): Show the chart. Defaults to True.
+        save_path (str): path to save rendered chart.
+        pr_curve_kwargs (dict): keyword args of `eval_handler[...].model.pr_curve` method.
+        relplot_kwargs (dict): keyword args of `sns.relplot` except {data,x,y,hue,kind,col}.
     Returns:
-        Union[np.ndarray, None]: Graph as image
+        None or pd.Dataframe, If models don't have PR curve, return None
     """
     sns.color_palette("Paired")
     outs, comparator = self._loop_eval_handlers("pr_curve", **pr_curve_kwargs)
@@ -744,7 +774,7 @@ class EvalResultCompare:
         if save_path:
           g.savefig(save_path)
 
-    return all_dfs
+    return all_dfs if isinstance(all_dfs, pd.DataFrame) else None
 
   def all(
       self,
@@ -755,17 +785,22 @@ class EvalResultCompare:
       metric_kwargs: dict = {},
       pr_plot_kwargs: dict = {},
       roc_plot_kwargs: dict = {},
-      cm_plot_kwargs: dict = {},
   ):
     """Run all comparison methods one by one:
-    - summary
-    - confusion_matrix (if applicable)
-    - roc_curve (if applicable)
+    - detailed_summary
+    - pr_curve (if applicable)
     - pr_plot
+    - confusion_matrix (if applicable)
     And save to output_folder
 
     Args:
-        output_folder (str): path to output
+      output_folder (str): path to output
+      confidence_threshold (float): confidence threshold, applicable for classification and detection. Default is 0.5.
+      iou_threshold (float): iou threshold, support in range(0.5, 1., step=0.1) applicable for detection.
+      overwrite (bool): overwrite result of output_folder.
+      metric_kwargs (dict): keyword args for `eval_handler[...].model.{method}`, except for {confidence_threshold, iou_threshold}.
+      roc_plot_kwargs (dict): for relplot_kwargs of `roc_curve_plot` method.
+      pr_plot_kwargs (dict): for relplot_kwargs of `pr_plot` method.
     """
     eval_type = get_eval_type(self.model_type)
     area = metric_kwargs.pop("area", "all")
@@ -812,4 +847,4 @@ class EvalResultCompare:
         relplot_kwargs=pr_plot_kwargs)
 
     self.confusion_matrix(
-        show=False, save_path=join_root("confusion_matrix.jpg"), cm_kwargs=cm_plot_kwargs)
+        show=False, save_path=join_root("confusion_matrix.jpg"), cm_kwargs=curve_metric_kwargs)
