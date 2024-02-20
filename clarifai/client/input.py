@@ -669,6 +669,30 @@ class Inputs(Lister, BaseClient):
         self.logger.info("\nInputs Uploaded\n%s", response.status)
 
     return input_job_id, response
+  
+  def patch_inputs(self, inputs: List[Input], action: str = 'merge') -> str:
+    """Patch list of input objects to the app.
+
+    Args:
+        inputs (list): List of input objects to upload.
+        action (str): Action to perform on the input. Options: 'merge', 'overwrite', 'remove'.
+
+    Returns:
+        response: Response from the grpc request.
+    """
+    if not isinstance(inputs, list):
+      raise UserError("inputs must be a list of Input objects")
+    input_job_id = uuid.uuid4().hex  # generate a unique id for this job
+    request = service_pb2.PatchInputsRequest(
+        user_app_id=self.user_app_id, inputs=inputs, action=action)
+    response = self._grpc_request(self.STUB.PatchInputs, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      try:
+        self.logger.warning(f"Patch inputs failed, status: {response.annotations[0].status}")
+      except Exception:
+        self.logger.warning(f"Patch inputs failed, status: {response.status.details}")
+
+    return response
 
   def upload_annotations(self, batch_annot: List[resources_pb2.Annotation], show_log: bool = True
                         ) -> Union[List[resources_pb2.Annotation], List[None]]:
