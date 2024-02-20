@@ -29,6 +29,8 @@ except ImportError:
   from .logging import get_logger
   logger = get_logger(logger_level="INFO", name=__name__)
 
+MACRO_AVG = "macro_avg"
+
 
 class EvalType(Enum):
   UNDEFINED = 0
@@ -195,7 +197,7 @@ class _BaseEvalResultHandler:
     if np.isnan(avg_x).all():
       return None
     else:
-      avg_cols = ["macro_avg" for _ in range(len(avg_x))]
+      avg_cols = [MACRO_AVG for _ in range(len(avg_x))]
     outputs.append(_make_df(avg_x, avg_y, avg_cols, threshold))
 
     return pd.concat(outputs, axis=0)
@@ -697,6 +699,33 @@ class EvalResultCompare:
 
     return all_dfs if isinstance(all_dfs, pd.DataFrame) else None
 
+  @staticmethod
+  def _set_default_kwargs(kwargs: dict, var_name: str, value):
+    if var_name not in kwargs:
+      kwargs.update({var_name: value})
+    return kwargs
+
+  @staticmethod
+  def _setup_default_lineplot(df: pd.DataFrame, kwargs: dict):
+    hue_order = df["concept"].unique().tolist()
+    hue_order.remove(MACRO_AVG)
+    hue_order.insert(0, MACRO_AVG)
+    EvalResultCompare._set_default_kwargs(kwargs, "hue_order", hue_order)
+
+    sizes = {}
+    for each in hue_order:
+      s = 1.5
+      if each == MACRO_AVG:
+        s = 4.
+      sizes.update({each: s})
+    EvalResultCompare._set_default_kwargs(kwargs, "sizes", sizes)
+    EvalResultCompare._set_default_kwargs(kwargs, "size", "concept")
+
+    EvalResultCompare._set_default_kwargs(kwargs, "errorbar", None)
+    EvalResultCompare._set_default_kwargs(kwargs, "height", 5)
+
+    return kwargs
+
   def roc_curve_plot(self,
                      show=True,
                      save_path: str = None,
@@ -707,11 +736,11 @@ class EvalResultCompare:
         show (bool, optional): Show the chart. Defaults to True.
         save_path (str): path to save rendered chart.
         pr_curve_kwargs (dict): keyword args of `eval_handler[...].model.roc_curve` method.
-        relplot_kwargs (dict): keyword args of `sns.relplot` except {data,x,y,hue,kind,col}.
+        relplot_kwargs (dict): keyword args of `sns.relplot` except {data,x,y,hue,kind,col}. where x="fpr", y="tpr", hue="concept"
     Returns:
         None or pd.Dataframe, If models don't have ROC curve, return None
     """
-    sns.color_palette("Paired")
+    sns.set_palette("Paired")
     outs, comparator = self._loop_eval_handlers("roc_curve", **roc_curve_kwargs)
     all_dfs = []
     for _, (df, anchor) in enumerate(zip(outs, comparator)):
@@ -721,6 +750,7 @@ class EvalResultCompare:
     if all_dfs:
       all_dfs = pd.concat(all_dfs, axis=0)
       if save_path or show:
+        relplot_kwargs = self._setup_default_lineplot(all_dfs, relplot_kwargs)
         g = sns.relplot(
             data=all_dfs,
             x="fpr",
@@ -747,11 +777,11 @@ class EvalResultCompare:
         show (bool, optional): Show the chart. Defaults to True.
         save_path (str): path to save rendered chart.
         pr_curve_kwargs (dict): keyword args of `eval_handler[...].model.pr_curve` method.
-        relplot_kwargs (dict): keyword args of `sns.relplot` except {data,x,y,hue,kind,col}.
+        relplot_kwargs (dict): keyword args of `sns.relplot` except {data,x,y,hue,kind,col} where x="recall", y="precision", hue="concept"
     Returns:
         None or pd.Dataframe, If models don't have PR curve, return None
     """
-    sns.color_palette("Paired")
+    sns.set_palette("Paired")
     outs, comparator = self._loop_eval_handlers("pr_curve", **pr_curve_kwargs)
     all_dfs = []
     for _, (df, anchor) in enumerate(zip(outs, comparator)):
@@ -761,6 +791,7 @@ class EvalResultCompare:
     if all_dfs:
       all_dfs = pd.concat(all_dfs, axis=0)
       if save_path or show:
+        relplot_kwargs = self._setup_default_lineplot(all_dfs, relplot_kwargs)
         g = sns.relplot(
             data=all_dfs,
             x="recall",
@@ -849,3 +880,5 @@ class EvalResultCompare:
 
     self.confusion_matrix(
         show=False, save_path=join_root("confusion_matrix.jpg"), cm_kwargs=curve_metric_kwargs)
+
+    logger.info(f"Done. Your outputs are saved at {output_folder}")
