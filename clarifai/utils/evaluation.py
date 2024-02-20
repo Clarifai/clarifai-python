@@ -26,7 +26,8 @@ except ImportError:
 try:
   from loguru import logger
 except ImportError:
-  raise ImportError("Can not import loguru module. Please run `pip install loguru` to install it")
+  from .logging import get_logger
+  logger = get_logger(logger_level="INFO", name=__name__)
 
 
 class EvalType(Enum):
