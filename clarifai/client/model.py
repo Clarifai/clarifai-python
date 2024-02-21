@@ -32,6 +32,7 @@ class Model(Lister, BaseClient):
                model_version: Dict = {'id': ""},
                base_url: str = "https://api.clarifai.com",
                pat: str = None,
+               token: str = None,
                **kwargs):
     """Initializes a Model object.
 
@@ -41,6 +42,7 @@ class Model(Lister, BaseClient):
         model_version (dict): The Model Version to interact with.
         base_url (str): Base API url. Default "https://api.clarifai.com"
         pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
+        token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
         **kwargs: Additional keyword arguments to be passed to the Model.
     """
     if url and model_id:
@@ -55,7 +57,8 @@ class Model(Lister, BaseClient):
     self.model_info = resources_pb2.Model(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
     self.training_params = {}
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
+    BaseClient.__init__(
+        self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat, token=token)
     Lister.__init__(self)
 
   def list_training_templates(self) -> List[str]:
@@ -331,7 +334,7 @@ class Model(Lister, BaseClient):
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
     kwargs = self.process_response_keys(dict_response['model'], 'model')
 
-    return Model(base_url=self.base, pat=self.pat, **kwargs)
+    return Model(base_url=self.base, pat=self.pat, token=self.token, **kwargs)
 
   def list_versions(self, page_no: int = None,
                     per_page: int = None) -> Generator['Model', None, None]:

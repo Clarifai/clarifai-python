@@ -7,7 +7,7 @@ from google.protobuf.wrappers_pb2 import BoolValue
 
 from clarifai.client.auth import create_stub
 from clarifai.client.auth.helper import ClarifaiAuthHelper
-from clarifai.errors import ApiError
+from clarifai.errors import ApiError, UserError
 from clarifai.utils.misc import get_from_dict_or_env
 
 
@@ -19,8 +19,10 @@ class BaseClient:
           - user_id (str): A user ID for authentication.
           - app_id (str): An app ID for the application to interact with.
           - pat (str): A personal access token for authentication.
+          - token (str): A session token for authentication. Accepts either a session token or a pat.
           - base (str): The base URL for the API endpoint. Defaults to 'https://api.clarifai.com'.
           - ui (str): The URL for the UI. Defaults to 'https://clarifai.com'.
+
 
   Attributes:
       auth_helper (ClarifaiAuthHelper): An instance of ClarifaiAuthHelper for authentication.
@@ -31,14 +33,52 @@ class BaseClient:
   """
 
   def __init__(self, **kwargs):
-    pat = get_from_dict_or_env(key="pat", env_key="CLARIFAI_PAT", **kwargs)
-    kwargs.update({'pat': pat})
+    token, pat = "", ""
+    try:
+      pat = get_from_dict_or_env(key="pat", env_key="CLARIFAI_PAT", **kwargs)
+    except UserError:
+      token = get_from_dict_or_env(key="token", env_key="CLARIFAI_SESSION_TOKEN", **kwargs)
+    finally:
+      assert token or pat, Exception(
+          "Need 'pat' or 'token' in args or use one of the CLARIFAI_PAT or CLARIFAI_SESSION_TOKEN env vars"
+      )
+    kwargs.update({'token': token, 'pat': pat})
+
     self.auth_helper = ClarifaiAuthHelper(**kwargs, validate=False)
     self.STUB = create_stub(self.auth_helper)
     self.metadata = self.auth_helper.metadata
     self.pat = self.auth_helper.pat
+    self.token = self.auth_helper._token
     self.user_app_id = self.auth_helper.get_user_app_id_proto()
     self.base = self.auth_helper.base
+
+  @classmethod
+  def from_auth_helper(cls, auth: ClarifaiAuthHelper, **kwargs):
+    default_kwargs = {
+        "user_id": kwargs.get("user_id", None) or auth.user_id,
+        "app_id": kwargs.get("app_id", None) or auth.app_id,
+        "pat": kwargs.get("pat", None) or auth.pat,
+        "token": kwargs.get("token", None) or auth._token,
+    }
+    _base = kwargs.get("base", None) or auth.base
+    _clss = cls.__mro__[0]
+    if _clss == BaseClient:
+      kwargs = {
+        **default_kwargs,
+        "base": _base, # Baseclient uses `base`
+        "ui": kwargs.get("ui", None) or auth.ui
+      }
+    else:
+      # Remove user_id and app_id if a custom URL is provided
+      if kwargs.get("url"):
+        default_kwargs.pop("user_id", "")
+        default_kwargs.pop("app_id", "")
+      # Remove app_id if the class name contains "Runner"
+      if 'Runner' in _clss.__name__:
+        default_kwargs.pop("app_id", "")
+      kwargs.update({**default_kwargs, "base_url": _base})
+
+    return cls(**kwargs)
 
   def _grpc_request(self, method: Callable, argument: Any):
     """Makes a gRPC request to the API.
@@ -52,7 +92,7 @@ class BaseClient:
     """
 
     try:
-      res = method(argument)
+      res = method(argument, metadata=self.auth_helper.metadata)
       # MessageToDict(res) TODO global debug logger
       return res
     except ApiError:
