@@ -8,15 +8,15 @@ If a dataset module exists in the zoo, uploading the specific dataset can be eas
 
 ```python
 from clarifai.client.app import App
-from clarifai.datasets.upload.loaders.coco_segmentation import COCOSegmentationDataLoader
+from clarifai.datasets.upload.loaders.coco_detection import COCODetectionDataLoader
 
 app = App(app_id="", user_id="")
 # Create a dataset in Clarifai App
 dataset = app.create_dataset(dataset_id="")
 # instantiate dataloader object
-coco_seg_dataloader = COCOSegmentationDataLoader(images_dir="", label_filepath="")
+coco_det_dataloader = COCODetectionDataLoader(images_dir="", label_filepath="")
 # execute data upload to Clarifai app dataset
-dataset.upload_dataset(dataloader=coco_seg_dataloader)
+dataset.upload_dataset(dataloader=coco_det_dataloader)
 ```
 
 ## Dataset Loaders
@@ -24,7 +24,6 @@ dataset.upload_dataset(dataloader=coco_seg_dataloader)
  | dataset name | task | module name (.py)
  | --- | --- | ---
  | [COCO 2017](https://cocodataset.org/#download) | Detection | `coco_detection` |
- |        | Segmentation | `coco_segmentation` |
  |       | Captions | `coco_captions` |
  |[xVIEW](http://xviewdataset.org/)  | Detection | `xview_detection` |
  | [ImageNet](https://www.image-net.org/)  | Classification | `imagenet_classification` |

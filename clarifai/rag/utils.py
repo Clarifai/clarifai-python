@@ -3,10 +3,6 @@ from pathlib import Path
 from typing import List
 
 import requests
-from llama_index.core import Document, SimpleDirectoryReader
-from llama_index.core.node_parser.text import SentenceSplitter
-from llama_index.core.readers.download import download_loader
-from pypdf import PdfReader
 
 
 ## TODO: Make this token-aware.
@@ -36,8 +32,7 @@ def format_assistant_message(raw_text: str) -> dict:
   return {"role": "assistant", "content": raw_text}
 
 
-def load_documents(file_path: str = None, folder_path: str = None,
-                   url: str = None) -> List[Document]:
+def load_documents(file_path: str = None, folder_path: str = None, url: str = None) -> List[any]:
   """Loads documents from a local directory or public url or local filename.
 
   Args:
@@ -45,6 +40,13 @@ def load_documents(file_path: str = None, folder_path: str = None,
       folder_path (str): The path to the folder.
       url (str): The url to the file.
   """
+  #check import packages
+  try:
+    from llama_index.core import Document, SimpleDirectoryReader
+    from llama_index.core.readers.download import download_loader
+  except ImportError:
+    raise ImportError("Could not import llama index package. "
+                      "Please install it with `pip install llama-index-core==0.10.1`.")
   #document loaders for filepath
   if file_path:
     if file_path.endswith(".pdf"):
@@ -77,6 +79,12 @@ def load_documents(file_path: str = None, folder_path: str = None,
       documents = [Document(text=response.content)]
     #for pdf files
     except Exception:
+      #check import packages
+      try:
+        from pypdf import PdfReader
+      except ImportError:
+        raise ImportError("Could not import pypdf package. "
+                          "Please install it with `pip install pypdf==3.17.4`.")
       documents = []
       pdf_file = PdfReader(io.BytesIO(response.content))
       num_pages = len(pdf_file.pages)
@@ -98,6 +106,13 @@ def split_document(text: str, chunk_size: int, chunk_overlap: int, **kwargs) -> 
       chunk_overlap (int): The amount of overlap between each chunk.
       **kwargs: Additional keyword arguments for the SentenceSplitter.
   """
+  #check import packages
+  try:
+    from llama_index.core.node_parser.text import SentenceSplitter
+  except ImportError:
+    raise ImportError("Could not import llama index package. "
+                      "Please install it with `pip install llama-index-core==0.10.1`.")
+  #document
   text_parser = SentenceSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap, **kwargs)
   text_chunks = text_parser.split_text(text)
   return text_chunks

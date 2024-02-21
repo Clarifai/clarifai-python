@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import cpu_count
 from typing import DefaultDict, Dict, List
 
-import cv2
+from PIL import Image
 from tqdm import tqdm
 
 from clarifai.datasets.upload.base import ClarifaiDataLoader
@@ -54,9 +54,8 @@ class xviewDetectionDataLoader(ClarifaiDataLoader):
   def compress_tiff(self, img_path: str) -> None:
     """Compress tiff image"""
     img_comp_path = os.path.join(self.img_comp_dir, os.path.basename(img_path))
-    img_arr = cv2.imread(img_path)
-    cv2.imwrite(
-        img_comp_path, img_arr, params=(cv2.IMWRITE_TIFF_COMPRESSION, 8))  # 8: Adobe Deflate
+    img_arr = Image.open(img_path)
+    img_arr.save(img_comp_path, 'TIFF', compression='tiff_deflate')
 
   def preprocess(self):
     """Compress the tiff images to comply with clarifai grpc image encoding limit(<20MB) Uses ADOBE_DEFLATE compression algorithm"""
@@ -133,7 +132,8 @@ class xviewDetectionDataLoader(ClarifaiDataLoader):
     _id = os.path.splitext(os.path.basename(self.image_paths[index]))[0]
     image_path = self.image_paths[index]
 
-    image_height, image_width = cv2.imread(image_path).shape[:2]
+    image = Image.open(image_path)
+    image_width, image_height = image.size
     annots = []
     class_names = []
     for bbox, concept in zip(self.all_data[_id]['bboxes'], self.all_data[_id]['concepts']):
