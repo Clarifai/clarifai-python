@@ -85,7 +85,7 @@ def response_to_model_params(response: MultiModelTypeResponse,
   return params
 
 
-def params_parser(params_dict: dict) -> Dict[str, Any]:
+def params_parser(params_dict: dict, concepts: List = None) -> Dict[str, Any]:
   """Converts the params dictionary to a dictionary of model specific params for the given model"""
   #dict parser
   train_dict = {}
@@ -112,6 +112,8 @@ def params_parser(params_dict: dict) -> Dict[str, Any]:
   train_dict['train_info'] = resources_pb2.TrainInfo(**train_dict['train_info'])
 
   if 'concepts' in params_dict.keys():
+    assert set(params_dict["concepts"]).issubset(
+        concepts), "Invalid concept IDs. Available concepts in the app are {}".format(concepts)
     train_dict["output_info"]['data'] = resources_pb2.Data(
         concepts=[resources_pb2.Concept(id=concept_id) for concept_id in params_dict["concepts"]])
   if 'inference_params' in params_dict.keys():

@@ -212,6 +212,8 @@ class Model(Lister, BaseClient):
         >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
         >>> model.train('model_params.yaml')
     """
+    if not self.model_info.model_type_id:
+      self.load_info()
     if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
       raise UserError(f"Model type {self.model_info.model_type_id} is not trainable")
     if not yaml_file and len(self.training_params) == 0:
@@ -222,8 +224,10 @@ class Model(Lister, BaseClient):
         params_dict = yaml.safe_load(file)
     else:
       params_dict = self.training_params
-
-    train_dict = params_parser(params_dict)
+    #getting all the concepts for the model type
+    if self.model_info.model_type_id not in ["clusterer", "text-to-text"]:
+      concepts = self._list_concepts()
+    train_dict = params_parser(params_dict, concepts)
     request = service_pb2.PostModelVersionsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
@@ -547,6 +551,17 @@ class Model(Lister, BaseClient):
     self.model_info.model_version.output_info.CopyFrom(
         resources_pb2.OutputInfo(
             output_config=resources_pb2.OutputConfig(**output_config), params=params))
+
+  def _list_concepts(self) -> List[str]:
+    """Lists all the concepts for the model type.
+
+    Returns:
+        concepts (List): List of concepts for the model type.
+    """
+    request_data = dict(user_app_id=self.user_app_id)
+    all_concepts_infos = self.list_pages_generator(self.STUB.ListConcepts,
+                                                   service_pb2.ListConceptsRequest, request_data)
+    return [concept_info['concept_id'] for concept_info in all_concepts_infos]
 
   def load_info(self) -> None:
     """Loads the model info."""
