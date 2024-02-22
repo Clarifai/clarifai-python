@@ -669,6 +669,9 @@ class Model(Lister, BaseClient):
     response = self._grpc_request(self.STUB.PostEvaluations, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
+    self.logger.info(
+        "\nModel evaluation in progress. Kindly allow a few minutes for completion. Processing time may vary based on the model and dataset sizes."
+    )
 
     return response.eval_metrics
 
