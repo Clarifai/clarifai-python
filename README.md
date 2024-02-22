@@ -261,6 +261,35 @@ status = model.training_status(version_id=model_version_id,training_logs=True)
 print(status)
 ```
 
+#### Evaluate your trained model
+
+When your model is trained and ready, you can evaluate by the following code
+
+```python
+from clarifai.client.model import Model
+
+model = Model('url')
+model.evaluate(dataset_id='your-dataset-id')
+```
+
+Compare the evaluation results of your models.
+
+```python
+from clarifai.client.model import Model
+from clarifai.client.dataset import Dataset
+from clarifai.utils.evaluation import EvalResultCompare
+
+models = ['model url1', 'model url2'] # or [Model(url1), Model(url2)]
+dataset = 'dataset url' # or Dataset(dataset_url)
+
+compare = EvalResultCompare(
+  models=models,
+  datasets=dataset,
+  attempt_evaluate=True # attempt evaluate when the model is not evaluated with the dataset
+  )
+compare.all('output/folder/')
+```
+
 #### Models Listing
 ```python
 # Note: CLARIFAI_PAT must be set as env variable.
