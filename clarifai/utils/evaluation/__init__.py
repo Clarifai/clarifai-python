@@ -1,7 +1,8 @@
 import os
 from enum import Enum
-from typing import Dict, List, Tuple, Union
+from typing import List, Tuple, Union
 
+from clarifai.client.dataset import Dataset
 from clarifai.client.model import Model
 
 from .helpers import (MACRO_AVG, EvalType, _BaseEvalResultHandler, get_eval_type,
@@ -44,41 +45,47 @@ class EvalResultCompare:
   Args:
   ---
     models (Union[List[Model], List[str]]): List of Model or urls of models.
-    dataset_info (Union[Dict, List[Dict[str, str]]]): Dict or list of dict.
-      - app_id (str): dataset app id, if None will take model app id
-      - dataset_id (str): dataset id
-      - user_id (str): dataset user id, if None will take model user id
-      - version_id (str): dataset version id, if None will use latest in `list_eval`
-    attempt_evaluate (bool): evaluate when model is not evaluated with the datasets.
+    datasets (Union[Dataset, List[Dataset], str, List[str]]): A single or List of Url or Dataset
+    attempt_evaluate (bool): Evaluate when model is not evaluated with the datasets.
+    auth_kwargs (dict): Additional auth keyword arguments to be passed to the Dataset and Model if using url(s)
   """
 
   def __init__(self,
                models: Union[List[Model], List[str]],
-               dataset_info: Union[Dict, List[Dict[str, str]]],
-               attempt_evaluate: bool = False):
+               datasets: Union[Dataset, List[Dataset], str, List[str]],
+               attempt_evaluate: bool = False,
+               auth_kwargs: dict = {}):
     assert isinstance(models, list), ValueError("Expected list")
 
     if len(models) > 1:
       self.mode = CompareMode.MANY_MODELS_TO_ONE_DATA
       self.comparator = "Model"
-      assert isinstance(dataset_info, dict) or (
-          isinstance(dataset_info, list) and len(dataset_info) == 1
-      ), f"When comparing multiple models, must provide only one `dataset_info`. However got {dataset_info}"
+      assert isinstance(datasets, Dataset) or (
+          isinstance(datasets, list) and len(datasets) == 1
+      ), f"When comparing multiple models, must provide only one `datasets`. However got {datasets}"
     else:
       self.mode = CompareMode.ONE_MODEL_TO_MANY_DATA
       self.comparator = "Dataset"
 
-    if not isinstance(dataset_info, list):
-      dataset_info = [
-          dataset_info,
-      ]
+    # validate models
     if all(map(lambda x: isinstance(x, str), models)):
-      models = [Model(each) for each in models]
+      models = [Model(each, **auth_kwargs) for each in models]
     elif not all(map(lambda x: isinstance(x, Model), models)):
       raise ValueError(
           f"Expected all models are list of string or list of Model, got {[type(each) for each in models]}"
       )
-
+    # validate datasets
+    if not isinstance(datasets, list):
+      datasets = [
+          datasets,
+      ]
+    if all(map(lambda x: isinstance(x, str), datasets)):
+      datasets = [Dataset(each, **auth_kwargs) for each in datasets]
+    elif not all(map(lambda x: isinstance(x, Dataset), datasets)):
+      raise ValueError(
+          f"Expected datasets must be str, list of string or Dataset, list of Dataset, got {[type(each) for each in datasets]}"
+      )
+    # Validate models vs datasets together
     self._eval_handlers: List[_BaseEvalResultHandler] = []
     self.model_type = None
     logger.info("Initializing models...")
@@ -91,7 +98,7 @@ class EvalResultCompare:
         assert self.model_type == model_type, f"Can not compare when model types are different, {self.model_type} != {model_type}"
       m = make_handler_by_type(model_type)(model=model)
       logger.info(f"* {m.get_model_name(pretify=True)}")
-      m.find_eval_id(dataset_info=dataset_info, attempt_evaluate=attempt_evaluate)
+      m.find_eval_id(datasets=datasets, attempt_evaluate=attempt_evaluate)
       self._eval_handlers.append(m)
 
   @property

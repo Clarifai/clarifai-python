@@ -59,12 +59,16 @@ class _BaseEvalResultHandler:
   model: Model
   eval_data: List[resources_pb2.EvalMetrics] = field(default_factory=list)
 
-  def evaluate_and_wait(self, dataset_id, app_id, user_id, dataset_version):
+  def evaluate_and_wait(self, dataset: Dataset):
     from tqdm import tqdm
-    _ = self.model.evaluate(dataset_id=dataset_id, dataset_app_id=app_id, dataset_user_id=user_id)
+    dataset_id = dataset.id
+    dataset_app_id = dataset.app_id
+    dataset_user_id = dataset.user_id
+    _ = self.model.evaluate(
+        dataset_id=dataset_id, dataset_app_id=dataset_app_id, dataset_user_id=dataset_user_id)
     latest_eval = self.model.list_evaluations()[0]
     excepted = 10
-    desc = f"Please wait for the evaluation process between model {self.get_model_name()} and dataset {user_id}/{app_id}/{dataset_id} to complete."
+    desc = f"Please wait for the evaluation process between model {self.get_model_name()} and dataset {dataset_user_id}/{dataset_app_id}/{dataset_id} to complete."
     bar = tqdm(total=excepted, desc=desc, leave=False, ncols=0)
     while latest_eval.status.code in [
         status_code_pb2.MODEL_EVALUATING, status_code_pb2.MODEL_QUEUED_FOR_EVALUATION
@@ -80,23 +84,21 @@ class _BaseEvalResultHandler:
           f"Model has failed to evaluate \n {latest_eval.status}.\nPlease check your dataset inputs!"
       )
 
-  def find_eval_id(self, dataset_info: List[Dict] = [{}], attempt_evaluate: bool = False):
+  def find_eval_id(self, datasets: List[Dataset] = [], attempt_evaluate: bool = False):
     list_eval_outputs = self.model.list_evaluations()
     self.eval_data = []
-    for info in dataset_info:
-      app_id = info.get("app_id", self.model.auth_helper.app_id)
-      dataset_id = info.get("dataset_id", "")
-      user_id = info.get("user_id", self.model.auth_helper.user_id)
-      version_id = info.get("version_id", "")
-      dataset_assert_msg = f"{user_id}/{app_id}/{dataset_id}/{version_id}" if version_id else f"{user_id}/{app_id}/{dataset_id}"
+    for dataset in datasets:
+      dataset.app_id = dataset.app_id or self.model.auth_helper.app_id
+      dataset.user_id = dataset.user_id or self.model.auth_helper.user_id
+      dataset_assert_msg = dataset.dataset_info
       # checking if dataset exists
-      out = Dataset(dataset_id=dataset_id, user_id=user_id, app_id=app_id).list_versions()
+      out = dataset.list_versions()
       try:
         next(iter(out))
       except Exception as e:
         if any(["CONN_DOES_NOT_EXIST" in _e for _e in e.args]):
           raise Exception(
-              f"Dataset {dataset_assert_msg} does not exists. Please check dataset_info args")
+              f"Dataset {dataset_assert_msg} does not exists. Please check datasets args")
         else:
           # caused by sdk failure
           pass
@@ -104,10 +106,10 @@ class _BaseEvalResultHandler:
       _is_found = False
       for each in list_eval_outputs:
         if each.status.code == status_code_pb2.MODEL_EVALUATED:
-          _dataset = each.ground_truth_dataset
+          eval_dataset = each.ground_truth_dataset
           # if version_id is empty -> get latest eval result of dataset,app,user id
-          if app_id == _dataset.app_id and dataset_id == _dataset.id and user_id == _dataset.user_id and (
-              not version_id or version_id == _dataset.version):
+          if dataset.app_id == eval_dataset.app_id and dataset.id == eval_dataset.id and dataset.user_id == eval_dataset.user_id and (
+              not dataset.version.id or dataset.version.id == eval_dataset.version.id):
             # append to eval_data
             self.eval_data.append(each)
             _is_found = True
@@ -116,12 +118,7 @@ class _BaseEvalResultHandler:
       # if not evaluated, but user wants to proceed it
       if not _is_found:
         if attempt_evaluate:
-          self.eval_data.append(
-              self.evaluate_and_wait(
-                  dataset_id=dataset_id,
-                  app_id=app_id,
-                  user_id=user_id,
-                  dataset_version=version_id))
+          self.eval_data.append(self.evaluate_and_wait(dataset))
         # otherwise raise error
         else:
           raise Exception(
