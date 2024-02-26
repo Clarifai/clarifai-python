@@ -692,7 +692,7 @@ class Inputs(Lister, BaseClient):
       except Exception:
         self.logger.warning(f"Patch inputs failed, status: {response.status.details}")
 
-    return response
+    self.logger.info("\nPatch Inputs Successful\n%s", response.status)
 
   def upload_annotations(self, batch_annot: List[resources_pb2.Annotation], show_log: bool = True
                         ) -> Union[List[resources_pb2.Annotation], List[None]]:
