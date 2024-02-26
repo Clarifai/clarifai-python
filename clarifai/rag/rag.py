@@ -110,7 +110,7 @@ class RAG:
     prompter_model_params = {"params": params}
 
     ## Create rag-prompter model and version
-    model_id = f"rag-prompter-{now_ts}"
+    model_id = f"prompter-{workflow_id}" if workflow_id is not None else f"rag-prompter-{now_ts}"
     prompter_model = app.create_model(
         model_id=model_id, model_type_id="rag-prompter")
     prompter_model = prompter_model.create_version(output_info=prompter_model_params)
