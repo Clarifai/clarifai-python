@@ -76,16 +76,17 @@ class RAG:
         >>> rag_agent = RAG.setup(app_url=YOUR_APP_URL)
         >>> rag_agent.chat(messages=[{"role":"human", "content":"What is Clarifai"}])
     """
-
+    now_ts = str(int(datetime.now().timestamp()))
     if user_id and not app_url:
       user = User(user_id=user_id, base_url=base_url, pat=pat)
       ## Create an App
-      now_ts = str(int(datetime.now().timestamp()))
       app_id = f"rag_app_{now_ts}"
       app = user.create_app(app_id=app_id, base_workflow=base_workflow)
 
     if not user_id and app_url:
       app = App(url=app_url, pat=pat)
+      uid = app_url.split(".com/")[1].split("/")[0]
+      user = User(user_id=uid, base_url=base_url, pat=pat)
 
     if user_id and app_url:
       raise UserError("Must provide one of user_id or app_url, not both.")
@@ -95,7 +96,7 @@ class RAG:
           "user_id or app_url must be provided. The user_id can be found at https://clarifai.com/settings."
       )
 
-    llm = Model(llm_url)
+    llm = Model(url=llm_url, pat=pat)
 
     min_score = kwargs.get("min_score", 0.95)
     max_results = kwargs.get("max_results", 5)
@@ -109,8 +110,8 @@ class RAG:
     prompter_model_params = {"params": params}
 
     ## Create rag-prompter model and version
-    prompter_model = app.create_model(
-        model_id=f"rag_prompter_{now_ts}", model_type_id="rag-prompter")
+    model_id = f"prompter-{workflow_id}" if workflow_id is not None else f"rag-prompter-{now_ts}"
+    prompter_model = app.create_model(model_id=model_id, model_type_id="rag-prompter")
     prompter_model = prompter_model.create_version(output_info=prompter_model_params)
 
     ## Generate a tmp yaml file for workflow creation
@@ -153,6 +154,8 @@ class RAG:
              batch_size: int = 128,
              chunk_size: int = 1024,
              chunk_overlap: int = 200,
+             dataset_id: str = None,
+             metadata: dict = None,
              **kwargs) -> None:
     """Uploads documents to the app.
         - Read from a local directory or public url or local filename.
@@ -192,14 +195,15 @@ class RAG:
 
     #splitting documents into chunks
     text_chunks = []
-    metadata = []
+    metadata_list = []
 
     #iterate through documents
     for doc in documents:
+      doc_i = 0
       cur_text_chunks = split_document(
           text=doc.text, chunk_size=chunk_size, chunk_overlap=chunk_overlap, **kwargs)
       text_chunks.extend(cur_text_chunks)
-      metadata.extend([doc.metadata for _ in range(len(cur_text_chunks))])
+      metadata_list.extend([doc.metadata for _ in range(len(cur_text_chunks))])
       #if batch size is reached, upload the batch
       if len(text_chunks) > batch_size:
         for idx in range(0, len(text_chunks), batch_size):
@@ -208,18 +212,23 @@ class RAG:
           batch_texts = text_chunks[0:batch_size]
           batch_ids = [uuid.uuid4().hex for _ in range(batch_size)]
           #metadata
-          batch_metadatas = metadata[0:batch_size]
+          batch_metadatas = metadata_list[0:batch_size]
           meta_list = []
           for meta in batch_metadatas:
             meta_struct = Struct()
             meta_struct.update(meta)
+            meta_struct.update({"doc_chunk_no": doc_i})
+            if metadata and isinstance(metadata, dict):
+              meta_struct.update(metadata)
             meta_list.append(meta_struct)
+            doc_i += 1
           del batch_metadatas
           #creating input proto
           input_batch = [
               self._app.inputs().get_text_input(
                   input_id=batch_ids[i],
                   raw_text=text,
+                  dataset_id=dataset_id,
                   metadata=meta_list[i],
               ) for i, text in enumerate(batch_texts)
           ]
@@ -227,32 +236,37 @@ class RAG:
           self._app.inputs().upload_inputs(inputs=input_batch)
           #delete uploaded chunks
           del text_chunks[0:batch_size]
-          del metadata[0:batch_size]
+          del metadata_list[0:batch_size]
 
     #uploading the remaining chunks
     if len(text_chunks) > 0:
       batch_size = len(text_chunks)
       batch_ids = [uuid.uuid4().hex for _ in range(batch_size)]
       #metadata
-      batch_metadatas = metadata[0:batch_size]
+      batch_metadatas = metadata_list[0:batch_size]
       meta_list = []
       for meta in batch_metadatas:
         meta_struct = Struct()
         meta_struct.update(meta)
+        meta_struct.update({"doc_chunk_no": doc_i})
+        if metadata and isinstance(metadata, dict):
+          meta_struct.update(metadata)
         meta_list.append(meta_struct)
+        doc_i += 1
       del batch_metadatas
       #creating input proto
       input_batch = [
           self._app.inputs().get_text_input(
               input_id=batch_ids[i],
               raw_text=text,
+              dataset_id=dataset_id,
               metadata=meta_list[i],
           ) for i, text in enumerate(text_chunks)
       ]
       #uploading input with metadata
       self._app.inputs().upload_inputs(inputs=input_batch)
       del text_chunks
-      del metadata
+      del metadata_list
 
   def chat(self, messages: List[dict], client_manage_state: bool = False) -> List[dict]:
     """Chat interface in OpenAI API format.
