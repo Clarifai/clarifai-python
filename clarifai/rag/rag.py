@@ -111,8 +111,7 @@ class RAG:
 
     ## Create rag-prompter model and version
     model_id = f"prompter-{workflow_id}" if workflow_id is not None else f"rag-prompter-{now_ts}"
-    prompter_model = app.create_model(
-        model_id=model_id, model_type_id="rag-prompter")
+    prompter_model = app.create_model(model_id=model_id, model_type_id="rag-prompter")
     prompter_model = prompter_model.create_version(output_info=prompter_model_params)
 
     ## Generate a tmp yaml file for workflow creation
@@ -219,10 +218,10 @@ class RAG:
             meta_struct = Struct()
             meta_struct.update(meta)
             meta_struct.update({"doc_chunk_no": doc_i})
-            if metadata and type(metadata) == dict:
+            if metadata and isinstance(metadata, dict):
               meta_struct.update(metadata)
             meta_list.append(meta_struct)
-            doc_i+=1
+            doc_i += 1
           del batch_metadatas
           #creating input proto
           input_batch = [
@@ -250,10 +249,10 @@ class RAG:
         meta_struct = Struct()
         meta_struct.update(meta)
         meta_struct.update({"doc_chunk_no": doc_i})
-        if metadata and type(metadata) == dict:
+        if metadata and isinstance(metadata, dict):
           meta_struct.update(metadata)
         meta_list.append(meta_struct)
-        doc_i+=1
+        doc_i += 1
       del batch_metadatas
       #creating input proto
       input_batch = [
@@ -307,4 +306,3 @@ class RAG:
     # store chat state id
     self.chat_state_id = response.workflow_state.id
     return [format_assistant_message(response.results[0].outputs[-1].data.text.raw)]
-  

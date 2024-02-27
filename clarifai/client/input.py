@@ -669,7 +669,7 @@ class Inputs(Lister, BaseClient):
         self.logger.info("\nInputs Uploaded\n%s", response.status)
 
     return input_job_id, response
-  
+
   def patch_inputs(self, inputs: List[Input], action: str = 'merge') -> str:
     """Patch list of input objects to the app.
 
@@ -682,7 +682,7 @@ class Inputs(Lister, BaseClient):
     """
     if not isinstance(inputs, list):
       raise UserError("inputs must be a list of Input objects")
-    input_job_id = uuid.uuid4().hex  # generate a unique id for this job
+    uuid.uuid4().hex  # generate a unique id for this job
     request = service_pb2.PatchInputsRequest(
         user_app_id=self.user_app_id, inputs=inputs, action=action)
     response = self._grpc_request(self.STUB.PatchInputs, request)
