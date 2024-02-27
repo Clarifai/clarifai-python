@@ -592,14 +592,14 @@ class Model(Lister, BaseClient):
     ]
     return f"Model Details: \n{', '.join(attribute_strings)}\n"
 
-  def list_evaluations(self) -> List[resources_pb2.EvalMetrics]:
+  def list_evaluations(self) -> resources_pb2.EvalMetrics:
     """List all eval_metrics of current model version
 
     Raises:
         Exception: Failed to call API
 
     Returns:
-        List[resources_pb2.EvalMetrics]: list of eval_metrics
+        resources_pb2.EvalMetrics
     """
     assert self.model_info.model_version.id, "Model version is empty. Please provide `model_version` as arguments or with a URL as the format '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
     request = service_pb2.ListModelVersionEvaluationsRequest(
@@ -611,21 +611,7 @@ class Model(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
 
-    results = []
-    fields = [
-        "status",
-        "summary",
-        "id",
-        "eval_info",
-        "ground_truth_dataset",
-    ]
-    for eval_metric in response.eval_metrics:
-      for field in eval_metric.DESCRIPTOR.fields_by_name.keys():
-        if field not in fields:
-          eval_metric.ClearField(field)
-      results.append(eval_metric)
-
-    return results
+    return response.eval_metrics
 
   def evaluate(self,
                dataset_id: str,
