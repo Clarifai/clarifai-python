@@ -1,3 +1,19 @@
+## [[10.1.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.1.1) - [PyPI](https://pypi.org/project/clarifai/10.1.1/) - 2024-02-28
+
+### Added
+- Eval Endpoints (#290)
+- Eval Utils (#296)
+- Eval Tests (#297)
+- Support session token (#300)
+
+### Changed
+- Dataset upload Enhancements (#292)
+
+### Fixed
+- Concept ID check befor model training (#295)
+- RAG setup debug (#298)
+- Requirements Update (#299)
+
 ## [[10.1.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.1.0) - [PyPI](https://pypi.org/project/clarifai/10.1.0/) - 2024-02-13
 
 ### Added
