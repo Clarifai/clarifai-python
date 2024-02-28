@@ -162,13 +162,9 @@ class Dataset(Lister, BaseClient):
       del dataset_version_info['metrics']
       kwargs = {
           'dataset_id': self.id,
-          'app_id': self.app_id,
-          'user_id': self.user_id,
           'version': resources_pb2.DatasetVersion(**dataset_version_info),
-          'base_url': self.base,
-          'pat': self.pat
       }
-      yield Dataset(**kwargs)
+      yield Dataset.from_auth_helper(self.auth_helper, **kwargs)
 
   def _concurrent_annot_upload(self, annots: List[List[resources_pb2.Annotation]]
                               ) -> Union[List[resources_pb2.Annotation], List[None]]:

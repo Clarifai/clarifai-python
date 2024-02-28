@@ -376,11 +376,8 @@ class Model(Lister, BaseClient):
         del model_version_info['train_info']['dataset']['version']['metrics']
       except KeyError:
         pass
-      yield Model(
-          model_id=self.id,
-          base_url=self.base,
-          pat=self.pat,
-          **dict(self.kwargs, model_version=model_version_info))
+      yield Model.from_auth_helper(
+          model_id=self.id, **dict(self.kwargs, model_version=model_version_info))
 
   def predict(self, inputs: List[Input], inference_params: Dict = {}, output_config: Dict = {}):
     """Predicts the model based on the given inputs.

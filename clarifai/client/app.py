@@ -88,7 +88,7 @@ class App(Lister, BaseClient):
     for dataset_info in all_datasets_info:
       if 'version' in list(dataset_info.keys()):
         del dataset_info['version']['metrics']
-      yield Dataset(base_url=self.base, pat=self.pat, **dataset_info)
+      yield Dataset.from_auth_helper(auth=self.auth_helper, **dataset_info)
 
   def list_models(self,
                   filter_by: Dict[str, Any] = {},
@@ -129,7 +129,7 @@ class App(Lister, BaseClient):
       if only_in_app:
         if model_info['app_id'] != self.id:
           continue
-      yield Model(base_url=self.base, pat=self.pat, token=self.token, **model_info)
+      yield Model.from_auth_helper(auth=self.auth_helper, **model_info)
 
   def list_workflows(self,
                      filter_by: Dict[str, Any] = {},
@@ -168,7 +168,7 @@ class App(Lister, BaseClient):
       if only_in_app:
         if workflow_info['app_id'] != self.id:
           continue
-      yield Workflow(base_url=self.base, pat=self.pat, **workflow_info)
+      yield Workflow.from_auth_helper(auth=self.auth_helper, **workflow_info)
 
   def list_modules(self,
                    filter_by: Dict[str, Any] = {},
@@ -207,7 +207,7 @@ class App(Lister, BaseClient):
       if only_in_app:
         if module_info['app_id'] != self.id:
           continue
-      yield Module(base_url=self.base, pat=self.pat, **module_info)
+      yield Module.from_auth_helper(auth=self.auth_helper, **module_info)
 
   def list_installed_module_versions(self,
                                      filter_by: Dict[str, Any] = {},
@@ -242,11 +242,8 @@ class App(Lister, BaseClient):
     for imv_info in all_imv_infos:
       del imv_info['deploy_url']
       del imv_info['installed_module_version_id']  # TODO: remove this after the backend fix
-      yield Module(
-          module_id=imv_info['module_version']['module_id'],
-          base_url=self.base,
-          pat=self.pat,
-          **imv_info)
+      yield Module.from_auth_helper(
+          auth=self.auth_helper, module_id=imv_info['module_version']['module_id'], **imv_info)
 
   def list_concepts(self, page_no: int = None,
                     per_page: int = None) -> Generator[Concept, None, None]:
@@ -518,7 +515,6 @@ class App(Lister, BaseClient):
     kwargs = self.process_response_keys(dict_response['model'], 'model')
     kwargs[
         'model_version'] = response.model.model_version if response.model.model_version else None
-    #kwargs.update({'base_url': self.base, 'pat': self.pat, 'token': self.token,})
 
     return Model.from_auth_helper(self.auth_helper, **kwargs)
 
@@ -579,9 +575,7 @@ class App(Lister, BaseClient):
     Returns:
         Inputs: An input object.
     """
-    return Inputs.from_auth_helper(
-        self.auth_helper
-    )  #self.user_id, self.id, base_url=self.base, pat=self.pat, token=self.token)
+    return Inputs.from_auth_helper(self.auth_helper)
 
   def delete_dataset(self, dataset_id: str) -> None:
     """Deletes an dataset for the user.
@@ -670,9 +664,9 @@ class App(Lister, BaseClient):
         >>> app = App(app_id="app_id", user_id="user_id")
         >>> search_client = app.search(top_k=12, metric="euclidean")
     """
-    user_id = kwargs.get("user_id", self.user_app_id.user_id)
-    app_id = kwargs.get("app_id", self.user_app_id.app_id)
-    return Search(user_id=user_id, app_id=app_id, base_url=self.base, pat=self.pat, **kwargs)
+    kwargs.get("user_id", self.user_app_id.user_id)
+    kwargs.get("app_id", self.user_app_id.app_id)
+    return Search.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def __getattr__(self, name):
     return getattr(self.app_info, name)

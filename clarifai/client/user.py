@@ -98,7 +98,8 @@ class User(Lister, BaseClient):
         page_no=page_no)
 
     for runner_info in all_runners_info:
-      yield Runner(check_runner_exists=False, base_url=self.base, pat=self.pat, **runner_info)
+      yield Runner.from_auth_helper(
+          auth=self.auth_helper, check_runner_exists=False, **runner_info)
 
   def create_app(self, app_id: str, base_workflow: str = 'Empty', **kwargs) -> App:
     """Creates an app for the user.
@@ -124,13 +125,7 @@ class User(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nApp created\n%s", response.status)
-    kwargs.update({
-        'user_id': self.id,
-        'base_url': self.base,
-        'pat': self.pat,
-        'token': self.token,
-    })
-    return App.from_auth_helper(auth=self.auth_helper, app_id=app_id)  #(app_id=app_id, **kwargs)
+    return App.from_auth_helper(auth=self.auth_helper, app_id=app_id)
 
   def create_runner(self, runner_id: str, labels: List[str], description: str) -> Runner:
     """Create a runner
