@@ -39,6 +39,7 @@ class Runner(BaseClient):
                check_runner_exists: bool = True,
                base_url: str = "https://api.clarifai.com",
                pat: str = None,
+               token: str = None,
                num_parallel_polls: int = 4,
                **kwargs) -> None:
     """
@@ -47,6 +48,7 @@ class Runner(BaseClient):
       user_id (str): Clarifai User ID
       base_url (str): Base API url. Default "https://api.clarifai.com"
       pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
+      token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
       num_parallel_polls (int): the max number of threads for parallel run loops to be fetching work from
     """
     user_id = user_id or os.environ.get("CLARIFAI_USER_ID", "")
@@ -60,7 +62,7 @@ class Runner(BaseClient):
     self.kwargs = {**kwargs, 'id': runner_id, 'user_id': user_id}
     self.runner_info = resources_pb2.Runner(**self.kwargs)
     self.num_parallel_polls = min(10, num_parallel_polls)
-    BaseClient.__init__(self, user_id=self.user_id, app_id="", base=base_url, pat=pat)
+    BaseClient.__init__(self, user_id=self.user_id, app_id="", base=base_url, pat=pat, token=token)
 
     # Check that the runner exists.
     if check_runner_exists:

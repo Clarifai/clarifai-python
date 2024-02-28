@@ -32,6 +32,7 @@ class Inputs(Lister, BaseClient):
                logger_level: str = "INFO",
                base_url: str = "https://api.clarifai.com",
                pat: str = None,
+               token: str = None,
                **kwargs):
     """Initializes an Input object.
 
@@ -39,6 +40,8 @@ class Inputs(Lister, BaseClient):
         user_id (str): A user ID for authentication.
         app_id (str): An app ID for the application to interact with.
         base_url (str): Base API url. Default "https://api.clarifai.com"
+        pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
+        token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
         **kwargs: Additional keyword arguments to be passed to the Input
     """
     self.user_id = user_id
@@ -46,7 +49,8 @@ class Inputs(Lister, BaseClient):
     self.kwargs = {**kwargs}
     self.input_info = resources_pb2.Input(**self.kwargs)
     self.logger = get_logger(logger_level=logger_level, name=__name__)
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
+    BaseClient.__init__(
+        self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat, token=token)
     Lister.__init__(self)
 
   @staticmethod

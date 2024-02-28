@@ -18,6 +18,7 @@ class Module(Lister, BaseClient):
                module_version: Dict = {'id': ""},
                base_url: str = "https://api.clarifai.com",
                pat: str = None,
+               token: str = None,
                **kwargs):
     """Initializes a Module object.
 
@@ -26,7 +27,8 @@ class Module(Lister, BaseClient):
             module_id (str): The Module ID to interact with.
             module_version (dict): The Module Version to interact with.
             base_url (str): Base API url. Default "https://api.clarifai.com"
-            pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
+            pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT.
+            token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN.
             **kwargs: Additional keyword arguments to be passed to the Module.
         """
     if url and module_id:
@@ -41,7 +43,8 @@ class Module(Lister, BaseClient):
     self.kwargs = {**kwargs, 'id': module_id, 'module_version': module_version}
     self.module_info = resources_pb2.Module(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
+    BaseClient.__init__(
+        self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat, token=token)
     Lister.__init__(self)
 
   def list_versions(self, page_no: int = None,
@@ -78,10 +81,9 @@ class Module(Lister, BaseClient):
     for module_version_info in all_module_versions_info:
       module_version_info['id'] = module_version_info['module_version_id']
       del module_version_info['module_version_id']
-      yield Module(
+      yield Module.from_auth_helper(
+          self.auth_helper,
           module_id=self.id,
-          base_url=self.base,
-          pat=self.pat,
           **dict(self.kwargs, module_version=module_version_info))
 
   def __getattr__(self, name):
