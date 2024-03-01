@@ -169,6 +169,12 @@ class Dataset(Lister, BaseClient):
       }
       yield Dataset.from_auth_helper(self.auth_helper, **kwargs)
 
+  def iter_inputs(self):
+    return iter(DatasetExportReader(archive_url=self.archive_zip()))
+
+  def __iter__(self):
+    return self.iter_inputs()
+
   def _concurrent_annot_upload(self, annots: List[List[resources_pb2.Annotation]]
                               ) -> Union[List[resources_pb2.Annotation], List[None]]:
     """Uploads annotations concurrently.
@@ -599,6 +605,26 @@ class Dataset(Lister, BaseClient):
     if delete_version:
       self.delete_version(dataset_version_id)
 
+  def archive_zip(self, wait: bool = True) -> str:
+    req = service_pb2.PutDatasetVersionExportsRequest()
+    req.user_app_id.user_id = self.user_id
+    req.user_app_id.app_id = self.app_id
+    req.dataset_id = self.id
+    req.dataset_version_id = self.version.id
+    req.exports.add().format = resources_pb2.DatasetVersionExportFormat.CLARIFAI_DATA_PROTOBUF
+    response = self._grpc_request(self.STUB.PutDatasetVersionExports, req)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    if wait:
+      while response.exports[0].status.code in (status_code_pb2.DATASET_VERSION_EXPORT_PENDING, status_code_pb2.DATASET_VERSION_EXPORT_IN_PROGRESS):
+        time.sleep(1)
+        response = self._grpc_request(self.STUB.PutDatasetVersionExports, req)
+        if response.status.code != status_code_pb2.SUCCESS:
+          raise Exception(response.status)
+    if response.exports[0].status.code != status_code_pb2.DATASET_VERSION_EXPORT_SUCCESS:
+      raise Exception(response.exports[0].status)
+    return response.exports[0].url
+
   def export(self,
              save_path: str,
              archive_url: str = None,
@@ -620,6 +646,8 @@ class Dataset(Lister, BaseClient):
     """
     if local_archive_path and not os.path.exists(local_archive_path):
       raise UserError(f"Archive {local_archive_path} does not exist.")
+    if not archive_url and not local_archive_path:
+      archive_url = self.export()
     # Create a session object and set auth header
     session = requests.Session()
     retries = Retry(total=5, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])

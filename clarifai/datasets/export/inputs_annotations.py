@@ -21,7 +21,7 @@ logger = get_logger("INFO", __name__)
 class DatasetExportReader:
 
   def __init__(self,
-               session: requests.Session,
+               session: requests.Session = None,
                archive_url: Optional[str] = None,
                local_archive_path: Optional[str] = None):
     """Download/Reads the zipfile archive and yields every api.Input object.
@@ -34,6 +34,8 @@ class DatasetExportReader:
     self.input_count = 0
     self.temp_file = None
     self.session = session
+    if not self.session:
+      self.session = requests.Session()
 
     assert archive_url or local_archive_path, UserError(
         "Either archive_url or local_archive_path must be provided.")
