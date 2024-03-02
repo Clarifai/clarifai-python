@@ -9,6 +9,7 @@ from clarifai_grpc.grpc.api.resources_pb2 import Input
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.struct_pb2 import Struct
+from tqdm import tqdm
 
 from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
@@ -757,3 +758,86 @@ class Model(Lister, BaseClient):
           metrics_by_area=metrics_by_area)
 
     return result
+
+  def export(self, export_dir: str = None) -> str:
+    """Export the model, stores the exported model as model.tar file
+
+    Args:
+        export_dir (str): The directory to save the exported model.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model("url")
+        >>> model.export('/path/to/export_model_dir')
+    """
+    assert self.model_info.model_version.id, "Model version is empty. Please provide `model_version` as arguments or with a URL as the format '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+    try:
+      if not os.path.exists(export_dir):
+        os.makedirs(export_dir)
+    except OSError as e:
+      raise Exception(f"An error occurred while creating the directory: {e}")
+
+    def _get_export_response():
+      get_export_request = service_pb2.GetModelVersionExportget_export_(
+          user_app_id=self.user_app_id,
+          model_id=self.id,
+          version_id=self.model_info.model_version.id,
+      )
+      response = self._grpc_request(self.STUB.GetModelVersionExport, get_export_request)
+
+      if response.status.code != status_code_pb2.SUCCESS:
+        raise Exception(response.status)
+
+      return response
+
+    def _download_exported_model(model_export_url: str, local_filepath: str, file_size: int):
+      response = requests.get(model_export_url, stream=True)
+      response.raise_for_status()
+
+      with open(local_filepath, 'wb') as f:
+        progress = tqdm(total=file_size, unit='B', unit_scale=True, desc="Exporting model")
+        for chunk in response.iter_content(chunk_size=8192):
+          f.write(chunk)
+          progress.update(len(chunk))
+        progress.close()
+
+    get_export_response = _get_export_response()
+    if get_export_response.Exports.Status.Code == service_pb2.MODEL_EXPORTED:
+      model_export_url = get_export_response.Exports.URL
+      model_export_file_size = get_export_response.Exports._Size
+      _download_exported_model(model_export_url,
+                               os.path.join(export_dir, "model.tar"), model_export_file_size)
+    elif get_export_response.Exports.Status.Code == service_pb2.MODEL_EXPORT_DOES_NOT_EXIST:
+      put_export_request = service_pb2.PutModelVersionExports(
+          user_app_id=self.user_app_id,
+          model_id=self.id,
+          version_id=self.model_info.model_version.id,
+      )
+
+      response = self._grpc_request(self.STUB.PutModelVersionExports, put_export_request)
+      if response.status.code != status_code_pb2.SUCCESS:
+        raise Exception(response.status)
+
+      self.logger.info(
+          f"Model ID {self.id} with version {self.model_info.model_version.id} is still exporting, please wait..."
+      )
+      time.sleep(5)
+      start_time = time.time()
+      backoff_iterator = BackoffIterator()
+      while True:
+        get_export_response = _get_export_response()
+        if get_export_response.Exports.Status.Code == service_pb2.MODEL_EXPORTING and \
+          time.time() - start_time < 60 * 30: # 30 minutes
+          self.logger.info(
+              f"Model ID {self.id} with version {self.model_info.model_version.id} is still exporting, please wait..."
+          )
+          time.sleep(next(backoff_iterator))
+        elif get_export_response.Exports.Status.Code == service_pb2.MODEL_EXPORTED:
+          model_export_url = get_export_response.Exports.URL
+          model_export_file_size = get_export_response.Exports._Size
+          _download_exported_model(model_export_url,
+                                   os.path.join(export_dir, "model.tar"), model_export_file_size)
+        elif time.time() - start_time > 60 * 30:
+          raise Exception(
+              f"""Model Export took too long. Please try again or contact support@clarifai.com
+              Req ID: {get_export_response.status.req_id}""")
