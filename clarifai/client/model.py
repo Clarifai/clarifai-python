@@ -778,7 +778,7 @@ class Model(Lister, BaseClient):
       raise Exception(f"An error occurred while creating the directory: {e}")
 
     def _get_export_response():
-      get_export_request = service_pb2.GetModelVersionExportget_export_(
+      get_export_request = service_pb2.GetModelVersionExport(
           user_app_id=self.user_app_id,
           model_id=self.id,
           version_id=self.model_info.model_version.id,
@@ -802,12 +802,12 @@ class Model(Lister, BaseClient):
         progress.close()
 
     get_export_response = _get_export_response()
-    if get_export_response.Exports.Status.Code == service_pb2.MODEL_EXPORTED:
+    if get_export_response.Exports.Status.Code == status_code_pb2.MODEL_EXPORTED:
       model_export_url = get_export_response.Exports.URL
       model_export_file_size = get_export_response.Exports._Size
       _download_exported_model(model_export_url,
                                os.path.join(export_dir, "model.tar"), model_export_file_size)
-    elif get_export_response.Exports.Status.Code == service_pb2.MODEL_EXPORT_DOES_NOT_EXIST:
+    elif get_export_response.Exports.Status.Code == status_code_pb2.CONN_DOES_NOT_EXIST:
       put_export_request = service_pb2.PutModelVersionExports(
           user_app_id=self.user_app_id,
           model_id=self.id,
@@ -819,24 +819,27 @@ class Model(Lister, BaseClient):
         raise Exception(response.status)
 
       self.logger.info(
-          f"Model ID {self.id} with version {self.model_info.model_version.id} is still exporting, please wait..."
+          f"Model ID {self.id} with version {self.model_info.model_version.id} export started, please wait..."
       )
       time.sleep(5)
       start_time = time.time()
       backoff_iterator = BackoffIterator()
       while True:
         get_export_response = _get_export_response()
-        if get_export_response.Exports.Status.Code == service_pb2.MODEL_EXPORTING and \
+        if get_export_response.Exports.Status.Code == status_code_pb2.MODEL_EXPORTING and \
           time.time() - start_time < 60 * 30: # 30 minutes
           self.logger.info(
               f"Model ID {self.id} with version {self.model_info.model_version.id} is still exporting, please wait..."
           )
           time.sleep(next(backoff_iterator))
-        elif get_export_response.Exports.Status.Code == service_pb2.MODEL_EXPORTED:
+        elif get_export_response.Exports.Status.Code == status_code_pb2.MODEL_EXPORTED:
           model_export_url = get_export_response.Exports.URL
           model_export_file_size = get_export_response.Exports._Size
           _download_exported_model(model_export_url,
                                    os.path.join(export_dir, "model.tar"), model_export_file_size)
+          self.logger.info(
+              f"Model ID {self.id} with version {self.model_info.model_version.id} exported successfully to {export_dir}/model.tar"
+          )
         elif time.time() - start_time > 60 * 30:
           raise Exception(
               f"""Model Export took too long. Please try again or contact support@clarifai.com
