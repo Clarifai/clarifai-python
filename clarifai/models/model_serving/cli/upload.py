@@ -126,7 +126,7 @@ class UploadModelSubCli(BaseClarifaiCli):
     # Run test before uploading
     if not self.no_test:
       assert os.path.exists(self.test_path), FileNotFoundError(f"Not found {self.test_path}")
-      result = subprocess.run(f"pytest -s --log-level=INFO {self.test_path}")
+      result = subprocess.run(f"pytest -s --log-level=INFO {self.test_path}", shell=True)
       assert result.returncode == 0, "Test has failed. Please make sure no error exists in your code."
 
     deploy(
