@@ -11,6 +11,7 @@ from google.protobuf.json_format import MessageToDict
 from google.protobuf.struct_pb2 import Struct
 
 from clarifai.client.base import BaseClient
+from clarifai.client.dataset import Dataset
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
 from clarifai.constants.model import MAX_MODEL_PREDICT_INPUTS, TRAINABLE_MODEL_TYPES
@@ -614,18 +615,22 @@ class Model(Lister, BaseClient):
     return response.eval_metrics
 
   def evaluate(self,
-               dataset_id: str,
+               dataset: Dataset = None,
+               dataset_id: str = None,
                dataset_app_id: str = None,
                dataset_user_id: str = None,
+               dataset_version_id: str = None,
                eval_id: str = None,
                extended_metrics: dict = None,
                eval_info: dict = None) -> resources_pb2.EvalMetrics:
     """ Run evaluation
 
     Args:
-      dataset_id (str): Dataset Id.
+      dataset (Dataset): If Clarifai Dataset is set, it will ignore other arguments prefixed with 'dataset_'.
+      dataset_id (str): Dataset Id. Default is None.
       dataset_app_id (str): App ID for cross app evaluation, leave it as None to use Model App ID. Default is None.
       dataset_user_id (str): User ID for cross app evaluation, leave it as None to use Model User ID. Default is None.
+      dataset_version_id (str): Dataset version Id. Default is None.
       eval_id (str): Specific ID for the evaluation. You must specify this parameter to either overwrite the result with the dataset ID or format your evaluation in an informative manner. If you don't, it will use random ID from system. Default is None.
       extended_metrics (dict): user custom metrics result. Default is None.
       eval_info (dict): custom eval info. Default is empty dict.
@@ -635,6 +640,23 @@ class Model(Lister, BaseClient):
 
     """
     assert self.model_info.model_version.id, "Model version is empty. Please provide `model_version` as arguments or with a URL as the format '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+
+    if dataset:
+      self.logger.info("Using dataset, ignore other arguments prefixed with 'dataset_'")
+      dataset_id = dataset.id
+      dataset_app_id = dataset.app_id
+      dataset_user_id = dataset.user_id
+      dataset_version_id = dataset.version.id
+    else:
+      self.logger.warning(
+          "Arguments prefixed with `dataset_` will be removed soon, please use dataset")
+
+    gt_dataset = resources_pb2.Dataset(
+        id=dataset_id,
+        app_id=dataset_app_id or self.auth_helper.app_id,
+        user_id=dataset_user_id or self.auth_helper.user_id,
+        version=resources_pb2.DatasetVersion(id=dataset_version_id))
+
     metrics = None
     if isinstance(extended_metrics, dict):
       metrics = Struct()
@@ -656,11 +678,7 @@ class Model(Lister, BaseClient):
             model_version=resources_pb2.ModelVersion(id=self.model_info.model_version.id),
         ),
         extended_metrics=metrics,
-        ground_truth_dataset=resources_pb2.Dataset(
-            id=dataset_id,
-            app_id=dataset_app_id or self.auth_helper.app_id,
-            user_id=dataset_user_id or self.auth_helper.user_id,
-        ),
+        ground_truth_dataset=gt_dataset,
         eval_info=eval_info_params,
     )
     request = service_pb2.PostEvaluationsRequest(
@@ -757,3 +775,89 @@ class Model(Lister, BaseClient):
           metrics_by_area=metrics_by_area)
 
     return result
+
+  def get_eval_by_dataset(self, dataset: Dataset) -> List[resources_pb2.EvalMetrics]:
+    """Get all eval data of dataset
+
+    Args:
+        dataset (Dataset): Clarifai dataset
+
+    Returns:
+        List[resources_pb2.EvalMetrics]
+    """
+    _id = dataset.id
+    app = dataset.app_id or self.app_id
+    user_id = dataset.user_id or self.user_id
+    version = dataset.version.id
+
+    list_eval: resources_pb2.EvalMetrics = self.list_evaluations()
+    outputs = []
+    for _eval in list_eval:
+      if _eval.status.code == status_code_pb2.MODEL_EVALUATED:
+        gt_ds = _eval.ground_truth_dataset
+        if (_id == gt_ds.id and user_id == gt_ds.user_id and app == gt_ds.app_id):
+          if not version or version == gt_ds.version.id:
+            outputs.append(_eval)
+
+    return outputs
+
+  def get_raw_eval(self,
+                   dataset: Dataset = None,
+                   eval_id: str = None,
+                   return_format: str = 'array'):
+    """Get ground truths, predictions and input information. Do not pass dataset and eval_id at same time
+
+    Args:
+        dataset (Dataset): Clarifai dataset, get eval data of latest eval result of dataset.
+        eval_id (str): Evaluation ID, get eval data of specific eval id.
+        return_format (str, optional): Choice {proto, array}. Defaults to 'array'.
+
+    Returns:
+        * resources_pb2.EvalTestSetEntry: if return_format == proto
+        * tuple(np.array, np.array, List[str], List[Input]):
+            tuple of (y, y_pred, concept_ids, inputs), if return_format == array.
+            y, y_pred, concept_ids can be use in sklearn to compute metrics.
+            inputs can be use to download
+    """
+    import numpy as np  # noqa
+    self.load_info()
+    valid_model_types = ["visual-classifier", "text-classifier"]
+    assert self.model_info.model_type_id in valid_model_types, \
+      f"This method only supports model types {valid_model_types}, but your model type is {self.model_info.model_type_id}."
+    assert not (dataset and
+                eval_id), "Using both `dataset` and `eval_id`, but only one should be passed."
+    assert not dataset or not eval_id, "Please provide either `dataset` or `eval_id`, but nothing was passed."
+
+    if dataset:
+      eval_by_ds = self.get_eval_by_dataset(dataset)
+      if len(eval_by_ds) == 0:
+        raise Exception(f"Model is not valuated with dataset: {dataset}")
+      eval_id = eval_by_ds[0].id
+
+    detail_eval_data = self.get_eval_by_id(eval_id=eval_id, test_set=True)
+    if return_format == "proto":
+      return detail_eval_data.test_set
+    # get concept ids
+    concept_ids = [each.id for each in detail_eval_data.test_set[0].predicted_concepts]
+    concept_ids.sort()
+    # get test set
+    if return_format == "array":
+      y_preds = []
+      y = []
+      inputs = []
+      for data in detail_eval_data.test_set:
+
+        def _to_array(_data):
+          cps = [0] * len(concept_ids)
+          for each in _data:
+            cps[concept_ids.index(each.id)] = each.value
+          return np.asarray(cps)
+
+        y_preds.append(_to_array(data.predicted_concepts))
+        y.append(_to_array(data.ground_truth_concepts))
+        inputs.append(data.input)
+
+      return (np.asarray(y), np.asarray(y_preds), concept_ids, inputs)
+
+    else:
+      raise ValueError(f"Expected 'proto, array', got {return_format}")
