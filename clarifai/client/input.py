@@ -851,8 +851,7 @@ class Inputs(Lister, BaseClient):
       annotations_info['id'] = annotations_info.pop('annotation_id')
       yield Annotation(**annotations_info)
 
-  def _bulk_upload(self, inputs: List[Input], batch_size: int = 128, 
-                   **kwargs) -> None:
+  def _bulk_upload(self, inputs: List[Input], batch_size: int = 128, **kwargs) -> None:
     """Uploads process for large number of inputs.
 
     Args:
@@ -906,8 +905,7 @@ class Inputs(Lister, BaseClient):
       else:
         time.sleep(next(backoff_iterator))
 
-  def _retry_uploads(self, failed_inputs: List[Input], 
-                     max_retries: int = 4) -> None:
+  def _retry_uploads(self, failed_inputs: List[Input], max_retries: int = 4) -> None:
     """Retry failed uploads.
 
     Args:
