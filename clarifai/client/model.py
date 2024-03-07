@@ -819,6 +819,10 @@ class Model(Lister, BaseClient):
             y, y_pred, concept_ids can be use in sklearn to compute metrics.
             inputs can be use to download
     """
+    supported_format = ['proto', 'array']
+    assert return_format in supported_format, ValueError(
+        f"Expected return_format in {supported_format}, got {return_format}")
+
     import numpy as np  # noqa
     self.load_info()
     valid_model_types = ["visual-classifier", "text-classifier"]
@@ -835,8 +839,6 @@ class Model(Lister, BaseClient):
       eval_id = eval_by_ds[0].id
 
     detail_eval_data = self.get_eval_by_id(eval_id=eval_id, test_set=True)
-    if return_format == "proto":
-      return detail_eval_data.test_set
     # get concept ids
     concept_ids = [each.id for each in detail_eval_data.test_set[0].predicted_concepts]
     concept_ids.sort()
@@ -859,5 +861,5 @@ class Model(Lister, BaseClient):
 
       return (np.asarray(y), np.asarray(y_preds), concept_ids, inputs)
 
-    else:
-      raise ValueError(f"Expected 'proto, array', got {return_format}")
+    elif return_format == "proto":
+      return detail_eval_data.test_set
