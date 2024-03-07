@@ -203,7 +203,8 @@ class Dataset(Lister, BaseClient):
       self,
       batch_input_ids: List[int],
       dataset_obj: ClarifaiDatasetType,
-      upload_response: MultiInputResponse = None) -> Tuple[List[int], List[int]]:
+      upload_response: MultiInputResponse = None,
+      batch_no: Optional[int] = None) -> Tuple[List[int], List[int]]:
     """Delete failed input ids from clarifai platform dataset.
 
     Args:
@@ -251,7 +252,7 @@ class Dataset(Lister, BaseClient):
       ]
       duplicate_table = tabulate(duplicate_details, headers=["Index", "Input ID", "Status", "Image Path", "Labels", "Metadata"], tablefmt="grid")        
       self.logger.warning(
-          f"Failed to upload {len(duplicate_input_ids)} inputs in due to duplicate IDs in current batch:\n{duplicate_table}\n\n")
+          f"Failed to upload {len(duplicate_input_ids)} inputs in due to duplicate IDs in current batch {batch_no}:\n{duplicate_table}\n\n")
 
     #delete failed inputs
     self._grpc_request(
@@ -261,7 +262,10 @@ class Dataset(Lister, BaseClient):
     return [input_ids[id] for id in success_input_ids], [input_ids[id] for id in failed_input_ids]
 
   def _upload_inputs_annotations(
-      self, batch_input_ids: List[int], dataset_obj: ClarifaiDatasetType, is_retry_duplicates: bool = False, 
+      self, batch_input_ids: List[int],
+      dataset_obj: ClarifaiDatasetType,
+      batch_no: Optional[int] = None,
+      is_retry_duplicates: bool = False, 
       **kwargs
   ) -> Tuple[List[int], List[resources_pb2.Annotation], MultiInputResponse]:
     """Uploads batch of inputs and annotations concurrently to clarifai platform dataset.
@@ -286,7 +290,7 @@ class Dataset(Lister, BaseClient):
 
     self.input_object._wait_for_inputs(input_job_id)
     success_input_ids, failed_input_ids = self._delete_failed_inputs(batch_input_ids, dataset_obj,
-                                                                     _response)
+                                                                     _response, batch_no)
 
     if self.task in ["visual_detection", "visual_segmentation"] and success_input_ids:
       _, annotation_protos = dataset_obj.get_protos(success_input_ids)
@@ -298,6 +302,7 @@ class Dataset(Lister, BaseClient):
   def _retry_uploads(self, failed_input_ids: List[int],
                      retry_annot_protos: List[resources_pb2.Annotation],
                      dataset_obj: ClarifaiDatasetType,
+                     batch_no: Optional[int],
                      max_retries: int = 4,
                      **kwargs) -> None:
     """Retry failed uploads.
@@ -317,7 +322,7 @@ class Dataset(Lister, BaseClient):
             f"Retrying upload for {len(failed_input_ids)} inputs in current batch: {retry_input_ids}"
         )
         failed_retrying_inputs, _, retry_response = self._upload_inputs_annotations(
-            failed_input_ids, dataset_obj)
+            failed_input_ids, dataset_obj, batch_no)
         failed_input_ids = failed_retrying_inputs
       if retry_annot_protos:
         chunked_annotation_protos = Chunker(retry_annot_protos, self.batch_size).chunk()
@@ -328,7 +333,6 @@ class Dataset(Lister, BaseClient):
       failed_inputs_logs = []
       for input in (retry_response.inputs):
         failed_input_details = []
-        
         for index in failed_retrying_inputs:
           failed_id  = dataset_obj.all_input_ids[index]
           if input.id == failed_id:
@@ -342,7 +346,7 @@ class Dataset(Lister, BaseClient):
         
       failed_table = tabulate(failed_inputs_logs, headers=["Index","Input ID", "Status", "Image Path", "Labels", "Metadata"], tablefmt="grid")
       self.logger.warning(
-                f"Failed to upload {len(failed_retrying_inputs)} inputs in current batch:\n{failed_table}\n\n"
+                f"Failed to upload {len(failed_retrying_inputs)} inputs in current batch {batch_no}:\n{failed_table}\n\n"
             )
 
   def _data_upload(self, dataset_obj: ClarifaiDatasetType, 
@@ -369,13 +373,13 @@ class Dataset(Lister, BaseClient):
       with tqdm(total=len(chunk_input_ids), desc='Uploading Dataset') as progress:
         # Submit all jobs to the executor and store the returned futures
         futures = [
-            executor.submit(self._upload_inputs_annotations, batch_input_ids, dataset_obj, **kwargs)
-            for batch_input_ids in chunk_input_ids
+            executor.submit(self._upload_inputs_annotations, batch_input_ids, dataset_obj, batch_no, **kwargs)
+            for batch_no,batch_input_ids in enumerate(chunk_input_ids)
         ]
 
-        for job in as_completed(futures):
+        for batch_no,job in enumerate(as_completed(futures)):
           retry_input_ids, retry_annot_protos, _ = job.result()
-          self._retry_uploads(retry_input_ids, retry_annot_protos, dataset_obj, **kwargs)
+          self._retry_uploads(retry_input_ids, retry_annot_protos, dataset_obj, batch_no, **kwargs)
           progress.update()
 
   def upload_dataset(self,
@@ -443,9 +447,9 @@ class Dataset(Lister, BaseClient):
                 input_id = match[1]
                 status = match[2]
                 if status == "Input has a duplicate ID.":
-                    duplicate_input_ids.append({"Index": index, "Input ID": input_id})
+                    duplicate_input_ids.append({"Index": index, "Input_ID": input_id})
                 else:
-                    failed_input_ids.append({"Index": index, "Input ID": input_id})
+                    failed_input_ids.append({"Index": index, "Input_ID": input_id})
 
     return duplicate_input_ids, failed_input_ids
 
@@ -453,6 +457,7 @@ class Dataset(Lister, BaseClient):
                             log_file_path: str,
                             dataloader: Type[ClarifaiDataLoader],
                             retry_duplicates: bool = False,
+                            log_warnings: bool = False,
                             **kwargs
                             ) -> None:
     """Retries failed uploads from the log file.
@@ -464,22 +469,26 @@ class Dataset(Lister, BaseClient):
     """
     #TODO
     duplicate_input_ids, failed_input_ids = self.process_log_files(log_file_path)
-    
+    if log_warnings:
+      add_file_handler(self.logger, f"Dataset_Upload{str(int(datetime.now().timestamp()))}.log")
+      
     if retry_duplicates and duplicate_input_ids:
-      logging.warning(f"Retrying upload for {len(duplicate_input_ids)} duplicate inputs: {duplicate_input_ids}")
+      #duplicate_input = ([input["Input_ID"] for input in duplicate_input_ids])
+      logging.info(f"Retrying upload for {len(duplicate_input_ids)} duplicate inputs...\n")
       duplicate_inputs_indexes = [input["Index"] for input in duplicate_input_ids]
       self.upload_dataset(dataloader = dataloader,
-                          is_log_retry = True,
                           log_retry_ids = duplicate_inputs_indexes, 
                           is_retry_duplicates=True,
+                          is_log_retry=True,
                           **kwargs)
        
     if failed_input_ids:
-      logging.warning(f"Retrying upload for {len(failed_input_ids)} failed inputs: {failed_input_ids}")
+      #failed_inputs= ([input["Input_ID"] for input in failed_input_ids])
+      logging.warning(f"\nRetrying upload for {len(failed_input_ids)} failed inputs...")
       failed_input_indexes = [input["Index"] for input in failed_input_ids]
       self.upload_dataset(dataloader = dataloader,
-                          is_log_retry = True,
                           log_retry_ids = failed_input_indexes,
+                          is_log_retry=True,
                           **kwargs)
     
   def upload_from_csv(self,
@@ -487,7 +496,8 @@ class Dataset(Lister, BaseClient):
                       input_type: str = 'text',
                       csv_type: str = None,
                       labels: bool = True,
-                      batch_size: int = 128) -> None:
+                      batch_size: int = 128,
+                      **kwargs) -> None:
     """Uploads dataset from a csv file.
 
     Args:
@@ -522,13 +532,14 @@ class Dataset(Lister, BaseClient):
         csv_type=csv_type,
         dataset_id=self.id,
         labels=labels)
-    self.input_object._bulk_upload(inputs=input_protos, batch_size=batch_size)
+    self.input_object._bulk_upload(inputs=input_protos, batch_size=batch_size, **kwargs)
 
   def upload_from_folder(self,
                          folder_path: str,
                          input_type: str,
                          labels: bool = False,
-                         batch_size: int = 128) -> None:
+                         batch_size: int = 128,
+                         **kwargs) -> None:
     """Upload dataset from folder.
 
     Args:
@@ -552,7 +563,7 @@ class Dataset(Lister, BaseClient):
     if input_type == 'text':
       input_protos = self.input_object.get_text_inputs_from_folder(
           folder_path=folder_path, dataset_id=self.id, labels=labels)
-    self.input_object._bulk_upload(inputs=input_protos, batch_size=batch_size)
+    self.input_object._bulk_upload(inputs=input_protos, batch_size=batch_size, **kwargs)
 
   def get_upload_status(
       self,

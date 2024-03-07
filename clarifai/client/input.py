@@ -851,12 +851,14 @@ class Inputs(Lister, BaseClient):
       annotations_info['id'] = annotations_info.pop('annotation_id')
       yield Annotation(**annotations_info)
 
-  def _bulk_upload(self, inputs: List[Input], batch_size: int = 128) -> None:
+  def _bulk_upload(self, inputs: List[Input], batch_size: int = 128, 
+                   **kwargs) -> None:
     """Uploads process for large number of inputs.
 
     Args:
         inputs (List[Input]): input protos
         batch_size (int): batch size for each request
+        kwargs: Additional keyword arguments to be passed to the Input
     """
     num_workers: int = min(10, cpu_count())  # limit max workers to 10
     batch_size = min(128, batch_size)  # limit max protos in a req
@@ -871,7 +873,7 @@ class Inputs(Lister, BaseClient):
 
         for job in as_completed(futures):
           retry_input_proto = job.result()
-          self._retry_uploads(retry_input_proto)
+          self._retry_uploads(retry_input_proto, **kwargs)
           progress.update()
 
   def _wait_for_inputs(self, input_job_id: str) -> bool:
@@ -904,14 +906,17 @@ class Inputs(Lister, BaseClient):
       else:
         time.sleep(next(backoff_iterator))
 
-  def _retry_uploads(self, failed_inputs: List[Input]) -> None:
+  def _retry_uploads(self, failed_inputs: List[Input], 
+                     max_retries: int = 4) -> None:
     """Retry failed uploads.
 
     Args:
-        failed_inputs (List[Input]): failed input prots
+        failed_inputs (List[Input]): failed input protos
+        max_retries (int): max retries for failed uploads
     """
-    if failed_inputs:
-      self._upload_batch(failed_inputs)
+    for _retry in range(max_retries):
+      if failed_inputs:
+        self._upload_batch(failed_inputs)
 
   def _delete_failed_inputs(self, inputs: List[Input]) -> List[Input]:
     """Delete failed input ids from clarifai platform dataset.
