@@ -296,13 +296,9 @@ class Dataset(Lister, BaseClient):
 
     return failed_input_ids, retry_annot_protos, _response
 
-  def _retry_uploads(self,
-                     failed_input_ids: List[int],
+  def _retry_uploads(self, failed_input_ids: List[int],
                      retry_annot_protos: List[resources_pb2.Annotation],
-                     dataset_obj: ClarifaiDatasetType,
-                     batch_no: Optional[int],
-                     max_retries: int = 4,
-                     **kwargs) -> None:
+                     dataset_obj: ClarifaiDatasetType, batch_no: Optional[int], **kwargs) -> None:
     """Retry failed uploads.
 
     Args:
@@ -311,13 +307,14 @@ class Dataset(Lister, BaseClient):
       dataset_obj: ClarifaiDataset object
       max_retries: maximum number of retries for failed uploads
     """
+    max_retries = 2
     for _retry in range(max_retries):
       if not failed_input_ids and not retry_annot_protos:
         break
       if failed_input_ids:
         retry_input_ids = [dataset_obj.all_input_ids[id] for id in failed_input_ids]
         logging.warning(
-            f"Retrying upload for {len(failed_input_ids)} inputs in current batch: {retry_input_ids}"
+            f"Retrying upload for {len(failed_input_ids)} inputs in current batch: {retry_input_ids}\n"
         )
         failed_retrying_inputs, _, retry_response = self._upload_inputs_annotations(
             failed_input_ids, dataset_obj, batch_no)

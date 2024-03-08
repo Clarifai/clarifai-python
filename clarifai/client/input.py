@@ -905,13 +905,14 @@ class Inputs(Lister, BaseClient):
       else:
         time.sleep(next(backoff_iterator))
 
-  def _retry_uploads(self, failed_inputs: List[Input], max_retries: int = 4) -> None:
+  def _retry_uploads(self, failed_inputs: List[Input]) -> None:
     """Retry failed uploads.
 
     Args:
         failed_inputs (List[Input]): failed input protos
         max_retries (int): max retries for failed uploads
     """
+    max_retries = 2
     for _retry in range(max_retries):
       if failed_inputs:
         self._upload_batch(failed_inputs)
