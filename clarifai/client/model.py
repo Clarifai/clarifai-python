@@ -778,37 +778,42 @@ class Model(Lister, BaseClient):
       raise Exception(f"An error occurred while creating the directory: {e}")
 
     def _get_export_response():
-      get_export_request = service_pb2.GetModelVersionExport(
+      get_export_request = service_pb2.GetModelVersionExportRequest(
           user_app_id=self.user_app_id,
           model_id=self.id,
           version_id=self.model_info.model_version.id,
       )
       response = self._grpc_request(self.STUB.GetModelVersionExport, get_export_request)
 
-      if response.status.code != status_code_pb2.SUCCESS:
+      if response.status.code != status_code_pb2.SUCCESS and response.status.code != status_code_pb2.CONN_DOES_NOT_EXIST:
         raise Exception(response.status)
 
       return response
 
-    def _download_exported_model(model_export_url: str, local_filepath: str, file_size: int):
+    def _download_exported_model(
+        get_model_export_response: service_pb2.SingleModelVersionExportResponse,
+        local_filepath: str):
+      model_export_url = get_model_export_response.export.url
+      model_export_file_size = get_model_export_response.export.size
+
       response = requests.get(model_export_url, stream=True)
       response.raise_for_status()
 
       with open(local_filepath, 'wb') as f:
-        progress = tqdm(total=file_size, unit='B', unit_scale=True, desc="Exporting model")
+        progress = tqdm(
+            total=model_export_file_size, unit='B', unit_scale=True, desc="Exporting model")
         for chunk in response.iter_content(chunk_size=8192):
           f.write(chunk)
           progress.update(len(chunk))
         progress.close()
 
+      self.logger.info(
+          f"Model ID {self.id} with version {self.model_info.model_version.id} exported successfully to {export_dir}/model.tar"
+      )
+
     get_export_response = _get_export_response()
-    if get_export_response.Exports.Status.Code == status_code_pb2.MODEL_EXPORTED:
-      model_export_url = get_export_response.Exports.URL
-      model_export_file_size = get_export_response.Exports._Size
-      _download_exported_model(model_export_url,
-                               os.path.join(export_dir, "model.tar"), model_export_file_size)
-    elif get_export_response.Exports.Status.Code == status_code_pb2.CONN_DOES_NOT_EXIST:
-      put_export_request = service_pb2.PutModelVersionExports(
+    if get_export_response.status.code == status_code_pb2.CONN_DOES_NOT_EXIST:
+      put_export_request = service_pb2.PutModelVersionExportsRequest(
           user_app_id=self.user_app_id,
           model_id=self.id,
           version_id=self.model_info.model_version.id,
@@ -826,21 +831,17 @@ class Model(Lister, BaseClient):
       backoff_iterator = BackoffIterator()
       while True:
         get_export_response = _get_export_response()
-        if get_export_response.Exports.Status.Code == status_code_pb2.MODEL_EXPORTING and \
+        if get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTING and \
           time.time() - start_time < 60 * 30: # 30 minutes
           self.logger.info(
               f"Model ID {self.id} with version {self.model_info.model_version.id} is still exporting, please wait..."
           )
           time.sleep(next(backoff_iterator))
-        elif get_export_response.Exports.Status.Code == status_code_pb2.MODEL_EXPORTED:
-          model_export_url = get_export_response.Exports.URL
-          model_export_file_size = get_export_response.Exports._Size
-          _download_exported_model(model_export_url,
-                                   os.path.join(export_dir, "model.tar"), model_export_file_size)
-          self.logger.info(
-              f"Model ID {self.id} with version {self.model_info.model_version.id} exported successfully to {export_dir}/model.tar"
-          )
+        elif get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTED:
+          _download_exported_model(get_export_response, os.path.join(export_dir, "model.tar"))
         elif time.time() - start_time > 60 * 30:
           raise Exception(
               f"""Model Export took too long. Please try again or contact support@clarifai.com
               Req ID: {get_export_response.status.req_id}""")
+    elif get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTED:
+      _download_exported_model(get_export_response, os.path.join(export_dir, "model.tar"))
