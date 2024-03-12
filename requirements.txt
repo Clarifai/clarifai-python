@@ -1,4 +1,4 @@
-clarifai-grpc~=10.0.1
+clarifai-grpc~=10.2.1
 numpy>=1.22.0
 tqdm>=4.65.0
 tritonclient>=2.34.0
