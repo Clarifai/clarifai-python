@@ -20,3 +20,5 @@ TASK_TO_ANNOTATION_TYPE = {
         "polygons": "polygons"
     },
 }
+
+MAX_RETRIES = 2
