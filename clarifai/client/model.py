@@ -759,7 +759,7 @@ class Model(Lister, BaseClient):
 
     return result
 
-  def export(self, export_dir: str = None) -> str:
+  def export(self, export_dir: str = None) -> None:
     """Export the model, stores the exported model as model.tar file
 
     Args:
