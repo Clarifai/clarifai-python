@@ -770,7 +770,7 @@ class Model(Lister, BaseClient):
         >>> model = Model("url")
         >>> model.export('/path/to/export_model_dir')
     """
-    assert self.model_info.model_version.id, "Model version is empty. Please provide `model_version` as arguments or with a URL as the format '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+    assert self.model_info.model_version.id, "Model version ID is missing. Please provide a `model_version` with a valid `id` as an argument or as a URL in the following format: '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
     try:
       if not os.path.exists(export_dir):
         os.makedirs(export_dir)
