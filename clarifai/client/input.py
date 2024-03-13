@@ -18,6 +18,7 @@ from tqdm import tqdm
 
 from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
+from clarifai.constants.dataset import MAX_RETRIES
 from clarifai.errors import UserError
 from clarifai.utils.logging import get_logger
 from clarifai.utils.misc import BackoffIterator, Chunker
@@ -936,10 +937,14 @@ class Inputs(Lister, BaseClient):
     """Retry failed uploads.
 
     Args:
-        failed_inputs (List[Input]): failed input prots
+        failed_inputs (List[Input]): failed input protos
     """
-    if failed_inputs:
-      self._upload_batch(failed_inputs)
+    for _retry in range(MAX_RETRIES):
+      if failed_inputs:
+        self.logger.info(f"Retrying upload for {len(failed_inputs)} Failed inputs..\n")
+        failed_inputs = self._upload_batch(failed_inputs)
+
+    self.logger.warning(f"Failed to upload {len(failed_inputs)} inputs..\n ")
 
   def _delete_failed_inputs(self, inputs: List[Input]) -> List[Input]:
     """Delete failed input ids from clarifai platform dataset.
