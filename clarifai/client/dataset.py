@@ -265,7 +265,7 @@ class Dataset(Lister, BaseClient):
       dataset_obj: ClarifaiDatasetType,
       batch_no: Optional[int] = None,
       is_retry_duplicates: bool = False,
-      ) -> Tuple[List[int], List[resources_pb2.Annotation], MultiInputResponse]:
+  ) -> Tuple[List[int], List[resources_pb2.Annotation], MultiInputResponse]:
     """Uploads batch of inputs and annotations concurrently to clarifai platform dataset.
 
     Args:
@@ -330,13 +330,12 @@ class Dataset(Lister, BaseClient):
         failed_id = dataset_obj.all_input_ids[index]
         input_details = input_map.get(failed_id)
         if input_details:
-            failed_input_details = [
-                index, failed_id, input_details.status.details,
-                dataset_obj.data_generator[index].image_path,
-                dataset_obj.data_generator[index].labels,
-                dataset_obj.data_generator[index].metadata
-            ]
-            failed_inputs_logs.append(failed_input_details)
+          failed_input_details = [
+              index, failed_id, input_details.status.details,
+              dataset_obj.data_generator[index].image_path,
+              dataset_obj.data_generator[index].labels, dataset_obj.data_generator[index].metadata
+          ]
+          failed_inputs_logs.append(failed_input_details)
 
       failed_table = tabulate(
           failed_inputs_logs,

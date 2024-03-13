@@ -107,34 +107,32 @@ def add_file_handler(logger: logging.Logger, file_path: str, log_level: str = 'W
   file_handler.setLevel(log_level)
   logger.addHandler(file_handler)
 
-  
-def process_log_files(
-      log_file_path: str,
-  ) -> tuple:
-    """Processes log files to get failed inputs and annotations.
+
+def process_log_files(log_file_path: str,) -> tuple:
+  """Processes log files to get failed inputs and annotations.
 
     Args:
         log_file_path (str): path to the log file
     """
-    import re
-    duplicate_input_ids = []
-    failed_input_ids = []
-    pattern =re.compile(r'\| +(\d+) +\| +(\S+) +\| +(.+?) +\| +(.+?) +\| +(.+?) +\| +(.+?) \|')
-    try:
-      with open(log_file_path, 'r') as file:
-        log_content = file.read()
-        matches = pattern.findall(log_content)
-        for match in matches:
-          index = int(match[0])
-          input_id = match[1]
-          status = match[2]
-          if status == "Input has a duplicate ID.":
-            duplicate_input_ids.append({"Index": index, "Input_ID": input_id})
-          else:
-            failed_input_ids.append({"Index": index, "Input_ID": input_id})
+  import re
+  duplicate_input_ids = []
+  failed_input_ids = []
+  pattern = re.compile(r'\| +(\d+) +\| +(\S+) +\| +(.+?) +\| +(.+?) +\| +(.+?) +\| +(.+?) \|')
+  try:
+    with open(log_file_path, 'r') as file:
+      log_content = file.read()
+      matches = pattern.findall(log_content)
+      for match in matches:
+        index = int(match[0])
+        input_id = match[1]
+        status = match[2]
+        if status == "Input has a duplicate ID.":
+          duplicate_input_ids.append({"Index": index, "Input_ID": input_id})
+        else:
+          failed_input_ids.append({"Index": index, "Input_ID": input_id})
 
-    except Exception as e:
-      print(f"Error: Log file {log_file_path} not found")
-      return [],[]
+  except Exception as e:
+    print(f"Error Processing log file {log_file_path}:{e}")
+    return [], []
 
-    return duplicate_input_ids, failed_input_ids
+  return duplicate_input_ids, failed_input_ids
