@@ -32,6 +32,7 @@ class App(Lister, BaseClient):
                app_id: str = None,
                base_url: str = "https://api.clarifai.com",
                pat: str = None,
+               token: str = None,
                **kwargs):
     """Initializes an App object.
 
@@ -40,6 +41,7 @@ class App(Lister, BaseClient):
         app_id (str): The App ID for the App to interact with.
         base_url (str): Base API url. Default "https://api.clarifai.com"
         pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
+        token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
         **kwargs: Additional keyword arguments to be passed to the App.
             - name (str): The name of the app.
             - description (str): The description of the app.
@@ -52,7 +54,8 @@ class App(Lister, BaseClient):
     self.kwargs = {**kwargs, 'id': app_id}
     self.app_info = resources_pb2.App(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.id, base=base_url, pat=pat)
+    BaseClient.__init__(
+        self, user_id=self.user_id, app_id=self.id, base=base_url, pat=pat, token=token)
     Lister.__init__(self)
 
   def list_datasets(self, page_no: int = None,
@@ -85,7 +88,7 @@ class App(Lister, BaseClient):
     for dataset_info in all_datasets_info:
       if 'version' in list(dataset_info.keys()):
         del dataset_info['version']['metrics']
-      yield Dataset(base_url=self.base, pat=self.pat, **dataset_info)
+      yield Dataset.from_auth_helper(auth=self.auth_helper, **dataset_info)
 
   def list_models(self,
                   filter_by: Dict[str, Any] = {},
@@ -126,7 +129,7 @@ class App(Lister, BaseClient):
       if only_in_app:
         if model_info['app_id'] != self.id:
           continue
-      yield Model(base_url=self.base, pat=self.pat, **model_info)
+      yield Model.from_auth_helper(auth=self.auth_helper, **model_info)
 
   def list_workflows(self,
                      filter_by: Dict[str, Any] = {},
@@ -165,7 +168,7 @@ class App(Lister, BaseClient):
       if only_in_app:
         if workflow_info['app_id'] != self.id:
           continue
-      yield Workflow(base_url=self.base, pat=self.pat, **workflow_info)
+      yield Workflow.from_auth_helper(auth=self.auth_helper, **workflow_info)
 
   def list_modules(self,
                    filter_by: Dict[str, Any] = {},
@@ -204,7 +207,7 @@ class App(Lister, BaseClient):
       if only_in_app:
         if module_info['app_id'] != self.id:
           continue
-      yield Module(base_url=self.base, pat=self.pat, **module_info)
+      yield Module.from_auth_helper(auth=self.auth_helper, **module_info)
 
   def list_installed_module_versions(self,
                                      filter_by: Dict[str, Any] = {},
@@ -239,11 +242,8 @@ class App(Lister, BaseClient):
     for imv_info in all_imv_infos:
       del imv_info['deploy_url']
       del imv_info['installed_module_version_id']  # TODO: remove this after the backend fix
-      yield Module(
-          module_id=imv_info['module_version']['module_id'],
-          base_url=self.base,
-          pat=self.pat,
-          **imv_info)
+      yield Module.from_auth_helper(
+          auth=self.auth_helper, module_id=imv_info['module_version']['module_id'], **imv_info)
 
   def list_concepts(self, page_no: int = None,
                     per_page: int = None) -> Generator[Concept, None, None]:
@@ -308,14 +308,8 @@ class App(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nDataset created\n%s", response.status)
-    kwargs.update({
-        'app_id': self.id,
-        'user_id': self.user_id,
-        'base_url': self.base,
-        'pat': self.pat
-    })
 
-    return Dataset(dataset_id=dataset_id, **kwargs)
+    return Dataset.from_auth_helper(self.auth_helper, dataset_id=dataset_id, **kwargs)
 
   def create_model(self, model_id: str, **kwargs) -> Model:
     """Creates a model for the app.
@@ -339,14 +333,11 @@ class App(Lister, BaseClient):
       raise Exception(response.status)
     self.logger.info("\nModel created\n%s", response.status)
     kwargs.update({
-        'app_id': self.id,
-        'user_id': self.user_id,
+        'model_id': model_id,
         'model_type_id': response.model.model_type_id,
-        'base_url': self.base,
-        'pat': self.pat
     })
 
-    return Model(model_id=model_id, **kwargs)
+    return Model.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def create_workflow(self,
                       config_filepath: str,
@@ -436,9 +427,8 @@ class App(Lister, BaseClient):
       display_workflow_tree(dict_response["workflows"][0]["nodes"])
     kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]][0],
                                         "workflow")
-    kwargs.update({'base_url': self.base, 'pat': self.pat})
 
-    return Workflow(**kwargs)
+    return Workflow.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def create_module(self, module_id: str, description: str, **kwargs) -> Module:
     """Creates a module for the app.
@@ -464,14 +454,8 @@ class App(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nModule created\n%s", response.status)
-    kwargs.update({
-        'app_id': self.id,
-        'user_id': self.user_id,
-        'base_url': self.base,
-        'pat': self.pat
-    })
 
-    return Module(module_id=module_id, **kwargs)
+    return Module.from_auth_helper(auth=self.auth_helper, module_id=module_id, **kwargs)
 
   def dataset(self, dataset_id: str, **kwargs) -> Dataset:
     """Returns a Dataset object for the existing dataset ID.
@@ -496,8 +480,7 @@ class App(Lister, BaseClient):
     kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
                                         list(dict_response.keys())[1])
     kwargs['version'] = response.dataset.version if response.dataset.version else None
-    kwargs.update({'base_url': self.base, 'pat': self.pat})
-    return Dataset(**kwargs)
+    return Dataset.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def model(self, model_id: str, model_version_id: str = "", **kwargs) -> Model:
     """Returns a Model object for the existing model ID.
@@ -532,9 +515,8 @@ class App(Lister, BaseClient):
     kwargs = self.process_response_keys(dict_response['model'], 'model')
     kwargs[
         'model_version'] = response.model.model_version if response.model.model_version else None
-    kwargs.update({'base_url': self.base, 'pat': self.pat})
 
-    return Model(**kwargs)
+    return Model.from_auth_helper(self.auth_helper, **kwargs)
 
   def workflow(self, workflow_id: str, **kwargs) -> Workflow:
     """Returns a workflow object for the existing workflow ID.
@@ -558,9 +540,8 @@ class App(Lister, BaseClient):
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
     kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
                                         list(dict_response.keys())[1])
-    kwargs.update({'base_url': self.base, 'pat': self.pat})
 
-    return Workflow(**kwargs)
+    return Workflow.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def module(self, module_id: str, module_version_id: str = "", **kwargs) -> Module:
     """Returns a Module object for the existing module ID.
@@ -585,9 +566,8 @@ class App(Lister, BaseClient):
       raise Exception(response.status)
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
     kwargs = self.process_response_keys(dict_response['module'], 'module')
-    kwargs.update({'base_url': self.base, 'pat': self.pat})
 
-    return Module(**kwargs)
+    return Module.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def inputs(self,):
     """Returns an Input object.
@@ -595,7 +575,7 @@ class App(Lister, BaseClient):
     Returns:
         Inputs: An input object.
     """
-    return Inputs(self.user_id, self.id, base_url=self.base, pat=self.pat)
+    return Inputs.from_auth_helper(self.auth_helper)
 
   def delete_dataset(self, dataset_id: str) -> None:
     """Deletes an dataset for the user.
@@ -684,9 +664,9 @@ class App(Lister, BaseClient):
         >>> app = App(app_id="app_id", user_id="user_id")
         >>> search_client = app.search(top_k=12, metric="euclidean")
     """
-    user_id = kwargs.get("user_id", self.user_app_id.user_id)
-    app_id = kwargs.get("app_id", self.user_app_id.app_id)
-    return Search(user_id=user_id, app_id=app_id, base_url=self.base, pat=self.pat, **kwargs)
+    kwargs.get("user_id", self.user_app_id.user_id)
+    kwargs.get("app_id", self.user_app_id.app_id)
+    return Search.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def __getattr__(self, name):
     return getattr(self.app_info, name)

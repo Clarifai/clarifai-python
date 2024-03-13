@@ -43,6 +43,7 @@ class Dataset(Lister, BaseClient):
                dataset_id: str = None,
                base_url: str = "https://api.clarifai.com",
                pat: str = None,
+               token: str = None,
                **kwargs):
     """Initializes a Dataset object.
 
@@ -51,6 +52,7 @@ class Dataset(Lister, BaseClient):
         dataset_id (str): The Dataset ID within the App to interact with.
         base_url (str): Base API url. Default "https://api.clarifai.com"
         pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
+        token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
         **kwargs: Additional keyword arguments to be passed to the Dataset.
     """
     if url and dataset_id:
@@ -66,9 +68,10 @@ class Dataset(Lister, BaseClient):
     self.max_retires = 10
     self.batch_size = 128  # limit max protos in a req
     self.task = None  # Upload dataset type
-    self.input_object = Inputs(user_id=self.user_id, app_id=self.app_id, pat=pat)
+    self.input_object = Inputs(user_id=self.user_id, app_id=self.app_id, pat=pat, token=token)
     self.logger = get_logger(logger_level="INFO", name=__name__)
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
+    BaseClient.__init__(
+        self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat, token=token)
     Lister.__init__(self)
 
   def create_version(self, **kwargs) -> 'Dataset':
@@ -98,13 +101,10 @@ class Dataset(Lister, BaseClient):
     self.logger.info("\nDataset Version created\n%s", response.status)
     kwargs.update({
         'dataset_id': self.id,
-        'app_id': self.app_id,
-        'user_id': self.user_id,
         'version': response.dataset_versions[0],
-        'base_url': self.base,
-        'pat': self.pat
     })
-    return Dataset(**kwargs)
+
+    return Dataset.from_auth_helper(self.auth_helper, **kwargs)
 
   def delete_version(self, version_id: str) -> None:
     """Deletes a dataset version for the Dataset.
@@ -162,13 +162,9 @@ class Dataset(Lister, BaseClient):
       del dataset_version_info['metrics']
       kwargs = {
           'dataset_id': self.id,
-          'app_id': self.app_id,
-          'user_id': self.user_id,
           'version': resources_pb2.DatasetVersion(**dataset_version_info),
-          'base_url': self.base,
-          'pat': self.pat
       }
-      yield Dataset(**kwargs)
+      yield Dataset.from_auth_helper(self.auth_helper, **kwargs)
 
   def _concurrent_annot_upload(self, annots: List[List[resources_pb2.Annotation]]
                               ) -> Union[List[resources_pb2.Annotation], List[None]]:

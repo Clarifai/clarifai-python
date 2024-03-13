@@ -27,6 +27,7 @@ class Workflow(Lister, BaseClient):
                output_config: Dict = {'min_value': 0},
                base_url: str = "https://api.clarifai.com",
                pat: str = None,
+               token: str = None,
                **kwargs):
     """Initializes a Workflow object.
 
@@ -40,6 +41,8 @@ class Workflow(Lister, BaseClient):
           select_concepts (list[Concept]): The concepts to select.
           sample_ms (int): The number of milliseconds to sample.
         base_url (str): Base API url. Default "https://api.clarifai.com"
+        pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
+        token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
         **kwargs: Additional keyword arguments to be passed to the Workflow.
     """
     if url and workflow_id:
@@ -55,7 +58,8 @@ class Workflow(Lister, BaseClient):
     self.output_config = output_config
     self.workflow_info = resources_pb2.Workflow(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
-    BaseClient.__init__(self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat)
+    BaseClient.__init__(
+        self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat, token=token)
     Lister.__init__(self)
 
   def predict(self, inputs: List[Input], workflow_state_id: str = None):
@@ -206,10 +210,9 @@ class Workflow(Lister, BaseClient):
     for workflow_version_info in all_workflow_versions_info:
       workflow_version_info['id'] = workflow_version_info['workflow_version_id']
       del workflow_version_info['workflow_version_id']
-      yield Workflow(
+      yield Workflow.from_auth_helper(
+          auth=self.auth_helper,
           workflow_id=self.id,
-          base_url=self.base,
-          pat=self.pat,
           **dict(self.kwargs, version=workflow_version_info))
 
   def export(self, out_path: str):
