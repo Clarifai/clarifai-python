@@ -381,7 +381,9 @@ class Model(Lister, BaseClient):
       except KeyError:
         pass
       yield Model.from_auth_helper(
-          model_id=self.id, **dict(self.kwargs, model_version=model_version_info))
+          auth=self.auth_helper,
+          model_id=self.id,
+          **dict(self.kwargs, model_version=model_version_info))
 
   def predict(self, inputs: List[Input], inference_params: Dict = {}, output_config: Dict = {}):
     """Predicts the model based on the given inputs.

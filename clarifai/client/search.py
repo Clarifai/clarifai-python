@@ -48,7 +48,8 @@ class Search(Lister, BaseClient):
     self.data_proto = resources_pb2.Data()
     self.top_k = top_k
 
-    self.inputs = Inputs(user_id=self.user_id, app_id=self.app_id, pat=pat, token=token)
+    self.inputs = Inputs(
+        user_id=self.user_id, app_id=self.app_id, pat=pat, token=token, base_url=base_url)
     self.rank_filter_schema = get_schema()
     BaseClient.__init__(
         self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat, token=token)
