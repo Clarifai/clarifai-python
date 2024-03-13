@@ -66,10 +66,14 @@ class TestApp:
 
   def test_get_model(self, client):
     model = client.app(app_id=MAIN_APP_ID).model(model_id=GENERAL_MODEL_ID)
+    versions = list(model.list_versions())
+    assert len(versions) == 2  #test for list_versions
     assert model.id == GENERAL_MODEL_ID and model.app_id == MAIN_APP_ID and model.user_id == MAIN_APP_USER_ID
 
   def test_get_workflow(self, client):
     workflow = client.app(app_id=MAIN_APP_ID).workflow(workflow_id=General_Workflow_ID)
+    versions = list(workflow.list_versions())
+    assert len(versions) == 1  #test for list_versions
     assert workflow.id == General_Workflow_ID and workflow.app_id == MAIN_APP_ID and workflow.user_id == MAIN_APP_USER_ID
 
   def test_create_app(self):
@@ -100,6 +104,8 @@ class TestApp:
 
   def test_get_dataset(self, create_app):
     dataset = create_app.dataset(dataset_id=CREATE_DATASET_ID)
+    versions = list(dataset.list_versions())
+    assert len(versions) == 0  #test for list_versions
     assert dataset.id == CREATE_DATASET_ID and dataset.app_id == CREATE_APP_ID and dataset.user_id == CREATE_APP_USER_ID
 
   def test_list_datasets(self, create_app):

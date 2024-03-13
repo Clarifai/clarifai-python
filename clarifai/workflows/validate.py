@@ -16,7 +16,7 @@ def _model_does_not_have_model_version_id_and_other_fields(m):
 
 
 def _model_has_other_fields(m):
-  return any(k not in ['model_id', 'model_version_id'] for k in m.keys())
+  return any(k not in ['model_id', 'model_version_id', 'user_id', 'app_id'] for k in m.keys())
 
 
 def _workflow_nodes_have_valid_dependencies(nodes):
