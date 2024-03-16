@@ -18,4 +18,6 @@ def _read_pat():
 
 def login(pat=None):
   """ if pat provided, set pat to CLARIFAI_PAT otherwise read pat from file"""
-  os.environ["CLARIFAI_PAT"] = pat or _read_pat()
+  pat = pat or _read_pat()
+  assert pat, Exception("PAT is not found, please run `clarifai login` to persist your PAT")
+  os.environ["CLARIFAI_PAT"] = pat
