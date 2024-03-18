@@ -1,3 +1,14 @@
+## [[10.2.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.2.0) - [PyPI](https://pypi.org/project/clarifai/10.2.0/) - 2024-03-18
+
+### Added
+- Model Export support [(#304)](https://github.com/Clarifai/clarifai-python/pull/304)
+- Retry upload function from failed log files [(#307)](https://github.com/Clarifai/clarifai-python/pull/307)
+
+### Fixed
+- File not found error in model serving CLI [(#305)](https://github.com/Clarifai/clarifai-python/pull/305)
+- Workflow YAML schema bug [(#308)](https://github.com/Clarifai/clarifai-python/pull/308)
+- Base URL passing bug [(#308)](https://github.com/Clarifai/clarifai-python/pull/308)
+
 ## [[10.1.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.1.1) - [PyPI](https://pypi.org/project/clarifai/10.1.1/) - 2024-02-28
 
 ### Added
