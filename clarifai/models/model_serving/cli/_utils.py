@@ -11,7 +11,7 @@ from ..constants import (CLARIFAI_EXAMPLES_REPO, CLARIFAI_EXAMPLES_REPO_PATH,
 def download_examples_repo(forced_download: bool = False):
 
   def _pull():
-    subprocess.run(f"git clone {CLARIFAI_EXAMPLES_REPO} {CLARIFAI_EXAMPLES_REPO_PATH}")
+    subprocess.run(f"git clone {CLARIFAI_EXAMPLES_REPO} {CLARIFAI_EXAMPLES_REPO_PATH}", shell=True)
 
   if not os.path.isdir(CLARIFAI_EXAMPLES_REPO_PATH):
     print(f"Download examples to {CLARIFAI_EXAMPLES_REPO_PATH}")
