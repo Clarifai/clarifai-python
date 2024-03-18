@@ -642,7 +642,7 @@ class Dataset(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.dataset import Dataset
-        >>> Dataset().export(save_path='output.zip', local_archive_path='clarifai-data-protobuf.zip')
+        >>> Dataset().export(save_path='output.zip')
     """
     if local_archive_path and not os.path.exists(local_archive_path):
       raise UserError(f"Archive {local_archive_path} does not exist.")

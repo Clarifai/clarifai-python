@@ -31,7 +31,7 @@ class DatasetExportReader:
         archive_url: URL of the DatasetVersionExport archive
         local_archive_path: Path to the DatasetVersionExport archive
     """
-    self.input_count = 0
+    self.input_count = None
     self.temp_file = None
     self.session = session
     if not self.session:
@@ -69,10 +69,12 @@ class DatasetExportReader:
     return temp_file
 
   def __len__(self) -> int:
-    if not self.input_count:
+    if self.input_count is None:
+      input_count = 0
       if self.file_name_list is not None:
         for filename in self.file_name_list:
-          self.input_count += int(filename.split('_n')[-1])
+          input_count += int(filename.split('_n')[-1])
+      self.input_count = input_count
 
     return self.input_count
 
