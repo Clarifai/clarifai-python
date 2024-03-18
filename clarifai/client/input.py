@@ -56,14 +56,14 @@ class Inputs(Lister, BaseClient):
 
   @staticmethod
   def _get_proto(input_id: str,
-                 dataset_id: Union[str, None],
+                 dataset_id: str = None,
                  imagepb: Image = None,
                  video_pb: Video = None,
                  audio_pb: Audio = None,
                  text_pb: Text = None,
                  geo_info: List = None,
                  labels: List = None,
-                 metadata: Struct = None) -> Input:
+                 metadata: dict = None) -> Input:
     """Create input proto for image data type.
         Args:
             input_id (str): The input ID for the input to create.
@@ -74,14 +74,14 @@ class Inputs(Lister, BaseClient):
             text_pb (Text): The text proto to be used for the input.
             geo_info (list): A list of longitude and latitude for the geo point.
             labels (list): A list of labels for the input.
-            metadata (Struct): A Struct of metadata for the input.
+            metadata (dict): A dict of metadata for the input.
         Returns:
             Input: An Input object for the specified input ID.
         """
     assert geo_info is None or isinstance(
         geo_info, list), "geo_info must be a list of longitude and latitude"
     assert labels is None or isinstance(labels, list), "labels must be a list of strings"
-    assert metadata is None or isinstance(metadata, Struct), "metadata must be a Struct"
+    assert metadata is None or isinstance(metadata, dict), "metadata must be a dict"
     geo_pb = resources_pb2.Geo(geo_point=resources_pb2.GeoPoint(
         longitude=geo_info[0], latitude=geo_info[1])) if geo_info else None
     concepts=[
@@ -89,6 +89,9 @@ class Inputs(Lister, BaseClient):
             id=f"id-{''.join(_label.split(' '))}", name=_label, value=1.)\
             for _label in labels
         ]if labels else None
+    if metadata:
+      metadata_struct = Struct()
+      metadata_struct.update(metadata)
 
     if dataset_id:
       return resources_pb2.Input(
@@ -101,7 +104,7 @@ class Inputs(Lister, BaseClient):
               text=text_pb,
               geo=geo_pb,
               concepts=concepts,
-              metadata=metadata))
+              metadata=metadata_struct))
 
     return resources_pb2.Input(
         id=input_id,
@@ -112,7 +115,7 @@ class Inputs(Lister, BaseClient):
             text=text_pb,
             geo=geo_pb,
             concepts=concepts,
-            metadata=metadata))
+            metadata=metadata_struct))
 
   @staticmethod
   def get_input_from_url(input_id: str,
