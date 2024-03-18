@@ -86,8 +86,8 @@ class App(Lister, BaseClient):
         per_page=per_page,
         page_no=page_no)
     for dataset_info in all_datasets_info:
-      if 'version' in list(dataset_info.keys()):
-        del dataset_info['version']['metrics']
+      if 'version' in dataset_info:
+        dataset_info['version'].pop('metrics', None)
       yield Dataset.from_auth_helper(auth=self.auth_helper, **dataset_info)
 
   def list_models(self,
