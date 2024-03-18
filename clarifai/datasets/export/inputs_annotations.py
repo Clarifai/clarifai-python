@@ -61,7 +61,8 @@ class DatasetExportReader:
   def _download_temp_archive(self, archive_url: str,
                              chunk_size: int = 128) -> tempfile.TemporaryFile:
     """Downloads the temp archive of InputBatches."""
-    r = self.session.get(archive_url, stream=True)
+    session = requests.Session()
+    r = session.get(archive_url, stream=True)
     temp_file = tempfile.TemporaryFile()
     for chunk in r.iter_content(chunk_size=chunk_size):
       temp_file.write(chunk)
