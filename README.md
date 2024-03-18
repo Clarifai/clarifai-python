@@ -128,7 +128,12 @@ dataset = app.create_dataset(dataset_id="demo_dataset")
 # execute data upload to Clarifai app dataset
 from clarifai.datasets.upload.laoders.coco_detection import COCODetectionDataLoader
 coco_dataloader = COCODetectionDataLoader("images_dir", "coco_annotation_filepath")
-dataset.upload_dataset(dataloader=coco_dataloader, get_upload_status=True)
+dataset.upload_dataset(dataloader=coco_dataloader, get_upload_status=True, log_warnings =True)
+
+#Retry upload from `upload_dataset` logs
+dataset.retry_upload_from_logs(dataloader=coco_dataloader, log_file_path='log_file.log',
+                                                        retry_duplicates=False,
+                                                        log_warnings=True)
 
 #Retry upload from logs for `upload_dataset`
 from clarifai.datasets.upload.utils import load_module_dataloader
