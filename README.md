@@ -130,14 +130,13 @@ from clarifai.datasets.upload.laoders.coco_detection import COCODetectionDataLoa
 coco_dataloader = COCODetectionDataLoader("images_dir", "coco_annotation_filepath")
 dataset.upload_dataset(dataloader=coco_dataloader, get_upload_status=True, log_warnings =True)
 
-#Retry upload from `upload_dataset` logs
-dataset.retry_upload_from_logs(dataloader=coco_dataloader, log_file_path='log_file.log',
-                                                        retry_duplicates=False,
-                                                        log_warnings=True)
 
-#Retry upload from logs for `upload_dataset`
+#Try upload and record the failed outputs in log file.
 from clarifai.datasets.upload.utils import load_module_dataloader
 cifar_dataloader = load_module_dataloader('./image_classification/cifar10')
+dataset.upload_dataset(dataloader=cifar_dataloader, get_upload_status=True, log_warnings =True)
+
+#Retry upload from logs for `upload_dataset`
 dataset.retry_upload_from_logs(dataloader=cifar_dataloader, log_file_path='log_file.log',
                                retry_duplicates=False,
                                log_warnings=True)
