@@ -43,7 +43,7 @@ def response_to_model_params(response: MultiModelTypeResponse,
           continue
         #checking the template model type fields
         if _path[-1] != "template":
-          if _path[0] == 'train_info' :
+          if _path[0] == 'train_info':
             try:
               params["train_params"][_path[-1]] = modeltypefield['defaultValue']
             except Exception:
@@ -55,7 +55,7 @@ def response_to_model_params(response: MultiModelTypeResponse,
             except Exception:
               params["inference_params"][_path[-1]] = None
           if _path[0] == 'output_info' and _path[1] == 'output_config':
-              params["concepts_mutually_exclusive"] = (modeltypefield['defaultValue'])
+            params["concepts_mutually_exclusive"] = (modeltypefield['defaultValue'])
         else:
           if 'modelTypeEnumOptions' in modeltypefield.keys():
             #check given template is valid
@@ -123,8 +123,7 @@ def params_parser(params_dict: dict, concepts: List = None) -> Dict[str, Any]:
     train_dict['output_info']['params'].update(params_dict["inference_params"])
   if 'concepts_mutually_exclusive' in params_dict.keys():
     train_dict['output_info']['output_config'] = resources_pb2.OutputConfig(
-      concepts_mutually_exclusive = params_dict['concepts_mutually_exclusive']
-  )
+        concepts_mutually_exclusive=params_dict['concepts_mutually_exclusive'])
   train_dict['output_info'] = resources_pb2.OutputInfo(**train_dict['output_info'])
 
   return train_dict
