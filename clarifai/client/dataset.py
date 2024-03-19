@@ -43,6 +43,7 @@ class Dataset(Lister, BaseClient):
   def __init__(self,
                url: str = None,
                dataset_id: str = None,
+               dataset_version_id: str = None,
                base_url: str = "https://api.clarifai.com",
                pat: str = None,
                token: str = None,
@@ -52,6 +53,7 @@ class Dataset(Lister, BaseClient):
     Args:
         url (str): The URL to initialize the dataset object.
         dataset_id (str): The Dataset ID within the App to interact with.
+        dataset_version_id (str): The Dataset Version ID within the Dataset to interact with.
         base_url (str): Base API url. Default "https://api.clarifai.com"
         pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
         token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
@@ -60,9 +62,13 @@ class Dataset(Lister, BaseClient):
     if url and dataset_id:
       raise UserError("You can only specify one of url or dataset_id.")
     if url:
-      user_id, app_id, _, dataset_id, _ = ClarifaiUrlHelper.split_clarifai_url(url)
+      user_id, app_id, _, dataset_id, dataset_version_id = ClarifaiUrlHelper.split_clarifai_url(
+          url)
       kwargs = {'user_id': user_id, 'app_id': app_id}
-    self.kwargs = {**kwargs, 'id': dataset_id}
+    dataset_version = {
+        'id': dataset_version_id
+    } if dataset_version_id else kwargs['version'] if 'version' in kwargs else None
+    self.kwargs = {**kwargs, 'id': dataset_id, 'version': dataset_version}
     self.dataset_info = resources_pb2.Dataset(**self.kwargs)
     # Related to Dataset Upload
     self.num_workers: int = min(10, cpu_count())  #15 req/sec rate limit
@@ -162,18 +168,16 @@ class Dataset(Lister, BaseClient):
     for dataset_version_info in all_dataset_versions_info:
       dataset_version_info['id'] = dataset_version_info['dataset_version_id']
       del dataset_version_info['dataset_version_id']
-      del dataset_version_info['metrics']
+      dataset_version_info.pop('metrics', None)
+      dataset_version_info.pop('export_info', None)
       kwargs = {
           'dataset_id': self.id,
           'version': resources_pb2.DatasetVersion(**dataset_version_info),
       }
       yield Dataset.from_auth_helper(self.auth_helper, **kwargs)
 
-  def iter_inputs(self):
-    return iter(DatasetExportReader(archive_url=self.archive_zip()))
-
   def __iter__(self):
-    return self.iter_inputs()
+    return iter(DatasetExportReader(archive_url=self.archive_zip()))
 
   def _concurrent_annot_upload(self, annots: List[List[resources_pb2.Annotation]]
                               ) -> Union[List[resources_pb2.Annotation], List[None]]:

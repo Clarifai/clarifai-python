@@ -116,7 +116,8 @@ class InputAnnotationDownloader:
     """
     self.input_iterator = input_iterator
     self.num_workers = min(num_workers, 10)  # Max 10 threads
-    self.num_inputs_annotations = 0
+    self.num_inputs = 0
+    self.num_annotations = 0
     self.split_prefix = None
     self.session = session
     self.input_ext = dict(image=".png", text=".txt", audio=".mp3", video=".mp4")
@@ -187,14 +188,14 @@ class InputAnnotationDownloader:
         self._save_audio_to_archive(new_archive, hosted_url, file_name)
       elif input_type == "video":
         self._save_video_to_archive(new_archive, hosted_url, file_name)
-      self.num_inputs_annotations += 1
+      self.num_inputs += 1
 
     if data_dict.get("concepts") or data_dict.get("regions"):
       file_name = os.path.join(split, "annotations", input_.id + ".json")
       annot_data = data_dict.get("concepts") or data_dict.get("regions")
 
       self._save_annotation_to_archive(new_archive, annot_data, file_name)
-      self.num_inputs_annotations += 1
+      self.num_annotations += 1
 
   def _check_output_archive(self, save_path: str) -> None:
     try:
@@ -203,8 +204,8 @@ class InputAnnotationDownloader:
       raise e
     assert len(
         archive.namelist()
-    ) == self.num_inputs_annotations, "Archive has %d inputs+annotations | expecting %d inputs+annotations" % (
-        len(archive.namelist()), self.num_inputs_annotations)
+    ) == self.num_inputs + self.num_annotations, "Archive has %d inputs+annotations | expecting %d inputs+annotations" % (
+        len(archive.namelist()), self.num_inputs + self.num_annotations)
 
   def download_archive(self, save_path: str, split: Optional[str] = None) -> None:
     """Downloads the archive from the URL into an archive of inputs, annotations in the directory format
@@ -223,5 +224,5 @@ class InputAnnotationDownloader:
             progress.update()
 
     self._check_output_archive(save_path)
-    logger.info("Downloaded %d inputs+annotations to %s" % (self.num_inputs_annotations,
-                                                            save_path))
+    logger.info("Downloaded %d inputs and %d annotations to %s" %
+                (self.num_inputs, self.num_annotations, save_path))
