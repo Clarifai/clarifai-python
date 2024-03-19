@@ -148,9 +148,7 @@ dataset.upload_from_csv(csv_path='csv_path', input_type='text', csv_type='raw', 
 dataset.upload_from_folder(folder_path='folder_path', input_type='text', labels=True)
 
 # Export Dataset
-from clarifai.client.dataset import Dataset
-# Note: clarifai-data-protobuf.zip is acquired through exporting datasets within the Clarifai Platform.
-Dataset().export(save_path='output.zip', local_archive_path='clarifai-data-protobuf.zip')
+dataset.export(save_path='output.zip')
 ```
 
 
