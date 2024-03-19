@@ -1,3 +1,15 @@
+## [[10.2.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.2.1) - [PyPI](https://pypi.org/project/clarifai/10.2.1/) - 2024-03-19
+
+### Added
+- Dataset version ID support in ```app.dataset()``` and ```Dataset()``` [(#315)](https://github.com/Clarifai/clarifai-python/pull/315)
+
+### Changed
+- Dataset Export function to internally download the dataset archive zip with the function ```Dataset.archive_zip()```[(#303)](https://github.com/Clarifai/clarifai-python/pull/303)
+- The backoff iterator to support custom starting count, so different process can have different starting wait times.[(#313)](https://github.com/Clarifai/clarifai-python/pull/313)
+
+### Fixed
+- Removed the key *base_embed_model* from params.yaml file, since the model training by default considers the base embed model which is set for the app and no need to define it again in params file.[(#314)](https://github.com/Clarifai/clarifai-python/pull/314)
+
 ## [[10.2.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.2.0) - [PyPI](https://pypi.org/project/clarifai/10.2.0/) - 2024-03-18
 
 ### Added
