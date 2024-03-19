@@ -458,12 +458,12 @@ class App(Lister, BaseClient):
 
     return Module.from_auth_helper(auth=self.auth_helper, module_id=module_id, **kwargs)
 
-  def dataset(self, dataset_id: str, version_id: str = None, **kwargs) -> Dataset:
+  def dataset(self, dataset_id: str, dataset_version_id: str = None, **kwargs) -> Dataset:
     """Returns a Dataset object for the existing dataset ID.
 
     Args:
         dataset_id (str): The dataset ID for the dataset to interact with.
-        version_id (str): The version ID for the dataset version to interact with.
+        dataset_version_id (str): The version ID for the dataset version to interact with.
 
     Returns:
         Dataset: A Dataset object for the existing dataset ID.
@@ -482,7 +482,7 @@ class App(Lister, BaseClient):
     kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
                                         list(dict_response.keys())[1])
     kwargs['version'] = response.dataset.version if response.dataset.version else None
-    kwargs['version_id'] = version_id
+    kwargs['dataset_version_id'] = dataset_version_id
     return Dataset.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def model(self, model_id: str, model_version_id: str = "", **kwargs) -> Model:
