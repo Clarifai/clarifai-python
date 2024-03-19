@@ -272,6 +272,16 @@ status = model.training_status(version_id=model_version_id,training_logs=True)
 print(status)
 ```
 
+#### Export your trained model
+Model Export feature enables you to package your trained model into a `model.tar` file. This file enables deploying your model within a Triton Inference Server deployment.
+
+```python
+from clarifai.client.model import Model
+
+model = Model('url')
+model.export('output/folder/')
+```
+
 #### Evaluate your trained model
 
 When your model is trained and ready, you can evaluate by the following code

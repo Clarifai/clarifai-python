@@ -83,7 +83,7 @@ class Workflow(Lister, BaseClient):
       request.workflow_state.id = workflow_state_id
 
     start_time = time.time()
-    backoff_iterator = BackoffIterator()
+    backoff_iterator = BackoffIterator(10)
 
     while True:
       response = self._grpc_request(self.STUB.PostWorkflowResults, request)
