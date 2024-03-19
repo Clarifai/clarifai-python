@@ -912,7 +912,7 @@ class Inputs(Lister, BaseClient):
     Returns:
         True if inputs are processed, False otherwise
     """
-    backoff_iterator = BackoffIterator()
+    backoff_iterator = BackoffIterator(10)
     max_retries = 10
     start_time = time.time()
     while True:

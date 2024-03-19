@@ -573,7 +573,7 @@ class Dataset(Lister, BaseClient):
     )
 
     start_time = time.time()
-    backoff_iterator = BackoffIterator()
+    backoff_iterator = BackoffIterator(10)
     while (True):
       dataset_metrics_response = self._grpc_request(
           self.STUB.ListDatasetVersionMetricsGroups,

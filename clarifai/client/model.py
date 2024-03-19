@@ -407,7 +407,7 @@ class Model(Lister, BaseClient):
         model=self.model_info)
 
     start_time = time.time()
-    backoff_iterator = BackoffIterator()
+    backoff_iterator = BackoffIterator(10)
     while True:
       response = self._grpc_request(self.STUB.PostModelOutputs, request)
 
@@ -830,7 +830,7 @@ class Model(Lister, BaseClient):
       )
       time.sleep(5)
       start_time = time.time()
-      backoff_iterator = BackoffIterator()
+      backoff_iterator = BackoffIterator(10)
       while True:
         get_export_response = _get_export_response()
         if get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTING and \
@@ -841,6 +841,7 @@ class Model(Lister, BaseClient):
           time.sleep(next(backoff_iterator))
         elif get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTED:
           _download_exported_model(get_export_response, os.path.join(export_dir, "model.tar"))
+          break
         elif time.time() - start_time > 60 * 30:
           raise Exception(
               f"""Model Export took too long. Please try again or contact support@clarifai.com
