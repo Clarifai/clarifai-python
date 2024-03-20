@@ -485,12 +485,12 @@ class App(Lister, BaseClient):
     kwargs['dataset_version_id'] = dataset_version_id
     return Dataset.from_auth_helper(auth=self.auth_helper, **kwargs)
 
-  def model(self, model_id: str, model_version_id: str = "", **kwargs) -> Model:
+  def model(self, model_id: str, model_version: Dict = {"id": ""}, **kwargs) -> Model:
     """Returns a Model object for the existing model ID.
 
     Args:
         model_id (str): The model ID for the model to interact with.
-        model_version_id (str): The model version ID for the model version to interact with.
+        model_version (Dict): The model version ID for the model version to interact with.
 
     Returns:
         Model: A Model object for the existing model ID.
@@ -498,7 +498,7 @@ class App(Lister, BaseClient):
     Example:
         >>> from clarifai.client.app import App
         >>> app = App(app_id="app_id", user_id="user_id")
-        >>> model_v1 = app.model(model_id="model_id", model_version_id="model_version_id")
+        >>> model_v1 = app.model(model_id="model_id", model_version={"id":"model_version_id"})
     """
     # Change user_app_id based on whether user_id or app_id is specified.
     if kwargs.get("user_id") or kwargs.get("app_id"):
@@ -506,10 +506,10 @@ class App(Lister, BaseClient):
           user_app_id=self.auth_helper.get_user_app_id_proto(
               kwargs.get("user_id"), kwargs.get("app_id")),
           model_id=model_id,
-          version_id=model_version_id)
+          version_id=model_version["id"])
     else:
       request = service_pb2.GetModelRequest(
-          user_app_id=self.user_app_id, model_id=model_id, version_id=model_version_id)
+          user_app_id=self.user_app_id, model_id=model_id, version_id=model_version["id"])
     response = self._grpc_request(self.STUB.GetModel, request)
 
     if response.status.code != status_code_pb2.SUCCESS:
