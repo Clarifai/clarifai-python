@@ -663,7 +663,7 @@ class Inputs(Lister, BaseClient):
       raise UserError("inputs must be a list of Input objects")
     if len(inputs) > MAX_UPLOAD_BATCH_SIZE:
       raise UserError(
-        "Number of inputs to upload exceeds the maximum batch size of 128. Please reduce batch size."
+          "Number of inputs to upload exceeds the maximum batch size of 128. Please reduce batch size."
       )
     input_job_id = uuid.uuid4().hex  # generate a unique id for this job
     request = service_pb2.PostInputsRequest(
