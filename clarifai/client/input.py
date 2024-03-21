@@ -19,6 +19,7 @@ from tqdm import tqdm
 from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
 from clarifai.constants.dataset import MAX_RETRIES
+from clarifai.constants.input import MAX_UPLOAD_BATCH_SIZE
 from clarifai.errors import UserError
 from clarifai.utils.logging import get_logger
 from clarifai.utils.misc import BackoffIterator, Chunker
@@ -660,6 +661,10 @@ class Inputs(Lister, BaseClient):
     """
     if not isinstance(inputs, list):
       raise UserError("inputs must be a list of Input objects")
+    if len(inputs) > MAX_UPLOAD_BATCH_SIZE:
+      raise UserError(
+          f"Number of inputs to upload exceeds the maximum batch size of {MAX_UPLOAD_BATCH_SIZE}. Please reduce batch size."
+      )
     input_job_id = uuid.uuid4().hex  # generate a unique id for this job
     request = service_pb2.PostInputsRequest(
         user_app_id=self.user_app_id, inputs=inputs, inputs_add_job_id=input_job_id)
