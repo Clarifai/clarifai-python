@@ -818,15 +818,21 @@ class Model(Lister, BaseClient):
             tuple of (y, y_pred, concept_ids, inputs), if return_format == array.
             y, y_pred, concept_ids can be use in sklearn to compute metrics.
             inputs can be use to download
+
+            - if model is 'visual-detector': `y` and `y_pred` are array of [x_min, y_min, x_max, y_max, concept_index, score].
+              Score always equals to 1 for `y`
     """
+    from clarifai.utils.evaluation.testset_annotation_parser import (
+        parse_eval_annotation_classifier, parse_eval_annotation_detector)
+
     supported_format = ['proto', 'array']
     assert return_format in supported_format, ValueError(
         f"Expected return_format in {supported_format}, got {return_format}")
 
-    import numpy as np  # noqa
     self.load_info()
-    valid_model_types = ["visual-classifier", "text-classifier"]
-    assert self.model_info.model_type_id in valid_model_types, \
+    valid_model_types = ["visual-classifier", "text-classifier", "visual-detector"]
+    model_type_id = self.model_info.model_type_id
+    assert model_type_id in valid_model_types, \
       f"This method only supports model types {valid_model_types}, but your model type is {self.model_info.model_type_id}."
     assert not (dataset and
                 eval_id), "Using both `dataset` and `eval_id`, but only one should be passed."
@@ -838,28 +844,12 @@ class Model(Lister, BaseClient):
         raise Exception(f"Model is not valuated with dataset: {dataset}")
       eval_id = eval_by_ds[0].id
 
-    detail_eval_data = self.get_eval_by_id(eval_id=eval_id, test_set=True)
-    # get concept ids
-    concept_ids = [each.id for each in detail_eval_data.test_set[0].predicted_concepts]
-    concept_ids.sort()
-    # get test set
-    if return_format == "array":
-      y_preds = []
-      y = []
-      inputs = []
-      for data in detail_eval_data.test_set:
+    detail_eval_data = self.get_eval_by_id(eval_id=eval_id, test_set=True, metrics_by_class=True)
 
-        def _to_array(_data):
-          cps = [0] * len(concept_ids)
-          for each in _data:
-            cps[concept_ids.index(each.id)] = each.value
-          return np.asarray(cps)
-
-        y_preds.append(_to_array(data.predicted_concepts))
-        y.append(_to_array(data.ground_truth_concepts))
-        inputs.append(data.input)
-
-      return (np.asarray(y), np.asarray(y_preds), concept_ids, inputs)
-
-    elif return_format == "proto":
+    if return_format == "proto":
       return detail_eval_data.test_set
+    else:
+      if model_type_id.endswith("-classifier"):
+        return parse_eval_annotation_classifier(detail_eval_data)
+      elif model_type_id == "visual-detector":
+        return parse_eval_annotation_detector(detail_eval_data)
