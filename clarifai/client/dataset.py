@@ -47,6 +47,7 @@ class Dataset(Lister, BaseClient):
                base_url: str = "https://api.clarifai.com",
                pat: str = None,
                token: str = None,
+               root_certificates_path: str = None,
                **kwargs):
     """Initializes a Dataset object.
 
@@ -57,6 +58,7 @@ class Dataset(Lister, BaseClient):
         base_url (str): Base API url. Default "https://api.clarifai.com"
         pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
         token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
+        root_certificates_path (str): Path to the SSL root certificates file, used to establish secure gRPC connections.
         **kwargs: Additional keyword arguments to be passed to the Dataset.
     """
     if url and dataset_id:
@@ -77,10 +79,21 @@ class Dataset(Lister, BaseClient):
     self.batch_size = 128  # limit max protos in a req
     self.task = None  # Upload dataset type
     self.input_object = Inputs(
-        user_id=self.user_id, app_id=self.app_id, pat=pat, token=token, base_url=base_url)
+        user_id=self.user_id,
+        app_id=self.app_id,
+        pat=pat,
+        token=token,
+        base_url=base_url,
+        root_certificates_path=root_certificates_path)
     self.logger = get_logger(logger_level="INFO", name=__name__)
     BaseClient.__init__(
-        self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat, token=token)
+        self,
+        user_id=self.user_id,
+        app_id=self.app_id,
+        base=base_url,
+        pat=pat,
+        token=token,
+        root_certificates_path=root_certificates_path)
     Lister.__init__(self)
 
   def create_version(self, **kwargs) -> 'Dataset':

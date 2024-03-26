@@ -65,6 +65,7 @@ class ClarifaiAuthHelper:
       token: str = "",
       base: str = DEFAULT_BASE,
       ui: str = DEFAULT_UI,
+      root_certificates_path: str = None,
       validate: bool = True,
   ):
     """
@@ -85,6 +86,7 @@ class ClarifaiAuthHelper:
     https://api.clarifai.com (default), https://host:port, http://host:port, host:port (will be treated as http, not https). It's highly recommended to include the http:// or https:// otherwise we need to check the endpoint to determine if it has SSL during this __init__
       ui: a url to the UI. Examples include clarifai.com,
     https://clarifai.com (default), https://host:port, http://host:port, host:port (will be treated as http, not https). It's highly recommended to include the http:// or https:// otherwise we need to check the endpoint to determine if it has SSL during this __init__
+      root_certificates_path: path to the root certificates file. This is only used for grpc secure channels.
       validate: whether to validate the inputs. This is useful for overriding vars then validating
     """
 
@@ -92,6 +94,7 @@ class ClarifaiAuthHelper:
     self.app_id = app_id
     self._pat = pat
     self._token = token
+    self._root_certificates_path = root_certificates_path
 
     self.set_base(base)
     self.set_ui(ui)
@@ -113,6 +116,8 @@ class ClarifaiAuthHelper:
       raise Exception(
           "Need 'pat' or 'token' in the query params or use one of the CLARIFAI_PAT or CLARIFAI_SESSION_TOKEN env vars"
       )
+    if not os.path.exists(self._root_certificates_path):
+      raise Exception("Root certificates path %s does not exist" % self._root_certificates_path)
 
   @classmethod
   def from_streamlit(cls, st: Any) -> "ClarifaiAuthHelper":
@@ -219,6 +224,8 @@ Additionally, these optional params are supported:
       self.set_base(query_params["base"][0])
     if "ui" in query_params:
       self.set_ui(query_params["ui"][0])
+    if "root_certificates_path" in query_params:
+      self._root_certificates_path = query_params["root_certificates_path"][0]
 
   @classmethod
   def from_env(cls, validate: bool = True) -> "ClarifaiAuthHelper":
@@ -229,6 +236,7 @@ Additionally, these optional params are supported:
           token: CLARIFAI_SESSION_TOKEN env var.
           pat: CLARIFAI_PAT env var.
         base: CLARIFAI_API_BASE env var.
+        root_certificates_path: CLARIFAI_ROOT_CERTIFICATES_PATH env var.
     """
     user_id = os.environ.get("CLARIFAI_USER_ID", "")
     app_id = os.environ.get("CLARIFAI_APP_ID", "")
@@ -236,7 +244,8 @@ Additionally, these optional params are supported:
     pat = os.environ.get("CLARIFAI_PAT", "")
     base = os.environ.get("CLARIFAI_API_BASE", DEFAULT_BASE)
     ui = os.environ.get("CLARIFAI_UI", DEFAULT_UI)
-    return cls(user_id, app_id, pat, token, base, ui, validate)
+    root_certificates_path = os.environ.get("CLARIFAI_ROOT_CERTIFICATES_PATH", None)
+    return cls(user_id, app_id, pat, token, base, ui, root_certificates_path, validate)
 
   def get_user_app_id_proto(
       self,
@@ -281,7 +290,8 @@ Additionally, these optional params are supported:
 
     https = base_https_cache[self._base]
     if https:
-      channel = ClarifaiChannel.get_grpc_channel(base=self._base)
+      channel = ClarifaiChannel.get_grpc_channel(
+          base=self._base, root_certificates_path=self._root_certificates_path)
     else:
       if self._base.find(":") >= 0:
         host, port = self._base.split(":")
