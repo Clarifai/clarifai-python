@@ -1,5 +1,7 @@
+import json
 import os
 import time
+from collections import defaultdict
 from typing import Any, Dict, Generator, List, Union
 
 import requests
@@ -8,7 +10,7 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import Input
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
-from google.protobuf.struct_pb2 import Struct
+from google.protobuf.struct_pb2 import Struct, Value
 from tqdm import tqdm
 
 from clarifai.client.base import BaseClient
@@ -848,3 +850,239 @@ class Model(Lister, BaseClient):
               Req ID: {get_export_response.status.req_id}""")
     elif get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTED:
       _download_exported_model(get_export_response, os.path.join(export_dir, "model.tar"))
+
+  @staticmethod
+  def _make_pretrained_config_proto(input_field_maps: dict,
+                                    output_field_maps: dict,
+                                    url: str = None):
+    """Make PretrainedModelConfig for uploading new version
+
+    Args:
+        input_field_maps (dict): dict
+        output_field_maps (dict): dict
+        url (str, optional): direct download url. Defaults to None.
+    """
+
+    def _parse_fields_map(x):
+      """parse input, outputs to Struct"""
+      _fields_map = Struct()
+      _fields_map.update(x)
+      return _fields_map
+
+    input_fields_map = _parse_fields_map(input_field_maps)
+    output_fields_map = _parse_fields_map(output_field_maps)
+
+    return resources_pb2.PretrainedModelConfig(
+        input_fields_map=input_fields_map, output_fields_map=output_fields_map, model_zip_url=url)
+
+  @staticmethod
+  def _make_inference_params_proto(
+      inference_parameters: List[Dict]) -> List[resources_pb2.ModelTypeField]:
+    """Convert list of Clarifai inference parameters to proto for uploading new version
+
+    Args:
+        inference_parameters (List[Dict]): Each dict has keys {field_type, path, default_value, description}
+
+    Returns:
+        List[resources_pb2.ModelTypeField]
+    """
+
+    def _make_default_value_proto(dtype, value):
+      if dtype == 1:
+        return Value(bool_value=value)
+      elif dtype == 2 or dtype == 21:
+        return Value(string_value=value)
+      elif dtype == 3:
+        return Value(number_value=value)
+
+    iterative_proto_params = []
+    for param in inference_parameters:
+      dtype = param.get("field_type")
+      proto_param = resources_pb2.ModelTypeField(
+          path=param.get("path"),
+          field_type=dtype,
+          default_value=_make_default_value_proto(dtype=dtype, value=param.get("default_value")),
+          description=param.get("description"),
+      )
+      iterative_proto_params.append(proto_param)
+    return iterative_proto_params
+
+  def create_version_by_file(self,
+                             file_path: str,
+                             input_field_maps: dict,
+                             output_field_maps: dict,
+                             inference_parameter_configs: dict = None,
+                             model_version: str = None,
+                             part_id: int = None,
+                             chunk_size: int = None,
+                             range_start: int = None,
+                             no_cache: bool = False,
+                             no_resume: bool = False,
+                             description: str = ""):
+    """Create model version by uploading local file
+
+    Args:
+        file_path (str): path to built file.
+        input_field_maps (dict): a dict where the key is clarifai input field and the value is triton model input,
+          {clarifai_input_field: triton_input_filed}.
+        output_field_maps (dict): a dict where the keys are clarifai output fields and the values are triton model outputs,
+          {clarifai_output_field1: triton_output_filed1, clarifai_output_field2: triton_output_filed2,...}.
+        inference_parameter_configs (List[dict]): list of dicts - keys are path, field_type, default_value, description. Default is None
+        model_version (str, optional): Custom model version. Defaults to None.
+        part_id (int, optional): part id of file. Defaults to None.
+        chunk_size (int, optional): chunk size. Defaults to None.
+        range_start (int, optional): range of uploaded size. Defaults to None.
+        no_cache (bool, optional): not saving uploading cache that is used to resume uploading. Defaults to False.
+        no_resume (bool, optional): disable auto resume upload. Defaults to False.
+        description (str): Model description.
+    Returns:
+        _type_: _description_
+
+    """
+    MIN_CHUNK = 1024 * 5000
+    file_size = os.path.getsize(file_path)
+    pretrained_proto = Model._make_pretrained_config_proto(
+        input_field_maps=input_field_maps, output_field_maps=output_field_maps)
+    inference_param_proto = Model._make_inference_params_proto(
+        inference_parameter_configs) if inference_parameter_configs else None
+
+    part_id = part_id or 0
+    chunk_size = chunk_size or file_size // 4 + 5  # Split file as 4 chunks by default + offset
+    if chunk_size < MIN_CHUNK:
+      chunk_size = MIN_CHUNK
+    range_start = range_start or 0 - chunk_size
+    cache_dir = os.path.join(file_path, '..', '.cache')
+    cache_upload_file = os.path.join(cache_dir, "upload.json")
+
+    if os.path.exists(cache_upload_file) and not no_resume:
+      with open(cache_upload_file, "r") as fp:
+        cache_info = json.load(fp)
+        if isinstance(cache_info, dict):
+          part_id = cache_info.get("part_id", part_id)
+          chunk_size = cache_info.get("chunk_size", chunk_size)
+          range_start = cache_info.get("range_start", range_start)
+          model_version = cache_info.get("model_version", model_version)
+
+    def init_reqs():
+      return service_pb2.PostModelVersionsUploadRequest(
+          upload_config=service_pb2.PostModelVersionsUploadConfig(
+              user_app_id=self.user_app_id,
+              model_id=self.id,
+              total_size=file_size,
+              model_version=resources_pb2.ModelVersion(
+                  id=model_version,
+                  pretrained_model_config=pretrained_proto,
+                  description=description,
+                  output_info=resources_pb2.OutputInfo(params_specs=inference_param_proto)),
+          ))
+
+    def _uploading(chunk, part_id, range_start):
+      return service_pb2.PostModelVersionsUploadRequest(
+          upload_config=service_pb2.PostModelVersionsUploadConfig(
+              user_app_id=self.user_app_id,
+              model_id=self.id,
+              total_size=file_size,
+              model_version=resources_pb2.ModelVersion(
+                  id=model_version,
+                  pretrained_model_config=pretrained_proto,
+                  description=description,
+                  output_info=resources_pb2.OutputInfo(params_specs=inference_param_proto))),
+          content_part=resources_pb2.UploadContentPart(
+              data=chunk, part_number=part_id, range_start=range_start))
+
+    def _stream(chunk_size, part_id, range_start):
+      count = 0
+      with open(file_path, "rb") as fp:
+        while True:
+          if count == 0:
+            yield init_reqs()
+          count += 1
+          chunk = fp.read(chunk_size)
+          if not chunk:
+            break
+          if count < part_id:
+            continue
+          else:
+            part_id += 1
+            range_start += chunk_size
+            if range_start >= file_size:
+              range_start = file_size
+            yield _uploading(chunk, part_id=part_id, range_start=range_start)
+
+    finished_status = [status_code_pb2.SUCCESS, status_code_pb2.UPLOAD_DONE]
+    uploading_in_progress_status = [
+        status_code_pb2.UPLOAD_IN_PROGRESS, status_code_pb2.MODEL_UPLOADING
+    ]
+    stream_responses = self.auth_helper.get_stub().PostModelVersionsUpload(
+        _stream(chunk_size=chunk_size, part_id=part_id, range_start=range_start),
+        metadata=self.auth_helper.metadata)
+    cache_uploading_info = defaultdict(lambda: 0)
+    tqdm_loader = tqdm(total=100)
+
+    if model_version:
+      tqdm_loader.set_description(f"Uploading model `{self.id}` version `{model_version}` ...")
+    else:
+      tqdm_loader.set_description(f"Uploading model `{self.id}` ...")
+
+    def _save_cache(cache: dict):
+      if not no_cache:
+        os.makedirs(cache_dir, exist_ok=True)
+        with open(cache_upload_file, "w") as fp:
+          json.dump(cache, fp, indent=2)
+
+    for step_id, stream_resp in enumerate(stream_responses):
+      if step_id > 0 and stream_resp.status.code in uploading_in_progress_status:
+        cache_uploading_info["model_version"] = stream_resp.model_version_id
+        cache_uploading_info["part_id"] += 1  # as step_id starts from 0
+        cache_uploading_info["range_start"] += chunk_size
+        cache_uploading_info["chunk_size"] = chunk_size
+        if cache_uploading_info["range_start"] > file_size:
+          cache_uploading_info["range_start"] = file_size
+        if stream_resp.status.percent_completed:
+          tqdm_loader.update(stream_resp.status.percent_completed)
+        _save_cache(cache_uploading_info)
+      elif stream_resp.status.code not in finished_status + uploading_in_progress_status:
+        raise Exception(f"Failed to upload model, error: {stream_resp.status}")
+
+    self.logger.info(
+        f"Success uploading model {self.id}, new version {cache_uploading_info.get('model_version')}"
+    )
+
+  def create_version_by_url(self,
+                            url: str,
+                            input_field_maps: dict,
+                            output_field_maps: dict,
+                            inference_parameter_configs: List[dict] = None,
+                            description: str = ""):
+    """Upload a new version of an existing model in the Clarifai platform using direct download url.
+
+    Args:
+      url (str]): url of zip of model
+      input_field_maps (dict): a dict where the key is clarifai input field and the value is triton model input,
+          {clarifai_input_field: triton_input_filed}.
+      output_field_maps (dict): a dict where the keys are clarifai output fields and the values are triton model outputs,
+          {clarifai_output_field1: triton_output_filed1, clarifai_output_field2: triton_output_filed2,...}.
+      inference_parameter_configs (List[dict]): list of dicts - keys are path, field_type, default_value, description. Default is None
+      description (str): Model description.
+
+    """
+
+    pretrained_proto = Model._make_pretrained_config_proto(
+        input_field_maps=input_field_maps, output_field_maps=output_field_maps, url=url)
+    inference_param_proto = Model._make_inference_params_proto(
+        inference_parameter_configs) if inference_parameter_configs else None
+    request = service_pb2.PostModelVersionsRequest(
+        user_app_id=self.user_app_id,
+        model_id=self.id,
+        model_versions=[
+            resources_pb2.ModelVersion(
+                pretrained_model_config=pretrained_proto,
+                description=description,
+                output_info=resources_pb2.OutputInfo(params_specs=inference_param_proto))
+        ])
+    response = self._grpc_request(self.STUB.PostModelVersions, request)
+
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(f"Failed to upload model, error: {response.status}")
+    self.logger.info(
+        f"Success uploading model {self.id}, new version {response.model.model_version.id}")
