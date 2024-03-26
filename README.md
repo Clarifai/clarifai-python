@@ -116,7 +116,7 @@ client = User(user_id="user_id", pat="your personal access token")
 
 ## :floppy_disk: Interacting with Datasets
 
-Clarifai datasets help in managing datasets used for model training and evaluation. It provides functionalities like creating datasets,uploading datasets and exporting datasets as .zip files.
+Clarifai datasets help in managing datasets used for model training and evaluation. It provides functionalities like creating datasets,uploading datasets, retrying failed uploads from logs and exporting datasets as .zip files.
 
 ```python
 # Note: CLARIFAI_PAT must be set as env variable.
@@ -128,7 +128,18 @@ dataset = app.create_dataset(dataset_id="demo_dataset")
 # execute data upload to Clarifai app dataset
 from clarifai.datasets.upload.laoders.coco_detection import COCODetectionDataLoader
 coco_dataloader = COCODetectionDataLoader("images_dir", "coco_annotation_filepath")
-dataset.upload_dataset(dataloader=coco_dataloader, get_upload_status=True)
+dataset.upload_dataset(dataloader=coco_dataloader, get_upload_status=True, log_warnings =True)
+
+
+#Try upload and record the failed outputs in log file.
+from clarifai.datasets.upload.utils import load_module_dataloader
+cifar_dataloader = load_module_dataloader('./image_classification/cifar10')
+dataset.upload_dataset(dataloader=cifar_dataloader, get_upload_status=True, log_warnings =True)
+
+#Retry upload from logs for `upload_dataset`
+dataset.retry_upload_from_logs(dataloader=cifar_dataloader, log_file_path='log_file.log',
+                               retry_duplicates=False,
+                               log_warnings=True)
 
 #upload text from csv
 dataset.upload_from_csv(csv_path='csv_path', input_type='text', csv_type='raw', labels=True)
@@ -137,9 +148,7 @@ dataset.upload_from_csv(csv_path='csv_path', input_type='text', csv_type='raw', 
 dataset.upload_from_folder(folder_path='folder_path', input_type='text', labels=True)
 
 # Export Dataset
-from clarifai.client.dataset import Dataset
-# Note: clarifai-data-protobuf.zip is acquired through exporting datasets within the Clarifai Platform.
-Dataset().export(save_path='output.zip', local_archive_path='clarifai-data-protobuf.zip')
+dataset.export(save_path='output.zip')
 ```
 
 
@@ -259,6 +268,16 @@ Training status and saving logs
 """
 status = model.training_status(version_id=model_version_id,training_logs=True)
 print(status)
+```
+
+#### Export your trained model
+Model Export feature enables you to package your trained model into a `model.tar` file. This file enables deploying your model within a Triton Inference Server deployment.
+
+```python
+from clarifai.client.model import Model
+
+model = Model('url')
+model.export('output/folder/')
 ```
 
 #### Evaluate your trained model

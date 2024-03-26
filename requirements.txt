@@ -1,4 +1,4 @@
-clarifai-grpc~=10.1.6
+clarifai-grpc~=10.2.1
 numpy>=1.22.0
 tqdm>=4.65.0
 tritonclient>=2.34.0
@@ -7,3 +7,4 @@ PyYAML>=6.0.1
 schema>=0.7.5
 Pillow>=9.5.0
 inquirerpy==0.3.4
+tabulate>=0.9.0

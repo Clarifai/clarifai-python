@@ -43,7 +43,7 @@ def response_to_model_params(response: MultiModelTypeResponse,
           continue
         #checking the template model type fields
         if _path[-1] != "template":
-          if _path[0] == 'train_info' or _path[0] == 'input_info':
+          if _path[0] == 'train_info':
             try:
               params["train_params"][_path[-1]] = modeltypefield['defaultValue']
             except Exception:
@@ -54,6 +54,8 @@ def response_to_model_params(response: MultiModelTypeResponse,
               params["inference_params"][_path[-1]] = modeltypefield['defaultValue']
             except Exception:
               params["inference_params"][_path[-1]] = None
+          if _path[0] == 'output_info' and _path[1] == 'output_config':
+            params["concepts_mutually_exclusive"] = (modeltypefield['defaultValue'])
         else:
           if 'modelTypeEnumOptions' in modeltypefield.keys():
             #check given template is valid
@@ -99,12 +101,6 @@ def params_parser(params_dict: dict, concepts: List = None) -> Dict[str, Any]:
       custom_config = python_file.read()
     params_dict['train_params']['custom_config'] = custom_config
 
-  if 'base_embed_model' in params_dict['train_params'].keys():
-    train_dict["input_info"] = dict()
-    train_dict["input_info"]['base_embed_model'] = params_dict['train_params']['base_embed_model']
-    train_dict['input_info'] = resources_pb2.InputInfo(**train_dict['input_info'])
-    del params_dict['train_params']['base_embed_model']
-
   train_dict["train_info"]['params'].update(params_dict["train_params"])
   if 'dataset_id' in params_dict.keys():
     train_dict["train_info"]['params']['dataset_id'] = params_dict['dataset_id']
@@ -119,6 +115,9 @@ def params_parser(params_dict: dict, concepts: List = None) -> Dict[str, Any]:
   if 'inference_params' in params_dict.keys():
     train_dict["output_info"]['params'] = Struct()
     train_dict['output_info']['params'].update(params_dict["inference_params"])
+  if 'concepts_mutually_exclusive' in params_dict.keys():
+    train_dict['output_info']['output_config'] = resources_pb2.OutputConfig(
+        concepts_mutually_exclusive=params_dict['concepts_mutually_exclusive'])
   train_dict['output_info'] = resources_pb2.OutputInfo(**train_dict['output_info'])
 
   return train_dict

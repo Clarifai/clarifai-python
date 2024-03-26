@@ -10,6 +10,7 @@ from clarifai_grpc.grpc.api.resources_pb2 import Input
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.struct_pb2 import Struct
+from tqdm import tqdm
 
 from clarifai.client.base import BaseClient
 from clarifai.client.dataset import Dataset
@@ -383,7 +384,9 @@ class Model(Lister, BaseClient):
       except KeyError:
         pass
       yield Model.from_auth_helper(
-          model_id=self.id, **dict(self.kwargs, model_version=model_version_info))
+          auth=self.auth_helper,
+          model_id=self.id,
+          **dict(self.kwargs, model_version=model_version_info))
 
   def predict(self, inputs: List[Input], inference_params: Dict = {}, output_config: Dict = {}):
     """Predicts the model based on the given inputs.
@@ -406,7 +409,7 @@ class Model(Lister, BaseClient):
         model=self.model_info)
 
     start_time = time.time()
-    backoff_iterator = BackoffIterator()
+    backoff_iterator = BackoffIterator(10)
     while True:
       response = self._grpc_request(self.STUB.PostModelOutputs, request)
 
@@ -928,3 +931,91 @@ class Model(Lister, BaseClient):
           return parse_eval_annotation_detector(detail_eval_data)
         elif return_format == "coco":
           return parse_eval_annotation_detector_coco(detail_eval_data)
+
+  def export(self, export_dir: str = None) -> None:
+    """Export the model, stores the exported model as model.tar file
+
+    Args:
+        export_dir (str): The directory to save the exported model.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model("url")
+        >>> model.export('/path/to/export_model_dir')
+    """
+    assert self.model_info.model_version.id, "Model version ID is missing. Please provide a `model_version` with a valid `id` as an argument or as a URL in the following format: '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+    try:
+      if not os.path.exists(export_dir):
+        os.makedirs(export_dir)
+    except OSError as e:
+      raise Exception(f"An error occurred while creating the directory: {e}")
+
+    def _get_export_response():
+      get_export_request = service_pb2.GetModelVersionExportRequest(
+          user_app_id=self.user_app_id,
+          model_id=self.id,
+          version_id=self.model_info.model_version.id,
+      )
+      response = self._grpc_request(self.STUB.GetModelVersionExport, get_export_request)
+
+      if response.status.code != status_code_pb2.SUCCESS and response.status.code != status_code_pb2.CONN_DOES_NOT_EXIST:
+        raise Exception(response.status)
+
+      return response
+
+    def _download_exported_model(
+        get_model_export_response: service_pb2.SingleModelVersionExportResponse,
+        local_filepath: str):
+      model_export_url = get_model_export_response.export.url
+      model_export_file_size = get_model_export_response.export.size
+
+      response = requests.get(model_export_url, stream=True)
+      response.raise_for_status()
+
+      with open(local_filepath, 'wb') as f:
+        progress = tqdm(
+            total=model_export_file_size, unit='B', unit_scale=True, desc="Exporting model")
+        for chunk in response.iter_content(chunk_size=8192):
+          f.write(chunk)
+          progress.update(len(chunk))
+        progress.close()
+
+      self.logger.info(
+          f"Model ID {self.id} with version {self.model_info.model_version.id} exported successfully to {export_dir}/model.tar"
+      )
+
+    get_export_response = _get_export_response()
+    if get_export_response.status.code == status_code_pb2.CONN_DOES_NOT_EXIST:
+      put_export_request = service_pb2.PutModelVersionExportsRequest(
+          user_app_id=self.user_app_id,
+          model_id=self.id,
+          version_id=self.model_info.model_version.id,
+      )
+
+      response = self._grpc_request(self.STUB.PutModelVersionExports, put_export_request)
+      if response.status.code != status_code_pb2.SUCCESS:
+        raise Exception(response.status)
+
+      self.logger.info(
+          f"Model ID {self.id} with version {self.model_info.model_version.id} export started, please wait..."
+      )
+      time.sleep(5)
+      start_time = time.time()
+      backoff_iterator = BackoffIterator(10)
+      while True:
+        get_export_response = _get_export_response()
+        if get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTING and \
+          time.time() - start_time < 60 * 30: # 30 minutes
+          self.logger.info(
+              f"Model ID {self.id} with version {self.model_info.model_version.id} is still exporting, please wait..."
+          )
+          time.sleep(next(backoff_iterator))
+        elif get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTED:
+          _download_exported_model(get_export_response, os.path.join(export_dir, "model.tar"))
+          break
+        elif time.time() - start_time > 60 * 30:
+          raise Exception(
+              f"""Model Export took too long. Please try again or contact support@clarifai.com
+              Req ID: {get_export_response.status.req_id}""")
+    elif get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTED:
+      _download_exported_model(get_export_response, os.path.join(export_dir, "model.tar"))

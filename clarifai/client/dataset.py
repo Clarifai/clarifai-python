@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 import uuid
@@ -12,12 +13,13 @@ from clarifai_grpc.grpc.api.service_pb2 import MultiInputResponse
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from google.protobuf.json_format import MessageToDict
 from requests.adapters import HTTPAdapter, Retry
+from tabulate import tabulate
 from tqdm import tqdm
 
 from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
-from clarifai.constants.dataset import DATASET_UPLOAD_TASKS
+from clarifai.constants.dataset import DATASET_UPLOAD_TASKS, MAX_RETRIES
 from clarifai.datasets.export.inputs_annotations import (DatasetExportReader,
                                                          InputAnnotationDownloader)
 from clarifai.datasets.upload.base import ClarifaiDataLoader
@@ -27,7 +29,7 @@ from clarifai.datasets.upload.text import TextClassificationDataset
 from clarifai.datasets.upload.utils import DisplayUploadStatus
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
-from clarifai.utils.logging import add_file_handler, get_logger
+from clarifai.utils.logging import add_file_handler, get_logger, process_log_files
 from clarifai.utils.misc import BackoffIterator, Chunker
 
 ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset,
@@ -41,6 +43,7 @@ class Dataset(Lister, BaseClient):
   def __init__(self,
                url: str = None,
                dataset_id: str = None,
+               dataset_version_id: str = None,
                base_url: str = "https://api.clarifai.com",
                pat: str = None,
                token: str = None,
@@ -50,6 +53,7 @@ class Dataset(Lister, BaseClient):
     Args:
         url (str): The URL to initialize the dataset object.
         dataset_id (str): The Dataset ID within the App to interact with.
+        dataset_version_id (str): The Dataset Version ID within the Dataset to interact with.
         base_url (str): Base API url. Default "https://api.clarifai.com"
         pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
         token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
@@ -58,9 +62,13 @@ class Dataset(Lister, BaseClient):
     if url and dataset_id:
       raise UserError("You can only specify one of url or dataset_id.")
     if url:
-      user_id, app_id, _, dataset_id, _ = ClarifaiUrlHelper.split_clarifai_url(url)
+      user_id, app_id, _, dataset_id, dataset_version_id = ClarifaiUrlHelper.split_clarifai_url(
+          url)
       kwargs = {'user_id': user_id, 'app_id': app_id}
-    self.kwargs = {**kwargs, 'id': dataset_id}
+    dataset_version = {
+        'id': dataset_version_id
+    } if dataset_version_id else kwargs['version'] if 'version' in kwargs else None
+    self.kwargs = {**kwargs, 'id': dataset_id, 'version': dataset_version}
     self.dataset_info = resources_pb2.Dataset(**self.kwargs)
     # Related to Dataset Upload
     self.num_workers: int = min(10, cpu_count())  #15 req/sec rate limit
@@ -68,7 +76,8 @@ class Dataset(Lister, BaseClient):
     self.max_retires = 10
     self.batch_size = 128  # limit max protos in a req
     self.task = None  # Upload dataset type
-    self.input_object = Inputs(user_id=self.user_id, app_id=self.app_id, pat=pat, token=token)
+    self.input_object = Inputs(
+        user_id=self.user_id, app_id=self.app_id, pat=pat, token=token, base_url=base_url)
     self.logger = get_logger(logger_level="INFO", name=__name__)
     BaseClient.__init__(
         self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat, token=token)
@@ -159,12 +168,16 @@ class Dataset(Lister, BaseClient):
     for dataset_version_info in all_dataset_versions_info:
       dataset_version_info['id'] = dataset_version_info['dataset_version_id']
       del dataset_version_info['dataset_version_id']
-      del dataset_version_info['metrics']
+      dataset_version_info.pop('metrics', None)
+      dataset_version_info.pop('export_info', None)
       kwargs = {
           'dataset_id': self.id,
           'version': resources_pb2.DatasetVersion(**dataset_version_info),
       }
       yield Dataset.from_auth_helper(self.auth_helper, **kwargs)
+
+  def __iter__(self):
+    return iter(DatasetExportReader(archive_url=self.archive_zip()))
 
   def _concurrent_annot_upload(self, annots: List[List[resources_pb2.Annotation]]
                               ) -> Union[List[resources_pb2.Annotation], List[None]]:
@@ -192,11 +205,11 @@ class Dataset(Lister, BaseClient):
 
     return retry_annot_upload
 
-  def _delete_failed_inputs(
-      self,
-      batch_input_ids: List[int],
-      dataset_obj: ClarifaiDatasetType,
-      upload_response: MultiInputResponse = None) -> Tuple[List[int], List[int]]:
+  def _delete_failed_inputs(self,
+                            batch_input_ids: List[int],
+                            dataset_obj: ClarifaiDatasetType,
+                            upload_response: MultiInputResponse = None,
+                            batch_no: Optional[int] = None) -> Tuple[List[int], List[int]]:
     """Delete failed input ids from clarifai platform dataset.
 
     Args:
@@ -231,8 +244,19 @@ class Dataset(Lister, BaseClient):
     if duplicate_input_ids:
       success_input_ids = list(set(success_input_ids.copy()) - set(duplicate_input_ids.copy()))
       failed_input_ids = list(set(failed_input_ids) - set(duplicate_input_ids))
+      duplicate_details = [[
+          input_ids[id], id, "Input has a duplicate ID.",
+          dataset_obj.data_generator[input_ids[id]].image_path,
+          dataset_obj.data_generator[input_ids[id]].labels,
+          dataset_obj.data_generator[input_ids[id]].metadata
+      ] for id in duplicate_input_ids]
+      duplicate_table = tabulate(
+          duplicate_details,
+          headers=["Index", "Input ID", "Status", "Image Path", "Labels", "Metadata"],
+          tablefmt="grid")
+      timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
       self.logger.warning(
-          f"Upload Failed for {len(duplicate_input_ids)} inputs in current batch: Duplicate input ids: {duplicate_input_ids}"
+          f"{timestamp}\nFailed to upload {len(duplicate_input_ids)} inputs due to duplicate IDs in current batch {batch_no}:\n{duplicate_table}\n\n"
       )
 
     #delete failed inputs
@@ -243,7 +267,11 @@ class Dataset(Lister, BaseClient):
     return [input_ids[id] for id in success_input_ids], [input_ids[id] for id in failed_input_ids]
 
   def _upload_inputs_annotations(
-      self, batch_input_ids: List[int], dataset_obj: ClarifaiDatasetType
+      self,
+      batch_input_ids: List[int],
+      dataset_obj: ClarifaiDatasetType,
+      batch_no: Optional[int] = None,
+      is_retry_duplicates: bool = False,
   ) -> Tuple[List[int], List[resources_pb2.Annotation], MultiInputResponse]:
     """Uploads batch of inputs and annotations concurrently to clarifai platform dataset.
 
@@ -257,12 +285,16 @@ class Dataset(Lister, BaseClient):
       response: upload response proto
     """
     input_protos, _ = dataset_obj.get_protos(batch_input_ids)
+    if is_retry_duplicates:
+      for inp in input_protos:
+        inp.id = uuid.uuid4().hex
+
     input_job_id, _response = self.input_object.upload_inputs(inputs=input_protos, show_log=False)
     retry_annot_protos = []
 
     self.input_object._wait_for_inputs(input_job_id)
     success_input_ids, failed_input_ids = self._delete_failed_inputs(batch_input_ids, dataset_obj,
-                                                                     _response)
+                                                                     _response, batch_no)
 
     if self.task in ["visual_detection", "visual_segmentation"] and success_input_ids:
       _, annotation_protos = dataset_obj.get_protos(success_input_ids)
@@ -273,7 +305,7 @@ class Dataset(Lister, BaseClient):
 
   def _retry_uploads(self, failed_input_ids: List[int],
                      retry_annot_protos: List[resources_pb2.Annotation],
-                     dataset_obj: ClarifaiDatasetType) -> None:
+                     dataset_obj: ClarifaiDatasetType, batch_no: Optional[int]) -> None:
     """Retry failed uploads.
 
     Args:
@@ -281,56 +313,87 @@ class Dataset(Lister, BaseClient):
       retry_annot_protos: failed annot protos
       dataset_obj: ClarifaiDataset object
     """
-    if failed_input_ids:
-      retry_input_ids = [dataset_obj.all_input_ids[id] for id in failed_input_ids]
-      #Log Retrying inputs
-      self.logger.warning(
-          f"Retrying upload for {len(failed_input_ids)} inputs in current batch: {retry_input_ids}"
-      )
-      failed_retrying_inputs, _, retry_response = self._upload_inputs_annotations(
-          failed_input_ids, dataset_obj)
-      #Log failed inputs
-      if failed_retrying_inputs:
-        failed_retrying_input_ids = [
-            dataset_obj.all_input_ids[id] for id in failed_retrying_inputs
-        ]
-        failed_inputs_logs = {
-            input.id: input.status.details
-            for input in retry_response.inputs if input.id in failed_retrying_input_ids
-        }
-        self.logger.warning(
-            f"Failed to upload {len(failed_retrying_inputs)} inputs in current batch: {failed_inputs_logs}"
-        )
-    if retry_annot_protos:
-      chunked_annotation_protos = Chunker(retry_annot_protos, self.batch_size).chunk()
-      _ = self._concurrent_annot_upload(chunked_annotation_protos)
 
-  def _data_upload(self, dataset_obj: ClarifaiDatasetType) -> None:
+    for _retry in range(MAX_RETRIES):
+      if not failed_input_ids and not retry_annot_protos:
+        break
+      if failed_input_ids:
+        retry_input_ids = [dataset_obj.all_input_ids[id] for id in failed_input_ids]
+        logging.warning(
+            f"Retrying upload for {len(failed_input_ids)} inputs in current batch: {retry_input_ids}\n"
+        )
+        failed_retrying_inputs, _, retry_response = self._upload_inputs_annotations(
+            failed_input_ids, dataset_obj, batch_no)
+        failed_input_ids = failed_retrying_inputs
+      if retry_annot_protos:
+        chunked_annotation_protos = Chunker(retry_annot_protos, self.batch_size).chunk()
+        _ = self._concurrent_annot_upload(chunked_annotation_protos)
+
+    #Log failed inputs
+    if failed_input_ids:
+      failed_inputs_logs = []
+      input_map = {input.id: input for input in retry_response.inputs}
+      for index in failed_retrying_inputs:
+        failed_id = dataset_obj.all_input_ids[index]
+        input_details = input_map.get(failed_id)
+        if input_details:
+          failed_input_details = [
+              index, failed_id, input_details.status.details,
+              dataset_obj.data_generator[index].image_path,
+              dataset_obj.data_generator[index].labels, dataset_obj.data_generator[index].metadata
+          ]
+          failed_inputs_logs.append(failed_input_details)
+
+      failed_table = tabulate(
+          failed_inputs_logs,
+          headers=["Index", "Input ID", "Status", "Image Path", "Labels", "Metadata"],
+          tablefmt="grid")
+      timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+      self.logger.warning(
+          f"{timestamp}\nFailed to upload {len(failed_retrying_inputs)} inputs in current batch {batch_no}:\n{failed_table}\n\n"
+      )
+
+  def _data_upload(self,
+                   dataset_obj: ClarifaiDatasetType,
+                   is_log_retry: bool = False,
+                   log_retry_ids: List[int] = None,
+                   **kwargs) -> None:
     """Uploads inputs and annotations to clarifai platform dataset.
 
     Args:
-      dataset_obj: ClarifaiDataset object
+      dataset_obj: ClarifaiDataset object,
+      is_log_retry: True if the iteration is to retry uploads from logs.
+      **kwargs: Additional keyword arguments for retry uploading functionality..
+
+    Returns:
+        None
     """
-    input_ids = list(range(len(dataset_obj)))
+    if is_log_retry:
+      input_ids = log_retry_ids
+    else:
+      input_ids = list(range(len(dataset_obj)))
+
     chunk_input_ids = Chunker(input_ids, self.batch_size).chunk()
     with ThreadPoolExecutor(max_workers=self.num_workers) as executor:
       with tqdm(total=len(chunk_input_ids), desc='Uploading Dataset') as progress:
         # Submit all jobs to the executor and store the returned futures
         futures = [
-            executor.submit(self._upload_inputs_annotations, batch_input_ids, dataset_obj)
-            for batch_input_ids in chunk_input_ids
+            executor.submit(self._upload_inputs_annotations, batch_input_ids, dataset_obj,
+                            batch_no, **kwargs)
+            for batch_no, batch_input_ids in enumerate(chunk_input_ids)
         ]
 
-        for job in as_completed(futures):
+        for batch_no, job in enumerate(as_completed(futures)):
           retry_input_ids, retry_annot_protos, _ = job.result()
-          self._retry_uploads(retry_input_ids, retry_annot_protos, dataset_obj)
+          self._retry_uploads(retry_input_ids, retry_annot_protos, dataset_obj, batch_no)
           progress.update()
 
   def upload_dataset(self,
                      dataloader: Type[ClarifaiDataLoader],
                      batch_size: int = 32,
                      get_upload_status: bool = False,
-                     log_warnings: bool = False) -> None:
+                     log_warnings: bool = False,
+                     **kwargs) -> None:
     """Uploads a dataset to the app.
 
     Args:
@@ -338,6 +401,7 @@ class Dataset(Lister, BaseClient):
       batch_size (int): batch size for concurrent upload of inputs and annotations (max: 128)
       get_upload_status (bool): True if you want to get the upload status of the dataset
       log_warnings (bool): True if you want to save log warnings in a file
+      kwargs: Additional keyword arguments for retry uploading functionality..
     """
     #add file handler to log warnings
     if log_warnings:
@@ -365,10 +429,46 @@ class Dataset(Lister, BaseClient):
     if get_upload_status:
       pre_upload_stats = self.get_upload_status(pre_upload=True)
 
-    self._data_upload(dataset_obj)
+    self._data_upload(dataset_obj, **kwargs)
 
     if get_upload_status:
       self.get_upload_status(dataloader=dataloader, pre_upload_stats=pre_upload_stats)
+
+  def retry_upload_from_logs(self,
+                             log_file_path: str,
+                             dataloader: Type[ClarifaiDataLoader],
+                             retry_duplicates: bool = False,
+                             log_warnings: bool = False,
+                             **kwargs) -> None:
+    """Retries failed uploads from the log file.
+
+    Args:
+        log_file_path (str): path to the log file
+        dataloader (Type[ClarifaiDataLoader]): ClarifaiDataLoader object
+        retry_duplicate (bool): True if you want to retry duplicate inputs
+        kwargs: Additional keyword arguments for retry uploading functionality..
+    """
+
+    duplicate_input_ids, failed_input_ids = process_log_files(log_file_path)
+    if log_warnings:
+      add_file_handler(self.logger, f"Dataset_Upload{str(int(datetime.now().timestamp()))}.log")
+
+    if retry_duplicates and duplicate_input_ids:
+      logging.warning(f"Retrying upload for {len(duplicate_input_ids)} duplicate inputs...\n")
+      duplicate_inputs_indexes = [input["Index"] for input in duplicate_input_ids]
+      self.upload_dataset(
+          dataloader=dataloader,
+          log_retry_ids=duplicate_inputs_indexes,
+          is_retry_duplicates=True,
+          is_log_retry=True,
+          **kwargs)
+
+    if failed_input_ids:
+      #failed_inputs= ([input["Input_ID"] for input in failed_input_ids])
+      logging.warning(f"Retrying upload for {len(failed_input_ids)} failed inputs...\n")
+      failed_input_indexes = [input["Index"] for input in failed_input_ids]
+      self.upload_dataset(
+          dataloader=dataloader, log_retry_ids=failed_input_indexes, is_log_retry=True, **kwargs)
 
   def upload_from_csv(self,
                       csv_path: str,
@@ -477,7 +577,7 @@ class Dataset(Lister, BaseClient):
     )
 
     start_time = time.time()
-    backoff_iterator = BackoffIterator()
+    backoff_iterator = BackoffIterator(10)
     while (True):
       dataset_metrics_response = self._grpc_request(
           self.STUB.ListDatasetVersionMetricsGroups,
@@ -509,11 +609,37 @@ class Dataset(Lister, BaseClient):
     if delete_version:
       self.delete_version(dataset_version_id)
 
+  def archive_zip(self, wait: bool = True) -> str:
+    """Exports the dataset to a zip file URL."""
+    request = service_pb2.PutDatasetVersionExportsRequest(
+        user_app_id=self.user_app_id,
+        dataset_id=self.id,
+        dataset_version_id=self.version.id,
+        exports=[
+            resources_pb2.DatasetVersionExport(
+                format=resources_pb2.DatasetVersionExportFormat.CLARIFAI_DATA_PROTOBUF)
+        ])
+
+    response = self._grpc_request(self.STUB.PutDatasetVersionExports, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    if wait:
+      while response.exports[0].status.code in (
+          status_code_pb2.DATASET_VERSION_EXPORT_PENDING,
+          status_code_pb2.DATASET_VERSION_EXPORT_IN_PROGRESS):
+        time.sleep(1)
+        response = self._grpc_request(self.STUB.PutDatasetVersionExports, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+          raise Exception(response.status)
+    if response.exports[0].status.code != status_code_pb2.DATASET_VERSION_EXPORT_SUCCESS:
+      raise Exception(response.exports[0].status)
+    return response.exports[0].url
+
   def export(self,
              save_path: str,
              archive_url: str = None,
              local_archive_path: str = None,
-             split: str = None,
+             split: str = 'all',
              num_workers: int = 4) -> None:
     """Exports the Clarifai protobuf dataset to a local archive.
 
@@ -526,10 +652,12 @@ class Dataset(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.dataset import Dataset
-        >>> Dataset().export(save_path='output.zip', local_archive_path='clarifai-data-protobuf.zip')
+        >>> Dataset().export(save_path='output.zip')
     """
     if local_archive_path and not os.path.exists(local_archive_path):
       raise UserError(f"Archive {local_archive_path} does not exist.")
+    if not archive_url and not local_archive_path:
+      archive_url = self.archive_zip()
     # Create a session object and set auth header
     session = requests.Session()
     retries = Retry(total=5, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
