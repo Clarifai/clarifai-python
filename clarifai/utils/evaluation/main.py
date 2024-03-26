@@ -136,7 +136,6 @@ class EvalResultCompare:
         comparators.append(name)
         outs.append(out)
 
-    # remove app_id if models a
     if self.mode == CompareMode.MANY_MODELS_TO_ONE_DATA:
       apps = set([comp.split('/')[0] for comp in comparators])
       if len(apps) == 1:
