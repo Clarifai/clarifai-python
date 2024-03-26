@@ -1,7 +1,8 @@
 import os
 import time
-from typing import Any, Dict, Generator, List, Union
+from typing import Any, Dict, Generator, List, Tuple, Union
 
+import numpy as np
 import requests
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -804,39 +805,110 @@ class Model(Lister, BaseClient):
   def get_raw_eval(self,
                    dataset: Dataset = None,
                    eval_id: str = None,
-                   return_format: str = 'array'):
+                   return_format: str = 'array') -> Union[resources_pb2.EvalTestSetEntry, Tuple[
+                       np.array, np.array, list, List[Input]], Tuple[List[dict], List[dict]]]:
     """Get ground truths, predictions and input information. Do not pass dataset and eval_id at same time
 
     Args:
         dataset (Dataset): Clarifai dataset, get eval data of latest eval result of dataset.
         eval_id (str): Evaluation ID, get eval data of specific eval id.
-        return_format (str, optional): Choice {proto, array}. Defaults to 'array'.
+        return_format (str, optional): Choice {proto, array, coco}. !Note that `coco` is only applicable for 'visual-detector'. Defaults to 'array'.
 
     Returns:
-        * resources_pb2.EvalTestSetEntry: if return_format == proto
-        * tuple(np.array, np.array, List[str], List[Input]):
-            tuple of (y, y_pred, concept_ids, inputs), if return_format == array.
-            y, y_pred, concept_ids can be use in sklearn to compute metrics.
-            inputs can be use to download
 
-            - if model is 'visual-detector': `y` and `y_pred` are array of [x_min, y_min, x_max, y_max, concept_index, score].
-              Score always equals to 1 for `y`
+        Depends on `return_format`.
+
+        * if return_format == proto
+          `resources_pb2.EvalTestSetEntry`
+
+        * if return_format == array
+          `Tuple(np.array, np.array, List[str], List[Input])`: Tuple has 4 elements (y, y_pred, concept_ids, inputs).
+            y, y_pred, concept_ids can be used to compute metrics. 'inputs' can be use to download
+            - if model is 'classifier': 'y' and 'y_pred' are both arrays with a shape of (num_inputs,)
+            - if model is 'visual-detector': 'y' and 'y_pred' are arrays with a shape of (num_inputs,), where each element is array has shape (num_annotation, 6) consists of [x_min, y_min, x_max, y_max, concept_index, score]. The score is always 1 for 'y'
+
+        * if return_format == coco: Applicable only for 'visual-detector'
+          `Tuple[List[Dict], List[Dict]]`: Tuple has 2 elemnts where first element is COCO Ground Truth and last one is COCO Prediction Annotation
+
+    Example Usages:
+    ------
+    * Evaluate `visual-classifier` using sklearn
+
+    ```python
+    import os
+    from sklearn.metrics import accuracy_score
+    from sklearn.metrics import classification_report
+    import numpy as np
+    from clarifai.client.model import Model
+    from clarifai.client.dataset import Dataset
+    os.environ["CLARIFAI_PAT"] = "???"
+    model = Model(url="url/of/model/includes/version-id")
+    dataset = Dataset(dataset_id="dataset-id")
+    y, y_pred, clss, input_protos = model.get_raw_eval(dataset, return_format="array")
+    y = np.argmax(y, axis=1)
+    y_pred = np.argmax(y_pred, axis=1)
+    report = classification_report(y, y_pred, target_names=clss)
+    print(report)
+    acc = accuracy_score(y, y_pred)
+    print("acc ", acc)
+    ```
+
+    * Evaluate `visual-detector` using COCOeval
+
+    ```python
+    import os
+    import json
+    from pycocotools.coco import COCO
+    from pycocotools.cocoeval import COCOeval
+    from clarifai.client.model import Model
+    from clarifai.client.dataset import Dataset
+    os.environ["CLARIFAI_PAT"] = "???" # Insert your PAT
+    model = Model(url=model_url)
+    dataset = Dataset(url=dataset_url)
+    y, y_pred = model.get_raw_eval(dataset, return_format="coco")
+    # save as files to load in COCO API
+    def save_annot(d, path):
+      with open(path, "w") as fp:
+        json.dump(d, fp, indent=2)
+    gt_path = os.path.join("gt.json")
+    pred_path = os.path.join("pred.json")
+    save_annot(y, gt_path)
+    save_annot(y_pred, pred_path)
+
+    cocoGt = COCO(gt_path)
+    cocoPred = COCO(pred_path)
+    cocoEval = COCOeval(cocoGt, cocoPred, "bbox")
+    cocoEval.evaluate()
+    cocoEval.accumulate()
+    cocoEval.summarize() # Print out result of all classes with all area type
+    # Example:
+    # Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.863
+    # Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.973
+    # Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.939
+    # ...
+    ```
+
+
     """
     from clarifai.utils.evaluation.testset_annotation_parser import (
-        parse_eval_annotation_classifier, parse_eval_annotation_detector)
+        parse_eval_annotation_classifier, parse_eval_annotation_detector,
+        parse_eval_annotation_detector_coco)
 
-    supported_format = ['proto', 'array']
+    valid_model_types = ["visual-classifier", "text-classifier", "visual-detector"]
+    supported_format = ['proto', 'array', 'coco']
     assert return_format in supported_format, ValueError(
         f"Expected return_format in {supported_format}, got {return_format}")
-
     self.load_info()
-    valid_model_types = ["visual-classifier", "text-classifier", "visual-detector"]
     model_type_id = self.model_info.model_type_id
     assert model_type_id in valid_model_types, \
       f"This method only supports model types {valid_model_types}, but your model type is {self.model_info.model_type_id}."
     assert not (dataset and
                 eval_id), "Using both `dataset` and `eval_id`, but only one should be passed."
     assert not dataset or not eval_id, "Please provide either `dataset` or `eval_id`, but nothing was passed."
+    if model_type_id.endswith("-classifier") and return_format == "coco":
+      raise ValueError(
+          f"return_format coco only applies for `visual-detector`, however your model is `{model_type_id}`"
+      )
 
     if dataset:
       eval_by_ds = self.get_eval_by_dataset(dataset)
@@ -852,4 +924,7 @@ class Model(Lister, BaseClient):
       if model_type_id.endswith("-classifier"):
         return parse_eval_annotation_classifier(detail_eval_data)
       elif model_type_id == "visual-detector":
-        return parse_eval_annotation_detector(detail_eval_data)
+        if return_format == "array":
+          return parse_eval_annotation_detector(detail_eval_data)
+        elif return_format == "coco":
+          return parse_eval_annotation_detector_coco(detail_eval_data)
