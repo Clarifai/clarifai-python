@@ -918,7 +918,7 @@ class Model(Lister, BaseClient):
                              range_start: int = None,
                              no_cache: bool = False,
                              no_resume: bool = False,
-                             description: str = ""):
+                             description: str = "") -> 'Model':
     """Create model version by uploading local file
 
     Args:
@@ -935,8 +935,9 @@ class Model(Lister, BaseClient):
         no_cache (bool, optional): not saving uploading cache that is used to resume uploading. Defaults to False.
         no_resume (bool, optional): disable auto resume upload. Defaults to False.
         description (str): Model description.
-    Returns:
-        _type_: _description_
+
+    Return:
+      Model: instance of Model with new created version
 
     """
     MIN_CHUNK = 1024 * 5000
@@ -946,22 +947,35 @@ class Model(Lister, BaseClient):
     inference_param_proto = Model._make_inference_params_proto(
         inference_parameter_configs) if inference_parameter_configs else None
 
-    part_id = part_id or 0
-    chunk_size = chunk_size or file_size // 4 + 5  # Split file as 4 chunks by default + offset
+    if not chunk_size:
+      n_step = int(round(file_size / MIN_CHUNK, 1))
+      for i in range(n_step, 0, -1):
+        chunk_size = file_size // i
+        last_part_size = file_size - chunk_size * i
+        if last_part_size >= MIN_CHUNK or last_part_size == 0:
+          if file_size >= 1e6 * 1024 and chunk_size < 2 * MIN_CHUNK:
+            continue
+          break
+      self.logger.info(f"{chunk_size}, {i} steps")
     if chunk_size < MIN_CHUNK:
-      chunk_size = MIN_CHUNK
+      raise ValueError("Chunk size must be at least 5MB")
+
+    part_id = part_id or 0
     range_start = range_start or 0 - chunk_size
     cache_dir = os.path.join(file_path, '..', '.cache')
     cache_upload_file = os.path.join(cache_dir, "upload.json")
 
     if os.path.exists(cache_upload_file) and not no_resume:
       with open(cache_upload_file, "r") as fp:
-        cache_info = json.load(fp)
-        if isinstance(cache_info, dict):
-          part_id = cache_info.get("part_id", part_id)
-          chunk_size = cache_info.get("chunk_size", chunk_size)
-          range_start = cache_info.get("range_start", range_start)
-          model_version = cache_info.get("model_version", model_version)
+        try:
+          cache_info = json.load(fp)
+          if isinstance(cache_info, dict):
+            part_id = cache_info.get("part_id", part_id)
+            chunk_size = cache_info.get("chunk_size", chunk_size)
+            range_start = cache_info.get("range_start", range_start) - chunk_size
+            model_version = cache_info.get("model_version", model_version)
+        except Exception as _:
+          pass
 
     def init_reqs():
       return service_pb2.PostModelVersionsUploadRequest(
@@ -990,22 +1004,27 @@ class Model(Lister, BaseClient):
           content_part=resources_pb2.UploadContentPart(
               data=chunk, part_number=part_id, range_start=range_start))
 
-    def _stream(chunk_size, part_id, range_start):
+    def _stream(chunk_size, _part_id, _range_start):
       count = 0
+      count_size = 0
+      part_id = _part_id
+      range_start = _range_start
       with open(file_path, "rb") as fp:
-        while True:
+        while count_size < file_size:
           if count == 0:
+            count += 1
             yield init_reqs()
           count += 1
           chunk = fp.read(chunk_size)
-          if not chunk:
+          count_size += len(chunk)
+          if not chunk or range_start > file_size:
             break
           if count < part_id:
             continue
           else:
             part_id += 1
             range_start += chunk_size
-            if range_start >= file_size:
+            if range_start > file_size:
               range_start = file_size
             yield _uploading(chunk, part_id=part_id, range_start=range_start)
 
@@ -1013,9 +1032,7 @@ class Model(Lister, BaseClient):
     uploading_in_progress_status = [
         status_code_pb2.UPLOAD_IN_PROGRESS, status_code_pb2.MODEL_UPLOADING
     ]
-    stream_responses = self.auth_helper.get_stub().PostModelVersionsUpload(
-        _stream(chunk_size=chunk_size, part_id=part_id, range_start=range_start),
-        metadata=self.auth_helper.metadata)
+
     cache_uploading_info = defaultdict(lambda: 0)
     tqdm_loader = tqdm(total=100)
 
@@ -1030,7 +1047,10 @@ class Model(Lister, BaseClient):
         with open(cache_upload_file, "w") as fp:
           json.dump(cache, fp, indent=2)
 
-    for step_id, stream_resp in enumerate(stream_responses):
+    last_percent = 0
+    for step_id, stream_resp in enumerate(self.auth_helper.get_stub().PostModelVersionsUpload(
+        _stream(chunk_size=chunk_size, _part_id=part_id, _range_start=range_start),
+        metadata=self.auth_helper.metadata)):
       if step_id > 0 and stream_resp.status.code in uploading_in_progress_status:
         cache_uploading_info["model_version"] = stream_resp.model_version_id
         cache_uploading_info["part_id"] += 1  # as step_id starts from 0
@@ -1038,22 +1058,43 @@ class Model(Lister, BaseClient):
         cache_uploading_info["chunk_size"] = chunk_size
         if cache_uploading_info["range_start"] > file_size:
           cache_uploading_info["range_start"] = file_size
+
+        tqdm_loader.set_description(
+            f"{stream_resp.status.description}, {stream_resp.status.details}")
         if stream_resp.status.percent_completed:
-          tqdm_loader.update(stream_resp.status.percent_completed)
+          step_percent = stream_resp.status.percent_completed - last_percent
+          tqdm_loader.update(step_percent)
+          last_percent += step_percent
+
         _save_cache(cache_uploading_info)
       elif stream_resp.status.code not in finished_status + uploading_in_progress_status:
         raise Exception(f"Failed to upload model, error: {stream_resp.status}")
 
+    # clean up cache
+    if not no_cache:
+      try:
+        os.remove(cache_upload_file)
+      except Exception as _:
+        _save_cache({})
+    if last_percent <= 100:
+      tqdm_loader.update(100 - last_percent)
+      tqdm_loader.set_description("Upload done")
+
     self.logger.info(
         f"Success uploading model {self.id}, new version {cache_uploading_info.get('model_version')}"
     )
+
+    return Model.from_auth_helper(
+        auth=self.auth_helper,
+        model_id=self.id,
+        model_version=dict(id=cache_uploading_info.get('model_version')))
 
   def create_version_by_url(self,
                             url: str,
                             input_field_maps: dict,
                             output_field_maps: dict,
                             inference_parameter_configs: List[dict] = None,
-                            description: str = ""):
+                            description: str = "") -> 'Model':
     """Upload a new version of an existing model in the Clarifai platform using direct download url.
 
     Args:
@@ -1065,6 +1106,8 @@ class Model(Lister, BaseClient):
       inference_parameter_configs (List[dict]): list of dicts - keys are path, field_type, default_value, description. Default is None
       description (str): Model description.
 
+    Return:
+      Model: instance of Model with new created version
     """
 
     pretrained_proto = Model._make_pretrained_config_proto(
@@ -1086,3 +1129,8 @@ class Model(Lister, BaseClient):
       raise Exception(f"Failed to upload model, error: {response.status}")
     self.logger.info(
         f"Success uploading model {self.id}, new version {response.model.model_version.id}")
+
+    return Model.from_auth_helper(
+        auth=self.auth_helper,
+        model_id=self.id,
+        model_version=dict(id=response.model.model_version.id))

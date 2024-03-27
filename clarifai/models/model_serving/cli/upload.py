@@ -61,7 +61,10 @@ class UploadModelSubCli(BaseClarifaiCli):
         "--no-test",
         action="store_true",
         help="Trigger this flag to skip testing before uploading")
-
+    upload_parser.add_argument(
+        "--no-resume",
+        action="store_true",
+        help="Trigger this flag to not resume uploading local file")
     upload_parser.add_argument(
         "--update-version",
         action="store_true",
@@ -72,6 +75,7 @@ class UploadModelSubCli(BaseClarifaiCli):
 
   def __init__(self, args: argparse.Namespace) -> None:
     self.no_test = args.no_test
+    self.no_resume = args.no_resume
 
     working_dir_or_config = args.path
     # if input a config file, then not running test
@@ -162,6 +166,7 @@ class UploadModelSubCli(BaseClarifaiCli):
             input_field_maps=inputs,
             output_field_maps=outputs,
             inference_parameter_configs=inference_parameters,
+            no_resume=self.no_resume,
             description=self.desc)
       else:
         raise ValueError
