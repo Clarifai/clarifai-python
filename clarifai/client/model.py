@@ -1,7 +1,8 @@
 import os
 import time
-from typing import Any, Dict, Generator, List, Union
+from typing import Any, Dict, Generator, List, Tuple, Union
 
+import numpy as np
 import requests
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -12,6 +13,7 @@ from google.protobuf.struct_pb2 import Struct
 from tqdm import tqdm
 
 from clarifai.client.base import BaseClient
+from clarifai.client.dataset import Dataset
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
 from clarifai.constants.model import MAX_MODEL_PREDICT_INPUTS, TRAINABLE_MODEL_TYPES
@@ -617,18 +619,22 @@ class Model(Lister, BaseClient):
     return response.eval_metrics
 
   def evaluate(self,
-               dataset_id: str,
+               dataset: Dataset = None,
+               dataset_id: str = None,
                dataset_app_id: str = None,
                dataset_user_id: str = None,
+               dataset_version_id: str = None,
                eval_id: str = None,
                extended_metrics: dict = None,
                eval_info: dict = None) -> resources_pb2.EvalMetrics:
     """ Run evaluation
 
     Args:
-      dataset_id (str): Dataset Id.
+      dataset (Dataset): If Clarifai Dataset is set, it will ignore other arguments prefixed with 'dataset_'.
+      dataset_id (str): Dataset Id. Default is None.
       dataset_app_id (str): App ID for cross app evaluation, leave it as None to use Model App ID. Default is None.
       dataset_user_id (str): User ID for cross app evaluation, leave it as None to use Model User ID. Default is None.
+      dataset_version_id (str): Dataset version Id. Default is None.
       eval_id (str): Specific ID for the evaluation. You must specify this parameter to either overwrite the result with the dataset ID or format your evaluation in an informative manner. If you don't, it will use random ID from system. Default is None.
       extended_metrics (dict): user custom metrics result. Default is None.
       eval_info (dict): custom eval info. Default is empty dict.
@@ -638,6 +644,23 @@ class Model(Lister, BaseClient):
 
     """
     assert self.model_info.model_version.id, "Model version is empty. Please provide `model_version` as arguments or with a URL as the format '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+
+    if dataset:
+      self.logger.info("Using dataset, ignore other arguments prefixed with 'dataset_'")
+      dataset_id = dataset.id
+      dataset_app_id = dataset.app_id
+      dataset_user_id = dataset.user_id
+      dataset_version_id = dataset.version.id
+    else:
+      self.logger.warning(
+          "Arguments prefixed with `dataset_` will be removed soon, please use dataset")
+
+    gt_dataset = resources_pb2.Dataset(
+        id=dataset_id,
+        app_id=dataset_app_id or self.auth_helper.app_id,
+        user_id=dataset_user_id or self.auth_helper.user_id,
+        version=resources_pb2.DatasetVersion(id=dataset_version_id))
+
     metrics = None
     if isinstance(extended_metrics, dict):
       metrics = Struct()
@@ -659,11 +682,7 @@ class Model(Lister, BaseClient):
             model_version=resources_pb2.ModelVersion(id=self.model_info.model_version.id),
         ),
         extended_metrics=metrics,
-        ground_truth_dataset=resources_pb2.Dataset(
-            id=dataset_id,
-            app_id=dataset_app_id or self.auth_helper.app_id,
-            user_id=dataset_user_id or self.auth_helper.user_id,
-        ),
+        ground_truth_dataset=gt_dataset,
         eval_info=eval_info_params,
     )
     request = service_pb2.PostEvaluationsRequest(
@@ -760,6 +779,158 @@ class Model(Lister, BaseClient):
           metrics_by_area=metrics_by_area)
 
     return result
+
+  def get_eval_by_dataset(self, dataset: Dataset) -> List[resources_pb2.EvalMetrics]:
+    """Get all eval data of dataset
+
+    Args:
+        dataset (Dataset): Clarifai dataset
+
+    Returns:
+        List[resources_pb2.EvalMetrics]
+    """
+    _id = dataset.id
+    app = dataset.app_id or self.app_id
+    user_id = dataset.user_id or self.user_id
+    version = dataset.version.id
+
+    list_eval: resources_pb2.EvalMetrics = self.list_evaluations()
+    outputs = []
+    for _eval in list_eval:
+      if _eval.status.code == status_code_pb2.MODEL_EVALUATED:
+        gt_ds = _eval.ground_truth_dataset
+        if (_id == gt_ds.id and user_id == gt_ds.user_id and app == gt_ds.app_id):
+          if not version or version == gt_ds.version.id:
+            outputs.append(_eval)
+
+    return outputs
+
+  def get_raw_eval(self,
+                   dataset: Dataset = None,
+                   eval_id: str = None,
+                   return_format: str = 'array') -> Union[resources_pb2.EvalTestSetEntry, Tuple[
+                       np.array, np.array, list, List[Input]], Tuple[List[dict], List[dict]]]:
+    """Get ground truths, predictions and input information. Do not pass dataset and eval_id at same time
+
+    Args:
+        dataset (Dataset): Clarifai dataset, get eval data of latest eval result of dataset.
+        eval_id (str): Evaluation ID, get eval data of specific eval id.
+        return_format (str, optional): Choice {proto, array, coco}. !Note that `coco` is only applicable for 'visual-detector'. Defaults to 'array'.
+
+    Returns:
+
+        Depends on `return_format`.
+
+        * if return_format == proto
+          `resources_pb2.EvalTestSetEntry`
+
+        * if return_format == array
+          `Tuple(np.array, np.array, List[str], List[Input])`: Tuple has 4 elements (y, y_pred, concept_ids, inputs).
+            y, y_pred, concept_ids can be used to compute metrics. 'inputs' can be use to download
+            - if model is 'classifier': 'y' and 'y_pred' are both arrays with a shape of (num_inputs,)
+            - if model is 'visual-detector': 'y' and 'y_pred' are arrays with a shape of (num_inputs,), where each element is array has shape (num_annotation, 6) consists of [x_min, y_min, x_max, y_max, concept_index, score]. The score is always 1 for 'y'
+
+        * if return_format == coco: Applicable only for 'visual-detector'
+          `Tuple[List[Dict], List[Dict]]`: Tuple has 2 elemnts where first element is COCO Ground Truth and last one is COCO Prediction Annotation
+
+    Example Usages:
+    ------
+    * Evaluate `visual-classifier` using sklearn
+
+    ```python
+    import os
+    from sklearn.metrics import accuracy_score
+    from sklearn.metrics import classification_report
+    import numpy as np
+    from clarifai.client.model import Model
+    from clarifai.client.dataset import Dataset
+    os.environ["CLARIFAI_PAT"] = "???"
+    model = Model(url="url/of/model/includes/version-id")
+    dataset = Dataset(dataset_id="dataset-id")
+    y, y_pred, clss, input_protos = model.get_raw_eval(dataset, return_format="array")
+    y = np.argmax(y, axis=1)
+    y_pred = np.argmax(y_pred, axis=1)
+    report = classification_report(y, y_pred, target_names=clss)
+    print(report)
+    acc = accuracy_score(y, y_pred)
+    print("acc ", acc)
+    ```
+
+    * Evaluate `visual-detector` using COCOeval
+
+    ```python
+    import os
+    import json
+    from pycocotools.coco import COCO
+    from pycocotools.cocoeval import COCOeval
+    from clarifai.client.model import Model
+    from clarifai.client.dataset import Dataset
+    os.environ["CLARIFAI_PAT"] = "???" # Insert your PAT
+    model = Model(url=model_url)
+    dataset = Dataset(url=dataset_url)
+    y, y_pred = model.get_raw_eval(dataset, return_format="coco")
+    # save as files to load in COCO API
+    def save_annot(d, path):
+      with open(path, "w") as fp:
+        json.dump(d, fp, indent=2)
+    gt_path = os.path.join("gt.json")
+    pred_path = os.path.join("pred.json")
+    save_annot(y, gt_path)
+    save_annot(y_pred, pred_path)
+
+    cocoGt = COCO(gt_path)
+    cocoPred = COCO(pred_path)
+    cocoEval = COCOeval(cocoGt, cocoPred, "bbox")
+    cocoEval.evaluate()
+    cocoEval.accumulate()
+    cocoEval.summarize() # Print out result of all classes with all area type
+    # Example:
+    # Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.863
+    # Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.973
+    # Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.939
+    # ...
+    ```
+
+
+    """
+    from clarifai.utils.evaluation.testset_annotation_parser import (
+        parse_eval_annotation_classifier, parse_eval_annotation_detector,
+        parse_eval_annotation_detector_coco)
+
+    valid_model_types = ["visual-classifier", "text-classifier", "visual-detector"]
+    supported_format = ['proto', 'array', 'coco']
+    assert return_format in supported_format, ValueError(
+        f"Expected return_format in {supported_format}, got {return_format}")
+    self.load_info()
+    model_type_id = self.model_info.model_type_id
+    assert model_type_id in valid_model_types, \
+      f"This method only supports model types {valid_model_types}, but your model type is {self.model_info.model_type_id}."
+    assert not (dataset and
+                eval_id), "Using both `dataset` and `eval_id`, but only one should be passed."
+    assert not dataset or not eval_id, "Please provide either `dataset` or `eval_id`, but nothing was passed."
+    if model_type_id.endswith("-classifier") and return_format == "coco":
+      raise ValueError(
+          f"return_format coco only applies for `visual-detector`, however your model is `{model_type_id}`"
+      )
+
+    if dataset:
+      eval_by_ds = self.get_eval_by_dataset(dataset)
+      if len(eval_by_ds) == 0:
+        raise Exception(f"Model is not valuated with dataset: {dataset}")
+      eval_id = eval_by_ds[0].id
+
+    detail_eval_data = self.get_eval_by_id(eval_id=eval_id, test_set=True, metrics_by_class=True)
+
+    if return_format == "proto":
+      return detail_eval_data.test_set
+    else:
+      if model_type_id.endswith("-classifier"):
+        return parse_eval_annotation_classifier(detail_eval_data)
+      elif model_type_id == "visual-detector":
+        if return_format == "array":
+          return parse_eval_annotation_detector(detail_eval_data)
+        elif return_format == "coco":
+          return parse_eval_annotation_detector_coco(detail_eval_data)
 
   def export(self, export_dir: str = None) -> None:
     """Export the model, stores the exported model as model.tar file
