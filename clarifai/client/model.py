@@ -245,7 +245,7 @@ class Model(Lister, BaseClient):
 
     return response.model.model_version.id
 
-  def training_status(self, version_id: str, training_logs: bool = False) -> Dict[str, str]:
+  def training_status(self, version_id: str = None, training_logs: bool = False) -> Dict[str, str]:
     """Get the training status for the model version. Also stores training logs
 
     Args:
@@ -260,19 +260,20 @@ class Model(Lister, BaseClient):
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
         >>> model.training_status(version_id='version_id',training_logs=True)
     """
+    if not version_id and not self.model_info.model_version.id:
+      raise UserError(
+          "Model version ID is missing. Please provide a `model_version` with a valid `id` as an argument or as a URL in the following format: '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+      )
+
+    if not self.model_info.model_type_id or not self.model_info.model_version.train_log:
+      self.load_info()
     if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
       raise UserError(f"Model type {self.model_info.model_type_id} is not trainable")
 
-    request = service_pb2.GetModelVersionRequest(
-        user_app_id=self.user_app_id, model_id=self.id, version_id=version_id)
-    response = self._grpc_request(self.STUB.GetModelVersion, request)
-    if response.status.code != status_code_pb2.SUCCESS:
-      raise Exception(response.status)
-
     if training_logs:
       try:
-        if response.model_version.train_log:
-          log_response = requests.get(response.model_version.train_log)
+        if self.model_info.model_version.train_log:
+          log_response = requests.get(self.model_info.model_version.train_log)
           log_response.raise_for_status()  # Check for any HTTP errors
           with open(version_id + '.log', 'wb') as file:
             for chunk in log_response.iter_content(chunk_size=4096):  # 4KB
@@ -282,7 +283,7 @@ class Model(Lister, BaseClient):
       except requests.exceptions.RequestException as e:
         raise Exception(f"An error occurred while getting training logs: {e}")
 
-    return response.model_version.status
+    return self.model_info.model_version.status
 
   def delete_version(self, version_id: str) -> None:
     """Deletes a model version for the Model.

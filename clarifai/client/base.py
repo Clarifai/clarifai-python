@@ -160,6 +160,8 @@ class BaseClient:
             value = value_s
           elif key == 'metrics':
             continue
+          elif key == 'size':
+            value = int(value)
           elif key in ['metadata']:
             if isinstance(value, dict) and value != {}:
               value_s = struct_pb2.Struct()
