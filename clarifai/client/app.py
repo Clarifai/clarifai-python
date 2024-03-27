@@ -374,8 +374,8 @@ class App(Lister, BaseClient):
       output_info = get_yaml_output_info_proto(node['model'].get('output_info', None))
       try:
         model = self.model(
-            node['model']['model_id'],
-            node['model'].get('model_version_id', ""),
+            model_id=node['model']['model_id'],
+            model_version={"id": node['model'].get('model_version_id', "")},
             user_id=node['model'].get('user_id', ""),
             app_id=node['model'].get('app_id', ""))
       except Exception as e:
