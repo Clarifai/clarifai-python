@@ -1,7 +1,6 @@
 import json
 import os
 import time
-from collections import defaultdict
 from typing import Any, Dict, Generator, List, Union
 
 import requests
@@ -56,7 +55,7 @@ class Model(Lister, BaseClient):
       user_id, app_id, _, model_id, model_version_id = ClarifaiUrlHelper.split_clarifai_url(url)
       model_version = {'id': model_version_id}
       kwargs = {'user_id': user_id, 'app_id': app_id}
-    self.kwargs = {**kwargs, 'id': model_id, 'model_version': model_version,}
+    self.kwargs = {**kwargs, 'id': model_id, 'model_version': model_version, }
     self.model_info = resources_pb2.Model(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
     self.training_params = {}
@@ -124,11 +123,11 @@ class Model(Lister, BaseClient):
       raise Exception(response.status)
     params = response_to_model_params(
         response=response, model_type_id=self.model_info.model_type_id, template=template)
-    #yaml file
+    # yaml file
     assert save_to.endswith('.yaml'), "File extension should be .yaml"
     with open(save_to, 'w') as f:
       yaml.dump(params, f, default_flow_style=False, sort_keys=False)
-    #updating the global model params
+    # updating the global model params
     self.training_params.update(params)
 
     return params
@@ -151,14 +150,14 @@ class Model(Lister, BaseClient):
       raise UserError(
           f"Run 'model.get_params' to get the params for the {self.model_info.model_type_id} model type"
       )
-    #getting all the keys in nested dictionary
+    # getting all the keys in nested dictionary
     all_keys = [key for key in self.training_params.keys()] + [
         key for key in self.training_params.values() if isinstance(key, dict) for key in key
     ]
-    #checking if the given params are valid
+    # checking if the given params are valid
     if not set(kwargs.keys()).issubset(all_keys):
       raise UserError("Invalid params")
-    #updating the global model params
+    # updating the global model params
     for key, value in kwargs.items():
       find_and_replace_key(self.training_params, key, value)
 
@@ -230,7 +229,7 @@ class Model(Lister, BaseClient):
         params_dict = yaml.safe_load(file)
     else:
       params_dict = self.training_params
-    #getting all the concepts for the model type
+    # getting all the concepts for the model type
     if self.model_info.model_type_id not in ["clusterer", "text-to-text"]:
       concepts = self._list_concepts()
     train_dict = params_parser(params_dict, concepts)
@@ -414,7 +413,7 @@ class Model(Lister, BaseClient):
       response = self._grpc_request(self.STUB.PostModelOutputs, request)
 
       if response.status.code == status_code_pb2.MODEL_DEPLOYING and \
-        time.time() - start_time < 60 * 10: # 10 minutes
+              time.time() - start_time < 60 * 10:  # 10 minutes
         self.logger.info(f"{self.id} model is still deploying, please wait...")
         time.sleep(next(backoff_iterator))
         continue
@@ -836,7 +835,7 @@ class Model(Lister, BaseClient):
       while True:
         get_export_response = _get_export_response()
         if get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTING and \
-          time.time() - start_time < 60 * 30: # 30 minutes
+                time.time() - start_time < 60 * 30:  # 30 minutes
           self.logger.info(
               f"Model ID {self.id} with version {self.model_info.model_version.id} is still exporting, please wait..."
           )
@@ -913,9 +912,9 @@ class Model(Lister, BaseClient):
                              output_field_maps: dict,
                              inference_parameter_configs: dict = None,
                              model_version: str = None,
-                             part_id: int = None,
+                             part_id: int = 1,
                              chunk_size: int = None,
-                             range_start: int = None,
+                             range_start: int = 0,
                              no_cache: bool = False,
                              no_resume: bool = False,
                              description: str = "") -> 'Model':
@@ -929,9 +928,9 @@ class Model(Lister, BaseClient):
           {clarifai_output_field1: triton_output_filed1, clarifai_output_field2: triton_output_filed2,...}.
         inference_parameter_configs (List[dict]): list of dicts - keys are path, field_type, default_value, description. Default is None
         model_version (str, optional): Custom model version. Defaults to None.
-        part_id (int, optional): part id of file. Defaults to None.
+        part_id (int, optional): part id of file. Defaults to 1.
         chunk_size (int, optional): chunk size. Defaults to None.
-        range_start (int, optional): range of uploaded size. Defaults to None.
+        range_start (int, optional): range of uploaded size. Defaults to 0.
         no_cache (bool, optional): not saving uploading cache that is used to resume uploading. Defaults to False.
         no_resume (bool, optional): disable auto resume upload. Defaults to False.
         description (str): Model description.
@@ -940,31 +939,31 @@ class Model(Lister, BaseClient):
       Model: instance of Model with new created version
 
     """
-    MIN_CHUNK = 1024 * 5000
     file_size = os.path.getsize(file_path)
+    # size >= 1GB
+    if file_size >= 1e9:
+      MIN_CHUNK = 1024 * 50_000  # 50MB
+    else:
+      MIN_CHUNK = 1024 * 10_000  # 10MB
+
+    MAX_SIZE_PER_STREAM = int(85_000_000)
     pretrained_proto = Model._make_pretrained_config_proto(
         input_field_maps=input_field_maps, output_field_maps=output_field_maps)
     inference_param_proto = Model._make_inference_params_proto(
         inference_parameter_configs) if inference_parameter_configs else None
 
     if not chunk_size:
-      n_step = int(round(file_size / MIN_CHUNK, 1))
-      for i in range(n_step, 0, -1):
-        chunk_size = file_size // i
-        last_part_size = file_size - chunk_size * i
-        if last_part_size >= MIN_CHUNK or last_part_size == 0:
-          if file_size >= 1e6 * 1024 and chunk_size < 2 * MIN_CHUNK:
-            continue
-          break
-      self.logger.info(f"{chunk_size}, {i} steps")
+      chunk_size = MIN_CHUNK + 5
+
+    #self.logger.info(f"Chunk {chunk_size/1e6}MB, {file_size/chunk_size} steps")
+    #self.logger.info(f" Max bytes per stream {MAX_SIZE_PER_STREAM}")
+
     if chunk_size < MIN_CHUNK:
       raise ValueError("Chunk size must be at least 5MB")
 
-    part_id = part_id or 0
-    range_start = range_start or 0 - chunk_size
     cache_dir = os.path.join(file_path, '..', '.cache')
     cache_upload_file = os.path.join(cache_dir, "upload.json")
-
+    last_percent = 0
     if os.path.exists(cache_upload_file) and not no_resume:
       with open(cache_upload_file, "r") as fp:
         try:
@@ -972,12 +971,13 @@ class Model(Lister, BaseClient):
           if isinstance(cache_info, dict):
             part_id = cache_info.get("part_id", part_id)
             chunk_size = cache_info.get("chunk_size", chunk_size)
-            range_start = cache_info.get("range_start", range_start) - chunk_size
+            range_start = cache_info.get("range_start", range_start)
             model_version = cache_info.get("model_version", model_version)
-        except Exception as _:
+            last_percent = cache_info.get("last_percent", last_percent)
+        except Exception:
           pass
 
-    def init_reqs():
+    def init_reqs(model_version):
       return service_pb2.PostModelVersionsUploadRequest(
           upload_config=service_pb2.PostModelVersionsUploadConfig(
               user_app_id=self.user_app_id,
@@ -990,7 +990,7 @@ class Model(Lister, BaseClient):
                   output_info=resources_pb2.OutputInfo(params_specs=inference_param_proto)),
           ))
 
-    def _uploading(chunk, part_id, range_start):
+    def _uploading(chunk, part_id, range_start, model_version):
       return service_pb2.PostModelVersionsUploadRequest(
           upload_config=service_pb2.PostModelVersionsUploadConfig(
               user_app_id=self.user_app_id,
@@ -1004,42 +1004,10 @@ class Model(Lister, BaseClient):
           content_part=resources_pb2.UploadContentPart(
               data=chunk, part_number=part_id, range_start=range_start))
 
-    def _stream(chunk_size, _part_id, _range_start):
-      count = 0
-      count_size = 0
-      part_id = _part_id
-      range_start = _range_start
-      with open(file_path, "rb") as fp:
-        while count_size < file_size:
-          if count == 0:
-            count += 1
-            yield init_reqs()
-          count += 1
-          chunk = fp.read(chunk_size)
-          count_size += len(chunk)
-          if not chunk or range_start > file_size:
-            break
-          if count < part_id:
-            continue
-          else:
-            part_id += 1
-            range_start += chunk_size
-            if range_start > file_size:
-              range_start = file_size
-            yield _uploading(chunk, part_id=part_id, range_start=range_start)
-
     finished_status = [status_code_pb2.SUCCESS, status_code_pb2.UPLOAD_DONE]
     uploading_in_progress_status = [
         status_code_pb2.UPLOAD_IN_PROGRESS, status_code_pb2.MODEL_UPLOADING
     ]
-
-    cache_uploading_info = defaultdict(lambda: 0)
-    tqdm_loader = tqdm(total=100)
-
-    if model_version:
-      tqdm_loader.set_description(f"Uploading model `{self.id}` version `{model_version}` ...")
-    else:
-      tqdm_loader.set_description(f"Uploading model `{self.id}` ...")
 
     def _save_cache(cache: dict):
       if not no_cache:
@@ -1047,40 +1015,103 @@ class Model(Lister, BaseClient):
         with open(cache_upload_file, "w") as fp:
           json.dump(cache, fp, indent=2)
 
-    last_percent = 0
-    for step_id, stream_resp in enumerate(self.auth_helper.get_stub().PostModelVersionsUpload(
-        _stream(chunk_size=chunk_size, _part_id=part_id, _range_start=range_start),
-        metadata=self.auth_helper.metadata)):
-      if step_id > 0 and stream_resp.status.code in uploading_in_progress_status:
-        cache_uploading_info["model_version"] = stream_resp.model_version_id
-        cache_uploading_info["part_id"] += 1  # as step_id starts from 0
-        cache_uploading_info["range_start"] += chunk_size
-        cache_uploading_info["chunk_size"] = chunk_size
-        if cache_uploading_info["range_start"] > file_size:
-          cache_uploading_info["range_start"] = file_size
+    def stream_request(fp, part_id, end_part_id, chunk_size, version):
+      yield init_reqs(version)
+      for iter_part_id in range(part_id, end_part_id):
+        chunk = fp.read(chunk_size)
+        if not chunk:
+          return
+        yield _uploading(
+            chunk=chunk,
+            part_id=iter_part_id,
+            range_start=chunk_size * (iter_part_id - 1),
+            model_version=version)
 
-        tqdm_loader.set_description(
-            f"{stream_resp.status.description}, {stream_resp.status.details}")
-        if stream_resp.status.percent_completed:
-          step_percent = stream_resp.status.percent_completed - last_percent
-          tqdm_loader.update(step_percent)
-          last_percent += step_percent
+    tqdm_loader = tqdm(total=100)
+    if model_version:
+      desc = f"Uploading model `{self.id}` version `{model_version}` ..."
+    else:
+      desc = f"Uploading model `{self.id}` ..."
+    tqdm_loader.set_description(desc)
 
-        _save_cache(cache_uploading_info)
-      elif stream_resp.status.code not in finished_status + uploading_in_progress_status:
-        raise Exception(f"Failed to upload model, error: {stream_resp.status}")
+    cache_uploading_info = {}
+    cache_uploading_info["part_id"] = part_id
+    cache_uploading_info["model_version"] = model_version
+    cache_uploading_info["range_start"] = range_start
+    cache_uploading_info["chunk_size"] = chunk_size
+    cache_uploading_info["last_percent"] = last_percent
+    tqdm_loader.update(last_percent)
+    last_part_id = part_id
+    n_chunks = file_size // chunk_size
+    n_chunk_per_stream = MAX_SIZE_PER_STREAM // chunk_size or 1
+
+    def stream(request, expected_steps: int = None):
+      for st_step, st_response in enumerate(self.auth_helper.get_stub().PostModelVersionsUpload(
+          request, metadata=self.auth_helper.metadata)):
+        if st_response.status.code in uploading_in_progress_status:
+          if cache_uploading_info["model_version"]:
+            assert st_response.model_version_id == cache_uploading_info[
+                "model_version"], RuntimeError
+          else:
+            cache_uploading_info["model_version"] = st_response.model_version_id
+          if st_step > 0:
+            cache_uploading_info["part_id"] += 1
+            cache_uploading_info["range_start"] += chunk_size
+            _save_cache(cache_uploading_info)
+
+            if st_response.status.percent_completed:
+              step_percent = st_response.status.percent_completed - cache_uploading_info["last_percent"]
+              cache_uploading_info["last_percent"] += step_percent
+              tqdm_loader.set_description(
+                  f"{st_response.status.description}, {st_response.status.details}, version id  {cache_uploading_info.get('model_version')}"
+              )
+              tqdm_loader.update(step_percent)
+        elif st_response.status.code not in finished_status + uploading_in_progress_status:
+          # TODO: Find better way to handle error
+          if expected_steps and st_step < expected_steps:
+            raise Exception(f"Failed to upload model, error: {st_response.status}")
+
+    with open(file_path, 'rb') as fp:
+      # seeking
+      for _ in range(1, last_part_id):
+        fp.read(chunk_size)
+      # Stream even part
+      end_part_id = n_chunks or 1
+      for iter_part_id in range(int(last_part_id), int(n_chunks), int(n_chunk_per_stream)):
+        end_part_id = iter_part_id + n_chunk_per_stream
+        if end_part_id >= n_chunks:
+          end_part_id = n_chunks
+        expected_steps = end_part_id - iter_part_id + 1  # init step
+        st_reqs = stream_request(
+            fp,
+            iter_part_id,
+            end_part_id=end_part_id,
+            chunk_size=chunk_size,
+            version=cache_uploading_info["model_version"])
+        stream(st_reqs, expected_steps)
+      # Stream last part
+      accum_size = (end_part_id - 1) * chunk_size
+      remained_size = file_size - accum_size if accum_size >= 0 else file_size
+      st_reqs = stream_request(
+          fp,
+          end_part_id,
+          end_part_id=end_part_id + 1,
+          chunk_size=remained_size,
+          version=cache_uploading_info["model_version"])
+      stream(st_reqs, 2)
 
     # clean up cache
     if not no_cache:
       try:
         os.remove(cache_upload_file)
-      except Exception as _:
+      except Exception:
         _save_cache({})
-    if last_percent <= 100:
-      tqdm_loader.update(100 - last_percent)
+
+    if cache_uploading_info["last_percent"] <= 100:
+      tqdm_loader.update(100 - cache_uploading_info["last_percent"])
       tqdm_loader.set_description("Upload done")
 
-    self.logger.info(
+    tqdm_loader.set_description(
         f"Success uploading model {self.id}, new version {cache_uploading_info.get('model_version')}"
     )
 
