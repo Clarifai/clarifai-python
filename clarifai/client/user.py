@@ -7,9 +7,20 @@ from google.protobuf.json_format import MessageToDict
 from clarifai.client.app import App
 from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
-from clarifai.client.runner import Runner
 from clarifai.errors import UserError
 from clarifai.utils.logging import get_logger
+
+try:
+  from clarifai_runners.runner import Runner
+  _installed_runner = True
+except ImportError:
+  _installed_runner = False
+
+
+def _check_import_runner():
+  assert _installed_runner, ImportError(
+      "Module `clarifai_runners` is not found. Please run `pip install runners-python` to install the module."
+  )
 
 
 class User(Lister, BaseClient):
@@ -69,7 +80,7 @@ class User(Lister, BaseClient):
           **app_info)  #(base_url=self.base, pat=self.pat, token=self.token, **app_info)
 
   def list_runners(self, filter_by: Dict[str, Any] = {}, page_no: int = None,
-                   per_page: int = None) -> Generator[Runner, None, None]:
+                   per_page: int = None) -> Generator['Runner', None, None]:
     """List all runners for the user
 
     Args:
@@ -89,6 +100,7 @@ class User(Lister, BaseClient):
         Defaults to 16 per page if page_no is specified and per_page is not specified.
         If both page_no and per_page are None, then lists all the resources.
     """
+    _check_import_runner()
     request_data = dict(user_app_id=self.user_app_id, **filter_by)
     all_runners_info = self.list_pages_generator(
         self.STUB.ListRunners,
@@ -127,7 +139,7 @@ class User(Lister, BaseClient):
     self.logger.info("\nApp created\n%s", response.status)
     return App.from_auth_helper(auth=self.auth_helper, app_id=app_id)
 
-  def create_runner(self, runner_id: str, labels: List[str], description: str) -> Runner:
+  def create_runner(self, runner_id: str, labels: List[str], description: str) -> 'Runner':
     """Create a runner
 
     Args:
@@ -143,6 +155,8 @@ class User(Lister, BaseClient):
         >>> client = User(user_id="user_id")
         >>> runner = client.create_runner(runner_id="runner_id", labels=["label to link runner"], description="laptop runner")
     """
+    _check_import_runner()
+
     if not isinstance(labels, List):
       raise UserError("Labels must be a List of strings")
 
@@ -186,7 +200,7 @@ class User(Lister, BaseClient):
     kwargs['user_id'] = self.id
     return App.from_auth_helper(auth=self.auth_helper, app_id=app_id, **kwargs)
 
-  def runner(self, runner_id: str) -> Runner:
+  def runner(self, runner_id: str) -> 'Runner':
     """Returns a Runner object if exists.
 
     Args:
@@ -200,6 +214,7 @@ class User(Lister, BaseClient):
         >>> client = User(user_id="user_id")
         >>> runner = client.runner(runner_id="runner_id")
     """
+    _check_import_runner()
     request = service_pb2.GetRunnerRequest(user_app_id=self.user_app_id, runner_id=runner_id)
     response = self._grpc_request(self.STUB.GetRunner, request)
     if response.status.code != status_code_pb2.SUCCESS:
