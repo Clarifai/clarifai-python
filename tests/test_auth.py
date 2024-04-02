@@ -95,3 +95,10 @@ def test_exception_empty_pat():
       "Need 'pat' or 'token' in the query params or use one of the CLARIFAI_PAT or CLARIFAI_SESSION_TOKEN env vars"
   ):
     ClarifaiAuthHelper("clarifai", "main", "")
+
+
+def test_exception_path_root_cert():
+  ClarifaiAuthHelper(
+      "clarifai", "main", "fake_pat", root_certificates_path='fake_file.crt', validate=False)
+  with pytest.raises(Exception, match="Root certificates path fake_file.crt does not exist"):
+    ClarifaiAuthHelper("clarifai", "main", "fake_pat", root_certificates_path='fake_file.crt')
