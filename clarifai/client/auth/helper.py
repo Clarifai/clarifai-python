@@ -116,7 +116,7 @@ class ClarifaiAuthHelper:
       raise Exception(
           "Need 'pat' or 'token' in the query params or use one of the CLARIFAI_PAT or CLARIFAI_SESSION_TOKEN env vars"
       )
-    if not os.path.exists(self._root_certificates_path):
+    if (self._root_certificates_path) and (not os.path.exists(self._root_certificates_path)):
       raise Exception("Root certificates path %s does not exist" % self._root_certificates_path)
 
   @classmethod
