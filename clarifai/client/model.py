@@ -24,6 +24,10 @@ from clarifai.utils.model_train import (find_and_replace_key, params_parser,
                                         response_to_model_params, response_to_param_info,
                                         response_to_templates)
 
+MAX_SIZE_PER_STREAM = int(89_128_960)  # 85GiB
+MIN_CHUNK_FOR_UPLOAD_FILE = int(5_242_880)  # 5MiB
+MAX_CHUNK_FOR_UPLOAD_FILE = int(5_242_880_000)  # 5GiB
+
 
 class Model(Lister, BaseClient):
   """Model is a class that provides access to Clarifai API endpoints related to Model information."""
@@ -913,7 +917,6 @@ class Model(Lister, BaseClient):
                              inference_parameter_configs: dict = None,
                              model_version: str = None,
                              part_id: int = 1,
-                             chunk_size: int = None,
                              range_start: int = 0,
                              no_cache: bool = False,
                              no_resume: bool = False,
@@ -929,7 +932,6 @@ class Model(Lister, BaseClient):
         inference_parameter_configs (List[dict]): list of dicts - keys are path, field_type, default_value, description. Default is None
         model_version (str, optional): Custom model version. Defaults to None.
         part_id (int, optional): part id of file. Defaults to 1.
-        chunk_size (int, optional): chunk size. Defaults to None.
         range_start (int, optional): range of uploaded size. Defaults to 0.
         no_cache (bool, optional): not saving uploading cache that is used to resume uploading. Defaults to False.
         no_resume (bool, optional): disable auto resume upload. Defaults to False.
@@ -940,26 +942,20 @@ class Model(Lister, BaseClient):
 
     """
     file_size = os.path.getsize(file_path)
-    # size >= 1GB
-    if file_size >= 1e9:
-      MIN_CHUNK = 1024 * 50_000  # 50MB
-    else:
-      MIN_CHUNK = 1024 * 10_000  # 10MB
+    assert MIN_CHUNK_FOR_UPLOAD_FILE <= file_size <= MAX_CHUNK_FOR_UPLOAD_FILE, "The file size exceeds the allowable limit, which ranges from 5MiB to 5GiB."
 
-    MAX_SIZE_PER_STREAM = int(85_000_000)
     pretrained_proto = Model._make_pretrained_config_proto(
         input_field_maps=input_field_maps, output_field_maps=output_field_maps)
     inference_param_proto = Model._make_inference_params_proto(
         inference_parameter_configs) if inference_parameter_configs else None
 
-    if not chunk_size:
-      chunk_size = MIN_CHUNK + 5
+    if file_size >= 1e9:
+      chunk_size = 1024 * 50_000  # 50MB
+    else:
+      chunk_size = 1024 * 10_000  # 10MB
 
     #self.logger.info(f"Chunk {chunk_size/1e6}MB, {file_size/chunk_size} steps")
     #self.logger.info(f" Max bytes per stream {MAX_SIZE_PER_STREAM}")
-
-    if chunk_size < MIN_CHUNK:
-      raise ValueError("Chunk size must be at least 5MB")
 
     cache_dir = os.path.join(file_path, '..', '.cache')
     cache_upload_file = os.path.join(cache_dir, "upload.json")
@@ -977,7 +973,7 @@ class Model(Lister, BaseClient):
         except Exception:
           pass
 
-    def init_reqs(model_version):
+    def init_model_version_upload(model_version):
       return service_pb2.PostModelVersionsUploadRequest(
           upload_config=service_pb2.PostModelVersionsUploadConfig(
               user_app_id=self.user_app_id,
@@ -992,15 +988,6 @@ class Model(Lister, BaseClient):
 
     def _uploading(chunk, part_id, range_start, model_version):
       return service_pb2.PostModelVersionsUploadRequest(
-          upload_config=service_pb2.PostModelVersionsUploadConfig(
-              user_app_id=self.user_app_id,
-              model_id=self.id,
-              total_size=file_size,
-              model_version=resources_pb2.ModelVersion(
-                  id=model_version,
-                  pretrained_model_config=pretrained_proto,
-                  description=description,
-                  output_info=resources_pb2.OutputInfo(params_specs=inference_param_proto))),
           content_part=resources_pb2.UploadContentPart(
               data=chunk, part_number=part_id, range_start=range_start))
 
@@ -1016,7 +1003,7 @@ class Model(Lister, BaseClient):
           json.dump(cache, fp, indent=2)
 
     def stream_request(fp, part_id, end_part_id, chunk_size, version):
-      yield init_reqs(version)
+      yield init_model_version_upload(version)
       for iter_part_id in range(part_id, end_part_id):
         chunk = fp.read(chunk_size)
         if not chunk:
@@ -1045,7 +1032,7 @@ class Model(Lister, BaseClient):
     n_chunks = file_size // chunk_size
     n_chunk_per_stream = MAX_SIZE_PER_STREAM // chunk_size or 1
 
-    def stream(request, expected_steps: int = None):
+    def stream_and_logging(request, tqdm_loader, cache_uploading_info, expected_steps: int = None):
       for st_step, st_response in enumerate(self.auth_helper.get_stub().PostModelVersionsUpload(
           request, metadata=self.auth_helper.metadata)):
         if st_response.status.code in uploading_in_progress_status:
@@ -1088,7 +1075,7 @@ class Model(Lister, BaseClient):
             end_part_id=end_part_id,
             chunk_size=chunk_size,
             version=cache_uploading_info["model_version"])
-        stream(st_reqs, expected_steps)
+        stream_and_logging(st_reqs, tqdm_loader, cache_uploading_info, expected_steps)
       # Stream last part
       accum_size = (end_part_id - 1) * chunk_size
       remained_size = file_size - accum_size if accum_size >= 0 else file_size
@@ -1098,7 +1085,7 @@ class Model(Lister, BaseClient):
           end_part_id=end_part_id + 1,
           chunk_size=remained_size,
           version=cache_uploading_info["model_version"])
-      stream(st_reqs, 2)
+      stream_and_logging(st_reqs, tqdm_loader, cache_uploading_info, 2)
 
     # clean up cache
     if not no_cache:
