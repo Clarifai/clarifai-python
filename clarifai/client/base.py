@@ -22,6 +22,7 @@ class BaseClient:
           - token (str): A session token for authentication. Accepts either a session token or a pat.
           - base (str): The base URL for the API endpoint. Defaults to 'https://api.clarifai.com'.
           - ui (str): The URL for the UI. Defaults to 'https://clarifai.com'.
+          - root_certificates_path (str): Path to the SSL root certificates file, used to establish secure gRPC connections.
 
 
   Attributes:
@@ -51,14 +52,21 @@ class BaseClient:
     self.token = self.auth_helper._token
     self.user_app_id = self.auth_helper.get_user_app_id_proto()
     self.base = self.auth_helper.base
+    self.root_certificates_path = self.auth_helper._root_certificates_path
 
   @classmethod
   def from_auth_helper(cls, auth: ClarifaiAuthHelper, **kwargs):
     default_kwargs = {
-        "user_id": kwargs.get("user_id", None) or auth.user_id,
-        "app_id": kwargs.get("app_id", None) or auth.app_id,
-        "pat": kwargs.get("pat", None) or auth.pat,
-        "token": kwargs.get("token", None) or auth._token,
+        "user_id":
+            kwargs.get("user_id", None) or auth.user_id,
+        "app_id":
+            kwargs.get("app_id", None) or auth.app_id,
+        "pat":
+            kwargs.get("pat", None) or auth.pat,
+        "token":
+            kwargs.get("token", None) or auth._token,
+        "root_certificates_path":
+            kwargs.get("root_certificates_path", None) or auth._root_certificates_path
     }
     _base = kwargs.get("base", None) or auth.base
     _clss = cls.__mro__[0]
@@ -160,6 +168,8 @@ class BaseClient:
             value = value_s
           elif key == 'metrics':
             continue
+          elif key == 'size':
+            value = int(value)
           elif key in ['metadata']:
             if isinstance(value, dict) and value != {}:
               value_s = struct_pb2.Struct()

@@ -1,3 +1,4 @@
 global-include *.css
 include clarifai/modules/style.css
 recursive-include clarifai *
+include VERSION requirements.txt

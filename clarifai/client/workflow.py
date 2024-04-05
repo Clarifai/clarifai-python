@@ -28,6 +28,7 @@ class Workflow(Lister, BaseClient):
                base_url: str = "https://api.clarifai.com",
                pat: str = None,
                token: str = None,
+               root_certificates_path: str = None,
                **kwargs):
     """Initializes a Workflow object.
 
@@ -43,6 +44,7 @@ class Workflow(Lister, BaseClient):
         base_url (str): Base API url. Default "https://api.clarifai.com"
         pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
         token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
+        root_certificates_path (str): Path to the SSL root certificates file, used to establish secure gRPC connections.
         **kwargs: Additional keyword arguments to be passed to the Workflow.
     """
     if url and workflow_id:
@@ -59,7 +61,13 @@ class Workflow(Lister, BaseClient):
     self.workflow_info = resources_pb2.Workflow(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
     BaseClient.__init__(
-        self, user_id=self.user_id, app_id=self.app_id, base=base_url, pat=pat, token=token)
+        self,
+        user_id=self.user_id,
+        app_id=self.app_id,
+        base=base_url,
+        pat=pat,
+        token=token,
+        root_certificates_path=root_certificates_path)
     Lister.__init__(self)
 
   def predict(self, inputs: List[Input], workflow_state_id: str = None):
