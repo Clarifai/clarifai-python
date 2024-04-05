@@ -900,7 +900,6 @@ class Model(Lister, BaseClient):
     # ...
     ```
 
-
     """
     from clarifai.utils.evaluation.testset_annotation_parser import (
         parse_eval_annotation_classifier, parse_eval_annotation_detector,
