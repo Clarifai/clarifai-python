@@ -1,6 +1,7 @@
 import logging
 import os
 from datetime import datetime
+import time
 
 import pytest
 import yaml
@@ -85,6 +86,11 @@ class Testmodeltrain:
     training_status = self.text_classifier_model.training_status(version_id=model_version_id)
     assert model_version_id  #test model version id from model.train()
     assert training_status.code  #test training_status
+    
+    # NOTE (EAGLE-4139) - Immediately deleting the app causes the training to fail because the first
+    # step of training requires an app, this triggers infra alerts for non graceful exit. We need to delay the deletion
+    # until we get past this step. 
+    time.sleep(10) 
 
     with caplog.at_level(logging.INFO):
       self.text_classifier_model.delete_version(version_id=model_version_id)
