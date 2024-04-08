@@ -14,14 +14,11 @@
 import argparse
 import os
 import subprocess
-from typing import Union
 
-from clarifai.client.auth.helper import ClarifaiAuthHelper
-from clarifai.models.api import Models
-from clarifai.models.model_serving.model_config import (MODEL_TYPES, get_model_config,
-                                                        load_user_config)
+from clarifai.models.model_serving.model_config import get_model_config, load_user_config
 from clarifai.models.model_serving.model_config.inference_parameter import InferParamManager
 
+from ..constants import BUILT_MODEL_EXT
 from ..utils import login
 from .base import BaseClarifaiCli
 
@@ -51,7 +48,9 @@ class UploadModelSubCli(BaseClarifaiCli):
         "Path to working dir to get clarifai_config.yaml or path to yaml. Default is current directory",
         default=".")
     upload_parser.add_argument(
-        "--url", type=str, required=True, help="Direct download url of zip file")
+        "--url", type=str, required=False, help="Direct download url of zip file", default=None)
+    upload_parser.add_argument(
+        "--file", type=str, required=False, help="Local built file", default=None)
     upload_parser.add_argument("--id", type=str, required=False, help="Model ID")
     upload_parser.add_argument(
         "--user-app",
@@ -62,7 +61,10 @@ class UploadModelSubCli(BaseClarifaiCli):
         "--no-test",
         action="store_true",
         help="Trigger this flag to skip testing before uploading")
-
+    upload_parser.add_argument(
+        "--no-resume",
+        action="store_true",
+        help="Trigger this flag to not resume uploading local file")
     upload_parser.add_argument(
         "--update-version",
         action="store_true",
@@ -73,10 +75,13 @@ class UploadModelSubCli(BaseClarifaiCli):
 
   def __init__(self, args: argparse.Namespace) -> None:
     self.no_test = args.no_test
+    self.no_resume = args.no_resume
 
     working_dir_or_config = args.path
     # if input a config file, then not running test
     if working_dir_or_config.endswith(".yaml"):
+      # to folder
+      working_dir_or_config = os.path.split(working_dir_or_config)[0]
       config_yaml_path = working_dir_or_config
       self.test_path = None
       self.no_test = True
@@ -89,12 +94,27 @@ class UploadModelSubCli(BaseClarifaiCli):
         f"`{config_yaml_path}` does not exist")
     self.config = load_user_config(cfg_path=config_yaml_path)
 
+    self.file = args.file
+    self.url = args.url
+    if self.file:
+      assert self.url, ValueError("Provide either file or url, but got both.")
+      assert os.path.exists(self.file), FileNotFoundError
+    elif self.url:
+      assert self.url.startswith("http") or self.url.startswith(
+          "s3"), f"Invalid url supported http or s3 url. Got {self.url}"
+      self.file = None
+    else:
+      for _fname in os.listdir(working_dir_or_config):
+        if _fname.endswith(BUILT_MODEL_EXT):
+          self.file = os.path.join(working_dir_or_config, _fname)
+          break
+      assert self.file, ValueError(
+          f"Not using url/file but also not found built file with extension {BUILT_MODEL_EXT}")
+
     self.user_id, self.app_id = "", ""
     user_app = args.user_app
     self.url: str = args.url
     self.update_version = args.update_version
-    assert self.url.startswith("http") or self.url.startswith(
-        "s3"), f"Invalid url supported http or s3 url. Got {self.url}"
 
     clarifai_cfg = self.config.clarifai_model
     self.url: str = args.url
@@ -111,17 +131,10 @@ class UploadModelSubCli(BaseClarifaiCli):
       ) == 2, f"id must be combination of user_id and app_id separated by `/`, e.g. <user_id>/<app_id>. Got {args.id}"
       self.user_id, self.app_id = user_app
 
-    if self.user_id:
-      os.environ["CLARIFAI_USER_ID"] = self.user_id
-    if self.app_id:
-      os.environ["CLARIFAI_APP_ID"] = self.app_id
-
-    _user_id = os.environ.get("CLARIFAI_USER_ID", None)
-    _app_id = os.environ.get("CLARIFAI_APP_ID", None)
-    assert _user_id or _app_id, f"Missing user-id or app-id, got user-id {_user_id} and app-id {_app_id}"
     login()
 
   def run(self):
+    from clarifai.client import App, Model
 
     # Run test before uploading
     if not self.no_test:
@@ -129,54 +142,38 @@ class UploadModelSubCli(BaseClarifaiCli):
       result = subprocess.run(f"pytest -s --log-level=INFO {self.test_path}", shell=True)
       assert result.returncode == 0, "Test has failed. Please make sure no error exists in your code."
 
-    deploy(
-        model_url=self.url,
-        model_id=self.id,
-        desc=self.desc,
-        model_type=self.type,
-        update_version=self.update_version,
-        inference_parameters=self.infer_param)
+    clarifai_key_map = get_model_config(model_type=self.type).clarifai_model.field_maps
+    # inference parameters
+    inference_parameters = None
+    if isinstance(self.infer_param, str) and os.path.isfile(self.infer_param):
+      inference_parameters = InferParamManager(json_path=self.infer_param).get_list_params()
+    inputs = clarifai_key_map.input_fields_map
+    outputs = clarifai_key_map.output_fields_map
 
+    # if updating new version of existing model
+    def update_version():
+      model = Model(model_id=self.id, app_id=self.app_id)
+      if self.url:
+        model.create_version_by_url(
+            url=self.url,
+            input_field_maps=inputs,
+            output_field_maps=outputs,
+            inference_parameter_configs=inference_parameters,
+            description=self.desc)
+      elif self.file:
+        model.create_version_by_file(
+            file_path=self.file,
+            input_field_maps=inputs,
+            output_field_maps=outputs,
+            inference_parameter_configs=inference_parameters,
+            no_resume=self.no_resume,
+            description=self.desc)
+      else:
+        raise ValueError
 
-def deploy(model_url,
-           model_id: str = None,
-           model_type: str = None,
-           desc: str = "",
-           update_version: bool = False,
-           inference_parameters: Union[dict, str] = None):
-  # init Auth from env vars
-  auth = ClarifaiAuthHelper.from_env()
-  # init api
-  model_api = Models(auth)
-  # key map
-  assert model_type in MODEL_TYPES, f"model_type should be one of {MODEL_TYPES}"
-  clarifai_key_map = get_model_config(model_type=model_type).clarifai_model.field_maps
-  # inference parameters
-  if isinstance(inference_parameters, str) and os.path.isfile(inference_parameters):
-    inference_parameters = InferParamManager(json_path=inference_parameters).get_list_params()
-  # if updating new version of existing model
-  if update_version:
-    resp = model_api.post_model_version(
-        model_id=model_id,
-        model_zip_url=model_url,
-        input=clarifai_key_map.input_fields_map,
-        outputs=clarifai_key_map.output_fields_map,
-        param_specs=inference_parameters)
-  # creating new model
-  else:
-    # post model
-    resp = model_api.upload_model(
-        model_id=model_id,
-        model_zip_url=model_url,
-        model_type=model_type,
-        input=clarifai_key_map.input_fields_map,
-        outputs=clarifai_key_map.output_fields_map,
-        description=desc,
-        param_specs=inference_parameters)
-  # response
-  if resp["status"]["code"] != "SUCCESS":
-    raise Exception("Post models failed, details: {}, {}".format(resp["status"]["description"],
-                                                                 resp["status"]["details"]))
-  else:
-    print("Success!")
-    print(f'Model version: {resp["model"]["model_version"]["id"]}')
+    if self.update_version:
+      update_version()
+    else:
+      # creating new model
+      _ = App(app_id=self.app_id).create_model(self.id, model_type_id=self.type)
+      update_version()
