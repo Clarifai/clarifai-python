@@ -7,7 +7,6 @@ from google.protobuf.json_format import MessageToDict
 from clarifai.client.app import App
 from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
-from clarifai.client.runner import Runner
 from clarifai.errors import UserError
 from clarifai.utils.logging import get_logger
 
@@ -78,7 +77,7 @@ class User(Lister, BaseClient):
           **app_info)  #(base_url=self.base, pat=self.pat, token=self.token, **app_info)
 
   def list_runners(self, filter_by: Dict[str, Any] = {}, page_no: int = None,
-                   per_page: int = None) -> Generator[Runner, None, None]:
+                   per_page: int = None) -> Generator[dict, None, None]:
     """List all runners for the user
 
     Args:
@@ -87,7 +86,7 @@ class User(Lister, BaseClient):
         per_page (int): The number of items per page.
 
     Yields:
-        Runner: Runner objects for the runners.
+        Dict: Dictionaries containing information about the runners.
 
     Example:
         >>> from clarifai.client.user import User
@@ -107,8 +106,7 @@ class User(Lister, BaseClient):
         page_no=page_no)
 
     for runner_info in all_runners_info:
-      yield Runner.from_auth_helper(
-          auth=self.auth_helper, check_runner_exists=False, **runner_info)
+      yield dict(auth=self.auth_helper, check_runner_exists=False, **runner_info)
 
   def create_app(self, app_id: str, base_workflow: str = 'Empty', **kwargs) -> App:
     """Creates an app for the user.
@@ -136,7 +134,7 @@ class User(Lister, BaseClient):
     self.logger.info("\nApp created\n%s", response.status)
     return App.from_auth_helper(auth=self.auth_helper, app_id=app_id)
 
-  def create_runner(self, runner_id: str, labels: List[str], description: str) -> Runner:
+  def create_runner(self, runner_id: str, labels: List[str], description: str) -> dict:
     """Create a runner
 
     Args:
@@ -145,13 +143,14 @@ class User(Lister, BaseClient):
       description (str): Description of Runner
 
     Returns:
-      Runner: A runner object for the specified Runner ID
+      Dict: A dictionary containing information about the specified Runner ID.
 
     Example:
         >>> from clarifai.client.user import User
         >>> client = User(user_id="user_id")
-        >>> runner = client.create_runner(runner_id="runner_id", labels=["label to link runner"], description="laptop runner")
+        >>> runner_info = client.create_runner(runner_id="runner_id", labels=["label to link runner"], description="laptop runner")
     """
+
     if not isinstance(labels, List):
       raise UserError("Labels must be a List of strings")
 
@@ -164,7 +163,7 @@ class User(Lister, BaseClient):
       raise Exception(response.status)
     self.logger.info("\nRunner created\n%s", response.status)
 
-    return Runner.from_auth_helper(
+    return dict(
         auth=self.auth_helper,
         runner_id=runner_id,
         user_id=self.id,
@@ -195,19 +194,19 @@ class User(Lister, BaseClient):
     kwargs['user_id'] = self.id
     return App.from_auth_helper(auth=self.auth_helper, app_id=app_id, **kwargs)
 
-  def runner(self, runner_id: str) -> Runner:
+  def runner(self, runner_id: str) -> dict:
     """Returns a Runner object if exists.
 
     Args:
         runner_id (str): The runner ID to interact with
 
     Returns:
-        Runner: A Runner object for the existing runner ID.
+        Dict: A dictionary containing information about the existing runner ID.
 
     Example:
         >>> from clarifai.client.user import User
         >>> client = User(user_id="user_id")
-        >>> runner = client.runner(runner_id="runner_id")
+        >>> runner_info = client.runner(runner_id="runner_id")
     """
     request = service_pb2.GetRunnerRequest(user_app_id=self.user_app_id, runner_id=runner_id)
     response = self._grpc_request(self.STUB.GetRunner, request)
@@ -221,7 +220,7 @@ class User(Lister, BaseClient):
     kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
                                         list(dict_response.keys())[1])
 
-    return Runner.from_auth_helper(self.auth_helper, check_runner_exists=False, **kwargs)
+    return dict(self.auth_helper, check_runner_exists=False, **kwargs)
 
   def delete_app(self, app_id: str) -> None:
     """Deletes an app for the user.
