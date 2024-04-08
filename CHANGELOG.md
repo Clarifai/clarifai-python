@@ -1,3 +1,20 @@
+## [[10.3.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.3.0) - [PyPI](https://pypi.org/project/clarifai/10.3.0/) - 2024-04-08
+
+### Added
+- Root certificate support to establish secure gRPC connections by adding ```root_certificates_path``` param in all the classes and auth helper and updating the grpc to the latest version.[(#319)](https://github.com/Clarifai/clarifai-python/pull/319)
+- Missing VERSION and requirements.txt files to setup.py[(#320)](https://github.com/Clarifai/clarifai-python/pull/320)
+
+### Changed
+- To limit max upload batch size for ```Inputs().upload_inputs()``` function. Also changed the model version id parameter inconsistency in ```App.model()``` and ```Model()```[(#317)](https://github.com/Clarifai/clarifai-python/pull/317)
+
+### Fixed
+- Training status bug by removing constraint of user specifying *model_type_id* for training_logs and using ```load_info()``` to get model version details[(#321)](https://github.com/Clarifai/clarifai-python/pull/321)
+- Create workflow bug which occured due to the model version id parameter change in #317[(#322)](https://github.com/Clarifai/clarifai-python/pull/322)
+- Unnecessary infra alerts by adding wait time before deleting a model in model training tests [(#326)](https://github.com/Clarifai/clarifai-python/pull/326)
+
+### Removed
+- Runners from the SDK[(#325)](https://github.com/Clarifai/clarifai-python/pull/325)
+
 ## [[10.2.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.2.1) - [PyPI](https://pypi.org/project/clarifai/10.2.1/) - 2024-03-19
 
 ### Added
