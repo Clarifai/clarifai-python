@@ -142,6 +142,8 @@ Upload
 
 ```bash
 $ clarifai upload model --url <url> --user-app <your_user_id>/<your_app_id> --id <your_model_id>
+# or upload built file directly
+$ clarifai upload model <your-working-dir> --user-app <your_user_id>/<your_app_id> --id <your_model_id>
 ```
 
 ## Learn More
