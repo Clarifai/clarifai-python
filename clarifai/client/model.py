@@ -970,8 +970,8 @@ class Model(Lister, BaseClient):
             range_start = cache_info.get("range_start", range_start)
             model_version = cache_info.get("model_version", model_version)
             last_percent = cache_info.get("last_percent", last_percent)
-        except Exception:
-          pass
+        except Exception as e:
+          self.logger.error(f"Skipping loading the upload cache due to error {e}.")
 
     def init_model_version_upload(model_version):
       return service_pb2.PostModelVersionsUploadRequest(
