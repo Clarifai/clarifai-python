@@ -141,9 +141,10 @@ Get your PAT from https://clarifai.com/settings/security and pass it here: <inse
 Upload
 
 ```bash
-$ clarifai upload model --url <url> --user-app <your_user_id>/<your_app_id> --id <your_model_id>
-# or upload built file directly
+# upload built file directly
 $ clarifai upload model <your-working-dir> --user-app <your_user_id>/<your_app_id> --id <your_model_id>
+# or using direct download url of cloud storage
+$ clarifai upload model --url <url> --user-app <your_user_id>/<your_app_id> --id <your_model_id>
 ```
 
 ## Learn More
