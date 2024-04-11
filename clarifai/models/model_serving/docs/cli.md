@@ -127,7 +127,15 @@ optional arguments:
 
 5. Upload
 
-This step will run `test.py` in provided working dir as default before building
+This step will execute test.py in the specified working directory by default before proceeding with the build. You can upload your built file directly from the working directory to the platform or upload it to cloud storage and provide the direct URL during the upload process.
+
+Use the following command to upload your built file directly to the platform. It will upload the `*.clarifai` file. *Note*: Only support file size from 5MiB to 5GiB
+
+```bash
+$ clarifai upload model <your_working_dir>
+```
+
+or upload with direct download url
 
 ```bash
 $ clarifai upload model <your_working_dir> --url <your url>
@@ -141,10 +149,13 @@ positional arguments:
   path                  Path to working dir to get clarifai_config.yaml or path to yaml. Default is current directory
 
 optional arguments:
-  --url                 Direct download url of zip file
-  --id                  Model ID
-  --user-app            User ID and App ID separated by '/', e.g., <user_id>/<app_id>
-  --update-version      Update exist model with new version
-  --no-test             Trigger this flag to skip testing before uploading
+  -h, --help           show this help message and exit
+  --url URL            Direct download url of zip file
+  --file FILE          Local built file
+  --id ID              Model ID
+  --user-app USER_APP  User ID and App ID separated by '/', e.g., <user_id>/<app_id>
+  --no-test            Trigger this flag to skip testing before uploading
+  --no-resume          Trigger this flag to not resume uploading local file
+  --update-version     Update exist model with new version
 
 ```
