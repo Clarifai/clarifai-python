@@ -82,7 +82,7 @@ class TestApp:
 
   def test_create_search(self, create_app):
     search = create_app.search()
-    assert search.top_k == DEFAULT_TOP_K and search.metric_distance == "COSINE_DISTANCE"
+    assert search.top_k == DEFAULT_TOP_K and search.metric_distance == "EUCLIDEAN_DISTANCE"
 
   def test_create_dataset(self, create_app):
     dataset = create_app.create_dataset(CREATE_DATASET_ID)
