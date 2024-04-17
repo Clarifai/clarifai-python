@@ -112,6 +112,8 @@ class TestAnnotationSearch:
     cls.client = User(user_id=CREATE_APP_USER_ID)
     cls.search = Search(
         user_id=CREATE_APP_USER_ID, app_id=CREATE_APP_ID, top_k=1, metric="euclidean")
+    cls.search_with_pagination = Search(
+        user_id=CREATE_APP_USER_ID, app_id=CREATE_APP_ID, metric="euclidean", pagination=True)
     cls.upload_data()
 
   @classmethod
@@ -154,6 +156,19 @@ class TestAnnotationSearch:
     for q in query:
       assert len(q.hits) == 1
       assert q.hits[0].input.id == "dog-tiff"
+
+  def test_per_page(self):
+    query = self.search_with_pagination.query(
+        filters=[{
+            "input_types": ["image"]
+        }], per_page=3, page_no=1)
+    for q in query:
+      assert len(q.hits) == 3
+
+  def test_pagination(self):
+    query = self.search_with_pagination.query(filters=[{"input_types": ["image"]}])
+    for q in query:
+      assert len(q.hits) == 11
 
   def test_schema_error(self):
     with pytest.raises(UserError):
