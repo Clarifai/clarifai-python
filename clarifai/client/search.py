@@ -51,6 +51,8 @@ class Search(Lister, BaseClient):
       raise UserError("Metric should be either cosine or euclidean")
     if algorithm not in ["nearest_neighbor", "brute_force"]:
       raise UserError("Algorithm should be either nearest_neighbor or brute_force")
+    if metric == "cosine" and algorithm == "nearest_neighbor":
+      raise UserError("Cosine distance metric is not supported with nearest neighbor algorithm")
     if top_k and pagination:
       raise UserError(
           "top_k and pagination cannot be used together. Please set pagination to False.")

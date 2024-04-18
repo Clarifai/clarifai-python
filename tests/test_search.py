@@ -23,7 +23,7 @@ def get_filters_for_test() -> [(typing.List[typing.Dict], int)]:
           "geo_point": {
               "longitude": -29.0,
               "latitude": 40.0,
-              "geo_limit": 10
+              "geo_limit": 100
           }
       }], 1),
       ([{
@@ -136,8 +136,7 @@ class TestAnnotationSearch:
   @pytest.mark.parametrize("filter_dict_list,expected_hits", get_filters_for_test())
   def test_filter_search(self, filter_dict_list: typing.List[typing.Dict], expected_hits: int):
     query = self.search.query(filters=filter_dict_list)
-    for q in query:
-      assert len(q.hits) == expected_hits
+    assert len(list(query)) == expected_hits
 
   def test_rank_search(self):
     query = self.search.query(ranks=[{"image_url": "https://samples.clarifai.com/dog.tiff"}])
