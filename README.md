@@ -48,6 +48,7 @@ Give the repo a star ⭐
   * [Smart Image Search](#smart-image-search)
   * [Smart Text Search](#smart-text-search)
   * [Filters](#filters)
+  * [Pagination](#pagination)
 * **[Retrieval Augmented Generation (RAG)](#retrieval-augmented-generation-rag)**
 * **[More Examples](#pushpin-more-examples)**
 
@@ -441,6 +442,22 @@ Input filters allows to filter by input_type, status of inputs and by inputs_dat
 
 ```python
 results = search.query(filters=[{'input_types': ['image', 'text']}])
+```
+
+#### Pagination
+
+Below is an example of using Search with Pagination.
+
+```python
+# Note: CLARIFAI_PAT must be set as env variable.
+from clarifai.client.search import Search
+search = Search(user_id="user_id", app_id="app_id", metric="cosine", pagination=True)
+
+# Search by image url
+results = search.query(ranks=[{"image_url": "https://samples.clarifai.com/metro-north.jpg"}],page_no=2,per_page=5)
+
+for data in results:
+  print(data.hits[0].input.data.image.url)
 ```
 
 ## Retrieval Augmented Generation (RAG)
