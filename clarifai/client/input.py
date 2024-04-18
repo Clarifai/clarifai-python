@@ -678,6 +678,7 @@ class Inputs(Lister, BaseClient):
         user_app_id=self.user_app_id, inputs=inputs, inputs_add_job_id=input_job_id)
     response = self._grpc_request(self.STUB.PostInputs, request)
     if response.status.code != status_code_pb2.SUCCESS:
+      #print(f"response :{response}")
       if show_log:
         self.logger.warning(response)
       else:
@@ -747,7 +748,7 @@ class Inputs(Lister, BaseClient):
     Returns:
         input_job_id: job id for the upload request.
     """
-    input_job_id, _ = self.upload_inputs(inputs, False)
+    input_job_id, _ = self.upload_inputs(inputs)
     self._wait_for_inputs(input_job_id)
     failed_inputs = self._delete_failed_inputs(inputs)
 
@@ -913,7 +914,8 @@ class Inputs(Lister, BaseClient):
 
         for job in as_completed(futures):
           retry_input_proto = job.result()
-          self._retry_uploads(retry_input_proto)
+          if len(retry_input_proto) > 0:
+            self._retry_uploads(retry_input_proto)
           progress.update()
 
   def _wait_for_inputs(self, input_job_id: str) -> bool:
