@@ -1,3 +1,16 @@
+## [[10.3.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.3.1) - [PyPI](https://pypi.org/project/clarifai/10.3.1/) - 2024-04-19
+
+### Added
+- Pagination feature in Search. Added *pagination* param in ```Search()``` class and included *per_page* and *page_no* params in ```Search().query()``` [(#331)](https://github.com/Clarifai/clarifai-python/pull/331)
+- *Alogrithm* param in ```Search()```[(#331)](https://github.com/Clarifai/clarifai-python/pull/331)
+
+### Changed
+- Model Upload CLI Doc[(#329)](https://github.com/Clarifai/clarifai-python/pull/329)
+
+### Fixed
+- RAG.setup() bug where if we delete a specific workflow and create another workflow with the same id, by adding timestamp while creating a new prompter model [(#332)](https://github.com/Clarifai/clarifai-python/pull/332)
+- ```RAG.upload()``` to support folder of text files.[(#332)](https://github.com/Clarifai/clarifai-python/pull/332)
+
 ## [[10.3.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.3.0) - [PyPI](https://pypi.org/project/clarifai/10.3.0/) - 2024-04-08
 
 ### Added
