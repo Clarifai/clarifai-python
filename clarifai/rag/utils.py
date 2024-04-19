@@ -67,7 +67,7 @@ def load_documents(file_path: str = None, folder_path: str = None, url: str = No
   #document loaders for folderpath
   if folder_path:
     documents = SimpleDirectoryReader(
-        input_dir=Path(folder_path), required_exts=[".pdf", ".docx"]).load_data()
+        input_dir=Path(folder_path), required_exts=[".pdf", ".docx", ".txt"]).load_data()
 
   #document loaders for url
   if url:
