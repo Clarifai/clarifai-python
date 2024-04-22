@@ -111,7 +111,7 @@ def split_document(text: str, chunk_size: int, chunk_overlap: int, **kwargs) -> 
     from llama_index.core.node_parser.text import SentenceSplitter
   except ImportError:
     raise ImportError("Could not import llama index package. "
-                      "Please install it with `pip install llama-index-core==0.10.1`.")
+                      "Please install it with `pip install llama-index-core==0.10.24`.")
   #document
   text_parser = SentenceSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap, **kwargs)
   text_chunks = text_parser.split_text(text)
