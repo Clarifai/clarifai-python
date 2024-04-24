@@ -72,6 +72,7 @@ class Inputs(Lister, BaseClient):
                  text_pb: Text = None,
                  geo_info: List = None,
                  labels: List = None,
+                 label_ids: List = None,
                  metadata: Struct = None) -> Input:
     """Create input proto for image data type.
         Args:
@@ -82,7 +83,8 @@ class Inputs(Lister, BaseClient):
             audio_pb (Audio): The audio proto to be used for the input.
             text_pb (Text): The text proto to be used for the input.
             geo_info (list): A list of longitude and latitude for the geo point.
-            labels (list): A list of labels for the input.
+            labels (list): A list of label names for the input.
+            label_ids (list): A list of label ids for the input.
             metadata (Struct): A Struct of metadata for the input.
         Returns:
             Input: An Input object for the specified input ID.
@@ -90,14 +92,26 @@ class Inputs(Lister, BaseClient):
     assert geo_info is None or isinstance(
         geo_info, list), "geo_info must be a list of longitude and latitude"
     assert labels is None or isinstance(labels, list), "labels must be a list of strings"
+    assert label_ids is None or isinstance(label_ids, list), "label_ids must be a list of strings"
     assert metadata is None or isinstance(metadata, Struct), "metadata must be a Struct"
     geo_pb = resources_pb2.Geo(geo_point=resources_pb2.GeoPoint(
         longitude=geo_info[0], latitude=geo_info[1])) if geo_info else None
-    concepts=[
+    if labels:
+      if not label_ids:
+        concepts=[
             resources_pb2.Concept(
             id=f"id-{''.join(_label.split(' '))}", name=_label, value=1.)\
             for _label in labels
-        ]if labels else None
+        ]
+      else:
+        assert len(labels) == len(label_ids), "labels and label_ids must be of the same length"
+        concepts=[
+            resources_pb2.Concept(
+            id=label_id, name=_label, value=1.)\
+            for label_id, _label in zip(label_ids, labels)
+        ]
+    else:
+      concepts = None
 
     if dataset_id:
       return resources_pb2.Input(
@@ -467,13 +481,14 @@ class Inputs(Lister, BaseClient):
     return input_protos
 
   @staticmethod
-  def get_bbox_proto(input_id: str, label: str, bbox: List) -> Annotation:
+  def get_bbox_proto(input_id: str, label: str, bbox: List, label_id: str = None) -> Annotation:
     """Create an annotation proto for each bounding box, label input pair.
 
     Args:
         input_id (str): The input ID for the annotation to create.
-        label (str): annotation label
+        label (str): annotation label name
         bbox (List): a list of a single bbox's coordinates. # bbox ordering: [xmin, ymin, xmax, ymax]
+        label_id (str): annotation label ID
 
     Returns:
         An annotation object for the specified input ID.
@@ -500,19 +515,22 @@ class Inputs(Lister, BaseClient):
                 data=resources_pb2.Data(concepts=[
                     resources_pb2.Concept(
                         id=f"id-{''.join(label.split(' '))}", name=label, value=1.)
+                    if not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
                 ]))
         ]))
 
     return input_annot_proto
 
   @staticmethod
-  def get_mask_proto(input_id: str, label: str, polygons: List[List[float]]) -> Annotation:
+  def get_mask_proto(input_id: str, label: str, polygons: List[List[float]],
+                     label_id: str = None) -> Annotation:
     """Create an annotation proto for each polygon box, label input pair.
 
     Args:
         input_id (str): The input ID for the annotation to create.
-        label (str): annotation label
+        label (str): annotation label name
         polygons (List): Polygon x,y points iterable
+        label_id (str): annotation label ID
 
     Returns:
         An annotation object for the specified input ID.
@@ -537,6 +555,7 @@ class Inputs(Lister, BaseClient):
                 data=resources_pb2.Data(concepts=[
                     resources_pb2.Concept(
                         id=f"id-{''.join(label.split(' '))}", name=label, value=1.)
+                    if not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
                 ]))
         ]))
 

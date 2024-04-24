@@ -32,6 +32,7 @@ class VisualClassificationDataset(ClarifaiDataset):
       image_path = data_item.image_path
       labels = data_item.labels if isinstance(data_item.labels,
                                               list) else [data_item.labels]  # clarifai concept
+      label_ids = data_item.label_ids
       input_id = f"{self.dataset_id}-{uuid.uuid4().hex[:8]}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
       geo_info = data_item.geo_info
       if data_item.metadata is not None:
@@ -49,6 +50,7 @@ class VisualClassificationDataset(ClarifaiDataset):
                 image_bytes=data_item.image_bytes,
                 dataset_id=self.dataset_id,
                 labels=labels,
+                label_ids=label_ids,
                 geo_info=geo_info,
                 metadata=metadata))
       else:
@@ -58,6 +60,7 @@ class VisualClassificationDataset(ClarifaiDataset):
                 image_file=image_path,
                 dataset_id=self.dataset_id,
                 labels=labels,
+                label_ids=label_ids,
                 geo_info=geo_info,
                 metadata=metadata))
 
@@ -91,6 +94,12 @@ class VisualDetectionDataset(ClarifaiDataset):
       metadata = Struct()
       image = data_item.image_path
       labels = data_item.labels  # list:[l1,...,ln]
+      if data_item.label_ids is not None:
+        assert len(labels) == len(
+            data_item.label_ids), "Length of labels and label_ids must be equal"
+        label_ids = data_item.label_ids
+      else:
+        label_ids = None
       bboxes = data_item.bboxes  # [[xmin,ymin,xmax,ymax],...,[xmin,ymin,xmax,ymax]]
       input_id = f"{self.dataset_id}-{uuid.uuid4().hex[:8]}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
       if data_item.metadata is not None:
@@ -120,7 +129,11 @@ class VisualDetectionDataset(ClarifaiDataset):
       # one id could have more than one bbox and label
       for i in range(len(bboxes)):
         annotation_protos.append(
-            Inputs.get_bbox_proto(input_id=input_id, label=labels[i], bbox=bboxes[i]))
+            Inputs.get_bbox_proto(
+                input_id=input_id,
+                label=labels[i],
+                bbox=bboxes[i],
+                label_id=label_ids[i] if label_ids else None))
 
     with ThreadPoolExecutor(max_workers=4) as executor:
       futures = [executor.submit(process_data_item, id) for id in batch_input_ids]
@@ -152,6 +165,12 @@ class VisualSegmentationDataset(ClarifaiDataset):
       metadata = Struct()
       image = data_item.image_path
       labels = data_item.labels
+      if data_item.label_ids is not None:
+        assert len(labels) == len(
+            data_item.label_ids), "Length of labels and label_ids must be equal"
+        label_ids = data_item.label_ids
+      else:
+        label_ids = None
       _polygons = data_item.polygons  # list of polygons: [[[x,y],...,[x,y]],...]
       input_id = f"{self.dataset_id}-{uuid.uuid4().hex[:8]}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
       if data_item.metadata is not None:
@@ -183,7 +202,11 @@ class VisualSegmentationDataset(ClarifaiDataset):
       for i, _polygon in enumerate(_polygons):
         try:
           annotation_protos.append(
-              Inputs.get_mask_proto(input_id=input_id, label=labels[i], polygons=_polygon))
+              Inputs.get_mask_proto(
+                  input_id=input_id,
+                  label=labels[i],
+                  polygons=_polygon,
+                  label_id=label_ids[i] if label_ids else None))
         except IndexError:
           continue
 

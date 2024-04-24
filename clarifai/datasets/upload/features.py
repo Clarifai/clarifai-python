@@ -10,6 +10,7 @@ class TextFeatures:
   labels: List[Union[str, int]]  # List[str or int] to cater for multi-class tasks
   id: Optional[int] = None  # text_id
   metadata: Optional[dict] = None
+  label_ids: Optional[List[str]] = None
 
 
 @dataclass
@@ -21,6 +22,7 @@ class VisualClassificationFeatures:
   id: Optional[int] = None  # image_id
   metadata: Optional[dict] = None
   image_bytes: Optional[bytes] = None
+  label_ids: Optional[List[str]] = None
 
 
 @dataclass
@@ -33,6 +35,7 @@ class VisualDetectionFeatures:
   id: Optional[int] = None  # image_id
   metadata: Optional[dict] = None
   image_bytes: Optional[bytes] = None
+  label_ids: Optional[List[str]] = None
 
 
 @dataclass
@@ -45,3 +48,4 @@ class VisualSegmentationFeatures:
   id: Optional[int] = None  # image_id
   metadata: Optional[dict] = None
   image_bytes: Optional[bytes] = None
+  label_ids: Optional[List[str]] = None
