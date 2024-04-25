@@ -2,11 +2,16 @@
 
 import os
 
-from pycocotools.coco import COCO
-
 from ..base import ClarifaiDataLoader
 
 from ..features import VisualDetectionFeatures
+
+#pycocotools is a dependency for this loader
+try:
+  from pycocotools.coco import COCO
+except ImportError:
+  raise ImportError("Could not import pycocotools package. "
+                    "Please do `pip install 'clarifai[all]'` to import pycocotools.")
 
 
 class COCODetectionDataLoader(ClarifaiDataLoader):
