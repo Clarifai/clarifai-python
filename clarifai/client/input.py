@@ -745,16 +745,20 @@ class Inputs(Lister, BaseClient):
     request = service_pb2.PostAnnotationsRequest(
         user_app_id=self.user_app_id, annotations=batch_annot)
     response = self._grpc_request(self.STUB.PostAnnotations, request)
+    response_dict = MessageToDict(response)
     if response.status.code != status_code_pb2.SUCCESS:
       try:
-        self.logger.warning(f"Post annotations failed, status: {response.annotations[0].status}")
+        for annot in response_dict["annotations"]:
+          if annot['status']['code'] != status_code_pb2.ANNOTATION_SUCCESS:
+            self.logger.warning(f"Post annotations failed, status: {annot['status']}")
       except Exception:
-        self.logger.warning(f"Post annotations failed, status: {response.status.details}")
+        self.logger.warning(f"Post annotations failed due to {response.status}")
       finally:
         retry_upload.extend(batch_annot)
     else:
       if show_log:
         self.logger.info("\nAnnotations Uploaded\n%s", response.status)
+
     return retry_upload
 
   def _upload_batch(self, inputs: List[Input]) -> List[Input]:
