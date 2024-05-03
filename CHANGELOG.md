@@ -1,3 +1,15 @@
+## [[10.3.2]](https://github.com/Clarifai/clarifai-python/releases/tag/10.3.2) - [PyPI](https://pypi.org/project/clarifai/10.3.2/) - 2024-05-03
+
+### Added
+- Flag to download model. If *export_dir* param in  ```Model().export()``` is provided, the exported model will be saved in the specified directory else export status will be shown.[(#337)](https://github.com/Clarifai/clarifai-python/pull/337)
+- Label ID support in Dataloaders(*label_ids* param) and get_proto functions in Inputs class.[(#338)](https://github.com/Clarifai/clarifai-python/pull/338)
+
+### Changed
+- Logger for ```Inputs().upload_annotations``` to show full details of failed annotations.[(#339)](https://github.com/Clarifai/clarifai-python/pull/339)
+
+### Fixed
+- RAG upload bug by changing llama-index-core version to 0.10.24 in ImportError message [(#336)](https://github.com/Clarifai/clarifai-python/pull/336)
+
 ## [[10.3.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.3.1) - [PyPI](https://pypi.org/project/clarifai/10.3.1/) - 2024-04-19
 
 ### Added
