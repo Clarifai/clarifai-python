@@ -135,11 +135,15 @@ dataset.upload_dataset(dataloader=coco_dataloader, get_upload_status=True)
 #Try upload and record the failed outputs in log file.
 from clarifai.datasets.upload.utils import load_module_dataloader
 cifar_dataloader = load_module_dataloader('./image_classification/cifar10')
-dataset.upload_dataset(dataloader=cifar_dataloader, log_warnings =True)
+
+dataset.upload_dataset(dataloader=cifar_dataloader,
+                       get_upload_status=True,
+                       log_warnings =True)
 
 #Retry upload from logs for `upload_dataset`
+# Set retry_duplicates to True if you want to ingest failed inputs due to duplication issues. by default it is set to 'False'.
 dataset.retry_upload_from_logs(dataloader=cifar_dataloader, log_file_path='log_file.log',
-                               retry_duplicates=False,
+                               retry_duplicates=True,
                                log_warnings=True)
 
 #upload text from csv
