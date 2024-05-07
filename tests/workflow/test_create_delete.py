@@ -2,13 +2,13 @@ import glob
 import logging
 import os
 import typing
-from datetime import datetime
+import uuid
 
 import pytest
 
 from clarifai.client.user import User
 
-NOW = str(int(datetime.now().timestamp()))
+NOW = uuid.uuid4().hex[:10]
 CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
 CREATE_APP_ID = f"test_workflow_create_delete_app_{NOW}"
 

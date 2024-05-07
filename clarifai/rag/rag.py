@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime
 from typing import List
 
 import yaml
@@ -76,7 +75,7 @@ class RAG:
         >>> rag_agent = RAG.setup(app_url=YOUR_APP_URL)
         >>> rag_agent.chat(messages=[{"role":"human", "content":"What is Clarifai"}])
     """
-    now_ts = str(int(datetime.now().timestamp()))
+    now_ts = uuid.uuid4().hex[:10]
     if user_id and not app_url:
       user = User(user_id=user_id, base_url=base_url, pat=pat)
       ## Create an App

@@ -1,6 +1,6 @@
 import logging
 import os
-from datetime import datetime
+import uuid
 
 import pytest
 
@@ -8,7 +8,7 @@ from clarifai.client.user import User
 from clarifai.datasets.upload.utils import load_module_dataloader
 
 CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
-NOW = str(int(datetime.now().timestamp()))
+NOW = uuid.uuid4().hex[:10]
 CREATE_APP_ID = f"ci_input_app_{NOW}"
 CREATE_DATASET_ID = "ci_input_test_dataset"
 
