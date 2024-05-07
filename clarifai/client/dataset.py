@@ -416,9 +416,6 @@ class Dataset(Lister, BaseClient):
       log_warnings (bool): True if you want to save log warnings in a file
       kwargs: Additional keyword arguments for retry uploading functionality..
     """
-    #add file handler to log warnings
-    if log_warnings:
-      add_file_handler(self.logger, f"Dataset_Upload{str(int(datetime.now().timestamp()))}.log")
     #set batch size and task
     self.batch_size = min(self.batch_size, batch_size)
     self.task = dataloader.task
@@ -442,6 +439,9 @@ class Dataset(Lister, BaseClient):
     if get_upload_status:
       pre_upload_stats = self.get_upload_status(pre_upload=True)
 
+    #add file handler to log warnings
+    if log_warnings:
+      add_file_handler(self.logger, f"Dataset_Upload{str(int(datetime.now().timestamp()))}.log")
     self._data_upload(dataset_obj, **kwargs)
 
     if get_upload_status:
