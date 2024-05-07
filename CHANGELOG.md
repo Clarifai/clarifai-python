@@ -2,6 +2,7 @@
 
 ### Changed
 - Upgrade to clarifai-grpc 10.3.4
+- RAG apps, workflows and other resources automatically setup now use UUIDs in their IDs instead of timestamps to avoid races.
 
 ### Fixed
 - Use UUIDs in tests to avoid race conditions with timestamps.
