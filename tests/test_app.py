@@ -1,6 +1,6 @@
 import logging
 import os
-from datetime import datetime
+import uuid
 
 import pytest
 
@@ -8,7 +8,7 @@ from clarifai.client.app import App
 from clarifai.client.user import User
 from clarifai.constants.search import DEFAULT_TOP_K
 
-NOW = str(int(datetime.now().timestamp()))
+NOW = uuid.uuid4().hex[:10]
 MAIN_APP_ID = "main"
 MAIN_APP_USER_ID = "clarifai"
 GENERAL_MODEL_ID = "general-image-recognition"

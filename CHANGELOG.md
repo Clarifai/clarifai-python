@@ -1,3 +1,13 @@
+## [[10.3.3]](https://github.com/Clarifai/clarifai-python/releases/tag/10.3.3) - [PyPI](https://pypi.org/project/clarifai/10.3.3/) - 2024-05-07
+
+### Changed
+- Upgrade to clarifai-grpc 10.3.4
+- RAG apps, workflows and other resources automatically setup now use UUIDs in their IDs instead of timestamps to avoid races.
+
+### Fixed
+- Use UUIDs in tests to avoid race conditions with timestamps.
+- Hardcoded shcema package to 0.7.5 as it introduced breaking changes.
+
 ## [[10.3.2]](https://github.com/Clarifai/clarifai-python/releases/tag/10.3.2) - [PyPI](https://pypi.org/project/clarifai/10.3.2/) - 2024-05-03
 
 ### Added
