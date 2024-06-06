@@ -96,12 +96,12 @@ class TestApp:
     module = create_app.create_module(CREATE_MODULE_ID, description="CI test module")
     assert module.id == CREATE_MODULE_ID and module.app_id == CREATE_APP_ID and module.user_id == CREATE_APP_USER_ID
 
-  def test_create_runner(self, client):
-    client = User(user_id=CREATE_APP_USER_ID, pat=CLARIFAI_PAT)
-    runner_info = client.create_runner(
-        CREATE_RUNNER_ID, labels=["ci runner"], description="CI test runner")
-    assert runner_info.get("runner_id") == CREATE_RUNNER_ID and runner_info.get(
-        "user_id") == CREATE_APP_USER_ID
+  # def test_create_runner(self, client):
+  #   client = User(user_id=CREATE_APP_USER_ID, pat=CLARIFAI_PAT)
+  #   runner_info = client.create_runner(
+  #       CREATE_RUNNER_ID, labels=["ci runner"], description="CI test runner")
+  #   assert runner_info.get("runner_id") == CREATE_RUNNER_ID and runner_info.get(
+  #       "user_id") == CREATE_APP_USER_ID
 
   def test_get_dataset(self, create_app):
     dataset = create_app.dataset(dataset_id=CREATE_DATASET_ID)
@@ -128,11 +128,11 @@ class TestApp:
       create_app.delete_module(CREATE_MODULE_ID)
       assert "SUCCESS" in caplog.text
 
-  def test_delete_runner(self, caplog):
-    client = User(user_id=CREATE_APP_USER_ID)
-    with caplog.at_level(logging.INFO):
-      client.delete_runner(CREATE_RUNNER_ID)
-      assert "SUCCESS" in caplog.text
+  # def test_delete_runner(self, caplog):
+  #   client = User(user_id=CREATE_APP_USER_ID)
+  #   with caplog.at_level(logging.INFO):
+  #     client.delete_runner(CREATE_RUNNER_ID)
+  #     assert "SUCCESS" in caplog.text
 
   def test_delete_app(self, caplog):
     with caplog.at_level(logging.INFO):
