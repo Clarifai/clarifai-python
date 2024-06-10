@@ -1,3 +1,9 @@
+## [[10.5.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.5.0) - [PyPI](https://pypi.org/project/clarifai/10.5.0/) - 2024-06-10
+
+### Changed
+- Upgrade to clarifai-grpc 10.5.0 [(#345)](https://github.com/Clarifai/clarifai-python/pull/343)
+
+
 ## [[10.3.3]](https://github.com/Clarifai/clarifai-python/releases/tag/10.3.3) - [PyPI](https://pypi.org/project/clarifai/10.3.3/) - 2024-05-07
 
 ### Changed
