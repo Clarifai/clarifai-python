@@ -97,7 +97,7 @@ class UploadModelSubCli(BaseClarifaiCli):
     self.file = args.file
     self.url = args.url
     if self.file:
-      assert self.url, ValueError("Provide either file or url, but got both.")
+      assert not self.url, ValueError(f"Expected either file or url, not both.")
       assert os.path.exists(self.file), FileNotFoundError
     elif self.url:
       assert self.url.startswith("http") or self.url.startswith(
