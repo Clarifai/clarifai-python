@@ -30,6 +30,7 @@ class App(Lister, BaseClient):
   def __init__(self,
                url: str = None,
                app_id: str = None,
+               user_id: str = None,
                base_url: str = "https://api.clarifai.com",
                pat: str = None,
                token: str = None,
@@ -53,6 +54,9 @@ class App(Lister, BaseClient):
     if url:
       user_id, app_id = ClarifaiUrlHelper.split_clarifai_app_url(url)
       kwargs = {'user_id': user_id}
+    if user_id:
+      kwargs = {'user_id': user_id}
+      
     self.kwargs = {**kwargs, 'id': app_id}
     self.app_info = resources_pb2.App(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
