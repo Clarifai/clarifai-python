@@ -8,8 +8,8 @@ from google.protobuf.wrappers_pb2 import BoolValue
 from clarifai.client.auth import create_stub
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.errors import ApiError, UserError
-from clarifai.utils.misc import get_from_dict_or_env
 from clarifai.utils.constants import CLARIFAI_PAT_ENV_VAR, CLARIFAI_SESSION_TOKEN_ENV_VAR
+from clarifai.utils.misc import get_from_dict_or_env
 
 
 class BaseClient:
