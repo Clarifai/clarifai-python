@@ -1,8 +1,8 @@
+import itertools
 import json
 import os
 import time
 from typing import Any, Dict, Generator, List, Tuple, Union
-import itertools
 
 import numpy as np
 import requests
@@ -467,7 +467,7 @@ class Model(Lister, BaseClient):
     while True:
       stream_response = self._grpc_request(self.STUB.GenerateModelOutputs, request)
       first_response = next(stream_response)
-      
+
       if first_response.status.code == status_code_pb2.MODEL_DEPLOYING and \
               time.time() - start_time < 60 * 10:  # 10 minutes
         self.logger.info(f"{self.id} model is still deploying, please wait...")
@@ -482,10 +482,10 @@ class Model(Lister, BaseClient):
     return stream_response
 
   def generate_by_filepath(self,
-                          filepath: str,
-                          input_type: str,
-                          inference_params: Dict = {},
-                          output_config: Dict = {}):
+                           filepath: str,
+                           input_type: str,
+                           inference_params: Dict = {},
+                           output_config: Dict = {}):
     """Predicts the model based on the given filepath and generate stream of response.
 
     Args:
@@ -514,10 +514,10 @@ class Model(Lister, BaseClient):
     return self.generate_by_bytes(file_bytes, input_type, inference_params, output_config)
 
   def generate_by_bytes(self,
-                       input_bytes: bytes,
-                       input_type: str,
-                       inference_params: Dict = {},
-                       output_config: Dict = {}):
+                        input_bytes: bytes,
+                        input_type: str,
+                        inference_params: Dict = {},
+                        output_config: Dict = {}):
     """Predicts the model based on the given bytes and generate stream of response.
 
     Args:
@@ -555,10 +555,10 @@ class Model(Lister, BaseClient):
         inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
   def generate_by_url(self,
-                     url: str,
-                     input_type: str,
-                     inference_params: Dict = {},
-                     output_config: Dict = {}):
+                      url: str,
+                      input_type: str,
+                      inference_params: Dict = {},
+                      output_config: Dict = {}):
     """Predicts the model based on the given UR and generate stream of responseL.
 
     Args:

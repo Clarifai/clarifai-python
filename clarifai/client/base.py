@@ -53,13 +53,12 @@ class BaseClient:
     self.user_app_id = self.auth_helper.get_user_app_id_proto()
     self.base = self.auth_helper.base
     self.root_certificates_path = self.auth_helper._root_certificates_path
-    
-    
+
   @classmethod
   def from_env(cls, validate: bool = True):
     auth = ClarifaiAuthHelper.from_env(validate=validate)
     return cls.from_auth_helper(auth)
-  
+
   @classmethod
   def from_auth_helper(cls, auth: ClarifaiAuthHelper, **kwargs):
     default_kwargs = {
