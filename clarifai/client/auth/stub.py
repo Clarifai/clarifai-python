@@ -20,6 +20,33 @@ retry_codes_grpc = {
 _threadpool = ThreadPoolExecutor(100)
 
 
+def validate_response(response, attempt, max_attempts):
+  # Helper function to handle simple response validation
+  def handle_simple_response(response):
+    if hasattr(response, 'status') and hasattr(response.status, 'code'):
+      if (response.status.code in throttle_status_codes) and attempt < max_attempts:
+        logging.debug('Retrying with status %s' % str(response.status))
+        return None  # Indicates a retry is needed
+      else:
+        return response
+
+  # Check if the response is an instance of a gRPC streaming call
+  if isinstance(response, grpc.Call):
+    try:
+      # Process each response in the stream
+      for res in response:
+        validated_response = handle_simple_response(res)
+        if validated_response is not None:
+          return response
+      return None  # All streamed responses need a retry
+    except grpc.RpcError as e:
+      logging.error('Error processing streaming response: %s' % str(e))
+      return None  # Indicates an error
+  else:
+    # Handle simple response validation
+    return handle_simple_response(response)
+
+
 def create_stub(auth_helper: ClarifaiAuthHelper = None, max_retry_attempts: int = 10) -> V2Stub:
   """
   Create client stub that handles authorization and basic retries for
@@ -109,9 +136,7 @@ class _RetryRpcCallable(RpcCallable):
         time.sleep(self.backoff_time)  # TODO better backoff between attempts
       try:
         response = self.f(*args, **kwargs)
-        if (response.status.code in throttle_status_codes) and attempt < self.max_attempts:
-          logging.debug('Retrying with status %s' % str(response.status))
-        else:
+        if validate_response(response, attempt, self.max_attempts) is not None:
           return response
       except grpc.RpcError as e:
         if (e.code() in retry_codes_grpc) and attempt < self.max_attempts:

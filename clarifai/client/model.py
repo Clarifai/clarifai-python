@@ -576,22 +576,23 @@ class Model(Lister, BaseClient):
 
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
+    generation_started = False
     while True:
-      stream_response = self._grpc_request(self.STUB.GenerateModelOutputs, request)
-      first_response = next(stream_response)
-
-      if first_response.status.code == status_code_pb2.MODEL_DEPLOYING and \
-              time.time() - start_time < 60 * 10:  # 10 minutes
-        self.logger.info(f"{self.id} model is still deploying, please wait...")
-        time.sleep(next(backoff_iterator))
-        continue
-
-      if first_response.status.code != status_code_pb2.SUCCESS:
-        raise Exception(f"Model Predict failed with response {first_response.status!r}")
-      else:
+      if generation_started:
         break
-    stream_response = itertools.chain([first_response], stream_response)
-    return stream_response
+      stream_response = self._grpc_request(self.STUB.GenerateModelOutputs, request)
+      for response in stream_response:
+        if response.status.code == status_code_pb2.MODEL_DEPLOYING and \
+                time.time() - start_time < 60 * 10:
+          self.logger.info(f"{self.id} model is still deploying, please wait...")
+          time.sleep(next(backoff_iterator))
+          break
+        if response.status.code != status_code_pb2.SUCCESS:
+          raise Exception(f"Model Predict failed with response {response.status!r}")
+        else:
+          if not generation_started:
+            generation_started = True
+          yield response
 
   def generate_by_filepath(self,
                            filepath: str,
