@@ -1,6 +1,6 @@
 import os
 
-from .constants import CLARIFAI_PAT_PATH
+from clarifai.utils.constants import CLARIFAI_PAT_ENV_VAR, CLARIFAI_PAT_PATH
 
 
 def _persist_pat(pat: str):
@@ -10,10 +10,17 @@ def _persist_pat(pat: str):
 
 
 def _read_pat():
-  if not os.path.exists(CLARIFAI_PAT_PATH):
+  if not os.path.exists(CLARIFAI_PAT_PATH) and not os.environ.get(CLARIFAI_PAT_ENV_VAR, ""):
     return None
-  with open(CLARIFAI_PAT_PATH, "r") as f:
-    return f.read().replace("\n", "").replace("\r", "").strip()
+  if os.path.exists(CLARIFAI_PAT_PATH):
+    with open(CLARIFAI_PAT_PATH, "r") as f:
+      return f.read().replace("\n", "").replace("\r", "").strip()
+  elif os.environ.get(CLARIFAI_PAT_ENV_VAR):
+    return os.environ.get(CLARIFAI_PAT_ENV_VAR)
+  else:
+    raise ValueError(
+        f"PAT not found, please run `clarifai login` to persist your PAT or set it as an environment variable under the name '{CLARIFAI_PAT_ENV_VAR}'"
+    )
 
 
 def login(pat=None):

@@ -97,11 +97,15 @@ class UploadModelSubCli(BaseClarifaiCli):
     self.file = args.file
     self.url = args.url
     if self.file:
-      assert self.url, ValueError("Provide either file or url, but got both.")
+      assert not self.url, ValueError("Expected either file or url, not both.")
       assert os.path.exists(self.file), FileNotFoundError
     elif self.url:
-      assert self.url.startswith("http") or self.url.startswith(
-          "s3"), f"Invalid url supported http or s3 url. Got {self.url}"
+      if len(self.url.split(":")) == 1:
+        # if URL has no scheme, default to https
+        self.url = f"https://{self.url}"
+      assert self.url.startswith("http") or self.url.startswith("https") or self.url.startswith(
+          "s3"
+      ), f"Invalid URL scheme, supported schemes are 'http', 'https', or 's3'. Got {self.url}"
       self.file = None
     else:
       for _fname in os.listdir(working_dir_or_config):

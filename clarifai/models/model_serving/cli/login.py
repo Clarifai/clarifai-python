@@ -1,6 +1,6 @@
 import argparse
 
-from ..constants import CLARIFAI_PAT_PATH
+from clarifai.utils.constants import CLARIFAI_PAT_PATH
 from ..utils import _persist_pat
 from .base import BaseClarifaiCli
 
