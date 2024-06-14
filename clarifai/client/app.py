@@ -56,7 +56,7 @@ class App(Lister, BaseClient):
       kwargs = {'user_id': user_id}
     if user_id:
       kwargs = {'user_id': user_id}
-      
+
     self.kwargs = {**kwargs, 'id': app_id}
     self.app_info = resources_pb2.App(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
