@@ -34,10 +34,11 @@ def validate_response(response, attempt, max_attempts):
   # Check if the response is an instance of a gRPC streaming call
   if isinstance(response, grpc._channel._MultiThreadedRendezvous):
     try:
-      # Process each response in the stream
+      # Check just the first response in the stream for validation
       first_res = next(response)
       validated_response = handle_simple_response(first_res)
       if validated_response is not None:
+        # Have to return that first response and the rest of the stream.
         return itertools.chain([validated_response], response)
       return None  # Indicates a retry is needed
     except grpc.RpcError as e:
