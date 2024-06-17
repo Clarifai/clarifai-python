@@ -105,9 +105,6 @@ class ClarifaiAuthHelper:
     if self.user_id == "":
       raise Exception(
           "Need 'user_id' to not be empty in the query params or user CLARIFAI_USER_ID env var")
-    if self.app_id == "":
-      raise Exception(
-          "Need 'app_id' to not be empty in the query params or user CLARIFAI_APP_ID env var")
     if self._pat != "" and self._token != "":
       raise Exception(
           "A personal access token OR a session token need to be provided, but you cannot provide both."

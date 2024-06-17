@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from typing import Any, Dict, Generator, List, Tuple, Union
+from typing import Any, Dict, Generator, Iterator, List, Tuple, Union
 
 import numpy as np
 import requests
@@ -552,6 +552,315 @@ class Model(Lister, BaseClient):
 
     return self.predict(
         inputs=[input_proto], inference_params=inference_params, output_config=output_config)
+
+  def generate(self, inputs: List[Input], inference_params: Dict = {}, output_config: Dict = {}):
+    """Generate the stream output on model based on the given inputs.
+
+    Args:
+        inputs (list[Input]): The inputs to predict, must be less than 128.
+    """
+    if not isinstance(inputs, list):
+      raise UserError('Invalid inputs, inputs must be a list of Input objects.')
+    if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
+      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}."
+                     )  # TODO Use Chunker for inputs len > 128
+
+    self._override_model_version(inference_params, output_config)
+    request = service_pb2.PostModelOutputsRequest(
+        user_app_id=self.user_app_id,
+        model_id=self.id,
+        version_id=self.model_version.id,
+        inputs=inputs,
+        model=self.model_info)
+
+    start_time = time.time()
+    backoff_iterator = BackoffIterator(10)
+    generation_started = False
+    while True:
+      if generation_started:
+        break
+      stream_response = self._grpc_request(self.STUB.GenerateModelOutputs, request)
+      for response in stream_response:
+        if response.status.code == status_code_pb2.MODEL_DEPLOYING and \
+                time.time() - start_time < 60 * 10:
+          self.logger.info(f"{self.id} model is still deploying, please wait...")
+          time.sleep(next(backoff_iterator))
+          break
+        if response.status.code != status_code_pb2.SUCCESS:
+          raise Exception(f"Model Predict failed with response {response.status!r}")
+        else:
+          if not generation_started:
+            generation_started = True
+          yield response
+
+  def generate_by_filepath(self,
+                           filepath: str,
+                           input_type: str,
+                           inference_params: Dict = {},
+                           output_config: Dict = {}):
+    """Generate the stream output on model based on the given filepath.
+
+    Args:
+        filepath (str): The filepath to predict.
+        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        inference_params (dict): The inference params to override.
+        output_config (dict): The output config to override.
+          min_value (float): The minimum value of the prediction confidence to filter.
+          max_concepts (int): The maximum number of concepts to return.
+          select_concepts (list[Concept]): The concepts to select.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+                    or
+        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+        >>> stream_response = model.generate_by_filepath('/path/to/image.jpg', 'image')
+        >>> stream_response = model.generate_by_filepath('/path/to/text.txt', 'text')
+        >>> list_stream_response = [response for response in stream_response]
+    """
+    if not os.path.isfile(filepath):
+      raise UserError('Invalid filepath.')
+
+    with open(filepath, "rb") as f:
+      file_bytes = f.read()
+
+    return self.generate_by_bytes(file_bytes, input_type, inference_params, output_config)
+
+  def generate_by_bytes(self,
+                        input_bytes: bytes,
+                        input_type: str,
+                        inference_params: Dict = {},
+                        output_config: Dict = {}):
+    """Generate the stream output on model based on the given bytes.
+
+    Args:
+        input_bytes (bytes): File Bytes to predict on.
+        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        inference_params (dict): The inference params to override.
+        output_config (dict): The output config to override.
+          min_value (float): The minimum value of the prediction confidence to filter.
+          max_concepts (int): The maximum number of concepts to return.
+          select_concepts (list[Concept]): The concepts to select.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model("https://clarifai.com/openai/chat-completion/models/GPT-4")
+        >>> stream_response = model.generate_by_bytes(b'Write a tweet on future of AI',
+                                                      input_type='text',
+                                                      inference_params=dict(temperature=str(0.7), max_tokens=30)))
+        >>> list_stream_response = [response for response in stream_response]
+    """
+    if input_type not in {'image', 'text', 'video', 'audio'}:
+      raise UserError(
+          f"Got input type {input_type} but expected one of image, text, video, audio.")
+    if not isinstance(input_bytes, bytes):
+      raise UserError('Invalid bytes.')
+
+    if input_type == "image":
+      input_proto = Inputs.get_input_from_bytes("", image_bytes=input_bytes)
+    elif input_type == "text":
+      input_proto = Inputs.get_input_from_bytes("", text_bytes=input_bytes)
+    elif input_type == "video":
+      input_proto = Inputs.get_input_from_bytes("", video_bytes=input_bytes)
+    elif input_type == "audio":
+      input_proto = Inputs.get_input_from_bytes("", audio_bytes=input_bytes)
+
+    return self.generate(
+        inputs=[input_proto], inference_params=inference_params, output_config=output_config)
+
+  def generate_by_url(self,
+                      url: str,
+                      input_type: str,
+                      inference_params: Dict = {},
+                      output_config: Dict = {}):
+    """Generate the stream output on model based on the given URL.
+
+    Args:
+        url (str): The URL to predict.
+        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        inference_params (dict): The inference params to override.
+        output_config (dict): The output config to override.
+          min_value (float): The minimum value of the prediction confidence to filter.
+          max_concepts (int): The maximum number of concepts to return.
+          select_concepts (list[Concept]): The concepts to select.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+                    or
+        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+        >>> stream_response = model.generate_by_url('url', 'image')
+        >>> list_stream_response = [response for response in stream_response]
+    """
+    if input_type not in {'image', 'text', 'video', 'audio'}:
+      raise UserError(
+          f"Got input type {input_type} but expected one of image, text, video, audio.")
+
+    if input_type == "image":
+      input_proto = Inputs.get_input_from_url("", image_url=url)
+    elif input_type == "text":
+      input_proto = Inputs.get_input_from_url("", text_url=url)
+    elif input_type == "video":
+      input_proto = Inputs.get_input_from_url("", video_url=url)
+    elif input_type == "audio":
+      input_proto = Inputs.get_input_from_url("", audio_url=url)
+
+    return self.generate(
+        inputs=[input_proto], inference_params=inference_params, output_config=output_config)
+
+  def _req_iterator(self, input_iterator: Iterator[List[Input]]):
+    for inputs in input_iterator:
+      yield service_pb2.PostModelOutputsRequest(
+          user_app_id=self.user_app_id,
+          model_id=self.id,
+          version_id=self.model_version.id,
+          inputs=inputs,
+          model=self.model_info)
+
+  def stream(self,
+             inputs: Iterator[List[Input]],
+             inference_params: Dict = {},
+             output_config: Dict = {}):
+    """Generate the stream output on model based on the given stream of inputs.
+
+    Args:
+        inputs (Iterator[list[Input]]): stream of inputs to predict, must be less than 128.
+    """
+    # if not isinstance(inputs, Iterator[List[Input]]):
+    #   raise UserError('Invalid inputs, inputs must be a iterator of list of Input objects.')
+
+    self._override_model_version(inference_params, output_config)
+    request = self._req_iterator(inputs)
+
+    start_time = time.time()
+    backoff_iterator = BackoffIterator(10)
+    generation_started = False
+    while True:
+      if generation_started:
+        break
+      stream_response = self._grpc_request(self.STUB.StreamModelOutputs, request)
+      for response in stream_response:
+        if response.status.code == status_code_pb2.MODEL_DEPLOYING and \
+                time.time() - start_time < 60 * 10:
+          self.logger.info(f"{self.id} model is still deploying, please wait...")
+          time.sleep(next(backoff_iterator))
+          break
+        if response.status.code != status_code_pb2.SUCCESS:
+          raise Exception(f"Model Predict failed with response {response.status!r}")
+        else:
+          if not generation_started:
+            generation_started = True
+          yield response
+
+  def stream_by_filepath(self,
+                         filepath: str,
+                         input_type: str,
+                         inference_params: Dict = {},
+                         output_config: Dict = {}):
+    """Stream the model output based on the given filepath.
+
+    Args:
+        filepath (str): The filepath to predict.
+        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        inference_params (dict): The inference params to override.
+        output_config (dict): The output config to override.
+          min_value (float): The minimum value of the prediction confidence to filter.
+          max_concepts (int): The maximum number of concepts to return.
+          select_concepts (list[Concept]): The concepts to select.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model("url")
+        >>> stream_response = model.stream_by_filepath('/path/to/image.jpg', 'image')
+        >>> list_stream_response = [response for response in stream_response]
+    """
+    if not os.path.isfile(filepath):
+      raise UserError('Invalid filepath.')
+
+    with open(filepath, "rb") as f:
+      file_bytes = f.read()
+
+    return self.stream_by_bytes(iter([file_bytes]), input_type, inference_params, output_config)
+
+  def stream_by_bytes(self,
+                      input_bytes_iterator: Iterator[bytes],
+                      input_type: str,
+                      inference_params: Dict = {},
+                      output_config: Dict = {}):
+    """Stream the model output based on the given bytes.
+
+    Args:
+        input_bytes_iterator (Iterator[bytes]): Iterator of file bytes to predict on.
+        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        inference_params (dict): The inference params to override.
+        output_config (dict): The output config to override.
+          min_value (float): The minimum value of the prediction confidence to filter.
+          max_concepts (int): The maximum number of concepts to return.
+          select_concepts (list[Concept]): The concepts to select.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model("https://clarifai.com/openai/chat-completion/models/GPT-4")
+        >>> stream_response = model.stream_by_bytes(iter([b'Write a tweet on future of AI']),
+                                                    input_type='text',
+                                                    inference_params=dict(temperature=str(0.7), max_tokens=30)))
+        >>> list_stream_response = [response for response in stream_response]
+    """
+    if input_type not in {'image', 'text', 'video', 'audio'}:
+      raise UserError(
+          f"Got input type {input_type} but expected one of image, text, video, audio.")
+
+    def input_generator():
+      for input_bytes in input_bytes_iterator:
+        if input_type == "image":
+          yield [Inputs.get_input_from_bytes("", image_bytes=input_bytes)]
+        elif input_type == "text":
+          yield [Inputs.get_input_from_bytes("", text_bytes=input_bytes)]
+        elif input_type == "video":
+          yield [Inputs.get_input_from_bytes("", video_bytes=input_bytes)]
+        elif input_type == "audio":
+          yield [Inputs.get_input_from_bytes("", audio_bytes=input_bytes)]
+
+    return self.stream(input_generator(), inference_params, output_config)
+
+  def stream_by_url(self,
+                    url_iterator: Iterator[str],
+                    input_type: str,
+                    inference_params: Dict = {},
+                    output_config: Dict = {}):
+    """Stream the model output based on the given URL.
+
+    Args:
+        url_iterator (Iterator[str]): Iterator of URLs to predict.
+        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        inference_params (dict): The inference params to override.
+        output_config (dict): The output config to override.
+          min_value (float): The minimum value of the prediction confidence to filter.
+          max_concepts (int): The maximum number of concepts to return.
+          select_concepts (list[Concept]): The concepts to select.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model("url")
+        >>> stream_response = model.stream_by_url(iter(['url']), 'image')
+        >>> list_stream_response = [response for response in stream_response]
+    """
+    if input_type not in {'image', 'text', 'video', 'audio'}:
+      raise UserError(
+          f"Got input type {input_type} but expected one of image, text, video, audio.")
+
+    def input_generator():
+      for url in url_iterator:
+        if input_type == "image":
+          yield [Inputs.get_input_from_url("", image_url=url)]
+        elif input_type == "text":
+          yield [Inputs.get_input_from_url("", text_url=url)]
+        elif input_type == "video":
+          yield [Inputs.get_input_from_url("", video_url=url)]
+        elif input_type == "audio":
+          yield [Inputs.get_input_from_url("", audio_url=url)]
+
+    return self.stream(input_generator(), inference_params, output_config)
 
   def _override_model_version(self, inference_params: Dict = {}, output_config: Dict = {}) -> None:
     """Overrides the model version.

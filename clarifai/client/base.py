@@ -56,6 +56,11 @@ class BaseClient:
     self.root_certificates_path = self.auth_helper._root_certificates_path
 
   @classmethod
+  def from_env(cls, validate: bool = False):
+    auth = ClarifaiAuthHelper.from_env(validate=validate)
+    return cls.from_auth_helper(auth)
+
+  @classmethod
   def from_auth_helper(cls, auth: ClarifaiAuthHelper, **kwargs):
     default_kwargs = {
         "user_id":
