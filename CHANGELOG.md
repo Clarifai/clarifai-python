@@ -1,8 +1,12 @@
+## [[10.5.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.5.1) - [PyPI](https://pypi.org/project/clarifai/10.5.1/) - 2024-06-17
+
+### Changed
+- Added BaseClient.from_env() and some new endpoints  [(#346)](https://github.com/Clarifai/clarifai-python/pull/346)
+
 ## [[10.5.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.5.0) - [PyPI](https://pypi.org/project/clarifai/10.5.0/) - 2024-06-10
 
 ### Changed
 - Upgrade to clarifai-grpc 10.5.0 [(#345)](https://github.com/Clarifai/clarifai-python/pull/343)
-
 
 ## [[10.3.3]](https://github.com/Clarifai/clarifai-python/releases/tag/10.3.3) - [PyPI](https://pypi.org/project/clarifai/10.3.3/) - 2024-05-07
 
