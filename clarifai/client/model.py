@@ -813,15 +813,15 @@ class Model(Lister, BaseClient):
     def input_generator():
       for input_bytes in input_bytes_iterator:
         if input_type == "image":
-          yield Inputs.get_input_from_bytes("", image_bytes=input_bytes)
+          yield [Inputs.get_input_from_bytes("", image_bytes=input_bytes)]
         elif input_type == "text":
-          yield Inputs.get_input_from_bytes("", text_bytes=input_bytes)
+          yield [Inputs.get_input_from_bytes("", text_bytes=input_bytes)]
         elif input_type == "video":
-          yield Inputs.get_input_from_bytes("", video_bytes=input_bytes)
+          yield [Inputs.get_input_from_bytes("", video_bytes=input_bytes)]
         elif input_type == "audio":
-          yield Inputs.get_input_from_bytes("", audio_bytes=input_bytes)
+          yield [Inputs.get_input_from_bytes("", audio_bytes=input_bytes)]
 
-    return self.stream(iter([list(input_generator())]), inference_params, output_config)
+    return self.stream(input_generator(), inference_params, output_config)
 
   def stream_by_url(self,
                     url_iterator: Iterator[str],
@@ -852,15 +852,15 @@ class Model(Lister, BaseClient):
     def input_generator():
       for url in url_iterator:
         if input_type == "image":
-          yield Inputs.get_input_from_url("", image_url=url)
+          yield [Inputs.get_input_from_url("", image_url=url)]
         elif input_type == "text":
-          yield Inputs.get_input_from_url("", text_url=url)
+          yield [Inputs.get_input_from_url("", text_url=url)]
         elif input_type == "video":
-          yield Inputs.get_input_from_url("", video_url=url)
+          yield [Inputs.get_input_from_url("", video_url=url)]
         elif input_type == "audio":
-          yield Inputs.get_input_from_url("", audio_url=url)
+          yield [Inputs.get_input_from_url("", audio_url=url)]
 
-    return self.stream(iter([list(input_generator())]), inference_params, output_config)
+    return self.stream(input_generator(), inference_params, output_config)
 
   def _override_model_version(self, inference_params: Dict = {}, output_config: Dict = {}) -> None:
     """Overrides the model version.
