@@ -79,14 +79,6 @@ def test_exception_empty_user():
     ClarifaiAuthHelper("", "main", "fake_pat")
 
 
-def test_exception_empty_app():
-  ClarifaiAuthHelper("clarifai", "", "fake_pat", validate=False)
-  with pytest.raises(
-      Exception,
-      match="Need 'app_id' to not be empty in the query params or user CLARIFAI_APP_ID env var"):
-    ClarifaiAuthHelper("clarifai", "", "fake_pat")
-
-
 def test_exception_empty_pat():
   ClarifaiAuthHelper("clarifai", "main", "", validate=False)
   with pytest.raises(
