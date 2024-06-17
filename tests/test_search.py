@@ -1,6 +1,6 @@
 import os
-import time
 import typing
+import uuid
 
 import pytest
 from google.protobuf import struct_pb2
@@ -10,8 +10,8 @@ from clarifai.client.user import User
 from clarifai.errors import UserError
 
 CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
-now = int(time.time())
-CREATE_APP_ID = f"ci_search_app_{now}"
+uniq = uuid.uuid4().hex[:10]
+CREATE_APP_ID = f"ci_search_app_{uniq}"
 CREATE_DATASET_ID = "ci_search_dataset"
 DOG_IMG_URL = "https://samples.clarifai.com/dog.tiff"
 DATASET_IMAGES_DIR = os.path.dirname(__file__) + "/assets/voc/images"
