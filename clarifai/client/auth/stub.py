@@ -1,3 +1,4 @@
+import itertools
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -31,14 +32,14 @@ def validate_response(response, attempt, max_attempts):
         return response
 
   # Check if the response is an instance of a gRPC streaming call
-  if isinstance(response, grpc.Call):
+  if isinstance(response, grpc._channel._MultiThreadedRendezvous):
     try:
       # Process each response in the stream
-      for res in response:
-        validated_response = handle_simple_response(res)
-        if validated_response is not None:
-          return response
-      return None  # All streamed responses need a retry
+      first_res = next(response)
+      validated_response = handle_simple_response(first_res)
+      if validated_response is not None:
+        return itertools.chain([validated_response], response)
+      return None  # Indicates a retry is needed
     except grpc.RpcError as e:
       logging.error('Error processing streaming response: %s' % str(e))
       return None  # Indicates an error
@@ -136,8 +137,9 @@ class _RetryRpcCallable(RpcCallable):
         time.sleep(self.backoff_time)  # TODO better backoff between attempts
       try:
         response = self.f(*args, **kwargs)
-        if validate_response(response, attempt, self.max_attempts) is not None:
-          return response
+        v = validate_response(response, attempt, self.max_attempts)
+        if v is not None:
+          return v
       except grpc.RpcError as e:
         if (e.code() in retry_codes_grpc) and attempt < self.max_attempts:
           logging.debug('Retrying with status %s' % e.code())
