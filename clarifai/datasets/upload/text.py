@@ -1,3 +1,4 @@
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Tuple, Type
 
@@ -33,7 +34,7 @@ class TextClassificationDataset(ClarifaiDataset):
       labels = data_item.labels if isinstance(data_item.labels,
                                               list) else [data_item.labels]  # clarifai concept
       label_ids = data_item.label_ids
-      input_id = f"{self.dataset_id}-{id}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
+      input_id = f"{self.dataset_id}-{uuid.uuid4().hex[:8]}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
       if data_item.metadata is not None:
         metadata.update(data_item.metadata)
 
