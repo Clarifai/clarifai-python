@@ -1,3 +1,8 @@
+## [[10.5.2]](https://github.com/Clarifai/clarifai-python/releases/tag/10.5.2) - [PyPI](https://pypi.org/project/clarifai/10.5.2/) - 2024-06-20
+
+### Changed
+- Text Features to add random ID as input if input ID is not provided in Dataloader  [(#351)](https://github.com/Clarifai/clarifai-python/pull/351)
+
 ## [[10.5.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.5.1) - [PyPI](https://pypi.org/project/clarifai/10.5.1/) - 2024-06-17
 
 ### Changed
