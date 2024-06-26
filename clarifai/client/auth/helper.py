@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2_grpc
+from clarifai.utils.constants import CLARIFAI_PAT_ENV_VAR, CLARIFAI_SESSION_TOKEN_ENV_VAR
 
 DEFAULT_BASE = "https://api.clarifai.com"
 DEFAULT_UI = "https://clarifai.com"
@@ -237,8 +238,8 @@ Additionally, these optional params are supported:
     """
     user_id = os.environ.get("CLARIFAI_USER_ID", "")
     app_id = os.environ.get("CLARIFAI_APP_ID", "")
-    token = os.environ.get("CLARIFAI_SESSION_TOKEN", "")
-    pat = os.environ.get("CLARIFAI_PAT", "")
+    token = os.environ.get(CLARIFAI_SESSION_TOKEN_ENV_VAR, "")
+    pat = os.environ.get(CLARIFAI_PAT_ENV_VAR, "")
     base = os.environ.get("CLARIFAI_API_BASE", DEFAULT_BASE)
     ui = os.environ.get("CLARIFAI_UI", DEFAULT_UI)
     root_certificates_path = os.environ.get("CLARIFAI_ROOT_CERTIFICATES_PATH", None)
