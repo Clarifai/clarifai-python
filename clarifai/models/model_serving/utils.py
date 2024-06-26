@@ -1,6 +1,6 @@
 import os
 
-from clarifai.model_serving.constants import CLARIFAI_PAT_PATH
+from clarifai.models.model_serving.constants import CLARIFAI_PAT_PATH
 from clarifai.utils.constants import CLARIFAI_PAT_ENV_VAR
 
 
