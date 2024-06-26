@@ -1,3 +1,8 @@
+## [[10.5.3]](https://github.com/Clarifai/clarifai-python/releases/tag/10.5.3) - [PyPI](https://pypi.org/project/clarifai/10.5.3/) - 2024-06-20
+
+### Changed
+- Moved some convenience features to CLI only to avoid writes to disk  [(#353)](https://github.com/Clarifai/clarifai-python/pull/353)
+
 ## [[10.5.2]](https://github.com/Clarifai/clarifai-python/releases/tag/10.5.2) - [PyPI](https://pypi.org/project/clarifai/10.5.2/) - 2024-06-20
 
 ### Changed
