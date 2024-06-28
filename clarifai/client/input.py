@@ -9,7 +9,7 @@ from typing import Generator, List, Union
 
 import requests
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2  # noqa: F401
-from clarifai_grpc.grpc.api.resources_pb2 import (Annotation, Audio, Image, Input, Text, Video)
+from clarifai_grpc.grpc.api.resources_pb2 import Annotation, Audio, Image, Input, Text, Video
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.struct_pb2 import Struct
