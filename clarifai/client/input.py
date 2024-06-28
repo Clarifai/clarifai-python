@@ -9,7 +9,7 @@ from typing import Generator, List, Union
 
 import requests
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2  # noqa: F401
-from clarifai_grpc.grpc.api.resources_pb2 import Annotation, Audio, Image, Input, Text, Video, Concept
+from clarifai_grpc.grpc.api.resources_pb2 import (Annotation, Audio, Image, Input, Text, Video)
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.struct_pb2 import Struct
@@ -481,7 +481,11 @@ class Inputs(Lister, BaseClient):
     return input_protos
 
   @staticmethod
-  def get_bbox_proto(input_id: str, label: str, bbox: List, label_id: str = None, annot_id: str = None) -> Annotation:
+  def get_bbox_proto(input_id: str,
+                     label: str,
+                     bbox: List,
+                     label_id: str = None,
+                     annot_id: str = None) -> Annotation:
     """Create an annotation proto for each bounding box, label input pair.
 
     Args:
@@ -517,36 +521,39 @@ class Inputs(Lister, BaseClient):
                   )),
                   data=resources_pb2.Data(concepts=[
                       resources_pb2.Concept(
-                          id=f"id-{''.join(label.split(' '))}", name=label, value=1.)
-                      if not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
+                          id=f"id-{''.join(label.split(' '))}", name=label, value=1.) if
+                      not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
                   ]))
           ]))
     else:
       input_annot_proto = resources_pb2.Annotation(
-        input_id=input_id,
-        data=resources_pb2.Data(regions=[
-            resources_pb2.Region(
-                region_info=resources_pb2.RegionInfo(bounding_box=resources_pb2.BoundingBox(
-                    # bbox ordering: [xmin, ymin, xmax, ymax]
-                    # top_row must be less than bottom row
-                    # left_col must be less than right col
-                    top_row=bbox[1],  #y_min
-                    left_col=bbox[0],  #x_min
-                    bottom_row=bbox[3],  #y_max
-                    right_col=bbox[2]  #x_max
-                )),
-                data=resources_pb2.Data(concepts=[
-                    resources_pb2.Concept(
-                        id=f"id-{''.join(label.split(' '))}", name=label, value=1.)
-                    if not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
-                ]))
-        ]))
+          input_id=input_id,
+          data=resources_pb2.Data(regions=[
+              resources_pb2.Region(
+                  region_info=resources_pb2.RegionInfo(bounding_box=resources_pb2.BoundingBox(
+                      # bbox ordering: [xmin, ymin, xmax, ymax]
+                      # top_row must be less than bottom row
+                      # left_col must be less than right col
+                      top_row=bbox[1],  #y_min
+                      left_col=bbox[0],  #x_min
+                      bottom_row=bbox[3],  #y_max
+                      right_col=bbox[2]  #x_max
+                  )),
+                  data=resources_pb2.Data(concepts=[
+                      resources_pb2.Concept(
+                          id=f"id-{''.join(label.split(' '))}", name=label, value=1.) if
+                      not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
+                  ]))
+          ]))
 
     return input_annot_proto
 
   @staticmethod
-  def get_mask_proto(input_id: str, label: str, polygons: List[List[float]],
-                     label_id: str = None, annot_id: str = None) -> Annotation:
+  def get_mask_proto(input_id: str,
+                     label: str,
+                     polygons: List[List[float]],
+                     label_id: str = None,
+                     annot_id: str = None) -> Annotation:
     """Create an annotation proto for each polygon box, label input pair.
 
     Args:
@@ -580,28 +587,28 @@ class Inputs(Lister, BaseClient):
                       ])),
                   data=resources_pb2.Data(concepts=[
                       resources_pb2.Concept(
-                          id=f"id-{''.join(label.split(' '))}", name=label, value=1.)
-                      if not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
+                          id=f"id-{''.join(label.split(' '))}", name=label, value=1.) if
+                      not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
                   ]))
           ]))
     else:
       input_mask_proto = resources_pb2.Annotation(
-        input_id=input_id,
-        data=resources_pb2.Data(regions=[
-            resources_pb2.Region(
-                region_info=resources_pb2.RegionInfo(polygon=resources_pb2.Polygon(
-                    points=[
-                        resources_pb2.Point(
-                            row=_point[1],  # row is y point
-                            col=_point[0],  # col is x point
-                            visibility="VISIBLE") for _point in polygons
-                    ])),
-                data=resources_pb2.Data(concepts=[
-                    resources_pb2.Concept(
-                        id=f"id-{''.join(label.split(' '))}", name=label, value=1.)
-                    if not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
-                ]))
-        ]))
+          input_id=input_id,
+          data=resources_pb2.Data(regions=[
+              resources_pb2.Region(
+                  region_info=resources_pb2.RegionInfo(polygon=resources_pb2.Polygon(
+                      points=[
+                          resources_pb2.Point(
+                              row=_point[1],  # row is y point
+                              col=_point[0],  # col is x point
+                              visibility="VISIBLE") for _point in polygons
+                      ])),
+                  data=resources_pb2.Data(concepts=[
+                      resources_pb2.Concept(
+                          id=f"id-{''.join(label.split(' '))}", name=label, value=1.) if
+                      not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
+                  ]))
+          ]))
 
     return input_mask_proto
 
@@ -804,7 +811,8 @@ class Inputs(Lister, BaseClient):
 
     return retry_upload
 
-  def patch_annotations(self, batch_annot: List[resources_pb2.Annotation], action: str = 'merge') -> None:
+  def patch_annotations(self, batch_annot: List[resources_pb2.Annotation],
+                        action: str = 'merge') -> None:
     """Upload image annotations to app.
 
     Args:
@@ -829,7 +837,11 @@ class Inputs(Lister, BaseClient):
       self.logger.info("\nPatch Annotations Uploaded Successful\n%s", response.status)
     return response_dict
 
-  def patch_concepts(self, concept_ids: List[str], labels: List[str], values: List[float] = [], action: str = 'overwrite') -> None:
+  def patch_concepts(self,
+                     concept_ids: List[str],
+                     labels: List[str],
+                     values: List[float] = [],
+                     action: str = 'overwrite') -> None:
     """Upload image annotations to app.
 
     Args:
