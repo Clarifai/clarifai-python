@@ -835,7 +835,6 @@ class Inputs(Lister, BaseClient):
         self.logger.warning(f"Patch annotations failed due to {response.status}")
     else:
       self.logger.info("\nPatch Annotations Uploaded Successful\n%s", response.status)
-    return response_dict
 
   def patch_concepts(self,
                      concept_ids: List[str],
