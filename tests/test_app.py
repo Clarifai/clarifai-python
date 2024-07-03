@@ -113,6 +113,15 @@ class TestApp:
     all_datasets = list(create_app.list_datasets())
     assert len(all_datasets) == 1
 
+  def test_export_dataset(self, create_app):
+    dataset = create_app.dataset(dataset_id=CREATE_DATASET_ID)
+    dataset_demo_version = dataset.create_version()
+    versions = list(dataset.list_versions())
+    dataset_demo_version.export(save_path='tests/output_demo.zip')
+    assert len(versions) == 1  #test for create_version
+    assert os.path.exists('tests/output_demo.zip') is True
+    os.remove('tests/output_demo.zip')
+
   def test_delete_dataset(self, create_app, caplog):
     with caplog.at_level(logging.INFO):
       create_app.delete_dataset(CREATE_DATASET_ID)
