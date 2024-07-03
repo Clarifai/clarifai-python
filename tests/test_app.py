@@ -8,6 +8,9 @@ from clarifai.client.app import App
 from clarifai.client.user import User
 from clarifai.constants.search import DEFAULT_TOP_K
 
+os.environ['CLARIFAI_USER_ID'] = "srikanthbachala"
+os.environ['CLARIFAI_PAT'] = "60f2d7040d2246a9bb56d6f3ecfbb873"
+
 NOW = uuid.uuid4().hex[:10]
 MAIN_APP_ID = "main"
 MAIN_APP_USER_ID = "clarifai"
@@ -107,6 +110,9 @@ class TestApp:
     dataset = create_app.dataset(dataset_id=CREATE_DATASET_ID)
     versions = list(dataset.list_versions())
     assert len(versions) == 0  #test for list_versions
+    dataset = dataset.create_version()
+    versions = list(dataset.list_versions())
+    assert len(versions) == 1  #test for create_version
     assert dataset.id == CREATE_DATASET_ID and dataset.app_id == CREATE_APP_ID and dataset.user_id == CREATE_APP_USER_ID
 
   def test_list_datasets(self, create_app):
@@ -115,10 +121,9 @@ class TestApp:
 
   def test_export_dataset(self, create_app):
     dataset = create_app.dataset(dataset_id=CREATE_DATASET_ID)
-    dataset_demo_version = dataset.create_version()
     versions = list(dataset.list_versions())
+    dataset_demo_version = versions[0]
     dataset_demo_version.export(save_path='tests/output_demo.zip')
-    assert len(versions) == 1  #test for create_version
     assert os.path.exists('tests/output_demo.zip') is True
     os.remove('tests/output_demo.zip')
 
