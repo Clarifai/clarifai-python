@@ -12,6 +12,7 @@ from google.protobuf.json_format import MessageToDict
 from PIL import ImageFile
 from tqdm import tqdm
 
+from clarifai.constants.dataset import CONTENT_TYPE
 from clarifai.errors import UserError
 from clarifai.utils.logging import get_logger
 
@@ -61,8 +62,11 @@ class DatasetExportReader:
   def _download_temp_archive(self, archive_url: str,
                              chunk_size: int = 128) -> tempfile.TemporaryFile:
     """Downloads the temp archive of InputBatches."""
-    session = requests.Session()
-    r = session.get(archive_url, stream=True)
+    r = self.session.get(archive_url, stream=True)
+    if r.headers['content-type'] == CONTENT_TYPE['json']:
+      raise Exception("File is a json file :\n {}".format(r.json()))
+    elif r.headers['content-type'] != CONTENT_TYPE['zip']:
+      raise Exception('File is not a zip file')
     temp_file = tempfile.TemporaryFile()
     for chunk in r.iter_content(chunk_size=chunk_size):
       temp_file.write(chunk)

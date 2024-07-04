@@ -22,3 +22,5 @@ TASK_TO_ANNOTATION_TYPE = {
 }
 
 MAX_RETRIES = 2
+
+CONTENT_TYPE = {"json": "application/json", "zip": "application/zip"}
