@@ -14,7 +14,9 @@ from clarifai.constants.rag import MAX_UPLOAD_BATCH_SIZE
 from clarifai.errors import UserError
 from clarifai.rag.utils import (convert_messages_to_str, format_assistant_message, load_documents,
                                 split_document)
+from clarifai.utils.constants import CLARIFAI_USER_ID_ENV_VAR
 from clarifai.utils.logging import get_logger
+from clarifai.utils.misc import get_from_dict_or_env
 
 DEFAULT_RAG_PROMPT_TEMPLATE = "Context information is below:\n{data.hits}\nGiven the context information and not prior knowledge, answer the query.\nQuery: {data.text.raw}\nAnswer: "
 
@@ -75,6 +77,12 @@ class RAG:
         >>> rag_agent = RAG.setup(app_url=YOUR_APP_URL)
         >>> rag_agent.chat(messages=[{"role":"human", "content":"What is Clarifai"}])
     """
+    if not app_url:
+      try:
+        user_id = get_from_dict_or_env(key="user_id", env_key=CLARIFAI_USER_ID_ENV_VAR, **kwargs)
+      except Exception:
+        pass
+
     now_ts = uuid.uuid4().hex[:10]
     if user_id and not app_url:
       user = User(user_id=user_id, base_url=base_url, pat=pat)
