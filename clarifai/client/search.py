@@ -19,8 +19,8 @@ from clarifai.schema.search import get_schema
 class Search(Lister, BaseClient):
 
   def __init__(self,
-               user_id: str,
-               app_id: str,
+               user_id: str = None,
+               app_id: str = None,
                top_k: int = None,
                metric: str = DEFAULT_SEARCH_METRIC,
                algorithm: str = DEFAULT_SEARCH_ALGORITHM,

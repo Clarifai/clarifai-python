@@ -91,9 +91,10 @@ class RAG:
       raise UserError("Must provide one of user_id or app_url, not both.")
 
     if not user_id and not app_url:
-      raise UserError(
-          "user_id or app_url must be provided. The user_id can be found at https://clarifai.com/settings."
-      )
+      user = User(user_id=user_id, base_url=base_url, pat=pat)
+      ## Create an App
+      app_id = f"rag_app_{now_ts}"
+      app = user.create_app(app_id=app_id, base_workflow=base_workflow)
 
     llm = Model(url=llm_url, pat=pat)
 

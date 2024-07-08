@@ -225,8 +225,7 @@ Additionally, these optional params are supported:
     if "root_certificates_path" in query_params:
       self._root_certificates_path = query_params["root_certificates_path"][0]
 
-  @classmethod
-  def from_env(cls, validate: bool = True) -> "ClarifaiAuthHelper":
+  def from_env(self, validate: bool = True) -> "ClarifaiAuthHelper":
     """Will look for the following env vars:
         user_id: CLARIFAI_USER_ID env var.
         app_id: CLARIFAI_APP_ID env var.
@@ -236,14 +235,15 @@ Additionally, these optional params are supported:
         base: CLARIFAI_API_BASE env var.
         root_certificates_path: CLARIFAI_ROOT_CERTIFICATES_PATH env var.
     """
-    user_id = os.environ.get("CLARIFAI_USER_ID", "")
-    app_id = os.environ.get("CLARIFAI_APP_ID", "")
-    token = os.environ.get(CLARIFAI_SESSION_TOKEN_ENV_VAR, "")
-    pat = os.environ.get(CLARIFAI_PAT_ENV_VAR, "")
-    base = os.environ.get("CLARIFAI_API_BASE", DEFAULT_BASE)
-    ui = os.environ.get("CLARIFAI_UI", DEFAULT_UI)
-    root_certificates_path = os.environ.get("CLARIFAI_ROOT_CERTIFICATES_PATH", None)
-    return cls(user_id, app_id, pat, token, base, ui, root_certificates_path, validate)
+    user_id = self.user_id or os.environ.get("CLARIFAI_USER_ID", "")
+    app_id = self.app_id or os.environ.get("CLARIFAI_APP_ID", "")
+    token = self._token or os.environ.get(CLARIFAI_SESSION_TOKEN_ENV_VAR, "")
+    pat = self._pat or os.environ.get(CLARIFAI_PAT_ENV_VAR, "")
+    base = self._base or os.environ.get("CLARIFAI_API_BASE", DEFAULT_BASE)
+    ui = self._ui or os.environ.get("CLARIFAI_UI", DEFAULT_UI)
+    root_certificates_path = self._root_certificates_path or os.environ.get(
+        "CLARIFAI_ROOT_CERTIFICATES_PATH", None)
+    return self.__class__(user_id, app_id, pat, token, base, ui, root_certificates_path, validate)
 
   def get_user_app_id_proto(
       self,

@@ -7,9 +7,7 @@ from google.protobuf.wrappers_pb2 import BoolValue
 
 from clarifai.client.auth import create_stub
 from clarifai.client.auth.helper import ClarifaiAuthHelper
-from clarifai.errors import ApiError, UserError
-from clarifai.utils.constants import CLARIFAI_PAT_ENV_VAR, CLARIFAI_SESSION_TOKEN_ENV_VAR
-from clarifai.utils.misc import get_from_dict_or_env
+from clarifai.errors import ApiError
 
 
 class BaseClient:
@@ -35,18 +33,8 @@ class BaseClient:
   """
 
   def __init__(self, **kwargs):
-    token, pat = "", ""
-    try:
-      pat = get_from_dict_or_env(key="pat", env_key=CLARIFAI_PAT_ENV_VAR, **kwargs)
-    except UserError:
-      token = get_from_dict_or_env(key="token", env_key=CLARIFAI_SESSION_TOKEN_ENV_VAR, **kwargs)
-    finally:
-      assert token or pat, Exception(
-          "Need 'pat' or 'token' in args or use one of the CLARIFAI_PAT or CLARIFAI_SESSION_TOKEN env vars"
-      )
-    kwargs.update({'token': token, 'pat': pat})
-
     self.auth_helper = ClarifaiAuthHelper(**kwargs, validate=False)
+    self.auth_helper = self.auth_helper.from_env(validate=False)
     self.STUB = create_stub(self.auth_helper)
     self.metadata = self.auth_helper.metadata
     self.pat = self.auth_helper.pat
