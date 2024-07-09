@@ -65,7 +65,7 @@ class Inputs(Lister, BaseClient):
 
   @staticmethod
   def _get_proto(input_id: str,
-                 dataset_id: Union[str, None],
+                 dataset_id: str = None,
                  imagepb: Image = None,
                  video_pb: Video = None,
                  audio_pb: Audio = None,
@@ -481,7 +481,11 @@ class Inputs(Lister, BaseClient):
     return input_protos
 
   @staticmethod
-  def get_bbox_proto(input_id: str, label: str, bbox: List, label_id: str = None) -> Annotation:
+  def get_bbox_proto(input_id: str,
+                     label: str,
+                     bbox: List,
+                     label_id: str = None,
+                     annot_id: str = None) -> Annotation:
     """Create an annotation proto for each bounding box, label input pair.
 
     Args:
@@ -489,6 +493,7 @@ class Inputs(Lister, BaseClient):
         label (str): annotation label name
         bbox (List): a list of a single bbox's coordinates. # bbox ordering: [xmin, ymin, xmax, ymax]
         label_id (str): annotation label ID
+        annot_id (str): annotation ID
 
     Returns:
         An annotation object for the specified input ID.
@@ -499,31 +504,35 @@ class Inputs(Lister, BaseClient):
     """
     if not isinstance(bbox, list):
       raise UserError("must be a list of bbox cooridnates")
-    input_annot_proto = resources_pb2.Annotation(
-        input_id=input_id,
-        data=resources_pb2.Data(regions=[
-            resources_pb2.Region(
-                region_info=resources_pb2.RegionInfo(bounding_box=resources_pb2.BoundingBox(
-                    # bbox ordering: [xmin, ymin, xmax, ymax]
-                    # top_row must be less than bottom row
-                    # left_col must be less than right col
-                    top_row=bbox[1],  #y_min
-                    left_col=bbox[0],  #x_min
-                    bottom_row=bbox[3],  #y_max
-                    right_col=bbox[2]  #x_max
-                )),
-                data=resources_pb2.Data(concepts=[
-                    resources_pb2.Concept(
-                        id=f"id-{''.join(label.split(' '))}", name=label, value=1.)
-                    if not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
-                ]))
-        ]))
+    annot_data = resources_pb2.Data(regions=[
+        resources_pb2.Region(
+            region_info=resources_pb2.RegionInfo(bounding_box=resources_pb2.BoundingBox(
+                # bbox ordering: [xmin, ymin, xmax, ymax]
+                # top_row must be less than bottom row
+                # left_col must be less than right col
+                top_row=bbox[1],  #y_min
+                left_col=bbox[0],  #x_min
+                bottom_row=bbox[3],  #y_max
+                right_col=bbox[2]  #x_max
+            )),
+            data=resources_pb2.Data(concepts=[
+                resources_pb2.Concept(id=f"id-{''.join(label.split(' '))}", name=label, value=1.)
+                if not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
+            ]))
+    ])
+    if annot_id:
+      input_annot_proto = resources_pb2.Annotation(id=annot_id, input_id=input_id, data=annot_data)
+    else:
+      input_annot_proto = resources_pb2.Annotation(input_id=input_id, data=annot_data)
 
     return input_annot_proto
 
   @staticmethod
-  def get_mask_proto(input_id: str, label: str, polygons: List[List[float]],
-                     label_id: str = None) -> Annotation:
+  def get_mask_proto(input_id: str,
+                     label: str,
+                     polygons: List[List[float]],
+                     label_id: str = None,
+                     annot_id: str = None) -> Annotation:
     """Create an annotation proto for each polygon box, label input pair.
 
     Args:
@@ -531,6 +540,7 @@ class Inputs(Lister, BaseClient):
         label (str): annotation label name
         polygons (List): Polygon x,y points iterable
         label_id (str): annotation label ID
+        annot_id (str): annotation ID
 
     Returns:
         An annotation object for the specified input ID.
@@ -541,23 +551,24 @@ class Inputs(Lister, BaseClient):
     """
     if not isinstance(polygons, list):
       raise UserError("polygons must be a list of points")
-    input_mask_proto = resources_pb2.Annotation(
-        input_id=input_id,
-        data=resources_pb2.Data(regions=[
-            resources_pb2.Region(
-                region_info=resources_pb2.RegionInfo(polygon=resources_pb2.Polygon(
-                    points=[
-                        resources_pb2.Point(
-                            row=_point[1],  # row is y point
-                            col=_point[0],  # col is x point
-                            visibility="VISIBLE") for _point in polygons
-                    ])),
-                data=resources_pb2.Data(concepts=[
-                    resources_pb2.Concept(
-                        id=f"id-{''.join(label.split(' '))}", name=label, value=1.)
-                    if not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
-                ]))
-        ]))
+    annot_data = resources_pb2.Data(regions=[
+        resources_pb2.Region(
+            region_info=resources_pb2.RegionInfo(polygon=resources_pb2.Polygon(
+                points=[
+                    resources_pb2.Point(
+                        row=_point[1],  # row is y point
+                        col=_point[0],  # col is x point
+                        visibility="VISIBLE") for _point in polygons
+                ])),
+            data=resources_pb2.Data(concepts=[
+                resources_pb2.Concept(id=f"id-{''.join(label.split(' '))}", name=label, value=1.)
+                if not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
+            ]))
+    ])
+    if annot_id:
+      input_mask_proto = resources_pb2.Annotation(id=annot_id, input_id=input_id, data=annot_data)
+    else:
+      input_mask_proto = resources_pb2.Annotation(input_id=input_id, data=annot_data)
 
     return input_mask_proto
 
@@ -707,7 +718,7 @@ class Inputs(Lister, BaseClient):
 
     return input_job_id, response
 
-  def patch_inputs(self, inputs: List[Input], action: str = 'merge') -> str:
+  def patch_inputs(self, inputs: List[Input], action: str = 'merge') -> None:
     """Patch list of input objects to the app.
 
     Args:
@@ -719,7 +730,6 @@ class Inputs(Lister, BaseClient):
     """
     if not isinstance(inputs, list):
       raise UserError("inputs must be a list of Input objects")
-    uuid.uuid4().hex  # generate a unique id for this job
     request = service_pb2.PatchInputsRequest(
         user_app_id=self.user_app_id, inputs=inputs, action=action)
     response = self._grpc_request(self.STUB.PatchInputs, request)
@@ -727,9 +737,9 @@ class Inputs(Lister, BaseClient):
       try:
         self.logger.warning(f"Patch inputs failed, status: {response.annotations[0].status}")
       except Exception:
-        self.logger.warning(f"Patch inputs failed, status: {response.status.details}")
-
-    self.logger.info("\nPatch Inputs Successful\n%s", response.status)
+        self.logger.warning(f"Patch inputs failed, status: {response.status}")
+    else:
+      self.logger.info("\nPatch Inputs Successful\n%s", response.status)
 
   def upload_annotations(self, batch_annot: List[resources_pb2.Annotation], show_log: bool = True
                         ) -> Union[List[resources_pb2.Annotation], List[None]]:
@@ -760,6 +770,67 @@ class Inputs(Lister, BaseClient):
         self.logger.info("\nAnnotations Uploaded\n%s", response.status)
 
     return retry_upload
+
+  def patch_annotations(self, batch_annot: List[resources_pb2.Annotation],
+                        action: str = 'merge') -> None:
+    """Patch image annotations to app.
+
+    Args:
+        batch_annot: annot batch protos
+        action (str): Action to perform on the input. Options: 'merge', 'overwrite', 'remove'.
+
+    """
+    if not isinstance(batch_annot, list):
+      raise UserError("batch_annot must be a list of Annotation objects")
+    request = service_pb2.PatchAnnotationsRequest(
+        user_app_id=self.user_app_id, annotations=batch_annot, action=action)
+    response = self._grpc_request(self.STUB.PatchAnnotations, request)
+    response_dict = MessageToDict(response)
+    if response.status.code != status_code_pb2.SUCCESS:
+      try:
+        for annot in response_dict["annotations"]:
+          if annot['status']['code'] != status_code_pb2.ANNOTATION_SUCCESS:
+            self.logger.warning(f"Patch annotations failed, status: {annot['status']}")
+      except Exception:
+        self.logger.warning(f"Patch annotations failed due to {response.status}")
+    else:
+      self.logger.info("\nPatch Annotations Uploaded Successful\n%s", response.status)
+
+  def patch_concepts(self,
+                     concept_ids: List[str],
+                     labels: List[str] = [],
+                     values: List[float] = [],
+                     action: str = 'overwrite') -> None:
+    """Patch concepts to app.
+
+    Args:
+        concept_ids:  A list of concept
+        labels: A list of label names
+        values: concept value
+        action (str): Action to perform on the input. Options: 'overwrite'.
+
+    """
+    if not labels:
+      labels = list(concept_ids)
+    if values:
+      concepts=[
+              resources_pb2.Concept(
+              id=concept_id, name=label, value=value)\
+              for concept_id, label, value in zip(concept_ids, labels, values)
+          ]
+    else:
+      concepts=[
+              resources_pb2.Concept(
+              id=concept_id, name=label, value=1.)\
+              for concept_id, label in zip(concept_ids, labels)
+          ]
+    request = service_pb2.PatchConceptsRequest(
+        user_app_id=self.user_app_id, concepts=concepts, action=action)
+    response = self._grpc_request(self.STUB.PatchConcepts, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      self.logger.warning(f"Patch Concepts failed, status: {response.status.details}")
+    else:
+      self.logger.info("\nPatch Concepts Successful\n%s", response.status)
 
   def _upload_batch(self, inputs: List[Input]) -> List[Input]:
     """Upload a batch of input objects to the app.
