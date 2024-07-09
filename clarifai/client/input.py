@@ -504,47 +504,26 @@ class Inputs(Lister, BaseClient):
     """
     if not isinstance(bbox, list):
       raise UserError("must be a list of bbox cooridnates")
+    annot_data = resources_pb2.Data(regions=[
+        resources_pb2.Region(
+            region_info=resources_pb2.RegionInfo(bounding_box=resources_pb2.BoundingBox(
+                # bbox ordering: [xmin, ymin, xmax, ymax]
+                # top_row must be less than bottom row
+                # left_col must be less than right col
+                top_row=bbox[1],  #y_min
+                left_col=bbox[0],  #x_min
+                bottom_row=bbox[3],  #y_max
+                right_col=bbox[2]  #x_max
+            )),
+            data=resources_pb2.Data(concepts=[
+                resources_pb2.Concept(id=f"id-{''.join(label.split(' '))}", name=label, value=1.)
+                if not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
+            ]))
+    ])
     if annot_id:
-      input_annot_proto = resources_pb2.Annotation(
-          id=annot_id,
-          input_id=input_id,
-          data=resources_pb2.Data(regions=[
-              resources_pb2.Region(
-                  region_info=resources_pb2.RegionInfo(bounding_box=resources_pb2.BoundingBox(
-                      # bbox ordering: [xmin, ymin, xmax, ymax]
-                      # top_row must be less than bottom row
-                      # left_col must be less than right col
-                      top_row=bbox[1],  #y_min
-                      left_col=bbox[0],  #x_min
-                      bottom_row=bbox[3],  #y_max
-                      right_col=bbox[2]  #x_max
-                  )),
-                  data=resources_pb2.Data(concepts=[
-                      resources_pb2.Concept(
-                          id=f"id-{''.join(label.split(' '))}", name=label, value=1.) if
-                      not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
-                  ]))
-          ]))
+      input_annot_proto = resources_pb2.Annotation(id=annot_id, input_id=input_id, data=annot_data)
     else:
-      input_annot_proto = resources_pb2.Annotation(
-          input_id=input_id,
-          data=resources_pb2.Data(regions=[
-              resources_pb2.Region(
-                  region_info=resources_pb2.RegionInfo(bounding_box=resources_pb2.BoundingBox(
-                      # bbox ordering: [xmin, ymin, xmax, ymax]
-                      # top_row must be less than bottom row
-                      # left_col must be less than right col
-                      top_row=bbox[1],  #y_min
-                      left_col=bbox[0],  #x_min
-                      bottom_row=bbox[3],  #y_max
-                      right_col=bbox[2]  #x_max
-                  )),
-                  data=resources_pb2.Data(concepts=[
-                      resources_pb2.Concept(
-                          id=f"id-{''.join(label.split(' '))}", name=label, value=1.) if
-                      not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
-                  ]))
-          ]))
+      input_annot_proto = resources_pb2.Annotation(input_id=input_id, data=annot_data)
 
     return input_annot_proto
 
@@ -572,43 +551,24 @@ class Inputs(Lister, BaseClient):
     """
     if not isinstance(polygons, list):
       raise UserError("polygons must be a list of points")
+    annot_data = resources_pb2.Data(regions=[
+        resources_pb2.Region(
+            region_info=resources_pb2.RegionInfo(polygon=resources_pb2.Polygon(
+                points=[
+                    resources_pb2.Point(
+                        row=_point[1],  # row is y point
+                        col=_point[0],  # col is x point
+                        visibility="VISIBLE") for _point in polygons
+                ])),
+            data=resources_pb2.Data(concepts=[
+                resources_pb2.Concept(id=f"id-{''.join(label.split(' '))}", name=label, value=1.)
+                if not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
+            ]))
+    ])
     if annot_id:
-      input_mask_proto = resources_pb2.Annotation(
-          id=annot_id,
-          input_id=input_id,
-          data=resources_pb2.Data(regions=[
-              resources_pb2.Region(
-                  region_info=resources_pb2.RegionInfo(polygon=resources_pb2.Polygon(
-                      points=[
-                          resources_pb2.Point(
-                              row=_point[1],  # row is y point
-                              col=_point[0],  # col is x point
-                              visibility="VISIBLE") for _point in polygons
-                      ])),
-                  data=resources_pb2.Data(concepts=[
-                      resources_pb2.Concept(
-                          id=f"id-{''.join(label.split(' '))}", name=label, value=1.) if
-                      not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
-                  ]))
-          ]))
+      input_mask_proto = resources_pb2.Annotation(id=annot_id, input_id=input_id, data=annot_data)
     else:
-      input_mask_proto = resources_pb2.Annotation(
-          input_id=input_id,
-          data=resources_pb2.Data(regions=[
-              resources_pb2.Region(
-                  region_info=resources_pb2.RegionInfo(polygon=resources_pb2.Polygon(
-                      points=[
-                          resources_pb2.Point(
-                              row=_point[1],  # row is y point
-                              col=_point[0],  # col is x point
-                              visibility="VISIBLE") for _point in polygons
-                      ])),
-                  data=resources_pb2.Data(concepts=[
-                      resources_pb2.Concept(
-                          id=f"id-{''.join(label.split(' '))}", name=label, value=1.) if
-                      not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
-                  ]))
-          ]))
+      input_mask_proto = resources_pb2.Annotation(input_id=input_id, data=annot_data)
 
     return input_mask_proto
 
@@ -813,7 +773,7 @@ class Inputs(Lister, BaseClient):
 
   def patch_annotations(self, batch_annot: List[resources_pb2.Annotation],
                         action: str = 'merge') -> None:
-    """Upload image annotations to app.
+    """Patch image annotations to app.
 
     Args:
         batch_annot: annot batch protos
@@ -838,10 +798,10 @@ class Inputs(Lister, BaseClient):
 
   def patch_concepts(self,
                      concept_ids: List[str],
-                     labels: List[str],
+                     labels: List[str] = [],
                      values: List[float] = [],
                      action: str = 'overwrite') -> None:
-    """Upload image annotations to app.
+    """Patch concepts to app.
 
     Args:
         concept_ids:  A list of concept
@@ -850,6 +810,8 @@ class Inputs(Lister, BaseClient):
         action (str): Action to perform on the input. Options: 'overwrite'.
 
     """
+    if not labels:
+      labels = list(concept_ids)
     if values:
       concepts=[
               resources_pb2.Concept(
