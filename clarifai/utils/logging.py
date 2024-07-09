@@ -3,11 +3,11 @@ from collections import defaultdict
 from typing import Dict, List, Optional, Union
 
 from rich import print as rprint
+from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
 from rich.traceback import install
 from rich.tree import Tree
-from rich.console import Console
 
 install()
 
@@ -85,7 +85,8 @@ def _configure_logger(name: str, logger_level: Union[int, str] = logging.NOTSET)
     logger.removeHandler(handler)
 
   # Add the new rich handler and formatter
-  handler = RichHandler(rich_tracebacks=True, log_time_format="%Y-%m-%d %H:%M:%S", console=Console(width=255))
+  handler = RichHandler(
+      rich_tracebacks=True, log_time_format="%Y-%m-%d %H:%M:%S", console=Console(width=255))
   formatter = logging.Formatter('%(name)s:  %(message)s')
   handler.setFormatter(formatter)
   logger.addHandler(handler)
