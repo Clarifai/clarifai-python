@@ -2,11 +2,11 @@
 
 ### Added
  - Patch operations for input annotations and concepts [(#354)] (https://github.com/Clarifai/clarifai-python/pull/354)
-   
+
 ### Changed
 - Getting user id from ENV variables for RAG class [(#358)](https://github.com/Clarifai/clarifai-python/pull/358)
 - Improved rich logging by width addition [(#359)](https://github.com/Clarifai/clarifai-python/pull/359)
-  
+
 ### Fixed
  - Dataset export functionality - Added authentication headers to download requests, better exception formatting [(#356)](https://github.com/Clarifai/clarifai-python/pull/356)
 
