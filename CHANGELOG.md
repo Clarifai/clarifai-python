@@ -1,7 +1,10 @@
-### Changed
-- Added fixes in dataset export functionality
-
 ## [[10.5.4]](https://github.com/Clarifai/clarifai-python/releases/tag/10.5.4) - [PyPI](https://pypi.org/project/clarifai/10.5.4/) - 2024-07-12
+
+### Changed
+- Added fixes in dataset export functionality - Added authentication headers to download requests, better exception formatting [(#356)](https://github.com/Clarifai/clarifai-python/pull/356)
+- Added patch operations for input annotations and concepts [(#354)] (https://github.com/Clarifai/clarifai-python/pull/354)
+- Getting user id from ENV variables for RAG class [(#358)](https://github.com/Clarifai/clarifai-python/pull/358)
+- Improved rich logging by width addition [(#359)](https://github.com/Clarifai/clarifai-python/pull/359)
 
 ## [[10.5.3]](https://github.com/Clarifai/clarifai-python/releases/tag/10.5.3) - [PyPI](https://pypi.org/project/clarifai/10.5.3/) - 2024-06-20
 
