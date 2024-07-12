@@ -1,3 +1,8 @@
+### Changed
+- Added fixes in dataset export functionality
+
+## [[10.5.4]](https://github.com/Clarifai/clarifai-python/releases/tag/10.5.4) - [PyPI](https://pypi.org/project/clarifai/10.5.4/) - 2024-07-12
+
 ## [[10.5.3]](https://github.com/Clarifai/clarifai-python/releases/tag/10.5.3) - [PyPI](https://pypi.org/project/clarifai/10.5.3/) - 2024-06-20
 
 ### Changed
