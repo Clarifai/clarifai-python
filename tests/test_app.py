@@ -22,6 +22,9 @@ CREATE_DATASET_ID = f"ci_test_dataset_{NOW}"
 CREATE_MODULE_ID = f"ci_test_module_{NOW}"
 CREATE_RUNNER_ID = f"ci_test_runner_{NOW}"
 
+#assets
+IMAGE_URL = "https://samples.clarifai.com/metro-north.jpg"
+
 CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
 
 
@@ -123,6 +126,32 @@ class TestApp:
     assert len(versions) == 1  #test for create_version
     assert os.path.exists('tests/output_demo.zip') is True
     os.remove('tests/output_demo.zip')
+
+  def test_patch_app(self, caplog):
+    with caplog.at_level(logging.INFO):
+      User(user_id=CREATE_APP_USER_ID).patch_app(
+          app_id=CREATE_APP_ID,
+          action='overwrite',
+          default_language='en',
+          base_workflow='Universal',
+          reindex=True,
+          description='App Patching Test',
+          is_template=True,
+          visibility=10,
+          notes='App Patching Notes Test',
+          image_url=IMAGE_URL)
+      assert "SUCCESS" in caplog.text
+
+  def test_patch_dataset(self, create_app, caplog):
+    with caplog.at_level(logging.INFO):
+      create_app.patch_dataset(
+          dataset_id=CREATE_DATASET_ID,
+          action='merge',
+          description='App Patching Test',
+          visibility=10,
+          notes='App Patching Notes Test',
+          image_url=IMAGE_URL)
+      assert "SUCCESS" in caplog.text
 
   def test_delete_dataset(self, create_app, caplog):
     with caplog.at_level(logging.INFO):
