@@ -603,13 +603,10 @@ class App(Lister, BaseClient):
     Returns:
         Dataset: A Dataset object for the specified dataset ID.
     """
-    if kwargs.get("visibility"):
-      visibility = resources_pb2.Visibility(gettable=kwargs["visibility"])
-      kwargs.update({'visibility': visibility})
-    if kwargs.get("image_url"):
-      image_pb = resources_pb2.Image(url=kwargs["image_url"])
-      kwargs.pop("image_url")
-      kwargs = {**kwargs, 'image': image_pb}
+    if "visibility" in kwargs:
+      kwargs["visibility"] = resources_pb2.Visibility(gettable=kwargs["visibility"])
+    if "image_url" in kwargs:
+      kwargs["image"] = resources_pb2.Image(url=kwargs.pop("image_url"))
     request = service_pb2.PatchDatasetsRequest(
         user_app_id=self.user_app_id,
         datasets=[resources_pb2.Dataset(id=dataset_id, **kwargs)],

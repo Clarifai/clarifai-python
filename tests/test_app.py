@@ -134,7 +134,6 @@ class TestApp:
           action='overwrite',
           default_language='en',
           base_workflow='Universal',
-          reindex=True,
           description='App Patching Test',
           is_template=True,
           visibility=10,

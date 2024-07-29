@@ -223,39 +223,31 @@ class User(Lister, BaseClient):
 
     return dict(self.auth_helper, check_runner_exists=False, **kwargs)
 
-  def patch_app(self, app_id: str, action: str = 'overwrite', reindex: bool = False,
-                **kwargs) -> App:
+  def patch_app(self, app_id: str, action: str = 'overwrite', **kwargs) -> App:
     """Patch an app for the user.
 
     Args:
         app_id (str): The app ID for the app to patch.
         action (str): The action to perform on the app (overwrite/remove).
-        reindex (bool): If set, the app will be automatically reindexed upon change of its base workflow.
         **kwargs: Additional keyword arguments to be passed to patch the App.
 
     Returns:
         App: Patched App object for the specified app ID.
     """
-    if kwargs.get("base_workflow"):
-      workflow = resources_pb2.Workflow(
-          id=kwargs["base_workflow"], app_id="main", user_id="clarifai")
-      kwargs.pop("base_workflow")
-      kwargs = {**kwargs, 'default_workflow': workflow}
-    if kwargs.get("visibility"):
-      visibility = resources_pb2.Visibility(gettable=kwargs["visibility"])
-      kwargs.update({'visibility': visibility})
-    if kwargs.get("image_url"):
-      image_pb = resources_pb2.Image(url=kwargs["image_url"])
-      kwargs.pop("image_url")
-      kwargs = {**kwargs, 'image': image_pb}
+    if "base_workflow" in kwargs:
+      kwargs["default_workflow"] = resources_pb2.Workflow(
+          id=kwargs.pop("base_workflow"), app_id="main", user_id="clarifai")
+    if "visibility" in kwargs:
+      kwargs["visibility"] = resources_pb2.Visibility(gettable=kwargs["visibility"])
+    if "image_url" in kwargs:
+      kwargs["image"] = resources_pb2.Image(url=kwargs.pop("image_url"))
     if "is_template" in kwargs:
-      is_template = BoolValue(value=kwargs["is_template"])
-      kwargs.update({'is_template': is_template})
+      kwargs["is_template"] = BoolValue(value=kwargs["is_template"])
     request = service_pb2.PatchAppRequest(
         user_app_id=resources_pb2.UserAppIDSet(user_id=self.id, app_id=app_id),
         app=resources_pb2.App(id=app_id, **kwargs),
         action=action,
-        reindex=reindex)
+        reindex=False)
     response = self._grpc_request(self.STUB.PatchApp, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
