@@ -592,6 +592,32 @@ class App(Lister, BaseClient):
     """
     return Inputs.from_auth_helper(self.auth_helper)
 
+  def patch_dataset(self, dataset_id: str, action: str = 'merge', **kwargs) -> Dataset:
+    """Patches a dataset for the app.
+
+    Args:
+        dataset_id (str): The dataset ID for the dataset to create.
+        action (str): The action to perform on the dataset (merge/overwrite/remove).
+        **kwargs: Additional keyword arguments to be passed to patch the Dataset.
+
+    Returns:
+        Dataset: A Dataset object for the specified dataset ID.
+    """
+    if "visibility" in kwargs:
+      kwargs["visibility"] = resources_pb2.Visibility(gettable=kwargs["visibility"])
+    if "image_url" in kwargs:
+      kwargs["image"] = resources_pb2.Image(url=kwargs.pop("image_url"))
+    request = service_pb2.PatchDatasetsRequest(
+        user_app_id=self.user_app_id,
+        datasets=[resources_pb2.Dataset(id=dataset_id, **kwargs)],
+        action=action)
+    response = self._grpc_request(self.STUB.PatchDatasets, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nDataset patched\n%s", response.status)
+
+    return Dataset.from_auth_helper(self.auth_helper, dataset_id=dataset_id, **kwargs)
+
   def delete_dataset(self, dataset_id: str) -> None:
     """Deletes an dataset for the user.
 
