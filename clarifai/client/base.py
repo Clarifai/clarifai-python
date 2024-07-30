@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any, Callable
 
+from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf import struct_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 from google.protobuf.wrappers_pb2 import BoolValue
@@ -176,6 +177,10 @@ class BaseClient:
             continue
           elif key == 'size':
             value = int(value)
+          elif key == 'image_info':
+            value = resources_pb2.ImageInfo(**value)
+          elif key == 'hosted_image_info':
+            continue
           elif key in ['metadata']:
             if isinstance(value, dict) and value != {}:
               value_s = struct_pb2.Struct()
