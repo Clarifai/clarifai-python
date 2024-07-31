@@ -304,18 +304,21 @@ class Search(Lister, BaseClient):
     for rank_dict in ranks:
       rank_annot_proto = self._get_annot_proto(**rank_dict)
       all_ranks.append(resources_pb2.Rank(annotation=rank_annot_proto))
-      
+
     all_filters = []
     # check for filters which is compatible with input proto
     for each_filter in filters:
-      input_dict = {key: each_filter.pop(key) for key in ['input_types', 'input_dataset_ids', 'input_status_code'] if key in each_filter }
- 
-      all_filters.append(resources_pb2.Filter(
-        annotation=self._get_annot_proto(**each_filter),
-        input = self._get_input_proto(**input_dict)
-        )
-    )
-      
+      input_dict = {
+          key: each_filter.pop(key)
+          for key in ['input_types', 'input_dataset_ids', 'input_status_code']
+          if key in each_filter
+      }
+
+      all_filters.append(
+          resources_pb2.Filter(
+              annotation=self._get_annot_proto(**each_filter),
+              input=self._get_input_proto(**input_dict)))
+
     # Create a PostInputsSearchesRequest proto message
     request_data = dict(
         user_app_id=self.user_app_id,
@@ -327,8 +330,8 @@ class Search(Lister, BaseClient):
         ])
     # Calls PostInputsSearches for annotation ranks, input filters
     if self.pagination:
-        return self._list_all_pages_generator(self.STUB.PostInputsSearches,
-                                              service_pb2.PostInputsSearchesRequest, request_data,
-                                              page_no, per_page)
+      return self._list_all_pages_generator(self.STUB.PostInputsSearches,
+                                            service_pb2.PostInputsSearchesRequest, request_data,
+                                            page_no, per_page)
     return self._list_topk_generator(self.STUB.PostInputsSearches,
-                                       service_pb2.PostInputsSearchesRequest, request_data)
+                                     service_pb2.PostInputsSearchesRequest, request_data)
