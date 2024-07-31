@@ -277,7 +277,8 @@ class Search(Lister, BaseClient):
         Get successful inputs of type image or text
         >>> from clarifai.client.search import Search
         >>> search = Search(user_id='user_id', app_id='app_id', top_k=10, metric='cosine')
-        >>> res = search.query(filters=[{'input_types': ['image', 'text']}, {'input_status_code': 30000}])
+        # This performs OR operation on input_types and input_status_code
+        >>> res = search.query(filters=[{'input_types': ['image', 'text'], 'input_status_code': 30000}])
 
         Vector search over inputs
         >>> from clarifai.client.search import Search
@@ -298,43 +299,24 @@ class Search(Lister, BaseClient):
       raise UserError(f"Invalid rank or filter input: {err}")
 
     # For each rank, create a Rank proto message
-    rank_annot_proto = []
+    # For ranks it only allows resources_pb2.Annotation proto, so no need of splitting protos into annotation and input.
+    all_ranks = []
     for rank_dict in ranks:
-      rank_annot_proto.append(self._get_annot_proto(**rank_dict))
-    all_ranks = [resources_pb2.Rank(annotation=rank_annot) for rank_annot in rank_annot_proto]
-
-    # Calls PostInputsSearches for annotation ranks, input filters
-    if any(["input" in k for k in filters[0].keys()]):
-      filters_input_proto = []
-      for filter_dict in filters:
-        filters_input_proto.append(self._get_input_proto(**filter_dict))
-      all_filters = [
-          resources_pb2.Filter(input=filter_input) for filter_input in filters_input_proto
-      ]
-      request_data = dict(
-          user_app_id=self.user_app_id,
-          searches=[
-              resources_pb2.Search(
-                  query=resources_pb2.Query(ranks=all_ranks, filters=all_filters),
-                  algorithm=self.algorithm,
-                  metric=self.metric_distance)
-          ])
-      if self.pagination:
-        return self._list_all_pages_generator(self.STUB.PostInputsSearches,
-                                              service_pb2.PostInputsSearchesRequest, request_data,
-                                              page_no, per_page)
-      return self._list_topk_generator(self.STUB.PostInputsSearches,
-                                       service_pb2.PostInputsSearchesRequest, request_data)
-
-    # Calls PostAnnotationsSearches for annotation ranks, filters
-    filters_annot_proto = []
-    for filter_dict in filters:
-      filters_annot_proto.append(self._get_annot_proto(**filter_dict))
-
-    all_filters = [
-        resources_pb2.Filter(annotation=filter_annot) for filter_annot in filters_annot_proto
-    ]
-
+      rank_annot_proto = self._get_annot_proto(**rank_dict)
+      all_ranks.append(resources_pb2.Rank(annotation=rank_annot_proto))
+      
+    all_filters = []
+    # check for filters which is compatible with input proto
+    for each_filter in filters:
+      input_dict = {key: each_filter.pop(key) for key in ['input_types', 'input_dataset_ids', 'input_status_code'] if key in each_filter }
+ 
+      all_filters.append(resources_pb2.Filter(
+        annotation=self._get_annot_proto(**each_filter),
+        input = self._get_input_proto(**input_dict)
+        )
+    )
+      
+    # Create a PostInputsSearchesRequest proto message
     request_data = dict(
         user_app_id=self.user_app_id,
         searches=[
@@ -343,9 +325,10 @@ class Search(Lister, BaseClient):
                 algorithm=self.algorithm,
                 metric=self.metric_distance)
         ])
+    # Calls PostInputsSearches for annotation ranks, input filters
     if self.pagination:
-      return self._list_all_pages_generator(self.STUB.PostAnnotationsSearches,
-                                            service_pb2.PostAnnotationsSearchesRequest,
-                                            request_data, page_no, per_page)
-    return self._list_topk_generator(self.STUB.PostAnnotationsSearches,
-                                     service_pb2.PostAnnotationsSearchesRequest, request_data)
+        return self._list_all_pages_generator(self.STUB.PostInputsSearches,
+                                              service_pb2.PostInputsSearchesRequest, request_data,
+                                              page_no, per_page)
+    return self._list_topk_generator(self.STUB.PostInputsSearches,
+                                       service_pb2.PostInputsSearchesRequest, request_data)
