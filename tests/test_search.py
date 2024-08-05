@@ -114,6 +114,8 @@ class TestAnnotationSearch:
         user_id=CREATE_APP_USER_ID, app_id=CREATE_APP_ID, top_k=1, metric="euclidean")
     cls.search_with_pagination = Search(
         user_id=CREATE_APP_USER_ID, app_id=CREATE_APP_ID, metric="euclidean", pagination=True)
+    cls.search_deduplicate = Search(
+        user_id=CREATE_APP_USER_ID, app_id=CREATE_APP_ID, top_k=2, metric="euclidean")
     cls.upload_data()
 
   @classmethod
@@ -211,6 +213,14 @@ class TestAnnotationSearch:
     # Incorrect input search filter key
     with pytest.raises(UserError):
       _ = self.search.query(filters=[{"input_id": "test"}])
+
+  def test_rank_search_deduplicate(self):
+    query = self.search_deduplicate.query(ranks=[{
+        "image_url": "https://samples.clarifai.com/dog.tiff"
+    }])
+    for q in query:
+      assert len(q.hits) == 2
+      assert q.hits[0].input.id != q.hits[1].input.id
 
   def teardown_class(cls):
     cls.client.delete_app(app_id=CREATE_APP_ID)
