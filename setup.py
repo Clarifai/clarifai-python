@@ -1,10 +1,15 @@
+import re
+
 import setuptools
 
 with open("README.md", "r") as fh:
   long_description = fh.read()
 
-with open("VERSION", "r") as f:
-  version = f.read().strip()
+with open("./clarifai/__init__.py") as f:
+  content = f.read()
+_search_version = re.search(r'__version__\s*=\s*[\'"]([^\'"]*)[\'"]', content)
+assert _search_version
+version = _search_version.group(1)
 
 with open("requirements.txt", "r") as fh:
   install_requires = fh.read().split('\n')
