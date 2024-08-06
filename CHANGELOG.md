@@ -1,3 +1,13 @@
+## [[10.7.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.7.0) - [PyPI](https://pypi.org/project/clarifai/10.7.0/) - 2024-08-06
+
+### Added
+ - Patch operations for Apps and Datasets [(#364)] (https://github.com/Clarifai/clarifai-python/pull/364)
+
+### Fixed
+ - RAG class to support env variable for `user_id` param [(#357)](https://github.com/Clarifai/clarifai-python/pull/357)
+ - Search query bug that returns duplicated triplets by removing `PostAnnotationsSearches` and replacing it with `PostInputsSearches`[(#366)](https://github.com/Clarifai/clarifai-python/pull/366)
+ - Search request potentially blocks the users to use different types of filters altogether, fixed it by supporting annotation and input proto filters.[(#366)](https://github.com/Clarifai/clarifai-python/pull/366)
+
 ## [[10.5.4]](https://github.com/Clarifai/clarifai-python/releases/tag/10.5.4) - [PyPI](https://pypi.org/project/clarifai/10.5.4/) - 2024-07-12
 
 ### Added
