@@ -353,9 +353,10 @@ class App(Lister, BaseClient):
     return Model.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def create_workflow(self,
-                      config_filepath: str,
+                      config_filepath: str = None,
                       generate_new_id: bool = False,
-                      display: bool = True) -> Workflow:
+                      display: bool = True,
+                      workflow_dict = None) -> Workflow:
     """Creates a workflow for the app.
 
     Args:
@@ -371,11 +372,13 @@ class App(Lister, BaseClient):
         >>> app = App(app_id="app_id", user_id="user_id")
         >>> workflow = app.create_workflow(config_filepath="config.yml")
     """
-    if not os.path.exists(config_filepath):
-      raise UserError(f"Workflow config file not found at {config_filepath}")
-
-    with open(config_filepath, 'r') as file:
-      data = yaml.safe_load(file)
+    if not config_filepath and not workflow_dict:
+      raise UserError(f"Workflow config file not found at {config_filepath} and workflow dict not found")
+    if config_filepath:
+      with open(config_filepath, 'r') as file:
+        data = yaml.safe_load(file)
+    elif workflow_dict is not None:
+      data = workflow_dict
 
     data = validate(data)
     workflow = data['workflow']
