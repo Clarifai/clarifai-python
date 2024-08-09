@@ -618,6 +618,116 @@ class App(Lister, BaseClient):
 
     return Dataset.from_auth_helper(self.auth_helper, dataset_id=dataset_id, **kwargs)
 
+  def patch_model(self, model_id: str, action: str = 'merge', **kwargs) -> Model:
+    """Patches a model of the app.
+
+    Args:
+        model_id (str): The model ID of the model to patch.
+        action (str): The action to perform on the model (merge/overwrite/remove).
+        **kwargs: Additional keyword arguments to be passed to patch the Model.
+
+    Returns:
+        Model: A Model object of the specified model ID.
+    """
+    if "visibility" in kwargs:
+      kwargs["visibility"] = resources_pb2.Visibility(gettable=kwargs["visibility"])
+    if "image_url" in kwargs:
+      kwargs["image"] = resources_pb2.Image(url=kwargs.pop("image_url"))
+    request = service_pb2.PatchModelsRequest(
+        user_app_id=self.user_app_id,
+        models=[resources_pb2.Model(id=model_id, **kwargs)],
+        action=action)
+    response = self._grpc_request(self.STUB.PatchModels, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nModel patched\n%s", response.status)
+    kwargs.update({
+        'model_id': model_id,
+    })
+
+    return Model.from_auth_helper(self.auth_helper, **kwargs)
+
+  def patch_workflow(self, workflow_id: str, action: str = 'merge', **kwargs) -> Workflow:
+    """Patches a workflow of the app.
+
+    Args:
+        workflow_id (str): The Workflow ID of the workflow to patch.
+        action (str): The action to perform on the workflow (merge/overwrite/remove).
+        **kwargs: Additional keyword arguments to be passed to patch the Workflow.
+
+    Returns:
+        Workflow: A Workflow object of the specified workflow ID.
+    """
+    if 'config_filepath' in kwargs:
+      config_filepath = kwargs.pop('config_filepath')
+      if not os.path.exists(config_filepath):
+        raise UserError(f"Workflow config file not found at {config_filepath}")
+
+      with open(config_filepath, 'r') as file:
+        data = yaml.safe_load(file)
+
+      data = validate(data)
+      workflow = data['workflow']
+
+      # Get all model objects from the workflow nodes.
+      all_models = []
+      for node in workflow['nodes']:
+        output_info = get_yaml_output_info_proto(node['model'].get('output_info', None))
+        try:
+          model = self.model(
+              model_id=node['model']['model_id'],
+              model_version={"id": node['model'].get('model_version_id', "")},
+              user_id=node['model'].get('user_id', ""),
+              app_id=node['model'].get('app_id', ""))
+        except Exception as e:
+          if "Model does not exist" in str(e):
+            model = self.create_model(
+                **{k: v
+                   for k, v in node['model'].items() if k != 'output_info'})
+            model_version = model.create_version(output_info=output_info)
+            all_models.append(model_version.model_info)
+            continue
+
+        # If the model version ID is specified, or if the yaml model is the same as the one in the api
+        if node["model"].get("model_version_id", "") or is_same_yaml_model(
+            model.model_info, node["model"]):
+          all_models.append(model.model_info)
+        else:  # Create a new model version
+          model = model.create_version(output_info=output_info)
+          all_models.append(model.model_info)
+
+      # Convert nodes to resources_pb2.WorkflowNodes.
+      nodes = []
+      for i, yml_node in enumerate(workflow['nodes']):
+        node = resources_pb2.WorkflowNode(
+            id=yml_node['id'],
+            model=all_models[i],
+        )
+        # Add node inputs if they exist, i.e. if these nodes do not connect directly to the input.
+        if yml_node.get("node_inputs"):
+          for ni in yml_node.get("node_inputs"):
+            node.node_inputs.append(resources_pb2.NodeInput(node_id=ni['node_id']))
+        nodes.append(node)
+        kwargs['nodes'] = nodes
+    if "visibility" in kwargs:
+      kwargs["visibility"] = resources_pb2.Visibility(gettable=kwargs["visibility"])
+    if "image_url" in kwargs:
+      kwargs["image"] = resources_pb2.Image(url=kwargs.pop("image_url"))
+
+    request = service_pb2.PatchWorkflowsRequest(
+        user_app_id=self.user_app_id,
+        workflows=[resources_pb2.Workflow(id=workflow_id, **kwargs)],
+        action=action)
+    response = self._grpc_request(self.STUB.PatchWorkflows, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nWorkflow patched\n%s", response.status)
+    kwargs.update({
+        'workflow_id': workflow_id,
+    })
+
+    return Workflow.from_auth_helper(self.auth_helper, **kwargs)
+
   def delete_dataset(self, dataset_id: str) -> None:
     """Deletes an dataset for the user.
 
