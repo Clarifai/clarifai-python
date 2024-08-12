@@ -4,7 +4,7 @@ from typing import Any, Dict, Generator, List
 
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
-from clarifai_grpc.grpc.api.resources_pb2 import Concept
+from clarifai_grpc.grpc.api.resources_pb2 import Concept, ConceptRelation
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 
@@ -288,6 +288,42 @@ class App(Lister, BaseClient):
       concept_info['id'] = concept_info.pop('concept_id')
       yield Concept(**concept_info)
 
+  def list_concept_relations(self,
+                             concept_id: str = None,
+                             predicate: str = None,
+                             page_no: int = None,
+                             per_page: int = None) -> Generator[ConceptRelation, None, None]:
+    """List all the concept relations of the app.
+
+    Args:
+        concept_id (str): The concept ID to filter the concept relations.
+        predicate (str): Type of relation to filter the concept relations.
+        page_no (int): The page number to list.
+        per_page (int): The number of items per page.
+
+    Yields:
+        ConceptRelation: ConceptRelations in the app.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> all_concept_relations = list(app.list_concept_relations())
+
+    Note:
+        Defaults to 16 per page if page_no is specified and per_page is not specified.
+        If both page_no and per_page are None, then lists all the resources.
+    """
+    request_data = dict(user_app_id=self.user_app_id, concept_id=concept_id, predicate=predicate)
+    all_concept_relations_infos = self.list_pages_generator(
+        self.STUB.ListConceptRelations,
+        service_pb2.ListConceptRelationsRequest,
+        request_data,
+        per_page=per_page,
+        page_no=page_no)
+    for concept_relation_info in all_concept_relations_infos:
+      concept_relation_info['id'] = concept_relation_info.pop('concept_relation_id')
+      yield ConceptRelation(**concept_relation_info)
+
   def list_trainable_model_types(self) -> List[str]:
     """Lists all the trainable model types.
 
@@ -469,6 +505,60 @@ class App(Lister, BaseClient):
     self.logger.info("\nModule created\n%s", response.status)
 
     return Module.from_auth_helper(auth=self.auth_helper, module_id=module_id, **kwargs)
+
+  def create_concepts(self, concept_ids: List[str], concepts: List[str] = []) -> None:
+    """Add concepts to the app.
+
+    Args:
+        concept_ids (List[str]): List of concept IDs of concepts to add to the app.
+        concepts (List[str]): List of concepts names of concepts to add to the app.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> app.add_concepts(concept_ids=["concept_id_1", "concept_id_2", ..])
+    """
+    if not concepts:
+      concepts = list(concept_ids)
+    concepts_to_add = [
+        resources_pb2.Concept(id=concept_id, name=concept)
+        for concept_id, concept in zip(concept_ids, concepts)
+    ]
+    request = service_pb2.PostConceptsRequest(
+        user_app_id=self.user_app_id, concepts=concepts_to_add)
+    response = self._grpc_request(self.STUB.PostConcepts, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nConcepts added\n%s", response.status)
+
+  def create_concept_relations(self, subject_concept_id: str, object_concept_ids: List[str],
+                               predicates: List[str]) -> None:
+    """Creates concept relations between concepts of the app.
+
+    Args:
+        subject_concept_id (str): The concept ID of the subject concept.
+        object_concept_ids (List[str]): List of concepts IDs of object concepts.
+        predicates (List[str]): List of predicates corresponding to each relation between subject and objects.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> app.create_concept_relation(subject_concept_id="subject_concept_id", object_concept_ids=["object_concept_id_1", "object_concept_id_2", ..], predicates=["predicate_1", "predicate_2", ..])
+    """
+    assert len(object_concept_ids) == len(predicates)
+    subject_relations = [
+        resources_pb2.ConceptRelation(
+            object_concept=resources_pb2.Concept(id=object_concept_id), predicate=predicate)
+        for object_concept_id, predicate in zip(object_concept_ids, predicates)
+    ]
+    request = service_pb2.PostConceptRelationsRequest(
+        user_app_id=self.user_app_id,
+        concept_id=subject_concept_id,
+        concept_relations=subject_relations)
+    response = self._grpc_request(self.STUB.PostConceptRelations, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nConcept Relations created\n%s", response.status)
 
   def dataset(self, dataset_id: str, dataset_version_id: str = None, **kwargs) -> Dataset:
     """Returns a Dataset object for the existing dataset ID.
@@ -690,6 +780,31 @@ class App(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nModule Deleted\n%s", response.status)
+
+  def delete_concept_relations(self, concept_id: str,
+                               concept_relation_ids: List[str] = []) -> None:
+    """Delete concept relations of a concept of the app.
+
+    Args:
+        concept_id (str): The concept ID of the concept to delete relations for.
+        concept_relation_ids (List[str]): List of concept relation IDs of concept relations.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> app.delete_concept_relations(concept_id="concept_id", concept_relation_ids=["concept_relation_id_1", "concept_relation_id_2", ..])
+    """
+    if not concept_relation_ids:
+      concept_relation_ids = [
+          concept_relation.id
+          for concept_relation in list(self.list_concept_relations(concept_id=concept_id))
+      ]
+    request = service_pb2.DeleteConceptRelationsRequest(
+        user_app_id=self.user_app_id, concept_id=concept_id, ids=concept_relation_ids)
+    response = self._grpc_request(self.STUB.DeleteConceptRelations, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nConcept Relations Deleted\n%s", response.status)
 
   def search(self, **kwargs) -> Model:
     """Returns a Search object for the user and app ID.
