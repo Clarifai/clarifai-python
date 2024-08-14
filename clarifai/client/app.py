@@ -352,7 +352,7 @@ class App(Lister, BaseClient):
 
     return Model.from_auth_helper(auth=self.auth_helper, **kwargs)
 
-  def process_workflow_config(self, config_filepath: str):
+  def _process_workflow_config(self, config_filepath: str):
     with open(config_filepath, 'r') as file:
       workflow_config = yaml.safe_load(file)
 
