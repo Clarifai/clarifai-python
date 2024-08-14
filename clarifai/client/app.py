@@ -352,33 +352,12 @@ class App(Lister, BaseClient):
 
     return Model.from_auth_helper(auth=self.auth_helper, **kwargs)
 
-  def create_workflow(self,
-                      config_filepath: str,
-                      generate_new_id: bool = False,
-                      display: bool = True) -> Workflow:
-    """Creates a workflow for the app.
-
-    Args:
-        config_filepath (str): The path to the yaml workflow config file.
-        generate_new_id (bool): If True, generate a new workflow ID.
-        display (bool): If True, display the workflow nodes tree.
-
-    Returns:
-        Workflow: A Workflow object for the specified workflow config.
-
-    Example:
-        >>> from clarifai.client.app import App
-        >>> app = App(app_id="app_id", user_id="user_id")
-        >>> workflow = app.create_workflow(config_filepath="config.yml")
-    """
-    if not os.path.exists(config_filepath):
-      raise UserError(f"Workflow config file not found at {config_filepath}")
-
+  def _process_workflow_config(self, config_filepath: str):
     with open(config_filepath, 'r') as file:
-      data = yaml.safe_load(file)
+      workflow_config = yaml.safe_load(file)
 
-    data = validate(data)
-    workflow = data['workflow']
+    workflow_config = validate(workflow_config)
+    workflow = workflow_config['workflow']
 
     # Get all model objects from the workflow nodes.
     all_models = []
@@ -419,6 +398,32 @@ class App(Lister, BaseClient):
         for ni in yml_node.get("node_inputs"):
           node.node_inputs.append(resources_pb2.NodeInput(node_id=ni['node_id']))
       nodes.append(node)
+
+    return workflow, nodes
+
+  def create_workflow(self,
+                      config_filepath: str,
+                      generate_new_id: bool = False,
+                      display: bool = True) -> Workflow:
+    """Creates a workflow for the app.
+
+    Args:
+        config_filepath (str): The path to the yaml workflow config file.
+        generate_new_id (bool): If True, generate a new workflow ID.
+        display (bool): If True, display the workflow nodes tree.
+
+    Returns:
+        Workflow: A Workflow object for the specified workflow config.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> workflow = app.create_workflow(config_filepath="config.yml")
+    """
+    if not os.path.exists(config_filepath):
+      raise UserError(f"Workflow config file not found at {config_filepath}")
+
+    workflow, nodes = self._process_workflow_config(config_filepath)
 
     workflow_id = workflow['id']
     if generate_new_id:
@@ -617,6 +622,74 @@ class App(Lister, BaseClient):
     self.logger.info("\nDataset patched\n%s", response.status)
 
     return Dataset.from_auth_helper(self.auth_helper, dataset_id=dataset_id, **kwargs)
+
+  def patch_model(self, model_id: str, action: str = 'merge', **kwargs) -> Model:
+    """Patches a model of the app.
+
+    Args:
+        model_id (str): The model ID of the model to patch.
+        action (str): The action to perform on the model (merge/overwrite/remove).
+        **kwargs: Additional keyword arguments to be passed to patch the Model.
+
+    Returns:
+        Model: A Model object of the specified model ID.
+    """
+    if "visibility" in kwargs:
+      kwargs["visibility"] = resources_pb2.Visibility(gettable=kwargs["visibility"])
+    if "image_url" in kwargs:
+      kwargs["image"] = resources_pb2.Image(url=kwargs.pop("image_url"))
+    request = service_pb2.PatchModelsRequest(
+        user_app_id=self.user_app_id,
+        models=[resources_pb2.Model(id=model_id, **kwargs)],
+        action=action)
+    response = self._grpc_request(self.STUB.PatchModels, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nModel %s patched successfully\n%s", model_id, response.status)
+    kwargs.update({
+        'model_id': model_id,
+    })
+
+    return Model.from_auth_helper(self.auth_helper, **kwargs)
+
+  def patch_workflow(self,
+                     workflow_id: str,
+                     action: str = 'merge',
+                     config_filepath: str = None,
+                     **kwargs) -> Workflow:
+    """Patches a workflow of the app.
+
+    Args:
+        workflow_id (str): The Workflow ID of the workflow to patch.
+        action (str): The action to perform on the workflow (merge/overwrite/remove).
+        config_filepath (str): The path to the yaml workflow config file.
+        **kwargs: Additional keyword arguments to be passed to patch the Workflow.
+
+    Returns:
+        Workflow: A Workflow object of the specified workflow ID.
+    """
+    if config_filepath:
+      if not os.path.exists(config_filepath):
+        raise UserError(f"Workflow config file not found at {config_filepath}")
+      _, kwargs['nodes'] = self._process_workflow_config(config_filepath)
+    if "visibility" in kwargs:
+      kwargs["visibility"] = resources_pb2.Visibility(gettable=kwargs["visibility"])
+    if "image_url" in kwargs:
+      kwargs["image"] = resources_pb2.Image(url=kwargs.pop("image_url"))
+
+    request = service_pb2.PatchWorkflowsRequest(
+        user_app_id=self.user_app_id,
+        workflows=[resources_pb2.Workflow(id=workflow_id, **kwargs)],
+        action=action)
+    response = self._grpc_request(self.STUB.PatchWorkflows, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nWorkflow patched\n%s", response.status)
+    kwargs.update({
+        'workflow_id': workflow_id,
+    })
+
+    return Workflow.from_auth_helper(self.auth_helper, **kwargs)
 
   def delete_dataset(self, dataset_id: str) -> None:
     """Deletes an dataset for the user.
