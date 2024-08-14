@@ -423,7 +423,7 @@ class App(Lister, BaseClient):
     if not os.path.exists(config_filepath):
       raise UserError(f"Workflow config file not found at {config_filepath}")
 
-    workflow, nodes = self.process_workflow_config(config_filepath)
+    workflow, nodes = self._process_workflow_config(config_filepath)
 
     workflow_id = workflow['id']
     if generate_new_id:
@@ -671,7 +671,7 @@ class App(Lister, BaseClient):
     if config_filepath:
       if not os.path.exists(config_filepath):
         raise UserError(f"Workflow config file not found at {config_filepath}")
-      _, kwargs['nodes'] = self.process_workflow_config(config_filepath)
+      _, kwargs['nodes'] = self._process_workflow_config(config_filepath)
     if "visibility" in kwargs:
       kwargs["visibility"] = resources_pb2.Visibility(gettable=kwargs["visibility"])
     if "image_url" in kwargs:
