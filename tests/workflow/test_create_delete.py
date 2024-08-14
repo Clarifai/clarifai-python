@@ -12,6 +12,9 @@ NOW = uuid.uuid4().hex[:10]
 CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
 CREATE_APP_ID = f"test_workflow_create_delete_app_{NOW}"
 
+#assets
+IMAGE_URL = "https://samples.clarifai.com/metro-north.jpg"
+
 
 def get_test_parse_workflow_creation_workflows() -> typing.List[str]:
   filenames = glob.glob("tests/workflow/fixtures/*.yml")
@@ -39,6 +42,18 @@ class TestWorkflowCreate:
         generate_new_id = True
       self.app.create_workflow(filename, generate_new_id=generate_new_id)
       assert "Workflow created" in caplog.text
+
+  def test_patch_workflow(self, caplog):
+    with caplog.at_level(logging.INFO):
+      workflow_id = list(self.app.list_workflows())[0].id
+      self.app.patch_workflow(
+          workflow_id=workflow_id,
+          config_filepath='tests/workflow/fixtures/general.yml',
+          visibility=10,
+          description='Workflow Patching Test',
+          notes='Workflow Patching Test',
+          image_url=IMAGE_URL)
+      assert "Workflow patched" in caplog.text
 
   def test_delete_workflow(self, caplog):
     with caplog.at_level(logging.INFO):

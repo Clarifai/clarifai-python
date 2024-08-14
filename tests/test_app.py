@@ -165,6 +165,20 @@ class TestApp:
           image_url=IMAGE_URL)
       assert "SUCCESS" in caplog.text
 
+  def test_patch_model(self, create_app, caplog):
+    with caplog.at_level(logging.INFO):
+      create_app.patch_model(
+          model_id=CREATE_MODEL_ID,
+          action='merge',
+          visibility=10,
+          description='Model Patching Test',
+          notes='Model Patching Test',
+          toolkits=['Clarifai'],
+          use_cases=['misc'],
+          languages=['en'],
+          image_url=IMAGE_URL)
+      assert "SUCCESS" in caplog.text
+
   def test_delete_dataset(self, create_app, caplog):
     with caplog.at_level(logging.INFO):
       create_app.delete_dataset(CREATE_DATASET_ID)
