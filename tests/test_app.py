@@ -126,8 +126,8 @@ class TestApp:
     all_datasets = list(create_app.list_datasets())
     assert len(all_datasets) == 1
 
-  def test_list_concept_relations(self, create_app):
-    all_concept_relations = list(create_app.list_concept_relations())
+  def test_search_concept_relations(self, create_app):
+    all_concept_relations = list(create_app.search_concept_relations(show_tree=True))
     assert len(all_concept_relations) == 1
 
   def test_export_dataset(self, create_app):
@@ -197,7 +197,7 @@ class TestApp:
   def test_delete_concept_relations(self, create_app, caplog):
     with caplog.at_level(logging.INFO):
       all_concept_relation_ids = [
-          concept_relation.id for concept_relation in list(create_app.list_concept_relations())
+          concept_relation.id for concept_relation in list(create_app.search_concept_relations())
       ]
       create_app.delete_concept_relations(SUBJECT_CONCEPT_ID, all_concept_relation_ids)
       assert "SUCCESS" in caplog.text

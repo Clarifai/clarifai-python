@@ -7,6 +7,8 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import Concept, ConceptRelation
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
+from rich import print as rprint
+from rich.tree import Tree
 
 from clarifai.client.base import BaseClient
 from clarifai.client.dataset import Dataset
@@ -288,18 +290,54 @@ class App(Lister, BaseClient):
       concept_info['id'] = concept_info.pop('concept_id')
       yield Concept(**concept_info)
 
-  def list_concept_relations(self,
-                             concept_id: str = None,
-                             predicate: str = None,
-                             page_no: int = None,
-                             per_page: int = None) -> Generator[ConceptRelation, None, None]:
+  def _rich_tree_creation_for_concept_relations(self, relations_dict: Dict[str, Any]) -> None:
+    """Print all the concept relations of the app in rich tree format.
+
+    Args:
+        relations_dict (dict): A dict of concept relations info.
+    """
+    for parent, children in relations_dict.items():
+      tree = Tree(parent)
+      for child in children:
+        tree.add(child)
+      rprint(tree)
+
+  def _concept_relations_accumulation(self, relations_dict: Dict[str, Any], subject_concept: str,
+                                      object_concept: str, predicate: str) -> Dict[str, Any]:
+    """Append the concept relation to relations dict based on its predicate.
+
+    Args:
+        relations_dict (dict): A dict of concept relations info.
+    """
+    if predicate == 'hyponym':
+      if object_concept in relations_dict:
+        relations_dict[object_concept].append(subject_concept)
+      else:
+        relations_dict[object_concept] = [subject_concept]
+    elif predicate == 'hypernym':
+      if subject_concept in relations_dict:
+        relations_dict[subject_concept].append(object_concept)
+      else:
+        relations_dict[subject_concept] = [object_concept]
+    else:
+      relations_dict[object_concept] = []
+      relations_dict[subject_concept] = []
+    return relations_dict
+
+  def search_concept_relations(self,
+                               concept_id: str = None,
+                               predicate: str = None,
+                               page_no: int = None,
+                               per_page: int = None,
+                               show_tree: bool = False) -> Generator[ConceptRelation, None, None]:
     """List all the concept relations of the app.
 
     Args:
-        concept_id (str): The concept ID to filter the concept relations.
-        predicate (str): Type of relation to filter the concept relations.
-        page_no (int): The page number to list.
-        per_page (int): The number of items per page.
+        concept_id (str, optional): The concept ID to filter the concept relations.
+        predicate (str, optional): Type of relation to filter the concept relations. For ex : 'hypernym', 'hyponym' or 'synonym'
+        page_no (int, optional): The page number to list.
+        per_page (int, optional): The number of items per page.
+        show_tree (bool, optional): If True, prints out rich tree representation of concept relations.
 
     Yields:
         ConceptRelation: ConceptRelations in the app.
@@ -320,9 +358,18 @@ class App(Lister, BaseClient):
         request_data,
         per_page=per_page,
         page_no=page_no)
+    relations_dict = {}
     for concept_relation_info in all_concept_relations_infos:
+      if show_tree:
+        current_subject_concept = concept_relation_info['subject_concept']['id']
+        current_object_concept = concept_relation_info['object_concept']['id']
+        current_predicate = concept_relation_info['predicate']
+        relations_dict = self._concept_relations_accumulation(
+            relations_dict, current_subject_concept, current_object_concept, current_predicate)
       concept_relation_info['id'] = concept_relation_info.pop('concept_relation_id')
       yield ConceptRelation(**concept_relation_info)
+    if show_tree:
+      self._rich_tree_creation_for_concept_relations(relations_dict)
 
   def list_trainable_model_types(self) -> List[str]:
     """Lists all the trainable model types.
@@ -516,7 +563,7 @@ class App(Lister, BaseClient):
 
     Args:
         concept_ids (List[str]): List of concept IDs of concepts to add to the app.
-        concepts (List[str]): List of concepts names of concepts to add to the app.
+        concepts (List[str], optional): List of concepts names of concepts to add to the app.
 
     Example:
         >>> from clarifai.client.app import App
@@ -860,7 +907,7 @@ class App(Lister, BaseClient):
 
     Args:
         concept_id (str): The concept ID of the concept to delete relations for.
-        concept_relation_ids (List[str]): List of concept relation IDs of concept relations.
+        concept_relation_ids (List[str], optional): List of concept relation IDs of concept relations.
 
     Example:
         >>> from clarifai.client.app import App
