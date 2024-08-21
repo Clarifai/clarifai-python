@@ -260,6 +260,27 @@ class App(Lister, BaseClient):
       yield Module.from_auth_helper(
           auth=self.auth_helper, module_id=imv_info['module_version']['module_id'], **imv_info)
 
+  def get_input_count(self) -> int:
+    """Get count of all the inputs in the app.
+
+    Returns:
+        input_count: count of inputs in the app.
+
+    Example:
+        >>> from clarifai.client.app import App
+        >>> app = App(app_id="app_id", user_id="user_id")
+        >>> input_count = app.get_input_count()
+    """
+    request = service_pb2.GetInputCountRequest(
+        user_app_id=self.user_app_id)
+    response = self._grpc_request(self.STUB.GetInputCount, request)
+
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nGetting App input Counts\n%s", response.status)
+
+    return response.counts.processed
+
   def list_concepts(self, page_no: int = None,
                     per_page: int = None) -> Generator[Concept, None, None]:
     """Lists all the concepts for the app.
