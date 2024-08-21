@@ -24,6 +24,9 @@ CREATE_RUNNER_ID = f"ci_test_runner_{NOW}"
 
 #assets
 IMAGE_URL = "https://samples.clarifai.com/metro-north.jpg"
+SUBJECT_CONCEPT_ID = 'honey'
+OBJECT_CONCEPT_ID = 'food'
+PREDICATE = "hypernym"
 
 CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
 
@@ -100,6 +103,12 @@ class TestApp:
     module = create_app.create_module(CREATE_MODULE_ID, description="CI test module")
     assert module.id == CREATE_MODULE_ID and module.app_id == CREATE_APP_ID and module.user_id == CREATE_APP_USER_ID
 
+  def test_create_concept_relations(self, create_app, caplog):
+    create_app.create_concepts([OBJECT_CONCEPT_ID, SUBJECT_CONCEPT_ID])
+    with caplog.at_level(logging.INFO):
+      create_app.create_concept_relations(OBJECT_CONCEPT_ID, [SUBJECT_CONCEPT_ID], [PREDICATE])
+      assert "SUCCESS" in caplog.text
+
   # def test_create_runner(self, client):
   #   client = User(user_id=CREATE_APP_USER_ID, pat=CLARIFAI_PAT)
   #   runner_info = client.create_runner(
@@ -116,6 +125,10 @@ class TestApp:
   def test_list_datasets(self, create_app):
     all_datasets = list(create_app.list_datasets())
     assert len(all_datasets) == 1
+
+  def test_search_concept_relations(self, create_app):
+    all_concept_relations = list(create_app.search_concept_relations(show_tree=True))
+    assert len(all_concept_relations) == 1
 
   def test_export_dataset(self, create_app):
     dataset = create_app.dataset(dataset_id=CREATE_DATASET_ID)
@@ -179,6 +192,14 @@ class TestApp:
   def test_delete_module(self, create_app, caplog):
     with caplog.at_level(logging.INFO):
       create_app.delete_module(CREATE_MODULE_ID)
+      assert "SUCCESS" in caplog.text
+
+  def test_delete_concept_relations(self, create_app, caplog):
+    with caplog.at_level(logging.INFO):
+      all_concept_relation_ids = [
+          concept_relation.id for concept_relation in list(create_app.search_concept_relations())
+      ]
+      create_app.delete_concept_relations(SUBJECT_CONCEPT_ID, all_concept_relation_ids)
       assert "SUCCESS" in caplog.text
 
   # def test_delete_runner(self, caplog):
