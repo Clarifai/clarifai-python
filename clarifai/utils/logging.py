@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from rich import print as rprint
 from rich.console import Console
@@ -138,3 +138,16 @@ def process_log_files(log_file_path: str,) -> tuple:
     return [], []
 
   return duplicate_input_ids, failed_input_ids
+
+
+def display_concept_relations_tree(relations_dict: Dict[str, Any]) -> None:
+  """Print all the concept relations of the app in rich tree format.
+
+    Args:
+        relations_dict (dict): A dict of concept relations info.
+    """
+  for parent, children in relations_dict.items():
+    tree = Tree(parent)
+    for child in children:
+      tree.add(child)
+    rprint(tree)

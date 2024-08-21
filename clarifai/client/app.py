@@ -7,8 +7,6 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import Concept, ConceptRelation
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
-from rich import print as rprint
-from rich.tree import Tree
 
 from clarifai.client.base import BaseClient
 from clarifai.client.dataset import Dataset
@@ -21,7 +19,9 @@ from clarifai.client.workflow import Workflow
 from clarifai.constants.model import TRAINABLE_MODEL_TYPES
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
-from clarifai.utils.logging import display_workflow_tree, get_logger
+from clarifai.utils.logging import (display_concept_relations_tree, display_workflow_tree,
+                                    get_logger)
+from clarifai.utils.misc import concept_relations_accumulation
 from clarifai.workflows.utils import get_yaml_output_info_proto, is_same_yaml_model
 from clarifai.workflows.validate import validate
 
@@ -290,40 +290,6 @@ class App(Lister, BaseClient):
       concept_info['id'] = concept_info.pop('concept_id')
       yield Concept(**concept_info)
 
-  def _rich_tree_creation_for_concept_relations(self, relations_dict: Dict[str, Any]) -> None:
-    """Print all the concept relations of the app in rich tree format.
-
-    Args:
-        relations_dict (dict): A dict of concept relations info.
-    """
-    for parent, children in relations_dict.items():
-      tree = Tree(parent)
-      for child in children:
-        tree.add(child)
-      rprint(tree)
-
-  def _concept_relations_accumulation(self, relations_dict: Dict[str, Any], subject_concept: str,
-                                      object_concept: str, predicate: str) -> Dict[str, Any]:
-    """Append the concept relation to relations dict based on its predicate.
-
-    Args:
-        relations_dict (dict): A dict of concept relations info.
-    """
-    if predicate == 'hyponym':
-      if object_concept in relations_dict:
-        relations_dict[object_concept].append(subject_concept)
-      else:
-        relations_dict[object_concept] = [subject_concept]
-    elif predicate == 'hypernym':
-      if subject_concept in relations_dict:
-        relations_dict[subject_concept].append(object_concept)
-      else:
-        relations_dict[subject_concept] = [object_concept]
-    else:
-      relations_dict[object_concept] = []
-      relations_dict[subject_concept] = []
-    return relations_dict
-
   def search_concept_relations(self,
                                concept_id: str = None,
                                predicate: str = None,
@@ -364,12 +330,12 @@ class App(Lister, BaseClient):
         current_subject_concept = concept_relation_info['subject_concept']['id']
         current_object_concept = concept_relation_info['object_concept']['id']
         current_predicate = concept_relation_info['predicate']
-        relations_dict = self._concept_relations_accumulation(
-            relations_dict, current_subject_concept, current_object_concept, current_predicate)
+        relations_dict = concept_relations_accumulation(relations_dict, current_subject_concept,
+                                                        current_object_concept, current_predicate)
       concept_relation_info['id'] = concept_relation_info.pop('concept_relation_id')
       yield ConceptRelation(**concept_relation_info)
     if show_tree:
-      self._rich_tree_creation_for_concept_relations(relations_dict)
+      display_concept_relations_tree(relations_dict)
 
   def list_trainable_model_types(self) -> List[str]:
     """Lists all the trainable model types.
