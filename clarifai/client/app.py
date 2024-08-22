@@ -271,8 +271,7 @@ class App(Lister, BaseClient):
         >>> app = App(app_id="app_id", user_id="user_id")
         >>> input_count = app.get_input_count()
     """
-    request = service_pb2.GetInputCountRequest(
-        user_app_id=self.user_app_id)
+    request = service_pb2.GetInputCountRequest(user_app_id=self.user_app_id)
     response = self._grpc_request(self.STUB.GetInputCount, request)
 
     if response.status.code != status_code_pb2.SUCCESS:
