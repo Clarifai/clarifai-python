@@ -331,7 +331,7 @@ class App(Lister, BaseClient):
     Example:
         >>> from clarifai.client.app import App
         >>> app = App(app_id="app_id", user_id="user_id")
-        >>> all_concept_relations = list(app.list_concept_relations())
+        >>> all_concept_relations = list(app.search_concept_relations())
 
     Note:
         Defaults to 16 per page if page_no is specified and per_page is not specified.
@@ -903,7 +903,7 @@ class App(Lister, BaseClient):
     if not concept_relation_ids:
       concept_relation_ids = [
           concept_relation.id
-          for concept_relation in list(self.list_concept_relations(concept_id=concept_id))
+          for concept_relation in list(self.search_concept_relations(concept_id=concept_id))
       ]
     request = service_pb2.DeleteConceptRelationsRequest(
         user_app_id=self.user_app_id, concept_id=concept_id, ids=concept_relation_ids)
