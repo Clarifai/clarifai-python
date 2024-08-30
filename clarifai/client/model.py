@@ -1307,11 +1307,8 @@ class Model(Lister, BaseClient):
         progress = tqdm(
             total=model_export_file_size, unit='B', unit_scale=True, desc="Exporting model")
         for chunk in response.iter_content(chunk_size=8192):
-          if chunk:
-            f.write(chunk)
-            progress.update(len(chunk))
-          else:
-            time.sleep(2)
+          f.write(chunk)
+          progress.update(len(chunk))
         progress.close()
 
       self.logger.info(
