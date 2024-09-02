@@ -7,7 +7,7 @@
 
 ### Fixed
  - Dataset Annotations bug that returns either class annotation or detection annotation during export [(#375)](https://github.com/Clarifai/clarifai-python/pull/375)
- 
+
 ## [[10.7.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.7.0) - [PyPI](https://pypi.org/project/clarifai/10.7.0/) - 2024-08-06
 
 ### Added
