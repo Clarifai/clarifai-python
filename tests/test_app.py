@@ -30,21 +30,17 @@
 
 # CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
 
-
 # @pytest.fixture
 # def create_app():
 #   return App(user_id=CREATE_APP_USER_ID, app_id=CREATE_APP_ID, pat=CLARIFAI_PAT)
-
 
 # @pytest.fixture
 # def app():
 #   return App(user_id=MAIN_APP_USER_ID, app_id=MAIN_APP_ID, pat=CLARIFAI_PAT)
 
-
 # @pytest.fixture
 # def client():
 #   return User(user_id=MAIN_APP_USER_ID, pat=CLARIFAI_PAT)
-
 
 # @pytest.mark.requires_secrets
 # class TestApp:
