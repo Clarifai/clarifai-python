@@ -1,4 +1,4 @@
-## [[10.7.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.0) - [PyPI](https://pypi.org/project/clarifai/10.8.0/) - 2024-09-02
+## [[10.8.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.0) - [PyPI](https://pypi.org/project/clarifai/10.8.0/) - 2024-09-02
 
 ### Added
  - Patch operations for Models and Workflows [(#370)] (https://github.com/Clarifai/clarifai-python/pull/370)
