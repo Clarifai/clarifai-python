@@ -1,3 +1,4 @@
+import faulthandler
 import logging
 import os
 import time
@@ -9,7 +10,6 @@ from clarifai.client.app import App
 from clarifai.client.user import User
 from clarifai.constants.search import DEFAULT_TOP_K
 
-import faulthandler
 faulthandler.enable()
 
 NOW = uuid.uuid4().hex[:10]
