@@ -127,7 +127,7 @@ app = client.create_app(app_id="demo_app", base_workflow="Universal")
 dataset = app.create_dataset(dataset_id="demo_dataset")
 
 # execute data upload to Clarifai app dataset
-from clarifai.datasets.upload.laoders.coco_detection import COCODetectionDataLoader
+from clarifai.datasets.upload.loaders.coco_detection import COCODetectionDataLoader
 coco_dataloader = COCODetectionDataLoader("images_dir", "coco_annotation_filepath")
 dataset.upload_dataset(dataloader=coco_dataloader, get_upload_status=True)
 
