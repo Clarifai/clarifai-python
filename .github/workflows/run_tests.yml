@@ -51,4 +51,3 @@ jobs:
         else
           pytest -m "not requires_secrets" tests/
         fi
-      continue-on-error: ${{ matrix.os == 'windows-latest' }}
