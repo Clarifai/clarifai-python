@@ -11,6 +11,7 @@ from clarifai_grpc.grpc.api.resources_pb2 import Input
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.struct_pb2 import Struct, Value
+from requests.adapters import HTTPAdapter, Retry
 from tqdm import tqdm
 
 from clarifai.client.base import BaseClient
@@ -1295,7 +1296,11 @@ class Model(Lister, BaseClient):
       model_export_url = get_model_export_response.export.url
       model_export_file_size = get_model_export_response.export.size
 
-      response = requests.get(model_export_url, stream=True)
+      session = requests.Session()
+      retries = Retry(total=10, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+      session.mount('https://', HTTPAdapter(max_retries=retries))
+      session.headers.update({'Authorization': self.metadata[0][1]})
+      response = session.get(model_export_url, stream=True)
       response.raise_for_status()
 
       with open(local_filepath, 'wb') as f:
