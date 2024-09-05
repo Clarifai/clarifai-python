@@ -25,6 +25,8 @@ jobs:
           - '3.8'
     steps:
     - uses: actions/checkout@v4
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
@@ -47,7 +49,7 @@ jobs:
         export CLARIFAI_USER_ID="$(python scripts/key_for_tests.py --get-userid)"
         export CLARIFAI_PAT="$(python scripts/key_for_tests.py --create-pat)"
         if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
-          pytest -v tests/
+          pytest tests/
         else
           pytest -m "not requires_secrets" tests/
         fi

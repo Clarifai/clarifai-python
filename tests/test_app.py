@@ -1,4 +1,3 @@
-import faulthandler
 import logging
 import os
 import time
@@ -9,8 +8,6 @@ import pytest
 from clarifai.client.app import App
 from clarifai.client.user import User
 from clarifai.constants.search import DEFAULT_TOP_K
-
-faulthandler.enable()
 
 NOW = uuid.uuid4().hex[:10]
 MAIN_APP_ID = "main"
@@ -62,61 +59,50 @@ class TestApp:
     Note: Update to be added later.
     """
 
-  @pytest.mark.skip()
   def test_list_models(self, app):
     all_models = list(app.list_models(page_no=1))
     assert len(all_models) == 16  #default per_page is 16
 
-  @pytest.mark.skip()
   def test_list_workflows(self, app):
     all_workflows = list(app.list_workflows(page_no=1, per_page=10))
     assert len(all_workflows) == 10
 
-  @pytest.mark.skip()
   def test_list_apps(self, client):
     all_apps = list(client.list_apps())
     assert len(all_apps) > 0
 
-  @pytest.mark.skip()
   def test_get_model(self, client):
     model = client.app(app_id=MAIN_APP_ID).model(model_id=GENERAL_MODEL_ID)
     versions = list(model.list_versions())
     assert len(versions) == 2  #test for list_versions
     assert model.id == GENERAL_MODEL_ID and model.app_id == MAIN_APP_ID and model.user_id == MAIN_APP_USER_ID
 
-  @pytest.mark.skip()
   def test_get_workflow(self, client):
     workflow = client.app(app_id=MAIN_APP_ID).workflow(workflow_id=General_Workflow_ID)
     versions = list(workflow.list_versions())
     assert len(versions) == 1  #test for list_versions
     assert workflow.id == General_Workflow_ID and workflow.app_id == MAIN_APP_ID and workflow.user_id == MAIN_APP_USER_ID
 
-  @pytest.mark.skip()
   def test_create_app(self):
     app = User(user_id=CREATE_APP_USER_ID, pat=CLARIFAI_PAT).create_app(app_id=CREATE_APP_ID)
     assert app.id == CREATE_APP_ID and app.user_id == CREATE_APP_USER_ID
 
-  @pytest.mark.skip()
   def test_create_search(self, create_app):
     search = create_app.search()
     assert search.top_k == DEFAULT_TOP_K and search.metric_distance == "EUCLIDEAN_DISTANCE"
 
-  @pytest.mark.skip()
   def test_create_dataset(self, create_app):
     dataset = create_app.create_dataset(CREATE_DATASET_ID)
     assert dataset.id == CREATE_DATASET_ID and dataset.app_id == CREATE_APP_ID and dataset.user_id == CREATE_APP_USER_ID
 
-  @pytest.mark.skip()
   def test_create_model(self, create_app):
     model = create_app.create_model(CREATE_MODEL_ID)
     assert model.id == CREATE_MODEL_ID and model.app_id == CREATE_APP_ID and model.user_id == CREATE_APP_USER_ID
 
-  @pytest.mark.skip()
   def test_create_module(self, create_app):
     module = create_app.create_module(CREATE_MODULE_ID, description="CI test module")
     assert module.id == CREATE_MODULE_ID and module.app_id == CREATE_APP_ID and module.user_id == CREATE_APP_USER_ID
 
-  @pytest.mark.skip()
   def test_create_concept_relations(self, create_app, caplog):
     create_app.create_concepts([OBJECT_CONCEPT_ID, SUBJECT_CONCEPT_ID])
     with caplog.at_level(logging.INFO):
@@ -130,24 +116,20 @@ class TestApp:
   #   assert runner_info.get("runner_id") == CREATE_RUNNER_ID and runner_info.get(
   #       "user_id") == CREATE_APP_USER_ID
 
-  @pytest.mark.skip()
   def test_get_dataset(self, create_app):
     dataset = create_app.dataset(dataset_id=CREATE_DATASET_ID)
     versions = list(dataset.list_versions())
     assert len(versions) == 0  #test for list_versions
     assert dataset.id == CREATE_DATASET_ID and dataset.app_id == CREATE_APP_ID and dataset.user_id == CREATE_APP_USER_ID
 
-  @pytest.mark.skip()
   def test_list_datasets(self, create_app):
     all_datasets = list(create_app.list_datasets())
     assert len(all_datasets) == 1
 
-  @pytest.mark.skip()
   def test_search_concept_relations(self, create_app):
     all_concept_relations = list(create_app.search_concept_relations(show_tree=True))
     assert len(all_concept_relations) == 1
 
-  @pytest.mark.skip()
   def test_export_dataset(self, create_app):
     dataset = create_app.dataset(dataset_id=CREATE_DATASET_ID)
     dataset_demo_version = dataset.create_version()
@@ -158,7 +140,6 @@ class TestApp:
     assert os.path.exists('tests/output_demo.zip') is True
     os.remove('tests/output_demo.zip')
 
-  @pytest.mark.skip()
   def test_patch_app(self, caplog):
     with caplog.at_level(logging.INFO):
       User(user_id=CREATE_APP_USER_ID).patch_app(
@@ -173,7 +154,6 @@ class TestApp:
           image_url=IMAGE_URL)
       assert "SUCCESS" in caplog.text
 
-  @pytest.mark.skip()
   def test_patch_dataset(self, create_app, caplog):
     with caplog.at_level(logging.INFO):
       create_app.patch_dataset(
@@ -185,7 +165,6 @@ class TestApp:
           image_url=IMAGE_URL)
       assert "SUCCESS" in caplog.text
 
-  @pytest.mark.skip()
   def test_patch_model(self, create_app, caplog):
     with caplog.at_level(logging.INFO):
       create_app.patch_model(
@@ -200,25 +179,21 @@ class TestApp:
           image_url=IMAGE_URL)
       assert "SUCCESS" in caplog.text
 
-  @pytest.mark.skip()
   def test_delete_dataset(self, create_app, caplog):
     with caplog.at_level(logging.INFO):
       create_app.delete_dataset(CREATE_DATASET_ID)
       assert "SUCCESS" in caplog.text
 
-  @pytest.mark.skip()
   def test_delete_model(self, create_app, caplog):
     with caplog.at_level(logging.INFO):
       create_app.delete_model(CREATE_MODEL_ID)
       assert "SUCCESS" in caplog.text
 
-  @pytest.mark.skip()
   def test_delete_module(self, create_app, caplog):
     with caplog.at_level(logging.INFO):
       create_app.delete_module(CREATE_MODULE_ID)
       assert "SUCCESS" in caplog.text
 
-  @pytest.mark.skip()
   def test_delete_concept_relations(self, create_app, caplog):
     with caplog.at_level(logging.INFO):
       all_concept_relation_ids = [
@@ -233,7 +208,6 @@ class TestApp:
   #     client.delete_runner(CREATE_RUNNER_ID)
   #     assert "SUCCESS" in caplog.text
 
-  @pytest.mark.skip()
   def test_delete_app(self, caplog):
     with caplog.at_level(logging.INFO):
       User(user_id=CREATE_APP_USER_ID).delete_app(CREATE_APP_ID)
