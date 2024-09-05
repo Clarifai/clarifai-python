@@ -7,13 +7,6 @@ on:
   push:
     branches: [ master ]
   pull_request:
-  workflow_dispatch:
-    inputs:
-      debug_enabled:
-        type: boolean
-        description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'
-        required: false
-        default: false
 
 jobs:
   build:
@@ -34,7 +27,7 @@ jobs:
     - uses: actions/checkout@v4
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@v3
-      if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled && matrix.os == 'windows-latest' && matrix.python-version == 3.10}}
+      if: ${{ matrix.os == 'windows-latest'}}
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
