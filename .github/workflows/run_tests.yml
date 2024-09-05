@@ -28,6 +28,8 @@ jobs:
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@v3
       if: ${{ matrix.os == 'windows-latest'}}
+      with:
+        detached: true
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
