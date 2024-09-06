@@ -1,3 +1,9 @@
+## [[10.8.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.1) - [PyPI](https://pypi.org/project/clarifai/10.8.1/) - 2024-09-06
+
+### Fixed
+ - Python SDK usage issue on Windows OS due to upgrade in Protobuf library [(#380)](https://github.com/Clarifai/clarifai-python/pull/380)
+ - Dataset Annotations bug that returns None if class annotation is not present during export [(#382)](https://github.com/Clarifai/clarifai-python/pull/382)
+
 ## [[10.8.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.0) - [PyPI](https://pypi.org/project/clarifai/10.8.0/) - 2024-09-02
 
 ### Added
