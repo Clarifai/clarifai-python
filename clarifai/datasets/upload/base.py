@@ -4,13 +4,14 @@ from typing import Iterator, List, Tuple, TypeVar, Union
 from clarifai_grpc.grpc.api import resources_pb2
 
 from clarifai.constants.dataset import DATASET_UPLOAD_TASKS
-from clarifai.datasets.upload.features import (TextFeatures, VisualClassificationFeatures,
+from clarifai.datasets.upload.features import (MultiModalFeatures, TextFeatures,
+                                               VisualClassificationFeatures,
                                                VisualDetectionFeatures, VisualSegmentationFeatures)
 
 OutputFeaturesType = TypeVar(
     'OutputFeaturesType',
     bound=Union[TextFeatures, VisualClassificationFeatures, VisualDetectionFeatures,
-                VisualSegmentationFeatures])
+                VisualSegmentationFeatures, MultiModalFeatures])
 
 
 class ClarifaiDataset:

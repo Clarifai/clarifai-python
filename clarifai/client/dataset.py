@@ -25,6 +25,7 @@ from clarifai.datasets.export.inputs_annotations import (DatasetExportReader,
 from clarifai.datasets.upload.base import ClarifaiDataLoader
 from clarifai.datasets.upload.image import (VisualClassificationDataset, VisualDetectionDataset,
                                             VisualSegmentationDataset)
+from clarifai.datasets.upload.multimodal import MultiModalDataset
 from clarifai.datasets.upload.text import TextClassificationDataset
 from clarifai.datasets.upload.utils import DisplayUploadStatus
 from clarifai.errors import UserError
@@ -351,15 +352,20 @@ class Dataset(Lister, BaseClient):
         input_details = input_map.get(failed_id)
         if input_details:
           failed_input_details = [
-              index, failed_id, input_details.status.details,
-              dataset_obj.data_generator[index].image_path,
-              dataset_obj.data_generator[index].labels, dataset_obj.data_generator[index].metadata
+              index,
+              failed_id,
+              input_details.status.details,
+              # Check for 'image_path', 'text', or
+              getattr(dataset_obj.data_generator[index], 'image_path', None) or
+              getattr(dataset_obj.data_generator[index], 'text', None),
+              dataset_obj.data_generator[index].labels,
+              dataset_obj.data_generator[index].metadata
           ]
           failed_inputs_logs.append(failed_input_details)
 
       failed_table = tabulate(
           failed_inputs_logs,
-          headers=["Index", "Input ID", "Status", "Image Path", "Labels", "Metadata"],
+          headers=["Index", "Input ID", "Status", "Input", "Labels", "Metadata"],
           tablefmt="grid")
       timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
       self.logger.warning(
@@ -422,7 +428,8 @@ class Dataset(Lister, BaseClient):
     if self.task not in DATASET_UPLOAD_TASKS:
       raise UserError("Task should be one of \
                       'text_classification', 'visual_classification', \
-                      'visual_detection', 'visual_segmentation', 'visual_captioning'")
+                      'visual_detection', 'visual_segmentation', 'visual_captioning', 'multimodal_upload'"
+                     )
 
     if self.task == "text_classification":
       dataset_obj = TextClassificationDataset(dataloader, self.id)
@@ -432,6 +439,9 @@ class Dataset(Lister, BaseClient):
 
     elif self.task == "visual_segmentation":
       dataset_obj = VisualSegmentationDataset(dataloader, self.id)
+
+    elif self.task == "multimodal_upload":
+      dataset_obj = MultiModalDataset(dataloader, self.id)
 
     else:  # visual_classification & visual_captioning
       dataset_obj = VisualClassificationDataset(dataloader, self.id)

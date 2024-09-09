@@ -49,3 +49,13 @@ class VisualSegmentationFeatures:
   metadata: Optional[dict] = None
   image_bytes: Optional[bytes] = None
   label_ids: Optional[List[str]] = None
+
+
+@dataclass
+class MultiModalFeatures:
+  """Multi-modal datasets preprocessing output features."""
+  text: str
+  image_bytes: str
+  labels: List[Union[str, int]] = None  # List[str or int] to cater for multi-class tasks
+  id: Optional[int] = None  # image_id
+  metadata: Optional[dict] = None
