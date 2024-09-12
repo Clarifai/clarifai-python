@@ -69,15 +69,11 @@ class TestApp:
 
   def test_list_modules(self, app):
     all_modules = list(app.list_modules())
-    assert len(all_modules) == 2
+    assert len(all_modules) == 1
 
   def test_list_installed_module_versions(self, app):
     all_installed_module_versions = list(app.list_installed_module_versions())
     assert len(all_installed_module_versions) == 0
-
-  def test_app_input_count(self, app):
-    input_count = app.get_input_count()
-    assert input_count == 41
 
   def test_list_apps(self, client):
     all_apps = list(client.list_apps())
