@@ -47,7 +47,7 @@ jobs:
         export CLARIFAI_USER_ID="$(python scripts/key_for_tests.py --get-userid)"
         export CLARIFAI_PAT="$(python scripts/key_for_tests.py --create-pat)"
         if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
-          pytest -n 2 --cov=.
+          pytest --cov=.
         else
-          pytest -n 2 -m "not requires_secrets" --cov=.
+          pytest -m "not requires_secrets" --cov=.
         fi
