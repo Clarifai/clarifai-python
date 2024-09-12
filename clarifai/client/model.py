@@ -280,8 +280,7 @@ class Model(Lister, BaseClient):
           "Model version ID is missing. Please provide a `model_version` with a valid `id` as an argument or as a URL in the following format: '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
       )
 
-    if not self.model_info.model_type_id or not self.model_info.model_version.train_log:
-      self.load_info()
+    self.load_info()
     if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
       raise UserError(f"Model type {self.model_info.model_type_id} is not trainable")
 
