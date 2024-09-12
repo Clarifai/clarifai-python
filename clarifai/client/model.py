@@ -18,7 +18,8 @@ from clarifai.client.base import BaseClient
 from clarifai.client.dataset import Dataset
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
-from clarifai.constants.model import (MAX_MODEL_PREDICT_INPUTS, MODEL_EXPORT_TIMEOUT,
+from clarifai.constants.model import (MAX_CHUNK_SIZE, MAX_MODEL_PREDICT_INPUTS, MAX_RANGE_SIZE,
+                                      MIN_CHUNK_SIZE, MIN_RANGE_SIZE, MODEL_EXPORT_TIMEOUT,
                                       TRAINABLE_MODEL_TYPES)
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
@@ -1296,20 +1297,52 @@ class Model(Lister, BaseClient):
       model_export_url = get_model_export_response.export.url
       model_export_file_size = get_model_export_response.export.size
 
-      session = requests.Session()
-      retries = Retry(total=10, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
-      session.mount('https://', HTTPAdapter(max_retries=retries))
-      session.headers.update({'Authorization': self.metadata[0][1]})
-      response = session.get(model_export_url, stream=True)
-      response.raise_for_status()
-
       with open(local_filepath, 'wb') as f:
         progress = tqdm(
             total=model_export_file_size, unit='B', unit_scale=True, desc="Exporting model")
-        for chunk in response.iter_content(chunk_size=8192):
-          f.write(chunk)
-          progress.update(len(chunk))
-        progress.close()
+        downloaded_size = 0
+        range_size = 31457280  # 30MB
+        chunk_size = 1048576  # 1MB
+        retry = False
+        retry_count = 0
+        while downloaded_size < model_export_file_size:
+          if downloaded_size + range_size >= model_export_file_size:
+            range_header = f"bytes={downloaded_size}-"
+          else:
+            range_header = f"bytes={downloaded_size}-{(downloaded_size+range_size-1)}"
+          try:
+            session = requests.Session()
+            retries = Retry(total=5, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
+            session.mount('https://', HTTPAdapter(max_retries=retries))
+            session.headers.update({'Authorization': self.metadata[0][1], 'Range': range_header})
+            response = session.get(model_export_url, stream=True)
+            response.raise_for_status()
+
+            for chunk in response.iter_content(chunk_size=chunk_size):
+              f.write(chunk)
+              progress.update(len(chunk))
+            f.flush()
+            os.fsync(f.fileno())
+            downloaded_size += range_size
+            if not retry:
+              range_size = (
+                  range_size * 2) if (range_size * 2) < MAX_RANGE_SIZE else MAX_RANGE_SIZE
+              chunk_size = (
+                  chunk_size * 2) if (chunk_size * 2) < MAX_CHUNK_SIZE else MAX_CHUNK_SIZE
+          except Exception as e:
+            self.logger.error(f"Error downloading model: {e}")
+            range_size = (
+                range_size // 2) if (range_size // 2) > MIN_RANGE_SIZE else MIN_RANGE_SIZE
+            chunk_size = (
+                chunk_size // 2) if (chunk_size // 2) > MIN_CHUNK_SIZE else MIN_CHUNK_SIZE
+            retry = True
+            retry_count += 1
+            f.seek(downloaded_size)
+            progress.reset(total=model_export_file_size)
+            progress.update(downloaded_size)
+            if retry_count > 5:
+              break
+      progress.close()
 
       self.logger.info(
           f"Model ID {self.id} with version {self.model_info.model_version.id} exported successfully to {export_dir}/model.tar"
