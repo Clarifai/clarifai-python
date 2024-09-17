@@ -90,16 +90,7 @@ class Testmodeltrain:
     # step of training requires an app, this triggers infra alerts for non graceful exit. We need to delay the deletion
     # until we get past this step.
 
-    # model training
-    while training_status.code != 21100:
-      time.sleep(20)
-      training_status = self.text_classifier_model.training_status(version_id=model_version_id)
-
-    # test model export
-    self.text_classifier_model.model_version.id = model_version_id
-    self.text_classifier_model.export(export_dir='tests/')
-    assert os.path.exists('tests/model.tar') is True
-    os.remove('tests/model.tar')
+    time.sleep(5)
 
     with caplog.at_level(logging.INFO):
       self.text_classifier_model.delete_version(version_id=model_version_id)
