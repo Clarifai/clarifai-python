@@ -18,9 +18,9 @@ from clarifai.client.base import BaseClient
 from clarifai.client.dataset import Dataset
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
-from clarifai.constants.model import (MAX_CHUNK_SIZE, MAX_MODEL_PREDICT_INPUTS, MAX_RANGE_SIZE,
-                                      MIN_CHUNK_SIZE, MIN_RANGE_SIZE, MODEL_EXPORT_TIMEOUT,
-                                      TRAINABLE_MODEL_TYPES)
+from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_MODEL_PREDICT_INPUTS,
+                                      MAX_RANGE_SIZE, MIN_CHUNK_SIZE, MIN_RANGE_SIZE,
+                                      MODEL_EXPORT_TIMEOUT, RANGE_SIZE, TRAINABLE_MODEL_TYPES)
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import get_logger
@@ -1301,8 +1301,8 @@ class Model(Lister, BaseClient):
         progress = tqdm(
             total=model_export_file_size, unit='B', unit_scale=True, desc="Exporting model")
         downloaded_size = 0
-        range_size = 31457280  # 30MB
-        chunk_size = 1048576  # 1MB
+        range_size = RANGE_SIZE
+        chunk_size = CHUNK_SIZE
         retry = False
         retry_count = 0
         while downloaded_size < model_export_file_size:
