@@ -1,3 +1,9 @@
+## [[10.8.2]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.2) - [PyPI](https://pypi.org/project/clarifai/10.8.2/) - 2024-09-19
+
+### Changed
+ - Upgrade to clarifai-grpc 10.8.6
+ - Improved Model Export functionality by adding `Ranges` header [(#385)](https://github.com/Clarifai/clarifai-python/pull/385)
+
 ## [[10.8.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.1) - [PyPI](https://pypi.org/project/clarifai/10.8.1/) - 2024-09-06
 
 ### Fixed
