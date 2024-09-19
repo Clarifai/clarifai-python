@@ -352,14 +352,10 @@ class Dataset(Lister, BaseClient):
         input_details = input_map.get(failed_id)
         if input_details:
           failed_input_details = [
-              index,
-              failed_id,
-              input_details.status.details,
-              # Check for 'image_path', 'text', or
+              index, failed_id, input_details.status.details,
               getattr(dataset_obj.data_generator[index], 'image_path', None) or
               getattr(dataset_obj.data_generator[index], 'text', None),
-              dataset_obj.data_generator[index].labels,
-              dataset_obj.data_generator[index].metadata
+              dataset_obj.data_generator[index].labels, dataset_obj.data_generator[index].metadata
           ]
           failed_inputs_logs.append(failed_input_details)
 

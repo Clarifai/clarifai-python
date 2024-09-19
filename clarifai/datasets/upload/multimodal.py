@@ -1,4 +1,3 @@
-import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Tuple, Type
 
@@ -7,12 +6,16 @@ from google.protobuf.struct_pb2 import Struct
 
 from clarifai.client.input import Inputs
 from clarifai.datasets.upload.base import ClarifaiDataLoader, ClarifaiDataset
+from clarifai.utils.misc import get_uuid
 
 
 class MultiModalDataset(ClarifaiDataset):
 
-  def __init__(self, data_generator: Type[ClarifaiDataLoader], dataset_id: str) -> None:
-    super().__init__(data_generator, dataset_id)
+  def __init__(self,
+               data_generator: Type[ClarifaiDataLoader],
+               dataset_id: str,
+               max_workers: int = 4) -> None:
+    super().__init__(data_generator, dataset_id, max_workers)
 
   def _extract_protos(
       self,
@@ -33,7 +36,8 @@ class MultiModalDataset(ClarifaiDataset):
       image_bytes = data_item.image_bytes
       text = data_item.text
       labels = data_item.labels if isinstance(data_item.labels, list) else [data_item.labels]
-      input_id = f"{self.dataset_id}-{uuid.uuid4().hex[:8]}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
+      id = get_uuid(8)
+      input_id = f"{self.dataset_id}-{id}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
       if data_item.metadata is not None:
         metadata.update(data_item.metadata)
       else:
@@ -57,7 +61,7 @@ class MultiModalDataset(ClarifaiDataset):
                 labels=labels,
                 metadata=metadata))
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
       futures = [executor.submit(process_data_item, id) for id in batch_input_ids]
 
       for job in futures:

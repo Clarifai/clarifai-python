@@ -17,9 +17,11 @@ OutputFeaturesType = TypeVar(
 class ClarifaiDataset:
   """Clarifai datasets base class."""
 
-  def __init__(self, data_generator: 'ClarifaiDataLoader', dataset_id: str) -> None:
+  def __init__(self, data_generator: 'ClarifaiDataLoader', dataset_id: str,
+               max_workers: int = 4) -> None:
     self.data_generator = data_generator
     self.dataset_id = dataset_id
+    self.max_workers = max_workers
     self.all_input_ids = {}
     self._all_input_protos = {}
     self._all_annotation_protos = defaultdict(list)
