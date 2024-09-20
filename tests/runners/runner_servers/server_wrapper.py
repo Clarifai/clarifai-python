@@ -2,8 +2,8 @@ from typing import Any, Dict, List
 
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
-from clarifai.models.runners.clarifai_runners import TextInputModel
-from clarifai.models.runners.clarifai_runners.utils.data_handler import OutputDataHandler
+from clarifai.runners.models.base_typed_model import TextInputModel
+from clarifai.runners.utils.data_handler import OutputDataHandler
 
 
 class MyRunner(TextInputModel):

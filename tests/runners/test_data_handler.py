@@ -4,9 +4,8 @@ import numpy as np
 from clarifai_grpc.grpc.api import resources_pb2
 from PIL import Image
 
-from clarifai.models.runners.clarifai_runners.utils.data_handler import (InputDataHandler,
-                                                                         OutputDataHandler)
-from clarifai.models.runners.clarifai_runners.utils.data_utils import image_to_bytes
+from clarifai.runners.utils.data_handler import InputDataHandler, OutputDataHandler
+from clarifai.runners.utils.data_utils import image_to_bytes
 
 IMAGE = np.ones([50, 50, 3], dtype="uint8")
 AUDIO = b"000"

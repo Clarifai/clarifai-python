@@ -1,6 +1,6 @@
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 
-from runners_protocol.utils.url_fetcher import ensure_urls_downloaded
+from clarifai.runners.utils.url_fetcher import ensure_urls_downloaded
 
 image_url = "https://samples.clarifai.com/metro-north.jpg"
 audio_url = "https://samples.clarifai.com/GoodMorning.wav"

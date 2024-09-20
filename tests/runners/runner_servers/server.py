@@ -5,7 +5,7 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf import json_format
 
-from clarifai.models.runners.clarifai_runners.model_runners.model_runner import ModelRunner
+from clarifai.runners.models.model_runner import ModelRunner
 
 
 class MyRunner(ModelRunner):
