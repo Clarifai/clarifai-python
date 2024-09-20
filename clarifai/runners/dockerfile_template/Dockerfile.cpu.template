@@ -29,4 +29,4 @@ ENV PYTHONPATH "${PYTHONPATH}:/app/model_dir/${name}"
 
 # Finally run the clarifai entrypoint to start the runner loop and local dev server.
 # Note(zeiler): we may want to make this a clarifai CLI call.
-CMD ["python", "-m", "clarifai.models.runners.clarifai_runners.server", "--model_path", "/app/model_dir/${name}"]
+CMD ["python", "-m", "clarifai.runners.server", "--model_path", "/app/model_dir/${name}"]
