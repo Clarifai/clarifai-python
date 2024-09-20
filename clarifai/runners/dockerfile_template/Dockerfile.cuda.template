@@ -49,37 +49,6 @@ COPY requirements.txt .
 # Install requirements and cleanup before leaving this line.
 # Note(zeiler): this could be in a future template as {{model_python_deps}}
 RUN python -m pip install -r requirements.txt && rm -rf /root/.cache
-# Install huggingface_hub with hf_transfer for fast download checkpoints
-RUN python -m pip install huggingface_hub[hf_transfer]
-#############################
-
-
-#############################
-# Download checkpoints
-#############################
-
-
-# Define HF_TOKEN build-time variables
-ARG HF_TOKEN
-
-# Set the HF_TOKEN environment variable
-ENV HF_TOKEN=${HF_TOKEN}
-
-# Copy the checkpoints directory into the container
-COPY 1/checkpoint[s] /app/checkpoints
-
-# Create checkpoint directory if it doesn't exist
-RUN mkdir -p /app/checkpoints
-
-# set permissions for the directory
-RUN chmod 777 /app/checkpoints
-
-# Note(luv): Uncomment the following lines for downloading checkpoints at build time.
-# Copy the download_checkpoints.py script into the container then run it to download checkpoints at build time.
-# COPY 1/download_checkpoints.py /app/download_checkpoints.py
-# RUN python /app/download_checkpoints.py
-############################
-
 
 #############################
 # Finally copy everything we built into a distroless image for runtime.
@@ -149,14 +118,11 @@ WORKDIR /app
 COPY . /app/model_dir/${name}
 
 # Copy the checkpoints directory into the distroless image.
-COPY --from=build /app/checkpoints /app/model_dir/${name}/1/checkpoints
+COPY --from=build 1/checkpoint[s] /app/model_dir/${name}/1/checkpoints
 
 # Add the model directory to the python path.
 ENV PYTHONPATH=${PYTHONPATH}:/app/model_dir/${name}
 
-# set checkpoints path to the HF_HOME and enable HF transfer for fast download checkpoints
-ENV HF_HOME='/app/model_dir/${name}/1/checkpoints'
-ENV HF_HUB_ENABLE_HF_TRANSFER='1'
 
 # Finally run the clarifai entrypoint to start the runner loop and local dev server.
 # Note(zeiler): we may want to make this a clarifai CLI call.
