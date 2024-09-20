@@ -9,9 +9,9 @@ import pytest
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from clarifai_protocol.utils.logging import logger
+from dummy_runner_models.model import MyRunner
+from dummy_runner_models.model_wrapper import MyRunner as MyWrapperRunner
 from google.protobuf import json_format
-from runner_servers.server import MyRunner
-from runner_servers.server_wrapper import MyRunner as MyWrapperRunner
 
 from clarifai.client import BaseClient, User
 from clarifai.client.auth.helper import ClarifaiAuthHelper
