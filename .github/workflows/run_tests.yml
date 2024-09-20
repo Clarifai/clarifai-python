@@ -36,6 +36,8 @@ jobs:
         pip install -r tests/requirements.txt
     - name: Run static analysis lint
       uses: pre-commit/action@v3.0.0
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
     - name: Prepare the API keys & Run pytest
       env:
         CLARIFAI_USER_EMAIL_SECURE_HOSTING: ${{ secrets.CLARIFAI_USER_EMAIL_SECURE_HOSTING }}
