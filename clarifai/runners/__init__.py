@@ -3,8 +3,6 @@ from .models.model_runner import ModelRunner
 from .models.model_upload import ModelUploader
 from .utils.data_handler import InputDataHandler, OutputDataHandler
 
-__package__ = ""
-
 __all__ = [
     "ModelRunner",
     "ModelUploader",
