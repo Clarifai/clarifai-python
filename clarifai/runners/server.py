@@ -15,7 +15,7 @@ from runners_protocol import BaseRunner
 from runners_protocol.utils.grpc_server import GRPCServer
 from runners_protocol.utils.logging import logger
 
-from clarifai.models.runners.clarifai_runners.model_runners.model_servicer import ModelServicer
+from clarifai.runners.models.model_servicer import ModelServicer
 
 
 def main():

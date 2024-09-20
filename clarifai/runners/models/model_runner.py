@@ -5,6 +5,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
 from runners_protocol import BaseRunner
 from runners_protocol.utils.health import HealthProbeRequestHandler
+from ..utils.url_fetcher import ensure_urls_downloaded
 
 from .model_class import ModelClass
 
@@ -80,6 +81,7 @@ class ModelRunner(BaseRunner, ModelClass, HealthProbeRequestHandler):
     if not runner_item.HasField('post_model_outputs_request'):
       raise Exception("Unexpected work item type: {}".format(runner_item))
     request = runner_item.post_model_outputs_request
+    ensure_urls_downloaded(request)
 
     resp = self.predict_wrapper(request)
     successes = [o.status.code == status_code_pb2.SUCCESS for o in resp.outputs]
@@ -109,6 +111,7 @@ class ModelRunner(BaseRunner, ModelClass, HealthProbeRequestHandler):
     if not runner_item.HasField('post_model_outputs_request'):
       raise Exception("Unexpected work item type: {}".format(runner_item))
     request = runner_item.post_model_outputs_request
+    ensure_urls_downloaded(request)
 
     for resp in self.generate_wrapper(request):
       successes = []
@@ -168,4 +171,5 @@ def pmo_iterator(runner_item_iterator):
   for runner_item in runner_item_iterator:
     if not runner_item.HasField('post_model_outputs_request'):
       raise Exception("Unexpected work item type: {}".format(runner_item))
+    ensure_urls_downloaded(runner_item.post_model_outputs_request)
     yield runner_item.post_model_outputs_request
