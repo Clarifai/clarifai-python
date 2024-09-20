@@ -197,7 +197,6 @@ class TestApp:
     with caplog.at_level(logging.INFO):
       dataset = create_app.dataset(dataset_id=CREATE_DATASET_ID)
       versions = list(dataset.list_versions())
-      print("Dataset Version", versions[0].version.id)
       dataset.delete_version(version_id=versions[0].version.id)
       assert "SUCCESS" in caplog.text
       create_app.delete_dataset(CREATE_DATASET_ID)
