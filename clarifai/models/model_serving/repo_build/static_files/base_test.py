@@ -5,10 +5,10 @@ from typing import Dict, Iterable, List, Union
 import numpy as np
 import yaml
 
-from ...constants import IMAGE_TENSOR_NAME, TEXT_TENSOR_NAME
-from ...model_config import (ClassifierOutput, EmbeddingOutput, ImageOutput, InferParam,
-                             InferParamManager, MasksOutput, ModelTypes, TextOutput,
-                             VisualDetector, load_user_config)
+from clarifai.models.model_serving.constants import IMAGE_TENSOR_NAME, TEXT_TENSOR_NAME
+from clarifai.models.model_serving.model_config import (
+    ClassifierOutput, EmbeddingOutput, ImageOutput, InferParam, InferParamManager, MasksOutput,
+    ModelTypes, TextOutput, VisualDetector, load_user_config)
 
 _default_texts = ["Photo of a cat", "A cat is playing around", "Hello, this is test"]
 

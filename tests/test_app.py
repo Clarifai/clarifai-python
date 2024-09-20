@@ -67,6 +67,14 @@ class TestApp:
     all_workflows = list(app.list_workflows(page_no=1, per_page=10))
     assert len(all_workflows) == 10
 
+  def test_list_modules(self, app):
+    all_modules = list(app.list_modules())
+    assert len(all_modules) == 1
+
+  def test_list_installed_module_versions(self, app):
+    all_installed_module_versions = list(app.list_installed_module_versions())
+    assert len(all_installed_module_versions) == 0
+
   def test_list_apps(self, client):
     all_apps = list(client.list_apps())
     assert len(all_apps) > 0
@@ -121,6 +129,12 @@ class TestApp:
     versions = list(dataset.list_versions())
     assert len(versions) == 0  #test for list_versions
     assert dataset.id == CREATE_DATASET_ID and dataset.app_id == CREATE_APP_ID and dataset.user_id == CREATE_APP_USER_ID
+
+  def test_get_module(self, create_app):
+    module = create_app.module(module_id=CREATE_MODULE_ID)
+    versions = list(module.list_versions())
+    assert len(versions) == 0  #test for list_versions
+    assert module.id == CREATE_MODULE_ID and module.app_id == CREATE_APP_ID and module.user_id == CREATE_APP_USER_ID
 
   def test_list_datasets(self, create_app):
     all_datasets = list(create_app.list_datasets())
@@ -181,6 +195,10 @@ class TestApp:
 
   def test_delete_dataset(self, create_app, caplog):
     with caplog.at_level(logging.INFO):
+      dataset = create_app.dataset(dataset_id=CREATE_DATASET_ID)
+      versions = list(dataset.list_versions())
+      dataset.delete_version(version_id=versions[0].version.id)
+      assert "SUCCESS" in caplog.text
       create_app.delete_dataset(CREATE_DATASET_ID)
       assert "SUCCESS" in caplog.text
 

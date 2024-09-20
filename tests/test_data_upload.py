@@ -25,6 +25,7 @@ AUDIO_FILE_PATH = os.path.dirname(__file__) + "/assets/sample.mp3"
 CSV_FILE_PATH = os.path.dirname(__file__) + "/assets/sample.csv"
 FOLDER_PATH = os.path.dirname(__file__) + "/assets/test"
 MODULE_DIR = os.path.dirname(__file__) + "/assets/voc"
+TEXTS_FOLDER_PATH = os.path.dirname(__file__) + "/assets/sample_texts"
 
 
 def create_app():
@@ -100,13 +101,60 @@ class Testdataupload:
       self.input_object.upload_text(input_id='input_9', raw_text='This is a test text')
       assert "SUCCESS" in caplog.text
 
+  def test_upload_image_bytes(self, caplog):
+    with open(IMAGE_FILE_PATH, 'rb') as image_file:
+      image_bytes = image_file.read()
+    with caplog.at_level(logging.INFO):
+      self.input_object.upload_from_bytes(input_id='input_10', image_bytes=image_bytes)
+      assert "SUCCESS" in caplog.text
+
+  def test_upload_video_bytes(self, caplog):
+    with open(VIDEO_FILE_PATH, 'rb') as video_file:
+      video_bytes = video_file.read()
+    with caplog.at_level(logging.INFO):
+      self.input_object.upload_from_bytes(input_id='input_11', video_bytes=video_bytes)
+      assert "SUCCESS" in caplog.text
+
+  def test_upload_audio_bytes(self, caplog):
+    with open(AUDIO_FILE_PATH, 'rb') as audio_file:
+      audio_bytes = audio_file.read()
+    with caplog.at_level(logging.INFO):
+      self.input_object.upload_from_bytes(input_id='input_12', audio_bytes=audio_bytes)
+      assert "SUCCESS" in caplog.text
+
+  def test_upload_text_bytes(self, caplog):
+    with open(TEXT_FILE_PATH, 'rb') as text_file:
+      text_bytes = text_file.read()
+    with caplog.at_level(logging.INFO):
+      self.input_object.upload_from_bytes(input_id='input_13', text_bytes=text_bytes)
+      assert "SUCCESS" in caplog.text
+
+  def test_get_multimodal_input(self, caplog):
+    input_object = self.input_object.get_multimodal_input(
+        input_id='input_14', raw_text='This is a multimodal test text', image_url=IMAGE_URL)
+    assert input_object.id == 'input_14' and input_object.data.text.raw == 'This is a multimodal test text'
+
+  def test_get_text_inputs_from_folder(self):
+    text_inputs = self.input_object.get_text_inputs_from_folder(TEXTS_FOLDER_PATH)
+    assert len(text_inputs) == 3
+
+  def test_get_mask_proto(self):
+    polygon_points = [[.2, .2], [.8, .2], [.8, .8], [.2, .8]]
+    annotation = self.input_object.get_mask_proto(
+        input_id="input_1",
+        label="input_1_polygon_label",
+        polygons=polygon_points,
+        label_id="id-input_1_polygon_label",
+        annot_id="input_1_polygon_annot")
+    assert annotation.id == "input_1_polygon_annot" and annotation.input_id == "input_1"
+
   def test_list_inputs(self):
     paginated_inputs = list(self.input_object.list_inputs(page_no=1, per_page=5))
     image_filterd_inputs = list(self.input_object.list_inputs(input_type='image'))
     downloaded_inputs = self.input_object.download_inputs(image_filterd_inputs)
-    assert len(downloaded_inputs) == 2  #download inputs check
+    assert len(downloaded_inputs) == 3  #download inputs check
     assert len(paginated_inputs) == 5
-    assert len(image_filterd_inputs) == 2  # 2 images uploaded in the above tests
+    assert len(image_filterd_inputs) == 3  # 2 images uploaded in the above tests
 
   def test_patch_inputs(self):
     metadata = Struct()
@@ -158,7 +206,7 @@ class Testdataupload:
     with caplog.at_level(logging.INFO):
       self.input_object.delete_inputs(uploaded_inputs)
       assert "Inputs Deleted" in caplog.text  # Testing delete inputs action
-    assert len(uploaded_inputs) == 9  # 9 inputs uploaded in the above tests
+    assert len(uploaded_inputs) == 13  # 9 inputs uploaded in the above tests
 
   def test_upload_csv(self, caplog):
     self.dataset.upload_from_csv(

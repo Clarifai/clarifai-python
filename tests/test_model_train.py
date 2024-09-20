@@ -89,6 +89,7 @@ class Testmodeltrain:
     # NOTE (EAGLE-4139) - Immediately deleting the app causes the training to fail because the first
     # step of training requires an app, this triggers infra alerts for non graceful exit. We need to delay the deletion
     # until we get past this step.
+
     time.sleep(5)
 
     with caplog.at_level(logging.INFO):
