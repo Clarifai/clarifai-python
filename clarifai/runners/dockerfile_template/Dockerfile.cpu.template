@@ -9,10 +9,6 @@ COPY requirements.txt .
 # Note(zeiler): this could be in a future template as {{model_python_deps}}
 RUN python -m pip install -r requirements.txt && rm -rf /root/.cache
 
-# Install the Clarifai PIP package at a specified version
-# Note(zeiler): this could be in a future template as {{clarifai_python_deps}} that we inject.
-RUN python -m pip install https://clarifai-deploy.s3.amazonaws.com/wheels/clarifai_runners_python-0.1.3-py3-none-any.whl
-
 # These will be set by the templaing system.
 ENV CLARIFAI_PAT=${CLARIFAI_PAT}
 ENV CLARIFAI_USER_ID=${CLARIFAI_USER_ID}
