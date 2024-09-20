@@ -686,7 +686,7 @@ class App(Lister, BaseClient):
 
     return Workflow.from_auth_helper(auth=self.auth_helper, **kwargs)
 
-  def module(self, module_id: str, module_version_id: str = "", **kwargs) -> Module:
+  def module(self, module_id: str, **kwargs) -> Module:
     """Returns a Module object for the existing module ID.
 
     Args:
@@ -699,10 +699,9 @@ class App(Lister, BaseClient):
     Example:
         >>> from clarifai.client.app import App
         >>> app = App(app_id="app_id", user_id="user_id")
-        >>> module = app.module(module_id="module_id", module_version_id="module_version_id")
+        >>> module = app.module(module_id="module_id")
     """
-    request = service_pb2.GetModuleRequest(
-        user_app_id=self.user_app_id, module_id=module_id, version_id=module_version_id)
+    request = service_pb2.GetModuleRequest(user_app_id=self.user_app_id, module_id=module_id)
     response = self._grpc_request(self.STUB.GetModule, request)
 
     if response.status.code != status_code_pb2.SUCCESS:
