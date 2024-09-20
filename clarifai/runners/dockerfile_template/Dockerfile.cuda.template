@@ -78,15 +78,7 @@ RUN chmod 777 /app/checkpoints
 # Copy the download_checkpoints.py script into the container then run it to download checkpoints at build time.
 # COPY 1/download_checkpoints.py /app/download_checkpoints.py
 # RUN python /app/download_checkpoints.py
-#############################
-
-#############################
-# Clarifai Runner package
-#############################
-# Install the Clarifai PIP package at a specified version
-# Note(zeiler): this could be in a future template as {{clarifai_python_deps}} that we inject.
-RUN python -m pip install https://clarifai-deploy.s3.amazonaws.com/wheels/clarifai_runners_python-0.1.3-py3-none-any.whl
-#############################
+############################
 
 
 #############################
