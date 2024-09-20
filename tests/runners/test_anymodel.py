@@ -7,7 +7,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf import struct_pb2
 from PIL import Image
 
-from clarifai.runners.models import AnyAnyModel
+from clarifai.runners.models.base_typed_model import AnyAnyModel
 from clarifai.runners.utils.data_handler import OutputDataHandler
 from clarifai.runners.utils.data_utils import image_to_bytes
 

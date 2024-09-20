@@ -2,7 +2,7 @@ import concurrent.futures
 
 import fsspec
 
-from clarifai_runners.utils.logging import logger
+from runners_protocol.utils.logging import logger
 
 
 def download_input(input):
