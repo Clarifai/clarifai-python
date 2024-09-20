@@ -11,9 +11,15 @@ from rich import print
 
 from clarifai.client import BaseClient
 
+from clarifai.runners.utils.loader import HuggingFaceLoarder
+
 
 class ModelUploader:
   DEFAULT_PYTHON_VERSION = 3.11
+  CONCEPTS_REQUIRED_MODEL_TYPE = [
+      'visual-classifier', 'visual-detector', 'visual-segmenter', 'visual-embedder',
+      'text-classifier', 'text-embedder'
+  ]
 
   def __init__(self, folder: str):
     self.folder = self._validate_folder(folder)
@@ -123,6 +129,64 @@ class ModelUploader:
     with open(os.path.join(self.folder, 'Dockerfile'), 'w') as dockerfile:
       dockerfile.write(dockerfile_content)
 
+  def download_checkpoints(self):
+    if not self.config.get("checkpoints"):
+      return
+
+    loader_type = self.config.get("checkpoints").get("type",)
+    if not loader_type:
+      print("No loader type specified in the config file for checkpoints")
+    assert loader_type == "huggingface", "Only huggingface loader supported for now"
+    model_name = self.config.get("checkpoints").get("model_name")
+    hf_token = self.config.get("checkpoints").get("token")
+    loader = HuggingFaceLoarder(model_name=model_name, token=hf_token)
+
+    checkpoint_path = os.path.join(self.folder, '1', 'checkpoints')
+    loader.download_checkpoints(checkpoint_path)
+
+    print(f"Downloaded checkpoints for model {model_name}")
+
+  def _concepts_protos_from_concepts(self, concepts):
+    concept_protos = []
+    for concept in concepts:
+      concept_protos.append(
+          resources_pb2.Concept(
+              id=str(concept.get('id')),
+              name=concept.get('name'),
+          ))
+    return concept_protos
+
+  def hf_labels_to_config(self, labels, config_file):
+    with open(config_file, 'r') as file:
+      config = yaml.safe_load(file)
+    model = config.get('model')
+    model_type_id = model.get('model_type_id')
+    assert model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
+    config['concepts'] = self._concepts_protos_from_concepts(labels)
+    with open(config_file, 'w') as file:
+      yaml.dump(config, file)
+    concepts = config.get('concepts')
+    print(f"Updated config.yaml with {len(concepts)} concepts.")
+
+  def _get_model_version_proto(self):
+
+    model_version = resources_pb2.ModelVersion(
+        pretrained_model_config=resources_pb2.PretrainedModelConfig(),
+        inference_compute_info=self.inference_compute_info,
+    )
+
+    model_type_id = self.config.get('model').get('model_type_id')
+    if model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE:
+
+      loader = HuggingFaceLoarder()
+      checkpoint_path = os.path.join(self.folder, '1', 'checkpoints')
+      labels = loader.fetch_labels(checkpoint_path)
+      config_file = os.path.join(self.folder, 'config.yaml')
+      self.hf_labels_to_config(labels, config_file)
+
+      model_version.output_info.data.concepts.extend(self._concepts_protos_from_concepts(labels))
+    return model_version
+
   def upload_model_version(self):
     file_path = f"{self.folder}.tar.gz"
     print(f"Will tar it into file: {file_path}")
@@ -131,10 +195,7 @@ class ModelUploader:
     os.system(f"tar --exclude=*~ -czvf {self.folder}.tar.gz -C {self.folder} .")
     print("Tarring complete, about to start upload.")
 
-    model_version = resources_pb2.ModelVersion(
-        pretrained_model_config=resources_pb2.PretrainedModelConfig(),
-        inference_compute_info=self.inference_compute_info,
-    )
+    model_version = self._get_model_version_proto()
 
     response = self.maybe_create_model()
 
@@ -212,13 +273,15 @@ class ModelUploader:
 
 def main(folder):
   uploader = ModelUploader(folder)
+  uploader.download_checkpoints()
   uploader.create_dockerfile()
   uploader.upload_model_version()
 
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
-  parser.add_argument('--folder', type=str, help='Folder to tar and upload', required=True)
+  parser.add_argument(
+      '--model_path', type=str, help='Path of the model folder to upload', required=True)
   args = parser.parse_args()
 
   main(args.folder)
