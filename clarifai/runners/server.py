@@ -1,5 +1,5 @@
 """
-This is simply the main file for the server that imports the copied BaseModelClass implementation
+This is simply the main file for the server that imports ModelRunner implementation
 and starts the server.
 """
 
