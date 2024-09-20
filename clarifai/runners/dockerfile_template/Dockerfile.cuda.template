@@ -1,0 +1,163 @@
+# Build a virtualenv containing necessary system libraries and Python packages
+# for users to install their own packages while also being distroless.
+# * Install python3-venv
+# * Install gcc libpython3-dev to compile C Python modules
+# * In the virtualenv: Update pip setuputils and wheel to support building new packages
+# * Export environment variables to use the virtualenv by default
+# * Create a non-root user with minimal privileges and use it
+ARG TARGET_PLATFORM=linux/amd64
+ARG CUDA_VERSION=12.4.0
+FROM --platform=$TARGET_PLATFORM nvidia/cuda:${CUDA_VERSION}-base-ubuntu22.04 AS build
+
+ARG DRIVER_VERSION=535
+ARG PYTHON_VERSION=${PYTHON_VERSION}
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install --no-install-suggests --no-install-recommends --yes \
+    software-properties-common \
+    gpg-agent && \
+    add-apt-repository ppa:graphics-drivers/ppa && \
+    add-apt-repository ppa:deadsnakes/ppa && \
+    apt-get update && \
+    apt-get install --no-install-suggests --no-install-recommends --yes \
+    python${PYTHON_VERSION} \
+    python${PYTHON_VERSION}-venv \
+    python${PYTHON_VERSION}-dev \
+    gcc \
+    libpython3-dev \
+    # drivers and nvidia-smi
+    nvidia-utils-${DRIVER_VERSION} \
+    nvidia-driver-${DRIVER_VERSION} \
+    libcap2-bin && \
+    python${PYTHON_VERSION} -m venv /venv && \
+    /venv/bin/pip install --disable-pip-version-check --upgrade pip setuptools wheel && \
+    # Create a non-root user with minimal privileges and set file permissions
+    ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python3 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+
+# Set environment variables to use virtualenv by default
+ENV VIRTUAL_ENV=/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+#############################
+# User specific requirements
+#############################
+COPY requirements.txt .
+
+# Install requirements and cleanup before leaving this line.
+# Note(zeiler): this could be in a future template as {{model_python_deps}}
+RUN python -m pip install -r requirements.txt && rm -rf /root/.cache
+# Install huggingface_hub with hf_transfer for fast download checkpoints
+RUN python -m pip install huggingface_hub[hf_transfer]
+#############################
+
+
+#############################
+# Download checkpoints
+#############################
+
+
+# Define HF_TOKEN build-time variables
+ARG HF_TOKEN
+
+# Set the HF_TOKEN environment variable
+ENV HF_TOKEN=${HF_TOKEN}
+
+# Copy the checkpoints directory into the container
+COPY 1/checkpoint[s] /app/checkpoints
+
+# Create checkpoint directory if it doesn't exist
+RUN mkdir -p /app/checkpoints
+
+# set permissions for the directory
+RUN chmod 777 /app/checkpoints
+
+# Note(luv): Uncomment the following lines for downloading checkpoints at build time.
+# Copy the download_checkpoints.py script into the container then run it to download checkpoints at build time.
+# COPY 1/download_checkpoints.py /app/download_checkpoints.py
+# RUN python /app/download_checkpoints.py
+############################
+
+
+#############################
+# Finally copy everything we built into a distroless image for runtime.
+######################>#######
+ARG TARGET_PLATFORM=linux/amd64
+# FROM --platform=$TARGET_PLATFORM gcr.io/distroless/python3-debian12:latest
+FROM --platform=$TARGET_PLATFORM gcr.io/distroless/python3-debian12:debug
+ARG PYTHON_VERSION=${PYTHON_VERSION}
+# needed to call pip directly
+COPY --from=build /bin/sh /bin/sh
+
+# Copy driver libraries based on architecture
+# Set FOLDER_NAME based on TARGET_PLATFORM
+ENV TARGET_PLATFORM=${TARGET_PLATFORM}
+ENV FOLDER_NAME="x86_64-linux-gnu"
+# RUN if [ "${TARGET_PLATFORM}" = "linux/arm64" ]; then \
+#         export FOLDER_NAME="aarch64-linux-gnu"; \
+#     fi && \
+#     echo "FOLDER_NAME=${FOLDER_NAME}"
+
+
+# virtual env
+COPY --from=build /venv /venv
+
+# cuda
+COPY --from=build --chmod=755 /usr/local/cuda /usr/local/cuda
+
+# We have to overwrite the python3 binary that the distroless image uses
+COPY --from=build /usr/bin/python${PYTHON_VERSION} /usr/bin/python3
+# And also copy in all the lib files for it.
+COPY --from=build /usr/lib/python${PYTHON_VERSION} /usr/lib/python${PYTHON_VERSION}
+# Note that distroless comes with a fixed python version, so we may need to overwrite that specific
+# version.
+
+# for debugging
+COPY --from=build /usr/bin/nvidia-smi /usr/bin/nvidia-smi
+# Copy driver libraries based on architecture
+COPY --from=build /usr/lib/${FOLDER_NAME}/libcuda.so* /usr/lib/${FOLDER_NAME}/
+COPY --from=build /usr/lib/${FOLDER_NAME}/libnvidia-ml.so* /usr/lib/${FOLDER_NAME}/
+
+# Set environment variables for CUDA
+ENV PATH=/usr/local/cuda/bin:${PATH}
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/lib/${FOLDER_NAME}:$LD_LIBRARY_PATH
+ENV CUDA_HOME=/usr/local/cuda
+
+# Set environment variables to use virtualenv by default
+ENV VIRTUAL_ENV=/venv
+# ENV PATH=${VIRTUAL_ENV}/bin:${PATH}
+ENV PYTHONPATH=${PYTHONPATH}:${VIRTUAL_ENV}/lib/python${PYTHON_VERSION}/site-packages
+
+# ENTRYPOINT ["${VIRTUAL_ENV}/bin/python"]
+
+
+# These will be set by the templaing system.
+ENV CLARIFAI_PAT=${CLARIFAI_PAT}
+ENV CLARIFAI_USER_ID=${CLARIFAI_USER_ID}
+ENV CLARIFAI_RUNNER_ID=${CLARIFAI_RUNNER_ID}
+ENV CLARIFAI_NODEPOOL_ID=${CLARIFAI_NODEPOOL_ID}
+ENV CLARIFAI_COMPUTE_CLUSTER_ID=${CLARIFAI_COMPUTE_CLUSTER_ID}
+ENV CLARIFAI_API_BASE=${CLARIFAI_API_BASE}
+
+# Set the working directory to /app
+WORKDIR /app
+
+# Copy the current folder into /app/model_dir that the SDK will expect.
+# Note(zeiler): would be nice to exclude checkpoints in case they were pre-downloaded.
+COPY . /app/model_dir/${name}
+
+# Copy the checkpoints directory into the distroless image.
+COPY --from=build /app/checkpoints /app/model_dir/${name}/1/checkpoints
+
+# Add the model directory to the python path.
+ENV PYTHONPATH=${PYTHONPATH}:/app/model_dir/${name}
+
+# set checkpoints path to the HF_HOME and enable HF transfer for fast download checkpoints
+ENV HF_HOME='/app/model_dir/${name}/1/checkpoints'
+ENV HF_HUB_ENABLE_HF_TRANSFER='1'
+
+# Finally run the clarifai entrypoint to start the runner loop and local dev server.
+# Note(zeiler): we may want to make this a clarifai CLI call.
+CMD ["-m", "clarifai.runners.server", "--model_path", "/app/model_dir/${name}"]
