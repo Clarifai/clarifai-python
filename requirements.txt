@@ -1,5 +1,5 @@
 clarifai-grpc>=10.8.6
-clarfai-protocol>=0.0.1
+clarifai-protocol>=0.0.1
 numpy>=1.22.0
 tqdm>=4.65.0
 tritonclient>=2.34.0
