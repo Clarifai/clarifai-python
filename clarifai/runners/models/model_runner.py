@@ -3,8 +3,8 @@ from typing import Iterator
 from clarifai_grpc.grpc.api import service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
-from runners_protocol import BaseRunner
-from runners_protocol.utils.health import HealthProbeRequestHandler
+from clarifai_protocol import BaseRunner
+from clarifai_protocol.utils.health import HealthProbeRequestHandler
 from ..utils.url_fetcher import ensure_urls_downloaded
 
 from .model_class import ModelClass

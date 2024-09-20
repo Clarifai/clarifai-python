@@ -11,9 +11,9 @@ import sys
 from concurrent import futures
 
 from clarifai_grpc.grpc.api import service_pb2_grpc
-from runners_protocol import BaseRunner
-from runners_protocol.utils.grpc_server import GRPCServer
-from runners_protocol.utils.logging import logger
+from clarifai_protocol import BaseRunner
+from clarifai_protocol.utils.grpc_server import GRPCServer
+from clarifai_protocol.utils.logging import logger
 
 from clarifai.runners.models.model_servicer import ModelServicer
 
