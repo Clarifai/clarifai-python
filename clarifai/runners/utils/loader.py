@@ -2,11 +2,13 @@ import json
 import os
 import subprocess
 
-# diplay error if huggingface_hub wasn't installed
+# throw error if huggingface_hub wasn't installed
 try:
   from huggingface_hub import snapshot_download
 except ImportError:
-  print("Please install huggingface_hub by running 'pip install huggingface_hub'")
+  raise ImportError(
+      "The 'huggingface_hub' package is not installed. Please install it using 'pip install huggingface_hub'."
+  )
 
 
 class HuggingFaceLoarder:
@@ -51,8 +53,8 @@ class HuggingFaceLoarder:
     # check if model exists on HF
     from huggingface_hub import list_repo_files
 
-    return os.path.exists(checkpoint_path) and (len(list_repo_files(
-        self.model_name)) == os.listdir(checkpoint_path))
+    return (len(os.listdir(checkpoint_path)) >= len(list_repo_files(self.model_name))) and len(
+        list_repo_files(self.model_name)) > 0
 
   def fetch_labels(self, checkpoint_path: str):
     # Fetch labels for classification, detection and segmentation models
