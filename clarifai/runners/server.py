@@ -13,9 +13,9 @@ from concurrent import futures
 from clarifai_grpc.grpc.api import service_pb2_grpc
 from clarifai_protocol import BaseRunner
 from clarifai_protocol.utils.grpc_server import GRPCServer
-from clarifai_protocol.utils.logging import logger
 
 from clarifai.runners.models.model_servicer import ModelServicer
+from clarifai.runners.utils.logging import logger
 
 
 def main():
