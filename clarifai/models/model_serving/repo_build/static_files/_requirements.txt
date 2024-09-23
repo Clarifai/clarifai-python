@@ -1,2 +1,0 @@
-clarifai>9.10.4
-tritonclient[all]
