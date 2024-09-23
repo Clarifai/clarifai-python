@@ -50,6 +50,9 @@ COPY requirements.txt .
 # Note(zeiler): this could be in a future template as {{model_python_deps}}
 RUN python -m pip install -r requirements.txt && rm -rf /root/.cache
 
+# Install Clarifai SDK
+RUN python -m pip install clarifai
+
 #############################
 # Finally copy everything we built into a distroless image for runtime.
 ######################>#######

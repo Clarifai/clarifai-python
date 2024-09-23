@@ -9,6 +9,9 @@ COPY requirements.txt .
 # Note(zeiler): this could be in a future template as {{model_python_deps}}
 RUN python -m pip install -r requirements.txt && rm -rf /root/.cache
 
+# Install Clarifai SDK
+RUN python -m pip install clarifai
+
 # These will be set by the templaing system.
 ENV CLARIFAI_PAT=${CLARIFAI_PAT}
 ENV CLARIFAI_USER_ID=${CLARIFAI_USER_ID}
