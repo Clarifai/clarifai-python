@@ -130,6 +130,7 @@ class ModelUploader:
 
   def download_checkpoints(self):
     if not self.config.get("checkpoints"):
+      print("No checkpoints specified in the config file")
       return
 
     loader_type = self.config.get("checkpoints").get("type",)
@@ -274,6 +275,7 @@ def main(folder):
   uploader = ModelUploader(folder)
   uploader.download_checkpoints()
   uploader.create_dockerfile()
+  input("Press Enter to continue...")
   uploader.upload_model_version()
 
 
@@ -283,4 +285,4 @@ if __name__ == "__main__":
       '--model_path', type=str, help='Path of the model folder to upload', required=True)
   args = parser.parse_args()
 
-  main(args.folder)
+  main(args.model_path)
