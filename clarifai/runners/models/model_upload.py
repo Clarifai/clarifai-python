@@ -50,9 +50,13 @@ class ModelUploader:
     return config
 
   def initialize_client(self):
+    assert "model" in self.config, "model info not found in the config file"
     model = self.config.get('model')
+    assert "user_id" in model, "user_id not found in the config file"
+    assert "app_id" in model, "app_id not found in the config file"
     user_id = model.get('user_id')
     app_id = model.get('app_id')
+
     base = os.environ.get('CLARIFAI_API_BASE', 'https://api-dev.clarifai.com')
 
     self.client = BaseClient(user_id=user_id, app_id=app_id, base=base)
