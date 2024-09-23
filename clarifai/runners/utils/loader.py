@@ -1,14 +1,7 @@
+import importlib.util
 import json
 import os
 import subprocess
-
-# throw error if huggingface_hub wasn't installed
-try:
-  from huggingface_hub import snapshot_download
-except ImportError:
-  raise ImportError(
-      "The 'huggingface_hub' package is not installed. Please install it using 'pip install huggingface_hub'."
-  )
 
 
 class HuggingFaceLoarder:
@@ -18,12 +11,23 @@ class HuggingFaceLoarder:
     self.token = token
     if token:
       try:
+        if importlib.util.find_spec("huggingface_hub") is None:
+          raise ImportError(
+              "The 'huggingface_hub' package is not installed. Please install it using 'pip install huggingface_hub'."
+          )
         os.environ['HF_TOKEN'] = token
         subprocess.run(f'huggingface-cli login --token={os.environ["HF_TOKEN"]}', shell=True)
       except Exception as e:
-        print("Error setting HF token ", e)
+        Exception("Error setting up Hugging Face token ", e)
 
   def download_checkpoints(self, checkpoint_path: str):
+    # throw error if huggingface_hub wasn't installed
+    try:
+      from huggingface_hub import snapshot_download
+    except ImportError:
+      raise ImportError(
+          "The 'huggingface_hub' package is not installed. Please install it using 'pip install huggingface_hub'."
+      )
     if os.path.exists(checkpoint_path):
       print("Checkpoints already exist")
     else:
