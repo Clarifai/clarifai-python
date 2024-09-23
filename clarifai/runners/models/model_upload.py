@@ -147,7 +147,7 @@ class ModelUploader:
       repo_id = self.config.get("checkpoints").get("repo_id")
 
       hf_token = self.config.get("checkpoints").get("hf_token", None)
-      loader = HuggingFaceLoarder(model_name=repo_id, token=hf_token)
+      loader = HuggingFaceLoarder(repo_id=repo_id, token=hf_token)
 
       checkpoint_path = os.path.join(self.folder, '1', 'checkpoints')
       loader.download_checkpoints(checkpoint_path)
