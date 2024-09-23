@@ -137,18 +137,22 @@ class ModelUploader:
       print("No checkpoints specified in the config file")
       return
 
-    loader_type = self.config.get("checkpoints").get("type",)
+    assert "type" in self.config.get("checkpoints"), "No loader type specified in the config file"
+    loader_type = self.config.get("checkpoints").get("type")
     if not loader_type:
       print("No loader type specified in the config file for checkpoints")
     assert loader_type == "huggingface", "Only huggingface loader supported for now"
-    model_name = self.config.get("checkpoints").get("model_name")
-    hf_token = self.config.get("checkpoints").get("token")
-    loader = HuggingFaceLoarder(model_name=model_name, token=hf_token)
+    if loader_type == "huggingface":
+      assert "repo_id" in self.config.get("checkpoints"), "No repo_id specified in the config file"
+      repo_id = self.config.get("checkpoints").get("repo_id")
 
-    checkpoint_path = os.path.join(self.folder, '1', 'checkpoints')
-    loader.download_checkpoints(checkpoint_path)
+      hf_token = self.config.get("checkpoints").get("hf_token", None)
+      loader = HuggingFaceLoarder(model_name=repo_id, token=hf_token)
 
-    print(f"Downloaded checkpoints for model {model_name}")
+      checkpoint_path = os.path.join(self.folder, '1', 'checkpoints')
+      loader.download_checkpoints(checkpoint_path)
+
+      print(f"Downloaded checkpoints for model {repo_id}")
 
   def _concepts_protos_from_concepts(self, concepts):
     concept_protos = []

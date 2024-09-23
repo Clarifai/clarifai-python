@@ -6,8 +6,8 @@ import subprocess
 
 class HuggingFaceLoarder:
 
-  def __init__(self, model_name=None, token=None):
-    self.model_name = model_name
+  def __init__(self, repo_id=None, token=None):
+    self.repo_id = repo_id
     self.token = token
     if token:
       try:
@@ -37,7 +37,7 @@ class HuggingFaceLoarder:
         if not is_hf_model_exists:
           print("Model not found on Hugging Face")
           return False
-        snapshot_download(repo_id=self.model_name, local_dir=checkpoint_path)
+        snapshot_download(repo_id=self.repo_id, local_dir=checkpoint_path)
       except Exception as e:
         print("Error downloading model checkpoints ", e)
         return False
@@ -51,14 +51,14 @@ class HuggingFaceLoarder:
     # check if model exists on HF
 
     from huggingface_hub import file_exists, repo_exists
-    return repo_exists(self.model_name) and file_exists(self.model_name, 'config.json')
+    return repo_exists(self.repo_id) and file_exists(self.repo_id, 'config.json')
 
   def validate_download(self, checkpoint_path: str):
     # check if model exists on HF
     from huggingface_hub import list_repo_files
 
-    return (len(os.listdir(checkpoint_path)) >= len(list_repo_files(self.model_name))) and len(
-        list_repo_files(self.model_name)) > 0
+    return (len(os.listdir(checkpoint_path)) >= len(list_repo_files(self.repo_id))) and len(
+        list_repo_files(self.repo_id)) > 0
 
   def fetch_labels(self, checkpoint_path: str):
     # Fetch labels for classification, detection and segmentation models
