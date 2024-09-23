@@ -17,8 +17,7 @@ from clarifai.runners.utils.loader import HuggingFaceLoarder
 class ModelUploader:
   DEFAULT_PYTHON_VERSION = 3.11
   CONCEPTS_REQUIRED_MODEL_TYPE = [
-      'visual-classifier', 'visual-detector', 'visual-segmenter', 'visual-embedder',
-      'text-classifier', 'text-embedder'
+      'visual-classifier', 'visual-detector', 'visual-segmenter', 'text-classifier'
   ]
 
   def __init__(self, folder: str):
