@@ -117,8 +117,8 @@ WORKDIR /app
 # Note(zeiler): would be nice to exclude checkpoints in case they were pre-downloaded.
 COPY . /app/model_dir/${name}
 
-# Copy the checkpoints directory into the distroless image.
-COPY --from=build 1/checkpoint[s] /app/model_dir/${name}/1/checkpoints
+# Copy the checkpoints directory directly into the distroless image.
+COPY 1/checkpoint[s] /app/model_dir/${name}/1/checkpoints
 
 # Add the model directory to the python path.
 ENV PYTHONPATH=${PYTHONPATH}:/app/model_dir/${name}
