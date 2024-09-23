@@ -424,7 +424,7 @@ class Dataset(Lister, BaseClient):
     if self.task not in DATASET_UPLOAD_TASKS:
       raise UserError("Task should be one of \
                       'text_classification', 'visual_classification', \
-                      'visual_detection', 'visual_segmentation', 'visual_captioning', 'multimodal_upload'"
+                      'visual_detection', 'visual_segmentation', 'visual_captioning', 'multimodal_dataset'"
                      )
 
     if self.task == "text_classification":
@@ -436,7 +436,7 @@ class Dataset(Lister, BaseClient):
     elif self.task == "visual_segmentation":
       dataset_obj = VisualSegmentationDataset(dataloader, self.id)
 
-    elif self.task == "multimodal_upload":
+    elif self.task == "multimodal_dataset":
       dataset_obj = MultiModalDataset(dataloader, self.id)
 
     else:  # visual_classification & visual_captioning
