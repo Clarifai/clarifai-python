@@ -170,6 +170,8 @@ class ModelUploader:
     model = config.get('model')
     model_type_id = model.get('model_type_id')
     assert model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
+    # sort the concepts by id
+    labels = sorted(labels, key=lambda x: int(x.get('id')))
     config['concepts'] = self._concepts_protos_from_concepts(labels)
     with open(config_file, 'w') as file:
       yaml.dump(config, file)
@@ -208,7 +210,7 @@ class ModelUploader:
     response = self.maybe_create_model()
 
     for response in self.client.STUB.PostModelVersionsUpload(
-        self.model_version_stream_upload_iterator(model_version, file_path), timeout=100.0):
+        self.model_version_stream_upload_iterator(model_version, file_path),):
       print(response)
 
     if response.status.code != status_code_pb2.MODEL_BUILDING:
@@ -223,7 +225,7 @@ class ModelUploader:
     yield self.init_upload_model_version(model_version, file_path)
     with open(file_path, "rb") as f:
       file_size = os.path.getsize(file_path)
-      chunk_size = int(128 * 1024 * 1024)  # 128MB chunk size
+      chunk_size = int(127 * 1024 * 1024)  # 127MB chunk size
       num_chunks = (file_size // chunk_size) + 1
 
       read_so_far = 0
