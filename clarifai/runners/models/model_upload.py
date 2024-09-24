@@ -11,9 +11,21 @@ from rich import print
 
 from clarifai.client import BaseClient
 
+from clarifai.runners.utils.loader import HuggingFaceLoarder
+
+
+def _clear_line(n: int = 1) -> None:
+  LINE_UP = '\033[1A'  # Move cursor up one line
+  LINE_CLEAR = '\x1b[2K'  # Clear the entire line
+  for _ in range(n):
+    print(LINE_UP, end=LINE_CLEAR, flush=True)
+
 
 class ModelUploader:
   DEFAULT_PYTHON_VERSION = 3.11
+  CONCEPTS_REQUIRED_MODEL_TYPE = [
+      'visual-classifier', 'visual-detector', 'visual-segmenter', 'text-classifier'
+  ]
 
   def __init__(self, folder: str):
     self.folder = self._validate_folder(folder)
@@ -45,9 +57,13 @@ class ModelUploader:
     return config
 
   def initialize_client(self):
+    assert "model" in self.config, "model info not found in the config file"
     model = self.config.get('model')
+    assert "user_id" in model, "user_id not found in the config file"
+    assert "app_id" in model, "app_id not found in the config file"
     user_id = model.get('user_id')
     app_id = model.get('app_id')
+
     base = os.environ.get('CLARIFAI_API_BASE', 'https://api-dev.clarifai.com')
 
     self.client = BaseClient(user_id=user_id, app_id=app_id, base=base)
@@ -123,6 +139,74 @@ class ModelUploader:
     with open(os.path.join(self.folder, 'Dockerfile'), 'w') as dockerfile:
       dockerfile.write(dockerfile_content)
 
+  def download_checkpoints(self):
+    if not self.config.get("checkpoints"):
+      print("No checkpoints specified in the config file")
+      return
+
+    assert "type" in self.config.get("checkpoints"), "No loader type specified in the config file"
+    loader_type = self.config.get("checkpoints").get("type")
+    if not loader_type:
+      print("No loader type specified in the config file for checkpoints")
+    assert loader_type == "huggingface", "Only huggingface loader supported for now"
+    if loader_type == "huggingface":
+      assert "repo_id" in self.config.get("checkpoints"), "No repo_id specified in the config file"
+      repo_id = self.config.get("checkpoints").get("repo_id")
+
+      hf_token = self.config.get("checkpoints").get("hf_token", None)
+      loader = HuggingFaceLoarder(repo_id=repo_id, token=hf_token)
+
+      checkpoint_path = os.path.join(self.folder, '1', 'checkpoints')
+      loader.download_checkpoints(checkpoint_path)
+
+      print(f"Downloaded checkpoints for model {repo_id}")
+
+  def _concepts_protos_from_concepts(self, concepts):
+    concept_protos = []
+    for concept in concepts:
+      concept_protos.append(resources_pb2.Concept(
+          id=str(concept[0]),
+          name=concept[1],
+      ))
+    return concept_protos
+
+  def hf_labels_to_config(self, labels, config_file):
+    with open(config_file, 'r') as file:
+      config = yaml.safe_load(file)
+    model = config.get('model')
+    model_type_id = model.get('model_type_id')
+    assert model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
+    concept_protos = self._concepts_protos_from_concepts(labels)
+
+    config['concepts'] = [{'id': concept.id, 'name': concept.name} for concept in concept_protos]
+
+    with open(config_file, 'w') as file:
+      yaml.dump(config, file, sort_keys=False)
+    concepts = config.get('concepts')
+    print(f"Updated config.yaml with {len(concepts)} concepts.")
+
+  def _get_model_version_proto(self):
+
+    model_version = resources_pb2.ModelVersion(
+        pretrained_model_config=resources_pb2.PretrainedModelConfig(),
+        inference_compute_info=self.inference_compute_info,
+    )
+
+    model_type_id = self.config.get('model').get('model_type_id')
+    if model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE:
+
+      loader = HuggingFaceLoarder()
+      checkpoint_path = os.path.join(self.folder, '1', 'checkpoints')
+      labels = loader.fetch_labels(checkpoint_path)
+      # sort the concepts by id and then update the config file
+      labels = sorted(labels.items(), key=lambda x: int(x[0]))
+
+      config_file = os.path.join(self.folder, 'config.yaml')
+      self.hf_labels_to_config(labels, config_file)
+
+      model_version.output_info.data.concepts.extend(self._concepts_protos_from_concepts(labels))
+    return model_version
+
   def upload_model_version(self):
     file_path = f"{self.folder}.tar.gz"
     print(f"Will tar it into file: {file_path}")
@@ -131,17 +215,24 @@ class ModelUploader:
     os.system(f"tar --exclude=*~ -czvf {self.folder}.tar.gz -C {self.folder} .")
     print("Tarring complete, about to start upload.")
 
-    model_version = resources_pb2.ModelVersion(
-        pretrained_model_config=resources_pb2.PretrainedModelConfig(),
-        inference_compute_info=self.inference_compute_info,
-    )
+    model_version = self._get_model_version_proto()
 
     response = self.maybe_create_model()
 
     for response in self.client.STUB.PostModelVersionsUpload(
-        self.model_version_stream_upload_iterator(model_version, file_path), timeout=100.0):
-      print(response)
+        self.model_version_stream_upload_iterator(model_version, file_path),):
+      percent_completed = 0
+      if response.status.code == status_code_pb2.UPLOAD_IN_PROGRESS:
+        percent_completed = response.status.percent_completed
+      details = response.status.details
 
+      _clear_line()
+      print(
+          f"Status: {response.status.description}, "
+          f"Progress: {percent_completed}% - {details} ",
+          end='\r',
+          flush=True)
+    print()
     if response.status.code != status_code_pb2.MODEL_BUILDING:
       print(f"Failed to upload model version: {response.status.description}")
       return
@@ -154,7 +245,7 @@ class ModelUploader:
     yield self.init_upload_model_version(model_version, file_path)
     with open(file_path, "rb") as f:
       file_size = os.path.getsize(file_path)
-      chunk_size = int(128 * 1024 * 1024)  # 128MB chunk size
+      chunk_size = int(127 * 1024 * 1024)  # 127MB chunk size
       num_chunks = (file_size // chunk_size) + 1
 
       read_so_far = 0
@@ -167,10 +258,7 @@ class ModelUploader:
                 part_number=part_id + 1,
                 range_start=read_so_far,
             ))
-        print(
-            f"Uploaded part {part_id + 1}/{num_chunks}, {file_size - read_so_far} bytes remaining..."
-        )
-    print("Upload complete!")
+    print("\nUpload complete!, waiting for model build...")
 
   def init_upload_model_version(self, model_version, file_path):
     file_size = os.path.getsize(file_path)
@@ -212,13 +300,16 @@ class ModelUploader:
 
 def main(folder):
   uploader = ModelUploader(folder)
+  uploader.download_checkpoints()
   uploader.create_dockerfile()
+  input("Press Enter to continue...")
   uploader.upload_model_version()
 
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
-  parser.add_argument('--folder', type=str, help='Folder to tar and upload', required=True)
+  parser.add_argument(
+      '--model_path', type=str, help='Path of the model folder to upload', required=True)
   args = parser.parse_args()
 
-  main(args.folder)
+  main(args.model_path)
