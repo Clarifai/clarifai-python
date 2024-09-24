@@ -157,11 +157,10 @@ class ModelUploader:
   def _concepts_protos_from_concepts(self, concepts):
     concept_protos = []
     for concept in concepts:
-      concept_protos.append(
-          resources_pb2.Concept(
-              id=str(concept.get('id')),
-              name=concept.get('name'),
-          ))
+      concept_protos.append(resources_pb2.Concept(
+          id=str(concept[0]),
+          name=concept[1],
+      ))
     return concept_protos
 
   def hf_labels_to_config(self, labels, config_file):
@@ -170,11 +169,12 @@ class ModelUploader:
     model = config.get('model')
     model_type_id = model.get('model_type_id')
     assert model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
-    # sort the concepts by id and then update the config file
-    labels = sorted(labels.items(), key=lambda x: int(x[0]))
-    config['concepts'] = self._concepts_protos_from_concepts(labels)
+    concept_protos = self._concepts_protos_from_concepts(labels)
+
+    config['concepts'] = [{'id': concept.id, 'name': concept.name} for concept in concept_protos]
+
     with open(config_file, 'w') as file:
-      yaml.dump(config, file)
+      yaml.dump(config, file, sort_keys=False)
     concepts = config.get('concepts')
     print(f"Updated config.yaml with {len(concepts)} concepts.")
 
@@ -191,6 +191,9 @@ class ModelUploader:
       loader = HuggingFaceLoarder()
       checkpoint_path = os.path.join(self.folder, '1', 'checkpoints')
       labels = loader.fetch_labels(checkpoint_path)
+      # sort the concepts by id and then update the config file
+      labels = sorted(labels.items(), key=lambda x: int(x[0]))
+
       config_file = os.path.join(self.folder, 'config.yaml')
       self.hf_labels_to_config(labels, config_file)
 
