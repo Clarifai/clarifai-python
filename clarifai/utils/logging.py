@@ -300,14 +300,14 @@ class JsonFormatter(logging.Formatter):
     if level:
       fields['level'] = level.lower()
 
-    # Get the thread local data from gRPC (proto/utils/common.py)
+    # Get the thread local data
     req_id = getattr(thread_log_info, 'req_id', None)
     if req_id:
       fields['req_id'] = req_id
     orig_req_id = getattr(thread_log_info, 'orig_req_id', None)
     if orig_req_id:
       fields['orig_req_id'] = orig_req_id
-    # Get the thread local data from gRPC (proto/utils/common.py)
+    # Get the thread local data
     requester = getattr(thread_log_info, 'requester', None)
     if requester:
       fields['requester'] = requester
