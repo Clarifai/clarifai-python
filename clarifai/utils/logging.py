@@ -324,6 +324,7 @@ class JsonFormatter(logging.Formatter):
       if fields['exc_info']:
         formatted = traceback.format_exception(*fields['exc_info'])
         fields['exception'] = formatted
+
       fields.pop('exc_info')
 
     if 'exc_text' in fields and not fields['exc_text']:
