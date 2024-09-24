@@ -14,6 +14,13 @@ from clarifai.client import BaseClient
 from clarifai.runners.utils.loader import HuggingFaceLoarder
 
 
+def _clear_line(n: int = 1) -> None:
+  LINE_UP = '\033[1A'  # Move cursor up one line
+  LINE_CLEAR = '\x1b[2K'  # Clear the entire line
+  for _ in range(n):
+    print(LINE_UP, end=LINE_CLEAR, flush=True)
+
+
 class ModelUploader:
   DEFAULT_PYTHON_VERSION = 3.11
   CONCEPTS_REQUIRED_MODEL_TYPE = [
@@ -214,8 +221,18 @@ class ModelUploader:
 
     for response in self.client.STUB.PostModelVersionsUpload(
         self.model_version_stream_upload_iterator(model_version, file_path),):
-      print(response)
+      percent_completed = 0
+      if response.status.code == status_code_pb2.UPLOAD_IN_PROGRESS:
+        percent_completed = response.status.percent_completed
+      details = response.status.details
 
+      _clear_line()
+      print(
+          f"Status: {response.status.description}, "
+          f"Progress: {percent_completed}% - {details} ",
+          end='\r',
+          flush=True)
+    print()
     if response.status.code != status_code_pb2.MODEL_BUILDING:
       print(f"Failed to upload model version: {response.status.description}")
       return
@@ -241,10 +258,7 @@ class ModelUploader:
                 part_number=part_id + 1,
                 range_start=read_so_far,
             ))
-        print(
-            f"Uploaded part {part_id + 1}/{num_chunks}, {file_size - read_so_far} bytes remaining..."
-        )
-    print("Upload complete!")
+    print("\nUpload complete!, waiting for model build...")
 
   def init_upload_model_version(self, model_version, file_path):
     file_size = os.path.getsize(file_path)
