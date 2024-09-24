@@ -171,7 +171,7 @@ class ModelUploader:
     model_type_id = model.get('model_type_id')
     assert model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
     # sort the concepts by id and then update the config file
-    labels = sorted(labels.items(), key=lambda x: x[0])
+    labels = sorted(labels.items(), key=lambda x: int(x[0]))
     config['concepts'] = self._concepts_protos_from_concepts(labels)
     with open(config_file, 'w') as file:
       yaml.dump(config, file)
