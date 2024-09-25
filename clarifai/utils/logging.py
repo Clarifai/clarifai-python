@@ -127,7 +127,12 @@ def _configure_logger(name: str, logger_level: Union[int, str] = logging.NOTSET)
   for handler in logger.handlers[:]:
     logger.removeHandler(handler)
 
-  if os.getenv('ENABLE_JSON_LOGGER', 'false') == 'true':
+  # If ENABLE_JSON_LOGGER is 'true' then definitely use json logger.
+  # If ENABLE_JSON_LOGGER is 'false' then definitely don't use json logger.
+  # If ENABLE_JSON_LOGGER is not set, then use json logger if in k8s.
+  enabled_json = os.getenv('ENABLE_JSON_LOGGER', None)
+  in_k8s = 'KUBERNETES_SERVICE_HOST' in os.environ
+  if enabled_json == 'true' or (in_k8s and enabled_json != 'false'):
     # Add the json handler and formatter
     handler = logging.StreamHandler()
     formatter = JsonFormatter()
