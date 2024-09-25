@@ -4,18 +4,19 @@ import numpy as np
 from clarifai_grpc.grpc.api import resources_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from PIL import Image
-from pydantic import BaseModel, ConfigDict, PrivateAttr, computed_field
 
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 
 from .data_utils import bytes_to_image, image_to_bytes
 
 
-class BaseDataHandler(BaseModel):
-  _proto: Union[resources_pb2.Input, resources_pb2.Output]
-  _auth: ClarifaiAuthHelper = PrivateAttr(default=None)
+class BaseDataHandler:
 
-  model_config = ConfigDict(arbitrary_types_allowed=True)
+  def __init__(self,
+               proto: Union[resources_pb2.Input, resources_pb2.Output],
+               auth: ClarifaiAuthHelper = None):
+    self._proto = proto
+    self._auth = auth
 
   #
   def to_python(self):
@@ -30,8 +31,8 @@ class BaseDataHandler(BaseModel):
   def set_proto(self, proto):
     self._proto = proto
 
-  # status
-  @computed_field
+  # Status
+  @property
   def status(self) -> status_pb2.Status:
     return self._proto.status
 
@@ -40,7 +41,7 @@ class BaseDataHandler(BaseModel):
     self._proto.status.description = description
 
   # Text
-  @computed_field
+  @property
   def text(self) -> Union[None, str]:
     data = self._proto.data.text
     text = None
@@ -48,16 +49,14 @@ class BaseDataHandler(BaseModel):
       if data.raw:
         text = data.raw
       else:
-        # url = data.url
         raise NotImplementedError
-
     return text
 
   def set_text(self, text: str):
     self._proto.data.text.raw = text
 
   # Image
-  @computed_field
+  @property
   def image(self, format: str = "np") -> Union[None, Image.Image, np.ndarray]:
     data = self._proto.data.image
     image = None
@@ -66,13 +65,9 @@ class BaseDataHandler(BaseModel):
       if data.base64:
         image = data.base64
       elif data.url:
-        # download url
-        # url = data.url
-        image = ...
         raise NotImplementedError
       image = bytes_to_image(image)
       image = image if not format == "np" else np.asarray(image).astype("uint8")
-
     return image
 
   def set_image(self, image: Union[Image.Image, np.ndarray]):
@@ -81,21 +76,20 @@ class BaseDataHandler(BaseModel):
     self._proto.data.image.base64 = image_to_bytes(image)
 
   # Audio
-  @computed_field
+  @property
   def audio(self) -> bytes:
     data = self._proto.data.audio
     audio = None
     if data.ByteSize():
       if data.base64:
         audio = data.base64
-
     return audio
 
   def set_audio(self, audio: bytes):
     self._proto.data.audio.base64 = audio
 
   # Bboxes
-  @computed_field
+  @property
   def bboxes(self, real_coord: bool = False, image_width: int = None,
              image_height: int = None) -> Tuple[List, List, List]:
     if real_coord:
@@ -123,20 +117,18 @@ class BaseDataHandler(BaseModel):
 
     return xyxy, scores, concepts
 
-  def set_bboxes(
-      self,
-      boxes: list,
-      scores: list,
-      concepts: list,
-      real_coord: bool = False,
-      image_width: int = None,
-      image_height: int = None,
-  ):
+  def set_bboxes(self,
+                 boxes: list,
+                 scores: list,
+                 concepts: list,
+                 real_coord: bool = False,
+                 image_width: int = None,
+                 image_height: int = None):
     if real_coord:
       assert (image_height and
               image_width), "image_height and image_width are required when `real_coord` is set"
       bboxes = [[x[1] / image_height, x[0] / image_width, x[3] / image_height, x[2] / image_width]
-                for x in boxes]  # normalize the bboxes to [0,1] and [y1 x1 y2 x2]
+                for x in boxes]
       bboxes = np.clip(bboxes, 0, 1.0)
 
     regions = []
@@ -159,7 +151,7 @@ class BaseDataHandler(BaseModel):
     self._proto.data.regions = regions
 
   # Concepts
-  @computed_field
+  @property
   def concepts(self) -> Dict[str, float]:
     con_scores = {}
     for each in self.proto.data.concepts:
@@ -177,7 +169,7 @@ class BaseDataHandler(BaseModel):
         self._proto.data.concepts.append(each)
 
   # Embeddings
-  @computed_field
+  @property
   def embeddings(self) -> List[List[float]]:
     return [each.vector for each in self.proto.data.embeddings]
 
@@ -193,8 +185,7 @@ class BaseDataHandler(BaseModel):
   # Constructors
   @classmethod
   def from_proto(cls, proto):
-    clss = cls()
-    clss.set_proto(proto)
+    clss = cls(proto=proto)
     return clss
 
   @classmethod
@@ -209,7 +200,7 @@ class BaseDataHandler(BaseModel):
       concepts: Dict[str, float] = {},
       embeddings: List[List[float]] = [],
   ) -> 'OutputDataHandler':
-    clss = cls()
+    clss = cls(proto=resources_pb2.Output())
     if isinstance(image, Image.Image) or isinstance(image, np.ndarray):
       clss.set_image(image)
     if text:
@@ -224,12 +215,13 @@ class BaseDataHandler(BaseModel):
       clss.set_embeddings(embeddings)
 
     clss.set_status(code=status_code, description=status_description)
-
     return clss
 
 
 class InputDataHandler(BaseDataHandler):
-  _proto: resources_pb2.Input = resources_pb2.Input()
+
+  def __init__(self):
+    super().__init__(proto=resources_pb2.Input())
 
   def set_proto(self, proto: resources_pb2.Input):
     assert isinstance(proto, resources_pb2.Input)
@@ -237,7 +229,9 @@ class InputDataHandler(BaseDataHandler):
 
 
 class OutputDataHandler(BaseDataHandler):
-  _proto: resources_pb2.Output = resources_pb2.Output()
+
+  def __init__(self):
+    super().__init__(proto=resources_pb2.Output())
 
   def set_proto(self, proto: resources_pb2.Output):
     assert isinstance(proto, resources_pb2.Output)
