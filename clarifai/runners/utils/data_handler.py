@@ -128,7 +128,7 @@ class BaseDataHandler:
       assert (image_height and
               image_width), "image_height and image_width are required when `real_coord` is set"
       bboxes = [[x[1] / image_height, x[0] / image_width, x[3] / image_height, x[2] / image_width]
-                for x in boxes]
+                for x in boxes]  # normalize the bboxes to [0,1] and [y1 x1 y2 x2]
       bboxes = np.clip(bboxes, 0, 1.0)
 
     regions = []
@@ -220,19 +220,15 @@ class BaseDataHandler:
 
 class InputDataHandler(BaseDataHandler):
 
-  def __init__(self):
-    super().__init__(proto=resources_pb2.Input())
-
-  def set_proto(self, proto: resources_pb2.Input):
-    assert isinstance(proto, resources_pb2.Input)
-    self._proto = proto
+  def __init__(self,
+               proto: resources_pb2.Input = resources_pb2.Input(),
+               auth: ClarifaiAuthHelper = None):
+    super().__init__(proto=proto, auth=auth)
 
 
 class OutputDataHandler(BaseDataHandler):
 
-  def __init__(self):
-    super().__init__(proto=resources_pb2.Output())
-
-  def set_proto(self, proto: resources_pb2.Output):
-    assert isinstance(proto, resources_pb2.Output)
-    self._proto = proto
+  def __init__(self,
+               proto: resources_pb2.Output = resources_pb2.Output(),
+               auth: ClarifaiAuthHelper = None):
+    super().__init__(proto=proto, auth=auth)
