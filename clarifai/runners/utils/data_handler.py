@@ -28,9 +28,6 @@ class BaseDataHandler:
   def proto(self):
     return self._proto
 
-  def set_proto(self, proto):
-    self._proto = proto
-
   # Status
   @property
   def status(self) -> status_pb2.Status:
