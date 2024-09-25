@@ -28,7 +28,7 @@ class HuggingFaceLoarder:
       raise ImportError(
           "The 'huggingface_hub' package is not installed. Please install it using 'pip install huggingface_hub'."
       )
-    if os.path.exists(checkpoint_path):
+    if os.path.exists(checkpoint_path) and self.validate_download(checkpoint_path):
       print("Checkpoints already exist")
     else:
       os.makedirs(checkpoint_path, exist_ok=True)
@@ -41,10 +41,11 @@ class HuggingFaceLoarder:
       except Exception as e:
         print("Error downloading model checkpoints ", e)
         return False
-
-      if not self.validate_download(checkpoint_path):
-        print("Error downloading model checkpoints")
-        return False
+      finally:
+        is_downloaded = self.validate_download(checkpoint_path)
+        if not is_downloaded:
+          print("Error downloading model checkpoints")
+          return False
       return True
 
   def validate_hf_model(self,):
