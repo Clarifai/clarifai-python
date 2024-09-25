@@ -2,7 +2,7 @@
 
 ### Changed
  - Integrate clarifai-protocol which use to upload model to platform [(#389)](https://github.com/Clarifai/clarifai-python/pull/389)
- - Upgrade to clarifai-grpc 10.8.6
+ - Upgrade to clarifai-grpc 10.8.7
 
 ## [[10.8.2]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.2) - [PyPI](https://pypi.org/project/clarifai/10.8.2/) - 2024-09-19
 
