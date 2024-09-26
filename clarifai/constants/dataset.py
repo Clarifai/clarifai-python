@@ -1,6 +1,6 @@
 DATASET_UPLOAD_TASKS = [
     "visual_classification", "text_classification", "visual_detection", "visual_segmentation",
-    "visual_captioning"
+    "visual_captioning", "multimodal_dataset"
 ]
 
 TASK_TO_ANNOTATION_TYPE = {

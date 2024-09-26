@@ -1,3 +1,18 @@
+## [[10.8.4]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.4) - [PyPI](https://pypi.org/project/clarifai/10.8.4/) - 2024-09-26
+
+### Changed
+ - Added validation check in HF loader, if the checkpoints really exit at checkpoint path [(#396)](https://github.com/Clarifai/clarifai-python/pull/396)
+ - Remove pydantic dependency from runners in clarifai-python [(#395)](https://github.com/Clarifai/clarifai-python/pull/395)
+
+## [[10.8.3]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.3) - [PyPI](https://pypi.org/project/clarifai/10.8.3/) - 2024-09-25
+
+### Changed
+ - use json logger always in k8s [(#393)](https://github.com/Clarifai/clarifai-python/pull/393)
+ - Added a json logger so it's convenient to get logs into logging stacks [(#392)](https://github.com/Clarifai/clarifai-python/pull/392)
+ - Added HuggingFaceLoader and added methods in model_upload for download_checkpoints and handling concepts [(#390)](https://github.com/Clarifai/clarifai-python/pull/390)
+ - Integrate clarifai-protocol which use to upload model to platform [(#389)](https://github.com/Clarifai/clarifai-python/pull/389)
+ - Upgrade to clarifai-grpc 10.8.7
+
 ## [[10.8.2]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.2) - [PyPI](https://pypi.org/project/clarifai/10.8.2/) - 2024-09-19
 
 ### Changed

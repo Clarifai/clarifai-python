@@ -1,5 +1,4 @@
 import os
-import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Tuple, Type
 
@@ -8,12 +7,16 @@ from google.protobuf.struct_pb2 import Struct
 
 from clarifai.client.input import Inputs
 from clarifai.datasets.upload.base import ClarifaiDataLoader, ClarifaiDataset
+from clarifai.utils.misc import get_uuid
 
 
 class VisualClassificationDataset(ClarifaiDataset):
 
-  def __init__(self, data_generator: Type[ClarifaiDataLoader], dataset_id: str) -> None:
-    super().__init__(data_generator, dataset_id)
+  def __init__(self,
+               data_generator: Type[ClarifaiDataLoader],
+               dataset_id: str,
+               max_workers: int = 4) -> None:
+    super().__init__(data_generator, dataset_id, max_workers)
 
   def _extract_protos(self, batch_input_ids: List[str]
                      ) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:
@@ -33,7 +36,7 @@ class VisualClassificationDataset(ClarifaiDataset):
       labels = data_item.labels if isinstance(data_item.labels,
                                               list) else [data_item.labels]  # clarifai concept
       label_ids = data_item.label_ids
-      input_id = f"{self.dataset_id}-{uuid.uuid4().hex[:8]}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
+      input_id = f"{self.dataset_id}-{get_uuid(8)}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
       geo_info = data_item.geo_info
       if data_item.metadata is not None:
         metadata.update(data_item.metadata)
@@ -64,7 +67,7 @@ class VisualClassificationDataset(ClarifaiDataset):
                 geo_info=geo_info,
                 metadata=metadata))
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
       futures = [executor.submit(process_data_item, id) for id in batch_input_ids]
       for job in futures:
         job.result()
@@ -75,8 +78,11 @@ class VisualClassificationDataset(ClarifaiDataset):
 class VisualDetectionDataset(ClarifaiDataset):
   """Visual detection dataset proto class."""
 
-  def __init__(self, data_generator: Type[ClarifaiDataLoader], dataset_id: str) -> None:
-    super().__init__(data_generator, dataset_id)
+  def __init__(self,
+               data_generator: Type[ClarifaiDataLoader],
+               dataset_id: str,
+               max_workers: int = 4) -> None:
+    super().__init__(data_generator, dataset_id, max_workers)
 
   def _extract_protos(self, batch_input_ids: List[int]
                      ) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:
@@ -101,7 +107,7 @@ class VisualDetectionDataset(ClarifaiDataset):
       else:
         label_ids = None
       bboxes = data_item.bboxes  # [[xmin,ymin,xmax,ymax],...,[xmin,ymin,xmax,ymax]]
-      input_id = f"{self.dataset_id}-{uuid.uuid4().hex[:8]}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
+      input_id = f"{self.dataset_id}-{get_uuid(8)}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
       if data_item.metadata is not None:
         metadata.update(data_item.metadata)
       else:
@@ -135,7 +141,7 @@ class VisualDetectionDataset(ClarifaiDataset):
                 bbox=bboxes[i],
                 label_id=label_ids[i] if label_ids else None))
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
       futures = [executor.submit(process_data_item, id) for id in batch_input_ids]
       for job in futures:
         job.result()
@@ -146,8 +152,11 @@ class VisualDetectionDataset(ClarifaiDataset):
 class VisualSegmentationDataset(ClarifaiDataset):
   """Visual segmentation dataset proto class."""
 
-  def __init__(self, data_generator: Type[ClarifaiDataLoader], dataset_id: str) -> None:
-    super().__init__(data_generator, dataset_id)
+  def __init__(self,
+               data_generator: Type[ClarifaiDataLoader],
+               dataset_id: str,
+               max_workers: int = 4) -> None:
+    super().__init__(data_generator, dataset_id, max_workers)
 
   def _extract_protos(self, batch_input_ids: List[str]
                      ) -> Tuple[List[resources_pb2.Input], List[resources_pb2.Annotation]]:
@@ -172,7 +181,7 @@ class VisualSegmentationDataset(ClarifaiDataset):
       else:
         label_ids = None
       _polygons = data_item.polygons  # list of polygons: [[[x,y],...,[x,y]],...]
-      input_id = f"{self.dataset_id}-{uuid.uuid4().hex[:8]}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
+      input_id = f"{self.dataset_id}-{get_uuid(8)}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
       if data_item.metadata is not None:
         metadata.update(data_item.metadata)
       else:
@@ -210,7 +219,7 @@ class VisualSegmentationDataset(ClarifaiDataset):
         except IndexError:
           continue
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
       futures = [executor.submit(process_data_item, id) for id in batch_input_ids]
       for job in futures:
         job.result()
