@@ -1,4 +1,5 @@
 import os
+import uuid
 from typing import Any, Dict, List
 
 from clarifai.errors import UserError
@@ -69,3 +70,8 @@ def concept_relations_accumulation(relations_dict: Dict[str, Any], subject_conce
     relations_dict[object_concept] = []
     relations_dict[subject_concept] = []
   return relations_dict
+
+
+def get_uuid(val: int) -> str:
+  """Generates a UUID."""
+  return uuid.uuid4().hex[:val]

@@ -4,21 +4,24 @@ from typing import Iterator, List, Tuple, TypeVar, Union
 from clarifai_grpc.grpc.api import resources_pb2
 
 from clarifai.constants.dataset import DATASET_UPLOAD_TASKS
-from clarifai.datasets.upload.features import (TextFeatures, VisualClassificationFeatures,
+from clarifai.datasets.upload.features import (MultiModalFeatures, TextFeatures,
+                                               VisualClassificationFeatures,
                                                VisualDetectionFeatures, VisualSegmentationFeatures)
 
 OutputFeaturesType = TypeVar(
     'OutputFeaturesType',
     bound=Union[TextFeatures, VisualClassificationFeatures, VisualDetectionFeatures,
-                VisualSegmentationFeatures])
+                VisualSegmentationFeatures, MultiModalFeatures])
 
 
 class ClarifaiDataset:
   """Clarifai datasets base class."""
 
-  def __init__(self, data_generator: 'ClarifaiDataLoader', dataset_id: str) -> None:
+  def __init__(self, data_generator: 'ClarifaiDataLoader', dataset_id: str,
+               max_workers: int = 4) -> None:
     self.data_generator = data_generator
     self.dataset_id = dataset_id
+    self.max_workers = max_workers
     self.all_input_ids = {}
     self._all_input_protos = {}
     self._all_annotation_protos = defaultdict(list)
