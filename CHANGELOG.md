@@ -1,3 +1,8 @@
+## [[10.8.6]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.6) - [PyPI](https://pypi.org/project/clarifai/10.8.6/) - 2024-09-28
+
+### Changed
+ - Refract Model upload and download checkpoints at build time during model upload[(#400)](https://github.com/Clarifai/clarifai-python/pull/400)
+
 ## [[10.8.5]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.5) - [PyPI](https://pypi.org/project/clarifai/10.8.5/) - 2024-09-26
 
 ### Changed
