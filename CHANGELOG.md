@@ -1,3 +1,10 @@
+## [[10.8.5]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.5) - [PyPI](https://pypi.org/project/clarifai/10.8.5/) - 2024-09-26
+
+### Changed
+ - Added fsspec dependency which would be required in runners for model upload [(#398)](https://github.com/Clarifai/clarifai-python/pull/398)
+ - Added MultiModalLoader support [(#394)](https://github.com/Clarifai/clarifai-python/pull/394)
+ - Deleted model_serving in this SDK, after the Runners PR has been merged [(#391)](https://github.com/Clarifai/clarifai-python/pull/391)
+
 ## [[10.8.4]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.4) - [PyPI](https://pypi.org/project/clarifai/10.8.4/) - 2024-09-26
 
 ### Changed
@@ -11,7 +18,9 @@
  - Added a json logger so it's convenient to get logs into logging stacks [(#392)](https://github.com/Clarifai/clarifai-python/pull/392)
  - Added HuggingFaceLoader and added methods in model_upload for download_checkpoints and handling concepts [(#390)](https://github.com/Clarifai/clarifai-python/pull/390)
  - Integrate clarifai-protocol which use to upload model to platform [(#389)](https://github.com/Clarifai/clarifai-python/pull/389)
+ - Tests Addition for App, Dataset, Input, Model Classes [(#386)](https://github.com/Clarifai/clarifai-python/pull/386)
  - Upgrade to clarifai-grpc 10.8.7
+
 
 ## [[10.8.2]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.2) - [PyPI](https://pypi.org/project/clarifai/10.8.2/) - 2024-09-19
 
