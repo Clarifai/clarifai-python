@@ -28,12 +28,11 @@ class ModelUploader:
   ]
 
   def __init__(self, folder: str):
+    self._client = None
     self.folder = self._validate_folder(folder)
     self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
-    self.initialize_client()
     self.model_proto = self._get_model_proto()
     self.model_id = self.model_proto.id
-    self.user_app_id = self.client.user_app_id
     self.inference_compute_info = self._get_inference_compute_info()
     self.is_v3 = True  # Do model build for v3
 
@@ -42,6 +41,8 @@ class ModelUploader:
     if not folder.startswith("/"):
       folder = os.path.join(os.getcwd(), folder)
     print(f"Validating folder: {folder}")
+    if not os.path.exists(folder):
+      raise FileNotFoundError(f"Folder {folder} not found, please provide a valid folder path")
     files = os.listdir(folder)
     assert "requirements.txt" in files, "requirements.txt not found in the folder"
     assert "config.yaml" in files, "config.yaml not found in the folder"
@@ -56,18 +57,21 @@ class ModelUploader:
       config = yaml.safe_load(file)
     return config
 
-  def initialize_client(self):
-    assert "model" in self.config, "model info not found in the config file"
-    model = self.config.get('model')
-    assert "user_id" in model, "user_id not found in the config file"
-    assert "app_id" in model, "app_id not found in the config file"
-    user_id = model.get('user_id')
-    app_id = model.get('app_id')
+  @property
+  def client(self):
+    if self._client is None:
+      assert "model" in self.config, "model info not found in the config file"
+      model = self.config.get('model')
+      assert "user_id" in model, "user_id not found in the config file"
+      assert "app_id" in model, "app_id not found in the config file"
+      user_id = model.get('user_id')
+      app_id = model.get('app_id')
 
-    base = os.environ.get('CLARIFAI_API_BASE', 'https://api-dev.clarifai.com')
+      base = os.environ.get('CLARIFAI_API_BASE', 'https://api-dev.clarifai.com')
 
-    self.client = BaseClient(user_id=user_id, app_id=app_id, base=base)
-    print(f"Client initialized for user {user_id} and app {app_id}")
+      self._client = BaseClient(user_id=user_id, app_id=app_id, base=base)
+      print(f"Client initialized for user {user_id} and app {app_id}")
+    return self._client
 
   def _get_model_proto(self):
     assert "model" in self.config, "model info not found in the config file"
@@ -127,7 +131,14 @@ class ModelUploader:
 
     # Get the Python version from the config file
     build_info = self.config.get('build_info', {})
-    python_version = build_info.get('python_version', self.DEFAULT_PYTHON_VERSION)
+    if 'python_version' in build_info:
+      python_version = build_info['python_version']
+      print(f"Using Python version {python_version} from the config file to build the Dockerfile")
+    else:
+      print(
+          f"Python version not found in the config file, using default Python version: {self.DEFAULT_PYTHON_VERSION}"
+      )
+      python_version = self.DEFAULT_PYTHON_VERSION
 
     # Replace placeholders with actual values
     dockerfile_content = dockerfile_template.safe_substitute(
@@ -153,7 +164,12 @@ class ModelUploader:
       assert "repo_id" in self.config.get("checkpoints"), "No repo_id specified in the config file"
       repo_id = self.config.get("checkpoints").get("repo_id")
 
-      hf_token = self.config.get("checkpoints").get("hf_token", None)
+      # prefer env var for HF_TOKEN but if not provided then use the one from config.yaml if any.
+      if 'HF_TOKEN' in os.environ:
+        hf_token = os.environ['HF_TOKEN']
+      else:
+        hf_token = self.config.get("checkpoints").get("hf_token", None)
+        assert hf_token != 'hf_token', "The default 'hf_token' is not valid. Please provide a valid token or leave that field out of config.yaml if not needed."
       loader = HuggingFaceLoarder(repo_id=repo_id, token=hf_token)
 
       checkpoint_path = os.path.join(self.folder, '1', 'checkpoints')
@@ -230,6 +246,7 @@ class ModelUploader:
       print(
           f"Status: {response.status.description}, "
           f"Progress: {percent_completed}% - {details} ",
+          f"request_id: {response.status.req_id}",
           end='\r',
           flush=True)
     print()
@@ -247,24 +264,35 @@ class ModelUploader:
       file_size = os.path.getsize(file_path)
       chunk_size = int(127 * 1024 * 1024)  # 127MB chunk size
       num_chunks = (file_size // chunk_size) + 1
-
+      print("Uploading file...")
+      print("File size: ", file_size)
+      print("Chunk size: ", chunk_size)
+      print("Number of chunks: ", num_chunks)
       read_so_far = 0
       for part_id in range(num_chunks):
-        chunk = f.read(chunk_size)
-        read_so_far += len(chunk)
-        yield service_pb2.PostModelVersionsUploadRequest(
-            content_part=resources_pb2.UploadContentPart(
-                data=chunk,
-                part_number=part_id + 1,
-                range_start=read_so_far,
-            ))
-    print("\nUpload complete!, waiting for model build...")
+        try:
+          chunk_size = min(chunk_size, file_size - read_so_far)
+          chunk = f.read(chunk_size)
+          if not chunk:
+            break
+          read_so_far += len(chunk)
+          yield service_pb2.PostModelVersionsUploadRequest(
+              content_part=resources_pb2.UploadContentPart(
+                  data=chunk,
+                  part_number=part_id + 1,
+                  range_start=read_so_far,
+              ))
+        except Exception as e:
+          print(f"\nError uploading file: {e}")
+          break
+
+    if read_so_far == file_size:
+      print("\nUpload complete!, waiting for model build...")
 
   def init_upload_model_version(self, model_version, file_path):
     file_size = os.path.getsize(file_path)
-    print(
-        f"Uploading model version '{model_version.id}' with file '{os.path.basename(file_path)}' of size {file_size} bytes..."
-    )
+    print(f"Uploading model version '{model_version.id}' of model {self.model_proto.id}")
+    print(f"Using file '{os.path.basename(file_path)}' of size: {file_size} bytes")
     return service_pb2.PostModelVersionsUploadRequest(
         upload_config=service_pb2.PostModelVersionsUploadConfig(
             user_app_id=self.client.user_app_id,
@@ -290,7 +318,7 @@ class ModelUploader:
       elif status_code == status_code_pb2.MODEL_TRAINED:
         print("\nModel build complete!")
         print(
-            f"Check out the model at https://clarifai.com/{self.user_app_id.user_id}/apps/{self.user_app_id.app_id}/models/{self.model_id}/versions/{model_version_id}"
+            f"Check out the model at https://clarifai.com/{self.client.user_app_id.user_id}/apps/{self.client.user_app_id.app_id}/models/{self.model_id}/versions/{model_version_id}"
         )
         break
       else:
@@ -298,9 +326,10 @@ class ModelUploader:
         break
 
 
-def main(folder):
+def main(folder, download_checkpoints):
   uploader = ModelUploader(folder)
-  uploader.download_checkpoints()
+  if download_checkpoints:
+    uploader.download_checkpoints()
   uploader.create_dockerfile()
   input("Press Enter to continue...")
   uploader.upload_model_version()
@@ -310,6 +339,13 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument(
       '--model_path', type=str, help='Path of the model folder to upload', required=True)
+  # flag to default to not download checkpoints
+  parser.add_argument(
+      '--download_checkpoints',
+      action='store_true',
+      help=
+      'Flag to download checkpoints before uploading and including them in the tar file that is uploaded. Defaults to False, which will attempt to download them at docker build time.',
+  )
   args = parser.parse_args()
 
-  main(args.model_path)
+  main(args.model_path, args.download_checkpoints)

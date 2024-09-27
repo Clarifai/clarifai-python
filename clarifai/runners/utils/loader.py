@@ -57,7 +57,6 @@ class HuggingFaceLoarder:
   def validate_download(self, checkpoint_path: str):
     # check if model exists on HF
     from huggingface_hub import list_repo_files
-
     return (len(os.listdir(checkpoint_path)) >= len(list_repo_files(self.repo_id))) and len(
         list_repo_files(self.repo_id)) > 0
 
