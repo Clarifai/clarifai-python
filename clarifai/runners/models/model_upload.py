@@ -28,12 +28,11 @@ class ModelUploader:
   ]
 
   def __init__(self, folder: str):
+    self._client = None
     self.folder = self._validate_folder(folder)
     self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
-    self.initialize_client()
     self.model_proto = self._get_model_proto()
     self.model_id = self.model_proto.id
-    self.user_app_id = self.client.user_app_id
     self.inference_compute_info = self._get_inference_compute_info()
     self.is_v3 = True  # Do model build for v3
 
@@ -56,18 +55,21 @@ class ModelUploader:
       config = yaml.safe_load(file)
     return config
 
-  def initialize_client(self):
-    assert "model" in self.config, "model info not found in the config file"
-    model = self.config.get('model')
-    assert "user_id" in model, "user_id not found in the config file"
-    assert "app_id" in model, "app_id not found in the config file"
-    user_id = model.get('user_id')
-    app_id = model.get('app_id')
+  @property
+  def client(self):
+    if self._client is None:
+      assert "model" in self.config, "model info not found in the config file"
+      model = self.config.get('model')
+      assert "user_id" in model, "user_id not found in the config file"
+      assert "app_id" in model, "app_id not found in the config file"
+      user_id = model.get('user_id')
+      app_id = model.get('app_id')
 
-    base = os.environ.get('CLARIFAI_API_BASE', 'https://api-dev.clarifai.com')
+      base = os.environ.get('CLARIFAI_API_BASE', 'https://api-dev.clarifai.com')
 
-    self.client = BaseClient(user_id=user_id, app_id=app_id, base=base)
-    print(f"Client initialized for user {user_id} and app {app_id}")
+      self._client = BaseClient(user_id=user_id, app_id=app_id, base=base)
+      print(f"Client initialized for user {user_id} and app {app_id}")
+    return self._client
 
   def _get_model_proto(self):
     assert "model" in self.config, "model info not found in the config file"
@@ -154,6 +156,7 @@ class ModelUploader:
       repo_id = self.config.get("checkpoints").get("repo_id")
 
       hf_token = self.config.get("checkpoints").get("hf_token", None)
+      assert hf_token != 'hf_token', "The default 'hf_token' is not valid. Please provide a valid token or leave that field out of config.yaml if not needed."
       loader = HuggingFaceLoarder(repo_id=repo_id, token=hf_token)
 
       checkpoint_path = os.path.join(self.folder, '1', 'checkpoints')
@@ -290,7 +293,7 @@ class ModelUploader:
       elif status_code == status_code_pb2.MODEL_TRAINED:
         print("\nModel build complete!")
         print(
-            f"Check out the model at https://clarifai.com/{self.user_app_id.user_id}/apps/{self.user_app_id.app_id}/models/{self.model_id}/versions/{model_version_id}"
+            f"Check out the model at https://clarifai.com/{self.client.user_app_id.user_id}/apps/{self.client.user_app_id.app_id}/models/{self.model_id}/versions/{model_version_id}"
         )
         break
       else:
@@ -300,7 +303,7 @@ class ModelUploader:
 
 def main(folder):
   uploader = ModelUploader(folder)
-  uploader.download_checkpoints()
+  # uploader.download_checkpoints()
   uploader.create_dockerfile()
   input("Press Enter to continue...")
   uploader.upload_model_version()
