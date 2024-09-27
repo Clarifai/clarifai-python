@@ -237,6 +237,7 @@ class ModelUploader:
       print(
           f"Status: {response.status.description}, "
           f"Progress: {percent_completed}% - {details} ",
+          f"request_id: {response.status.req_id}",
           end='\r',
           flush=True)
     print()
@@ -254,24 +255,35 @@ class ModelUploader:
       file_size = os.path.getsize(file_path)
       chunk_size = int(127 * 1024 * 1024)  # 127MB chunk size
       num_chunks = (file_size // chunk_size) + 1
-
+      print("Uploading file...")
+      print("File size: ", file_size)
+      print("Chunk size: ", chunk_size)
+      print("Number of chunks: ", num_chunks)
       read_so_far = 0
       for part_id in range(num_chunks):
-        chunk = f.read(chunk_size)
-        read_so_far += len(chunk)
-        yield service_pb2.PostModelVersionsUploadRequest(
-            content_part=resources_pb2.UploadContentPart(
-                data=chunk,
-                part_number=part_id + 1,
-                range_start=read_so_far,
-            ))
-    print("\nUpload complete!, waiting for model build...")
+        try:
+          chunk_size = min(chunk_size, file_size - read_so_far)
+          chunk = f.read(chunk_size)
+          if not chunk:
+            break
+          read_so_far += len(chunk)
+          yield service_pb2.PostModelVersionsUploadRequest(
+              content_part=resources_pb2.UploadContentPart(
+                  data=chunk,
+                  part_number=part_id + 1,
+                  range_start=read_so_far,
+              ))
+        except Exception as e:
+          print(f"Error uploading file: {e}")
+          break
+
+    if read_so_far == file_size:
+      print("Upload complete!, waiting for model build...")
 
   def init_upload_model_version(self, model_version, file_path):
     file_size = os.path.getsize(file_path)
-    print(
-        f"Uploading model version '{model_version.id}' with file '{os.path.basename(file_path)}' of size {file_size} bytes..."
-    )
+    print(f"Uploading model version '{model_version.id}' of model {self.model_proto.id}")
+    print(f"Using file '{os.path.basename(file_path)}' of size: {file_size} bytes")
     return service_pb2.PostModelVersionsUploadRequest(
         upload_config=service_pb2.PostModelVersionsUploadConfig(
             user_app_id=self.client.user_app_id,
