@@ -41,6 +41,8 @@ class ModelUploader:
     if not folder.startswith("/"):
       folder = os.path.join(os.getcwd(), folder)
     print(f"Validating folder: {folder}")
+    if not os.path.exists(folder):
+      raise FileNotFoundError(f"Folder {folder} not found, please provide a valid folder path")
     files = os.listdir(folder)
     assert "requirements.txt" in files, "requirements.txt not found in the folder"
     assert "config.yaml" in files, "config.yaml not found in the folder"
@@ -129,7 +131,14 @@ class ModelUploader:
 
     # Get the Python version from the config file
     build_info = self.config.get('build_info', {})
-    python_version = build_info.get('python_version', self.DEFAULT_PYTHON_VERSION)
+    if 'python_version' in build_info:
+      python_version = build_info['python_version']
+      print(f"Using Python version {python_version} from the config file to build the Dockerfile")
+    else:
+      print(
+          f"Python version not found in the config file, using default Python version: {self.DEFAULT_PYTHON_VERSION}"
+      )
+      python_version = self.DEFAULT_PYTHON_VERSION
 
     # Replace placeholders with actual values
     dockerfile_content = dockerfile_template.safe_substitute(
@@ -274,11 +283,11 @@ class ModelUploader:
                   range_start=read_so_far,
               ))
         except Exception as e:
-          print(f"Error uploading file: {e}")
+          print(f"\nError uploading file: {e}")
           break
 
     if read_so_far == file_size:
-      print("Upload complete!, waiting for model build...")
+      print("\nUpload complete!, waiting for model build...")
 
   def init_upload_model_version(self, model_version, file_path):
     file_size = os.path.getsize(file_path)
