@@ -155,8 +155,12 @@ class ModelUploader:
       assert "repo_id" in self.config.get("checkpoints"), "No repo_id specified in the config file"
       repo_id = self.config.get("checkpoints").get("repo_id")
 
-      hf_token = self.config.get("checkpoints").get("hf_token", None)
-      assert hf_token != 'hf_token', "The default 'hf_token' is not valid. Please provide a valid token or leave that field out of config.yaml if not needed."
+      # prefer env var for HF_TOKEN but if not provided then use the one from config.yaml if any.
+      if 'HF_TOKEN' in os.environ:
+        hf_token = os.environ['HF_TOKEN']
+      else:
+        hf_token = self.config.get("checkpoints").get("hf_token", None)
+        assert hf_token != 'hf_token', "The default 'hf_token' is not valid. Please provide a valid token or leave that field out of config.yaml if not needed."
       loader = HuggingFaceLoarder(repo_id=repo_id, token=hf_token)
 
       checkpoint_path = os.path.join(self.folder, '1', 'checkpoints')
@@ -301,9 +305,10 @@ class ModelUploader:
         break
 
 
-def main(folder):
+def main(folder, download_checkpoints):
   uploader = ModelUploader(folder)
-  # uploader.download_checkpoints()
+  if download_checkpoints:
+    uploader.download_checkpoints()
   uploader.create_dockerfile()
   input("Press Enter to continue...")
   uploader.upload_model_version()
@@ -313,6 +318,13 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument(
       '--model_path', type=str, help='Path of the model folder to upload', required=True)
+  # flag to default to not download checkpoints
+  parser.add_argument(
+      '--download_checkpoints',
+      action='store_true',
+      help=
+      'Flag to download checkpoints before uploading and including them in the tar file that is uploaded. Defaults to False, which will attempt to download them at docker build time.',
+  )
   args = parser.parse_args()
 
-  main(args.model_path)
+  main(args.model_path, args.download_checkpoints)
