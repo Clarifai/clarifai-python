@@ -1,0 +1,22 @@
+deployment:
+  id: "test-deployment"
+  description: "Test Deployment"
+  autoscale_config:
+    min_replicas: 0
+    max_replicas: 1
+    traffic_history_seconds: 100
+    scale_down_delay_seconds: 30
+    scale_up_delay_seconds: 30
+    enable_packing: true
+  worker:
+    model:
+      id: "general-image-recognition"
+      model_version:
+        id: "aa7f35c01e0642fda5cf400f543e7c40"
+      user_id: "clarifai"
+      app_id: "main"
+  scheduling_choice: 4
+  nodepools:
+    - id: "test-nodepool"
+      compute_cluster:
+          id: "test-compute-cluster"

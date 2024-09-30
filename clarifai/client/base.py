@@ -88,8 +88,12 @@ class BaseClient:
       if kwargs.get("url"):
         default_kwargs.pop("user_id", "")
         default_kwargs.pop("app_id", "")
-      # Remove app_id if the class name contains "Runner"
-      if 'Runner' in _clss.__name__:
+      # Remove user_id if the class name contains "Nodepool"
+      # if 'Nodepool' in _clss.__name__:
+      #   default_kwargs.pop("user_id", "")
+      # Remove app_id if the class name contains "Runner", "ComputeCluster", "Nodepool", "Deployment"
+      co_resources = ['Runner', 'ComputeCluster', 'Nodepool', 'Deployment']
+      if any(co_resource in _clss.__name__ for co_resource in co_resources):
         default_kwargs.pop("app_id", "")
       kwargs.update({**default_kwargs, "base_url": _base})
 

@@ -1,0 +1,10 @@
+compute_cluster:
+  id: "test-compute-cluster"
+  description: "Test Compute Cluster"
+  cloud_provider:
+      id: "aws"
+  region: "us-east-1"
+  managed_by: "clarifai"
+  cluster_type: "dedicated"
+  visibility:
+    gettable: 10
