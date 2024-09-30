@@ -1,6 +1,5 @@
 import os
-import uuid
-from typing import Any, Dict, Generator, List, TypeVar
+from typing import Any, Dict, Generator, List
 
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -10,15 +9,8 @@ from google.protobuf.json_format import MessageToDict
 from clarifai.client.base import BaseClient
 from clarifai.client.deployment import Deployment
 from clarifai.client.lister import Lister
-from clarifai.datasets.upload.image import (VisualClassificationDataset, VisualDetectionDataset,
-                                            VisualSegmentationDataset)
-from clarifai.datasets.upload.text import TextClassificationDataset
 from clarifai.errors import UserError
 from clarifai.utils.logging import get_logger
-
-ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset,
-                              VisualDetectionDataset, VisualSegmentationDataset,
-                              TextClassificationDataset)
 
 
 class Nodepool(Lister, BaseClient):
@@ -140,8 +132,7 @@ class Nodepool(Lister, BaseClient):
       deployment_config['id'] = deployment_id
 
     request = service_pb2.PostDeploymentsRequest(
-        user_app_id=self.user_app_id,
-        deployments=[resources_pb2.Deployment(**deployment_config)])
+        user_app_id=self.user_app_id, deployments=[resources_pb2.Deployment(**deployment_config)])
     response = self._grpc_request(self.STUB.PostDeployments, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)

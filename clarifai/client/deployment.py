@@ -1,17 +1,8 @@
-from typing import TypeVar
-
 from clarifai_grpc.grpc.api import resources_pb2
 
 from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
-from clarifai.datasets.upload.image import (VisualClassificationDataset, VisualDetectionDataset,
-                                            VisualSegmentationDataset)
-from clarifai.datasets.upload.text import TextClassificationDataset
 from clarifai.utils.logging import get_logger
-
-ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset,
-                              VisualDetectionDataset, VisualSegmentationDataset,
-                              TextClassificationDataset)
 
 
 class Deployment(Lister, BaseClient):

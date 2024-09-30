@@ -6,7 +6,7 @@ nodepool:
       compute_info:
         cpu_limit: "8"
         cpu_memory: "16Gi"
-        accelerator_type: 
+        accelerator_type:
           - "a10"
         num_accelerators: 1
         accelerator_memory: "40Gi"

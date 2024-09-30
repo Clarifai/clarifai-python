@@ -37,8 +37,7 @@ def create_compute_cluster():
 
 @pytest.fixture
 def create_nodepool():
-  return Nodepool(
-      user_id=CREATE_COMPUTE_CLUSTER_USER_ID,nodepool_id=CREATE_NODEPOOL_ID)
+  return Nodepool(user_id=CREATE_COMPUTE_CLUSTER_USER_ID, nodepool_id=CREATE_NODEPOOL_ID)
 
 
 @pytest.mark.requires_secrets
@@ -55,7 +54,8 @@ class TestComputeOrchestration:
   def test_create_compute_cluster(self, client, caplog):
     with caplog.at_level(logging.INFO):
       client.create_compute_cluster(
-          compute_cluster_id=CREATE_COMPUTE_CLUSTER_ID, config_filepath=COMPUTE_CLUSTER_CONFIG_FILE)
+          compute_cluster_id=CREATE_COMPUTE_CLUSTER_ID,
+          config_filepath=COMPUTE_CLUSTER_CONFIG_FILE)
       assert "Compute Cluster created" in caplog.text
 
   def test_create_nodepool(self, create_compute_cluster, caplog):
@@ -66,7 +66,8 @@ class TestComputeOrchestration:
 
   def test_create_deployment(self, create_nodepool, caplog):
     with caplog.at_level(logging.INFO):
-      create_nodepool.create_deployment(deployment_id=CREATE_DEPLOYMENT_ID, config_filepath=DEPLOYMENT_CONFIG_FILE)
+      create_nodepool.create_deployment(
+          deployment_id=CREATE_DEPLOYMENT_ID, config_filepath=DEPLOYMENT_CONFIG_FILE)
       assert "Deployment created" in caplog.text
 
   def test_get_compute_cluster(self, client):
