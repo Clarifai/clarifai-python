@@ -58,17 +58,15 @@ def https_cache(cache: dict, url: str) -> str:
 
 class ClarifaiAuthHelper:
 
-  def __init__(
-      self,
-      user_id: str,
-      app_id: str,
-      pat: str,
-      token: str = "",
-      base: str = DEFAULT_BASE,
-      ui: str = DEFAULT_UI,
-      root_certificates_path: str = None,
-      validate: bool = True,
-  ):
+  def __init__(self,
+               user_id: str = "",
+               app_id: str = "",
+               pat: str = "",
+               token: str = "",
+               base: str = DEFAULT_BASE,
+               ui: str = DEFAULT_UI,
+               root_certificates_path: str = None,
+               validate: bool = True):
     """
         A helper to get the authorization information needed to make API calls with the grpc
         client to a specific app using a personal access token.

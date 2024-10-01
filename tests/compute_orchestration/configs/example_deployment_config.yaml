@@ -1,0 +1,22 @@
+deployment:
+  id: "my_string_cat_8_thread_dep"
+  description: "some random deployment"
+  autoscale_config:
+    min_replicas: 0
+    max_replicas: 1
+    traffic_history_seconds: 100
+    scale_down_delay_seconds: 30
+    scale_up_delay_seconds: 30
+    enable_packing: true
+  worker:
+    model:
+      id: "ethnicity-demographics-recognition"
+      model_version:
+        id: "b2897edbda314615856039fb0c489796"
+      user_id: "clarifai"
+      app_id: "main"
+  scheduling_choice: 4
+  nodepools:
+    - id: "test-nodepool-6"
+      compute_cluster:
+          id: "test-aws-cluster"

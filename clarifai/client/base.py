@@ -8,6 +8,7 @@ from google.protobuf.wrappers_pb2 import BoolValue
 
 from clarifai.client.auth import create_stub
 from clarifai.client.auth.helper import ClarifaiAuthHelper
+from clarifai.constants.base import COMPUTE_ORCHESTRATION_RESOURCES
 from clarifai.errors import ApiError, UserError
 from clarifai.utils.constants import CLARIFAI_PAT_ENV_VAR, CLARIFAI_SESSION_TOKEN_ENV_VAR
 from clarifai.utils.misc import get_from_dict_or_env
@@ -88,8 +89,8 @@ class BaseClient:
       if kwargs.get("url"):
         default_kwargs.pop("user_id", "")
         default_kwargs.pop("app_id", "")
-      # Remove app_id if the class name contains "Runner"
-      if 'Runner' in _clss.__name__:
+      # Remove app_id if the class name is a compute orchestration resource
+      if any(co_resource in _clss.__name__ for co_resource in COMPUTE_ORCHESTRATION_RESOURCES):
         default_kwargs.pop("app_id", "")
       kwargs.update({**default_kwargs, "base_url": _base})
 
@@ -181,7 +182,7 @@ class BaseClient:
             value = resources_pb2.ImageInfo(**value)
           elif key == 'hosted_image_info':
             continue
-          elif key in ['metadata']:
+          elif key in ['metadata', 'presets']:
             if isinstance(value, dict) and value != {}:
               value_s = struct_pb2.Struct()
               value_s.update(value)
