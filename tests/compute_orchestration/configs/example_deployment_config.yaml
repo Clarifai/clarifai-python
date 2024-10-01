@@ -10,9 +10,9 @@ deployment:
     enable_packing: true
   worker:
     model:
-      id: "gender-demographics-recognition"
+      id: "ethnicity-demographics-recognition"
       model_version:
-        id: "ff83d5baac004aafbe6b372ffa6f8227"
+        id: "b2897edbda314615856039fb0c489796"
       user_id: "clarifai"
       app_id: "main"
   scheduling_choice: 4

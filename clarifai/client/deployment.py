@@ -20,6 +20,7 @@ class Deployment(Lister, BaseClient):
 
     Args:
         deployment_id (str): The Deployment ID for the Deployment to interact with.
+        user_id (str): The user ID of the user.
         base_url (str): Base API url. Default "https://api.clarifai.com"
         pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
         token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
