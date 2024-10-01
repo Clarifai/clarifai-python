@@ -7,7 +7,6 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 
 from clarifai.client.base import BaseClient
-from clarifai.client.dataset import Dataset
 from clarifai.client.lister import Lister
 from clarifai.client.nodepool import Nodepool
 from clarifai.errors import UserError
@@ -103,7 +102,7 @@ class ComputeCluster(Lister, BaseClient):
       nodepool["visibility"] = resources_pb2.Visibility(**nodepool["visibility"])
     return nodepool
 
-  def create_nodepool(self, nodepool_id: str, config_filepath: str) -> Dataset:
+  def create_nodepool(self, nodepool_id: str, config_filepath: str) -> Nodepool:
     """Creates a nodepool for the compute cluster.
 
     Args:
@@ -175,6 +174,8 @@ class ComputeCluster(Lister, BaseClient):
         >>> compute_cluster = ComputeCluster(compute_cluster_id="compute_cluster_id", user_id="user_id")
         >>> compute_cluster.delete_nodepools(nodepool_ids=["nodepool_id1", "nodepool_id2"])
     """
+    assert isinstance(nodepool_ids, list), "nodepool_ids param should be a list"
+
     request = service_pb2.DeleteNodepoolsRequest(
         user_app_id=self.user_app_id, compute_cluster_id=self.id, ids=nodepool_ids)
     response = self._grpc_request(self.STUB.DeleteNodepools, request)

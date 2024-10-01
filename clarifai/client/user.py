@@ -412,6 +412,8 @@ class User(Lister, BaseClient):
         >>> from clarifai.client.user import User
         >>> user = User("user_id").delete_compute_clusters(compute_cluster_ids=["compute_cluster_id1", "compute_cluster_id2"])
     """
+    assert isinstance(compute_cluster_ids, list), "compute_cluster_ids param should be a list"
+
     request = service_pb2.DeleteComputeClustersRequest(
         user_app_id=self.user_app_id, ids=compute_cluster_ids)
     response = self._grpc_request(self.STUB.DeleteComputeClusters, request)

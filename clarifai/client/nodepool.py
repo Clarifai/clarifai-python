@@ -185,6 +185,8 @@ class Nodepool(Lister, BaseClient):
         >>> nodepool = Nodepool(nodepool_id="nodepool_id", user_id="user_id")
         >>> nodepool.delete_deployments(deployment_ids=["deployment_id1", "deployment_id2"])
     """
+    assert isinstance(deployment_ids, list), "deployment_ids param should be a list"
+
     request = service_pb2.DeleteDeploymentsRequest(
         user_app_id=self.user_app_id, ids=deployment_ids)
     response = self._grpc_request(self.STUB.DeleteDeployments, request)
