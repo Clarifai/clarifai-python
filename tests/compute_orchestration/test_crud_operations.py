@@ -54,6 +54,8 @@ class TestComputeOrchestration:
   def setup_class(cls):
     """Setup: Clean up any pre-existing resources before tests."""
     cls.client = User(user_id=CREATE_COMPUTE_CLUSTER_USER_ID, pat=CLARIFAI_PAT)
+    cls.compute_cluster = create_compute_cluster
+    cls.nodepool = create_nodepool
     cls._cleanup_resources()
 
   @classmethod
@@ -65,12 +67,12 @@ class TestComputeOrchestration:
   def _cleanup_resources(cls):
     """Helper function to delete any existing resources."""
     try:
-      cls.client.delete_deployments([CREATE_DEPLOYMENT_ID])
+      cls.nodepool.delete_deployments([CREATE_DEPLOYMENT_ID])
     except Exception:
       pass  # Ignore if not found
 
     try:
-      cls.client.delete_nodepools([CREATE_NODEPOOL_ID])
+      cls.compute_cluster.delete_nodepools([CREATE_NODEPOOL_ID])
     except Exception:
       pass  # Ignore if not found
 
