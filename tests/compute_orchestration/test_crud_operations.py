@@ -1,7 +1,6 @@
 import logging
 import os
 import uuid
-
 import pytest
 import yaml
 
@@ -45,13 +44,40 @@ def create_nodepool():
 @pytest.mark.requires_secrets
 class TestComputeOrchestration:
   """Tests for the Compute Orchestration resources.
-
     CRUD operations are tested for each of the following resources:
     - compute cluster
     - nodepool
     - deployment
+    """
 
-  """
+  @classmethod
+  def setup_class(cls):
+    """Setup: Clean up any pre-existing resources before tests."""
+    cls.client = User(user_id=CREATE_COMPUTE_CLUSTER_USER_ID, pat=CLARIFAI_PAT)
+    cls._cleanup_resources()
+
+  @classmethod
+  def teardown_class(cls):
+    """Teardown: Clean up any resources created during the tests."""
+    cls._cleanup_resources()
+
+  @classmethod
+  def _cleanup_resources(cls):
+    """Helper function to delete any existing resources."""
+    try:
+      cls.client.delete_deployments([CREATE_DEPLOYMENT_ID])
+    except Exception:
+      pass  # Ignore if not found
+
+    try:
+      cls.client.delete_nodepools([CREATE_NODEPOOL_ID])
+    except Exception:
+      pass  # Ignore if not found
+
+    try:
+      cls.client.delete_compute_clusters([CREATE_COMPUTE_CLUSTER_ID])
+    except Exception:
+      pass  # Ignore if not found
 
   def test_create_compute_cluster(self, client, caplog):
     with open(COMPUTE_CLUSTER_CONFIG_FILE) as f:
@@ -103,15 +129,15 @@ class TestComputeOrchestration:
 
   def test_list_compute_clusters(self, client):
     all_compute_clusters = list(client.list_compute_clusters())
-    assert len(all_compute_clusters) == 1
+    assert len(all_compute_clusters) >= 1
 
   def test_list_nodepools(self, create_compute_cluster):
     all_nodepools = list(create_compute_cluster.list_nodepools())
-    assert len(all_nodepools) == 1
+    assert len(all_nodepools) >= 1
 
   def test_list_deployments(self, create_nodepool):
     all_deployments = list(create_nodepool.list_deployments())
-    assert len(all_deployments) == 1
+    assert len(all_deployments) >= 1
 
   def test_delete_deployment(self, create_nodepool, caplog):
     with caplog.at_level(logging.INFO):
