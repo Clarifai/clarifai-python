@@ -63,7 +63,7 @@ class Nodepool(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.nodepool import Nodepool
-        >>> nodepool = Nodepool(nodepool_id="nodepool_id", compute_cluster_id="compute_cluster_id", user_id="user_id")
+        >>> nodepool = Nodepool(nodepool_id="nodepool_id", user_id="user_id")
         >>> all_deployments = list(nodepool.list_deployments())
 
     Note:
@@ -126,7 +126,7 @@ class Nodepool(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.nodepool import Nodepool
-        >>> nodepool = Nodepool(nodepool_id="nodepool_id", compute_cluster_id="compute_cluster_id", user_id="user_id")
+        >>> nodepool = Nodepool(nodepool_id="nodepool_id", user_id="user_id")
         >>> deployment = nodepool.create_deployment(deployment_id="deployment_id", config_filepath="config.yml")
     """
     if not os.path.exists(config_filepath):
@@ -159,7 +159,7 @@ class Nodepool(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.nodepool import Nodepool
-        >>> nodepool = Nodepool(nodepool_id="nodepool_id", compute_cluster_id="compute_cluster_id", user_id="user_id")
+        >>> nodepool = Nodepool(nodepool_id="nodepool_id", user_id="user_id")
         >>> deployment = nodepool.deployment(deployment_id="deployment_id")
     """
     request = service_pb2.GetDeploymentRequest(
@@ -182,7 +182,7 @@ class Nodepool(Lister, BaseClient):
 
     Example:
         >>> from clarifai.client.nodepool import Nodepool
-        >>> nodepool = Nodepool(nodepool_id="nodepool_id", compute_cluster_id="compute_cluster_id", user_id="user_id")
+        >>> nodepool = Nodepool(nodepool_id="nodepool_id", user_id="user_id")
         >>> nodepool.delete_deployments(deployment_ids=["deployment_id1", "deployment_id2"])
     """
     request = service_pb2.DeleteDeploymentsRequest(
