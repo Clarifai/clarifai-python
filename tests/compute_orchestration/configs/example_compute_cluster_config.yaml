@@ -1,6 +1,6 @@
 compute_cluster:
-  id: "test-compute-cluster"
-  description: "Test Compute Cluster"
+  id: "test-aws-cluster"
+  description: "My AWS cluster"
   cloud_provider:
       id: "aws"
   region: "us-east-1"

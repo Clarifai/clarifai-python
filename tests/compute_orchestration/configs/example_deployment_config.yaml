@@ -1,6 +1,6 @@
 deployment:
-  id: "test-deployment"
-  description: "Test Deployment"
+  id: "my_string_cat_8_thread_dep"
+  description: "some random deployment"
   autoscale_config:
     min_replicas: 0
     max_replicas: 1
@@ -10,13 +10,13 @@ deployment:
     enable_packing: true
   worker:
     model:
-      id: "general-image-recognition"
+      id: "gender-demographics-recognition"
       model_version:
-        id: "aa7f35c01e0642fda5cf400f543e7c40"
+        id: "ff83d5baac004aafbe6b372ffa6f8227"
       user_id: "clarifai"
       app_id: "main"
   scheduling_choice: 4
   nodepools:
-    - id: "test-nodepool"
+    - id: "test-nodepool-6"
       compute_cluster:
-          id: "test-compute-cluster"
+          id: "test-aws-cluster"

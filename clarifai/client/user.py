@@ -210,7 +210,11 @@ class User(Lister, BaseClient):
     with open(config_filepath, "r") as file:
       compute_cluster_config = yaml.safe_load(file)
 
+    assert "compute_cluster" in compute_cluster_config, "compute cluster info not found in the config file"
     compute_cluster = compute_cluster_config['compute_cluster']
+    assert "region" in compute_cluster, "region not found in the config file"
+    assert "managed_by" in compute_cluster, "managed_by not found in the config file"
+    assert "cluster_type" in compute_cluster, "cluster_type not found in the config file"
     compute_cluster['cloud_provider'] = resources_pb2.CloudProvider(
         **compute_cluster['cloud_provider'])
     compute_cluster['key'] = resources_pb2.Key(id=self.pat)

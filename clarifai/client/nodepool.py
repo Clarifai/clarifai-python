@@ -33,7 +33,7 @@ class Nodepool(Lister, BaseClient):
         pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
         token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
         root_certificates_path (str): Path to the SSL root certificates file, used to establish secure gRPC connections.
-        **kwargs: Additional keyword arguments to be passed to the Dataset.
+        **kwargs: Additional keyword arguments to be passed to the nodepool.
     """
     self.kwargs = {**kwargs, 'id': nodepool_id}
     self.nodepool_info = resources_pb2.Nodepool(**self.kwargs)
@@ -41,7 +41,6 @@ class Nodepool(Lister, BaseClient):
     BaseClient.__init__(
         self,
         user_id=user_id,
-        nodepool_id=self.id,
         base=base_url,
         pat=pat,
         token=token,
@@ -71,7 +70,7 @@ class Nodepool(Lister, BaseClient):
         Defaults to 16 per page if page_no is specified and per_page is not specified.
         If both page_no and per_page are None, then lists all the resources.
     """
-    request_data = dict(user_app_id=self.user_app_id, **filter_by)
+    request_data = dict(user_app_id=self.user_app_id, nodepool_id=self.id, **filter_by)
     all_deployments_info = self.list_pages_generator(
         self.STUB.ListDeployments,
         service_pb2.ListDeploymentsRequest,
@@ -86,7 +85,14 @@ class Nodepool(Lister, BaseClient):
     with open(config_filepath, "r") as file:
       deployment_config = yaml.safe_load(file)
 
+    assert "deployment" in deployment_config, "deployment info not found in the config file"
     deployment = deployment_config['deployment']
+    assert "autoscale_config" in deployment, "autoscale_config not found in the config file"
+    assert ("worker" in deployment) and (
+        ("model" in deployment["worker"]) or
+        ("workflow" in deployment["worker"])), "worker info not found in the config file"
+    assert "scheduling_choice" in deployment, "scheduling_choice not found in the config file"
+    assert "nodepools" in deployment, "nodepools not found in the config file"
     deployment['user_id'] = self.user_app_id.user_id
     deployment['autoscale_config'] = resources_pb2.AutoscaleConfig(
         **deployment['autoscale_config'])
@@ -128,11 +134,13 @@ class Nodepool(Lister, BaseClient):
 
     deployment_config = self._process_deployment_config(config_filepath)
 
-    if 'id' not in deployment_config:
-      deployment_config['id'] = deployment_id
+    if 'id' in deployment_config:
+      deployment_id = deployment_config['id']
+      deployment_config.pop('id')
 
     request = service_pb2.PostDeploymentsRequest(
-        user_app_id=self.user_app_id, deployments=[resources_pb2.Deployment(**deployment_config)])
+        user_app_id=self.user_app_id,
+        deployments=[resources_pb2.Deployment(id=deployment_id, **deployment_config)])
     response = self._grpc_request(self.STUB.PostDeployments, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)

@@ -24,14 +24,14 @@ class Deployment(Lister, BaseClient):
         pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
         token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
         root_certificates_path (str): Path to the SSL root certificates file, used to establish secure gRPC connections.
-        **kwargs: Additional keyword arguments to be passed to the Dataset.
+        **kwargs: Additional keyword arguments to be passed to the deployment.
     """
     self.kwargs = {**kwargs, 'id': deployment_id, 'user_id': user_id}
     self.deployment_info = resources_pb2.Deployment(**self.kwargs)
     self.logger = get_logger(logger_level="INFO", name=__name__)
     BaseClient.__init__(
         self,
-        deployment_id=self.id,
+        user_id=user_id,
         base=base_url,
         pat=pat,
         token=token,

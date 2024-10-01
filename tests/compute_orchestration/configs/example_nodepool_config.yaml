@@ -1,6 +1,6 @@
 nodepool:
-  id: "test-nodepool"
-  description: "Test Nodepool"
+  id: "test-nodepool-6"
+  description: "First nodepool in AWS in a proper compute cluster"
   instance_types:
     - id: "g5.xlarge"
       compute_info:
@@ -14,4 +14,4 @@ nodepool:
     capacity_types:
       - 1
       - 2
-  max_instances: 10
+  max_instances: 1

@@ -33,9 +33,7 @@ class ComputeCluster(Lister, BaseClient):
         pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
         token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
         root_certificates_path (str): Path to the SSL root certificates file, used to establish secure gRPC connections.
-        **kwargs: Additional keyword arguments to be passed to the App.
-            - name (str): The name of the app.
-            - description (str): The description of the app.
+        **kwargs: Additional keyword arguments to be passed to the compute cluster.
     """
     self.kwargs = {**kwargs, 'id': compute_cluster_id, 'user_id': user_id}
     self.compute_cluster_info = resources_pb2.ComputeCluster(**self.kwargs)
@@ -43,7 +41,6 @@ class ComputeCluster(Lister, BaseClient):
     BaseClient.__init__(
         self,
         user_id=self.user_id,
-        compute_cluster_id=self.id,
         base=base_url,
         pat=pat,
         token=token,
@@ -86,11 +83,12 @@ class ComputeCluster(Lister, BaseClient):
     with open(config_filepath, "r") as file:
       nodepool_config = yaml.safe_load(file)
 
+    assert "nodepool" in nodepool_config, "nodepool info not found in the config file"
     nodepool = nodepool_config['nodepool']
-    if 'compute_cluster' in nodepool:
-      nodepool['compute_cluster'] = resources_pb2.ComputeCluster(**nodepool['compute_cluster'])
-    else:
-      nodepool['compute_cluster'] = resources_pb2.ComputeCluster(id=self.id, user_id=self.user_id)
+    assert "instance_types" in nodepool, "region not found in the config file"
+    assert "node_capacity_type" in nodepool, "managed_by not found in the config file"
+    assert "max_instances" in nodepool, "cluster_type not found in the config file"
+    nodepool['compute_cluster'] = resources_pb2.ComputeCluster(id=self.id, user_id=self.user_id)
     nodepool['node_capacity_type'] = resources_pb2.NodeCapacityType(capacity_types=[
         capacity_type for capacity_type in nodepool['node_capacity_type']['capacity_types']
     ])
