@@ -15,7 +15,7 @@ from clarifai.errors import UserError
 from clarifai.rag.utils import (convert_messages_to_str, format_assistant_message, load_documents,
                                 split_document)
 from clarifai.utils.constants import CLARIFAI_USER_ID_ENV_VAR
-from clarifai.utils.logging import get_logger
+from clarifai.utils.logging import logger
 from clarifai.utils.misc import get_from_dict_or_env
 
 DEFAULT_RAG_PROMPT_TEMPLATE = "Context information is below:\n{data.hits}\nGiven the context information and not prior knowledge, answer the query.\nQuery: {data.text.raw}\nAnswer: "
@@ -40,7 +40,7 @@ class RAG:
                **kwargs):
     """Initialize an empty or existing RAG.
     """
-    self.logger = get_logger(logger_level="INFO", name=__name__)
+    self.logger = logger
     if workflow_url is not None and workflow is None:
       self.logger.info("workflow_url:%s", workflow_url)
       w = Workflow(workflow_url, base_url=base_url, pat=pat)

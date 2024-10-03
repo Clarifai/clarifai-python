@@ -19,6 +19,8 @@ from rich.tree import Tree
 
 install()
 
+# The default logger to use throughout the SDK is defined at bottom of this file.
+
 # For the json logger.
 JSON_LOGGER_NAME = "clarifai-json"
 JSON_LOG_KEY = 'msg'
@@ -357,3 +359,7 @@ class JsonFormatter(logging.Formatter):
           default=self.json_default,
           cls=self.json_cls,
       )
+
+
+# the default logger for the SDK.
+logger = get_logger(logger_level=os.environ.get("LOG_LEVEL", "INFO"), name="clarifai")

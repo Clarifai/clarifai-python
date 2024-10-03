@@ -12,7 +12,7 @@ from clarifai.client.lister import Lister
 from clarifai.constants.workflow import MAX_WORKFLOW_PREDICT_INPUTS
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
-from clarifai.utils.logging import get_logger
+from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator
 from clarifai.workflows.export import Exporter
 
@@ -59,7 +59,7 @@ class Workflow(Lister, BaseClient):
     self.kwargs = {**kwargs, 'id': workflow_id, 'version': workflow_version}
     self.output_config = output_config
     self.workflow_info = resources_pb2.Workflow(**self.kwargs)
-    self.logger = get_logger(logger_level="INFO", name=__name__)
+    self.logger = logger
     BaseClient.__init__(
         self,
         user_id=self.user_id,

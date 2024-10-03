@@ -21,7 +21,7 @@ from clarifai.client.lister import Lister
 from clarifai.constants.dataset import MAX_RETRIES
 from clarifai.constants.input import MAX_UPLOAD_BATCH_SIZE
 from clarifai.errors import UserError
-from clarifai.utils.logging import get_logger
+from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator, Chunker
 
 
@@ -52,7 +52,7 @@ class Inputs(Lister, BaseClient):
     self.app_id = app_id
     self.kwargs = {**kwargs}
     self.input_info = resources_pb2.Input(**self.kwargs)
-    self.logger = get_logger(logger_level=logger_level, name=__name__)
+    self.logger = logger
     BaseClient.__init__(
         self,
         user_id=self.user_id,

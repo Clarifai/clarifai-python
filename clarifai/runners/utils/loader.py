@@ -3,6 +3,8 @@ import json
 import os
 import subprocess
 
+from clarifai.utils.logging import logger
+
 
 class HuggingFaceLoarder:
 
@@ -29,22 +31,24 @@ class HuggingFaceLoarder:
           "The 'huggingface_hub' package is not installed. Please install it using 'pip install huggingface_hub'."
       )
     if os.path.exists(checkpoint_path) and self.validate_download(checkpoint_path):
-      print("Checkpoints already exist")
+      logger.info("Checkpoints already exist")
+      return True
     else:
       os.makedirs(checkpoint_path, exist_ok=True)
       try:
         is_hf_model_exists = self.validate_hf_model()
         if not is_hf_model_exists:
-          print("Model not found on Hugging Face")
+          logger.error("Model %s not found on Hugging Face" % (self.repo_id))
           return False
-        snapshot_download(repo_id=self.repo_id, local_dir=checkpoint_path)
+        snapshot_download(
+            repo_id=self.repo_id, local_dir=checkpoint_path, local_dir_use_symlinks=False)
       except Exception as e:
-        print("Error downloading model checkpoints ", e)
+        logger.exception(f"Error downloading model checkpoints {e}")
         return False
       finally:
         is_downloaded = self.validate_download(checkpoint_path)
         if not is_downloaded:
-          print("Error downloading model checkpoints")
+          logger.error("Error validating downloaded model checkpoints")
           return False
       return True
 
@@ -57,7 +61,10 @@ class HuggingFaceLoarder:
   def validate_download(self, checkpoint_path: str):
     # check if model exists on HF
     from huggingface_hub import list_repo_files
-    return (len(os.listdir(checkpoint_path)) >= len(list_repo_files(self.repo_id))) and len(
+    checkpoint_dir_files = [
+        f for dp, dn, fn in os.walk(os.path.expanduser(checkpoint_path)) for f in fn
+    ]
+    return (len(checkpoint_dir_files) >= len(list_repo_files(self.repo_id))) and len(
         list_repo_files(self.repo_id)) > 0
 
   def fetch_labels(self, checkpoint_path: str):
