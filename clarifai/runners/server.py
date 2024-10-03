@@ -103,7 +103,7 @@ def main():
     uploader.download_checkpoints()
 
     # initialize the Runner class. This is what the user implements.
-    # (Note) do we want to set runner_id, nodepool_id, compute_cluster_id, base_url, num_parallel_polls as env vars? or as args?
+    # we aren't going to call runner.start() to engage with the API so IDs are not necessary.
     runner = MyRunner(
         runner_id="n/a",
         nodepool_id="n/a",
@@ -131,7 +131,6 @@ def main():
   else:  # start the runner with the proper env variables and as a runner protocol.
 
     # initialize the Runner class. This is what the user implements.
-    # (Note) do we want to set runner_id, nodepool_id, compute_cluster_id, base_url, num_parallel_polls as env vars? or as args?
     runner = MyRunner(
         runner_id=os.environ["CLARIFAI_RUNNER_ID"],
         nodepool_id=os.environ["CLARIFAI_NODEPOOL_ID"],
