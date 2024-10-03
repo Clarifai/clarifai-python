@@ -255,7 +255,7 @@ class ModelUploader:
           flush=True)
     print()
     if response.status.code != status_code_pb2.MODEL_BUILDING:
-      logger.error(f"Failed to upload model version: {response.status.description}")
+      logger.error(f"Failed to upload model version: {response}")
       return
     model_version_id = response.model_version_id
     logger.info(f"Created Model Version ID: {model_version_id}")
@@ -269,9 +269,9 @@ class ModelUploader:
       chunk_size = int(127 * 1024 * 1024)  # 127MB chunk size
       num_chunks = (file_size // chunk_size) + 1
       logger.info("Uploading file...")
-      logger.info("File size: ", file_size)
-      logger.info("Chunk size: ", chunk_size)
-      logger.info("Number of chunks: ", num_chunks)
+      logger.info(f"File size: {file_size}")
+      logger.info(f"Chunk size: {chunk_size}")
+      logger.info(f"Number of chunks: {num_chunks}")
       read_so_far = 0
       for part_id in range(num_chunks):
         try:
@@ -317,8 +317,7 @@ class ModelUploader:
           ))
       status_code = resp.model_version.status.code
       if status_code == status_code_pb2.MODEL_BUILDING:
-        logger.info(
-            f"Model is building... (elapsed {time.time() - st:.1f}s)", end='\r', flush=True)
+        print(f"Model is building... (elapsed {time.time() - st:.1f}s)", end='\r', flush=True)
         time.sleep(1)
       elif status_code == status_code_pb2.MODEL_TRAINED:
         logger.info("\nModel build complete!")

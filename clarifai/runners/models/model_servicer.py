@@ -13,6 +13,11 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
   """
 
   def __init__(self, model_class):
+    """
+    Args:
+        model_class: The class that will handle the model logic. Must implement predict(),
+    generate(), stream().
+    """
     self.model_class = model_class
 
   def PostModelOutputs(self, request: service_pb2.PostModelOutputsRequest,
