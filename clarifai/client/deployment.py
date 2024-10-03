@@ -2,7 +2,7 @@ from clarifai_grpc.grpc.api import resources_pb2
 
 from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
-from clarifai.utils.logging import get_logger
+from clarifai.utils.logging import logger
 
 
 class Deployment(Lister, BaseClient):
@@ -29,7 +29,7 @@ class Deployment(Lister, BaseClient):
     """
     self.kwargs = {**kwargs, 'id': deployment_id, 'user_id': user_id}
     self.deployment_info = resources_pb2.Deployment(**self.kwargs)
-    self.logger = get_logger(logger_level="INFO", name=__name__)
+    self.logger = logger
     BaseClient.__init__(
         self,
         user_id=user_id,

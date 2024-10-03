@@ -12,7 +12,7 @@ from clarifai.client.base import BaseClient
 from clarifai.client.compute_cluster import ComputeCluster
 from clarifai.client.lister import Lister
 from clarifai.errors import UserError
-from clarifai.utils.logging import get_logger
+from clarifai.utils.logging import logger
 
 
 class User(Lister, BaseClient):
@@ -37,7 +37,7 @@ class User(Lister, BaseClient):
     """
     self.kwargs = {**kwargs, 'id': user_id}
     self.user_info = resources_pb2.User(**self.kwargs)
-    self.logger = get_logger(logger_level="INFO", name=__name__)
+    self.logger = logger
     BaseClient.__init__(
         self,
         user_id=self.id,

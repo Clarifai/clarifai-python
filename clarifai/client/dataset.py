@@ -30,7 +30,7 @@ from clarifai.datasets.upload.text import TextClassificationDataset
 from clarifai.datasets.upload.utils import DisplayUploadStatus
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
-from clarifai.utils.logging import add_file_handler, get_logger, process_log_files
+from clarifai.utils.logging import add_file_handler, logger, process_log_files
 from clarifai.utils.misc import BackoffIterator, Chunker
 
 ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset,
@@ -86,7 +86,7 @@ class Dataset(Lister, BaseClient):
         token=token,
         base_url=base_url,
         root_certificates_path=root_certificates_path)
-    self.logger = get_logger(logger_level="INFO", name=__name__)
+    self.logger = logger
     BaseClient.__init__(
         self,
         user_id=self.user_id,

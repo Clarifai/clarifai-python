@@ -19,8 +19,7 @@ from clarifai.client.workflow import Workflow
 from clarifai.constants.model import TRAINABLE_MODEL_TYPES
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
-from clarifai.utils.logging import (display_concept_relations_tree, display_workflow_tree,
-                                    get_logger)
+from clarifai.utils.logging import display_concept_relations_tree, display_workflow_tree, logger
 from clarifai.utils.misc import concept_relations_accumulation
 from clarifai.workflows.utils import get_yaml_output_info_proto, is_same_yaml_model
 from clarifai.workflows.validate import validate
@@ -61,7 +60,7 @@ class App(Lister, BaseClient):
 
     self.kwargs = {**kwargs, 'id': app_id}
     self.app_info = resources_pb2.App(**self.kwargs)
-    self.logger = get_logger(logger_level="INFO", name=__name__)
+    self.logger = logger
     BaseClient.__init__(
         self,
         user_id=self.user_id,

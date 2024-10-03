@@ -6,7 +6,7 @@ from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
-from clarifai.utils.logging import get_logger
+from clarifai.utils.logging import logger
 
 
 class Module(Lister, BaseClient):
@@ -44,7 +44,7 @@ class Module(Lister, BaseClient):
 
     self.kwargs = {**kwargs, 'id': module_id, 'module_version': module_version}
     self.module_info = resources_pb2.Module(**self.kwargs)
-    self.logger = get_logger(logger_level="INFO", name=__name__)
+    self.logger = logger
     BaseClient.__init__(
         self,
         user_id=self.user_id,

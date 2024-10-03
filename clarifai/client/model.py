@@ -23,7 +23,7 @@ from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_MODEL_PRED
                                       MODEL_EXPORT_TIMEOUT, RANGE_SIZE, TRAINABLE_MODEL_TYPES)
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
-from clarifai.utils.logging import get_logger
+from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator
 from clarifai.utils.model_train import (find_and_replace_key, params_parser,
                                         response_to_model_params, response_to_param_info,
@@ -68,7 +68,7 @@ class Model(Lister, BaseClient):
       kwargs = {'user_id': user_id, 'app_id': app_id}
     self.kwargs = {**kwargs, 'id': model_id, 'model_version': model_version, }
     self.model_info = resources_pb2.Model(**self.kwargs)
-    self.logger = get_logger(logger_level="INFO", name=__name__)
+    self.logger = logger
     self.training_params = {}
     BaseClient.__init__(
         self,

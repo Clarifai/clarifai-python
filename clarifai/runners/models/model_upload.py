@@ -10,8 +10,8 @@ from google.protobuf import json_format
 from rich import print
 
 from clarifai.client import BaseClient
-
 from clarifai.runners.utils.loader import HuggingFaceLoarder
+from clarifai.utils.logging import logger
 
 
 def _clear_line(n: int = 1) -> None:
@@ -40,7 +40,7 @@ class ModelUploader:
   def _validate_folder(folder):
     if not folder.startswith("/"):
       folder = os.path.join(os.getcwd(), folder)
-    print(f"Validating folder: {folder}")
+    logger.info(f"Validating folder: {folder}")
     if not os.path.exists(folder):
       raise FileNotFoundError(f"Folder {folder} not found, please provide a valid folder path")
     files = os.listdir(folder)
@@ -70,7 +70,7 @@ class ModelUploader:
       base = os.environ.get('CLARIFAI_API_BASE', 'https://api-dev.clarifai.com')
 
       self._client = BaseClient(user_id=user_id, app_id=app_id, base=base)
-      print(f"Client initialized for user {user_id} and app {app_id}")
+      logger.info(f"Client initialized for user {user_id} and app {app_id}")
     return self._client
 
   def _get_model_proto(self):
@@ -100,7 +100,7 @@ class ModelUploader:
         service_pb2.GetModelRequest(
             user_app_id=self.client.user_app_id, model_id=self.model_proto.id))
     if resp.status.code == status_code_pb2.SUCCESS:
-      print(
+      logger.info(
           f"Model '{self.client.user_app_id.user_id}/{self.client.user_app_id.app_id}/models/{self.model_proto.id}' already exists, "
           f"will create a new version for it.")
       return resp
@@ -133,9 +133,10 @@ class ModelUploader:
     build_info = self.config.get('build_info', {})
     if 'python_version' in build_info:
       python_version = build_info['python_version']
-      print(f"Using Python version {python_version} from the config file to build the Dockerfile")
+      logger.info(
+          f"Using Python version {python_version} from the config file to build the Dockerfile")
     else:
-      print(
+      logger.info(
           f"Python version not found in the config file, using default Python version: {self.DEFAULT_PYTHON_VERSION}"
       )
       python_version = self.DEFAULT_PYTHON_VERSION
@@ -152,13 +153,13 @@ class ModelUploader:
 
   def download_checkpoints(self):
     if not self.config.get("checkpoints"):
-      print("No checkpoints specified in the config file")
+      logger.info("No checkpoints specified in the config file")
       return
 
     assert "type" in self.config.get("checkpoints"), "No loader type specified in the config file"
     loader_type = self.config.get("checkpoints").get("type")
     if not loader_type:
-      print("No loader type specified in the config file for checkpoints")
+      logger.info("No loader type specified in the config file for checkpoints")
     assert loader_type == "huggingface", "Only huggingface loader supported for now"
     if loader_type == "huggingface":
       assert "repo_id" in self.config.get("checkpoints"), "No repo_id specified in the config file"
@@ -173,9 +174,12 @@ class ModelUploader:
       loader = HuggingFaceLoarder(repo_id=repo_id, token=hf_token)
 
       checkpoint_path = os.path.join(self.folder, '1', 'checkpoints')
-      loader.download_checkpoints(checkpoint_path)
+      success = loader.download_checkpoints(checkpoint_path)
 
-      print(f"Downloaded checkpoints for model {repo_id}")
+      if not success:
+        logger.error(f"Failed to download checkpoints for model {repo_id}")
+        return
+      logger.info(f"Downloaded checkpoints for model {repo_id}")
 
   def _concepts_protos_from_concepts(self, concepts):
     concept_protos = []
@@ -199,7 +203,7 @@ class ModelUploader:
     with open(config_file, 'w') as file:
       yaml.dump(config, file, sort_keys=False)
     concepts = config.get('concepts')
-    print(f"Updated config.yaml with {len(concepts)} concepts.")
+    logger.info(f"Updated config.yaml with {len(concepts)} concepts.")
 
   def _get_model_version_proto(self):
 
@@ -225,11 +229,11 @@ class ModelUploader:
 
   def upload_model_version(self):
     file_path = f"{self.folder}.tar.gz"
-    print(f"Will tar it into file: {file_path}")
+    logger.info(f"Will tar it into file: {file_path}")
 
     # Tar the folder
     os.system(f"tar --exclude=*~ -czvf {self.folder}.tar.gz -C {self.folder} .")
-    print("Tarring complete, about to start upload.")
+    logger.info("Tarring complete, about to start upload.")
 
     model_version = self._get_model_version_proto()
 
@@ -251,10 +255,10 @@ class ModelUploader:
           flush=True)
     print()
     if response.status.code != status_code_pb2.MODEL_BUILDING:
-      print(f"Failed to upload model version: {response.status.description}")
+      logger.error(f"Failed to upload model version: {response.status.description}")
       return
     model_version_id = response.model_version_id
-    print(f"Created Model Version ID: {model_version_id}")
+    logger.info(f"Created Model Version ID: {model_version_id}")
 
     self.monitor_model_build(model_version_id)
 
@@ -264,10 +268,10 @@ class ModelUploader:
       file_size = os.path.getsize(file_path)
       chunk_size = int(127 * 1024 * 1024)  # 127MB chunk size
       num_chunks = (file_size // chunk_size) + 1
-      print("Uploading file...")
-      print("File size: ", file_size)
-      print("Chunk size: ", chunk_size)
-      print("Number of chunks: ", num_chunks)
+      logger.info("Uploading file...")
+      logger.info("File size: ", file_size)
+      logger.info("Chunk size: ", chunk_size)
+      logger.info("Number of chunks: ", num_chunks)
       read_so_far = 0
       for part_id in range(num_chunks):
         try:
@@ -283,16 +287,16 @@ class ModelUploader:
                   range_start=read_so_far,
               ))
         except Exception as e:
-          print(f"\nError uploading file: {e}")
+          logger.exception(f"\nError uploading file: {e}")
           break
 
     if read_so_far == file_size:
-      print("\nUpload complete!, waiting for model build...")
+      logger.info("\nUpload complete!, waiting for model build...")
 
   def init_upload_model_version(self, model_version, file_path):
     file_size = os.path.getsize(file_path)
-    print(f"Uploading model version '{model_version.id}' of model {self.model_proto.id}")
-    print(f"Using file '{os.path.basename(file_path)}' of size: {file_size} bytes")
+    logger.info(f"Uploading model version '{model_version.id}' of model {self.model_proto.id}")
+    logger.info(f"Using file '{os.path.basename(file_path)}' of size: {file_size} bytes")
     return service_pb2.PostModelVersionsUploadRequest(
         upload_config=service_pb2.PostModelVersionsUploadConfig(
             user_app_id=self.client.user_app_id,
@@ -313,16 +317,18 @@ class ModelUploader:
           ))
       status_code = resp.model_version.status.code
       if status_code == status_code_pb2.MODEL_BUILDING:
-        print(f"Model is building... (elapsed {time.time() - st:.1f}s)", end='\r', flush=True)
+        logger.info(
+            f"Model is building... (elapsed {time.time() - st:.1f}s)", end='\r', flush=True)
         time.sleep(1)
       elif status_code == status_code_pb2.MODEL_TRAINED:
-        print("\nModel build complete!")
-        print(
+        logger.info("\nModel build complete!")
+        logger.info(
             f"Check out the model at https://clarifai.com/{self.client.user_app_id.user_id}/apps/{self.client.user_app_id.app_id}/models/{self.model_id}/versions/{model_version_id}"
         )
         break
       else:
-        print(f"\nModel build failed with status: {resp.model_version.status}")
+        logger.info(
+            f"\nModel build failed with status: {resp.model_version.status} and response {resp}")
         break
 
 
