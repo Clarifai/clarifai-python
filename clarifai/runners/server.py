@@ -15,6 +15,7 @@ from clarifai_protocol import BaseRunner
 from clarifai_protocol.utils.grpc_server import GRPCServer
 
 from clarifai.runners.models.model_servicer import ModelServicer
+from clarifai.runners.models.model_upload import ModelUploader
 from clarifai.utils.logging import logger
 
 
@@ -93,21 +94,26 @@ def main():
 
   MyRunner = classes[0]
 
-  # initialize the Runner class. This is what the user implements.
-  # (Note) do we want to set runner_id, nodepool_id, compute_cluster_id, base_url, num_parallel_polls as env vars? or as args?
-  runner = MyRunner(
-      runner_id=os.environ["CLARIFAI_RUNNER_ID"],
-      nodepool_id=os.environ["CLARIFAI_NODEPOOL_ID"],
-      compute_cluster_id=os.environ["CLARIFAI_COMPUTE_CLUSTER_ID"],
-      base_url=os.environ["CLARIFAI_API_BASE"],
-      num_parallel_polls=int(os.environ.get("CLARIFAI_NUM_THREADS", 1)),
-  )
-
-  # initialize the servicer
-  servicer = ModelServicer(runner)
-
   # Setup the grpc server for local development.
   if parsed_args.start_dev_server:
+
+    # We validate that we have checkpoints downloaded before constructing MyRunner which
+    # will call load_model()
+    uploader = ModelUploader(parsed_args.model_path)
+    uploader.download_checkpoints()
+
+    # initialize the Runner class. This is what the user implements.
+    # (Note) do we want to set runner_id, nodepool_id, compute_cluster_id, base_url, num_parallel_polls as env vars? or as args?
+    runner = MyRunner(
+        runner_id="n/a",
+        nodepool_id="n/a",
+        compute_cluster_id="n/a",
+        health_check_port=None,  # not needed when running local server
+    )
+
+    # initialize the servicer with the runner so that it gets the predict(), generate(), stream() classes.
+    servicer = ModelServicer(runner)
+
     server = GRPCServer(
         futures.ThreadPoolExecutor(
             max_workers=parsed_args.pool_size,
@@ -121,9 +127,20 @@ def main():
     service_pb2_grpc.add_V2Servicer_to_server(servicer, server)
     server.start()
     logger.info("Started server on port %s", parsed_args.port)
+    server.wait_for_termination()
     # server.wait_for_termination() # won't get here currently.
+  else:  # start the runner with the proper env variables and as a runner protocol.
 
-  runner.start()  # start the runner loop to fetch work from the API.
+    # initialize the Runner class. This is what the user implements.
+    # (Note) do we want to set runner_id, nodepool_id, compute_cluster_id, base_url, num_parallel_polls as env vars? or as args?
+    runner = MyRunner(
+        runner_id=os.environ["CLARIFAI_RUNNER_ID"],
+        nodepool_id=os.environ["CLARIFAI_NODEPOOL_ID"],
+        compute_cluster_id=os.environ["CLARIFAI_COMPUTE_CLUSTER_ID"],
+        base_url=os.environ["CLARIFAI_API_BASE"],
+        num_parallel_polls=int(os.environ.get("CLARIFAI_NUM_THREADS", 1)),
+    )
+    runner.start()  # start the runner to fetch work from the API.
 
 
 if __name__ == '__main__':
