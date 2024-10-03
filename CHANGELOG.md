@@ -1,3 +1,9 @@
+## [[10.8.7]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.7) - [PyPI](https://pypi.org/project/clarifai/10.8.7/) - 2024-09-28
+
+### Changed
+ - Improved logging and fixed issues with downloading checkpoints[(#403)](https://github.com/Clarifai/clarifai-python/pull/403)
+
+
 ## [[10.8.6]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.6) - [PyPI](https://pypi.org/project/clarifai/10.8.6/) - 2024-09-28
 
 ### Changed
