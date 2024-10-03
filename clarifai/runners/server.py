@@ -128,7 +128,6 @@ def main():
     server.start()
     logger.info("Started server on port %s", parsed_args.port)
     server.wait_for_termination()
-    # server.wait_for_termination() # won't get here currently.
   else:  # start the runner with the proper env variables and as a runner protocol.
 
     # initialize the Runner class. This is what the user implements.
