@@ -1,7 +1,12 @@
-## [[10.8.8]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.7) - [PyPI](https://pypi.org/project/clarifai/10.8.8/) - 2024-10-03
+## [[10.8.9]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.9) - [PyPI](https://pypi.org/project/clarifai/10.8.9/) - 2024-10-03
 
 ### Changed
- - Bug fixes for logger[(#404)](https://github.com/Clarifai/clarifai-python/pull/404)
+ - Bug fixes for logger[(#406)](https://github.com/Clarifai/clarifai-python/pull/406)
+
+## [[10.8.8]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.8) - [PyPI](https://pypi.org/project/clarifai/10.8.8/) - 2024-10-03
+
+### Changed
+ - Bug fixes for logger[(#405)](https://github.com/Clarifai/clarifai-python/pull/405)
 
 ## [[10.8.7]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.7) - [PyPI](https://pypi.org/project/clarifai/10.8.7/) - 2024-10-03
 
