@@ -7,7 +7,7 @@ import numpy as np
 import requests
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
-from clarifai_grpc.grpc.api.resources_pb2 import Input
+from clarifai_grpc.grpc.api.resources_pb2 import Input, RunnerSelector
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.struct_pb2 import Struct, Value
@@ -16,8 +16,10 @@ from tqdm import tqdm
 
 from clarifai.client.base import BaseClient
 from clarifai.client.dataset import Dataset
+from clarifai.client.deployment import Deployment
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
+from clarifai.client.nodepool import Nodepool
 from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_MODEL_PREDICT_INPUTS,
                                       MAX_RANGE_SIZE, MIN_CHUNK_SIZE, MIN_RANGE_SIZE,
                                       MODEL_EXPORT_TIMEOUT, RANGE_SIZE, TRAINABLE_MODEL_TYPES)
@@ -404,7 +406,11 @@ class Model(Lister, BaseClient):
           model_id=self.id,
           **dict(self.kwargs, model_version=model_version_info))
 
-  def predict(self, inputs: List[Input], inference_params: Dict = {}, output_config: Dict = {}):
+  def predict(self,
+              inputs: List[Input],
+              runner_selector: RunnerSelector = None,
+              inference_params: Dict = {},
+              output_config: Dict = {}):
     """Predicts the model based on the given inputs.
 
     Args:
@@ -422,6 +428,7 @@ class Model(Lister, BaseClient):
         model_id=self.id,
         version_id=self.model_version.id,
         inputs=inputs,
+        runner_selector=runner_selector,
         model=self.model_info)
 
     start_time = time.time()
@@ -445,6 +452,9 @@ class Model(Lister, BaseClient):
   def predict_by_filepath(self,
                           filepath: str,
                           input_type: str,
+                          compute_cluster_id: str = None,
+                          nodepool_id: str = None,
+                          deployment_id: str = None,
                           inference_params: Dict = {},
                           output_config: Dict = {}):
     """Predicts the model based on the given filepath.
@@ -472,11 +482,15 @@ class Model(Lister, BaseClient):
     with open(filepath, "rb") as f:
       file_bytes = f.read()
 
-    return self.predict_by_bytes(file_bytes, input_type, inference_params, output_config)
+    return self.predict_by_bytes(file_bytes, input_type, compute_cluster_id, nodepool_id,
+                                 deployment_id, inference_params, output_config)
 
   def predict_by_bytes(self,
                        input_bytes: bytes,
                        input_type: str,
+                       compute_cluster_id: str = None,
+                       nodepool_id: str = None,
+                       deployment_id: str = None,
                        inference_params: Dict = {},
                        output_config: Dict = {}):
     """Predicts the model based on the given bytes.
@@ -512,12 +526,30 @@ class Model(Lister, BaseClient):
     elif input_type == "audio":
       input_proto = Inputs.get_input_from_bytes("", audio_bytes=input_bytes)
 
+    if deployment_id and (compute_cluster_id or nodepool_id):
+      raise UserError(
+          "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
+
+    runner_selector = None
+    if deployment_id:
+      runner_selector = Deployment.get_runner_selector(
+          user_id=self.user_id, deployment_id=deployment_id)
+    elif compute_cluster_id and nodepool_id:
+      runner_selector = Nodepool.get_runner_selector(
+          user_id=self.user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id)
+
     return self.predict(
-        inputs=[input_proto], inference_params=inference_params, output_config=output_config)
+        inputs=[input_proto],
+        runner_selector=runner_selector,
+        inference_params=inference_params,
+        output_config=output_config)
 
   def predict_by_url(self,
                      url: str,
                      input_type: str,
+                     compute_cluster_id: str = None,
+                     nodepool_id: str = None,
+                     deployment_id: str = None,
                      inference_params: Dict = {},
                      output_config: Dict = {}):
     """Predicts the model based on the given URL.
@@ -551,10 +583,29 @@ class Model(Lister, BaseClient):
     elif input_type == "audio":
       input_proto = Inputs.get_input_from_url("", audio_url=url)
 
-    return self.predict(
-        inputs=[input_proto], inference_params=inference_params, output_config=output_config)
+    if deployment_id and (compute_cluster_id or nodepool_id):
+      raise UserError(
+          "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
 
-  def generate(self, inputs: List[Input], inference_params: Dict = {}, output_config: Dict = {}):
+    runner_selector = None
+    if deployment_id:
+      runner_selector = Deployment.get_runner_selector(
+          user_id=self.user_id, deployment_id=deployment_id)
+    elif compute_cluster_id and nodepool_id:
+      runner_selector = Nodepool.get_runner_selector(
+          user_id=self.user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id)
+
+    return self.predict(
+        inputs=[input_proto],
+        runner_selector=runner_selector,
+        inference_params=inference_params,
+        output_config=output_config)
+
+  def generate(self,
+               inputs: List[Input],
+               runner_selector: RunnerSelector = None,
+               inference_params: Dict = {},
+               output_config: Dict = {}):
     """Generate the stream output on model based on the given inputs.
 
     Args:
@@ -572,6 +623,7 @@ class Model(Lister, BaseClient):
         model_id=self.id,
         version_id=self.model_version.id,
         inputs=inputs,
+        runner_selector=runner_selector,
         model=self.model_info)
 
     start_time = time.time()
@@ -597,6 +649,9 @@ class Model(Lister, BaseClient):
   def generate_by_filepath(self,
                            filepath: str,
                            input_type: str,
+                           compute_cluster_id: str = None,
+                           nodepool_id: str = None,
+                           deployment_id: str = None,
                            inference_params: Dict = {},
                            output_config: Dict = {}):
     """Generate the stream output on model based on the given filepath.
@@ -615,8 +670,8 @@ class Model(Lister, BaseClient):
         >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> stream_response = model.generate_by_filepath('/path/to/image.jpg', 'image')
-        >>> stream_response = model.generate_by_filepath('/path/to/text.txt', 'text')
+        >>> stream_response = model.generate_by_filepath('/path/to/image.jpg', 'image', deployment_id='deployment_id')
+        >>> stream_response = model.generate_by_filepath('/path/to/text.txt', 'text', deployment_id='deployment_id')
         >>> list_stream_response = [response for response in stream_response]
     """
     if not os.path.isfile(filepath):
@@ -625,11 +680,21 @@ class Model(Lister, BaseClient):
     with open(filepath, "rb") as f:
       file_bytes = f.read()
 
-    return self.generate_by_bytes(file_bytes, input_type, inference_params, output_config)
+    return self.generate_by_bytes(
+        filepath=file_bytes,
+        input_type=input_type,
+        compute_cluster_id=compute_cluster_id,
+        nodepool_id=nodepool_id,
+        deployment_id=deployment_id,
+        inference_params=inference_params,
+        output_config=output_config)
 
   def generate_by_bytes(self,
                         input_bytes: bytes,
                         input_type: str,
+                        compute_cluster_id: str = None,
+                        nodepool_id: str = None,
+                        deployment_id: str = None,
                         inference_params: Dict = {},
                         output_config: Dict = {}):
     """Generate the stream output on model based on the given bytes.
@@ -648,6 +713,7 @@ class Model(Lister, BaseClient):
         >>> model = Model("https://clarifai.com/openai/chat-completion/models/GPT-4")
         >>> stream_response = model.generate_by_bytes(b'Write a tweet on future of AI',
                                                       input_type='text',
+                                                      deployment_id='deployment_id',
                                                       inference_params=dict(temperature=str(0.7), max_tokens=30)))
         >>> list_stream_response = [response for response in stream_response]
     """
@@ -666,12 +732,30 @@ class Model(Lister, BaseClient):
     elif input_type == "audio":
       input_proto = Inputs.get_input_from_bytes("", audio_bytes=input_bytes)
 
+    if deployment_id and (compute_cluster_id or nodepool_id):
+      raise UserError(
+          "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
+
+    runner_selector = None
+    if deployment_id:
+      runner_selector = Deployment.get_runner_selector(
+          user_id=self.user_id, deployment_id=deployment_id)
+    elif compute_cluster_id and nodepool_id:
+      runner_selector = Nodepool.get_runner_selector(
+          user_id=self.user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id)
+
     return self.generate(
-        inputs=[input_proto], inference_params=inference_params, output_config=output_config)
+        inputs=[input_proto],
+        runner_selector=runner_selector,
+        inference_params=inference_params,
+        output_config=output_config)
 
   def generate_by_url(self,
                       url: str,
                       input_type: str,
+                      compute_cluster_id: str = None,
+                      nodepool_id: str = None,
+                      deployment_id: str = None,
                       inference_params: Dict = {},
                       output_config: Dict = {}):
     """Generate the stream output on model based on the given URL.
@@ -706,20 +790,37 @@ class Model(Lister, BaseClient):
     elif input_type == "audio":
       input_proto = Inputs.get_input_from_url("", audio_url=url)
 
-    return self.generate(
-        inputs=[input_proto], inference_params=inference_params, output_config=output_config)
+    if deployment_id and (compute_cluster_id or nodepool_id):
+      raise UserError(
+          "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
 
-  def _req_iterator(self, input_iterator: Iterator[List[Input]]):
+    runner_selector = None
+    if deployment_id:
+      runner_selector = Deployment.get_runner_selector(
+          user_id=self.user_id, deployment_id=deployment_id)
+    elif compute_cluster_id and nodepool_id:
+      runner_selector = Nodepool.get_runner_selector(
+          user_id=self.user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id)
+
+    return self.generate(
+        inputs=[input_proto],
+        runner_selector=runner_selector,
+        inference_params=inference_params,
+        output_config=output_config)
+
+  def _req_iterator(self, input_iterator: Iterator[List[Input]], runner_selector: RunnerSelector):
     for inputs in input_iterator:
       yield service_pb2.PostModelOutputsRequest(
           user_app_id=self.user_app_id,
           model_id=self.id,
           version_id=self.model_version.id,
           inputs=inputs,
+          runner_selector=runner_selector,
           model=self.model_info)
 
   def stream(self,
              inputs: Iterator[List[Input]],
+             runner_selector: RunnerSelector = None,
              inference_params: Dict = {},
              output_config: Dict = {}):
     """Generate the stream output on model based on the given stream of inputs.
@@ -731,7 +832,7 @@ class Model(Lister, BaseClient):
     #   raise UserError('Invalid inputs, inputs must be a iterator of list of Input objects.')
 
     self._override_model_version(inference_params, output_config)
-    request = self._req_iterator(inputs)
+    request = self._req_iterator(inputs, runner_selector)
 
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
@@ -756,6 +857,9 @@ class Model(Lister, BaseClient):
   def stream_by_filepath(self,
                          filepath: str,
                          input_type: str,
+                         compute_cluster_id: str = None,
+                         nodepool_id: str = None,
+                         deployment_id: str = None,
                          inference_params: Dict = {},
                          output_config: Dict = {}):
     """Stream the model output based on the given filepath.
@@ -781,11 +885,21 @@ class Model(Lister, BaseClient):
     with open(filepath, "rb") as f:
       file_bytes = f.read()
 
-    return self.stream_by_bytes(iter([file_bytes]), input_type, inference_params, output_config)
+    return self.stream_by_bytes(
+        input_bytes_iterator=iter([file_bytes]),
+        input_type=input_type,
+        compute_cluster_id=compute_cluster_id,
+        nodepool_id=nodepool_id,
+        deployment_id=deployment_id,
+        inference_params=inference_params,
+        output_config=output_config)
 
   def stream_by_bytes(self,
                       input_bytes_iterator: Iterator[bytes],
                       input_type: str,
+                      compute_cluster_id: str = None,
+                      nodepool_id: str = None,
+                      deployment_id: str = None,
                       inference_params: Dict = {},
                       output_config: Dict = {}):
     """Stream the model output based on the given bytes.
@@ -822,11 +936,30 @@ class Model(Lister, BaseClient):
         elif input_type == "audio":
           yield [Inputs.get_input_from_bytes("", audio_bytes=input_bytes)]
 
-    return self.stream(input_generator(), inference_params, output_config)
+    if deployment_id and (compute_cluster_id or nodepool_id):
+      raise UserError(
+          "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
+
+    runner_selector = None
+    if deployment_id:
+      runner_selector = Deployment.get_runner_selector(
+          user_id=self.user_id, deployment_id=deployment_id)
+    elif compute_cluster_id and nodepool_id:
+      runner_selector = Nodepool.get_runner_selector(
+          user_id=self.user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id)
+
+    return self.stream(
+        inputs=input_generator(),
+        runner_selector=runner_selector,
+        inference_params=inference_params,
+        output_config=output_config)
 
   def stream_by_url(self,
                     url_iterator: Iterator[str],
                     input_type: str,
+                    compute_cluster_id: str = None,
+                    nodepool_id: str = None,
+                    deployment_id: str = None,
                     inference_params: Dict = {},
                     output_config: Dict = {}):
     """Stream the model output based on the given URL.
@@ -861,7 +994,23 @@ class Model(Lister, BaseClient):
         elif input_type == "audio":
           yield [Inputs.get_input_from_url("", audio_url=url)]
 
-    return self.stream(input_generator(), inference_params, output_config)
+    if deployment_id and (compute_cluster_id or nodepool_id):
+      raise UserError(
+          "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
+
+    runner_selector = None
+    if deployment_id:
+      runner_selector = Deployment.get_runner_selector(
+          user_id=self.user_id, deployment_id=deployment_id)
+    elif compute_cluster_id and nodepool_id:
+      runner_selector = Nodepool.get_runner_selector(
+          user_id=self.user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id)
+
+    return self.stream(
+        inputs=input_generator(),
+        runner_selector=runner_selector,
+        inference_params=inference_params,
+        output_config=output_config)
 
   def _override_model_version(self, inference_params: Dict = {}, output_config: Dict = {}) -> None:
     """Overrides the model version.

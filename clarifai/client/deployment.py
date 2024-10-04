@@ -39,6 +39,18 @@ class Deployment(Lister, BaseClient):
         root_certificates_path=root_certificates_path)
     Lister.__init__(self)
 
+  @staticmethod
+  def get_runner_selector(user_id: str, deployment_id: str) -> resources_pb2.RunnerSelector:
+    """Returns a RunnerSelector object for the given deployment_id.
+
+    Args:
+        deployment_id (str): The deployment ID for the deployment.
+
+    Returns:
+        resources_pb2.RunnerSelector: A RunnerSelector object for the given deployment_id.
+    """
+    return resources_pb2.RunnerSelector(deployment_id=deployment_id, user_id=user_id)
+
   def __getattr__(self, name):
     return getattr(self.deployment_info, name)
 
