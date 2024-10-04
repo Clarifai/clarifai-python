@@ -11,6 +11,7 @@ from rich import print
 
 from clarifai.client import BaseClient
 from clarifai.runners.utils.loader import HuggingFaceLoarder
+from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
 
 
@@ -33,6 +34,7 @@ class ModelUploader:
     self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
     self.model_proto = self._get_model_proto()
     self.model_id = self.model_proto.id
+    self.model_version_id = None
     self.inference_compute_info = self._get_inference_compute_info()
     self.is_v3 = True  # Do model build for v3
 
@@ -64,14 +66,26 @@ class ModelUploader:
       model = self.config.get('model')
       assert "user_id" in model, "user_id not found in the config file"
       assert "app_id" in model, "app_id not found in the config file"
+      # The owner of the model and the app.
       user_id = model.get('user_id')
       app_id = model.get('app_id')
 
       base = os.environ.get('CLARIFAI_API_BASE', 'https://api-dev.clarifai.com')
 
       self._client = BaseClient(user_id=user_id, app_id=app_id, base=base)
-      logger.info(f"Client initialized for user {user_id} and app {app_id}")
+
     return self._client
+
+  @property
+  def model_url(self):
+    url_helper = ClarifaiUrlHelper(self._client.auth_helper)
+    if self.model_version_id is not None:
+      return url_helper.clarifai_url(self.client.user_app_id.user_id,
+                                     self.client.user_app_id.app_id, "models", self.model_id)
+    else:
+      return url_helper.clarifai_url(self.client.user_app_id.user_id,
+                                     self.client.user_app_id.app_id, "models", self.model_id,
+                                     self.model_version_id)
 
   def _get_model_proto(self):
     assert "model" in self.config, "model info not found in the config file"
@@ -92,15 +106,20 @@ class ModelUploader:
     inference_compute_info = self.config.get('inference_compute_info')
     return json_format.ParseDict(inference_compute_info, resources_pb2.ComputeInfo())
 
-  def maybe_create_model(self):
+  def check_model_exists(self):
     resp = self.client.STUB.GetModel(
         service_pb2.GetModelRequest(
             user_app_id=self.client.user_app_id, model_id=self.model_proto.id))
     if resp.status.code == status_code_pb2.SUCCESS:
+      return True
+    return False
+
+  def maybe_create_model(self):
+    if self.check_model_exists():
       logger.info(
           f"Model '{self.client.user_app_id.user_id}/{self.client.user_app_id.app_id}/models/{self.model_proto.id}' already exists, "
           f"will create a new version for it.")
-      return resp
+      return
 
     request = service_pb2.PostModelsRequest(
         user_app_id=self.client.user_app_id,
@@ -215,7 +234,7 @@ class ModelUploader:
 
   def _get_model_version_proto(self):
 
-    model_version = resources_pb2.ModelVersion(
+    model_version_proto = resources_pb2.ModelVersion(
         pretrained_model_config=resources_pb2.PretrainedModelConfig(),
         inference_compute_info=self.inference_compute_info,
     )
@@ -231,8 +250,9 @@ class ModelUploader:
       config_file = os.path.join(self.folder, 'config.yaml')
       self.hf_labels_to_config(labels, config_file)
 
-      model_version.output_info.data.concepts.extend(self._concepts_protos_from_concepts(labels))
-    return model_version
+      model_version_proto.output_info.data.concepts.extend(
+          self._concepts_protos_from_concepts(labels))
+    return model_version_proto
 
   def upload_model_version(self, download_checkpoints):
     file_path = f"{self.folder}.tar.gz"
@@ -244,19 +264,19 @@ class ModelUploader:
       logger.info(f"Skipping {self.checkpoint_path} in the tar file that is uploaded.")
       tar_cmd = f"tar --exclude={self.checkpoint_suffix} --exclude=*~ -czvf {self.tar_file} -C {self.folder} ."
     # Tar the folder
-    logger.info(tar_cmd)
+    logger.debug(tar_cmd)
     os.system(tar_cmd)
     logger.info("Tarring complete, about to start upload.")
 
-    model_version = self._get_model_version_proto()
+    model_version_proto = self._get_model_version_proto()
 
     file_size = os.path.getsize(self.tar_file)
     logger.info(f"Size of the tar is: {file_size} bytes")
 
-    response = self.maybe_create_model()
+    self.maybe_create_model()
 
     for response in self.client.STUB.PostModelVersionsUpload(
-        self.model_version_stream_upload_iterator(model_version, file_path),):
+        self.model_version_stream_upload_iterator(model_version_proto, file_path),):
       percent_completed = 0
       if response.status.code == status_code_pb2.UPLOAD_IN_PROGRESS:
         percent_completed = response.status.percent_completed
@@ -273,17 +293,18 @@ class ModelUploader:
     if response.status.code != status_code_pb2.MODEL_BUILDING:
       logger.error(f"Failed to upload model version: {response}")
       return
-    model_version_id = response.model_version_id
-    logger.info(f"Created Model Version ID: {model_version_id}")
+    self.model_version_id = response.model_version_id
+    logger.info(f"Created Model Version ID: {self.model_version_id}")
+    logger.info(f"Full url to that version is: {self.model_url}")
 
-    success = self.monitor_model_build(model_version_id)
+    success = self.monitor_model_build()
     if success:  # cleanup the tar_file if it exists
       if os.path.exists(self.tar_file):
         logger.info(f"Cleaning up upload file: {self.tar_file}")
         os.remove(self.tar_file)
 
-  def model_version_stream_upload_iterator(self, model_version, file_path):
-    yield self.init_upload_model_version(model_version, file_path)
+  def model_version_stream_upload_iterator(self, model_version_proto, file_path):
+    yield self.init_upload_model_version(model_version_proto, file_path)
     with open(file_path, "rb") as f:
       file_size = os.path.getsize(file_path)
       chunk_size = int(127 * 1024 * 1024)  # 127MB chunk size
@@ -313,27 +334,27 @@ class ModelUploader:
     if read_so_far == file_size:
       logger.info("\nUpload complete!, waiting for model build...")
 
-  def init_upload_model_version(self, model_version, file_path):
+  def init_upload_model_version(self, model_version_proto, file_path):
     file_size = os.path.getsize(file_path)
-    logger.info(f"Uploading model version '{model_version.id}' of model {self.model_proto.id}")
+    logger.info(f"Uploading model version of model {self.model_proto.id}")
     logger.info(f"Using file '{os.path.basename(file_path)}' of size: {file_size} bytes")
     return service_pb2.PostModelVersionsUploadRequest(
         upload_config=service_pb2.PostModelVersionsUploadConfig(
             user_app_id=self.client.user_app_id,
             model_id=self.model_proto.id,
-            model_version=model_version,
+            model_version=model_version_proto,
             total_size=file_size,
             is_v3=self.is_v3,
         ))
 
-  def monitor_model_build(self, model_version_id):
+  def monitor_model_build(self):
     st = time.time()
     while True:
       resp = self.client.STUB.GetModelVersion(
           service_pb2.GetModelVersionRequest(
               user_app_id=self.client.user_app_id,
               model_id=self.model_proto.id,
-              version_id=model_version_id,
+              version_id=self.model_version_id,
           ))
       status_code = resp.model_version.status.code
       if status_code == status_code_pb2.MODEL_BUILDING:
@@ -341,9 +362,7 @@ class ModelUploader:
         time.sleep(1)
       elif status_code == status_code_pb2.MODEL_TRAINED:
         logger.info(f"\nModel build complete! (elapsed {time.time() - st:.1f}s)")
-        logger.info(
-            f"Check out the model at https://clarifai.com/{self.client.user_app_id.user_id}/apps/{self.client.user_app_id.app_id}/models/{self.model_id}/versions/{model_version_id}"
-        )
+        logger.info(f"Check out the model at {self.model_url}")
         return True
       else:
         logger.info(
@@ -357,6 +376,14 @@ def main(folder, download_checkpoints):
     uploader.download_checkpoints()
   if not args.skip_dockerfile:
     uploader.create_dockerfile()
+  exists = uploader.check_model_exists()
+  if exists:
+    logger.info(
+        f"Model already exists at {uploader.model_url}, this upload will create a new version for it."
+    )
+  else:
+    logger.info(f"New model will be created at {uploader.model_url} with it's first version.")
+
   input("Press Enter to continue...")
   uploader.upload_model_version(download_checkpoints)
 
