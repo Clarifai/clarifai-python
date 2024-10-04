@@ -6,8 +6,6 @@
 # * Export environment variables to use the virtualenv by default
 # * Create a non-root user with minimal privileges and use it
 ARG TARGET_PLATFORM=linux/amd64
-ARG CUDA_VERSION=12.4.0
-ARG PYTHON_VERSION=${PYTHON_VERSION}
 FROM --platform=$TARGET_PLATFORM public.ecr.aws/docker/library/python:${PYTHON_VERSION}-slim-bookworm as build
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -18,8 +16,6 @@ RUN apt-get update && \
     libpython3-dev && \
     python${PYTHON_VERSION} -m venv /venv && \
     /venv/bin/pip install --disable-pip-version-check --upgrade pip setuptools wheel && \
-    # Create a non-root user with minimal privileges and set file permissions
-    ln -sf /usr/bin/python3.10 /usr/bin/python3 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables to use virtualenv by default
@@ -47,10 +43,6 @@ FROM --platform=$TARGET_PLATFORM gcr.io/distroless/python3-debian12:latest
 ARG PYTHON_VERSION=${PYTHON_VERSION}
 # needed to call pip directly
 COPY --from=build /bin/sh /bin/sh
-
-# Copy driver libraries based on architecture
-ENV TARGET_PLATFORM=${TARGET_PLATFORM}
-ENV FOLDER_NAME="x86_64-linux-gnu"
 
 # virtual env
 COPY --from=build /venv /venv
