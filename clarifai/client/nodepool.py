@@ -114,6 +114,28 @@ class Nodepool(Lister, BaseClient):
       deployment["visibility"] = resources_pb2.Visibility(**deployment["visibility"])
     return deployment
 
+  @staticmethod
+  def get_runner_selector(user_id: str, compute_cluster_id: str,
+                          nodepool_id: str) -> resources_pb2.RunnerSelector:
+    """Returns a RunnerSelector object for the specified compute cluster and nodepool.
+
+    Args:
+        user_id (str): The user ID of the user.
+        compute_cluster_id (str): The compute cluster ID for the compute cluster.
+        nodepool_id (str): The nodepool ID for the nodepool.
+
+    Returns:
+        resources_pb2.RunnerSelector: A RunnerSelector object for the specified compute cluster and nodepool.
+
+    Example:
+        >>> from clarifai.client.nodepool import Nodepool
+        >>> nodepool = Nodepool(nodepool_id="nodepool_id", user_id="user_id")
+        >>> runner_selector = Nodepool.get_runner_selector(user_id="user_id", compute_cluster_id="compute_cluster_id", nodepool_id="nodepool_id")
+    """
+    compute_cluster = resources_pb2.ComputeCluster(id=compute_cluster_id, user_id=user_id)
+    nodepool = resources_pb2.Nodepool(id=nodepool_id, compute_cluster=compute_cluster)
+    return resources_pb2.RunnerSelector(nodepool=nodepool)
+
   def create_deployment(self, deployment_id: str, config_filepath: str) -> Deployment:
     """Creates a deployment for the nodepool.
 
