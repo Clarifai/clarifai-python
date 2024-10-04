@@ -415,6 +415,7 @@ class Model(Lister, BaseClient):
 
     Args:
         inputs (list[Input]): The inputs to predict, must be less than 128.
+        runner_selector (RunnerSelector): The runner selector to use for the model.
     """
     if not isinstance(inputs, list):
       raise UserError('Invalid inputs, inputs must be a list of Input objects.')
@@ -462,6 +463,9 @@ class Model(Lister, BaseClient):
     Args:
         filepath (str): The filepath to predict.
         input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        compute_cluster_id (str): The compute cluster ID to use for the model.
+        nodepool_id (str): The nodepool ID to use for the model.
+        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -498,6 +502,9 @@ class Model(Lister, BaseClient):
     Args:
         input_bytes (bytes): File Bytes to predict on.
         input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        compute_cluster_id (str): The compute cluster ID to use for the model.
+        nodepool_id (str): The nodepool ID to use for the model.
+        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -557,6 +564,9 @@ class Model(Lister, BaseClient):
     Args:
         url (str): The URL to predict.
         input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        compute_cluster_id (str): The compute cluster ID to use for the model.
+        nodepool_id (str): The nodepool ID to use for the model.
+        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -609,7 +619,17 @@ class Model(Lister, BaseClient):
     """Generate the stream output on model based on the given inputs.
 
     Args:
-        inputs (list[Input]): The inputs to predict, must be less than 128.
+        inputs (list[Input]): The inputs to generate, must be less than 128.
+        runner_selector (RunnerSelector): The runner selector to use for the model.
+        inference_params (dict): The inference params to override.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+                    or
+        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+        >>> stream_response = model.generate(inputs=[input1, input2], runner_selector=runner_selector)
+        >>> list_stream_response = [response for response in stream_response]
     """
     if not isinstance(inputs, list):
       raise UserError('Invalid inputs, inputs must be a list of Input objects.')
@@ -659,6 +679,9 @@ class Model(Lister, BaseClient):
     Args:
         filepath (str): The filepath to predict.
         input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        compute_cluster_id (str): The compute cluster ID to use for the model.
+        nodepool_id (str): The nodepool ID to use for the model.
+        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -671,7 +694,6 @@ class Model(Lister, BaseClient):
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
         >>> stream_response = model.generate_by_filepath('/path/to/image.jpg', 'image', deployment_id='deployment_id')
-        >>> stream_response = model.generate_by_filepath('/path/to/text.txt', 'text', deployment_id='deployment_id')
         >>> list_stream_response = [response for response in stream_response]
     """
     if not os.path.isfile(filepath):
@@ -702,6 +724,9 @@ class Model(Lister, BaseClient):
     Args:
         input_bytes (bytes): File Bytes to predict on.
         input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        compute_cluster_id (str): The compute cluster ID to use for the model.
+        nodepool_id (str): The nodepool ID to use for the model.
+        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -763,6 +788,9 @@ class Model(Lister, BaseClient):
     Args:
         url (str): The URL to predict.
         input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        compute_cluster_id (str): The compute cluster ID to use for the model.
+        nodepool_id (str): The nodepool ID to use for the model.
+        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -774,7 +802,7 @@ class Model(Lister, BaseClient):
         >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> stream_response = model.generate_by_url('url', 'image')
+        >>> stream_response = model.generate_by_url('url', 'image', deployment_id='deployment_id')
         >>> list_stream_response = [response for response in stream_response]
     """
     if input_type not in {'image', 'text', 'video', 'audio'}:
@@ -827,6 +855,15 @@ class Model(Lister, BaseClient):
 
     Args:
         inputs (Iterator[list[Input]]): stream of inputs to predict, must be less than 128.
+        runner_selector (RunnerSelector): The runner selector to use for the model.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+                    or
+        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+        >>> stream_response = model.stream(inputs=inputs, runner_selector=runner_selector)
+        >>> list_stream_response = [response for response in stream_response]
     """
     # if not isinstance(inputs, Iterator[List[Input]]):
     #   raise UserError('Invalid inputs, inputs must be a iterator of list of Input objects.')
@@ -867,6 +904,9 @@ class Model(Lister, BaseClient):
     Args:
         filepath (str): The filepath to predict.
         input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        compute_cluster_id (str): The compute cluster ID to use for the model.
+        nodepool_id (str): The nodepool ID to use for the model.
+        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -876,7 +916,7 @@ class Model(Lister, BaseClient):
     Example:
         >>> from clarifai.client.model import Model
         >>> model = Model("url")
-        >>> stream_response = model.stream_by_filepath('/path/to/image.jpg', 'image')
+        >>> stream_response = model.stream_by_filepath('/path/to/image.jpg', 'image', deployment_id='deployment_id')
         >>> list_stream_response = [response for response in stream_response]
     """
     if not os.path.isfile(filepath):
@@ -907,6 +947,9 @@ class Model(Lister, BaseClient):
     Args:
         input_bytes_iterator (Iterator[bytes]): Iterator of file bytes to predict on.
         input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        compute_cluster_id (str): The compute cluster ID to use for the model.
+        nodepool_id (str): The nodepool ID to use for the model.
+        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -918,6 +961,7 @@ class Model(Lister, BaseClient):
         >>> model = Model("https://clarifai.com/openai/chat-completion/models/GPT-4")
         >>> stream_response = model.stream_by_bytes(iter([b'Write a tweet on future of AI']),
                                                     input_type='text',
+                                                    deployment_id='deployment_id',
                                                     inference_params=dict(temperature=str(0.7), max_tokens=30)))
         >>> list_stream_response = [response for response in stream_response]
     """
@@ -967,6 +1011,9 @@ class Model(Lister, BaseClient):
     Args:
         url_iterator (Iterator[str]): Iterator of URLs to predict.
         input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        compute_cluster_id (str): The compute cluster ID to use for the model.
+        nodepool_id (str): The nodepool ID to use for the model.
+        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -976,7 +1023,7 @@ class Model(Lister, BaseClient):
     Example:
         >>> from clarifai.client.model import Model
         >>> model = Model("url")
-        >>> stream_response = model.stream_by_url(iter(['url']), 'image')
+        >>> stream_response = model.stream_by_url(iter(['url']), 'image', deployment_id='deployment_id')
         >>> list_stream_response = [response for response in stream_response]
     """
     if input_type not in {'image', 'text', 'video', 'audio'}:
