@@ -83,9 +83,6 @@ class ModelUploader:
     assert "app_id" in model, "app_id not found in the config file"
 
     model_proto = json_format.ParseDict(model, resources_pb2.Model())
-    assert model_proto.id == model_proto.id.lower(), "Model ID must be lowercase"
-    assert model_proto.user_id == model_proto.user_id.lower(), "User ID must be lowercase"
-    assert model_proto.app_id == model_proto.app_id.lower(), "App ID must be lowercase"
 
     return model_proto
 
@@ -320,7 +317,7 @@ class ModelUploader:
         print(f"Model is building... (elapsed {time.time() - st:.1f}s)", end='\r', flush=True)
         time.sleep(1)
       elif status_code == status_code_pb2.MODEL_TRAINED:
-        logger.info("\nModel build complete!")
+        logger.info(f"\nModel build complete! (elapsed {time.time() - st:.1f}s)")
         logger.info(
             f"Check out the model at https://clarifai.com/{self.client.user_app_id.user_id}/apps/{self.client.user_app_id.app_id}/models/{self.model_id}/versions/{model_version_id}"
         )
@@ -335,7 +332,8 @@ def main(folder, download_checkpoints):
   uploader = ModelUploader(folder)
   if download_checkpoints:
     uploader.download_checkpoints()
-  uploader.create_dockerfile()
+  if not args.skip_dockerfile:
+    uploader.create_dockerfile()
   input("Press Enter to continue...")
   uploader.upload_model_version()
 
@@ -350,6 +348,12 @@ if __name__ == "__main__":
       action='store_true',
       help=
       'Flag to download checkpoints before uploading and including them in the tar file that is uploaded. Defaults to False, which will attempt to download them at docker build time.',
+  )
+  parser.add_argument(
+      '--skip_dockerfile',
+      action='store_true',
+      help=
+      'Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile.',
   )
   args = parser.parse_args()
 
