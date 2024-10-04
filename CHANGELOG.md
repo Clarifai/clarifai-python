@@ -1,7 +1,8 @@
 ## [[10.8.9]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.9) - [PyPI](https://pypi.org/project/clarifai/10.8.9/) - 2024-10-03
 
 ### Changed
- - Bug fixes for logger[(#406)](https://github.com/Clarifai/clarifai-python/pull/406)
+ - New streaming predict endpoints[(#407)](https://github.com/Clarifai/clarifai-python/pull/407)
+ - New dockerfile for model upload and improvements to upload flow[(#406)](https://github.com/Clarifai/clarifai-python/pull/406)
 
 ## [[10.8.8]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.8) - [PyPI](https://pypi.org/project/clarifai/10.8.8/) - 2024-10-03
 
