@@ -258,6 +258,18 @@ class ModelUploader:
     file_path = f"{self.folder}.tar.gz"
     logger.info(f"Will tar it into file: {file_path}")
 
+    model_type_id = self.config.get('model').get('model_type_id')
+
+    if not download_checkpoints and not os.path.exists(self.checkpoint_path) and (
+        model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE) and 'concepts' not in self.config:
+      logger.error(
+          f"Model type {model_type_id} requires concepts to be specified in the config file or download the model checkpoints to infer the concepts."
+      )
+      input("Press Enter to download the checkpoints to infer the concepts and continue...")
+      self.download_checkpoints()
+
+    model_version_proto = self._get_model_version_proto()
+
     if download_checkpoints:
       tar_cmd = f"tar --exclude=*~ -czvf {self.tar_file} -C {self.folder} ."
     else:  # we don't want to send the checkpoints up even if they are in the folder.
@@ -267,8 +279,6 @@ class ModelUploader:
     logger.debug(tar_cmd)
     os.system(tar_cmd)
     logger.info("Tarring complete, about to start upload.")
-
-    model_version_proto = self._get_model_version_proto()
 
     file_size = os.path.getsize(self.tar_file)
     logger.info(f"Size of the tar is: {file_size} bytes")
