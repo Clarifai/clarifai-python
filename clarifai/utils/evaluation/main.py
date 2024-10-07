@@ -53,6 +53,7 @@ class EvalResultCompare:
                models: Union[List[Model], List[str]],
                datasets: Union[Dataset, List[Dataset], str, List[str]],
                attempt_evaluate: bool = False,
+               eval_info: dict = None,
                auth_kwargs: dict = {}):
     assert isinstance(models, list), ValueError("Expected list")
 
@@ -97,7 +98,7 @@ class EvalResultCompare:
         assert self.model_type == model_type, f"Can not compare when model types are different, {self.model_type} != {model_type}"
       m = make_handler_by_type(model_type)(model=model)
       logger.info(f"* {m.get_model_name(pretify=True)}")
-      m.find_eval_id(datasets=datasets, attempt_evaluate=attempt_evaluate)
+      m.find_eval_id(datasets=datasets, attempt_evaluate=attempt_evaluate, eval_info=eval_info)
       self._eval_handlers.append(m)
 
   @property

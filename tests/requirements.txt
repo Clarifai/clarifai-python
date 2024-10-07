@@ -3,3 +3,5 @@ pytest-cov==5.0.0
 pytest-xdist==2.5.0
 llama-index-core==0.10.24
 pypdf==3.17.4
+seaborn==0.13.2
+pycocotools==2.0.6

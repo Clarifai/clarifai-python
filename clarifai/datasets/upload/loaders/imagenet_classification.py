@@ -24,6 +24,10 @@ class ImageNetDataLoader(ClarifaiDataLoader):
 
     self.load_data()
 
+  @property
+  def task(self):
+    return "visual_classification"
+
   def load_data(self):
     #Creating label map
     with open(os.path.join(self.data_dir, "LOC_synset_mapping.txt")) as _file:
@@ -54,5 +58,5 @@ class ImageNetDataLoader(ClarifaiDataLoader):
   def __getitem__(self, idx):
     return VisualClassificationFeatures(
         image_path=self.image_paths[idx],
-        label=self.concepts[idx],
+        labels=self.concepts[idx],
         id=self.image_paths[idx].split('.')[0].split('/')[-1])

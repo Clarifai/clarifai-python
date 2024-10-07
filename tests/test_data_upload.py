@@ -1,11 +1,14 @@
 import logging
 import os
+import time
 import uuid
 
 import pytest
 from google.protobuf.struct_pb2 import Struct
 
 from clarifai.client.user import User
+from clarifai.datasets.upload.loaders.coco_detection import COCODetectionDataLoader
+from clarifai.datasets.upload.loaders.imagenet_classification import ImageNetDataLoader
 from clarifai.datasets.upload.utils import load_module_dataloader
 
 CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
@@ -25,6 +28,8 @@ AUDIO_FILE_PATH = os.path.dirname(__file__) + "/assets/sample.mp3"
 CSV_FILE_PATH = os.path.dirname(__file__) + "/assets/sample.csv"
 FOLDER_PATH = os.path.dirname(__file__) + "/assets/test"
 MODULE_DIR = os.path.dirname(__file__) + "/assets/voc"
+COCO_DET_DIR = os.path.dirname(__file__) + "/assets/coco_detection"
+IMAGENET_DIR = os.path.dirname(__file__) + "/assets/imagenet_classification"
 TEXTS_FOLDER_PATH = os.path.dirname(__file__) + "/assets/sample_texts"
 
 
@@ -230,14 +235,42 @@ class Testdataupload:
 
   def test_upload_dataset(self, caplog):
     dataloader = load_module_dataloader(module_dir=MODULE_DIR, split="train")
-    self.dataset.upload_dataset(dataloader)
+    self.dataset.upload_dataset(dataloader, get_upload_status=True, log_warnings=True)
     uploaded_inputs = list(self.input_object.list_inputs())
     annotations = list(self.input_object.list_annotations(batch_input=uploaded_inputs))
     with caplog.at_level(logging.INFO):
       self.input_object.delete_inputs(uploaded_inputs)
       assert "Inputs Deleted" in caplog.text  # Testing delete inputs action
     assert len(uploaded_inputs) == 10  # 3 inputs are uploaded from the folder
-    assert len(annotations) == 28  # Test for list annotatoins
+    assert len(annotations) == 28  # Test for list annotations
+
+  def test_upload_coco_dataset(self, caplog):
+    dataloader = COCODetectionDataLoader(
+        images_dir=os.path.join(COCO_DET_DIR, "images"),
+        label_filepath=os.path.join(COCO_DET_DIR, "instances_default.json"))
+    self.dataset.upload_dataset(dataloader)
+    uploaded_inputs = list(self.input_object.list_inputs())
+    annotations = list(self.input_object.list_annotations(batch_input=uploaded_inputs))
+    with caplog.at_level(logging.INFO):
+      self.input_object.delete_inputs(uploaded_inputs)
+      assert "Inputs Deleted" in caplog.text  # Testing delete inputs action
+    assert len(uploaded_inputs) == 3  # 3 inputs are uploaded from the folder
+    assert len(annotations) == 7  # Test for list annotations
+
+  def test_upload_imagenet_dataset(self):
+    dataloader = ImageNetDataLoader(data_dir=IMAGENET_DIR)
+    self.dataset.upload_dataset(dataloader)
+    uploaded_inputs = list(self.input_object.list_inputs())
+    annotations = list(self.input_object.list_annotations(batch_input=uploaded_inputs))
+    assert len(uploaded_inputs) == 10  # 10 inputs are uploaded from the folder
+    assert len(annotations) == 10  # Test for list annotations
+
+  def test_export_dataset(self):
+    dataset_demo_version = self.dataset.create_version()
+    time.sleep(5)
+    dataset_demo_version.export(save_path='tests/output_demo.zip')
+    assert os.path.exists('tests/output_demo.zip') is True
+    os.remove('tests/output_demo.zip')
 
   @classmethod
   def teardown_class(self):

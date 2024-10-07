@@ -1,6 +1,5 @@
 import logging
 import os
-import time
 import uuid
 
 import pytest
@@ -79,6 +78,11 @@ class TestApp:
     all_apps = list(client.list_apps())
     assert len(all_apps) > 0
 
+  # TODO To resolve `Insufficient scopes` error
+  # def test_app_input_count(self, app):
+  #   input_count = app.get_input_count()
+  #   assert input_count == 41
+
   def test_get_model(self, client):
     model = client.app(app_id=MAIN_APP_ID).model(model_id=GENERAL_MODEL_ID)
     versions = list(model.list_versions())
@@ -126,8 +130,9 @@ class TestApp:
 
   def test_get_dataset(self, create_app):
     dataset = create_app.dataset(dataset_id=CREATE_DATASET_ID)
+    dataset.create_version()
     versions = list(dataset.list_versions())
-    assert len(versions) == 0  #test for list_versions
+    assert len(versions) == 1  #test for list_versions
     assert dataset.id == CREATE_DATASET_ID and dataset.app_id == CREATE_APP_ID and dataset.user_id == CREATE_APP_USER_ID
 
   def test_get_module(self, create_app):
@@ -143,16 +148,6 @@ class TestApp:
   def test_search_concept_relations(self, create_app):
     all_concept_relations = list(create_app.search_concept_relations(show_tree=True))
     assert len(all_concept_relations) == 1
-
-  def test_export_dataset(self, create_app):
-    dataset = create_app.dataset(dataset_id=CREATE_DATASET_ID)
-    dataset_demo_version = dataset.create_version()
-    versions = list(dataset.list_versions())
-    time.sleep(5)
-    dataset_demo_version.export(save_path='tests/output_demo.zip')
-    assert len(versions) == 1  #test for create_version
-    assert os.path.exists('tests/output_demo.zip') is True
-    os.remove('tests/output_demo.zip')
 
   def test_patch_app(self, caplog):
     with caplog.at_level(logging.INFO):
