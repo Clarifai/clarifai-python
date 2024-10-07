@@ -58,13 +58,13 @@ class _BaseEvalResultHandler:
   model: Model
   eval_data: List[resources_pb2.EvalMetrics] = field(default_factory=list)
 
-  def evaluate_and_wait(self, dataset: Dataset):
+  def evaluate_and_wait(self, dataset: Dataset, eval_info: dict = None):
     from tqdm import tqdm
     dataset_id = dataset.id
     dataset_app_id = dataset.app_id
     dataset_user_id = dataset.user_id
     _ = self.model.evaluate(
-        dataset_id=dataset_id, dataset_app_id=dataset_app_id, dataset_user_id=dataset_user_id)
+        dataset_id=dataset_id, dataset_app_id=dataset_app_id, dataset_user_id=dataset_user_id, eval_info=eval_info)
     latest_eval = self.model.list_evaluations()[0]
     excepted = 10
     desc = f"Please wait for the evaluation process between model {self.get_model_name()} and dataset {dataset_user_id}/{dataset_app_id}/{dataset_id} to complete."
@@ -83,7 +83,7 @@ class _BaseEvalResultHandler:
           f"Model has failed to evaluate \n {latest_eval.status}.\nPlease check your dataset inputs!"
       )
 
-  def find_eval_id(self, datasets: List[Dataset] = [], attempt_evaluate: bool = False):
+  def find_eval_id(self, datasets: List[Dataset] = [], attempt_evaluate: bool = False, eval_info: dict = None):
     list_eval_outputs = self.model.list_evaluations()
     self.eval_data = []
     for dataset in datasets:
@@ -117,7 +117,7 @@ class _BaseEvalResultHandler:
       # if not evaluated, but user wants to proceed it
       if not _is_found:
         if attempt_evaluate:
-          self.eval_data.append(self.evaluate_and_wait(dataset))
+          self.eval_data.append(self.evaluate_and_wait(dataset, eval_info=eval_info))
         # otherwise raise error
         else:
           raise Exception(
