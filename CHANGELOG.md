@@ -1,3 +1,8 @@
+## [[10.9.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.9.0) - [PyPI](https://pypi.org/project/clarifai/10.9.0/) - 2024-10-07
+
+### Changed
+ - Improved the Test Coverage for Dataloaders & Evaluations modules of SDK [(#409)] (https://github.com/Clarifai/clarifai-python/pull/409)
+
 ## [[10.8.9]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.9) - [PyPI](https://pypi.org/project/clarifai/10.8.9/) - 2024-10-03
 
 ### Changed
@@ -11,6 +16,9 @@
 
 ## [[10.8.7]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.7) - [PyPI](https://pypi.org/project/clarifai/10.8.7/) - 2024-10-03
 
+### Added
+ - Added CRUD operations for Compute Orchestration resources (Compute cluster, Nodepool, Deployment) [(#402)] (https://github.com/Clarifai/clarifai-python/pull/402)
+
 ### Changed
  - Improved logging and fixed issues with downloading checkpoints[(#403)](https://github.com/Clarifai/clarifai-python/pull/403)
 
@@ -23,7 +31,7 @@
 
 ### Changed
  - Added fsspec dependency which would be required in runners for model upload [(#398)](https://github.com/Clarifai/clarifai-python/pull/398)
- - Added MultiModalLoader support [(#394)](https://github.com/Clarifai/clarifai-python/pull/394)
+ - Added MultiModalLoader support [(#384)](https://github.com/Clarifai/clarifai-python/pull/384)
  - Deleted model_serving in this SDK, after the Runners PR has been merged [(#391)](https://github.com/Clarifai/clarifai-python/pull/391)
 
 ## [[10.8.4]](https://github.com/Clarifai/clarifai-python/releases/tag/10.8.4) - [PyPI](https://pypi.org/project/clarifai/10.8.4/) - 2024-09-26
