@@ -1,15 +1,15 @@
 import logging
 import os
-import uuid
 import time
+import uuid
 
 import pytest
 from google.protobuf.struct_pb2 import Struct
 
 from clarifai.client.user import User
-from clarifai.datasets.upload.utils import load_module_dataloader
 from clarifai.datasets.upload.loaders.coco_detection import COCODetectionDataLoader
 from clarifai.datasets.upload.loaders.imagenet_classification import ImageNetDataLoader
+from clarifai.datasets.upload.utils import load_module_dataloader
 
 CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
 NOW = uuid.uuid4().hex[:10]
@@ -245,7 +245,9 @@ class Testdataupload:
     assert len(annotations) == 28  # Test for list annotations
 
   def test_upload_coco_dataset(self, caplog):
-    dataloader = COCODetectionDataLoader(images_dir=os.path.join(COCO_DET_DIR,"images"), label_filepath=os.path.join(COCO_DET_DIR,"instances_default.json"))
+    dataloader = COCODetectionDataLoader(
+        images_dir=os.path.join(COCO_DET_DIR, "images"),
+        label_filepath=os.path.join(COCO_DET_DIR, "instances_default.json"))
     self.dataset.upload_dataset(dataloader)
     uploaded_inputs = list(self.input_object.list_inputs())
     annotations = list(self.input_object.list_annotations(batch_input=uploaded_inputs))
@@ -269,7 +271,6 @@ class Testdataupload:
     dataset_demo_version.export(save_path='tests/output_demo.zip')
     assert os.path.exists('tests/output_demo.zip') is True
     os.remove('tests/output_demo.zip')
-
 
   @classmethod
   def teardown_class(self):

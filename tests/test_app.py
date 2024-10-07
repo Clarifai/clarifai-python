@@ -1,6 +1,5 @@
 import logging
 import os
-import time
 import uuid
 
 import pytest
@@ -130,7 +129,7 @@ class TestApp:
 
   def test_get_dataset(self, create_app):
     dataset = create_app.dataset(dataset_id=CREATE_DATASET_ID)
-    dataset_demo_version = dataset.create_version()
+    dataset.create_version()
     versions = list(dataset.list_versions())
     assert len(versions) == 1  #test for list_versions
     assert dataset.id == CREATE_DATASET_ID and dataset.app_id == CREATE_APP_ID and dataset.user_id == CREATE_APP_USER_ID

@@ -1,10 +1,9 @@
 import logging
 import os
-import uuid
 import time
+import uuid
 
 import pytest
-
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
 from clarifai.client.user import User
@@ -35,7 +34,8 @@ class TestEval:
     self.input_object = self.app.inputs()
     self.dataset = self.app.create_dataset(dataset_id=CREATE_DATASET_ID)
     self.dataset_new = self.app.create_dataset(dataset_id=CREATE_DATASET_NEW_ID)
-    self.model = self.app.create_model(model_id=CREATE_MODEL_ID, model_type_id='embedding-classifier')
+    self.model = self.app.create_model(
+        model_id=CREATE_MODEL_ID, model_type_id='embedding-classifier')
 
   def test_evaluate(self, caplog):
     # Prepare dataset
@@ -44,7 +44,7 @@ class TestEval:
     dataset_version = self.dataset.create_version()
     self.dataset_new.upload_from_csv(
         csv_path=CSV_FILE_PATH, input_type='text', csv_type='raw', labels=True)
-    dataset_new_version = self.dataset_new.create_version()
+    self.dataset_new.create_version()
     concepts = [concept.id for concept in self.app.list_concepts()]
     # Prepare for training
     self.model.get_params(save_to='tests/assets/model_params_for_eval.yaml')
@@ -58,10 +58,10 @@ class TestEval:
       assert "Model Training Started" in caplog.text  #test model training
 
     while True:
-      status = self.model.training_status(version_id=model_version_id,training_logs=True)
-      if status.code == 21106:#MODEL_TRAINING_FAILED
+      status = self.model.training_status(version_id=model_version_id, training_logs=True)
+      if status.code == 21106:  #MODEL_TRAINING_FAILED
         break
-      elif status.code == 21100: #MODEL_TRAINED
+      elif status.code == 21100:  #MODEL_TRAINED
         break
       else:
         time.sleep(2)
@@ -72,12 +72,12 @@ class TestEval:
     assert len(all_evals) == 0
 
     ## Test evaluate
-    self.model.evaluate(dataset=self.dataset, eval_id="one", eval_info={"use_kfold":False})
+    self.model.evaluate(dataset=self.dataset, eval_id="one", eval_info={"use_kfold": False})
     all_evals = self.model.list_evaluations()
     assert len(all_evals) == 1
 
     ## Test get_eval_by_id
-    start = time.time()
+    time.time()
     while True:
       response1 = self.model.get_eval_by_id("one")
       if (response1.status.code == status_code_pb2.MODEL_EVALUATED):
@@ -92,7 +92,8 @@ class TestEval:
     ## Test get_raw_eval
     with pytest.raises(Exception) as e:
       self.model.get_raw_eval(dataset=self.dataset)
-    assert "method only supports model types ['visual-classifier', 'text-classifier', 'visual-detector']" in str(e.value).lower()
+    assert "method only supports model types ['visual-classifier', 'text-classifier', 'visual-detector']" in str(
+        e.value).lower()
 
     ## Test get_latest_eval
     current_eval = self.model.get_latest_eval(
@@ -105,7 +106,13 @@ class TestEval:
     assert current_eval.id == "one" and current_eval.status.code == status_code_pb2.MODEL_EVALUATED
 
     ## Test EvalResultCompare
-    eval_result = EvalResultCompare(models=[self.model],datasets= [self.dataset,self.dataset_new], attempt_evaluate=True, eval_info={"use_kfold":False})
+    eval_result = EvalResultCompare(
+        models=[self.model],
+        datasets=[self.dataset, self.dataset_new],
+        attempt_evaluate=True,
+        eval_info={
+            "use_kfold": False
+        })
     eval_result.all('tests/eval/', overwrite=True)
     assert os.path.exists('tests/eval/conf-0.5') is True
 
