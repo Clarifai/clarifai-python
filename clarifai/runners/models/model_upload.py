@@ -10,7 +10,7 @@ from google.protobuf import json_format
 from rich import print
 
 from clarifai.client import BaseClient
-from clarifai.runners.utils.loader import HuggingFaceLoarder
+from clarifai.runners.utils.loader import HuggingFaceLoader
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
 
@@ -58,6 +58,28 @@ class ModelUploader:
     with open(config_file, 'r') as file:
       config = yaml.safe_load(file)
     return config
+
+  @staticmethod
+  def _validate_config_checkpoints(self):
+    if not self.config.get("checkpoints"):
+      logger.info("No checkpoints specified in the config file")
+      return None
+
+    assert "type" in self.config.get("checkpoints"), "No loader type specified in the config file"
+    loader_type = self.config.get("checkpoints").get("type")
+    if not loader_type:
+      logger.info("No loader type specified in the config file for checkpoints")
+    assert loader_type == "huggingface", "Only huggingface loader supported for now"
+    if loader_type == "huggingface":
+      assert "repo_id" in self.config.get("checkpoints"), "No repo_id specified in the config file"
+      repo_id = self.config.get("checkpoints").get("repo_id")
+
+      # prefer env var for HF_TOKEN but if not provided then use the one from config.yaml if any.
+      if 'HF_TOKEN' in os.environ:
+        hf_token = os.environ['HF_TOKEN']
+      else:
+        hf_token = self.config.get("checkpoints").get("hf_token", None)
+        return repo_id, hf_token
 
   @property
   def client(self):
@@ -180,26 +202,9 @@ class ModelUploader:
     return f"{self.folder}.tar.gz"
 
   def download_checkpoints(self):
-    if not self.config.get("checkpoints"):
-      logger.info("No checkpoints specified in the config file")
-      return
-
-    assert "type" in self.config.get("checkpoints"), "No loader type specified in the config file"
-    loader_type = self.config.get("checkpoints").get("type")
-    if not loader_type:
-      logger.info("No loader type specified in the config file for checkpoints")
-    assert loader_type == "huggingface", "Only huggingface loader supported for now"
-    if loader_type == "huggingface":
-      assert "repo_id" in self.config.get("checkpoints"), "No repo_id specified in the config file"
-      repo_id = self.config.get("checkpoints").get("repo_id")
-
-      # prefer env var for HF_TOKEN but if not provided then use the one from config.yaml if any.
-      if 'HF_TOKEN' in os.environ:
-        hf_token = os.environ['HF_TOKEN']
-      else:
-        hf_token = self.config.get("checkpoints").get("hf_token", None)
-        assert hf_token != 'hf_token', "The default 'hf_token' is not valid. Please provide a valid token or leave that field out of config.yaml if not needed."
-      loader = HuggingFaceLoarder(repo_id=repo_id, token=hf_token)
+    repo_id, hf_token = self._validate_config_checkpoints()
+    if repo_id and hf_token:
+      loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
 
       success = loader.download_checkpoints(self.checkpoint_path)
 
@@ -242,8 +247,7 @@ class ModelUploader:
     model_type_id = self.config.get('model').get('model_type_id')
     if model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE:
 
-      loader = HuggingFaceLoarder()
-      labels = loader.fetch_labels(self.checkpoint_path)
+      labels = HuggingFaceLoader.fetch_labels(self.checkpoint_path)
       # sort the concepts by id and then update the config file
       labels = sorted(labels.items(), key=lambda x: int(x[0]))
 
@@ -258,6 +262,21 @@ class ModelUploader:
     file_path = f"{self.folder}.tar.gz"
     logger.info(f"Will tar it into file: {file_path}")
 
+    model_type_id = self.config.get('model').get('model_type_id')
+    repo_id, hf_token = self._validate_config_checkpoints()
+
+    loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
+
+    if not download_checkpoints and not loader.validate_download(self.checkpoint_path) and (
+        model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE) and 'concepts' not in self.config:
+      logger.error(
+          f"Model type {model_type_id} requires concepts to be specified in the config file or download the model checkpoints to infer the concepts."
+      )
+      input("Press Enter to download the checkpoints to infer the concepts and continue...")
+      self.download_checkpoints()
+
+    model_version_proto = self._get_model_version_proto()
+
     if download_checkpoints:
       tar_cmd = f"tar --exclude=*~ -czvf {self.tar_file} -C {self.folder} ."
     else:  # we don't want to send the checkpoints up even if they are in the folder.
@@ -267,8 +286,6 @@ class ModelUploader:
     logger.debug(tar_cmd)
     os.system(tar_cmd)
     logger.info("Tarring complete, about to start upload.")
-
-    model_version_proto = self._get_model_version_proto()
 
     file_size = os.path.getsize(self.tar_file)
     logger.info(f"Size of the tar is: {file_size} bytes")
