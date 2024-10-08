@@ -82,9 +82,12 @@ class ModelRunLocally:
   def _build_request(self):
     """Create a mock inference request for testing the model."""
 
+    uploader = ModelUploader(self.model_path)
+    model_version_proto = uploader.get_model_version_proto()
+    model_version_proto.id = "model_version"
+
     return service_pb2.PostModelOutputsRequest(
-        model=resources_pb2.Model(model_version=resources_pb2.ModelVersion(
-            id="model_version", output_info=resources_pb2.OutputInfo())),
+        model=resources_pb2.Model(model_version=model_version_proto),
         inputs=[
             resources_pb2.Input(data=resources_pb2.Data(
                 text=resources_pb2.Text(raw="How many people live in new york?"),
@@ -115,7 +118,6 @@ class ModelRunLocally:
     # validate that we have checkpoints downloaded before constructing MyRunner
     uploader = ModelUploader(self.model_path)
     uploader.download_checkpoints()
-
     # construct MyRunner which will call load_model()
     MyRunner = self._get_model_runner()
     runner = MyRunner(

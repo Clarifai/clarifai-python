@@ -237,7 +237,7 @@ class ModelUploader:
     concepts = config.get('concepts')
     logger.info(f"Updated config.yaml with {len(concepts)} concepts.")
 
-  def _get_model_version_proto(self):
+  def get_model_version_proto(self):
 
     model_version_proto = resources_pb2.ModelVersion(
         pretrained_model_config=resources_pb2.PretrainedModelConfig(),
@@ -275,7 +275,7 @@ class ModelUploader:
       input("Press Enter to download the checkpoints to infer the concepts and continue...")
       self.download_checkpoints()
 
-    model_version_proto = self._get_model_version_proto()
+    model_version_proto = self.get_model_version_proto()
 
     if download_checkpoints:
       tar_cmd = f"tar --exclude=*~ -czvf {self.tar_file} -C {self.folder} ."
