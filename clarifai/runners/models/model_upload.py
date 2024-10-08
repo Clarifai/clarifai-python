@@ -10,7 +10,7 @@ from google.protobuf import json_format
 from rich import print
 
 from clarifai.client import BaseClient
-from clarifai.runners.utils.loader import HuggingFaceLoarder
+from clarifai.runners.utils.loader import HuggingFaceLoader
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
 
@@ -204,7 +204,7 @@ class ModelUploader:
   def download_checkpoints(self):
     repo_id, hf_token = self._validate_config_checkpoints()
     if repo_id and hf_token:
-      loader = HuggingFaceLoarder(repo_id=repo_id, token=hf_token)
+      loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
 
       success = loader.download_checkpoints(self.checkpoint_path)
 
@@ -247,7 +247,7 @@ class ModelUploader:
     model_type_id = self.config.get('model').get('model_type_id')
     if model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE:
 
-      labels = HuggingFaceLoarder.fetch_labels(self.checkpoint_path)
+      labels = HuggingFaceLoader.fetch_labels(self.checkpoint_path)
       # sort the concepts by id and then update the config file
       labels = sorted(labels.items(), key=lambda x: int(x[0]))
 
@@ -265,7 +265,7 @@ class ModelUploader:
     model_type_id = self.config.get('model').get('model_type_id')
     repo_id, hf_token = self._validate_config_checkpoints()
 
-    loader = HuggingFaceLoarder(repo_id=repo_id, token=hf_token)
+    loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
 
     if not download_checkpoints and not loader.validate_download(self.checkpoint_path) and (
         model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE) and 'concepts' not in self.config:

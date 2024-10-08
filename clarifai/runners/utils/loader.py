@@ -6,7 +6,7 @@ import subprocess
 from clarifai.utils.logging import logger
 
 
-class HuggingFaceLoarder:
+class HuggingFaceLoader:
 
   def __init__(self, repo_id=None, token=None):
     self.repo_id = repo_id
