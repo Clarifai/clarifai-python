@@ -23,6 +23,7 @@ class ModelRunLocally:
     self.model_path = model_path
     self.requirements_file = os.path.join(self.model_path, "requirements.txt")
     self.venv_dir, self.temp_dir = self.create_temp_venv()
+    self.python_executable = os.path.join(self.venv_dir, "bin", "python")
 
   def create_temp_venv(self):
     """Create a temporary virtual environment."""
@@ -109,7 +110,7 @@ class ModelRunLocally:
           internal_details=str(e),
       ))
 
-  def test_model(self):
+  def _run_test(self):
     """Test the model locally by making a prediction."""
     # validate that we have checkpoints downloaded before constructing MyRunner
     uploader = ModelUploader(self.model_path)
@@ -131,12 +132,28 @@ class ModelRunLocally:
     else:
       logger.info(f"Model Prediction succeeded: {response}")
 
+  def test_model(self):
+    """Test the model by running it locally in the virtual environment."""
+    command = [
+        self.python_executable,
+        "-c",
+        f"import sys; sys.path.append('{os.path.dirname(os.path.abspath(__file__))}'); "
+        f"from model_run_locally import ModelRunLocally; ModelRunLocally('{self.model_path}')._run_test()",
+    ]
+    try:
+      logger.info("Testing the model locally...")
+      subprocess.check_call(command)
+      logger.info("Model tested successfully!")
+    except subprocess.CalledProcessError as e:
+      logger.error(f"Error testing the model: {e}")
+      sys.exit(1)
+
   # run the model server
   def run_model_server(self):
     """Run the Clarifai Runners's model server."""
-    python_executable = os.path.join(self.venv_dir, "bin", "python")
+
     command = [
-        python_executable, "-m", "clarifai.runners.server", "--model_path", self.model_path,
+        self.python_executable, "-m", "clarifai.runners.server", "--model_path", self.model_path,
         "--start_dev_server"
     ]
     try:
