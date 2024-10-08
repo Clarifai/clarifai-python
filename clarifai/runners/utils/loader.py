@@ -67,7 +67,8 @@ class HuggingFaceLoarder:
     return (len(checkpoint_dir_files) >= len(list_repo_files(self.repo_id))) and len(
         list_repo_files(self.repo_id)) > 0
 
-  def fetch_labels(self, checkpoint_path: str):
+  @staticmethod
+  def fetch_labels(checkpoint_path: str):
     # Fetch labels for classification, detection and segmentation models
     config_path = os.path.join(checkpoint_path, 'config.json')
     with open(config_path, 'r') as f:
