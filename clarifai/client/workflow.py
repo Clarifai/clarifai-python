@@ -126,6 +126,12 @@ class Workflow(Lister, BaseClient):
         >>> workflow = Workflow(user_id='user_id', app_id='app_id', workflow_id='workflow_id')
         >>> workflow_prediction = workflow.predict_by_filepath('filepath')
     """
+    if not input_type:
+      self.load_info()
+      if len(self.input_types) > 1:
+        raise UserError("Workflow has multiple input types. Please use workflow.predict().")
+      input_type = self.input_types[0]
+
     if input_type not in {'image', 'text', 'video', 'audio'}:
       raise UserError('Invalid input type it should be image, text, video or audio.')
     if not os.path.isfile(filepath):
