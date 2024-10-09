@@ -59,7 +59,6 @@ class ModelUploader:
       config = yaml.safe_load(file)
     return config
 
-  @staticmethod
   def _validate_config_checkpoints(self):
     if not self.config.get("checkpoints"):
       logger.info("No checkpoints specified in the config file")
@@ -79,7 +78,7 @@ class ModelUploader:
         hf_token = os.environ['HF_TOKEN']
       else:
         hf_token = self.config.get("checkpoints").get("hf_token", None)
-        return repo_id, hf_token
+      return repo_id, hf_token
 
   @property
   def client(self):
@@ -205,7 +204,6 @@ class ModelUploader:
     repo_id, hf_token = self._validate_config_checkpoints()
     if repo_id and hf_token:
       loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
-
       success = loader.download_checkpoints(self.checkpoint_path)
 
       if not success:
