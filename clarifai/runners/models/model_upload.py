@@ -202,14 +202,15 @@ class ModelUploader:
 
   def download_checkpoints(self):
     repo_id, hf_token = self._validate_config_checkpoints()
-    if repo_id and hf_token:
-      loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
-      success = loader.download_checkpoints(self.checkpoint_path)
 
-      if not success:
-        logger.error(f"Failed to download checkpoints for model {repo_id}")
-        return
+    loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
+    success = loader.download_checkpoints(self.checkpoint_path)
+
+    if not success:
+      logger.error(f"Failed to download checkpoints for model {repo_id}")
+    else:
       logger.info(f"Downloaded checkpoints for model {repo_id}")
+    return success
 
   def _concepts_protos_from_concepts(self, concepts):
     concept_protos = []
@@ -245,15 +246,23 @@ class ModelUploader:
     model_type_id = self.config.get('model').get('model_type_id')
     if model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE:
 
-      labels = HuggingFaceLoader.fetch_labels(self.checkpoint_path)
-      # sort the concepts by id and then update the config file
-      labels = sorted(labels.items(), key=lambda x: int(x[0]))
+      if 'concepts' in self.config:
+        labels = self.config.get('concepts')
+        logger.info(f"Found {len(labels)} concepts in the config file.")
+        for concept in labels:
+          concept_proto = json_format.ParseDict(concept, resources_pb2.Concept())
+          model_version_proto.output_info.data.concepts.append(concept_proto)
+      else:
+        labels = HuggingFaceLoader.fetch_labels(self.checkpoint_path)
+        logger.info(f"Found {len(labels)} concepts from the model checkpoints.")
+        # sort the concepts by id and then update the config file
+        labels = sorted(labels.items(), key=lambda x: int(x[0]))
 
-      config_file = os.path.join(self.folder, 'config.yaml')
-      self.hf_labels_to_config(labels, config_file)
+        config_file = os.path.join(self.folder, 'config.yaml')
+        self.hf_labels_to_config(labels, config_file)
 
-      model_version_proto.output_info.data.concepts.extend(
-          self._concepts_protos_from_concepts(labels))
+        model_version_proto.output_info.data.concepts.extend(
+            self._concepts_protos_from_concepts(labels))
     return model_version_proto
 
   def upload_model_version(self, download_checkpoints):

@@ -22,8 +22,6 @@ class ModelRunLocally:
   def __init__(self, model_path):
     self.model_path = model_path
     self.requirements_file = os.path.join(self.model_path, "requirements.txt")
-    self.venv_dir, self.temp_dir = self.create_temp_venv()
-    self.python_executable = os.path.join(self.venv_dir, "bin", "python")
 
   def create_temp_venv(self):
     """Create a temporary virtual environment."""
@@ -31,6 +29,10 @@ class ModelRunLocally:
     temp_dir = tempfile.mkdtemp()
     venv_dir = os.path.join(temp_dir, "venv")
     venv.create(venv_dir, with_pip=True)
+
+    self.venv_dir = venv_dir
+    self.temp_dir = temp_dir
+    self.python_executable = os.path.join(venv_dir, "bin", "python")
 
     logger.info(f"Created temporary virtual environment at {venv_dir}")
     return venv_dir, temp_dir
@@ -125,7 +127,6 @@ class ModelRunLocally:
         nodepool_id="n/a",
         compute_cluster_id="n/a",
     )
-    runner.load_model()
 
     # send an inference.
     response = self._run_model_inference(runner)
@@ -182,6 +183,7 @@ def main():
 
   model_path = args.model_path
   manager = ModelRunLocally(model_path)
+  manager.create_temp_venv()
 
   try:
     manager.install_requirements()
