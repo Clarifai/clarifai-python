@@ -202,14 +202,15 @@ class ModelUploader:
 
   def download_checkpoints(self):
     repo_id, hf_token = self._validate_config_checkpoints()
-    if repo_id and hf_token:
-      loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
-      success = loader.download_checkpoints(self.checkpoint_path)
 
-      if not success:
-        logger.error(f"Failed to download checkpoints for model {repo_id}")
-        return
+    loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
+    success = loader.download_checkpoints(self.checkpoint_path)
+
+    if not success:
+      logger.error(f"Failed to download checkpoints for model {repo_id}")
+    else:
       logger.info(f"Downloaded checkpoints for model {repo_id}")
+    return success
 
   def _concepts_protos_from_concepts(self, concepts):
     concept_protos = []
