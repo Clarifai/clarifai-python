@@ -2,6 +2,7 @@ import argparse
 import os
 import time
 from string import Template
+import typing
 
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -59,11 +60,7 @@ class ModelUploader:
       config = yaml.safe_load(file)
     return config
 
-  def _validate_config_checkpoints(self):
-    if not self.config.get("checkpoints"):
-      logger.info("No checkpoints specified in the config file")
-      return None
-
+  def _validate_config_checkpoints(self) -> typing.Tuple[str, str]:
     assert "type" in self.config.get("checkpoints"), "No loader type specified in the config file"
     loader_type = self.config.get("checkpoints").get("type")
     if not loader_type:
@@ -200,7 +197,10 @@ class ModelUploader:
   def tar_file(self):
     return f"{self.folder}.tar.gz"
 
-  def download_checkpoints(self):
+  def download_checkpoints(self) -> None:
+    if not self.config.get("checkpoints"):
+      logger.info("No checkpoints specified in the config file")
+      return 
     repo_id, hf_token = self._validate_config_checkpoints()
 
     loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
@@ -210,7 +210,7 @@ class ModelUploader:
       logger.error(f"Failed to download checkpoints for model {repo_id}")
     else:
       logger.info(f"Downloaded checkpoints for model {repo_id}")
-    return success
+    return
 
   def _concepts_protos_from_concepts(self, concepts):
     concept_protos = []
