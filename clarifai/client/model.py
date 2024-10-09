@@ -72,6 +72,7 @@ class Model(Lister, BaseClient):
     self.model_info = resources_pb2.Model(**self.kwargs)
     self.logger = logger
     self.training_params = {}
+    self.input_types = None
     BaseClient.__init__(
         self,
         user_id=self.user_id,
@@ -450,9 +451,36 @@ class Model(Lister, BaseClient):
 
     return response
 
+  def get_model_input_types(self) -> List[str]:
+    """Returns the input types for the model.
+
+    Returns:
+        input_types (List): List of input types for the model.
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+                    or
+        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+        >>> print(model.get_model_input_types())
+    """
+    if self.input_types:
+      return self.input_types
+    if self.model_info.model_type_id == "":
+      self.load_info()
+    request = service_pb2.GetModelTypeRequest(
+        user_app_id=self.user_app_id,
+        model_type_id=self.model_info.model_type_id,
+    )
+    response = self._grpc_request(self.STUB.GetModelType, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.input_types = response.model_type.input_fields
+    return self.input_types
+
   def predict_by_filepath(self,
                           filepath: str,
-                          input_type: str,
+                          input_type: str = None,
                           compute_cluster_id: str = None,
                           nodepool_id: str = None,
                           deployment_id: str = None,
@@ -477,8 +505,8 @@ class Model(Lister, BaseClient):
         >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model_prediction = model.predict_by_filepath('/path/to/image.jpg', 'image')
-        >>> model_prediction = model.predict_by_filepath('/path/to/text.txt', 'text')
+        >>> model_prediction = model.predict_by_filepath('/path/to/image.jpg')
+        >>> model_prediction = model.predict_by_filepath('/path/to/text.txt')
     """
     if not os.path.isfile(filepath):
       raise UserError('Invalid filepath.')
@@ -491,7 +519,7 @@ class Model(Lister, BaseClient):
 
   def predict_by_bytes(self,
                        input_bytes: bytes,
-                       input_type: str,
+                       input_type: str = None,
                        compute_cluster_id: str = None,
                        nodepool_id: str = None,
                        deployment_id: str = None,
@@ -515,14 +543,19 @@ class Model(Lister, BaseClient):
         >>> from clarifai.client.model import Model
         >>> model = Model("https://clarifai.com/openai/chat-completion/models/GPT-4")
         >>> model_prediction = model.predict_by_bytes(b'Write a tweet on future of AI',
-                                                      input_type='text',
                                                       inference_params=dict(temperature=str(0.7), max_tokens=30)))
     """
+    if not input_type:
+      model_input_types = self.get_model_input_types()
+      if len(model_input_types) > 1:
+        raise UserError(
+            "Model has multiple input types. Please use model.predict() for this multi-modal model."
+        )
+      input_type = model_input_types[0]
+
     if input_type not in {'image', 'text', 'video', 'audio'}:
       raise UserError(
           f"Got input type {input_type} but expected one of image, text, video, audio.")
-    if not isinstance(input_bytes, bytes):
-      raise UserError('Invalid bytes.')
 
     if input_type == "image":
       input_proto = Inputs.get_input_from_bytes("", image_bytes=input_bytes)
@@ -553,7 +586,7 @@ class Model(Lister, BaseClient):
 
   def predict_by_url(self,
                      url: str,
-                     input_type: str,
+                     input_type: str = None,
                      compute_cluster_id: str = None,
                      nodepool_id: str = None,
                      deployment_id: str = None,
@@ -563,7 +596,7 @@ class Model(Lister, BaseClient):
 
     Args:
         url (str): The URL to predict.
-        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio'.
         compute_cluster_id (str): The compute cluster ID to use for the model.
         nodepool_id (str): The nodepool ID to use for the model.
         deployment_id (str): The deployment ID to use for the model.
@@ -578,8 +611,16 @@ class Model(Lister, BaseClient):
         >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model_prediction = model.predict_by_url('url', 'image')
+        >>> model_prediction = model.predict_by_url('url')
     """
+    if not input_type:
+      model_input_types = self.get_model_input_types()
+      if len(model_input_types) > 1:
+        raise UserError(
+            "Model has multiple input types. Please use model.predict() for this multi-modal model."
+        )
+      input_type = model_input_types[0]
+
     if input_type not in {'image', 'text', 'video', 'audio'}:
       raise UserError(
           f"Got input type {input_type} but expected one of image, text, video, audio.")
