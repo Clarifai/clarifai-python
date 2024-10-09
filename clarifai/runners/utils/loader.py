@@ -16,9 +16,7 @@ class HuggingFaceLoader:
     if token:
       try:
         if importlib.util.find_spec("huggingface_hub") is None:
-          raise ImportError(
-            self.HF_DOWNLOAD_TEXT
-          )
+          raise ImportError(self.HF_DOWNLOAD_TEXT)
         os.environ['HF_TOKEN'] = token
         subprocess.run(f'huggingface-cli login --token={os.environ["HF_TOKEN"]}', shell=True)
       except Exception as e:
@@ -29,9 +27,7 @@ class HuggingFaceLoader:
     try:
       from huggingface_hub import snapshot_download
     except ImportError:
-      raise ImportError(
-        self.HF_DOWNLOAD_TEXT
-      )
+      raise ImportError(self.HF_DOWNLOAD_TEXT)
     if os.path.exists(checkpoint_path) and self.validate_download(checkpoint_path):
       logger.info("Checkpoints already exist")
       return True
@@ -59,9 +55,7 @@ class HuggingFaceLoader:
     try:
       from huggingface_hub import file_exists, repo_exists
     except ImportError:
-      raise ImportError(
-        self.HF_DOWNLOAD_TEXT
-      )
+      raise ImportError(self.HF_DOWNLOAD_TEXT)
     return repo_exists(self.repo_id) and file_exists(self.repo_id, 'config.json')
 
   def validate_download(self, checkpoint_path: str):
@@ -69,9 +63,7 @@ class HuggingFaceLoader:
     try:
       from huggingface_hub import list_repo_files
     except ImportError:
-      raise ImportError(
-        self.HF_DOWNLOAD_TEXT
-      )
+      raise ImportError(self.HF_DOWNLOAD_TEXT)
     checkpoint_dir_files = [
         f for dp, dn, fn in os.walk(os.path.expanduser(checkpoint_path)) for f in fn
     ]
