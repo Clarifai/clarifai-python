@@ -1,8 +1,8 @@
 import argparse
 import os
 import time
-from string import Template
 import typing
+from string import Template
 
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -200,7 +200,7 @@ class ModelUploader:
   def download_checkpoints(self) -> None:
     if not self.config.get("checkpoints"):
       logger.info("No checkpoints specified in the config file")
-      return 
+      return
     repo_id, hf_token = self._validate_config_checkpoints()
 
     loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
