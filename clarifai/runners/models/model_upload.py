@@ -62,7 +62,7 @@ class ModelUploader:
   def _validate_config_checkpoints(self):
     if not self.config.get("checkpoints"):
       logger.info("No checkpoints specified in the config file")
-      return None
+      return None, None
 
     assert "type" in self.config.get("checkpoints"), "No loader type specified in the config file"
     loader_type = self.config.get("checkpoints").get("type")
