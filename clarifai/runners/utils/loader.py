@@ -18,9 +18,17 @@ class HuggingFaceLoader:
         if importlib.util.find_spec("huggingface_hub") is None:
           raise ImportError(self.HF_DOWNLOAD_TEXT)
         os.environ['HF_TOKEN'] = token
+        from huggingface_hub import HfApi
+
+        api = HfApi()
+        api.whoami(token=token)
+
         subprocess.run(f'huggingface-cli login --token={os.environ["HF_TOKEN"]}', shell=True)
       except Exception as e:
-        Exception("Error setting up Hugging Face token ", e)
+        logger.error(
+            f"Error setting up Hugging Face token, please make sure you have the correct token: {e}"
+        )
+        logger.info("Continuing without Hugging Face token")
 
   def download_checkpoints(self, checkpoint_path: str):
     # throw error if huggingface_hub wasn't installed
@@ -50,6 +58,28 @@ class HuggingFaceLoader:
           return False
       return True
 
+  def download_config(self, checkpoint_path: str):
+    # throw error if huggingface_hub wasn't installed
+    try:
+      from huggingface_hub import hf_hub_download
+    except ImportError:
+      raise ImportError(self.HF_DOWNLOAD_TEXT)
+    if os.path.exists(checkpoint_path) and os.path.exists(
+        os.path.join(checkpoint_path, 'config.json')):
+      logger.info("HF model's config.json already exists")
+      return True
+    os.makedirs(checkpoint_path, exist_ok=True)
+    try:
+      is_hf_model_exists = self.validate_hf_model()
+      if not is_hf_model_exists:
+        logger.error("Model %s not found on Hugging Face" % (self.repo_id))
+        return False
+      hf_hub_download(repo_id=self.repo_id, filename='config.json', local_dir=checkpoint_path)
+    except Exception as e:
+      logger.error(f"Error downloading model's config.json {e}")
+      return False
+    return True
+
   def validate_hf_model(self,):
     # check if model exists on HF
     try:
@@ -69,6 +99,12 @@ class HuggingFaceLoader:
     ]
     return (len(checkpoint_dir_files) >= len(list_repo_files(self.repo_id))) and len(
         list_repo_files(self.repo_id)) > 0
+
+  @staticmethod
+  def validate_config(checkpoint_path: str):
+    # check if downloaded config.json exists
+    return os.path.exists(checkpoint_path) and os.path.exists(
+        os.path.join(checkpoint_path, 'config.json'))
 
   @staticmethod
   def fetch_labels(checkpoint_path: str):
