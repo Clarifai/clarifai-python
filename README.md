@@ -1,6 +1,5 @@
-<h1 align="center">
-  <a href="https://www.clarifai.com/"><img alt="Clarifai" title="Clarifai" src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Clarifai_Logo_FC_Web.png"></a>
-</h1>
+<img width="1321" alt="Screenshot 2024-10-10 at 16 48 06" src="https://github.com/user-attachments/assets/b28c492e-fb68-472a-ac03-7254a3c88bae">
+
 
 <h2 align="center">
 Clarifai Python SDK</a>
