@@ -273,7 +273,7 @@ class ModelUploader:
     model_type_id = self.config.get('model').get('model_type_id')
 
     if (model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE) and 'concepts' not in self.config:
-      logger.error(
+      logger.info(
           f"Model type {model_type_id} requires concepts to be specified in the config.yaml file.."
       )
       if self.config.get("checkpoints"):
