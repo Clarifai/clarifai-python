@@ -274,9 +274,12 @@ class ModelUploader:
 
     if (model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE) and 'concepts' not in self.config:
       logger.error(
-          f"Model type {model_type_id} requires concepts to be specified in the config.yaml file or download the HuggingFace model's config.json file to infer the concepts."
+          f"Model type {model_type_id} requires concepts to be specified in the config.yaml file.."
       )
       if self.config.get("checkpoints"):
+        logger.info(
+            "Checkpoints specified in the config.yaml file, will download the HF model's config.json file to infer the concepts."
+        )
 
         if not download_checkpoints and not HuggingFaceLoader.validate_config(
             self.checkpoint_path):
