@@ -1,13 +1,13 @@
-<img width="1321" alt="Screenshot 2024-10-10 at 16 48 06" src="https://github.com/user-attachments/assets/b28c492e-fb68-472a-ac03-7254a3c88bae">
+![image](https://github.com/user-attachments/assets/623b883b-7fe5-4b95-bbfa-8691f5779af4)
 
 
-<h2 align="center">
-Clarifai Python SDK</a>
+<h2>
+Clarifai Python SDK
 </h2>
 
 
 
-<p align="center">
+<p>
   <a href="https://discord.gg/M32V7a7a" target="_blank"> <img src="https://img.shields.io/discord/1145701543228735582" alt="Discord">
   </a>
   <a href="https://pypi.org/project/clarifai" target="_blank"> <img src="https://img.shields.io/pypi/dm/clarifai" alt="PyPI - Downloads">
