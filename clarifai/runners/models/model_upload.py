@@ -60,9 +60,6 @@ class ModelUploader:
     return config
 
   def _validate_config_checkpoints(self):
-    if not self.config.get("checkpoints"):
-      logger.info("No checkpoints specified in the config file")
-      return None
 
     assert "type" in self.config.get("checkpoints"), "No loader type specified in the config file"
     loader_type = self.config.get("checkpoints").get("type")
@@ -201,6 +198,10 @@ class ModelUploader:
     return f"{self.folder}.tar.gz"
 
   def download_checkpoints(self):
+    if not self.config.get("checkpoints"):
+      logger.info("No checkpoints specified in the config file")
+      return True
+
     repo_id, hf_token = self._validate_config_checkpoints()
 
     loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
