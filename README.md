@@ -3,7 +3,7 @@
 </h1>
 
 
-<h2>
+<h2 align="center">
 Clarifai Python SDK
 </h2>
 
