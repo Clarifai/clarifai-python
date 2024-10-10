@@ -1,4 +1,6 @@
-![image](https://github.com/user-attachments/assets/623b883b-7fe5-4b95-bbfa-8691f5779af4)
+<h1 align="center">
+  <a href="https://www.clarifai.com/"><img alt="Clarifai" title="Clarifai" src="https://github.com/user-attachments/assets/623b883b-7fe5-4b95-bbfa-8691f5779af4"></a>
+</h1>
 
 
 <h2>
