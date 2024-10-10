@@ -9,7 +9,7 @@ Clarifai Python SDK
 
 
 
-<p>
+<p align="center">
   <a href="https://discord.gg/M32V7a7a" target="_blank"> <img src="https://img.shields.io/discord/1145701543228735582" alt="Discord">
   </a>
   <a href="https://pypi.org/project/clarifai" target="_blank"> <img src="https://img.shields.io/pypi/dm/clarifai" alt="PyPI - Downloads">
