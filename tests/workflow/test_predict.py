@@ -30,7 +30,7 @@ def workflow():
 class TestWorkflowPredict:
 
   def test_workflow_predict_image_url(self, workflow):
-    post_workflows_response = workflow.predict_by_url(DOG_IMAGE_URL, input_type="image")
+    post_workflows_response = workflow.predict_by_url(DOG_IMAGE_URL)
 
     assert len(post_workflows_response.results[0].outputs[0].data.concepts) > 0
 
@@ -42,8 +42,7 @@ class TestWorkflowPredict:
     assert len(post_workflows_response.results[0].outputs[0].data.concepts) > 0
 
   def test_workflow_predict_file_path(self, workflow):
-    post_workflows_response = workflow.predict_by_filepath(
-        RED_TRUCK_IMAGE_FILE_PATH, input_type="image")
+    post_workflows_response = workflow.predict_by_filepath(RED_TRUCK_IMAGE_FILE_PATH)
 
     assert len(post_workflows_response.results[0].outputs[0].data.concepts) > 0
 

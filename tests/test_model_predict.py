@@ -37,11 +37,11 @@ def validate_concepts_length(response):
 class TestModelPredict:
 
   def test_predict_image_url(self, model):
-    response = model.predict_by_url(DOG_IMAGE_URL, 'image')
+    response = model.predict_by_url(DOG_IMAGE_URL)
     validate_concepts_length(response)
 
   def test_predict_filepath(self, model):
-    response = model.predict_by_filepath(RED_TRUCK_IMAGE_FILE_PATH, 'image')
+    response = model.predict_by_filepath(RED_TRUCK_IMAGE_FILE_PATH)
     validate_concepts_length(response)
 
   def test_predict_image_bytes(self, model):
