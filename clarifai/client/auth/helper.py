@@ -136,7 +136,7 @@ class ClarifaiAuthHelper:
 
     # Then add in the query params.
     try:
-      auth.add_streamlit_query_params(st.experimental_get_query_params())
+      auth.add_streamlit_query_params(dict(st.query_params))
     except Exception as e:
       st.error(e)
       st.stop()
