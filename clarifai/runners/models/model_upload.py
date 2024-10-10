@@ -271,17 +271,28 @@ class ModelUploader:
     logger.info(f"Will tar it into file: {file_path}")
 
     model_type_id = self.config.get('model').get('model_type_id')
-    repo_id, hf_token = self._validate_config_checkpoints()
 
-    loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
-
-    if not download_checkpoints and not loader.validate_download(self.checkpoint_path) and (
-        model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE) and 'concepts' not in self.config:
+    if (model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE) and 'concepts' not in self.config:
       logger.error(
-          f"Model type {model_type_id} requires concepts to be specified in the config file or download the model checkpoints to infer the concepts."
+          f"Model type {model_type_id} requires concepts to be specified in the config.yaml file or download the HuggingFace model's config.json file to infer the concepts."
       )
-      input("Press Enter to download the checkpoints to infer the concepts and continue...")
-      self.download_checkpoints()
+      if self.config.get("checkpoints"):
+
+        if not download_checkpoints and not HuggingFaceLoader.validate_config(
+            self.checkpoint_path):
+
+          input(
+              "Press Enter to download the HuggingFace model's config.json file to infer the concepts and continue..."
+          )
+          repo_id, hf_token = self._validate_config_checkpoints()
+          loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
+          loader.download_config(self.checkpoint_path)
+
+      else:
+        logger.error(
+            "No checkpoints specified in the config.yaml file to infer the concepts. Please either specify the concepts directly in the config.yaml file or include a checkpoints section to download the HF model's config.json file to infer the concepts."
+        )
+        return
 
     model_version_proto = self.get_model_version_proto()
 
