@@ -451,18 +451,38 @@ class Model(Lister, BaseClient):
 
     return response
 
-  def get_model_input_types(self) -> List[str]:
-    """Returns the input types for the model.
+  def _check_predict_input_type(self, input_type: str) -> None:
+    """Checks if the input type is valid for the model.
+
+    Args:
+        input_type (str): The input type to check.
+    Returns:
+        None
+    """
+    if not input_type:
+      self.load_input_types()
+      if len(self.input_types) > 1:
+        raise UserError(
+            "Model has multiple input types. Please use model.predict() for this multi-modal model."
+        )
+    else:
+      self.input_types = [input_type]
+      if self.input_types[0] not in {'image', 'text', 'video', 'audio'}:
+        raise UserError(
+            f"Got input type {input_type} but expected one of image, text, video, audio.")
+
+  def load_input_types(self) -> None:
+    """Loads the input types for the model.
 
     Returns:
-        input_types (List): List of input types for the model.
+        None
 
     Example:
         >>> from clarifai.client.model import Model
         >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> print(model.get_model_input_types())
+        >>> model.load_input_types()
     """
     if self.input_types:
       return self.input_types
@@ -476,7 +496,6 @@ class Model(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.input_types = response.model_type.input_fields
-    return self.input_types
 
   def predict_by_filepath(self,
                           filepath: str,
@@ -545,25 +564,15 @@ class Model(Lister, BaseClient):
         >>> model_prediction = model.predict_by_bytes(b'Write a tweet on future of AI',
                                                       inference_params=dict(temperature=str(0.7), max_tokens=30)))
     """
-    if not input_type:
-      model_input_types = self.get_model_input_types()
-      if len(model_input_types) > 1:
-        raise UserError(
-            "Model has multiple input types. Please use model.predict() for this multi-modal model."
-        )
-      input_type = model_input_types[0]
+    self._check_predict_input_type(input_type)
 
-    if input_type not in {'image', 'text', 'video', 'audio'}:
-      raise UserError(
-          f"Got input type {input_type} but expected one of image, text, video, audio.")
-
-    if input_type == "image":
+    if self.input_types[0] == "image":
       input_proto = Inputs.get_input_from_bytes("", image_bytes=input_bytes)
-    elif input_type == "text":
+    elif self.input_types[0] == "text":
       input_proto = Inputs.get_input_from_bytes("", text_bytes=input_bytes)
-    elif input_type == "video":
+    elif self.input_types[0] == "video":
       input_proto = Inputs.get_input_from_bytes("", video_bytes=input_bytes)
-    elif input_type == "audio":
+    elif self.input_types[0] == "audio":
       input_proto = Inputs.get_input_from_bytes("", audio_bytes=input_bytes)
 
     if deployment_id and (compute_cluster_id or nodepool_id):
@@ -613,25 +622,15 @@ class Model(Lister, BaseClient):
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
         >>> model_prediction = model.predict_by_url('url')
     """
-    if not input_type:
-      model_input_types = self.get_model_input_types()
-      if len(model_input_types) > 1:
-        raise UserError(
-            "Model has multiple input types. Please use model.predict() for this multi-modal model."
-        )
-      input_type = model_input_types[0]
+    self._check_predict_input_type(input_type)
 
-    if input_type not in {'image', 'text', 'video', 'audio'}:
-      raise UserError(
-          f"Got input type {input_type} but expected one of image, text, video, audio.")
-
-    if input_type == "image":
+    if self.input_types[0] == "image":
       input_proto = Inputs.get_input_from_url("", image_url=url)
-    elif input_type == "text":
+    elif self.input_types[0] == "text":
       input_proto = Inputs.get_input_from_url("", text_url=url)
-    elif input_type == "video":
+    elif self.input_types[0] == "video":
       input_proto = Inputs.get_input_from_url("", video_url=url)
-    elif input_type == "audio":
+    elif self.input_types[0] == "audio":
       input_proto = Inputs.get_input_from_url("", audio_url=url)
 
     if deployment_id and (compute_cluster_id or nodepool_id):
@@ -782,27 +781,15 @@ class Model(Lister, BaseClient):
                                                       inference_params=dict(temperature=str(0.7), max_tokens=30)))
         >>> list_stream_response = [response for response in stream_response]
     """
-    if not input_type:
-      model_input_types = self.get_model_input_types()
-      if len(model_input_types) > 1:
-        raise UserError(
-            "Model has multiple input types. Please use model.predict() for this multi-modal model."
-        )
-      input_type = model_input_types[0]
+    self._check_predict_input_type(input_type)
 
-    if input_type not in {'image', 'text', 'video', 'audio'}:
-      raise UserError(
-          f"Got input type {input_type} but expected one of image, text, video, audio.")
-    if not isinstance(input_bytes, bytes):
-      raise UserError('Invalid bytes.')
-
-    if input_type == "image":
+    if self.input_types[0] == "image":
       input_proto = Inputs.get_input_from_bytes("", image_bytes=input_bytes)
-    elif input_type == "text":
+    elif self.input_types[0] == "text":
       input_proto = Inputs.get_input_from_bytes("", text_bytes=input_bytes)
-    elif input_type == "video":
+    elif self.input_types[0] == "video":
       input_proto = Inputs.get_input_from_bytes("", video_bytes=input_bytes)
-    elif input_type == "audio":
+    elif self.input_types[0] == "audio":
       input_proto = Inputs.get_input_from_bytes("", audio_bytes=input_bytes)
 
     if deployment_id and (compute_cluster_id or nodepool_id):
@@ -853,25 +840,15 @@ class Model(Lister, BaseClient):
         >>> stream_response = model.generate_by_url('url', deployment_id='deployment_id')
         >>> list_stream_response = [response for response in stream_response]
     """
-    if not input_type:
-      model_input_types = self.get_model_input_types()
-      if len(model_input_types) > 1:
-        raise UserError(
-            "Model has multiple input types. Please use model.predict() for this multi-modal model."
-        )
-      input_type = model_input_types[0]
+    self._check_predict_input_type(input_type)
 
-    if input_type not in {'image', 'text', 'video', 'audio'}:
-      raise UserError(
-          f"Got input type {input_type} but expected one of image, text, video, audio.")
-
-    if input_type == "image":
+    if self.input_types[0] == "image":
       input_proto = Inputs.get_input_from_url("", image_url=url)
-    elif input_type == "text":
+    elif self.input_types[0] == "text":
       input_proto = Inputs.get_input_from_url("", text_url=url)
-    elif input_type == "video":
+    elif self.input_types[0] == "video":
       input_proto = Inputs.get_input_from_url("", video_url=url)
-    elif input_type == "audio":
+    elif self.input_types[0] == "audio":
       input_proto = Inputs.get_input_from_url("", audio_url=url)
 
     if deployment_id and (compute_cluster_id or nodepool_id):
@@ -1020,27 +997,17 @@ class Model(Lister, BaseClient):
                                                     inference_params=dict(temperature=str(0.7), max_tokens=30)))
         >>> list_stream_response = [response for response in stream_response]
     """
-    if not input_type:
-      model_input_types = self.get_model_input_types()
-      if len(model_input_types) > 1:
-        raise UserError(
-            "Model has multiple input types. Please use model.predict() for this multi-modal model."
-        )
-      input_type = model_input_types[0]
-
-    if input_type not in {'image', 'text', 'video', 'audio'}:
-      raise UserError(
-          f"Got input type {input_type} but expected one of image, text, video, audio.")
+    self._check_predict_input_type(input_type)
 
     def input_generator():
       for input_bytes in input_bytes_iterator:
-        if input_type == "image":
+        if self.input_types[0] == "image":
           yield [Inputs.get_input_from_bytes("", image_bytes=input_bytes)]
-        elif input_type == "text":
+        elif self.input_types[0] == "text":
           yield [Inputs.get_input_from_bytes("", text_bytes=input_bytes)]
-        elif input_type == "video":
+        elif self.input_types[0] == "video":
           yield [Inputs.get_input_from_bytes("", video_bytes=input_bytes)]
-        elif input_type == "audio":
+        elif self.input_types[0] == "audio":
           yield [Inputs.get_input_from_bytes("", audio_bytes=input_bytes)]
 
     if deployment_id and (compute_cluster_id or nodepool_id):
@@ -1089,27 +1056,17 @@ class Model(Lister, BaseClient):
         >>> stream_response = model.stream_by_url(iter(['url']), deployment_id='deployment_id')
         >>> list_stream_response = [response for response in stream_response]
     """
-    if not input_type:
-      model_input_types = self.get_model_input_types()
-      if len(model_input_types) > 1:
-        raise UserError(
-            "Model has multiple input types. Please use model.predict() for this multi-modal model."
-        )
-      input_type = model_input_types[0]
-
-    if input_type not in {'image', 'text', 'video', 'audio'}:
-      raise UserError(
-          f"Got input type {input_type} but expected one of image, text, video, audio.")
+    self._check_predict_input_type(input_type)
 
     def input_generator():
       for url in url_iterator:
-        if input_type == "image":
+        if self.input_types[0] == "image":
           yield [Inputs.get_input_from_url("", image_url=url)]
-        elif input_type == "text":
+        elif self.input_types[0] == "text":
           yield [Inputs.get_input_from_url("", text_url=url)]
-        elif input_type == "video":
+        elif self.input_types[0] == "video":
           yield [Inputs.get_input_from_url("", video_url=url)]
-        elif input_type == "audio":
+        elif self.input_types[0] == "audio":
           yield [Inputs.get_input_from_url("", audio_url=url)]
 
     if deployment_id and (compute_cluster_id or nodepool_id):

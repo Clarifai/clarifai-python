@@ -282,7 +282,8 @@ class Workflow(Lister, BaseClient):
           model_id=self.kwargs['nodes'][0]['model']['id'],
           **self.kwargs['nodes'][0]['model'],
           pat=self.pat)
-      self.input_types = model.get_model_input_types()
+      model.load_input_types()
+      self.input_types = model.input_types
 
   def __getattr__(self, name):
     return getattr(self.workflow_info, name)
