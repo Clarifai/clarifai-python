@@ -24,7 +24,6 @@ def init_components(
     client: BaseClient,
     app_id,
     model_id,
-    runner_id,
     nodepool_id,
     compute_cluster_id,
 ):
@@ -41,96 +40,72 @@ def init_components(
   new_model = model.create_version()
 
   new_model_version = new_model.model_version.id
-  try:
-    compute_cluster_delete_request = service_pb2.DeleteComputeClustersRequest(
-        user_app_id=client.user_app_id,
-        ids=[compute_cluster_id],
-    )
-    client.STUB.DeleteComputeClusters(compute_cluster_delete_request)
+  compute_cluster = resources_pb2.ComputeCluster(
+      id=compute_cluster_id,
+      description="test runners repo",
+      cloud_provider=resources_pb2.CloudProvider(id="local", name="Colo 1"),
+      region="us-east-1",
+      user_id=auth.user_id,
+      cluster_type="local-dev",
+      managed_by="user",
+      key=resources_pb2.Key(id=os.environ["CLARIFAI_PAT"]),
+  )
+  compute_cluster_request = service_pb2.PostComputeClustersRequest(
+      user_app_id=client.user_app_id,
+      compute_clusters=[compute_cluster],
+  )
+  res = client.STUB.PostComputeClusters(compute_cluster_request)
+  if res.status.code != status_code_pb2.SUCCESS:
+    logger.error(json_format.MessageToDict(res, preserving_proto_field_name=True))
+    raise Exception(res.status)
 
-    nodepool_delete_request = service_pb2.DeleteNodepoolsRequest(
-        user_app_id=client.user_app_id, compute_cluster_id=compute_cluster_id, ids=[nodepool_id])
-    client.STUB.DeleteNodepools(nodepool_delete_request)
+  nodepool = resources_pb2.Nodepool(
+      id=nodepool_id,
+      description="test runners repo",
+      compute_cluster=compute_cluster,
+      node_capacity_type=resources_pb2.NodeCapacityType(capacity_types=[1, 2]),
+      instance_types=[
+          resources_pb2.InstanceType(
+              id='instance-1',
+              compute_info=resources_pb2.ComputeInfo(
+                  cpu_limit="1",
+                  cpu_memory="8Gi",
+                  num_accelerators=0,
+              ),
+          )
+      ],
+      max_instances=1,
+  )
+  nodepools_request = service_pb2.PostNodepoolsRequest(
+      user_app_id=client.user_app_id, compute_cluster_id=compute_cluster_id, nodepools=[nodepool])
+  res = client.STUB.PostNodepools(nodepools_request)
+  if res.status.code != status_code_pb2.SUCCESS:
+    logger.error(json_format.MessageToDict(res, preserving_proto_field_name=True))
+    raise Exception(res.status)
 
-    runner_delete_request = service_pb2.DeleteRunnersRequest(
-        user_app_id=client.user_app_id,
-        compute_cluster_id=compute_cluster_id,
-        nodepool_id=nodepool_id,
-        ids=[runner_id],
-    )
-    client.STUB.DeleteRunners(runner_delete_request)
-  except Exception as _:
-    pass
-  finally:
-    compute_cluster = resources_pb2.ComputeCluster(
-        id=compute_cluster_id,
-        description="test runners repo",
-        cloud_provider=resources_pb2.CloudProvider(id="local", name="Colo 1"),
-        region="us-east-1",
-        user_id=auth.user_id,
-        cluster_type="local-dev",
-        managed_by="user",
-        key=resources_pb2.Key(id=os.environ["CLARIFAI_PAT"]),
-    )
-    compute_cluster_request = service_pb2.PostComputeClustersRequest(
-        user_app_id=client.user_app_id,
-        compute_clusters=[compute_cluster],
-    )
-    res = client.STUB.PostComputeClusters(compute_cluster_request)
-    if res.status.code != status_code_pb2.SUCCESS:
-      logger.error(json_format.MessageToDict(res, preserving_proto_field_name=True))
-      raise Exception(res.status)
+  runner = resources_pb2.Runner(
+      description="test runners repo",
+      worker=resources_pb2.Worker(model=resources_pb2.Model(
+          id=model_id,
+          user_id=auth.user_id,
+          app_id=app_id,
+          model_version=resources_pb2.ModelVersion(id=new_model_version),
+      )),
+      num_replicas=1,
+      nodepool=nodepool,
+  )
+  runners_request = service_pb2.PostRunnersRequest(
+      user_app_id=client.user_app_id,
+      compute_cluster_id=compute_cluster_id,
+      nodepool_id=nodepool_id,
+      runners=[runner],
+  )
+  res = client.STUB.PostRunners(runners_request)
+  if res.status.code != status_code_pb2.SUCCESS:
+    logger.error(json_format.MessageToDict(res, preserving_proto_field_name=True))
+    raise Exception(res.status)
 
-    nodepool = resources_pb2.Nodepool(
-        id=nodepool_id,
-        description="test runners repo",
-        compute_cluster=compute_cluster,
-        node_capacity_type=resources_pb2.NodeCapacityType(capacity_types=[1, 2]),
-        instance_types=[
-            resources_pb2.InstanceType(
-                id='instance-1',
-                compute_info=resources_pb2.ComputeInfo(
-                    cpu_limit="1",
-                    cpu_memory="8Gi",
-                    num_accelerators=0,
-                ),
-            )
-        ],
-        max_instances=1,
-    )
-    nodepools_request = service_pb2.PostNodepoolsRequest(
-        user_app_id=client.user_app_id,
-        compute_cluster_id=compute_cluster_id,
-        nodepools=[nodepool])
-    res = client.STUB.PostNodepools(nodepools_request)
-    if res.status.code != status_code_pb2.SUCCESS:
-      logger.error(json_format.MessageToDict(res, preserving_proto_field_name=True))
-      raise Exception(res.status)
-
-    runner = resources_pb2.Runner(
-        id=runner_id,
-        description="test runners repo",
-        worker=resources_pb2.Worker(model=resources_pb2.Model(
-            id=model_id,
-            user_id=auth.user_id,
-            app_id=app_id,
-            model_version=resources_pb2.ModelVersion(id=new_model_version),
-        )),
-        num_replicas=1,
-        nodepool=nodepool,
-    )
-    runners_request = service_pb2.PostRunnersRequest(
-        user_app_id=client.user_app_id,
-        compute_cluster_id=compute_cluster_id,
-        nodepool_id=nodepool_id,
-        runners=[runner],
-    )
-    res = client.STUB.PostRunners(runners_request)
-    if res.status.code != status_code_pb2.SUCCESS:
-      logger.error(json_format.MessageToDict(res, preserving_proto_field_name=True))
-      raise Exception(res.status)
-
-    return new_model_version
+  return new_model_version, res.runners[0].id
 
 
 @pytest.mark.requires_secrets
@@ -140,7 +115,6 @@ class TestRunnerServer:
   def setup_class(cls):
     NOW = uuid.uuid4().hex[:10]
     cls.MODEL_ID = f"test-runner-model-{NOW}"
-    cls.RUNNER_ID = f"test-runner-{NOW}"
     cls.NODEPOOL_ID = f"test-nodepool-{NOW}"
     cls.COMPUTE_CLUSTER_ID = f"test-compute_cluster-{NOW}"
     cls.APP_ID = f"ci-test-runner-app-{NOW}"
@@ -151,12 +125,11 @@ class TestRunnerServer:
     cls.logger = logger
     cls.logger.info("Starting runner server")
 
-    cls.MODEL_VERSION_ID = init_components(
+    cls.MODEL_VERSION_ID, cls.RUNNER_ID = init_components(
         cls.AUTH,
         cls.CLIENT,
         cls.APP_ID,
         cls.MODEL_ID,
-        cls.RUNNER_ID,
         cls.NODEPOOL_ID,
         cls.COMPUTE_CLUSTER_ID,
     )
@@ -267,7 +240,6 @@ class TestWrapperRunnerServer(TestRunnerServer):
   def setup_class(cls):
     NOW = uuid.uuid4().hex[:10]
     cls.MODEL_ID = f"test-runner-model-{NOW}"
-    cls.RUNNER_ID = f"test-runner-{NOW}"
     cls.NODEPOOL_ID = f"test-nodepool-{NOW}"
     cls.COMPUTE_CLUSTER_ID = f"test-compute_cluster-{NOW}"
     cls.APP_ID = f"ci-test-runner-app-{NOW}"
@@ -275,12 +247,11 @@ class TestWrapperRunnerServer(TestRunnerServer):
     cls.AUTH = cls.CLIENT.auth_helper
     cls.AUTH.app_id = cls.APP_ID
 
-    cls.MODEL_VERSION_ID = init_components(
+    cls.MODEL_VERSION_ID, cls.RUNNER_ID = init_components(
         cls.AUTH,
         cls.CLIENT,
         cls.APP_ID,
         cls.MODEL_ID,
-        cls.RUNNER_ID,
         cls.NODEPOOL_ID,
         cls.COMPUTE_CLUSTER_ID,
     )
