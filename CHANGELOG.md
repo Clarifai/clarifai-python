@@ -1,7 +1,7 @@
 ## [[10.9.2]](https://github.com/Clarifai/clarifai-python/releases/tag/10.9.2) - [PyPI](https://pypi.org/project/clarifai/10.9.2/) - 2024-10-14
 
 ### Changed
- - Improve UX for model upload [(#420)] (https://github.com/Clarifai/clarifai-python/pull/420)
+ - Improve UX for model upload and test runners tests [(#420)] (https://github.com/Clarifai/clarifai-python/pull/420)
  - Added functionality to Merge Datasets [(#419)] (https://github.com/Clarifai/clarifai-python/pull/419)
  - Fix bugs for model upload  [(#417)] (https://github.com/Clarifai/clarifai-python/pull/417)
  - Fix download_checkpoints and fix run model locally  [(#415)] (https://github.com/Clarifai/clarifai-python/pull/415)
