@@ -72,6 +72,7 @@ class Model(Lister, BaseClient):
     self.model_info = resources_pb2.Model(**self.kwargs)
     self.logger = logger
     self.training_params = {}
+    self.input_types = None
     BaseClient.__init__(
         self,
         user_id=self.user_id,
@@ -450,9 +451,55 @@ class Model(Lister, BaseClient):
 
     return response
 
+  def _check_predict_input_type(self, input_type: str) -> None:
+    """Checks if the input type is valid for the model.
+
+    Args:
+        input_type (str): The input type to check.
+    Returns:
+        None
+    """
+    if not input_type:
+      self.load_input_types()
+      if len(self.input_types) > 1:
+        raise UserError(
+            "Model has multiple input types. Please use model.predict() for this multi-modal model."
+        )
+    else:
+      self.input_types = [input_type]
+      if self.input_types[0] not in {'image', 'text', 'video', 'audio'}:
+        raise UserError(
+            f"Got input type {input_type} but expected one of image, text, video, audio.")
+
+  def load_input_types(self) -> None:
+    """Loads the input types for the model.
+
+    Returns:
+        None
+
+    Example:
+        >>> from clarifai.client.model import Model
+        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+                    or
+        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+        >>> model.load_input_types()
+    """
+    if self.input_types:
+      return self.input_types
+    if self.model_info.model_type_id == "":
+      self.load_info()
+    request = service_pb2.GetModelTypeRequest(
+        user_app_id=self.user_app_id,
+        model_type_id=self.model_info.model_type_id,
+    )
+    response = self._grpc_request(self.STUB.GetModelType, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.input_types = response.model_type.input_fields
+
   def predict_by_filepath(self,
                           filepath: str,
-                          input_type: str,
+                          input_type: str = None,
                           compute_cluster_id: str = None,
                           nodepool_id: str = None,
                           deployment_id: str = None,
@@ -462,7 +509,7 @@ class Model(Lister, BaseClient):
 
     Args:
         filepath (str): The filepath to predict.
-        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
         compute_cluster_id (str): The compute cluster ID to use for the model.
         nodepool_id (str): The nodepool ID to use for the model.
         deployment_id (str): The deployment ID to use for the model.
@@ -477,8 +524,8 @@ class Model(Lister, BaseClient):
         >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model_prediction = model.predict_by_filepath('/path/to/image.jpg', 'image')
-        >>> model_prediction = model.predict_by_filepath('/path/to/text.txt', 'text')
+        >>> model_prediction = model.predict_by_filepath('/path/to/image.jpg')
+        >>> model_prediction = model.predict_by_filepath('/path/to/text.txt')
     """
     if not os.path.isfile(filepath):
       raise UserError('Invalid filepath.')
@@ -491,7 +538,7 @@ class Model(Lister, BaseClient):
 
   def predict_by_bytes(self,
                        input_bytes: bytes,
-                       input_type: str,
+                       input_type: str = None,
                        compute_cluster_id: str = None,
                        nodepool_id: str = None,
                        deployment_id: str = None,
@@ -501,7 +548,7 @@ class Model(Lister, BaseClient):
 
     Args:
         input_bytes (bytes): File Bytes to predict on.
-        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
         compute_cluster_id (str): The compute cluster ID to use for the model.
         nodepool_id (str): The nodepool ID to use for the model.
         deployment_id (str): The deployment ID to use for the model.
@@ -515,22 +562,17 @@ class Model(Lister, BaseClient):
         >>> from clarifai.client.model import Model
         >>> model = Model("https://clarifai.com/openai/chat-completion/models/GPT-4")
         >>> model_prediction = model.predict_by_bytes(b'Write a tweet on future of AI',
-                                                      input_type='text',
                                                       inference_params=dict(temperature=str(0.7), max_tokens=30)))
     """
-    if input_type not in {'image', 'text', 'video', 'audio'}:
-      raise UserError(
-          f"Got input type {input_type} but expected one of image, text, video, audio.")
-    if not isinstance(input_bytes, bytes):
-      raise UserError('Invalid bytes.')
+    self._check_predict_input_type(input_type)
 
-    if input_type == "image":
+    if self.input_types[0] == "image":
       input_proto = Inputs.get_input_from_bytes("", image_bytes=input_bytes)
-    elif input_type == "text":
+    elif self.input_types[0] == "text":
       input_proto = Inputs.get_input_from_bytes("", text_bytes=input_bytes)
-    elif input_type == "video":
+    elif self.input_types[0] == "video":
       input_proto = Inputs.get_input_from_bytes("", video_bytes=input_bytes)
-    elif input_type == "audio":
+    elif self.input_types[0] == "audio":
       input_proto = Inputs.get_input_from_bytes("", audio_bytes=input_bytes)
 
     if deployment_id and (compute_cluster_id or nodepool_id):
@@ -553,7 +595,7 @@ class Model(Lister, BaseClient):
 
   def predict_by_url(self,
                      url: str,
-                     input_type: str,
+                     input_type: str = None,
                      compute_cluster_id: str = None,
                      nodepool_id: str = None,
                      deployment_id: str = None,
@@ -563,7 +605,7 @@ class Model(Lister, BaseClient):
 
     Args:
         url (str): The URL to predict.
-        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio'.
         compute_cluster_id (str): The compute cluster ID to use for the model.
         nodepool_id (str): The nodepool ID to use for the model.
         deployment_id (str): The deployment ID to use for the model.
@@ -578,19 +620,17 @@ class Model(Lister, BaseClient):
         >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model_prediction = model.predict_by_url('url', 'image')
+        >>> model_prediction = model.predict_by_url('url')
     """
-    if input_type not in {'image', 'text', 'video', 'audio'}:
-      raise UserError(
-          f"Got input type {input_type} but expected one of image, text, video, audio.")
+    self._check_predict_input_type(input_type)
 
-    if input_type == "image":
+    if self.input_types[0] == "image":
       input_proto = Inputs.get_input_from_url("", image_url=url)
-    elif input_type == "text":
+    elif self.input_types[0] == "text":
       input_proto = Inputs.get_input_from_url("", text_url=url)
-    elif input_type == "video":
+    elif self.input_types[0] == "video":
       input_proto = Inputs.get_input_from_url("", video_url=url)
-    elif input_type == "audio":
+    elif self.input_types[0] == "audio":
       input_proto = Inputs.get_input_from_url("", audio_url=url)
 
     if deployment_id and (compute_cluster_id or nodepool_id):
@@ -668,7 +708,7 @@ class Model(Lister, BaseClient):
 
   def generate_by_filepath(self,
                            filepath: str,
-                           input_type: str,
+                           input_type: str = None,
                            compute_cluster_id: str = None,
                            nodepool_id: str = None,
                            deployment_id: str = None,
@@ -678,7 +718,7 @@ class Model(Lister, BaseClient):
 
     Args:
         filepath (str): The filepath to predict.
-        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
         compute_cluster_id (str): The compute cluster ID to use for the model.
         nodepool_id (str): The nodepool ID to use for the model.
         deployment_id (str): The deployment ID to use for the model.
@@ -713,7 +753,7 @@ class Model(Lister, BaseClient):
 
   def generate_by_bytes(self,
                         input_bytes: bytes,
-                        input_type: str,
+                        input_type: str = None,
                         compute_cluster_id: str = None,
                         nodepool_id: str = None,
                         deployment_id: str = None,
@@ -723,7 +763,7 @@ class Model(Lister, BaseClient):
 
     Args:
         input_bytes (bytes): File Bytes to predict on.
-        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
         compute_cluster_id (str): The compute cluster ID to use for the model.
         nodepool_id (str): The nodepool ID to use for the model.
         deployment_id (str): The deployment ID to use for the model.
@@ -737,24 +777,19 @@ class Model(Lister, BaseClient):
         >>> from clarifai.client.model import Model
         >>> model = Model("https://clarifai.com/openai/chat-completion/models/GPT-4")
         >>> stream_response = model.generate_by_bytes(b'Write a tweet on future of AI',
-                                                      input_type='text',
                                                       deployment_id='deployment_id',
                                                       inference_params=dict(temperature=str(0.7), max_tokens=30)))
         >>> list_stream_response = [response for response in stream_response]
     """
-    if input_type not in {'image', 'text', 'video', 'audio'}:
-      raise UserError(
-          f"Got input type {input_type} but expected one of image, text, video, audio.")
-    if not isinstance(input_bytes, bytes):
-      raise UserError('Invalid bytes.')
+    self._check_predict_input_type(input_type)
 
-    if input_type == "image":
+    if self.input_types[0] == "image":
       input_proto = Inputs.get_input_from_bytes("", image_bytes=input_bytes)
-    elif input_type == "text":
+    elif self.input_types[0] == "text":
       input_proto = Inputs.get_input_from_bytes("", text_bytes=input_bytes)
-    elif input_type == "video":
+    elif self.input_types[0] == "video":
       input_proto = Inputs.get_input_from_bytes("", video_bytes=input_bytes)
-    elif input_type == "audio":
+    elif self.input_types[0] == "audio":
       input_proto = Inputs.get_input_from_bytes("", audio_bytes=input_bytes)
 
     if deployment_id and (compute_cluster_id or nodepool_id):
@@ -777,7 +812,7 @@ class Model(Lister, BaseClient):
 
   def generate_by_url(self,
                       url: str,
-                      input_type: str,
+                      input_type: str = None,
                       compute_cluster_id: str = None,
                       nodepool_id: str = None,
                       deployment_id: str = None,
@@ -787,7 +822,7 @@ class Model(Lister, BaseClient):
 
     Args:
         url (str): The URL to predict.
-        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
         compute_cluster_id (str): The compute cluster ID to use for the model.
         nodepool_id (str): The nodepool ID to use for the model.
         deployment_id (str): The deployment ID to use for the model.
@@ -802,20 +837,18 @@ class Model(Lister, BaseClient):
         >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
                     or
         >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> stream_response = model.generate_by_url('url', 'image', deployment_id='deployment_id')
+        >>> stream_response = model.generate_by_url('url', deployment_id='deployment_id')
         >>> list_stream_response = [response for response in stream_response]
     """
-    if input_type not in {'image', 'text', 'video', 'audio'}:
-      raise UserError(
-          f"Got input type {input_type} but expected one of image, text, video, audio.")
+    self._check_predict_input_type(input_type)
 
-    if input_type == "image":
+    if self.input_types[0] == "image":
       input_proto = Inputs.get_input_from_url("", image_url=url)
-    elif input_type == "text":
+    elif self.input_types[0] == "text":
       input_proto = Inputs.get_input_from_url("", text_url=url)
-    elif input_type == "video":
+    elif self.input_types[0] == "video":
       input_proto = Inputs.get_input_from_url("", video_url=url)
-    elif input_type == "audio":
+    elif self.input_types[0] == "audio":
       input_proto = Inputs.get_input_from_url("", audio_url=url)
 
     if deployment_id and (compute_cluster_id or nodepool_id):
@@ -893,7 +926,7 @@ class Model(Lister, BaseClient):
 
   def stream_by_filepath(self,
                          filepath: str,
-                         input_type: str,
+                         input_type: str = None,
                          compute_cluster_id: str = None,
                          nodepool_id: str = None,
                          deployment_id: str = None,
@@ -903,7 +936,7 @@ class Model(Lister, BaseClient):
 
     Args:
         filepath (str): The filepath to predict.
-        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
         compute_cluster_id (str): The compute cluster ID to use for the model.
         nodepool_id (str): The nodepool ID to use for the model.
         deployment_id (str): The deployment ID to use for the model.
@@ -916,7 +949,7 @@ class Model(Lister, BaseClient):
     Example:
         >>> from clarifai.client.model import Model
         >>> model = Model("url")
-        >>> stream_response = model.stream_by_filepath('/path/to/image.jpg', 'image', deployment_id='deployment_id')
+        >>> stream_response = model.stream_by_filepath('/path/to/image.jpg', deployment_id='deployment_id')
         >>> list_stream_response = [response for response in stream_response]
     """
     if not os.path.isfile(filepath):
@@ -936,7 +969,7 @@ class Model(Lister, BaseClient):
 
   def stream_by_bytes(self,
                       input_bytes_iterator: Iterator[bytes],
-                      input_type: str,
+                      input_type: str = None,
                       compute_cluster_id: str = None,
                       nodepool_id: str = None,
                       deployment_id: str = None,
@@ -946,7 +979,7 @@ class Model(Lister, BaseClient):
 
     Args:
         input_bytes_iterator (Iterator[bytes]): Iterator of file bytes to predict on.
-        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
         compute_cluster_id (str): The compute cluster ID to use for the model.
         nodepool_id (str): The nodepool ID to use for the model.
         deployment_id (str): The deployment ID to use for the model.
@@ -960,24 +993,21 @@ class Model(Lister, BaseClient):
         >>> from clarifai.client.model import Model
         >>> model = Model("https://clarifai.com/openai/chat-completion/models/GPT-4")
         >>> stream_response = model.stream_by_bytes(iter([b'Write a tweet on future of AI']),
-                                                    input_type='text',
                                                     deployment_id='deployment_id',
                                                     inference_params=dict(temperature=str(0.7), max_tokens=30)))
         >>> list_stream_response = [response for response in stream_response]
     """
-    if input_type not in {'image', 'text', 'video', 'audio'}:
-      raise UserError(
-          f"Got input type {input_type} but expected one of image, text, video, audio.")
+    self._check_predict_input_type(input_type)
 
     def input_generator():
       for input_bytes in input_bytes_iterator:
-        if input_type == "image":
+        if self.input_types[0] == "image":
           yield [Inputs.get_input_from_bytes("", image_bytes=input_bytes)]
-        elif input_type == "text":
+        elif self.input_types[0] == "text":
           yield [Inputs.get_input_from_bytes("", text_bytes=input_bytes)]
-        elif input_type == "video":
+        elif self.input_types[0] == "video":
           yield [Inputs.get_input_from_bytes("", video_bytes=input_bytes)]
-        elif input_type == "audio":
+        elif self.input_types[0] == "audio":
           yield [Inputs.get_input_from_bytes("", audio_bytes=input_bytes)]
 
     if deployment_id and (compute_cluster_id or nodepool_id):
@@ -1000,7 +1030,7 @@ class Model(Lister, BaseClient):
 
   def stream_by_url(self,
                     url_iterator: Iterator[str],
-                    input_type: str,
+                    input_type: str = None,
                     compute_cluster_id: str = None,
                     nodepool_id: str = None,
                     deployment_id: str = None,
@@ -1010,7 +1040,7 @@ class Model(Lister, BaseClient):
 
     Args:
         url_iterator (Iterator[str]): Iterator of URLs to predict.
-        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
         compute_cluster_id (str): The compute cluster ID to use for the model.
         nodepool_id (str): The nodepool ID to use for the model.
         deployment_id (str): The deployment ID to use for the model.
@@ -1023,22 +1053,20 @@ class Model(Lister, BaseClient):
     Example:
         >>> from clarifai.client.model import Model
         >>> model = Model("url")
-        >>> stream_response = model.stream_by_url(iter(['url']), 'image', deployment_id='deployment_id')
+        >>> stream_response = model.stream_by_url(iter(['url']), deployment_id='deployment_id')
         >>> list_stream_response = [response for response in stream_response]
     """
-    if input_type not in {'image', 'text', 'video', 'audio'}:
-      raise UserError(
-          f"Got input type {input_type} but expected one of image, text, video, audio.")
+    self._check_predict_input_type(input_type)
 
     def input_generator():
       for url in url_iterator:
-        if input_type == "image":
+        if self.input_types[0] == "image":
           yield [Inputs.get_input_from_url("", image_url=url)]
-        elif input_type == "text":
+        elif self.input_types[0] == "text":
           yield [Inputs.get_input_from_url("", text_url=url)]
-        elif input_type == "video":
+        elif self.input_types[0] == "video":
           yield [Inputs.get_input_from_url("", video_url=url)]
-        elif input_type == "audio":
+        elif self.input_types[0] == "audio":
           yield [Inputs.get_input_from_url("", audio_url=url)]
 
     if deployment_id and (compute_cluster_id or nodepool_id):

@@ -5,10 +5,12 @@ from typing import Dict, Generator, List
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import Input
 from clarifai_grpc.grpc.api.status import status_code_pb2
+from google.protobuf.json_format import MessageToDict
 
 from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
+from clarifai.client.model import Model
 from clarifai.constants.workflow import MAX_WORKFLOW_PREDICT_INPUTS
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
@@ -60,6 +62,7 @@ class Workflow(Lister, BaseClient):
     self.output_config = output_config
     self.workflow_info = resources_pb2.Workflow(**self.kwargs)
     self.logger = logger
+    self.input_types = None
     BaseClient.__init__(
         self,
         user_id=self.user_id,
@@ -109,20 +112,26 @@ class Workflow(Lister, BaseClient):
 
     return response
 
-  def predict_by_filepath(self, filepath: str, input_type: str):
+  def predict_by_filepath(self, filepath: str, input_type: str = None):
     """Predicts the workflow based on the given filepath.
 
     Args:
         filepath (str): The filepath to predict.
-        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
 
     Example:
         >>> from clarifai.client.workflow import Workflow
         >>> workflow = Workflow("url") # Example: https://clarifai.com/clarifai/main/workflows/Face-Sentiment
                       or
         >>> workflow = Workflow(user_id='user_id', app_id='app_id', workflow_id='workflow_id')
-        >>> workflow_prediction = workflow.predict_by_filepath('filepath', 'image')
+        >>> workflow_prediction = workflow.predict_by_filepath('filepath')
     """
+    if not input_type:
+      self.load_info()
+      if len(self.input_types) > 1:
+        raise UserError("Workflow has multiple input types. Please use workflow.predict().")
+      input_type = self.input_types[0]
+
     if input_type not in {'image', 'text', 'video', 'audio'}:
       raise UserError('Invalid input type it should be image, text, video or audio.')
     if not os.path.isfile(filepath):
@@ -133,13 +142,19 @@ class Workflow(Lister, BaseClient):
 
     return self.predict_by_bytes(file_bytes, input_type)
 
-  def predict_by_bytes(self, input_bytes: bytes, input_type: str):
+  def predict_by_bytes(self, input_bytes: bytes, input_type: str = None):
     """Predicts the workflow based on the given bytes.
 
     Args:
         input_bytes (bytes): Bytes to predict on.
-        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
     """
+    if not input_type:
+      self.load_info()
+      if len(self.input_types) > 1:
+        raise UserError("Workflow has multiple input types. Please use workflow.predict().")
+      input_type = self.input_types[0]
+
     if input_type not in {'image', 'text', 'video', 'audio'}:
       raise UserError('Invalid input type it should be image, text, video or audio.')
     if not isinstance(input_bytes, bytes):
@@ -156,20 +171,26 @@ class Workflow(Lister, BaseClient):
 
     return self.predict(inputs=[input_proto])
 
-  def predict_by_url(self, url: str, input_type: str):
+  def predict_by_url(self, url: str, input_type: str = None):
     """Predicts the workflow based on the given URL.
 
     Args:
         url (str): The URL to predict.
-        input_type (str): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
 
     Example:
         >>> from clarifai.client.workflow import Workflow
         >>> workflow = Workflow("url") # Example: https://clarifai.com/clarifai/main/workflows/Face-Sentiment
                       or
         >>> workflow = Workflow(user_id='user_id', app_id='app_id', workflow_id='workflow_id')
-        >>> workflow_prediction = workflow.predict_by_url('url', 'image')
+        >>> workflow_prediction = workflow.predict_by_url('url')
     """
+    if not input_type:
+      self.load_info()
+      if len(self.input_types) > 1:
+        raise UserError("Workflow has multiple input types. Please use workflow.predict().")
+      input_type = self.input_types[0]
+
     if input_type not in {'image', 'text', 'video', 'audio'}:
       raise UserError('Invalid input type it should be image, text, video or audio.')
 
@@ -244,6 +265,25 @@ class Workflow(Lister, BaseClient):
       e.export(out_path)
 
     self.logger.info(f"Exported workflow to {out_path}")
+
+  def load_info(self) -> None:
+    """Loads the workflow info."""
+    if not self.input_types:
+      request = service_pb2.GetWorkflowRequest(user_app_id=self.user_app_id, workflow_id=self.id)
+      response = self._grpc_request(self.STUB.GetWorkflow, request)
+      if response.status.code != status_code_pb2.SUCCESS:
+        raise Exception(f"Workflow Get failed with response {response.status!r}")
+
+      dict_response = MessageToDict(response, preserving_proto_field_name=True)
+      self.kwargs = self.process_response_keys(dict_response['workflow'])
+      self.workflow_info = resources_pb2.Workflow(**self.kwargs)
+
+      model = Model(
+          model_id=self.kwargs['nodes'][0]['model']['id'],
+          **self.kwargs['nodes'][0]['model'],
+          pat=self.pat)
+      model.load_input_types()
+      self.input_types = model.input_types
 
   def __getattr__(self, name):
     return getattr(self.workflow_info, name)
