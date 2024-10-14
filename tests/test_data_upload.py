@@ -15,6 +15,7 @@ CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
 NOW = uuid.uuid4().hex[:10]
 CREATE_APP_ID = f"ci_input_app_{NOW}"
 CREATE_DATASET_ID = "ci_input_test_dataset"
+CREATE_DATASET_NEW_ID = "ci_input_test_dataset_new"
 
 #assets
 IMAGE_URL = "https://samples.clarifai.com/metro-north.jpg"
@@ -60,6 +61,7 @@ class Testdataupload:
     self.app = create_app()
     self.input_object = self.app.inputs()
     self.dataset = self.app.create_dataset(dataset_id=CREATE_DATASET_ID)
+    self.dataset_new = self.app.create_dataset(dataset_id=CREATE_DATASET_NEW_ID)
 
   def test_upload_image_url(self, caplog):
     with caplog.at_level(logging.INFO):
@@ -264,6 +266,11 @@ class Testdataupload:
     annotations = list(self.input_object.list_annotations(batch_input=uploaded_inputs))
     assert len(uploaded_inputs) == 10  # 10 inputs are uploaded from the folder
     assert len(annotations) == 10  # Test for list annotations
+
+  def test_merge_datasets(self, caplog):
+    with caplog.at_level(logging.INFO):
+      self.dataset_new.merge_dataset(merge_dataset_id=CREATE_DATASET_ID)
+      assert "SUCCESS" in caplog.text
 
   def test_export_dataset(self):
     dataset_demo_version = self.dataset.create_version()

@@ -60,9 +60,6 @@ class ModelUploader:
     return config
 
   def _validate_config_checkpoints(self):
-    if not self.config.get("checkpoints"):
-      logger.info("No checkpoints specified in the config file")
-      return None
 
     assert "type" in self.config.get("checkpoints"), "No loader type specified in the config file"
     loader_type = self.config.get("checkpoints").get("type")
@@ -201,15 +198,20 @@ class ModelUploader:
     return f"{self.folder}.tar.gz"
 
   def download_checkpoints(self):
-    repo_id, hf_token = self._validate_config_checkpoints()
-    if repo_id and hf_token:
-      loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
-      success = loader.download_checkpoints(self.checkpoint_path)
+    if not self.config.get("checkpoints"):
+      logger.info("No checkpoints specified in the config file")
+      return True
 
-      if not success:
-        logger.error(f"Failed to download checkpoints for model {repo_id}")
-        return
+    repo_id, hf_token = self._validate_config_checkpoints()
+
+    loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
+    success = loader.download_checkpoints(self.checkpoint_path)
+
+    if not success:
+      logger.error(f"Failed to download checkpoints for model {repo_id}")
+    else:
       logger.info(f"Downloaded checkpoints for model {repo_id}")
+    return success
 
   def _concepts_protos_from_concepts(self, concepts):
     concept_protos = []
@@ -235,7 +237,7 @@ class ModelUploader:
     concepts = config.get('concepts')
     logger.info(f"Updated config.yaml with {len(concepts)} concepts.")
 
-  def _get_model_version_proto(self):
+  def get_model_version_proto(self):
 
     model_version_proto = resources_pb2.ModelVersion(
         pretrained_model_config=resources_pb2.PretrainedModelConfig(),
@@ -245,15 +247,23 @@ class ModelUploader:
     model_type_id = self.config.get('model').get('model_type_id')
     if model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE:
 
-      labels = HuggingFaceLoader.fetch_labels(self.checkpoint_path)
-      # sort the concepts by id and then update the config file
-      labels = sorted(labels.items(), key=lambda x: int(x[0]))
+      if 'concepts' in self.config:
+        labels = self.config.get('concepts')
+        logger.info(f"Found {len(labels)} concepts in the config file.")
+        for concept in labels:
+          concept_proto = json_format.ParseDict(concept, resources_pb2.Concept())
+          model_version_proto.output_info.data.concepts.append(concept_proto)
+      else:
+        labels = HuggingFaceLoader.fetch_labels(self.checkpoint_path)
+        logger.info(f"Found {len(labels)} concepts from the model checkpoints.")
+        # sort the concepts by id and then update the config file
+        labels = sorted(labels.items(), key=lambda x: int(x[0]))
 
-      config_file = os.path.join(self.folder, 'config.yaml')
-      self.hf_labels_to_config(labels, config_file)
+        config_file = os.path.join(self.folder, 'config.yaml')
+        self.hf_labels_to_config(labels, config_file)
 
-      model_version_proto.output_info.data.concepts.extend(
-          self._concepts_protos_from_concepts(labels))
+        model_version_proto.output_info.data.concepts.extend(
+            self._concepts_protos_from_concepts(labels))
     return model_version_proto
 
   def upload_model_version(self, download_checkpoints):
@@ -261,19 +271,33 @@ class ModelUploader:
     logger.info(f"Will tar it into file: {file_path}")
 
     model_type_id = self.config.get('model').get('model_type_id')
-    repo_id, hf_token = self._validate_config_checkpoints()
 
-    loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
-
-    if not download_checkpoints and not loader.validate_download(self.checkpoint_path) and (
-        model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE) and 'concepts' not in self.config:
-      logger.error(
-          f"Model type {model_type_id} requires concepts to be specified in the config file or download the model checkpoints to infer the concepts."
+    if (model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE) and 'concepts' not in self.config:
+      logger.info(
+          f"Model type {model_type_id} requires concepts to be specified in the config.yaml file.."
       )
-      input("Press Enter to download the checkpoints to infer the concepts and continue...")
-      self.download_checkpoints()
+      if self.config.get("checkpoints"):
+        logger.info(
+            "Checkpoints specified in the config.yaml file, will download the HF model's config.json file to infer the concepts."
+        )
 
-    model_version_proto = self._get_model_version_proto()
+        if not download_checkpoints and not HuggingFaceLoader.validate_config(
+            self.checkpoint_path):
+
+          input(
+              "Press Enter to download the HuggingFace model's config.json file to infer the concepts and continue..."
+          )
+          repo_id, hf_token = self._validate_config_checkpoints()
+          loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
+          loader.download_config(self.checkpoint_path)
+
+      else:
+        logger.error(
+            "No checkpoints specified in the config.yaml file to infer the concepts. Please either specify the concepts directly in the config.yaml file or include a checkpoints section to download the HF model's config.json file to infer the concepts."
+        )
+        return
+
+    model_version_proto = self.get_model_version_proto()
 
     if download_checkpoints:
       tar_cmd = f"tar --exclude=*~ -czvf {self.tar_file} -C {self.folder} ."

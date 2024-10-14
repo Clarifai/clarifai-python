@@ -628,6 +628,28 @@ class Dataset(Lister, BaseClient):
     if delete_version:
       self.delete_version(dataset_version_id)
 
+  def merge_dataset(self, merge_dataset_id: str) -> None:
+    """Merges the another dataset into current dataset.
+
+    Args:
+        merge_dataset_id (str): The dataset ID of the dataset to merge.
+
+    Example:
+        >>> from clarifai.client.dataset import Dataset
+        >>> dataset = Dataset(dataset_id='dataset_id', user_id='user_id', app_id='app_id')
+        >>> dataset.merge_dataset(merge_dataset_id='merge_dataset_id')
+    """
+    dataset_filter = resources_pb2.Filter(
+        input=resources_pb2.Input(dataset_ids=[merge_dataset_id]))
+    query = resources_pb2.Search(query=resources_pb2.Query(filters=[dataset_filter]))
+    request = service_pb2.PostDatasetInputsRequest(
+        user_app_id=self.user_app_id, dataset_id=self.id, search=query)
+
+    response = self._grpc_request(self.STUB.PostDatasetInputs, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nDataset Merged\n%s", response.status)
+
   def archive_zip(self, wait: bool = True) -> str:
     """Exports the dataset to a zip file URL."""
     request = service_pb2.PutDatasetVersionExportsRequest(

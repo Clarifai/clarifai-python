@@ -1,3 +1,10 @@
+## [[10.9.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.9.1) - [PyPI](https://pypi.org/project/clarifai/10.9.1/) - 2024-10-09
+
+### Changed
+ - Improve handling missing huggingface_hub package [(#412)] (https://github.com/Clarifai/clarifai-python/pull/412)
+ - Implement script that allows users to test and run a runner's model locally [(#411)] (https://github.com/Clarifai/clarifai-python/pull/411)
+ - Improve Model upload experience for cv models [(#408)] (https://github.com/Clarifai/clarifai-python/pull/408)
+
 ## [[10.9.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.9.0) - [PyPI](https://pypi.org/project/clarifai/10.9.0/) - 2024-10-07
 
 ### Changed
