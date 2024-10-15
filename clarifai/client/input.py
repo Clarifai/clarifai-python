@@ -100,7 +100,7 @@ class Inputs(Lister, BaseClient):
       if not label_ids:
         concepts=[
             resources_pb2.Concept(
-            id=f"id-{''.join(_label.split(' '))}", name=_label, value=1.)\
+            id=_label, name=_label, value=1.)\
             for _label in labels
         ]
       else:
@@ -516,7 +516,7 @@ class Inputs(Lister, BaseClient):
                 right_col=bbox[2]  #x_max
             )),
             data=resources_pb2.Data(concepts=[
-                resources_pb2.Concept(id=f"id-{''.join(label.split(' '))}", name=label, value=1.)
+                resources_pb2.Concept(id=label, name=label, value=1.)
                 if not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
             ]))
     ])
@@ -561,7 +561,7 @@ class Inputs(Lister, BaseClient):
                         visibility="VISIBLE") for _point in polygons
                 ])),
             data=resources_pb2.Data(concepts=[
-                resources_pb2.Concept(id=f"id-{''.join(label.split(' '))}", name=label, value=1.)
+                resources_pb2.Concept(id=label, name=label, value=1.)
                 if not label_id else resources_pb2.Concept(id=label_id, name=label, value=1.)
             ]))
     ])
