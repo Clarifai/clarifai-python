@@ -143,7 +143,7 @@ class DisplayUploadStatus:
 
     for data in dict_response["datasetVersionMetricsGroups"]:
       if isinstance(data["value"], str):
-        if data["value"].startswith("id-"):
+        if ("type" in data) and (data["type"] == "CONCEPT_ID"):
           data["metrics"].update({"Concept": data["value"]})
           data["metrics"].pop("regionLocationMatrix", None)
           dataset_statistics.append(data["metrics"])

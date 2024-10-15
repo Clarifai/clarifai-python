@@ -151,7 +151,7 @@ class Testdataupload:
         input_id="input_1",
         label="input_1_polygon_label",
         polygons=polygon_points,
-        label_id="id-input_1_polygon_label",
+        label_id="input_1_polygon_label",
         annot_id="input_1_polygon_annot")
     assert annotation.id == "input_1_polygon_annot" and annotation.input_id == "input_1"
 
@@ -179,7 +179,7 @@ class Testdataupload:
         input_id="input_1",
         label="input_1_label",
         bbox=bbox_points,
-        label_id="id-input_1_label",
+        label_id="input_1_label",
         annot_id="input_1_annot")
     with caplog.at_level(logging.INFO):
       self.input_object.upload_annotations([annotation])
@@ -190,7 +190,7 @@ class Testdataupload:
         input_id="input_1",
         label="input_1_label",
         bbox=bbox_points,
-        label_id="id-input_1_label",
+        label_id="input_1_label",
         annot_id="input_1_annot")
     self.input_object.patch_annotations([annotation], action='merge')
     test_annotation = list(self.input_object.list_annotations())[0]
@@ -201,10 +201,10 @@ class Testdataupload:
 
   def test_patch_concepts(self):
     self.input_object.patch_concepts(
-        concept_ids=["id-input_1_label"], labels=["SUCCESS"], values=[], action='overwrite')
+        concept_ids=["input_1_label"], labels=["SUCCESS"], values=[], action='overwrite')
     concepts = list(self.app.list_concepts())
     for concept in concepts:
-      if concept.id == "id-input_1_label":
+      if concept.id == "input_1_label":
         assert concepts[0].name == "SUCCESS"
         break
 
