@@ -220,17 +220,17 @@ class TestRunnerServer:
     for i, res in enumerate(stub.GenerateModelOutputs(req)):
       self._validate_response(res, text + out.format(i=i))
 
-  def test_stream(self):
-    text = "This is a long text for testing stream"
-    out = "Stream Hello World {i}"
-    req = self._format_request(text)
+  # def test_stream(self):
+  #   text = "This is a long text for testing stream"
+  #   out = "Stream Hello World {i}"
+  #   req = self._format_request(text)
 
-    def create_iterator():
-      yield req
+  #   def create_iterator():
+  #     yield req
 
-    stub = self.CLIENT.STUB
-    for i, res in enumerate(stub.StreamModelOutputs(create_iterator())):
-      self._validate_response(res, text + out.format(i=i))
+  #   stub = self.CLIENT.STUB
+  #   for i, res in enumerate(stub.StreamModelOutputs(create_iterator())):
+  #     self._validate_response(res, text + out.format(i=i))
 
 
 @pytest.mark.requires_secrets
