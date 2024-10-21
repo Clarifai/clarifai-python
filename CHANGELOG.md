@@ -1,3 +1,10 @@
+## [[10.9.3]](https://github.com/Clarifai/clarifai-python/releases/tag/10.9.3) - [PyPI](https://pypi.org/project/clarifai/10.9.3/) - 2024-10-17
+
+### Changed
+ - Upgraded llama-index-core lib version as a security update [(#423)] (https://github.com/Clarifai/clarifai-python/pull/423)
+ - Removed unnecessary prefixes to concept ID added from SDK [(#424)] (https://github.com/Clarifai/clarifai-python/pull/424)
+ - Upgrade to clarifai-grpc 10.9.7
+
 ## [[10.9.2]](https://github.com/Clarifai/clarifai-python/releases/tag/10.9.2) - [PyPI](https://pypi.org/project/clarifai/10.9.2/) - 2024-10-14
 
 ### Changed

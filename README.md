@@ -14,6 +14,8 @@ Clarifai Python SDK
   </a>
   <a href="https://pypi.org/project/clarifai" target="_blank"> <img src="https://img.shields.io/pypi/dm/clarifai" alt="PyPI - Downloads">
   </a>
+  <a href="https://img.shields.io/pypi/pyversions/clarifai" target="_blank"> <img src="https://img.shields.io/pypi/pyversions/clarifai" alt="PyPI - Versions">
+  </a>
 </p>
 
 
