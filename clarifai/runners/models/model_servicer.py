@@ -28,7 +28,7 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
     """
 
     # Download any urls that are not already bytes.
-    ensure_urls_downloaded(self.url_fetcher, request)
+    ensure_urls_downloaded(request)
 
     try:
       return self.model_class.predict(request)
@@ -47,7 +47,7 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
     returns an output.
     """
     # Download any urls that are not already bytes.
-    ensure_urls_downloaded(self.url_fetcher, request)
+    ensure_urls_downloaded(request)
 
     try:
       return self.model_class.generate(request)
@@ -71,7 +71,7 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
 
     # Download any urls that are not already bytes.
     for req in request:
-      ensure_urls_downloaded(self.url_fetcher, req)
+      ensure_urls_downloaded(req)
 
     try:
       return self.model_class.stream(request_copy)
