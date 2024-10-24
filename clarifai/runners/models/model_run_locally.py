@@ -126,6 +126,7 @@ class ModelRunLocally:
         runner_id="n/a",
         nodepool_id="n/a",
         compute_cluster_id="n/a",
+        user_id="n/a",
     )
 
     # send an inference.
