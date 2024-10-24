@@ -175,13 +175,8 @@ class ModelRunLocally:
       shutil.rmtree(self.temp_dir)
 
 
-def main():
-  parser = argparse.ArgumentParser()
-  parser.add_argument(
-      '--model_path', type=str, required=True, help='Path of the model folder to upload')
-  args = parser.parse_args()
+def main(model_path):
 
-  model_path = args.model_path
   manager = ModelRunLocally(model_path)
   manager.create_temp_venv()
 
@@ -193,4 +188,8 @@ def main():
 
 
 if __name__ == "__main__":
-  main()
+  parser = argparse.ArgumentParser()
+  parser.add_argument(
+      '--model_path', type=str, required=True, help='Path of the model folder to upload')
+  args = parser.parse_args()
+  main(args.model_path)

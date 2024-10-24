@@ -409,11 +409,11 @@ class ModelUploader:
         return False
 
 
-def main(folder, download_checkpoints):
+def main(folder, download_checkpoints, skip_dockerfile):
   uploader = ModelUploader(folder)
   if download_checkpoints:
     uploader.download_checkpoints()
-  if not args.skip_dockerfile:
+  if not skip_dockerfile:
     uploader.create_dockerfile()
   exists = uploader.check_model_exists()
   if exists:
@@ -446,4 +446,4 @@ if __name__ == "__main__":
   )
   args = parser.parse_args()
 
-  main(args.model_path, args.download_checkpoints)
+  main(args.model_path, args.download_checkpoints, args.skip_dockerfile)
