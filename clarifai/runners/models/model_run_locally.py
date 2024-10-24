@@ -126,6 +126,7 @@ class ModelRunLocally:
         runner_id="n/a",
         nodepool_id="n/a",
         compute_cluster_id="n/a",
+        user_id="n/a",
     )
 
     # send an inference.
@@ -179,6 +180,13 @@ def main():
   parser = argparse.ArgumentParser()
   parser.add_argument(
       '--model_path', type=str, required=True, help='Path of the model folder to upload')
+
+  parser.add_argument(
+      '--run_model_server',
+      action='store_true',
+      help=
+      'Flag to run the model server locally. If not set, the model will be tested locally with a mock request.',
+  )
   args = parser.parse_args()
 
   model_path = args.model_path
@@ -187,7 +195,10 @@ def main():
 
   try:
     manager.install_requirements()
-    manager.test_model()
+    if args.run_model_server:
+      manager.run_model_server()
+    else:
+      manager.test_model()
   finally:
     manager.clean_up()
 
