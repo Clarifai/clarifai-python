@@ -42,8 +42,8 @@ def upload(model_path, download_checkpoints, skip_dockerfile):
 def test_locally(model_path):
   """Test model locally."""
   try:
-    from clarifai.runners.models import run_test_locally
-    run_test_locally.main(model_path)
+    from clarifai.runners.models import model_run_locally
+    model_run_locally.main(model_path)
     click.echo(f"Model tested locally from {model_path}.")
   except Exception as e:
     click.echo(f"Failed to test model locally: {e}", err=True)
