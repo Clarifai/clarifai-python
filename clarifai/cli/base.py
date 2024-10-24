@@ -23,7 +23,7 @@ def cli(ctx):
     '-e',
     '--env',
     required=False,
-    help='Environment',
+    help='Environment to use, choose from prod, staging and dev',
     type=click.Choice(['prod', 'staging', 'dev']))
 @click.option('--user_id', required=False, help='User ID')
 @click.pass_context
@@ -65,8 +65,6 @@ def login(ctx, config, env, user_id):
     ctx.obj['base_url'] = os.environ["CLARIFAI_API_BASE"]
 
   dump_yaml(ctx.obj, 'config.yaml')
-
-  click.echo("Login successful.")
 
 
 # Import the CLI commands to register them
