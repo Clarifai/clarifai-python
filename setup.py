@@ -50,6 +50,6 @@ setuptools.setup(
         'all': ["pycocotools==2.0.6"],
     },
     entry_points={
-        "console_scripts": ["clarifai = clarifai.models.model_serving.cli.clarifai_clis:main",],
+        "console_scripts": ["clarifai = clarifai.cli.base:cli",],
     },
     include_package_data=True)
