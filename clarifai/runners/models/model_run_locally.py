@@ -176,14 +176,17 @@ class ModelRunLocally:
       shutil.rmtree(self.temp_dir)
 
 
-def main(model_path):
+def main(model_path, run_model_server):
 
   manager = ModelRunLocally(model_path)
   manager.create_temp_venv()
 
   try:
     manager.install_requirements()
-    manager.test_model()
+    if run_model_server:
+      manager.run_model_server()
+    else:
+      manager.test_model()
   finally:
     manager.clean_up()
 
@@ -192,5 +195,10 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument(
       '--model_path', type=str, required=True, help='Path of the model folder to upload')
+
+  parser.add_argument(
+      '--run_model_server',
+      action='store_true',
+      help='Flag to run the model server locally, default is False')
   args = parser.parse_args()
-  main(args.model_path)
+  main(args.model_path, args.run_model_server)
