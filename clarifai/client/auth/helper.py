@@ -6,9 +6,12 @@ from urllib.parse import urlparse
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2_grpc
 from clarifai.utils.constants import CLARIFAI_PAT_ENV_VAR, CLARIFAI_SESSION_TOKEN_ENV_VAR
+from clarifai import __version__
 
 DEFAULT_BASE = "https://api.clarifai.com"
 DEFAULT_UI = "https://clarifai.com"
+
+REQUEST_ID_PREFIX = "sdk-python-" + str(__version__)
 
 # Map from base domain to True / False for whether the base has https or http.
 # This is filled in get_stub() if it's not in there already.
@@ -269,9 +272,9 @@ Additionally, these optional params are supported:
       metadata: the metadata need to send with all grpc API calls in the API client.
     """
     if self._pat != "":
-      return (("authorization", "Key %s" % self._pat),)
+      return (("authorization", "Key %s" % self._pat), ("x-clarifai-request-id-prefix", REQUEST_ID_PREFIX))
     elif self._token != "":
-      return (("x-clarifai-session-token", self._token),)
+      return (("x-clarifai-session-token", self._token), ("x-clarifai-request-id-prefix", REQUEST_ID_PREFIX))
     else:
       raise Exception("'token' or 'pat' needed to be provided in the query params or env vars.")
 
