@@ -176,7 +176,7 @@ class ModelRunLocally:
       shutil.rmtree(self.temp_dir)
 
 
-def main(model_path, run_model_server):
+def main(model_path, run_model_server=False):
 
   manager = ModelRunLocally(model_path)
   manager.create_temp_venv()
