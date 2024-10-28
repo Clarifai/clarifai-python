@@ -3,9 +3,11 @@
 ### Changed
  - Added tests for CRUD Operations of CO Resource - Deployment [(#431)] (https://github.com/Clarifai/clarifai-python/pull/431)
  - Added request-id-prefix header to SDK requests to improve SDK monitoring [(#430)] (https://github.com/Clarifai/clarifai-python/pull/430)
+ - Added CLI for Model upload [(#429)] (https://github.com/Clarifai/clarifai-python/pull/429)
  - Fixed model servicer for Model Upload [(#428)] (https://github.com/Clarifai/clarifai-python/pull/428)
  - Added python versions badge to README.md [(#427)] (https://github.com/Clarifai/clarifai-python/pull/427)
  - Removed stream tests till stream API is fixed [(#426)] (https://github.com/Clarifai/clarifai-python/pull/426)
+ - Added metadata in exported dataset annotations files
  - Upgrade to clarifai-grpc 10.9.11
 
 ## [[10.9.3]](https://github.com/Clarifai/clarifai-python/releases/tag/10.9.3) - [PyPI](https://pypi.org/project/clarifai/10.9.3/) - 2024-10-17
