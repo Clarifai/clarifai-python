@@ -8,12 +8,12 @@ from clarifai.client.compute_cluster import ComputeCluster
 from clarifai.client.nodepool import Nodepool
 from clarifai.client.user import User
 
-NOW = uuid.uuid4().hex[:10]
+NOW = uuid.uuid4()
 
 CREATE_COMPUTE_CLUSTER_USER_ID = os.environ["CLARIFAI_USER_ID"]
-CREATE_COMPUTE_CLUSTER_ID = f"ci_test_compute_cluster_{NOW}"
-CREATE_NODEPOOL_ID = f"ci_test_nodepool_{NOW}"
-CREATE_DEPLOYMENT_ID = f"ci_test_deployment_{NOW}"
+CREATE_COMPUTE_CLUSTER_ID = f"ci_test_cc_{NOW}"
+CREATE_NODEPOOL_ID = f"ci_test_np_{NOW}"
+CREATE_DEPLOYMENT_ID = f"ci_test_dep_{NOW}"
 
 COMPUTE_CLUSTER_CONFIG_FILE = "tests/compute_orchestration/configs/example_compute_cluster_config.yaml"
 NODEPOOL_CONFIG_FILE = "tests/compute_orchestration/configs/example_nodepool_config.yaml"

@@ -192,9 +192,11 @@ class InputAnnotationDownloader:
         self._save_video_to_archive(new_archive, hosted_url, file_name)
       self.num_inputs += 1
 
-    if data_dict.get("concepts") or data_dict.get("regions"):
+    if data_dict.get("metadata") or data_dict.get("concepts") or data_dict.get("regions"):
       file_name = os.path.join(split, "annotations", input_.id + ".json")
-      annot_data = data_dict.get("regions", []) + data_dict.get("concepts", [])
+      annot_data = [{
+          "metadata": data_dict.get("metadata", {})
+      }] + data_dict.get("regions", []) + data_dict.get("concepts", [])
 
       self._save_annotation_to_archive(new_archive, annot_data, file_name)
       self.num_annotations += 1
