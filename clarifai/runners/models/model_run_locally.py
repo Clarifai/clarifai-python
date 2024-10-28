@@ -1,4 +1,3 @@
-import argparse
 import importlib.util
 import inspect
 import os
@@ -176,32 +175,16 @@ class ModelRunLocally:
       shutil.rmtree(self.temp_dir)
 
 
-def main():
-  parser = argparse.ArgumentParser()
-  parser.add_argument(
-      '--model_path', type=str, required=True, help='Path of the model folder to upload')
+def main(model_path, run_model_server=False):
 
-  parser.add_argument(
-      '--run_model_server',
-      action='store_true',
-      help=
-      'Flag to run the model server locally. If not set, the model will be tested locally with a mock request.',
-  )
-  args = parser.parse_args()
-
-  model_path = args.model_path
   manager = ModelRunLocally(model_path)
   manager.create_temp_venv()
 
   try:
     manager.install_requirements()
-    if args.run_model_server:
+    if run_model_server:
       manager.run_model_server()
     else:
       manager.test_model()
   finally:
     manager.clean_up()
-
-
-if __name__ == "__main__":
-  main()

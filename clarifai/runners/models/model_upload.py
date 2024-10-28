@@ -1,4 +1,3 @@
-import argparse
 import os
 import time
 from string import Template
@@ -409,11 +408,11 @@ class ModelUploader:
         return False
 
 
-def main(folder, download_checkpoints):
+def main(folder, download_checkpoints, skip_dockerfile):
   uploader = ModelUploader(folder)
   if download_checkpoints:
     uploader.download_checkpoints()
-  if not args.skip_dockerfile:
+  if not skip_dockerfile:
     uploader.create_dockerfile()
   exists = uploader.check_model_exists()
   if exists:
@@ -425,25 +424,3 @@ def main(folder, download_checkpoints):
 
   input("Press Enter to continue...")
   uploader.upload_model_version(download_checkpoints)
-
-
-if __name__ == "__main__":
-  parser = argparse.ArgumentParser()
-  parser.add_argument(
-      '--model_path', type=str, help='Path of the model folder to upload', required=True)
-  # flag to default to not download checkpoints
-  parser.add_argument(
-      '--download_checkpoints',
-      action='store_true',
-      help=
-      'Flag to download checkpoints before uploading and including them in the tar file that is uploaded. Defaults to False, which will attempt to download them at docker build time.',
-  )
-  parser.add_argument(
-      '--skip_dockerfile',
-      action='store_true',
-      help=
-      'Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile.',
-  )
-  args = parser.parse_args()
-
-  main(args.model_path, args.download_checkpoints)
