@@ -1,4 +1,3 @@
-import argparse
 import importlib.util
 import inspect
 import os
@@ -189,16 +188,3 @@ def main(model_path, run_model_server=False):
       manager.test_model()
   finally:
     manager.clean_up()
-
-
-if __name__ == "__main__":
-  parser = argparse.ArgumentParser()
-  parser.add_argument(
-      '--model_path', type=str, required=True, help='Path of the model folder to upload')
-
-  parser.add_argument(
-      '--run_model_server',
-      action='store_true',
-      help='Flag to run the model server locally, default is False')
-  args = parser.parse_args()
-  main(args.model_path, args.run_model_server)
