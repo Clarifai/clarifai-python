@@ -1,4 +1,4 @@
-## [[10.9.4]](https://github.com/Clarifai/clarifai-python/releases/tag/10.9.4) - [PyPI](https://pypi.org/project/clarifai/10.9.4/) - 2024-10-28
+## [[10.9.3]](https://github.com/Clarifai/clarifai-python/releases/tag/10.9.3) - [PyPI](https://pypi.org/project/clarifai/10.9.3/) - 2024-10-28
 
 ### Changed
  - Added tests for CRUD Operations of CO Resource - Deployment [(#431)] (https://github.com/Clarifai/clarifai-python/pull/431)
@@ -7,15 +7,10 @@
  - Fixed model servicer for Model Upload [(#428)] (https://github.com/Clarifai/clarifai-python/pull/428)
  - Added python versions badge to README.md [(#427)] (https://github.com/Clarifai/clarifai-python/pull/427)
  - Removed stream tests till stream API is fixed [(#426)] (https://github.com/Clarifai/clarifai-python/pull/426)
+ - Removed unnecessary prefixes to concept ID added from SDK [(#424)] (https://github.com/Clarifai/clarifai-python/pull/424)
+ - Upgraded llama-index-core lib version as a security update [(#423)] (https://github.com/Clarifai/clarifai-python/pull/423)
  - Added metadata in exported dataset annotations files
  - Upgrade to clarifai-grpc 10.9.11
-
-## [[10.9.3]](https://github.com/Clarifai/clarifai-python/releases/tag/10.9.3) - [PyPI](https://pypi.org/project/clarifai/10.9.3/) - 2024-10-17
-
-### Changed
- - Upgraded llama-index-core lib version as a security update [(#423)] (https://github.com/Clarifai/clarifai-python/pull/423)
- - Removed unnecessary prefixes to concept ID added from SDK [(#424)] (https://github.com/Clarifai/clarifai-python/pull/424)
- - Upgrade to clarifai-grpc 10.9.7
 
 ## [[10.9.2]](https://github.com/Clarifai/clarifai-python/releases/tag/10.9.2) - [PyPI](https://pypi.org/project/clarifai/10.9.2/) - 2024-10-14
 
