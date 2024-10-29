@@ -1,3 +1,5 @@
+## [[10.9.5]](https://github.com/Clarifai/clarifai-python/releases/tag/10.9.5) - [PyPI](https://pypi.org/project/clarifai/10.9.5/) - 2024-10-29
+
 ## [[10.9.4]](https://github.com/Clarifai/clarifai-python/releases/tag/10.9.4) - [PyPI](https://pypi.org/project/clarifai/10.9.4/) - 2024-10-28
 
 ## [[10.9.3]](https://github.com/Clarifai/clarifai-python/releases/tag/10.9.3) - [PyPI](https://pypi.org/project/clarifai/10.9.3/) - 2024-10-28
