@@ -5,6 +5,11 @@ import pkgutil
 import click
 import yaml
 
+from rich.console import Console
+from rich.panel import Panel
+from rich.style import Style
+from rich.text import Text
+
 
 def from_yaml(filename: str):
   try:
@@ -43,3 +48,23 @@ def load_command_modules():
   for _, module_name, _ in pkgutil.iter_modules([package_dir]):
     if module_name != 'base':  # Skip the base.py file itself
       importlib.import_module(f'clarifai.cli.{module_name}')
+
+
+def display_co_resources(response, resource_type):
+  """Display compute orchestration resources listing results using rich."""
+
+  console = Console()
+  panel = Panel(
+      Text(f"List of {resource_type}s", justify="center"),
+      title="",
+      style=Style(color="blue", bold=True),
+      border_style="green",
+      width=60)
+  console.print(panel)
+  for indx, item in enumerate(list(response)):
+    panel = Panel(
+        "\n".join([f"{'ID'}: {item.id}", f"{'Description'}: {item.description}"]),
+        title=f"{resource_type} {(indx + 1)}",
+        border_style="green",
+        width=60)
+    console.print(panel)

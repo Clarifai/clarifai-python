@@ -49,9 +49,11 @@ def login(ctx, config, env, user_id):
   if user_id:
     ctx.obj['user_id'] = user_id
     os.environ["CLARIFAI_USER_ID"] = ctx.obj['user_id']
-  elif 'user_id' in ctx.obj or 'CLARIFAI_USER_ID' in os.environ:
-    ctx.obj['user_id'] = ctx.obj.get('user_id', os.environ["CLARIFAI_USER_ID"])
+  elif 'user_id' in ctx.obj:
+    ctx.obj['user_id'] = ctx.obj.get('user_id', "")
     os.environ["CLARIFAI_USER_ID"] = ctx.obj['user_id']
+  elif 'CLARIFAI_USER_ID' in os.environ:
+    ctx.obj['user_id'] = os.environ["CLARIFAI_USER_ID"]
 
   if env:
     ctx.obj['env'] = env
