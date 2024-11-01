@@ -95,6 +95,7 @@ class TestComputeOrchestration:
     with open(COMPUTE_CLUSTER_CONFIG_FILE, "w") as f:
       yaml.dump(config, f)
 
+    result = create_runner.invoke(cli, ["login", "--env", "prod"])
     result = create_runner.invoke(cli, [
         "computecluster", "create", "--compute_cluster_id", CREATE_COMPUTE_CLUSTER_ID,
         "--config_filepath", COMPUTE_CLUSTER_CONFIG_FILE
@@ -110,6 +111,7 @@ class TestComputeOrchestration:
     with open(NODEPOOL_CONFIG_FILE, "w") as f:
       yaml.dump(config, f)
 
+    result = create_runner.invoke(cli, ["login", "--env", "prod"])
     result = create_runner.invoke(cli, [
         "nodepool", "--compute_cluster_id", CREATE_COMPUTE_CLUSTER_ID, "create", "--nodepool_id",
         CREATE_NODEPOOL_ID, "--config_filepath", NODEPOOL_CONFIG_FILE
@@ -127,6 +129,7 @@ class TestComputeOrchestration:
     with open(DEPLOYMENT_CONFIG_FILE, "w") as f:
       yaml.dump(config, f)
 
+    result = create_runner.invoke(cli, ["login", "--env", "prod"])
     result = create_runner.invoke(cli, [
         "deployment", "--nodepool_id", CREATE_NODEPOOL_ID, "create", "--deployment_id",
         CREATE_DEPLOYMENT_ID, "--config_filepath", DEPLOYMENT_CONFIG_FILE
@@ -136,22 +139,26 @@ class TestComputeOrchestration:
     assert "Deployment created" in result.output
 
   def test_list_compute_clusters(self, create_runner):
+    result = create_runner.invoke(cli, ["login", "--env", "prod"])
     result = create_runner.invoke(cli, ["computecluster", "list"])
     assert result.exit_code == 0
     assert "List of Compute Clusters" in result.output
 
   def test_list_nodepools(self, create_runner):
+    result = create_runner.invoke(cli, ["login", "--env", "prod"])
     result = create_runner.invoke(
         cli, ["nodepool", "--compute_cluster_id", CREATE_COMPUTE_CLUSTER_ID, "list"])
     assert result.exit_code == 0
     assert "List of Nodepools" in result.output
 
   def test_list_deployments(self, create_runner):
+    result = create_runner.invoke(cli, ["login", "--env", "prod"])
     result = create_runner.invoke(cli, ["deployment", "--nodepool_id", CREATE_NODEPOOL_ID, "list"])
     assert result.exit_code == 0
     assert "List of Deployments" in result.output
 
   def test_delete_deployment(self, create_runner):
+    result = create_runner.invoke(cli, ["login", "--env", "prod"])
     result = create_runner.invoke(cli, [
         "deployment", "--nodepool_id", CREATE_NODEPOOL_ID, "delete", "--deployment_ids",
         CREATE_DEPLOYMENT_ID
@@ -160,6 +167,7 @@ class TestComputeOrchestration:
     assert "SUCCESS" in result.output
 
   def test_delete_nodepool(self, create_runner):
+    result = create_runner.invoke(cli, ["login", "--env", "prod"])
     result = create_runner.invoke(cli, [
         "nodepool", "--compute_cluster_id", CREATE_COMPUTE_CLUSTER_ID, "delete", "--nodepool_ids",
         CREATE_NODEPOOL_ID
@@ -168,6 +176,7 @@ class TestComputeOrchestration:
     assert "SUCCESS" in result.output
 
   def test_delete_compute_cluster(self, create_runner):
+    result = create_runner.invoke(cli, ["login", "--env", "prod"])
     result = create_runner.invoke(
         cli, ["computecluster", "delete", "--compute_cluster_ids", CREATE_COMPUTE_CLUSTER_ID])
     assert result.exit_code == 0
