@@ -1,4 +1,5 @@
 import os
+import traceback
 import uuid
 
 import pytest
@@ -98,6 +99,7 @@ class TestComputeOrchestration:
         "computecluster", "create", "--compute_cluster_id", CREATE_COMPUTE_CLUSTER_ID,
         "--config_filepath", COMPUTE_CLUSTER_CONFIG_FILE
     ])
+    traceback.print_exc(result.exc_info)
     assert result.exit_code == 0
     assert "Compute Cluster created" in result.output
 
@@ -112,6 +114,7 @@ class TestComputeOrchestration:
         "nodepool", "--compute_cluster_id", CREATE_COMPUTE_CLUSTER_ID, "create", "--nodepool_id",
         CREATE_NODEPOOL_ID, "--config_filepath", NODEPOOL_CONFIG_FILE
     ])
+    traceback.print_exc(result.exc_info)
     assert result.exit_code == 0
     assert "Nodepool created" in result.output
 
@@ -128,6 +131,7 @@ class TestComputeOrchestration:
         "deployment", "--nodepool_id", CREATE_NODEPOOL_ID, "create", "--deployment_id",
         CREATE_DEPLOYMENT_ID, "--config_filepath", DEPLOYMENT_CONFIG_FILE
     ])
+    traceback.print_exc(result.exc_info)
     assert result.exit_code == 0
     assert "Deployment created" in result.output
 
