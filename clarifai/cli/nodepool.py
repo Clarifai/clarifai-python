@@ -17,8 +17,7 @@ def nodepool():
     required=True,
     help='Compute Cluster ID for the compute cluster to interact with.')
 @click.option(
-    '-config',
-    '--config_filepath',
+    '--config',
     type=click.Path(exists=True),
     required=True,
     help='Path to the nodepool config file.')

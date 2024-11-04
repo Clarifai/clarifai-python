@@ -17,8 +17,7 @@ def deployment():
     required=True,
     help='Nodepool ID for the Nodepool to interact with.')
 @click.option(
-    '-config',
-    '--config_filepath',
+    '--config',
     type=click.Path(exists=True),
     required=True,
     help='Path to the deployment config file.')

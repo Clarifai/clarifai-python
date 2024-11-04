@@ -12,8 +12,7 @@ def computecluster():
 
 @computecluster.command()
 @click.option(
-    '-config',
-    '--config_filepath',
+    '--config',
     type=click.Path(exists=True),
     required=True,
     help='Path to the compute cluster config file.')

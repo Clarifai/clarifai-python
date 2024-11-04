@@ -85,6 +85,11 @@ def login(ctx, config, env, user_id):
     os.environ["CLARIFAI_USER_ID"] = ctx.obj['user_id']
   elif 'CLARIFAI_USER_ID' in os.environ:
     ctx.obj['user_id'] = os.environ["CLARIFAI_USER_ID"]
+  else:
+    user_id = click.prompt("Pass the User ID here", type=str)
+    os.environ["CLARIFAI_USER_ID"] = user_id
+    ctx.obj['user_id'] = user_id
+    click.echo("User ID saved successfully.")
 
   if env:
     ctx.obj['env'] = env

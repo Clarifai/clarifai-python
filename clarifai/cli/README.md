@@ -26,12 +26,12 @@ To prepare for deployment step, we have to setup a Compute Cluster with Nodepool
 
 So, First, create a new Compute Cluster
 ```bash
-$ clarifai computecluster create --config_filepath <compute-cluster-config-filepath>
+$ clarifai computecluster create --config <compute-cluster-config-filepath>
 ```
 
 Then, create a new Nodepool in the created Compute Cluster
 ```bash
-$ clarifai nodepool create --compute_cluster_id <compute-cluster-id> --config_filepath <nodepool-config-filepath>
+$ clarifai nodepool create --compute_cluster_id <compute-cluster-id> --config <nodepool-config-filepath>
 ```
 
 ### Deployment
@@ -39,7 +39,7 @@ $ clarifai nodepool create --compute_cluster_id <compute-cluster-id> --config_fi
 After setup, we can deploy the `visual-classifier` model using a deployment config file as shown below:
 
 ```bash
-$ clarifai deployment create --nodepool_id <nodepool-id> --config_filepath <deployment-config-filepath>
+$ clarifai deployment create --nodepool_id <nodepool-id> --config <deployment-config-filepath>
 ```
 
 ### List Resources
