@@ -122,8 +122,9 @@ class ComputeCluster(Lister, BaseClient):
 
     nodepool_config = self._process_nodepool_config(config_filepath)
 
-    if nodepool_id is None:
-      nodepool_id = nodepool_config['id']
+    if 'id' in nodepool_config:
+      if nodepool_id is None:
+        nodepool_id = nodepool_config['id']
       nodepool_config.pop('id')
 
     request = service_pb2.PostNodepoolsRequest(

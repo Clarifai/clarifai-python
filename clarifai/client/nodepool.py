@@ -156,8 +156,9 @@ class Nodepool(Lister, BaseClient):
 
     deployment_config = self._process_deployment_config(config_filepath)
 
-    if deployment_id is None:
-      deployment_id = deployment_config['id']
+    if 'id' in deployment_config:
+      if deployment_id is None:
+        deployment_id = deployment_config['id']
       deployment_config.pop('id')
 
     request = service_pb2.PostDeploymentsRequest(

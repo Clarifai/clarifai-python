@@ -114,7 +114,8 @@ class TestComputeOrchestration:
     with open(DEPLOYMENT_CONFIG_FILE, "w") as f:
       yaml.dump(config, f)
     with caplog.at_level(logging.INFO):
-      create_nodepool.create_deployment(config_filepath=DEPLOYMENT_CONFIG_FILE, deployment_id=CREATE_DEPLOYMENT_ID)
+      create_nodepool.create_deployment(
+          config_filepath=DEPLOYMENT_CONFIG_FILE, deployment_id=CREATE_DEPLOYMENT_ID)
       assert "Deployment created" in caplog.text
 
   def test_get_compute_cluster(self, client):

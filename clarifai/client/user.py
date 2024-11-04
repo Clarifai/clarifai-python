@@ -222,8 +222,8 @@ class User(Lister, BaseClient):
       compute_cluster["visibility"] = resources_pb2.Visibility(**compute_cluster["visibility"])
     return compute_cluster
 
-  def create_compute_cluster(self,
-                             config_filepath: str, compute_cluster_id: str = None) -> ComputeCluster:
+  def create_compute_cluster(self, config_filepath: str,
+                             compute_cluster_id: str = None) -> ComputeCluster:
     """Creates a compute cluster for the user.
 
     Args:
@@ -243,8 +243,9 @@ class User(Lister, BaseClient):
 
     compute_cluster_config = self._process_compute_cluster_config(config_filepath)
 
-    if compute_cluster_id is None:
-      compute_cluster_id = compute_cluster_config['id']
+    if 'id' in compute_cluster_config:
+      if compute_cluster_id is None:
+        compute_cluster_id = compute_cluster_config['id']
       compute_cluster_config.pop('id')
 
     request = service_pb2.PostComputeClustersRequest(
