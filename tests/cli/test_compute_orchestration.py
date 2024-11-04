@@ -96,7 +96,7 @@ class TestComputeOrchestration:
 
     create_runner.invoke(cli, ["login", "--env", "prod"])
     result = create_runner.invoke(cli, [
-        "computecluster", "create", "--config_filepath", COMPUTE_CLUSTER_CONFIG_FILE,
+        "computecluster", "create", "--config", COMPUTE_CLUSTER_CONFIG_FILE,
         "--compute_cluster_id", CREATE_COMPUTE_CLUSTER_ID
     ])
     assert result.exit_code == 0
@@ -110,8 +110,8 @@ class TestComputeOrchestration:
 
     create_runner.invoke(cli, ["login", "--env", "prod"])
     result = create_runner.invoke(cli, [
-        "nodepool", "create", "--compute_cluster_id", CREATE_COMPUTE_CLUSTER_ID,
-        "--config_filepath", NODEPOOL_CONFIG_FILE, "--nodepool_id", CREATE_NODEPOOL_ID
+        "nodepool", "create", "--compute_cluster_id", CREATE_COMPUTE_CLUSTER_ID, "--config",
+        NODEPOOL_CONFIG_FILE, "--nodepool_id", CREATE_NODEPOOL_ID
     ])
     assert result.exit_code == 0
 
@@ -127,7 +127,7 @@ class TestComputeOrchestration:
 
     create_runner.invoke(cli, ["login", "--env", "prod"])
     result = create_runner.invoke(cli, [
-        "deployment", "create", "--nodepool_id", CREATE_NODEPOOL_ID, "--config_filepath",
+        "deployment", "create", "--nodepool_id", CREATE_NODEPOOL_ID, "--config",
         DEPLOYMENT_CONFIG_FILE, "--deployment_id", CREATE_DEPLOYMENT_ID
     ])
     assert result.exit_code == 0
