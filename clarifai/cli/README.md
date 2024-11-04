@@ -22,13 +22,13 @@ $ clarifai login --config <config-filepath>
 
 ### Setup
 
-To prepare for deployment step, we have to setup a Compute Cluster with Nodepool of required server config to deploy the model. 
+To prepare for deployment step, we have to setup a Compute Cluster with Nodepool of required server config to deploy the model.
 
 So, First, create a new Compute Cluster
 ```bash
 $ clarifai computecluster create --config_filepath <compute-cluster-config-filepath>
 ```
-    
+
 Then, create a new Nodepool in the created Compute Cluster
 ```bash
 $ clarifai nodepool create --compute_cluster_id <compute-cluster-id> --config_filepath <nodepool-config-filepath>
