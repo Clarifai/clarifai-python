@@ -22,13 +22,13 @@ def computecluster():
     required=False,
     help='New Compute Cluster ID for the compute cluster to create.')
 @click.pass_context
-def create(ctx, config_filepath, compute_cluster_id):
+def create(ctx, config, compute_cluster_id):
   """Create a new Compute Cluster with the given config file."""
   user = User(user_id=ctx.obj['user_id'], pat=ctx.obj['pat'], base_url=ctx.obj['base_url'])
   if compute_cluster_id:
-    user.create_compute_cluster(config_filepath, compute_cluster_id=compute_cluster_id)
+    user.create_compute_cluster(config, compute_cluster_id=compute_cluster_id)
   else:
-    user.create_compute_cluster(config_filepath)
+    user.create_compute_cluster(config)
 
 
 @computecluster.command()

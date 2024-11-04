@@ -24,7 +24,7 @@ def nodepool():
 @click.option(
     '-np_id', '--nodepool_id', required=False, help='New Nodepool ID for the nodepool to create.')
 @click.pass_context
-def create(ctx, compute_cluster_id, config_filepath, nodepool_id):
+def create(ctx, compute_cluster_id, config, nodepool_id):
   """Create a new Nodepool with the given config file."""
   compute_cluster = ComputeCluster(
       compute_cluster_id=compute_cluster_id,
@@ -32,9 +32,9 @@ def create(ctx, compute_cluster_id, config_filepath, nodepool_id):
       pat=ctx.obj['pat'],
       base_url=ctx.obj['base_url'])
   if nodepool_id:
-    compute_cluster.create_nodepool(config_filepath, nodepool_id=nodepool_id)
+    compute_cluster.create_nodepool(config, nodepool_id=nodepool_id)
   else:
-    compute_cluster.create_nodepool(config_filepath)
+    compute_cluster.create_nodepool(config)
 
 
 @nodepool.command()

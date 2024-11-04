@@ -27,7 +27,7 @@ def deployment():
     required=False,
     help='New deployment ID for the deployment to create.')
 @click.pass_context
-def create(ctx, nodepool_id, config_filepath, deployment_id):
+def create(ctx, nodepool_id, config, deployment_id):
   """Create a new Deployment with the given config file."""
   nodepool = Nodepool(
       nodepool_id=nodepool_id,
@@ -35,9 +35,9 @@ def create(ctx, nodepool_id, config_filepath, deployment_id):
       pat=ctx.obj['pat'],
       base_url=ctx.obj['base_url'])
   if deployment_id:
-    nodepool.create_deployment(config_filepath, deployment_id=deployment_id)
+    nodepool.create_deployment(config, deployment_id=deployment_id)
   else:
-    nodepool.create_deployment(config_filepath)
+    nodepool.create_deployment(config)
 
 
 @deployment.command()
