@@ -115,6 +115,7 @@ class TestComputeOrchestration:
     ])
     assert result.exit_code == 0
 
+  @pytest.mark.skip(reason="Simultaneous deployments not allowed per model/workflow.")
   def test_create_deployment(self, create_runner):
     with open(DEPLOYMENT_CONFIG_FILE) as f:
       config = yaml.safe_load(f)
@@ -150,6 +151,7 @@ class TestComputeOrchestration:
     assert result.exit_code == 0
     assert "List of Deployments" in result.output
 
+  @pytest.mark.skip(reason="Simultaneous deployments not allowed per model/workflow.")
   def test_delete_deployment(self, create_runner):
     create_runner.invoke(cli, ["login", "--env", "prod"])
     result = create_runner.invoke(cli, [

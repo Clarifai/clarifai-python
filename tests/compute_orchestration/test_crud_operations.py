@@ -104,6 +104,7 @@ class TestComputeOrchestration:
           nodepool_id=CREATE_NODEPOOL_ID, config_filepath=NODEPOOL_CONFIG_FILE)
       assert "Nodepool created" in caplog.text
 
+  @pytest.mark.skip(reason="Simultaneous deployments not allowed per model/workflow.")
   def test_create_deployment(self, create_nodepool, caplog):
     with open(DEPLOYMENT_CONFIG_FILE) as f:
       config = yaml.safe_load(f)
@@ -125,6 +126,7 @@ class TestComputeOrchestration:
     nodepool = create_compute_cluster.nodepool(nodepool_id=CREATE_NODEPOOL_ID)
     assert nodepool.id == CREATE_NODEPOOL_ID and nodepool.compute_cluster.id == CREATE_COMPUTE_CLUSTER_ID and nodepool.compute_cluster.user_id == CREATE_COMPUTE_CLUSTER_USER_ID
 
+  @pytest.mark.skip(reason="Simultaneous deployments not allowed per model/workflow.")
   def test_get_deployment(self, create_nodepool):
     deployment = create_nodepool.deployment(deployment_id=CREATE_DEPLOYMENT_ID)
     assert deployment.id == CREATE_DEPLOYMENT_ID and deployment.nodepools[0].id == CREATE_NODEPOOL_ID and deployment.nodepools[0].compute_cluster.id == CREATE_COMPUTE_CLUSTER_ID and deployment.user_id == CREATE_COMPUTE_CLUSTER_USER_ID
@@ -139,8 +141,9 @@ class TestComputeOrchestration:
 
   def test_list_deployments(self, create_nodepool):
     all_deployments = list(create_nodepool.list_deployments())
-    assert len(all_deployments) >= 1
+    assert len(all_deployments) == 0
 
+  @pytest.mark.skip(reason="Simultaneous deployments not allowed per model/workflow.")
   def test_delete_deployment(self, create_nodepool, caplog):
     with caplog.at_level(logging.INFO):
       create_nodepool.delete_deployments(deployment_ids=[CREATE_DEPLOYMENT_ID])
