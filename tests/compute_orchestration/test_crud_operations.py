@@ -89,8 +89,8 @@ class TestComputeOrchestration:
       yaml.dump(config, f)
     with caplog.at_level(logging.INFO):
       client.create_compute_cluster(
-          compute_cluster_id=CREATE_COMPUTE_CLUSTER_ID,
-          config_filepath=COMPUTE_CLUSTER_CONFIG_FILE)
+          config_filepath=COMPUTE_CLUSTER_CONFIG_FILE,
+          compute_cluster_id=CREATE_COMPUTE_CLUSTER_ID)
       assert "Compute Cluster created" in caplog.text
 
   def test_create_nodepool(self, create_compute_cluster, caplog):
@@ -101,7 +101,7 @@ class TestComputeOrchestration:
       yaml.dump(config, f)
     with caplog.at_level(logging.INFO):
       create_compute_cluster.create_nodepool(
-          nodepool_id=CREATE_NODEPOOL_ID, config_filepath=NODEPOOL_CONFIG_FILE)
+          config_filepath=NODEPOOL_CONFIG_FILE, nodepool_id=CREATE_NODEPOOL_ID)
       assert "Nodepool created" in caplog.text
 
   @pytest.mark.skip(reason="Simultaneous deployments not allowed per model/workflow.")
@@ -114,8 +114,7 @@ class TestComputeOrchestration:
     with open(DEPLOYMENT_CONFIG_FILE, "w") as f:
       yaml.dump(config, f)
     with caplog.at_level(logging.INFO):
-      create_nodepool.create_deployment(
-          deployment_id=CREATE_DEPLOYMENT_ID, config_filepath=DEPLOYMENT_CONFIG_FILE)
+      create_nodepool.create_deployment(config_filepath=DEPLOYMENT_CONFIG_FILE, deployment_id=CREATE_DEPLOYMENT_ID)
       assert "Deployment created" in caplog.text
 
   def test_get_compute_cluster(self, client):

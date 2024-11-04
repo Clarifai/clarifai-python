@@ -222,13 +222,13 @@ class User(Lister, BaseClient):
       compute_cluster["visibility"] = resources_pb2.Visibility(**compute_cluster["visibility"])
     return compute_cluster
 
-  def create_compute_cluster(self, compute_cluster_id: str,
-                             config_filepath: str) -> ComputeCluster:
+  def create_compute_cluster(self,
+                             config_filepath: str, compute_cluster_id: str = None) -> ComputeCluster:
     """Creates a compute cluster for the user.
 
     Args:
-        compute_cluster_id (str): The compute cluster ID for the compute cluster to create.
         config_filepath (str): The path to the compute cluster config file.
+        compute_cluster_id (str): New compute cluster ID for the compute cluster to create.
 
     Returns:
         ComputeCluster: A Compute Cluster object for the specified compute cluster ID.
@@ -236,14 +236,14 @@ class User(Lister, BaseClient):
     Example:
         >>> from clarifai.client.user import User
         >>> client = User(user_id="user_id")
-        >>> compute_cluster = client.create_compute_cluster(compute_cluster_id="compute_cluster_id", config_filepath="config.yml")
+        >>> compute_cluster = client.create_compute_cluster(config_filepath="config.yml")
     """
     if not os.path.exists(config_filepath):
       raise UserError(f"Compute Cluster config file not found at {config_filepath}")
 
     compute_cluster_config = self._process_compute_cluster_config(config_filepath)
 
-    if 'id' in compute_cluster_config:
+    if compute_cluster_id is None:
       compute_cluster_id = compute_cluster_config['id']
       compute_cluster_config.pop('id')
 

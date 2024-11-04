@@ -6,6 +6,7 @@ from clarifai.utils.cli import display_co_resources
 
 @cli.group()
 @click.option(
+    '-cc_id',
     '--compute_cluster_id',
     required=True,
     help='Compute Cluster ID for the compute cluster to interact with.')
@@ -20,16 +21,20 @@ def nodepool(ctx, compute_cluster_id):
 
 
 @nodepool.command()
-@click.option('--nodepool_id', required=True, help='Nodepool ID for the nodepool to create.')
 @click.option(
+    '-config',
     '--config_filepath',
     type=click.Path(exists=True),
     required=True,
     help='Path to the nodepool config file.')
+@click.option('-np_id', '--nodepool_id', required=False, help='New Nodepool ID for the nodepool to create.')
 @click.pass_obj
-def create(obj, nodepool_id, config_filepath):
-  """Create a new Nodepool with the given id"""
-  obj.create_nodepool(nodepool_id, config_filepath)
+def create(obj, config_filepath, nodepool_id):
+  """Create a new Nodepool with the given config file."""
+  if nodepool_id:
+    obj.create_nodepool(config_filepath, nodepool_id=nodepool_id)
+  else:
+    obj.create_nodepool(config_filepath)
 
 
 @nodepool.command()
@@ -43,9 +48,8 @@ def list(obj, page_no, per_page):
 
 
 @nodepool.command()
-@click.option('--nodepool_ids', multiple=True, help='Nodepool IDs of the user to delete.')
+@click.option('-np_id','--nodepool_id', help='Nodepool ID of the user to delete.')
 @click.pass_obj
-def delete(obj, nodepool_ids):
-  """Deletes a list of nodepools for the user."""
-  nodepool_ids = [nodepool_id for nodepool_id in nodepool_ids]
-  obj.delete_nodepools(nodepool_ids)
+def delete(obj, nodepool_id):
+  """Deletes a nodepool for the user."""
+  obj.delete_nodepools([nodepool_id])

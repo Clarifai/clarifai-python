@@ -13,18 +13,23 @@ def computecluster(ctx):
 
 @computecluster.command()
 @click.option(
-    '--compute_cluster_id',
-    required=True,
-    help='Compute Cluster ID for the compute cluster to create.')
-@click.option(
+    '-config',
     '--config_filepath',
     type=click.Path(exists=True),
     required=True,
     help='Path to the compute cluster config file.')
+@click.option(
+    '-cc_id',
+    '--compute_cluster_id',
+    required=False,
+    help='New Compute Cluster ID for the compute cluster to create.')
 @click.pass_obj
-def create(obj, compute_cluster_id, config_filepath):
-  """Create a new Compute Cluster with the given id"""
-  obj.create_compute_cluster(compute_cluster_id, config_filepath)
+def create(obj, config_filepath, compute_cluster_id):
+  """Create a new Compute Cluster with the given config file."""
+  if compute_cluster_id:
+    obj.create_compute_cluster(config_filepath, compute_cluster_id=compute_cluster_id)
+  else:
+    obj.create_compute_cluster(config_filepath)
 
 
 @computecluster.command()
@@ -39,9 +44,9 @@ def list(obj, page_no, per_page):
 
 @computecluster.command()
 @click.option(
-    '--compute_cluster_ids', multiple=True, help='Compute Cluster IDs of the user to delete.')
+    '-cc_id',
+    '--compute_cluster_id', help='Compute Cluster ID of the user to delete.')
 @click.pass_obj
-def delete(obj, compute_cluster_ids):
-  """Deletes a list of compute clusters for the user."""
-  compute_cluster_ids = [compute_cluster_id for compute_cluster_id in compute_cluster_ids]
-  obj.delete_compute_clusters(compute_cluster_ids)
+def delete(obj, compute_cluster_id):
+  """Deletes a compute cluster for the user."""
+  obj.delete_compute_clusters([compute_cluster_id])
