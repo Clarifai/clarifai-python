@@ -136,12 +136,12 @@ class Nodepool(Lister, BaseClient):
     nodepool = resources_pb2.Nodepool(id=nodepool_id, compute_cluster=compute_cluster)
     return resources_pb2.RunnerSelector(nodepool=nodepool)
 
-  def create_deployment(self, deployment_id: str, config_filepath: str) -> Deployment:
+  def create_deployment(self, config_filepath: str, deployment_id: str = None) -> Deployment:
     """Creates a deployment for the nodepool.
 
     Args:
-        deployment_id (str): The deployment ID for the deployment to create.
         config_filepath (str): The path to the deployment config file.
+        deployment_id (str): New deployment ID for the deployment to create.
 
     Returns:
         Deployment: A Deployment object for the specified deployment ID.
@@ -149,7 +149,7 @@ class Nodepool(Lister, BaseClient):
     Example:
         >>> from clarifai.client.nodepool import Nodepool
         >>> nodepool = Nodepool(nodepool_id="nodepool_id", user_id="user_id")
-        >>> deployment = nodepool.create_deployment(deployment_id="deployment_id", config_filepath="config.yml")
+        >>> deployment = nodepool.create_deployment(config_filepath="config.yml")
     """
     if not os.path.exists(config_filepath):
       raise UserError(f"Deployment config file not found at {config_filepath}")
@@ -157,7 +157,8 @@ class Nodepool(Lister, BaseClient):
     deployment_config = self._process_deployment_config(config_filepath)
 
     if 'id' in deployment_config:
-      deployment_id = deployment_config['id']
+      if deployment_id is None:
+        deployment_id = deployment_config['id']
       deployment_config.pop('id')
 
     request = service_pb2.PostDeploymentsRequest(

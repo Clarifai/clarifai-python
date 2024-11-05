@@ -5,7 +5,38 @@ import click
 from ..utils.cli import dump_yaml, from_yaml, load_command_modules, set_base_url
 
 
-@click.group()
+class CustomMultiGroup(click.Group):
+
+  def group(self, *args, **kwargs):
+    """Behaves the same as `click.Group.group()` except if passed
+        a list of names, all after the first will be aliases for the first.
+        """
+
+    def decorator(f):
+      aliased_group = []
+      if isinstance(args[0], list):
+        # we have a list so create group aliases
+        _args = [args[0][0]] + list(args[1:])
+        for alias in args[0][1:]:
+          grp = super(CustomMultiGroup, self).group(alias, *args[1:], **kwargs)(f)
+          grp.short_help = "Alias for '{}'".format(_args[0])
+          aliased_group.append(grp)
+      else:
+        _args = args
+
+      # create the main group
+      grp = super(CustomMultiGroup, self).group(*_args, **kwargs)(f)
+
+      # for all of the aliased groups, share the main group commands
+      for aliased in aliased_group:
+        aliased.commands = grp.commands
+
+      return grp
+
+    return decorator
+
+
+@click.group(cls=CustomMultiGroup)
 @click.pass_context
 def cli(ctx):
   """Clarifai CLI"""
@@ -49,9 +80,16 @@ def login(ctx, config, env, user_id):
   if user_id:
     ctx.obj['user_id'] = user_id
     os.environ["CLARIFAI_USER_ID"] = ctx.obj['user_id']
-  elif 'user_id' in ctx.obj or 'CLARIFAI_USER_ID' in os.environ:
-    ctx.obj['user_id'] = ctx.obj.get('user_id', os.environ["CLARIFAI_USER_ID"])
+  elif 'user_id' in ctx.obj:
+    ctx.obj['user_id'] = ctx.obj.get('user_id', "")
     os.environ["CLARIFAI_USER_ID"] = ctx.obj['user_id']
+  elif 'CLARIFAI_USER_ID' in os.environ:
+    ctx.obj['user_id'] = os.environ["CLARIFAI_USER_ID"]
+  else:
+    user_id = click.prompt("Pass the User ID here", type=str)
+    os.environ["CLARIFAI_USER_ID"] = user_id
+    ctx.obj['user_id'] = user_id
+    click.echo("User ID saved successfully.")
 
   if env:
     ctx.obj['env'] = env

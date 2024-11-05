@@ -1,5 +1,7 @@
 nodepool:
   id: "test-nodepool-6"
+  compute_cluster:
+    id: "test-aws-cluster"
   description: "First nodepool in AWS in a proper compute cluster"
   instance_types:
     - id: "g5.xlarge"

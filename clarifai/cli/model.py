@@ -2,7 +2,7 @@ import click
 from clarifai.cli.base import cli
 
 
-@cli.group()
+@cli.group(['model'])
 def model():
   """Manage models: upload, test locally"""
   pass

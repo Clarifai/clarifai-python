@@ -102,12 +102,12 @@ class ComputeCluster(Lister, BaseClient):
       nodepool["visibility"] = resources_pb2.Visibility(**nodepool["visibility"])
     return nodepool
 
-  def create_nodepool(self, nodepool_id: str, config_filepath: str) -> Nodepool:
+  def create_nodepool(self, config_filepath: str, nodepool_id: str = None) -> Nodepool:
     """Creates a nodepool for the compute cluster.
 
     Args:
-        nodepool_id (str): The nodepool ID for the nodepool to create.
         config_filepath (str): The path to the nodepool config file.
+        nodepool_id (str): New nodepool ID for the nodepool to create.
 
     Returns:
         Nodepool: A Nodepool object for the specified nodepool ID.
@@ -115,7 +115,7 @@ class ComputeCluster(Lister, BaseClient):
     Example:
         >>> from clarifai.client.compute_cluster import ComputeCluster
         >>> compute_cluster = ComputeCluster(compute_cluster_id="compute_cluster_id", user_id="user_id")
-        >>> nodepool = compute_cluster.create_nodepool(nodepool_id="nodepool_id", config_filepath="config.yml")
+        >>> nodepool = compute_cluster.create_nodepool(config_filepath="config.yml")
     """
     if not os.path.exists(config_filepath):
       raise UserError(f"Nodepool config file not found at {config_filepath}")
@@ -123,7 +123,8 @@ class ComputeCluster(Lister, BaseClient):
     nodepool_config = self._process_nodepool_config(config_filepath)
 
     if 'id' in nodepool_config:
-      nodepool_id = nodepool_config['id']
+      if nodepool_id is None:
+        nodepool_id = nodepool_config['id']
       nodepool_config.pop('id')
 
     request = service_pb2.PostNodepoolsRequest(
