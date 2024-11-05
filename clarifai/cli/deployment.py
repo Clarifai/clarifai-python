@@ -1,7 +1,7 @@
 import click
 from clarifai.cli.base import cli
 from clarifai.client.nodepool import Nodepool
-from clarifai.utils.cli import display_co_resources, dump_yaml
+from clarifai.utils.cli import display_co_resources, dump_yaml, from_yaml
 
 
 @cli.group(['deployment', 'dpl'])
@@ -29,14 +29,12 @@ def deployment():
 @click.pass_context
 def create(ctx, nodepool_id, config, deployment_id):
   """Create a new Deployment with the given config file."""
-  if nodepool_id:
-    ctx.obj['nodepool_id'] = nodepool_id
-    dump_yaml(ctx.obj, 'config.yaml')
-  elif 'nodepool_id' in ctx.obj:
-    nodepool_id = ctx.obj['nodepool_id']
-  else:
-    click.echo("Please provide a nodepool ID either in arguments or in config file.", err=True)
-    return
+  if not nodepool_id:
+    deployment_config = from_yaml(config)
+    nodepool_id = deployment_config['deployment']['nodepools'][0]['id']
+  ctx.obj['nodepool_id'] = nodepool_id
+  dump_yaml(ctx.obj, 'config.yaml')
+
   nodepool = Nodepool(
       nodepool_id=nodepool_id,
       user_id=ctx.obj['user_id'],
@@ -59,14 +57,12 @@ def create(ctx, nodepool_id, config, deployment_id):
 @click.pass_context
 def list(ctx, nodepool_id, page_no, per_page):
   """List all deployments for the nodepool."""
-  if nodepool_id:
-    ctx.obj['nodepool_id'] = nodepool_id
-    dump_yaml(ctx.obj, 'config.yaml')
-  elif 'nodepool_id' in ctx.obj:
+  if not nodepool_id:
+    if 'nodepool_id' not in ctx.obj:
+      click.echo("Please provide a nodepool ID in arguments.", err=True)
+      return
     nodepool_id = ctx.obj['nodepool_id']
-  else:
-    click.echo("Please provide a nodepool ID either in arguments or in config file.", err=True)
-    return
+
   nodepool = Nodepool(
       nodepool_id=nodepool_id,
       user_id=ctx.obj['user_id'],
@@ -86,14 +82,12 @@ def list(ctx, nodepool_id, page_no, per_page):
 @click.pass_context
 def delete(ctx, nodepool_id, deployment_id):
   """Deletes a deployment for the nodepool."""
-  if nodepool_id:
-    ctx.obj['nodepool_id'] = nodepool_id
-    dump_yaml(ctx.obj, 'config.yaml')
-  elif 'nodepool_id' in ctx.obj:
+  if not nodepool_id:
+    if 'nodepool_id' not in ctx.obj:
+      click.echo("Please provide a nodepool ID in arguments.", err=True)
+      return
     nodepool_id = ctx.obj['nodepool_id']
-  else:
-    click.echo("Please provide a nodepool ID either in arguments or in config file.", err=True)
-    return
+
   nodepool = Nodepool(
       nodepool_id=nodepool_id,
       user_id=ctx.obj['user_id'],
