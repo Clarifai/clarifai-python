@@ -31,7 +31,7 @@ $ clarifai computecluster create --config <compute-cluster-config-filepath>
 
 Then, create a new Nodepool in the created Compute Cluster
 ```bash
-$ clarifai nodepool create --compute_cluster_id <compute-cluster-id> --config <nodepool-config-filepath>
+$ clarifai nodepool create --config <nodepool-config-filepath>
 ```
 
 ### Deployment
@@ -39,7 +39,7 @@ $ clarifai nodepool create --compute_cluster_id <compute-cluster-id> --config <n
 After setup, we can deploy the `visual-classifier` model using a deployment config file as shown below:
 
 ```bash
-$ clarifai deployment create --nodepool_id <nodepool-id> --config <deployment-config-filepath>
+$ clarifai deployment create --config <deployment-config-filepath>
 ```
 
 ### List Resources
@@ -53,13 +53,13 @@ $ clarifai computecluster list
 List out existing Nodepools:
 
 ```bash
-$ clarifai nodepool list --compute_cluster_id <compute-cluster-id>
+$ clarifai nodepool list
 ```
 
 List out existing Deployments:
 
 ```bash
-$ clarifai deployment list --nodepool_id <nodepool-id>
+$ clarifai deployment list
 ```
 
 ### Delete Resources
@@ -67,13 +67,13 @@ $ clarifai deployment list --nodepool_id <nodepool-id>
 Delete existing Deployment:
 
 ```bash
-$ clarifai deployment delete --nodepool_id <nodepool-id> --deployment_id <deployment-id>
+$ clarifai deployment delete --deployment_id <deployment-id>
 ```
 
 Delete existing Nodepool:
 
 ```bash
-$ clarifai nodepool delete --compute_cluster_id <compute-cluster-id> --nodepool_id <nodepool-id>
+$ clarifai nodepool delete --nodepool_id <nodepool-id>
 ```
 
 Delete existing Compute Clusters:
