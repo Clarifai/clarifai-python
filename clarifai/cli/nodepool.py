@@ -1,7 +1,7 @@
 import click
 from clarifai.cli.base import cli
 from clarifai.client.compute_cluster import ComputeCluster
-from clarifai.utils.cli import display_co_resources
+from clarifai.utils.cli import display_co_resources, dump_yaml
 
 
 @cli.group(['nodepool', 'np'])
@@ -14,7 +14,7 @@ def nodepool():
 @click.option(
     '-cc_id',
     '--compute_cluster_id',
-    required=True,
+    required=False,
     help='Compute Cluster ID for the compute cluster to interact with.')
 @click.option(
     '--config',
@@ -26,6 +26,15 @@ def nodepool():
 @click.pass_context
 def create(ctx, compute_cluster_id, config, nodepool_id):
   """Create a new Nodepool with the given config file."""
+  if compute_cluster_id:
+    ctx.obj['compute_cluster_id'] = compute_cluster_id
+    dump_yaml(ctx.obj, 'config.yaml')
+  elif 'compute_cluster_id' in ctx.obj:
+    compute_cluster_id = ctx.obj['compute_cluster_id']
+  else:
+    click.echo(
+        "Please provide a compute cluster ID either in arguments or in config file.", err=True)
+    return
   compute_cluster = ComputeCluster(
       compute_cluster_id=compute_cluster_id,
       user_id=ctx.obj['user_id'],
@@ -41,13 +50,22 @@ def create(ctx, compute_cluster_id, config, nodepool_id):
 @click.option(
     '-cc_id',
     '--compute_cluster_id',
-    required=True,
+    required=False,
     help='Compute Cluster ID for the compute cluster to interact with.')
 @click.option('--page_no', required=False, help='Page number to list.', default=1)
 @click.option('--per_page', required=False, help='Number of items per page.', default=16)
 @click.pass_context
 def list(ctx, compute_cluster_id, page_no, per_page):
   """List all nodepools for the user."""
+  if compute_cluster_id:
+    ctx.obj['compute_cluster_id'] = compute_cluster_id
+    dump_yaml(ctx.obj, 'config.yaml')
+  elif 'compute_cluster_id' in ctx.obj:
+    compute_cluster_id = ctx.obj['compute_cluster_id']
+  else:
+    click.echo(
+        "Please provide a compute cluster ID either in arguments or in config file.", err=True)
+    return
   compute_cluster = ComputeCluster(
       compute_cluster_id=compute_cluster_id,
       user_id=ctx.obj['user_id'],
@@ -61,12 +79,21 @@ def list(ctx, compute_cluster_id, page_no, per_page):
 @click.option(
     '-cc_id',
     '--compute_cluster_id',
-    required=True,
+    required=False,
     help='Compute Cluster ID for the compute cluster to interact with.')
 @click.option('-np_id', '--nodepool_id', help='Nodepool ID of the user to delete.')
 @click.pass_context
 def delete(ctx, compute_cluster_id, nodepool_id):
   """Deletes a nodepool for the user."""
+  if compute_cluster_id:
+    ctx.obj['compute_cluster_id'] = compute_cluster_id
+    dump_yaml(ctx.obj, 'config.yaml')
+  elif 'compute_cluster_id' in ctx.obj:
+    compute_cluster_id = ctx.obj['compute_cluster_id']
+  else:
+    click.echo(
+        "Please provide a compute cluster ID either in arguments or in config file.", err=True)
+    return
   compute_cluster = ComputeCluster(
       compute_cluster_id=compute_cluster_id,
       user_id=ctx.obj['user_id'],
