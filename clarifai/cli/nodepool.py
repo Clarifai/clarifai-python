@@ -26,15 +26,19 @@ def nodepool():
 @click.pass_context
 def create(ctx, compute_cluster_id, config, nodepool_id):
   """Create a new Nodepool with the given config file."""
+
+  nodepool_config = from_yaml(config)
   if not compute_cluster_id:
-    nodepool_config = from_yaml(config)
     if 'compute_cluster' not in nodepool_config['nodepool']:
       click.echo(
-          "Please provide a compute cluster ID in the config file or in arguments.", err=True)
+          "Please provide a compute cluster ID either in the config file or using --compute_cluster_id flag",
+          err=True)
       return
     compute_cluster_id = nodepool_config['nodepool']['compute_cluster']['id']
-  ctx.obj['compute_cluster_id'] = compute_cluster_id
-  dump_yaml(ctx.obj, 'config.yaml')
+  else:
+    if 'compute_cluster' not in nodepool_config['nodepool']:
+      nodepool_config['nodepool']['compute_cluster']['id'] = compute_cluster_id
+      dump_yaml(config, nodepool_config)
 
   compute_cluster = ComputeCluster(
       compute_cluster_id=compute_cluster_id,
@@ -51,18 +55,13 @@ def create(ctx, compute_cluster_id, config, nodepool_id):
 @click.option(
     '-cc_id',
     '--compute_cluster_id',
-    required=False,
+    required=True,
     help='Compute Cluster ID for the compute cluster to interact with.')
 @click.option('--page_no', required=False, help='Page number to list.', default=1)
 @click.option('--per_page', required=False, help='Number of items per page.', default=16)
 @click.pass_context
 def list(ctx, compute_cluster_id, page_no, per_page):
   """List all nodepools for the user."""
-  if not compute_cluster_id:
-    if 'compute_cluster_id' not in ctx.obj:
-      click.echo("Please provide a compute cluster ID in arguments.", err=True)
-      return
-    compute_cluster_id = ctx.obj['compute_cluster_id']
 
   compute_cluster = ComputeCluster(
       compute_cluster_id=compute_cluster_id,
@@ -77,17 +76,12 @@ def list(ctx, compute_cluster_id, page_no, per_page):
 @click.option(
     '-cc_id',
     '--compute_cluster_id',
-    required=False,
+    required=True,
     help='Compute Cluster ID for the compute cluster to interact with.')
 @click.option('-np_id', '--nodepool_id', help='Nodepool ID of the user to delete.')
 @click.pass_context
 def delete(ctx, compute_cluster_id, nodepool_id):
   """Deletes a nodepool for the user."""
-  if not compute_cluster_id:
-    if 'compute_cluster_id' not in ctx.obj:
-      click.echo("Please provide a compute cluster ID in arguments.", err=True)
-      return
-    compute_cluster_id = ctx.obj['compute_cluster_id']
 
   compute_cluster = ComputeCluster(
       compute_cluster_id=compute_cluster_id,

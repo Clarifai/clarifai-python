@@ -53,13 +53,13 @@ $ clarifai computecluster list
 List out existing Nodepools:
 
 ```bash
-$ clarifai nodepool list
+$ clarifai nodepool list --compute_cluster_id <compute-cluster-id>
 ```
 
 List out existing Deployments:
 
 ```bash
-$ clarifai deployment list
+$ clarifai deployment list --nodepool_id <nodepool-id>
 ```
 
 ### Delete Resources
@@ -67,13 +67,13 @@ $ clarifai deployment list
 Delete existing Deployment:
 
 ```bash
-$ clarifai deployment delete --deployment_id <deployment-id>
+$ clarifai deployment delete --nodepool_id <nodepool-id> --deployment_id <deployment-id>
 ```
 
 Delete existing Nodepool:
 
 ```bash
-$ clarifai nodepool delete --nodepool_id <nodepool-id>
+$ clarifai nodepool delete --compute_cluster_id <compute-cluster-id> --nodepool_id <nodepool-id>
 ```
 
 Delete existing Compute Clusters:

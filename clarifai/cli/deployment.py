@@ -1,7 +1,7 @@
 import click
 from clarifai.cli.base import cli
 from clarifai.client.nodepool import Nodepool
-from clarifai.utils.cli import display_co_resources, dump_yaml, from_yaml
+from clarifai.utils.cli import display_co_resources, from_yaml
 
 
 @cli.group(['deployment', 'dpl'])
@@ -32,8 +32,6 @@ def create(ctx, nodepool_id, config, deployment_id):
   if not nodepool_id:
     deployment_config = from_yaml(config)
     nodepool_id = deployment_config['deployment']['nodepools'][0]['id']
-  ctx.obj['nodepool_id'] = nodepool_id
-  dump_yaml(ctx.obj, 'config.yaml')
 
   nodepool = Nodepool(
       nodepool_id=nodepool_id,
@@ -50,18 +48,13 @@ def create(ctx, nodepool_id, config, deployment_id):
 @click.option(
     '-np_id',
     '--nodepool_id',
-    required=False,
+    required=True,
     help='Nodepool ID for the Nodepool to interact with.')
 @click.option('--page_no', required=False, help='Page number to list.', default=1)
 @click.option('--per_page', required=False, help='Number of items per page.', default=16)
 @click.pass_context
 def list(ctx, nodepool_id, page_no, per_page):
   """List all deployments for the nodepool."""
-  if not nodepool_id:
-    if 'nodepool_id' not in ctx.obj:
-      click.echo("Please provide a nodepool ID in arguments.", err=True)
-      return
-    nodepool_id = ctx.obj['nodepool_id']
 
   nodepool = Nodepool(
       nodepool_id=nodepool_id,
@@ -76,17 +69,12 @@ def list(ctx, nodepool_id, page_no, per_page):
 @click.option(
     '-np_id',
     '--nodepool_id',
-    required=False,
+    required=True,
     help='Nodepool ID for the Nodepool to interact with.')
 @click.option('-dpl_id', '--deployment_id', help='Deployment ID of the nodepool to delete.')
 @click.pass_context
 def delete(ctx, nodepool_id, deployment_id):
   """Deletes a deployment for the nodepool."""
-  if not nodepool_id:
-    if 'nodepool_id' not in ctx.obj:
-      click.echo("Please provide a nodepool ID in arguments.", err=True)
-      return
-    nodepool_id = ctx.obj['nodepool_id']
 
   nodepool = Nodepool(
       nodepool_id=nodepool_id,
