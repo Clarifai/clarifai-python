@@ -321,6 +321,7 @@ Additionally, these optional params are supported:
 
   def set_base(self, base: str):
     """ Set the base domain for the API. """
+    base = DEFAULT_BASE if base is None else base
     self._base = https_cache(base_https_cache, base)
 
   def set_ui(self, ui: str):
