@@ -23,6 +23,11 @@ def _clear_line(n: int = 1) -> None:
 
 class ModelUploader:
   DEFAULT_PYTHON_VERSION = 3.11
+  DEFAULT_TORCH_VERSION = '2.4.0'
+  DEFAULT_CUDA_VERSION = '12.4.0'
+  PYTHON_BASE_IMAGE = 'public.ecr.aws/clarifai-models/python-base:${python_version}'
+  TORCH_BASE_IMAGE = 'public.ecr.aws/clarifai-models/torch:${torch_version}-py${python_version}-cuda${cuda_version}'
+
   CONCEPTS_REQUIRED_MODEL_TYPE = [
       'visual-classifier', 'visual-detector', 'visual-segmenter', 'text-classifier'
   ]
@@ -144,6 +149,26 @@ class ModelUploader:
     )
     return self.client.STUB.PostModels(request)
 
+  def _parse_requirements(self):
+    # parse the user's requirements.txt to determine the proper base image to build on top of, based on the torch and other large dependencies and it's versions
+    dependencies = [
+        'torch',
+    ]
+
+    output = {}
+
+    with open(os.path.join(self.folder, 'requirements.txt'), 'r') as file:
+      requirements = file.readlines()
+    for requirement in requirements:
+      for dependency in dependencies:
+        if dependency in requirement:
+          if '==' in requirement:
+            version = requirement.split('==')[1].strip()
+            output[dependency] = version
+          else:
+            output[dependency] = None
+    return output
+
   def create_dockerfile(self):
     num_accelerators = self.inference_compute_info.num_accelerators
     if num_accelerators:
@@ -174,10 +199,30 @@ class ModelUploader:
       )
       python_version = self.DEFAULT_PYTHON_VERSION
 
+    # Parse the requirements.txt file to determine the base image
+    dependencies = self._parse_requirements()
+    if 'torch' in dependencies:
+      torch_version = dependencies['torch']
+      if torch_version is None:
+        torch_version = self.DEFAULT_TORCH_VERSION
+        logger.info(
+            'Torch version not found in the requirements.txt file, using the default torch version {torch_version} base image to build the Dockerfile'
+        )
+      else:
+        logger.info(
+            f'Using Torch version {torch_version} from the requirements.txt file to build the Dockerfile'
+        )
+      base_image = self.TORCH_BASE_IMAGE.format(
+          torch_version=torch_version,
+          python_version=python_version,
+          cuda_version=self.DEFAULT_CUDA_VERSION)
+    else:
+      base_image = self.PYTHON_BASE_IMAGE.format(python_version=python_version)
+
     # Replace placeholders with actual values
     dockerfile_content = dockerfile_template.safe_substitute(
-        PYTHON_VERSION=python_version,
         name='main',
+        BASE_IMAGE=base_image,
     )
 
     # Write Dockerfile
