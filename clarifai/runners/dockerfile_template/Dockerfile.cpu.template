@@ -26,6 +26,8 @@ COPY . /app/model_dir/${name}
 # Add the model directory to the python path.
 ENV PYTHONPATH "${PYTHONPATH}:/app/model_dir/${name}"
 
+ENTRYPOINT ["python", "-m", "clarifai.runners.server"]
+
 # Finally run the clarifai entrypoint to start the runner loop and local dev server.
 # Note(zeiler): we may want to make this a clarifai CLI call.
-CMD ["-m", "clarifai.runners.server", "--model_path", "/app/model_dir/${name}"]
+CMD ["--model_path", "/app/model_dir/main"]
