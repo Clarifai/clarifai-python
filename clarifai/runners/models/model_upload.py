@@ -25,8 +25,8 @@ class ModelUploader:
   DEFAULT_PYTHON_VERSION = 3.11
   DEFAULT_TORCH_VERSION = '2.4.0'
   DEFAULT_CUDA_VERSION = '12.4.0'
-  PYTHON_BASE_IMAGE = 'public.ecr.aws/clarifai-models/python-base:${python_version}'
-  TORCH_BASE_IMAGE = 'public.ecr.aws/clarifai-models/torch:${torch_version}-py${python_version}-cuda${cuda_version}'
+  PYTHON_BASE_IMAGE = 'public.ecr.aws/clarifai-models/python-base:{python_version}'
+  TORCH_BASE_IMAGE = 'public.ecr.aws/clarifai-models/torch:{torch_version}-py{python_version}-cuda{cuda_version}'
 
   CONCEPTS_REQUIRED_MODEL_TYPE = [
       'visual-classifier', 'visual-detector', 'visual-segmenter', 'text-classifier'

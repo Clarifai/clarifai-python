@@ -1,5 +1,5 @@
-ARG PYTHON_VERSION=${PYTHON_VERSION}
-FROM public.ecr.aws/docker/library/python:${PYTHON_VERSION}-slim-bookworm as build
+ARG BASE_IMAGE=${BASE_IMAGE}
+FROM ${BASE_IMAGE} as build
 
 # Set the working directory to /app
 WORKDIR /app
@@ -7,10 +7,10 @@ WORKDIR /app
 COPY requirements.txt .
 # Install requirements and cleanup before leaving this line.
 # Note(zeiler): this could be in a future template as {{model_python_deps}}
-RUN python -m pip install -r requirements.txt && rm -rf /root/.cache
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Install Clarifai SDK
-RUN python -m pip install clarifai
+RUN pip install --no-cache-dir clarifai
 
 # These will be set by the templaing system.
 ENV CLARIFAI_PAT=${CLARIFAI_PAT}
@@ -28,4 +28,4 @@ ENV PYTHONPATH "${PYTHONPATH}:/app/model_dir/${name}"
 
 # Finally run the clarifai entrypoint to start the runner loop and local dev server.
 # Note(zeiler): we may want to make this a clarifai CLI call.
-CMD ["python", "-m", "clarifai.runners.server", "--model_path", "/app/model_dir/${name}"]
+CMD ["-m", "clarifai.runners.server", "--model_path", "/app/model_dir/${name}"]
