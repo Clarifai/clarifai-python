@@ -24,7 +24,8 @@ def _clear_line(n: int = 1) -> None:
 class ModelUploader:
   DEFAULT_PYTHON_VERSION = 3.11
   DEFAULT_TORCH_VERSION = '2.4.0'
-  DEFAULT_CUDA_VERSION = '12.4.0'
+  DEFAULT_CUDA_VERSION = '124'
+  AVAILABLE_TORCH_IMAGES = ['2.4.0-py3.11-cuda124']
   PYTHON_BASE_IMAGE = 'public.ecr.aws/clarifai-models/python-base:{python_version}'
   TORCH_BASE_IMAGE = 'public.ecr.aws/clarifai-models/torch:{torch_version}-py{python_version}-cuda{cuda_version}'
 
