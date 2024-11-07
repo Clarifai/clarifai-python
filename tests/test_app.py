@@ -28,21 +28,32 @@ OBJECT_CONCEPT_ID = 'food'
 PREDICATE = "hypernym"
 
 CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "api.clarifai.com")
 
 
 @pytest.fixture
 def create_app():
-  return App(user_id=CREATE_APP_USER_ID, app_id=CREATE_APP_ID, pat=CLARIFAI_PAT)
+  return App(
+      user_id=CREATE_APP_USER_ID,
+      app_id=CREATE_APP_ID,
+      pat=CLARIFAI_PAT,
+      base_url=CLARIFAI_API_BASE)
 
 
 @pytest.fixture
 def app():
-  return App(user_id=MAIN_APP_USER_ID, app_id=MAIN_APP_ID, pat=CLARIFAI_PAT)
+  return App(
+      user_id=MAIN_APP_USER_ID, app_id=MAIN_APP_ID, pat=CLARIFAI_PAT, base_url=CLARIFAI_API_BASE)
+
+
+@pytest.fixture
+def create_client():
+  return User(user_id=CREATE_APP_USER_ID, pat=CLARIFAI_PAT, base_url=CLARIFAI_API_BASE)
 
 
 @pytest.fixture
 def client():
-  return User(user_id=MAIN_APP_USER_ID, pat=CLARIFAI_PAT)
+  return User(user_id=MAIN_APP_USER_ID, pat=CLARIFAI_PAT, base_url=CLARIFAI_API_BASE)
 
 
 @pytest.mark.requires_secrets
@@ -95,8 +106,8 @@ class TestApp:
     assert len(versions) == 1  #test for list_versions
     assert workflow.id == General_Workflow_ID and workflow.app_id == MAIN_APP_ID and workflow.user_id == MAIN_APP_USER_ID
 
-  def test_create_app(self):
-    app = User(user_id=CREATE_APP_USER_ID, pat=CLARIFAI_PAT).create_app(app_id=CREATE_APP_ID)
+  def test_create_app(self, create_client):
+    app = create_client.create_app(app_id=CREATE_APP_ID)
     assert app.id == CREATE_APP_ID and app.user_id == CREATE_APP_USER_ID
 
   def test_create_search(self, create_app):
@@ -221,7 +232,7 @@ class TestApp:
   #     client.delete_runner(CREATE_RUNNER_ID)
   #     assert "SUCCESS" in caplog.text
 
-  def test_delete_app(self, caplog):
+  def test_delete_app(self, caplog, create_client):
     with caplog.at_level(logging.INFO):
-      User(user_id=CREATE_APP_USER_ID).delete_app(CREATE_APP_ID)
+      create_client.delete_app(CREATE_APP_ID)
       assert "SUCCESS" in caplog.text

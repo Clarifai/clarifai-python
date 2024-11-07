@@ -16,6 +16,8 @@ CREATE_DATASET_ID = "ci_search_dataset"
 DOG_IMG_URL = "https://samples.clarifai.com/dog.tiff"
 DATASET_IMAGES_DIR = os.path.dirname(__file__) + "/assets/voc/images"
 
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "api.clarifai.com")
+
 
 def get_filters_for_test() -> [(typing.List[typing.Dict], int)]:
   return [
@@ -109,7 +111,7 @@ class TestAnnotationSearch:
 
   @classmethod
   def setup_class(cls):
-    cls.client = User(user_id=CREATE_APP_USER_ID)
+    cls.client = User(user_id=CREATE_APP_USER_ID, base_url=CLARIFAI_API_BASE)
     cls.search = Search(
         user_id=CREATE_APP_USER_ID, app_id=CREATE_APP_ID, top_k=1, metric="euclidean")
     cls.search_with_pagination = Search(

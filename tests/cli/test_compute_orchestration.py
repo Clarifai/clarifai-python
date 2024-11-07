@@ -22,6 +22,7 @@ NODEPOOL_CONFIG_FILE = "tests/compute_orchestration/configs/example_nodepool_con
 DEPLOYMENT_CONFIG_FILE = "tests/compute_orchestration/configs/example_deployment_config.yaml"
 
 CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "api.clarifai.com")
 
 
 @pytest.fixture
@@ -29,20 +30,25 @@ def create_compute_cluster():
   return ComputeCluster(
       user_id=CREATE_COMPUTE_CLUSTER_USER_ID,
       compute_cluster_id=CREATE_COMPUTE_CLUSTER_ID,
-      pat=CLARIFAI_PAT)
+      pat=CLARIFAI_PAT,
+      base_url=CLARIFAI_API_BASE)
 
 
 @pytest.fixture
 def create_nodepool():
   return Nodepool(
-      user_id=CREATE_COMPUTE_CLUSTER_USER_ID, nodepool_id=CREATE_NODEPOOL_ID, pat=CLARIFAI_PAT)
+      user_id=CREATE_COMPUTE_CLUSTER_USER_ID,
+      nodepool_id=CREATE_NODEPOOL_ID,
+      pat=CLARIFAI_PAT,
+      base_url=CLARIFAI_API_BASE)
 
 
 @pytest.fixture
 def create_runner():
   return CliRunner(env={
       "CLARIFAI_USER_ID": CREATE_COMPUTE_CLUSTER_USER_ID,
-      "CLARIFAI_PAT": CLARIFAI_PAT
+      "CLARIFAI_PAT": CLARIFAI_PAT,
+      "CLARIFAI_API_BASE": CLARIFAI_API_BASE
   })
 
 
@@ -58,7 +64,8 @@ class TestComputeOrchestration:
   @classmethod
   def setup_class(cls):
     """Setup: Clean up any pre-existing resources before tests."""
-    cls.client = User(user_id=CREATE_COMPUTE_CLUSTER_USER_ID, pat=CLARIFAI_PAT)
+    cls.client = User(
+        user_id=CREATE_COMPUTE_CLUSTER_USER_ID, pat=CLARIFAI_PAT, base_url=CLARIFAI_API_BASE)
     cls.compute_cluster = create_compute_cluster
     cls.nodepool = create_nodepool
     cls.runner = create_runner

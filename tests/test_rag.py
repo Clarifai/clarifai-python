@@ -13,7 +13,13 @@ CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
 TEXT_FILE_PATH = os.path.dirname(__file__) + "/assets/sample.txt"
 PDF_URL = "https://samples.clarifai.com/test_doc.pdf"
 
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "api.clarifai.com")
+
 auth_obj = namedtuple("auth", "ui")
+
+
+def client():
+  return User(user_id=CREATE_APP_USER_ID, base_url=CLARIFAI_API_BASE)
 
 
 @pytest.mark.requires_secrets
@@ -21,7 +27,7 @@ class TestRAG:
 
   @classmethod
   def setup_class(self):
-    self.rag = RAG.setup(user_id=CREATE_APP_USER_ID)
+    self.rag = RAG.setup(user_id=CREATE_APP_USER_ID, base_url=CLARIFAI_API_BASE)
     wf = self.rag._prompt_workflow
     auth = auth_obj(ui="https://clarifai.com")
     self.workflow_url = ClarifaiUrlHelper(auth).clarifai_url(wf.user_id, wf.app_id, "workflows",
@@ -57,4 +63,4 @@ class TestRAG:
 
   @classmethod
   def teardown_class(self):
-    User(user_id=CREATE_APP_USER_ID).delete_app(self.rag._app.id)
+    client().delete_app(self.rag._app.id)

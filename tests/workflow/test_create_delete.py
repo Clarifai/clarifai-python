@@ -15,6 +15,8 @@ CREATE_APP_ID = f"test_workflow_create_delete_app_{NOW}"
 #assets
 IMAGE_URL = "https://samples.clarifai.com/metro-north.jpg"
 
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "api.clarifai.com")
+
 
 def get_test_parse_workflow_creation_workflows() -> typing.List[str]:
   filenames = glob.glob("tests/workflow/fixtures/*.yml")
@@ -26,7 +28,7 @@ class TestWorkflowCreate:
 
   @classmethod
   def setup_class(cls):
-    cls.client = User(user_id=CREATE_APP_USER_ID)
+    cls.client = User(user_id=CREATE_APP_USER_ID, base_url=CLARIFAI_API_BASE)
     try:
       cls.app = cls.client.create_app(app_id=CREATE_APP_ID, base_workflow="Empty")
     except Exception as e:

@@ -1,0 +1,13 @@
+name: Run Tests - Staging
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/20 * * * *'
+
+jobs:
+  sdk-python-tests-staging:
+    uses: Clarifai/clarifai-python/.github/workflows/run_tests.yml@master
+    with:
+      CLARIFAI_GRPC_BASE: "api-staging.clarifai.com"
+      CLARIFAI_API_BASE: "https://api-staging.clarifai.com"

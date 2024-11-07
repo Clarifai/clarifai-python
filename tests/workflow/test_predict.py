@@ -14,6 +14,7 @@ MAIN_APP_USER_ID = "clarifai"
 WORKFLOW_ID = "General"
 
 CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "api.clarifai.com")
 
 
 @pytest.fixture
@@ -23,7 +24,8 @@ def workflow():
       app_id=MAIN_APP_ID,
       workflow_id=WORKFLOW_ID,
       output_config=resources_pb2.OutputConfig(max_concepts=3),
-      pat=CLARIFAI_PAT)
+      pat=CLARIFAI_PAT,
+      base_url=CLARIFAI_API_BASE)
 
 
 @pytest.mark.requires_secrets
@@ -46,12 +48,7 @@ class TestWorkflowPredict:
 
     assert len(post_workflows_response.results[0].outputs[0].data.concepts) > 0
 
-  def test_workflow_predict_max_concepts(self):
-    workflow = Workflow(
-        user_id=MAIN_APP_USER_ID,
-        app_id=MAIN_APP_ID,
-        workflow_id=WORKFLOW_ID,
-        output_config=resources_pb2.OutputConfig(max_concepts=3))
+  def test_workflow_predict_max_concepts(self, workflow):
     post_workflows_response = workflow.predict_by_url(DOG_IMAGE_URL, input_type="image")
 
     assert len(post_workflows_response.results[0].outputs[0].data.concepts) == 3
