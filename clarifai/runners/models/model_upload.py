@@ -26,7 +26,38 @@ class ModelUploader:
   DEFAULT_PYTHON_VERSION = 3.11
   DEFAULT_TORCH_VERSION = '2.4.0'
   DEFAULT_CUDA_VERSION = '124'
-  AVAILABLE_TORCH_IMAGES = ['2.4.0-py3.11-cuda124']
+  # List of available torch images for matrix
+  '''
+        python_version: ['3.8', '3.9', '3.10', '3.11']
+        torch_version: ['2.0.0', '2.1.0', '2.2.0', '2.3.0', '2.4.0', '2.4.1', '2.5.0']
+        cuda_version: ['124']
+  '''
+  AVAILABLE_TORCH_IMAGES = [
+      '2.0.0-py3.8-cuda124',
+      '2.0.0-py3.9-cuda124',
+      '2.0.0-py3.10-cuda124',
+      '2.0.0-py3.11-cuda124',
+      '2.1.0-py3.8-cuda124',
+      '2.1.0-py3.9-cuda124',
+      '2.1.0-py3.10-cuda124',
+      '2.1.0-py3.11-cuda124',
+      '2.2.0-py3.8-cuda124',
+      '2.2.0-py3.9-cuda124',
+      '2.2.0-py3.10-cuda124',
+      '2.2.0-py3.11-cuda124',
+      '2.3.0-py3.8-cuda124',
+      '2.3.0-py3.9-cuda124',
+      '2.3.0-py3.10-cuda124',
+      '2.3.0-py3.11-cuda124',
+      '2.4.0-py3.8-cuda124',
+      '2.4.0-py3.9-cuda124',
+      '2.4.0-py3.10-cuda124',
+      '2.4.0-py3.11-cuda124',
+      '2.4.1-py3.8-cuda124',
+      '2.4.1-py3.9-cuda124',
+      '2.4.1-py3.10-cuda124',
+      '2.4.1-py3.11-cuda124',
+  ]
   AVAILABLE_PYTHON_IMAGES = ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
   PYTHON_BASE_IMAGE = 'public.ecr.aws/clarifai-models/python-base:{python_version}'
   TORCH_BASE_IMAGE = 'public.ecr.aws/clarifai-models/torch:{torch_version}-py{python_version}-cuda{cuda_version}'
