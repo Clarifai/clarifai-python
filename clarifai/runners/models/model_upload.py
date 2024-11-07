@@ -152,7 +152,7 @@ class ModelUploader:
     )
     return self.client.STUB.PostModels(request)
 
-  def _parse_requirements(self) -> dict[str, str]:
+  def _parse_requirements(self):
     # parse the user's requirements.txt to determine the proper base image to build on top of, based on the torch and other large dependencies and it's versions
     # List of dependencies to look for
     dependencies = [
