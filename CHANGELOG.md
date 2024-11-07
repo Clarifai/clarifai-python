@@ -1,6 +1,7 @@
 ## [[10.10.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.10.0) - [PyPI](https://pypi.org/project/clarifai/10.10.0/) - 2024-11-06
 
 ### Changed
+ - Added a check for base url parameter [(#438)] (https://github.com/Clarifai/clarifai-python/pull/438)
  - Added CLI support for Compute Orchestration resources (Compute cluster, Nodepool, Deployment) [(#436)] (https://github.com/Clarifai/clarifai-python/pull/436)
 
 ## [[10.9.5]](https://github.com/Clarifai/clarifai-python/releases/tag/10.9.5) - [PyPI](https://pypi.org/project/clarifai/10.9.5/) - 2024-10-29
