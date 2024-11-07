@@ -1,4 +1,5 @@
 import os
+import re
 import time
 from string import Template
 
@@ -26,6 +27,7 @@ class ModelUploader:
   DEFAULT_TORCH_VERSION = '2.4.0'
   DEFAULT_CUDA_VERSION = '124'
   AVAILABLE_TORCH_IMAGES = ['2.4.0-py3.11-cuda124']
+  AVAILABLE_PYTHON_IMAGES = ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
   PYTHON_BASE_IMAGE = 'public.ecr.aws/clarifai-models/python-base:{python_version}'
   TORCH_BASE_IMAGE = 'public.ecr.aws/clarifai-models/torch:{torch_version}-py{python_version}-cuda{cuda_version}'
 
@@ -150,38 +152,46 @@ class ModelUploader:
     )
     return self.client.STUB.PostModels(request)
 
-  def _parse_requirements(self):
+  def _parse_requirements(self) -> dict[str, str]:
     # parse the user's requirements.txt to determine the proper base image to build on top of, based on the torch and other large dependencies and it's versions
+    # List of dependencies to look for
     dependencies = [
         'torch',
     ]
+    # Escape dependency names for regex
+    dep_pattern = '|'.join(map(re.escape, dependencies))
+    # All possible version specifiers
+    version_specifiers = '==|>=|<=|!=|~=|>|<'
+    # Compile a regex pattern with verbose mode for readability
+    pattern = re.compile(r"""
+          ^\s*                                   # Start of line, optional whitespace
+          (?P<dependency>""" + dep_pattern + r""")   # Dependency name
+          \s*                                   # Optional whitespace
+          (?P<specifier>""" + version_specifiers + r""")?  # Optional version specifier
+          \s*                                   # Optional whitespace
+          (?P<version>[^\s;]+)?                 # Optional version (up to space or semicolon)
+          """, re.VERBOSE)
 
-    output = {}
-
+    deendencies_version = {}
     with open(os.path.join(self.folder, 'requirements.txt'), 'r') as file:
-      requirements = file.readlines()
-    for requirement in requirements:
-      for dependency in dependencies:
-        if dependency in requirement:
-          if '==' in requirement:
-            version = requirement.split('==')[1].strip()
-            output[dependency] = version
-          else:
-            output[dependency] = None
-    return output
+      for line in file:
+        # Skip empty lines and comments
+        line = line.strip()
+        if not line or line.startswith('#'):
+          continue
+        match = pattern.match(line)
+        if match:
+          dependency = match.group('dependency')
+          version = match.group('version')
+          deendencies_version[dependency] = version if version else None
+    return deendencies_version
 
   def create_dockerfile(self):
-    num_accelerators = self.inference_compute_info.num_accelerators
-    if num_accelerators:
-      dockerfile_template = os.path.join(
-          os.path.dirname(os.path.dirname(__file__)),
-          'dockerfile_template',
-          'Dockerfile.cuda.template',
-      )
-    else:
-      dockerfile_template = os.path.join(
-          os.path.dirname(os.path.dirname(__file__)), 'dockerfile_template',
-          'Dockerfile.cpu.template')
+    dockerfile_template = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        'dockerfile_template',
+        'Dockerfile.template',
+    )
 
     with open(dockerfile_template, 'r') as template_file:
       dockerfile_template = template_file.read()
@@ -192,6 +202,11 @@ class ModelUploader:
     build_info = self.config.get('build_info', {})
     if 'python_version' in build_info:
       python_version = build_info['python_version']
+      if python_version not in self.AVAILABLE_PYTHON_IMAGES:
+        logger.error(
+            f"Python version {python_version} not supported, please use one of the following versions: {self.AVAILABLE_PYTHON_IMAGES}"
+        )
+        return
       logger.info(
           f"Using Python version {python_version} from the config file to build the Dockerfile")
     else:
@@ -200,25 +215,21 @@ class ModelUploader:
       )
       python_version = self.DEFAULT_PYTHON_VERSION
 
+    base_image = self.PYTHON_BASE_IMAGE.format(python_version=python_version)
+
     # Parse the requirements.txt file to determine the base image
     dependencies = self._parse_requirements()
-    if 'torch' in dependencies:
+    if 'torch' in dependencies and dependencies['torch']:
       torch_version = dependencies['torch']
-      if torch_version is None:
-        torch_version = self.DEFAULT_TORCH_VERSION
-        logger.info(
-            'Torch version not found in the requirements.txt file, using the default torch version {torch_version} base image to build the Dockerfile'
-        )
-      else:
-        logger.info(
-            f'Using Torch version {torch_version} from the requirements.txt file to build the Dockerfile'
-        )
-      base_image = self.TORCH_BASE_IMAGE.format(
-          torch_version=torch_version,
-          python_version=python_version,
-          cuda_version=self.DEFAULT_CUDA_VERSION)
-    else:
-      base_image = self.PYTHON_BASE_IMAGE.format(python_version=python_version)
+
+      for image in self.AVAILABLE_TORCH_IMAGES:
+        if torch_version in image and f'py{python_version}' in image:
+          base_image = self.TORCH_BASE_IMAGE.format(
+              torch_version=torch_version,
+              python_version=python_version,
+              cuda_version=self.DEFAULT_CUDA_VERSION)
+          logger.info(f"Using Torch version {torch_version} base image  to build the Docker image")
+          break
 
     # Replace placeholders with actual values
     dockerfile_content = dockerfile_template.safe_substitute(
