@@ -1,4 +1,4 @@
-## [[10.10.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.10.0) - [PyPI](https://pypi.org/project/clarifai/10.10.0/) - 2024-11-06
+## [[10.10.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.10.0) - [PyPI](https://pypi.org/project/clarifai/10.10.0/) - 2024-11-07
 
 ### Changed
  - Added a check for base url parameter [(#438)] (https://github.com/Clarifai/clarifai-python/pull/438)
