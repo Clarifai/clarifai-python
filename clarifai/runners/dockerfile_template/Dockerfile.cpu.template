@@ -5,12 +5,10 @@ FROM ${BASE_IMAGE} as build
 WORKDIR /app
 
 COPY requirements.txt .
-# Install requirements and cleanup before leaving this line.
+# Install requirements and clarifai package and cleanup before leaving this line.
 # Note(zeiler): this could be in a future template as {{model_python_deps}}
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Install Clarifai SDK
-RUN pip install --no-cache-dir clarifai
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir clarifai
 
 # These will be set by the templaing system.
 ENV CLARIFAI_PAT=${CLARIFAI_PAT}
