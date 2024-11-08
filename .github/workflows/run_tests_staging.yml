@@ -9,5 +9,5 @@ jobs:
   sdk-python-tests-staging:
     uses: Clarifai/clarifai-python/.github/workflows/run_tests.yml@DEVX-662-Periodic-Synthetic-Checks
     with:
+      PERIODIC_CHECKS: "true"
       CLARIFAI_GRPC_BASE: "api-staging.clarifai.com"
-      CLARIFAI_API_BASE: "https://api-staging.clarifai.com"
