@@ -51,13 +51,13 @@ jobs:
       uses: pre-commit/action@v3.0.0
     - name: Prepare the API keys & Run pytest
       env:
-        CLARIFAI_GRPC_BASE: ${{ inputs.CLARIFAI_GRPC_BASE }}
-        CLARIFAI_API_BASE: ${{ inputs.CLARIFAI_API_BASE }}
         CLARIFAI_USER_EMAIL_SECURE_HOSTING: ${{ secrets.CLARIFAI_USER_EMAIL_SECURE_HOSTING }}
         CLARIFAI_USER_EMAIL: ${{ secrets.INTERNAL_USER_EMAIL }}
         CLARIFAI_USER_PASSWORD: ${{ secrets.INTERNAL_USER_PASSWORD }}
       shell: bash
       run: |
+        export CLARIFAI_GRPC_BASE="${{ inputs.CLARIFAI_GRPC_BASE }}"
+        export CLARIFAI_API_BASE="${{ inputs.CLARIFAI_API_BASE }}"
         export PYTHONPATH=.
         export CLARIFAI_USER_ID="$(python scripts/key_for_tests.py --get-userid)"
         export CLARIFAI_PAT="$(python scripts/key_for_tests.py --create-pat)"
