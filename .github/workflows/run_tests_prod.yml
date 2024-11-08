@@ -7,7 +7,7 @@ on:
 
 jobs:
   sdk-python-tests-prod:
-    uses: Clarifai/clarifai-python/.github/workflows/run_tests.yml@master
+    uses: Clarifai/clarifai-python/.github/workflows/run_tests.yml@DEVX-662-Periodic-Synthetic-Checks
     with:
       CLARIFAI_GRPC_BASE: "api.clarifai.com"
       CLARIFAI_API_BASE: "https://api.clarifai.com"
