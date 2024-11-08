@@ -1,0 +1,13 @@
+name: Run Tests - Prod
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/20 * * * *'
+
+jobs:
+  sdk-python-tests-prod:
+    uses: Clarifai/clarifai-python/.github/workflows/run_tests.yml@master
+    with:
+      CLARIFAI_GRPC_BASE: "api.clarifai.com"
+      CLARIFAI_API_BASE: "https://api.clarifai.com"
