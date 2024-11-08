@@ -8,6 +8,17 @@ on:
     branches: [ master ]
   pull_request:
   workflow_call:
+    inputs:
+      CLARIFAI_GRPC_BASE:
+        description: "gRPC Base URL"
+        required: true
+        type: string
+        default: "api.clarifai.com"
+      CLARIFAI_API_BASE:
+        description: "API Base URL"
+        required: true
+        type: string
+        default: "https://api.clarifai.com"
 
 jobs:
   build:
