@@ -70,7 +70,7 @@ jobs:
         echo "CLARIFAI_USER_EMAIL $CLARIFAI_USER_EMAIL"
         echo "CLARIFAI_USER_PASSWORD $CLARIFAI_USER_PASSWORD"
         echo "CLARIFAI_USER_ID $CLARIFAI_USER_ID"
-        if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ] || [ "${{ github.event_name }}" = "workflow_call" ]; then
+        if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ] || [ "${{ inputs.PERIODIC_CHECKS }}" = "true" ]; then
           pytest --cov=. --cov-report=xml:coverage/coverage.cobertura.xml
         else
           pytest -m "not requires_secrets" --cov=. --cov-report=xml:coverage/coverage.cobertura.xml
