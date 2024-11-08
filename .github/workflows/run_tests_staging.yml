@@ -11,3 +11,4 @@ jobs:
     with:
       PERIODIC_CHECKS: "true"
       CLARIFAI_GRPC_BASE: "api-staging.clarifai.com"
+    secrets: inherit
