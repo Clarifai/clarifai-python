@@ -59,6 +59,12 @@ jobs:
         export PYTHONPATH=.
         export CLARIFAI_USER_ID="$(python scripts/key_for_tests.py --get-userid)"
         export CLARIFAI_PAT="$(python scripts/key_for_tests.py --create-pat)"
+        echo "CLARIFAI_GRPC_BASE $CLARIFAI_GRPC_BASE"
+        echo "CLARIFAI_API_BASE $CLARIFAI_API_BASE"
+        echo "CLARIFAI_USER_EMAIL_SECURE_HOSTING $CLARIFAI_USER_EMAIL_SECURE_HOSTING"
+        echo "CLARIFAI_USER_EMAIL $CLARIFAI_USER_EMAIL"
+        echo "CLARIFAI_USER_PASSWORD $CLARIFAI_USER_PASSWORD"
+        echo "CLARIFAI_USER_ID $CLARIFAI_USER_ID"
         if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
           pytest --cov=. --cov-report=xml:coverage/coverage.cobertura.xml
         else
