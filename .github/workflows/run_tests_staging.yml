@@ -10,5 +10,6 @@ jobs:
     uses: Clarifai/clarifai-python/.github/workflows/run_tests.yml@DEVX-662-Periodic-Synthetic-Checks
     with:
       PERIODIC_CHECKS: "true"
+      CLARIFAI_ENV: "staging"
       CLARIFAI_GRPC_BASE: "api-staging.clarifai.com"
     secrets: inherit

@@ -5,7 +5,7 @@ import yaml
 
 from clarifai.client.workflow import Workflow
 
-CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "api.clarifai.com")
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
 
 
 @pytest.mark.requires_secrets

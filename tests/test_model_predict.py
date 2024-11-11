@@ -21,7 +21,7 @@ RAW_TEXT = "Hi my name is Jim."
 RAW_TEXT_BYTES = b"Hi my name is Jim."
 
 CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
-CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "api.clarifai.com")
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
 
 
 @pytest.fixture

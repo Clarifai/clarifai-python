@@ -13,7 +13,7 @@ CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
 TEXT_FILE_PATH = os.path.dirname(__file__) + "/assets/sample.txt"
 PDF_URL = "https://samples.clarifai.com/test_doc.pdf"
 
-CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "api.clarifai.com")
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
 
 auth_obj = namedtuple("auth", "ui")
 

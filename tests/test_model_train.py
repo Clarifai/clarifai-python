@@ -16,7 +16,7 @@ CREATE_MODEL_ID = "ci_input_test_model"
 CREATE_MODEL_ID_1 = "ci_input_test_model_1"
 CSV_FILE_PATH = os.path.dirname(__file__) + "/assets/sample.csv"
 
-CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "api.clarifai.com")
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
 
 
 def client():

@@ -15,7 +15,7 @@ CREATE_APP_ID = f"test_workflow_create_delete_app_{NOW}"
 #assets
 IMAGE_URL = "https://samples.clarifai.com/metro-north.jpg"
 
-CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "api.clarifai.com")
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
 
 
 def get_test_parse_workflow_creation_workflows() -> typing.List[str]:

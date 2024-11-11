@@ -16,7 +16,7 @@ CREATE_DATASET_ID = "ci_search_dataset"
 DOG_IMG_URL = "https://samples.clarifai.com/dog.tiff"
 DATASET_IMAGES_DIR = os.path.dirname(__file__) + "/assets/voc/images"
 
-CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "api.clarifai.com")
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
 
 
 def get_filters_for_test() -> [(typing.List[typing.Dict], int)]:

@@ -33,7 +33,7 @@ COCO_DET_DIR = os.path.dirname(__file__) + "/assets/coco_detection"
 IMAGENET_DIR = os.path.dirname(__file__) + "/assets/imagenet_classification"
 TEXTS_FOLDER_PATH = os.path.dirname(__file__) + "/assets/sample_texts"
 
-CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "api.clarifai.com")
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
 
 
 def client():
