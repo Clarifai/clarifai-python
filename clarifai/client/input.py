@@ -867,6 +867,33 @@ class Inputs(Lister, BaseClient):
       raise Exception(response.status)
     self.logger.info("\nInputs Deleted\n%s", response.status)
 
+  def delete_annotations(self, input_ids: List[str], annotation_ids: List[str] = []) -> None:
+    """Delete list of annotations of input objects from the app.
+
+    Args:
+        input_ids (Input): List of input objects for which annotations to delete.
+        annotation_ids (List[str]): List of annotation ids to delete.
+
+    Example:
+        >>> from clarifai.client.user import User
+        >>> input_obj = User(user_id="user_id").app(app_id="app_id").inputs()
+        >>> input_obj.delete_annotations(input_ids=['input_id_1', 'input_id_2'])
+
+    Note:
+        'annotation_ids' are optional but if the are provided, the number and order in
+        'annotation_ids' and 'input_ids' should match
+    """
+    if not isinstance(input_ids, list):
+      raise UserError("input_ids must be a list of input ids")
+    if annotation_ids and len(input_ids) != len(annotation_ids):
+      raise UserError("Number of provided annotation_ids and input_ids should match.")
+    request = service_pb2.DeleteAnnotationsRequest(
+        user_app_id=self.user_app_id, ids=annotation_ids, input_ids=input_ids)
+    response = self._grpc_request(self.STUB.DeleteAnnotations, request)
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nAnnotations Deleted\n%s", response.status)
+
   def download_inputs(self, inputs: List[Input]) -> List[bytes]:
     """Download list of input objects from the app.
 
