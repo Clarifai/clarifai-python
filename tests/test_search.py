@@ -113,11 +113,23 @@ class TestAnnotationSearch:
   def setup_class(cls):
     cls.client = User(user_id=CREATE_APP_USER_ID, base_url=CLARIFAI_API_BASE)
     cls.search = Search(
-        user_id=CREATE_APP_USER_ID, app_id=CREATE_APP_ID, top_k=1, metric="euclidean")
+        user_id=CREATE_APP_USER_ID,
+        app_id=CREATE_APP_ID,
+        base_url=CLARIFAI_API_BASE,
+        top_k=1,
+        metric="euclidean")
     cls.search_with_pagination = Search(
-        user_id=CREATE_APP_USER_ID, app_id=CREATE_APP_ID, metric="euclidean", pagination=True)
+        user_id=CREATE_APP_USER_ID,
+        app_id=CREATE_APP_ID,
+        base_url=CLARIFAI_API_BASE,
+        metric="euclidean",
+        pagination=True)
     cls.search_deduplicate = Search(
-        user_id=CREATE_APP_USER_ID, app_id=CREATE_APP_ID, top_k=2, metric="euclidean")
+        user_id=CREATE_APP_USER_ID,
+        app_id=CREATE_APP_ID,
+        base_url=CLARIFAI_API_BASE,
+        top_k=2,
+        metric="euclidean")
     cls.upload_data()
 
   @classmethod
