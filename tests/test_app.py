@@ -28,7 +28,7 @@ OBJECT_CONCEPT_ID = 'food'
 PREDICATE = "hypernym"
 
 CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
-CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "api.clarifai.com")
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
 
 
 @pytest.fixture
@@ -160,9 +160,9 @@ class TestApp:
     all_concept_relations = list(create_app.search_concept_relations(show_tree=True))
     assert len(all_concept_relations) == 1
 
-  def test_patch_app(self, caplog):
+  def test_patch_app(self, create_client, caplog):
     with caplog.at_level(logging.INFO):
-      User(user_id=CREATE_APP_USER_ID).patch_app(
+      create_client.patch_app(
           app_id=CREATE_APP_ID,
           action='overwrite',
           default_language='en',
