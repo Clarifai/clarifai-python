@@ -239,8 +239,11 @@ class Testdataupload:
     dataloader = load_module_dataloader(module_dir=MODULE_DIR, split="train")
     self.dataset.upload_dataset(dataloader, get_upload_status=True, log_warnings=True)
     uploaded_inputs = list(self.input_object.list_inputs())
+    input_ids = [input_item.id for input_item in uploaded_inputs]
     annotations = list(self.input_object.list_annotations(batch_input=uploaded_inputs))
     with caplog.at_level(logging.INFO):
+      self.input_object.delete_annotations(input_ids=input_ids)
+      assert "Annotations Deleted" in caplog.text  # Testing delete annotations action
       self.input_object.delete_inputs(uploaded_inputs)
       assert "Inputs Deleted" in caplog.text  # Testing delete inputs action
     assert len(uploaded_inputs) == 10  # 3 inputs are uploaded from the folder
