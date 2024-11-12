@@ -7,4 +7,3 @@ workflow:
     - id: moderation
       model:
           model_id: moderation-recognition
-          model_version_id: 7cde8e92896340b0998b8260d47f1502
