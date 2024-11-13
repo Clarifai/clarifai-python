@@ -3,9 +3,8 @@ FROM nvcr.io/nim/meta/llama-3.1-8b-instruct:1.1.2 as build
 FROM gcr.io/distroless/python3-debian12:debug
 
 
-COPY --from=build /bin/bash /bin/rbash
+COPY --from=build /bin/bash /bin/bash
 COPY --from=build /bin/sh /bin/sh
-COPY --from=build /bin/rsh /bin/rsh
 
 # we have to overwrite the python3 binary that the distroless image uses
 COPY --from=build /opt/nim/llm/.venv/bin/python3.10 /usr/bin/python3
@@ -65,7 +64,8 @@ ENV HOME=/opt/nim/llm
 # ln is needed to create symbolic links (needed by nvidia-container-runtime)
 COPY --from=build /usr/bin/ln /usr/bin/ln
 
+# Now sure about below `ldconfig` command now, before CUDA libraries wasn't found without running `ldconfig` but not it seems to be working 
 # Run ldconfig in the build stage to update the library cache else CUDA libraries won't be found
 RUN ldconfig -v
 
-SHELL ["/bin/rbash", "-c"]
+SHELL ["/bin/bash", "-c"]
