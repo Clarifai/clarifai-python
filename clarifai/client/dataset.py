@@ -9,6 +9,7 @@ from typing import Dict, Generator, List, Optional, Tuple, Type, TypeVar, Union
 
 import requests
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
+from clarifai_grpc.grpc.api.resources_pb2 import Input
 from clarifai_grpc.grpc.api.service_pb2 import MultiInputResponse
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from google.protobuf.json_format import MessageToDict
@@ -189,6 +190,26 @@ class Dataset(Lister, BaseClient):
           'version': resources_pb2.DatasetVersion(**dataset_version_info),
       }
       yield Dataset.from_auth_helper(self.auth_helper, **kwargs)
+
+  def list_inputs(self, page_no: int = None, per_page: int = None,
+                  input_type: str = None) -> Generator[Input, None, None]:
+    """Lists all the inputs for the dataset.
+
+    Args:
+        page_no (int): The page number to list.
+        per_page (int): The number of items per page.
+        input_type (str): The type of input to list. Options: 'image', 'video', 'audio', 'text'.
+
+    Yields:
+        Input: Input objects in the dataset.
+
+    Example:
+        >>> from clarifai.client.dataset import Dataset
+        >>> dataset = Dataset(dataset_id='dataset_id', user_id='user_id', app_id='app_id')
+        >>> all_dataset_inputs = list(dataset.list_inputs())
+    """
+    return self.input_object.list_inputs(
+        dataset_id=self.id, page_no=page_no, per_page=per_page, input_type=input_type)
 
   def __iter__(self):
     return iter(DatasetExportReader(archive_url=self.archive_zip()))
