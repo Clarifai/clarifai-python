@@ -6,7 +6,6 @@ from google.protobuf.struct_pb2 import Struct
 
 from clarifai.client.input import Inputs
 from clarifai.datasets.upload.base import ClarifaiDataLoader, ClarifaiDataset
-from clarifai.utils.misc import get_uuid
 
 
 class MultiModalDataset(ClarifaiDataset):
@@ -36,7 +35,6 @@ class MultiModalDataset(ClarifaiDataset):
       image_bytes = data_item.image_bytes
       text = data_item.text
       labels = data_item.labels if isinstance(data_item.labels, list) else [data_item.labels]
-      id = get_uuid(8)
       input_id = f"{self.dataset_id}-{id}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
       if data_item.metadata is not None:
         metadata.update(data_item.metadata)
