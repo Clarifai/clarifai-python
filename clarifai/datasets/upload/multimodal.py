@@ -6,7 +6,6 @@ from google.protobuf.struct_pb2 import Struct
 
 from clarifai.client.input import Inputs
 from clarifai.datasets.upload.base import ClarifaiDataLoader, ClarifaiDataset
-from clarifai.utils.misc import get_uuid
 
 
 class MultiModalDataset(ClarifaiDataset):
