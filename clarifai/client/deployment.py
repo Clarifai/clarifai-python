@@ -49,7 +49,8 @@ class Deployment(Lister, BaseClient):
     Returns:
         resources_pb2.RunnerSelector: A RunnerSelector object for the given deployment_id.
     """
-    return resources_pb2.RunnerSelector(deployment_id=deployment_id, user_id=user_id)
+    return resources_pb2.RunnerSelector(
+        deployment=resources_pb2.Deployment(id=deployment_id, user_id=user_id))
 
   def __getattr__(self, name):
     return getattr(self.deployment_info, name)
