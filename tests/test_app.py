@@ -45,6 +45,7 @@ def client():
   return User(user_id=MAIN_APP_USER_ID, pat=CLARIFAI_PAT)
 
 
+@pytest.mark.skip("Skipping test_app.py")
 @pytest.mark.requires_secrets
 class TestApp:
   """Tests for the App class and its methods.

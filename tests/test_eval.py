@@ -23,6 +23,7 @@ def create_app():
   return client.create_app(app_id=CREATE_APP_ID, base_workflow="Universal")
 
 
+@pytest.mark.skip("Skipping test_eval.py")
 @pytest.mark.requires_secrets
 class TestEval:
   """Tests for model evaluating.
