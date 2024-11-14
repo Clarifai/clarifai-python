@@ -47,7 +47,15 @@ jobs:
         export CLARIFAI_USER_ID="$(python scripts/key_for_tests.py --get-userid)"
         export CLARIFAI_PAT="$(python scripts/key_for_tests.py --create-pat)"
         if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
-          pytest --cov=.
+          pytest --cov=. --cov-report=xml
         else
-          pytest -m "not requires_secrets" --cov=.
+          pytest -m "not requires_secrets" --cov=. --cov-report=xml
         fi
+    - name: Generate coverage badge
+      run: genbadge coverage --input-file coverage.xml --output-file coverage-badge.svg
+    - name: Upload coverage to Codecov
+      uses: actions/upload-artifact@v3
+      with:
+          name: coverage-badge
+          path: coverage-badge.svg
+      
