@@ -34,6 +34,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r tests/requirements.txt
+        pip install genbadge[coverage]
     - name: Run static analysis lint
       uses: pre-commit/action@v3.0.0
     - name: Prepare the API keys & Run pytest
