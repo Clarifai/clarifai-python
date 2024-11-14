@@ -39,11 +39,16 @@ def upload(model_path, download_checkpoints, skip_dockerfile):
     type=click.Path(exists=True),
     required=True,
     help='Path to the model directory.')
-def test_locally(model_path):
+@click.option(
+    '--keep_env',
+    is_flag=True,
+    help='Flag to keep the virtual environment after testing the model\
+    locally. Defaults to False, which will delete the virtual environment after testing.')
+def test_locally(model_path, keep_env=False):
   """Test model locally."""
   try:
     from clarifai.runners.models import model_run_locally
-    model_run_locally.main(model_path)
+    model_run_locally.main(model_path, keep_env=keep_env)
     click.echo(f"Model tested locally from {model_path}.")
   except Exception as e:
     click.echo(f"Failed to test model locally: {e}", err=True)
