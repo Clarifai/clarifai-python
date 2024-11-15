@@ -52,10 +52,22 @@ jobs:
         else
           pytest -m "not requires_secrets" --cov=. --cov-report=xml
         fi
-    - name: Generate coverage badge
-      run: genbadge coverage --input-file coverage.xml --output-file coverage-badge.svg
-    - name: Upload coverage to Codecov
-      uses: actions/upload-artifact@v3
+    - name: Code Coverage Report
+      uses: irongut/CodeCoverageSummary@v1.3.0
       with:
-          name: coverage-badge
-          path: coverage-badge.svg
+        filename: coverage/**/coverage.cobertura.xml
+        badge: true
+        fail_below_min: true
+        format: markdown
+        hide_branch_rate: false
+        hide_complexity: true
+        indicators: true
+        output: both
+        thresholds: '60 80'
+
+    - name: Add Coverage PR Comment
+      uses: marocchino/sticky-pull-request-comment@v2
+      if: github.event_name == 'pull_request'
+      with:
+          recreate: true
+          path: code-coverage-results.md
