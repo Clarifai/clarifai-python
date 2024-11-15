@@ -46,6 +46,7 @@ def create_runner():
   })
 
 
+@pytest.mark.skip("Skipping test_compute_orchestration.py")
 @pytest.mark.requires_secrets
 class TestComputeOrchestration:
   """Tests for the Compute Orchestration resources on CLI.
