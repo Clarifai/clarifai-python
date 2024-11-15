@@ -48,9 +48,9 @@ jobs:
         export CLARIFAI_USER_ID="$(python scripts/key_for_tests.py --get-userid)"
         export CLARIFAI_PAT="$(python scripts/key_for_tests.py --create-pat)"
         if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
-          pytest --cov=. --cov-report=xml
+          pytest --cov=. --cov-report=xml:coverage/coverage.cobertura.xml
         else
-          pytest -m "not requires_secrets" --cov=. --cov-report=xml
+          pytest -m "not requires_secrets" --cov=. --cov-report=xml:coverage/coverage.cobertura.xml
         fi
     - name: Code Coverage Report
       uses: irongut/CodeCoverageSummary@v1.3.0
