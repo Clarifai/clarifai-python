@@ -34,7 +34,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r tests/requirements.txt
-        pip install genbadge[coverage]
+        pip install genbadge[coverage] coverage
     - name: Run static analysis lint
       uses: pre-commit/action@v3.0.0
     - name: Prepare the API keys & Run pytest
@@ -52,21 +52,11 @@ jobs:
         else
           pytest -m "not requires_secrets" --cov=. --cov-report=xml:coverage/coverage.cobertura.xml
         fi
-    - name: Code Coverage Report
-      uses: irongut/CodeCoverageSummary@v1.3.0
-      with:
-        filename: coverage/**/coverage.cobertura.xml
-        badge: true
-        fail_below_min: false
-        format: markdown
-        hide_branch_rate: false
-        hide_complexity: true
-        indicators: true
-        output: both
-        thresholds: '50 80'
+        # Generate markdown report
+        genbadge coverage -i coverage/coverage.cobertura.xml -o code-coverage-results.md
     - name: Add Coverage PR Comment
       uses: marocchino/sticky-pull-request-comment@v2
       if: github.event_name == 'pull_request'
       with:
-          recreate: true
-          path: code-coverage-results.md
+        recreate: true
+        path: code-coverage-results.md
