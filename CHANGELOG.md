@@ -1,3 +1,12 @@
+## [[10.10.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.10.1) - [PyPI](https://pypi.org/project/clarifai/10.10.1/) - 2024-11-18
+
+### Changed
+ - Fixed code bug in runners selection using Deployment [(#446)] (https://github.com/Clarifai/clarifai-python/pull/446)
+ - Fixed id bug in multimodal loader during deletion of failed inputs [(#445)] (https://github.com/Clarifai/clarifai-python/pull/445)
+ - Added list inputs functionality to Dataset Class [(#443)] (https://github.com/Clarifai/clarifai-python/pull/443)
+ - Added delete annotations functionality to Input Class [(#442)] (https://github.com/Clarifai/clarifai-python/pull/442)
+ - Added Dockerle template based on new base images by parsing requirements [(#439)] (https://github.com/Clarifai/clarifai-python/pull/439)
+
 ## [[10.10.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.10.0) - [PyPI](https://pypi.org/project/clarifai/10.10.0/) - 2024-11-07
 
 ### Changed
