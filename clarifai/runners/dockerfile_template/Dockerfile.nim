@@ -1,15 +1,36 @@
+ARG PYTHON_VERSION=3.10
+FROM public.ecr.aws/docker/library/python:${PYTHON_VERSION}-slim-bookworm as deps
+ARG PYTHON_VERSION=3.10
+ENV DEBIAN_FRONTEND=noninteractive
+
+
+RUN python${PYTHON_VERSION} -m venv /venv && \
+    /venv/bin/pip install --disable-pip-version-check --upgrade pip setuptools wheel && \
+    ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python3 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*;
+
+# Use the NIM base image as another build stage
 FROM nvcr.io/nim/meta/llama-3.1-8b-instruct:1.1.2 as build
 
+# Final image based on distroless
 FROM gcr.io/distroless/python3-debian12:debug
+ARG PYTHON_VERSION=3.10
 
-
-COPY --from=build /bin/bash /bin/rbash
-COPY --from=build /bin/sh /bin/sh
-COPY --from=build /bin/rsh /bin/rsh
-
+# virtual env
+COPY --from=deps /venv /venv
 # we have to overwrite the python3 binary that the distroless image uses
-COPY --from=build /opt/nim/llm/.venv/bin/python3.10 /usr/bin/python3
-COPY --from=build /opt/nim/llm/.venv/bin/python3.10 /usr/local/bin/python3.10
+COPY --from=deps /usr/local/bin/python${PYTHON_VERSION} /usr/bin/python3
+COPY --from=deps /usr/local/bin/python${PYTHON_VERSION} /usr/local/bin/python${PYTHON_VERSION}
+
+# Copy NIM files
+COPY --from=build /opt /opt
+COPY --from=build /etc/nim /etc/nim
+
+# Copy necessary binaries and libraries from the NIM base image
+COPY --from=build /bin/bash /bin/bash
+# COPY --from=build /bin/sh /bin/sh
+COPY --from=build /bin/ssh /bin/ssh
+COPY --from=build /usr/bin/ln /usr/bin/ln
 
 # also copy in all the lib files for it.
 COPY --from=build /lib /lib
@@ -23,13 +44,10 @@ COPY --from=build /etc/ld.so.conf /etc/ld.so.conf
 COPY --from=build /etc/ld.so.cache /etc/ld.so.cache
 COPY --from=build /etc/ld.so.conf.d/ /etc/ld.so.conf.d/
 
-# COPY NIM files
-COPY  --from=build /opt /opt
-COPY  --from=build /etc/nim /etc/nim
 
-# Set environment variables to use the nim libraries and python
-ENV PYTHONPATH=${PYTHONPATH}:/opt/nim/llm/.venv/lib/python3.10/site-packages:/opt/nim/llm
-ENV PATH="/opt/nim/llm/.venv/bin:/opt/hpcx/ucc/bin:/opt/hpcx/ucx/bin:/opt/hpcx/ompi/bin:$PATH"
+# Set environment variables
+ENV PYTHONPATH=/venv/lib/python3.10/site-packages:/opt/nim/llm/.venv/lib/python3.10/site-packages:/opt/nim/llm
+ENV PATH="/usr/local/bin:/venv/bin:/opt/nim/llm/.venv/bin:/opt/hpcx/ucc/bin:/opt/hpcx/ucx/bin:/opt/hpcx/ompi/bin:$PATH"
 
 ENV LD_LIBRARY_PATH="/opt/hpcx/ucc/lib/ucc:/opt/hpcx/ucc/lib:/opt/hpcx/ucx/lib/ucx:/opt/hpcx/ucx/lib:/opt/hpcx/ompi/lib:/opt/hpcx/ompi/lib/openmpi:/opt/nim/llm/.venv/lib/python3.10/site-packages/tensorrt_llm/libs:/opt/nim/llm/.venv/lib/python3.10/site-packages/nvidia/cublas/lib:/opt/nim/llm/.venv/lib/python3.10/site-packages/tensorrt_libs:/opt/nim/llm/.venv/lib/python3.10/site-packages/nvidia/nccl/lib:$LD_LIBRARY_PATH"
 
@@ -62,10 +80,4 @@ ENV UCX_HOME=/opt/hpcx/ucx
 
 ENV HOME=/opt/nim/llm
 
-# ln is needed to create symbolic links (needed by nvidia-container-runtime)
-COPY --from=build /usr/bin/ln /usr/bin/ln
-
-# Run ldconfig in the build stage to update the library cache else CUDA libraries won't be found
-RUN ldconfig -v
-
-SHELL ["/bin/rbash", "-c"]
+SHELL ["/bin/bash", "-c"]
