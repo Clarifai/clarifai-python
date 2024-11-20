@@ -101,9 +101,10 @@ class ModelUploader:
 
     assert "type" in self.config.get("checkpoints"), "No loader type specified in the config file"
     loader_type = self.config.get("checkpoints").get("type")
+    loader_type = loader_type.lower()
     if not loader_type:
       logger.info("No loader type specified in the config file for checkpoints")
-    assert loader_type == "huggingface", "Only huggingface loader supported for now"
+
     if loader_type == "huggingface":
       assert "repo_id" in self.config.get("checkpoints"), "No repo_id specified in the config file"
       repo_id = self.config.get("checkpoints").get("repo_id")
@@ -114,6 +115,15 @@ class ModelUploader:
       else:
         hf_token = self.config.get("checkpoints").get("hf_token", None)
       return repo_id, hf_token
+    elif loader_type == "nvidia-nim" or loader_type == "nim":
+      assert "nim_image" in self.config.get(
+          "checkpoints"), "No nim_image specified in the config file"
+      assert "ngc_api_key" in self.config.get(
+          "checkpoints"), "No ngc_api_key specified in the config file"
+
+      nim_image = self.config.get("checkpoints").get("nim_image")
+      ngc_api_key = self.config.get("checkpoints").get("ngc_api_key")
+      return nim_image, ngc_api_key
 
   @property
   def client(self):
@@ -218,11 +228,21 @@ class ModelUploader:
     return deendencies_version
 
   def create_dockerfile(self):
-    dockerfile_template = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)),
-        'dockerfile_template',
-        'Dockerfile.template',
-    )
+    loader_type = None
+    if self.config.get("checkpoints"):
+      loader_type = self.config.get("checkpoints").get("type")
+      if loader_type == "nvidia-nim" or loader_type == "nim":
+        dockerfile_template = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            'dockerfile_template',
+            'Dockerfile.nim.template',
+        )
+    else:
+      dockerfile_template = os.path.join(
+          os.path.dirname(os.path.dirname(__file__)),
+          'dockerfile_template',
+          'Dockerfile.template',
+      )
 
     with open(dockerfile_template, 'r') as template_file:
       dockerfile_template = template_file.read()
@@ -248,24 +268,32 @@ class ModelUploader:
 
     base_image = self.PYTHON_BASE_IMAGE.format(python_version=python_version)
 
-    # Parse the requirements.txt file to determine the base image
-    dependencies = self._parse_requirements()
-    if 'torch' in dependencies and dependencies['torch']:
-      torch_version = dependencies['torch']
+    if loader_type == "nvidia-nim" or loader_type == "nim":
 
-      for image in self.AVAILABLE_TORCH_IMAGES:
-        if torch_version in image and f'py{python_version}' in image:
-          base_image = self.TORCH_BASE_IMAGE.format(
-              torch_version=torch_version,
-              python_version=python_version,
-              cuda_version=self.DEFAULT_CUDA_VERSION)
-          logger.info(f"Using Torch version {torch_version} base image  to build the Docker image")
-          break
+      base_image, ngc_api_key = self._validate_config_checkpoints()
+    else:
+
+      # Parse the requirements.txt file to determine the base image
+      dependencies = self._parse_requirements()
+      if 'torch' in dependencies and dependencies['torch']:
+        torch_version = dependencies['torch']
+
+        for image in self.AVAILABLE_TORCH_IMAGES:
+          if torch_version in image and f'py{python_version}' in image:
+            base_image = self.TORCH_BASE_IMAGE.format(
+                torch_version=torch_version,
+                python_version=python_version,
+                cuda_version=self.DEFAULT_CUDA_VERSION)
+            logger.info(
+                f"Using Torch version {torch_version} base image  to build the Docker image")
+            break
 
     # Replace placeholders with actual values
     dockerfile_content = dockerfile_template.safe_substitute(
         name='main',
         BASE_IMAGE=base_image,
+        NGC_API_KEY=ngc_api_key if loader_type == "nvidia-nim" or loader_type == "nim" else None,
+        PYTHON_VERSION=python_version,
     )
 
     # Write Dockerfile
@@ -363,7 +391,8 @@ class ModelUploader:
       logger.info(
           f"Model type {model_type_id} requires concepts to be specified in the config.yaml file.."
       )
-      if self.config.get("checkpoints"):
+      if self.config.get("checkpoints") and self.config.get("checkpoints").get(
+          "type") == "huggingface":
         logger.info(
             "Checkpoints specified in the config.yaml file, will download the HF model's config.json file to infer the concepts."
         )
