@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import inspect
 import os
@@ -24,17 +25,26 @@ class ModelRunLocally:
 
   def create_temp_venv(self):
     """Create a temporary virtual environment."""
-    logger.info("Creating temporary virtual environment...")
-    temp_dir = tempfile.mkdtemp()
+    with open(self.requirements_file, "r") as f:
+      requirements_hash = hashlib.md5(f.read().encode('utf-8')).hexdigest()
+
+    temp_dir = os.path.join(tempfile.gettempdir(), str(requirements_hash))
     venv_dir = os.path.join(temp_dir, "venv")
-    venv.create(venv_dir, with_pip=True)
+
+    if os.path.exists(temp_dir):
+      logger.info(f"Using previous virtual environment at {temp_dir}")
+      use_existing_venv = True
+    else:
+      logger.info("Creating temporary virtual environment...")
+      use_existing_venv = False
+      venv.create(venv_dir, with_pip=True)
+      logger.info(f"Created temporary virtual environment at {venv_dir}")
 
     self.venv_dir = venv_dir
     self.temp_dir = temp_dir
     self.python_executable = os.path.join(venv_dir, "bin", "python")
 
-    logger.info(f"Created temporary virtual environment at {venv_dir}")
-    return venv_dir, temp_dir
+    return use_existing_venv
 
   def install_requirements(self):
     """Install the dependencies from requirements.txt and Clarifai."""
@@ -175,16 +185,18 @@ class ModelRunLocally:
       shutil.rmtree(self.temp_dir)
 
 
-def main(model_path, run_model_server=False):
+def main(model_path, run_model_server=False, keep_env=False):
 
   manager = ModelRunLocally(model_path)
-  manager.create_temp_venv()
+  use_existing_env = manager.create_temp_venv()
 
   try:
-    manager.install_requirements()
+    if not use_existing_env:
+      manager.install_requirements()
     if run_model_server:
       manager.run_model_server()
     else:
       manager.test_model()
   finally:
-    manager.clean_up()
+    if not keep_env:
+      manager.clean_up()
