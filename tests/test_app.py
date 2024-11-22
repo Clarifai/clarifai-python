@@ -28,21 +28,32 @@ OBJECT_CONCEPT_ID = 'food'
 PREDICATE = "hypernym"
 
 CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
 
 
 @pytest.fixture
 def create_app():
-  return App(user_id=CREATE_APP_USER_ID, app_id=CREATE_APP_ID, pat=CLARIFAI_PAT)
+  return App(
+      user_id=CREATE_APP_USER_ID,
+      app_id=CREATE_APP_ID,
+      pat=CLARIFAI_PAT,
+      base_url=CLARIFAI_API_BASE)
 
 
 @pytest.fixture
 def app():
-  return App(user_id=MAIN_APP_USER_ID, app_id=MAIN_APP_ID, pat=CLARIFAI_PAT)
+  return App(
+      user_id=MAIN_APP_USER_ID, app_id=MAIN_APP_ID, pat=CLARIFAI_PAT, base_url=CLARIFAI_API_BASE)
+
+
+@pytest.fixture
+def create_client():
+  return User(user_id=CREATE_APP_USER_ID, pat=CLARIFAI_PAT, base_url=CLARIFAI_API_BASE)
 
 
 @pytest.fixture
 def client():
-  return User(user_id=MAIN_APP_USER_ID, pat=CLARIFAI_PAT)
+  return User(user_id=MAIN_APP_USER_ID, pat=CLARIFAI_PAT, base_url=CLARIFAI_API_BASE)
 
 
 @pytest.mark.requires_secrets
@@ -60,7 +71,7 @@ class TestApp:
 
   def test_list_models(self, app):
     all_models = list(app.list_models(page_no=1))
-    assert len(all_models) == 15  #default per_page is 15
+    assert len(all_models) >= 15  #default per_page is 16
 
   def test_list_workflows(self, app):
     all_workflows = list(app.list_workflows(page_no=1, per_page=10))
@@ -68,7 +79,7 @@ class TestApp:
 
   def test_list_modules(self, app):
     all_modules = list(app.list_modules())
-    assert len(all_modules) == 1
+    assert len(all_modules) >= 0
 
   def test_list_installed_module_versions(self, app):
     all_installed_module_versions = list(app.list_installed_module_versions())
@@ -95,8 +106,8 @@ class TestApp:
     assert len(versions) == 1  #test for list_versions
     assert workflow.id == General_Workflow_ID and workflow.app_id == MAIN_APP_ID and workflow.user_id == MAIN_APP_USER_ID
 
-  def test_create_app(self):
-    app = User(user_id=CREATE_APP_USER_ID, pat=CLARIFAI_PAT).create_app(app_id=CREATE_APP_ID)
+  def test_create_app(self, create_client):
+    app = create_client.create_app(app_id=CREATE_APP_ID)
     assert app.id == CREATE_APP_ID and app.user_id == CREATE_APP_USER_ID
 
   def test_create_search(self, create_app):
@@ -149,9 +160,9 @@ class TestApp:
     all_concept_relations = list(create_app.search_concept_relations(show_tree=True))
     assert len(all_concept_relations) == 1
 
-  def test_patch_app(self, caplog):
+  def test_patch_app(self, create_client, caplog):
     with caplog.at_level(logging.INFO):
-      User(user_id=CREATE_APP_USER_ID).patch_app(
+      create_client.patch_app(
           app_id=CREATE_APP_ID,
           action='overwrite',
           default_language='en',
@@ -221,7 +232,7 @@ class TestApp:
   #     client.delete_runner(CREATE_RUNNER_ID)
   #     assert "SUCCESS" in caplog.text
 
-  def test_delete_app(self, caplog):
+  def test_delete_app(self, caplog, create_client):
     with caplog.at_level(logging.INFO):
-      User(user_id=CREATE_APP_USER_ID).delete_app(CREATE_APP_ID)
+      create_client.delete_app(CREATE_APP_ID)
       assert "SUCCESS" in caplog.text

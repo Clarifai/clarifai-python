@@ -7,12 +7,12 @@ deployment:
     traffic_history_seconds: 100
     scale_down_delay_seconds: 30
     scale_up_delay_seconds: 30
-    enable_packing: true
+    disable_packing: false
   worker:
     model:
-      id: "ethnicity-demographics-recognition"
+      id: "apparel-clusterering"
       model_version:
-        id: "b2897edbda314615856039fb0c489796"
+        id: "cc911f6b0ed748efb89e3d1359c146c4"
       user_id: "clarifai"
       app_id: "main"
   scheduling_choice: 4

@@ -17,10 +17,11 @@ CREATE_DATASET_NEW_ID = "ci_input_test_dataset_new"
 CREATE_MODEL_ID = "ci_input_test_model_1"
 CSV_FILE_PATH = os.path.dirname(__file__) + "/assets/sample.csv"
 
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
 
-def create_app():
-  client = User(user_id=CREATE_APP_USER_ID)
-  return client.create_app(app_id=CREATE_APP_ID, base_workflow="Universal")
+
+def client():
+  return User(user_id=CREATE_APP_USER_ID, base_url=CLARIFAI_API_BASE)
 
 
 @pytest.mark.requires_secrets
@@ -30,7 +31,7 @@ class TestEval:
 
   @classmethod
   def setup_class(self):
-    self.app = create_app()
+    self.app = client().create_app(app_id=CREATE_APP_ID, base_workflow="Universal")
     self.input_object = self.app.inputs()
     self.dataset = self.app.create_dataset(dataset_id=CREATE_DATASET_ID)
     self.dataset_new = self.app.create_dataset(dataset_id=CREATE_DATASET_NEW_ID)
@@ -126,4 +127,4 @@ class TestEval:
   def teardown_class(self):
     self.app.delete_model(model_id=CREATE_MODEL_ID)
     self.app.delete_dataset(dataset_id=CREATE_DATASET_ID)
-    User(user_id=CREATE_APP_USER_ID).delete_app(app_id=CREATE_APP_ID)
+    client().delete_app(app_id=CREATE_APP_ID)

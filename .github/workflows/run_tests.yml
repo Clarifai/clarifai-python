@@ -7,6 +7,20 @@ on:
   push:
     branches: [ master ]
   pull_request:
+  workflow_call:
+    inputs:
+      PERIODIC_CHECKS:
+        description: "Boolean flag to diferentiate periodic checks"
+        required: true
+        type: string
+      CLARIFAI_ENV:
+        description: "Set the environment to run the tests"
+        required: true
+        type: string
+      CLARIFAI_GRPC_BASE:
+        description: "gRPC Base URL"
+        required: true
+        type: string
 
 jobs:
   build:
@@ -44,10 +58,19 @@ jobs:
         CLARIFAI_USER_PASSWORD: ${{ secrets.INTERNAL_USER_PASSWORD }}
       shell: bash
       run: |
+        if [ "${{ inputs.PERIODIC_CHECKS }}" = "true" ]; then
+          export CLARIFAI_ENV="${{ inputs.CLARIFAI_ENV }}"
+          export CLARIFAI_GRPC_BASE="${{ inputs.CLARIFAI_GRPC_BASE }}"
+          export CLARIFAI_API_BASE="https://${{ inputs.CLARIFAI_GRPC_BASE }}" # CLARIFAI_GRPC_BASE is used by the gRPC channel
+        else
+          export CLARIFAI_ENV="prod"
+          export CLARIFAI_GRPC_BASE="api.clarifai.com"
+          export CLARIFAI_API_BASE="https://api.clarifai.com" # CLARIFAI_GRPC_BASE is used by the gRPC channel
+        fi
         export PYTHONPATH=.
         export CLARIFAI_USER_ID="$(python scripts/key_for_tests.py --get-userid)"
         export CLARIFAI_PAT="$(python scripts/key_for_tests.py --create-pat)"
-        if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
+        if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ] || [ "${{ inputs.PERIODIC_CHECKS }}" = "true" ]; then
           pytest --cov=. --cov-report=xml:coverage/coverage.cobertura.xml
         else
           pytest -m "not requires_secrets" --cov=. --cov-report=xml:coverage/coverage.cobertura.xml

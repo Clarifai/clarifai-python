@@ -33,10 +33,11 @@ COCO_DET_DIR = os.path.dirname(__file__) + "/assets/coco_detection"
 IMAGENET_DIR = os.path.dirname(__file__) + "/assets/imagenet_classification"
 TEXTS_FOLDER_PATH = os.path.dirname(__file__) + "/assets/sample_texts"
 
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
 
-def create_app():
-  client = User(user_id=CREATE_APP_USER_ID)
-  return client.create_app(app_id=CREATE_APP_ID, base_workflow="Empty")
+
+def client():
+  return User(user_id=CREATE_APP_USER_ID, base_url=CLARIFAI_API_BASE)
 
 
 @pytest.mark.requires_secrets
@@ -58,7 +59,7 @@ class Testdataupload:
 
   @classmethod
   def setup_class(self):
-    self.app = create_app()
+    self.app = client().create_app(app_id=CREATE_APP_ID, base_workflow="Empty")
     self.input_object = self.app.inputs()
     self.dataset = self.app.create_dataset(dataset_id=CREATE_DATASET_ID)
     self.dataset_new = self.app.create_dataset(dataset_id=CREATE_DATASET_NEW_ID)
@@ -285,4 +286,4 @@ class Testdataupload:
   @classmethod
   def teardown_class(self):
     self.app.delete_dataset(dataset_id=CREATE_DATASET_ID)
-    User(user_id=CREATE_APP_USER_ID).delete_app(app_id=CREATE_APP_ID)
+    client().delete_app(app_id=CREATE_APP_ID)

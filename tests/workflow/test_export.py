@@ -5,11 +5,14 @@ import yaml
 
 from clarifai.client.workflow import Workflow
 
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
+
 
 @pytest.mark.requires_secrets
 def test_export_workflow_general():
 
-  workflow = Workflow("https://clarifai.com/clarifai/main/workflows/General")
+  workflow = Workflow(
+      workflow_id="General", user_id="clarifai", app_id="main", base_url=CLARIFAI_API_BASE)
 
   workflow.export('tests/workflow/fixtures/export_general.yml')
   # assert this to the reader result

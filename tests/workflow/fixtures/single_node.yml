@@ -5,4 +5,4 @@ workflow:
     - id: detector
       model:
           model_id: face-detection
-          model_version_id: 45fb9a671625463fa646c3523a3087d5
+          model_version_id: fe995da8cb73490f8556416ecf25cea3

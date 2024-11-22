@@ -16,10 +16,11 @@ CREATE_MODEL_ID = "ci_input_test_model"
 CREATE_MODEL_ID_1 = "ci_input_test_model_1"
 CSV_FILE_PATH = os.path.dirname(__file__) + "/assets/sample.csv"
 
+CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
 
-def create_app():
-  client = User(user_id=CREATE_APP_USER_ID)
-  return client.create_app(app_id=CREATE_APP_ID, base_workflow="Empty")
+
+def client():
+  return User(user_id=CREATE_APP_USER_ID, base_url=CLARIFAI_API_BASE)
 
 
 @pytest.mark.requires_secrets
@@ -29,7 +30,7 @@ class Testmodeltrain:
 
   @classmethod
   def setup_class(self):
-    self.app = create_app()
+    self.app = client().create_app(app_id=CREATE_APP_ID, base_workflow="Empty")
     self.input_object = self.app.inputs()
     self.dataset = self.app.create_dataset(dataset_id=CREATE_DATASET_ID)
     self.visual_classifier_model = self.app.create_model(
@@ -103,4 +104,4 @@ class Testmodeltrain:
     self.app.delete_dataset(dataset_id=CREATE_DATASET_ID)
     self.app.delete_model(model_id=CREATE_MODEL_ID)
     self.app.delete_model(model_id=CREATE_MODEL_ID_1)
-    User(user_id=CREATE_APP_USER_ID).delete_app(app_id=CREATE_APP_ID)
+    client().delete_app(app_id=CREATE_APP_ID)

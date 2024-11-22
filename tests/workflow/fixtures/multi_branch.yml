@@ -4,8 +4,8 @@ workflow:
     - id: detector
       model:
           model_id: face-detection
-          model_version_id: 45fb9a671625463fa646c3523a3087d5
+          model_version_id: fe995da8cb73490f8556416ecf25cea3
     - id: moderation
       model:
           model_id: moderation-recognition
-          model_version_id: 7cde8e92896340b0998b8260d47f1502
+          model_version_id: aa8be956dbaa4b7a858826a84253cab9
