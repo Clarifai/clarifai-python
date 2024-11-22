@@ -7,7 +7,7 @@ deployment:
     traffic_history_seconds: 100
     scale_down_delay_seconds: 30
     scale_up_delay_seconds: 30
-    enable_packing: true
+    disable_packing: false
   worker:
     model:
       id: "apparel-clusterering"
