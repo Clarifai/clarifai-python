@@ -76,7 +76,8 @@ class TestTextInputModel(unittest.TestCase):
     params.update(python_params)
     input_req = service_pb2.PostModelOutputsRequest(
         inputs=[INPUT_DATA_PROTO],
-        model=resources_pb2.Model(output_info=resources_pb2.OutputInfo(params=params)),
+        model=resources_pb2.Model(model_version=resources_pb2.ModelVersion(
+            output_info=resources_pb2.OutputInfo(params=params))),
     )
     input_data, infer_params = self.model.parse_input_request(input_req)
 

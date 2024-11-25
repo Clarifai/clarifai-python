@@ -743,7 +743,7 @@ class Model(Lister, BaseClient):
       file_bytes = f.read()
 
     return self.generate_by_bytes(
-        filepath=file_bytes,
+        input_bytes=file_bytes,
         input_type=input_type,
         compute_cluster_id=compute_cluster_id,
         nodepool_id=nodepool_id,

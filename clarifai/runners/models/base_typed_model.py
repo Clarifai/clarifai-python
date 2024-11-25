@@ -24,7 +24,8 @@ class AnyAnyModel(ModelRunner):
     list_input_dict = [
         InputDataHandler.from_proto(input).to_python() for input in input_request.inputs
     ]
-    inference_params = json_format.MessageToDict(input_request.model.output_info.params)
+    inference_params = json_format.MessageToDict(
+        input_request.model.model_version.output_info.params)
 
     return list_input_dict, inference_params
 
@@ -141,7 +142,8 @@ class VisualInputModel(AnyAnyModel):
     list_input_dict = [
         InputDataHandler.from_proto(input).image(format="np") for input in input_request.inputs
     ]
-    inference_params = json_format.MessageToDict(input_request.model.output_info.params)
+    inference_params = json_format.MessageToDict(
+        input_request.model.model_version.output_info.params)
 
     return list_input_dict, inference_params
 
@@ -181,7 +183,8 @@ class TextInputModel(AnyAnyModel):
   def parse_input_request(
       self, input_request: service_pb2.PostModelOutputsRequest) -> Tuple[List[Dict], Dict]:
     list_input_text = [InputDataHandler.from_proto(input).text for input in input_request.inputs]
-    inference_params = json_format.MessageToDict(input_request.model.output_info.params)
+    inference_params = json_format.MessageToDict(
+        input_request.model.model_version.output_info.params)
 
     return list_input_text, inference_params
 
