@@ -13,10 +13,13 @@ from dummy_runner_models.model import MyRunner
 from dummy_runner_models.model_wrapper import MyRunner as MyWrapperRunner
 from google.protobuf import json_format
 
-from clarifai.client import BaseClient, User
+from clarifai.client import BaseClient, Model, User
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 
 # logger.disabled = True
+
+TEXT_FILE_PATH = os.path.dirname(os.path.dirname(__file__)) + "/assets/sample.txt"
+TEXT_URL = "https://samples.clarifai.com/negative_sentence_12.txt"
 
 
 def init_components(
@@ -133,6 +136,13 @@ class TestRunnerServer:
         cls.NODEPOOL_ID,
         cls.COMPUTE_CLUSTER_ID,
     )
+    cls.model = Model(
+        user_id=cls.AUTH.user_id,
+        app_id=cls.AUTH.app_id,
+        model_id=cls.MODEL_ID,
+        model_version={
+            'id': cls.MODEL_VERSION_ID
+        })
     cls.runner = MyRunner(
         runner_id=cls.RUNNER_ID,
         nodepool_id=cls.NODEPOOL_ID,
@@ -203,6 +213,17 @@ class TestRunnerServer:
         runner_selector=runner_selector,
     )
 
+  def _format_client_request(self, text):
+    runner_selector = resources_pb2.RunnerSelector(nodepool=resources_pb2.Nodepool(
+        id=self.NODEPOOL_ID,
+        compute_cluster=resources_pb2.ComputeCluster(
+            id=self.COMPUTE_CLUSTER_ID, user_id=self.AUTH.user_id),
+    ))
+    inputs = [
+        resources_pb2.Input(data=resources_pb2.Data(text=resources_pb2.Text(raw=text))),
+    ]
+    return inputs, runner_selector
+
   def test_unary(self):
     # self.logger.info("Testing unary")
     text = "Test"
@@ -220,7 +241,7 @@ class TestRunnerServer:
     for i, res in enumerate(stub.GenerateModelOutputs(req)):
       self._validate_response(res, text + out.format(i=i))
 
-  @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
+  # @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
   def test_stream(self):
     text = "This is a long text for testing stream"
     out = "Stream Hello World {i}"
@@ -232,6 +253,143 @@ class TestRunnerServer:
     stub = self.CLIENT.STUB
     for i, res in enumerate(stub.StreamModelOutputs(create_iterator())):
       self._validate_response(res, text + out.format(i=i))
+
+  def test_client_predict(self):
+    text = "Test"
+    expected = f"{text}Hello World"
+
+    # Test predict
+    inputs, runner_selector = self._format_client_request(text)
+    res = self.model.predict(inputs=inputs, runner_selector=runner_selector)
+    self._validate_response(res, expected)
+
+  def test_client_predict_by_bytes(self):
+    text = "Test"
+    expected = f"{text}Hello World"
+    res = self.model.predict_by_bytes(
+        text.encode("utf-8"),
+        "text",
+        compute_cluster_id=self.COMPUTE_CLUSTER_ID,
+        nodepool_id=self.NODEPOOL_ID)
+    self._validate_response(res, expected)
+
+  def test_client_predict_by_url(self):
+    res = self.model.predict_by_url(
+        TEXT_URL, "text", compute_cluster_id=self.COMPUTE_CLUSTER_ID, nodepool_id=self.NODEPOOL_ID)
+    expected = "He doesn't have to commute to work.Hello World"
+    self._validate_response(res, expected)
+
+  def test_client_predict_by_filepath(self):
+    res = self.model.predict_by_filepath(
+        TEXT_FILE_PATH,
+        "text",
+        compute_cluster_id=self.COMPUTE_CLUSTER_ID,
+        nodepool_id=self.NODEPOOL_ID)
+
+    with open(TEXT_FILE_PATH, "r") as f:
+      expected = f"{f.read()}Hello World"
+
+    self._validate_response(res, expected)
+
+  def test_client_generate(self):
+    text = "This is a long text for testing generate"
+    out = "Generate Hello World {i}"
+    inputs, runner_selector = self._format_client_request(text)
+    for i, res in enumerate(self.model.generate(inputs=inputs, runner_selector=runner_selector)):
+      self._validate_response(res, text + out.format(i=i))
+
+  def test_client_generate_by_bytes(self):
+    text = "This is a long text for testing generate"
+    out = "Generate Hello World {i}"
+
+    model_response = self.model.generate_by_bytes(
+        text.encode("utf-8"),
+        "text",
+        compute_cluster_id=self.COMPUTE_CLUSTER_ID,
+        nodepool_id=self.NODEPOOL_ID)
+    for i, res in enumerate(model_response):
+      self._validate_response(res, text + out.format(i=i))
+
+  def test_client_generate_by_url(self):
+    text = "He doesn't have to commute to work."
+    out = "Generate Hello World {i}"
+    model_response = self.model.generate_by_url(
+        TEXT_URL, "text", compute_cluster_id=self.COMPUTE_CLUSTER_ID, nodepool_id=self.NODEPOOL_ID)
+    for i, res in enumerate(model_response):
+      logger.info(f"Response: {res}")
+      self._validate_response(res, text + out.format(i=i))
+
+  def test_client_generate_by_filepath(self):
+    with open(TEXT_FILE_PATH, "r") as f:
+      text = f.read()
+      out = "Generate Hello World {i}"
+
+      model_response = self.model.generate_by_filepath(
+          TEXT_FILE_PATH,
+          "text",
+          compute_cluster_id=self.COMPUTE_CLUSTER_ID,
+          nodepool_id=self.NODEPOOL_ID)
+      for i, res in enumerate(model_response):
+        self._validate_response(res, text + out.format(i=i))
+
+  # @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
+  def test_client_stream(self):
+    text = "This is a long text for testing stream"
+    out = "Stream Hello World {i}"
+    inputs, runner_selector = self._format_client_request(text)
+
+    def create_iterator():
+      yield inputs
+
+    model_response = self.model.stream(inputs=create_iterator(), runner_selector=runner_selector)
+    for i, res in enumerate(model_response):
+      self._validate_response(res, text + out.format(i=i))
+
+  def test_client_stream_by_bytes(self):
+    text = "This is a long text for testing stream"
+    out = "Stream Hello World {i}"
+
+    def create_iterator():
+      yield text.encode("utf-8")
+
+    model_response = self.model.stream_by_bytes(
+        create_iterator(),
+        "text",
+        compute_cluster_id=self.COMPUTE_CLUSTER_ID,
+        nodepool_id=self.NODEPOOL_ID)
+
+    for i, res in enumerate(model_response):
+      self._validate_response(res, text + out.format(i=i))
+
+  def test_client_stream_by_url(self):
+    text = "He doesn't have to commute to work."
+    out = "Stream Hello World {i}"
+
+    def create_iterator():
+      yield TEXT_URL
+
+    model_response = self.model.stream_by_url(
+        create_iterator(),
+        "text",
+        compute_cluster_id=self.COMPUTE_CLUSTER_ID,
+        nodepool_id=self.NODEPOOL_ID)
+
+    for i, res in enumerate(model_response):
+      self._validate_response(res, text + out.format(i=i))
+
+  def test_client_stream_by_filepath(self):
+    with open(TEXT_FILE_PATH, "r") as f:
+      text = f.read()
+      out = "Stream Hello World {i}"
+
+      model_response = self.model.stream_by_filepath(
+          TEXT_FILE_PATH,
+          "text",
+          compute_cluster_id=self.COMPUTE_CLUSTER_ID,
+          nodepool_id=self.NODEPOOL_ID)
+
+      for i, res in enumerate(model_response):
+        self._validate_response(res, text + out.format(i=i))
 
 
 @pytest.mark.requires_secrets
@@ -264,6 +422,13 @@ class TestWrapperRunnerServer(TestRunnerServer):
         base_url=cls.AUTH.base,
         user_id=cls.AUTH.user_id,
     )
+    cls.model = Model(
+        user_id=cls.AUTH.user_id,
+        app_id=cls.AUTH.app_id,
+        model_id=cls.MODEL_ID,
+        model_version={
+            'id': cls.MODEL_VERSION_ID
+        })
     cls.thread = threading.Thread(target=cls.runner.start)
     cls.thread.daemon = True  # close when python closes
     cls.thread.start()
