@@ -264,6 +264,17 @@ class TestRunnerServer:
     res = self.model.predict(inputs=inputs, runner_selector=runner_selector)
     self._validate_response(res, expected)
 
+  def test_client_predict_inference_params(self):
+    text = "Test"
+
+    # Test predict
+    inputs, runner_selector = self._format_client_request(text)
+    inference_params = {"hello": "world"}
+    res = self.model.predict(
+        inputs=inputs, runner_selector=runner_selector, inference_params=inference_params)
+    expected = f"{text}Hello World" + inference_params["hello"]
+    self._validate_response(res, expected)
+
   def test_client_predict_by_bytes(self):
     text = "Test"
     expected = f"{text}Hello World"
@@ -296,8 +307,23 @@ class TestRunnerServer:
     text = "This is a long text for testing generate"
     out = "Generate Hello World {i}"
     inputs, runner_selector = self._format_client_request(text)
-    for i, res in enumerate(self.model.generate(inputs=inputs, runner_selector=runner_selector)):
-      self._validate_response(res, text + out.format(i=i))
+
+    model_response = self.model.generate(inputs=inputs, runner_selector=runner_selector)
+    for i, res in enumerate(model_response):
+      expected = text + out.format(i=i)
+      self._validate_response(res, expected)
+
+  def test_client_generate_inference_params(self):
+    text = "This is a long text for testing generate"
+    out = "Generate Hello World {i}"
+    inputs, runner_selector = self._format_client_request(text)
+    inference_params = {"hello": "world"}
+
+    model_response = self.model.generate(
+        inputs=inputs, runner_selector=runner_selector, inference_params=inference_params)
+    for i, res in enumerate(model_response):
+      expected = text + out.format(i=i) + inference_params["hello"]
+      self._validate_response(res, expected)
 
   def test_client_generate_by_bytes(self):
     text = "This is a long text for testing generate"
@@ -344,7 +370,25 @@ class TestRunnerServer:
 
     model_response = self.model.stream(inputs=create_iterator(), runner_selector=runner_selector)
     for i, res in enumerate(model_response):
-      self._validate_response(res, text + out.format(i=i))
+      expected = text + out.format(i=i)
+      self._validate_response(res, expected)
+
+  def test_client_stream_inference_params(self):
+    text = "This is a long text for testing stream"
+    out = "Stream Hello World {i}"
+    inputs, runner_selector = self._format_client_request(text)
+    inference_params = {"hello": "world"}
+
+    def create_iterator():
+      yield inputs
+
+    model_response = self.model.stream(
+        inputs=create_iterator(),
+        runner_selector=runner_selector,
+        inference_params=inference_params)
+    for i, res in enumerate(model_response):
+      expected = text + out.format(i=i) + inference_params["hello"]
+      self._validate_response(res, expected)
 
   def test_client_stream_by_bytes(self):
     text = "This is a long text for testing stream"

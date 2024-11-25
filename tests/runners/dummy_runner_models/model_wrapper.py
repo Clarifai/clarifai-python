@@ -15,10 +15,11 @@ class MyRunner(TextInputModel):
   def predict(self, input_data: List[str],
               inference_parameters: Dict[str, Any]) -> List[OutputDataHandler]:
     outputs = []
-    for text in input_data:
+    for input_text in input_data:
+      output_text = input_text + "Hello World" + inference_parameters.get("hello", "")
       output = OutputDataHandler.from_data(
           status_code=status_code_pb2.SUCCESS,
-          text=f"{text}Hello World",
+          text=output_text,
       )
       outputs.append(output)
     return outputs
@@ -29,7 +30,7 @@ class MyRunner(TextInputModel):
       list_text = each_input
       output = OutputDataHandler.from_data(
           status_code=status_code_pb2.SUCCESS,
-          text=f"{list_text[0]}Stream Hello World {i}",
+          text=f"{list_text[0]}Stream Hello World {i}" + inference_parameters.get("hello", ""),
       )
       outputs.append(output)
     yield outputs
@@ -37,10 +38,10 @@ class MyRunner(TextInputModel):
   def generate(self, input_data: List[str],
                inference_parameters: Dict[str, Any]) -> List[OutputDataHandler]:  # type: ignore
     outputs = []
-    for i, text in enumerate(input_data):
+    for i, input_text in enumerate(input_data):
       output = OutputDataHandler.from_data(
           status_code=status_code_pb2.SUCCESS,
-          text=f"{text}Generate Hello World {i}",
+          text=f"{input_text}Generate Hello World {i}" + inference_parameters.get("hello", ""),
       )
       outputs.append(output)
     yield outputs
