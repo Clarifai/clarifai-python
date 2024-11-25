@@ -122,6 +122,7 @@ class TestComputeOrchestration:
     ])
     assert result.exit_code == 0
 
+  @pytest.mark.coverage_only
   def test_create_deployment(self, create_runner):
     with open(DEPLOYMENT_CONFIG_FILE) as f:
       config = yaml.safe_load(f)
@@ -157,6 +158,7 @@ class TestComputeOrchestration:
     assert result.exit_code == 0
     assert "List of Deployments" in result.output
 
+  @pytest.mark.coverage_only
   def test_delete_deployment(self, create_runner):
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = create_runner.invoke(cli, [
