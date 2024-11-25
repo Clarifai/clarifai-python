@@ -194,6 +194,7 @@ class TestRunnerServer:
     if len(res.outputs) == 0:
       raise Exception(f"Failed to get outputs: {res}")
     out = res.outputs[0].data.text.raw
+    out.replace("\r\n", "\n")
     assert expected == out
 
   def _format_request(self, text):
