@@ -70,8 +70,10 @@ jobs:
         export PYTHONPATH=.
         export CLARIFAI_USER_ID="$(python scripts/key_for_tests.py --get-userid)"
         export CLARIFAI_PAT="$(python scripts/key_for_tests.py --create-pat)"
-        if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ] || [ "${{ inputs.PERIODIC_CHECKS }}" = "true" ]; then
+        if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
           pytest --cov=. --cov-report=xml:coverage/coverage.cobertura.xml
+        elif [ "${{ inputs.PERIODIC_CHECKS }}" = "true" ]; then
+          pytest -m "not coverage_only" --cov=. --cov-report=xml:coverage/coverage.cobertura.xml
         else
           pytest -m "not requires_secrets" --cov=. --cov-report=xml:coverage/coverage.cobertura.xml
         fi
