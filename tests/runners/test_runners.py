@@ -36,11 +36,11 @@ def init_components(
   # except Exception:
   #   app = App.from_auth_helper(auth=auth, app_id=app_id)
   # try:
-  model = app.create_model(model_id=model_id, model_type_id="remote-operator")
+  model = app.create_model(model_id=model_id, model_type_id="multimodal-to-text")
   # except Exception as _:
   #   model = Model.from_auth_helper(auth=auth, model_id=model_id)
 
-  new_model = model.create_version()
+  new_model = model.create_version(resources_pb2.PretrainedModelConfig(local_dev=True,))
 
   new_model_version = new_model.model_version.id
   compute_cluster = resources_pb2.ComputeCluster(
