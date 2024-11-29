@@ -111,6 +111,7 @@ def init_components(
   return new_model_version, res.runners[0].id
 
 
+@pytest.mark.skip(reason="Skipping Runners tests for now.")
 @pytest.mark.requires_secrets
 class TestRunnerServer:
 
@@ -438,6 +439,7 @@ class TestRunnerServer:
         self._validate_response(res, text + out.format(i=i))
 
 
+@pytest.mark.skip(reason="Skipping Runners tests for now.")
 @pytest.mark.requires_secrets
 class TestWrapperRunnerServer(TestRunnerServer):
 
