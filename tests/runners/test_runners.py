@@ -472,9 +472,10 @@ class TestWrapperRunnerServer(TestRunnerServer):
         user_id=cls.AUTH.user_id,
         app_id=cls.AUTH.app_id,
         model_id=cls.MODEL_ID,
-        model_version={
-            'id': cls.MODEL_VERSION_ID
-        })
+        model_version={'id': cls.MODEL_VERSION_ID},
+        base_url=cls.AUTH.base,
+        pat=cls.AUTH.pat,
+    )
     cls.thread = threading.Thread(target=cls.runner.start)
     cls.thread.daemon = True  # close when python closes
     cls.thread.start()
