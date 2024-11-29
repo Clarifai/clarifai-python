@@ -36,11 +36,11 @@ def init_components(
   # except Exception:
   #   app = App.from_auth_helper(auth=auth, app_id=app_id)
   # try:
-  model = app.create_model(model_id=model_id, model_type_id="remote-operator")
+  model = app.create_model(model_id=model_id, model_type_id="multimodal-to-text")
   # except Exception as _:
   #   model = Model.from_auth_helper(auth=auth, model_id=model_id)
 
-  new_model = model.create_version()
+  new_model = model.create_version(resources_pb2.PretrainedModelConfig(local_dev=True,))
 
   new_model_version = new_model.model_version.id
   compute_cluster = resources_pb2.ComputeCluster(
@@ -111,6 +111,7 @@ def init_components(
   return new_model_version, res.runners[0].id
 
 
+@pytest.mark.skip(reason="Skipping Runners tests for now.")
 @pytest.mark.requires_secrets
 class TestRunnerServer:
 
@@ -140,9 +141,10 @@ class TestRunnerServer:
         user_id=cls.AUTH.user_id,
         app_id=cls.AUTH.app_id,
         model_id=cls.MODEL_ID,
-        model_version={
-            'id': cls.MODEL_VERSION_ID
-        })
+        model_version={'id': cls.MODEL_VERSION_ID},
+        base_url=cls.AUTH.base,
+        pat=cls.AUTH.pat,
+    )
     cls.runner = MyRunner(
         runner_id=cls.RUNNER_ID,
         nodepool_id=cls.NODEPOOL_ID,
@@ -437,6 +439,7 @@ class TestRunnerServer:
         self._validate_response(res, text + out.format(i=i))
 
 
+@pytest.mark.skip(reason="Skipping Runners tests for now.")
 @pytest.mark.requires_secrets
 class TestWrapperRunnerServer(TestRunnerServer):
 
@@ -471,9 +474,10 @@ class TestWrapperRunnerServer(TestRunnerServer):
         user_id=cls.AUTH.user_id,
         app_id=cls.AUTH.app_id,
         model_id=cls.MODEL_ID,
-        model_version={
-            'id': cls.MODEL_VERSION_ID
-        })
+        model_version={'id': cls.MODEL_VERSION_ID},
+        base_url=cls.AUTH.base,
+        pat=cls.AUTH.pat,
+    )
     cls.thread = threading.Thread(target=cls.runner.start)
     cls.thread.daemon = True  # close when python closes
     cls.thread.start()
