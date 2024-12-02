@@ -6,25 +6,32 @@ from clarifai.utils.logging import logger
 
 
 def download_input(input):
+  _download_input_data(input.data)
+  if input.data.parts:
+    for part in input.data.parts:
+      _download_input_data(part.data)
+
+
+def _download_input_data(input_data):
   """
   This function will download any urls that are not already bytes.
   """
-  if input.data.image.url and not input.data.image.base64:
+  if input_data.image.url and not input_data.image.base64:
     # Download the image
-    with fsspec.open(input.data.image.url, 'rb') as f:
-      input.data.image.base64 = f.read()
-  if input.data.video.url and not input.data.video.base64:
+    with fsspec.open(input_data.image.url, 'rb') as f:
+      input_data.image.base64 = f.read()
+  if input_data.video.url and not input_data.video.base64:
     # Download the video
-    with fsspec.open(input.data.video.url, 'rb') as f:
-      input.data.video.base64 = f.read()
-  if input.data.audio.url and not input.data.audio.base64:
+    with fsspec.open(input_data.video.url, 'rb') as f:
+      input_data.video.base64 = f.read()
+  if input_data.audio.url and not input_data.audio.base64:
     # Download the audio
-    with fsspec.open(input.data.audio.url, 'rb') as f:
-      input.data.audio.base64 = f.read()
-  if input.data.text.url and not input.data.text.raw:
+    with fsspec.open(input_data.audio.url, 'rb') as f:
+      input_data.audio.base64 = f.read()
+  if input_data.text.url and not input_data.text.raw:
     # Download the text
-    with fsspec.open(input.data.text.url, 'r') as f:
-      input.data.text.raw = f.read()
+    with fsspec.open(input_data.text.url, 'r') as f:
+      input_data.text.raw = f.read()
 
 
 def ensure_urls_downloaded(request, max_threads=128):
