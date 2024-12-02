@@ -8,7 +8,7 @@ from clarifai.utils.logging import logger
 def download_input(input):
   _download_input_data(input.data)
   if input.data.parts:
-    for i in range(input.data.parts):
+    for i in range(len(input.data.parts)):
       _download_input_data(input.data.parts[i].data)
 
 
