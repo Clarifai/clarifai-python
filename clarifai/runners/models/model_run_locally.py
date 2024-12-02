@@ -14,6 +14,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from clarifai_protocol import BaseRunner
 
 from clarifai.runners.models.model_upload import ModelUploader
+from clarifai.runners.utils.url_fetcher import ensure_urls_downloaded
 from clarifai.utils.logging import logger
 
 
@@ -111,6 +112,8 @@ class ModelRunLocally:
   def _run_model_inference(self, runner):
     """Perform inference using the runner."""
     request = self._build_request()
+
+    ensure_urls_downloaded(request)
 
     try:
       return runner.predict(request)

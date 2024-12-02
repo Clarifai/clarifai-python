@@ -126,7 +126,7 @@ class ModelUploader:
       user_id = model.get('user_id')
       app_id = model.get('app_id')
 
-      base = os.environ.get('CLARIFAI_API_BASE', 'https://api-dev.clarifai.com')
+      base = os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
 
       self._client = BaseClient(user_id=user_id, app_id=app_id, base=base)
 
