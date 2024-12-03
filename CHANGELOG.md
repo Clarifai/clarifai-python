@@ -1,3 +1,12 @@
+## [[10.11.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.11.0) - [PyPI](https://pypi.org/project/clarifai/10.11.0/) - 2024-12-03
+
+### Changed
+ - Fixed  issue of bounding box info edge cases [(#457)] (https://github.com/Clarifai/clarifai-python/pull/457)
+ - Supports downloading data.parts as bytes [(#456)] (https://github.com/Clarifai/clarifai-python/pull/456)
+ - Changed default env to prod for Model upload [(#455)] (https://github.com/Clarifai/clarifai-python/pull/455)
+ - Added tests for all stream and generate methods [(#452)] (https://github.com/Clarifai/clarifai-python/pull/452)
+ - Added Codecoverage test report in PRs [(#450)] (https://github.com/Clarifai/clarifai-python/pull/450)
+
 ## [[10.10.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.10.1) - [PyPI](https://pypi.org/project/clarifai/10.10.1/) - 2024-11-18
 
 ### Changed
