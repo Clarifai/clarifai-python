@@ -165,6 +165,14 @@ class InputAnnotationDownloader:
   def _save_annotation_to_archive(self, new_archive: zipfile.ZipFile, annot_data: List[Dict],
                                   file_name: str) -> None:
     """Gets the annotation response bytestring (from requests) and append to zip file."""
+    # Fill zero values for missing bounding box keys
+    for annot in annot_data:
+      if annot.get('regionInfo') and annot['regionInfo'].get('boundingBox'):
+        bbox = annot['regionInfo']['boundingBox']
+        bbox.setdefault('topRow', 0)
+        bbox.setdefault('leftCol', 0)
+        bbox.setdefault('bottomRow', 0)
+        bbox.setdefault('rightCol', 0)
     # Serialize the dictionary to a JSON string
     json_str = json.dumps(annot_data)
     # Convert the JSON string to bytes
