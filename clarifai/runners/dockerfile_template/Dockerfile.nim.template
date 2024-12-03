@@ -1,0 +1,122 @@
+# Use an intermediate image to install pip and other dependencies
+FROM --platform=$TARGETPLATFORM public.ecr.aws/docker/library/python:${PYTHON_VERSION}-slim-bookworm as deps
+ENV DEBIAN_FRONTEND=noninteractive
+
+
+RUN python${PYTHON_VERSION} -m venv /venv && \
+    /venv/bin/pip install --disable-pip-version-check --upgrade pip setuptools wheel && \
+    ln -sf /usr/bin/python${PYTHON_VERSION} /usr/bin/python3 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*;
+
+# Install the NIM base image
+ENV NGC_API_KEY=${NGC_API_KEY}
+
+# Use the NIM base image as another build stage
+FROM --platform=$TARGETPLATFORM ${BASE_IMAGE} as build
+
+# Final image based on distroless
+FROM gcr.io/distroless/python3-debian12:debug
+
+# virtual env
+COPY --from=deps /venv /venv
+# we have to overwrite the python3 binary that the distroless image uses
+COPY --from=deps /usr/local/bin/python${PYTHON_VERSION} /usr/bin/python3
+COPY --from=deps /usr/local/bin/python${PYTHON_VERSION} /usr/local/bin/python${PYTHON_VERSION}
+
+# Copy NIM files
+COPY --from=build /opt /opt
+COPY --from=build /etc/nim /etc/nim
+
+# Copy necessary binaries and libraries from the NIM base image
+COPY --from=build /bin/bash /bin/bash
+COPY --from=build /bin/ssh /bin/ssh
+COPY --from=build /usr/bin/ln /usr/bin/ln
+
+# also copy in all the lib files for it.
+COPY --from=build /lib /lib
+COPY --from=build /lib64 /lib64
+COPY --from=build /usr/lib/ /usr/lib/
+COPY --from=build /usr/local/lib/ /usr/local/lib/
+# ldconfig is needed to update the shared library cache so system libraries (like CUDA) can be found
+COPY --from=build /usr/sbin/ldconfig /sbin/ldconfig
+COPY --from=build /usr/sbin/ldconfig.real /sbin/ldconfig.real
+COPY --from=build /etc/ld.so.conf /etc/ld.so.conf
+COPY --from=build /etc/ld.so.cache /etc/ld.so.cache
+COPY --from=build /etc/ld.so.conf.d/ /etc/ld.so.conf.d/
+
+
+# Set environment variables
+ENV PYTHONPATH=/venv/lib/python3.10/site-packages:/opt/nim/llm/.venv/lib/python3.10/site-packages:/opt/nim/llm
+ENV PATH="/usr/local/bin:/venv/bin:/opt/nim/llm/.venv/bin:/opt/hpcx/ucc/bin:/opt/hpcx/ucx/bin:/opt/hpcx/ompi/bin:$PATH"
+
+ENV LD_LIBRARY_PATH="/opt/hpcx/ucc/lib/ucc:/opt/hpcx/ucc/lib:/opt/hpcx/ucx/lib/ucx:/opt/hpcx/ucx/lib:/opt/hpcx/ompi/lib:/opt/hpcx/ompi/lib/openmpi:/opt/nim/llm/.venv/lib/python3.10/site-packages/tensorrt_llm/libs:/opt/nim/llm/.venv/lib/python3.10/site-packages/nvidia/cublas/lib:/opt/nim/llm/.venv/lib/python3.10/site-packages/tensorrt_libs:/opt/nim/llm/.venv/lib/python3.10/site-packages/nvidia/nccl/lib:$LD_LIBRARY_PATH"
+
+ENV LIBRARY_PATH=/opt/hpcx/ucc/lib:/opt/hpcx/ucx/lib:/opt/hpcx/ompi/lib:$LIBRARY_PATH
+
+ENV CPATH=/opt/hpcx/ompi/include:/opt/hpcx/ucc/include:/opt/hpcx/ucx/include:$CPATH
+ENV LLM_PROJECT_DIR=/opt/nim/llm
+
+# Set environment variables for MPI
+ENV OMPI_HOME=/opt/hpcx/ompi
+ENV HPCX_MPI_DIR=/opt/hpcx/ompi
+ENV MPIf_HOME=/opt/hpcx/ompi
+ENV OPAL_PREFIX=/opt/hpcx/ompi
+
+# Set environment variables for UCC
+ENV UCC_DIR=/opt/hpcx/ucc/lib/cmake/ucc
+ENV UCC_HOME=/opt/hpcx/ucc
+ENV HPCX_UCC_DIR=/opt/hpcx/ucc
+ENV USE_UCC=1
+ENV USE_SYSTEM_UCC=1
+
+# Set environment variables for HPC-X
+ENV HPCX_DIR=/opt/hpcx
+ENV HPCX_UCX_DIR=/opt/hpcx/ucx
+ENV HPCX_MPI_DIR=/opt/hpcx/ompi
+
+# Set environment variables for UCX
+ENV UCX_DIR=/opt/hpcx/ucx/lib/cmake/ucx
+ENV UCX_HOME=/opt/hpcx/ucx
+
+ENV HOME=/opt/nim/llm
+
+SHELL ["/bin/bash", "-c"]
+
+# These will be set by the templaing system.
+ENV CLARIFAI_PAT=${CLARIFAI_PAT}
+ENV CLARIFAI_USER_ID=${CLARIFAI_USER_ID}
+ENV CLARIFAI_RUNNER_ID=${CLARIFAI_RUNNER_ID}
+ENV CLARIFAI_NODEPOOL_ID=${CLARIFAI_NODEPOOL_ID}
+ENV CLARIFAI_COMPUTE_CLUSTER_ID=${CLARIFAI_COMPUTE_CLUSTER_ID}
+ENV CLARIFAI_API_BASE=${CLARIFAI_API_BASE}
+
+#############################
+# User specific requirements
+#############################
+COPY requirements.txt .
+
+# Install requirements and clarifai package and cleanup before leaving this line.
+# Note(zeiler): this could be in a future template as {{model_python_deps}}
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir clarifai
+
+# Set the NUMBA cache dir to /tmp
+ENV NUMBA_CACHE_DIR=/tmp/numba_cache
+ENV LOCAL_NIM_CACHE=/tmp/nim_cache
+
+
+# Set the working directory to /app
+WORKDIR /app
+
+# Copy the current folder into /app/model_dir that the SDK will expect.
+# Note(zeiler): would be nice to exclude checkpoints in case they were pre-downloaded.
+COPY . /app/model_dir/${name}
+
+# Add the model directory to the python path.
+ENV PYTHONPATH=${PYTHONPATH}:/app/model_dir/${name}
+
+ENTRYPOINT ["python", "-m", "clarifai.runners.server"]
+
+# Finally run the clarifai entrypoint to start the runner loop and local dev server.
+# Note(zeiler): we may want to make this a clarifai CLI call.
+CMD ["--model_path", "/app/model_dir/main"]
