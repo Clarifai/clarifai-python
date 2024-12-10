@@ -108,6 +108,7 @@ def main():
         runner_id="n/a",
         nodepool_id="n/a",
         compute_cluster_id="n/a",
+        user_id="n/a",
         health_check_port=None,  # not needed when running local server
     )
 
@@ -127,6 +128,7 @@ def main():
     service_pb2_grpc.add_V2Servicer_to_server(servicer, server)
     server.start()
     logger.info("Started server on port %s", parsed_args.port)
+    logger.info(f"Access the model at http://localhost:{parsed_args.port}")
     server.wait_for_termination()
   else:  # start the runner with the proper env variables and as a runner protocol.
 
