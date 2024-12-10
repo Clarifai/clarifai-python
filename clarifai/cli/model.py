@@ -87,14 +87,14 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
     type=int,
     default=8000,
     show_default=True,
-    help='The port to host the gRPC server at for running the model locally.')
+    help="The port to host the gRPC server for running the model locally. Defaults to 8000.")
 @click.option(
     '--mode',
     type=click.Choice(['env', 'container'], case_sensitive=False),
     default='env',
     show_default=True,
     help=
-    'Specify how to run the model: "env" for virtual environment or "container" for Docker container. Defaults to "env".'
+    'Specifies how to run the model: "env" for virtual environment or "container" for Docker container. Defaults to "env".'
 )
 @click.option(
     '--keep_env',
