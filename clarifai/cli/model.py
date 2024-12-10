@@ -40,16 +40,37 @@ def upload(model_path, download_checkpoints, skip_dockerfile):
     required=True,
     help='Path to the model directory.')
 @click.option(
+    '--mode',
+    type=click.Choice(['env', 'container'], case_sensitive=False),
+    default='env',
+    show_default=True,
+    help=
+    'Specify how to test the model locally: "env" for virtual environment or "container" for Docker container. Defaults to "env".'
+)
+@click.option(
     '--keep_env',
     is_flag=True,
-    help='Flag to keep the virtual environment after testing the model\
-    locally. Defaults to False, which will delete the virtual environment after testing.')
-def test_locally(model_path, keep_env=False):
+    help=
+    'Keep the virtual environment after testing the model locally (applicable for virtualenv mode). Defaults to False.'
+)
+@click.option(
+    '--keep_image',
+    is_flag=True,
+    help=
+    'Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.'
+)
+def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
   """Test model locally."""
   try:
     from clarifai.runners.models import model_run_locally
-    model_run_locally.main(model_path, keep_env=keep_env)
-    click.echo(f"Model tested locally from {model_path}.")
+    if mode == "env":
+      click.echo("Testing model locally in a virtual environment...")
+      model_run_locally.main(model_path, run_model_server=False, keep_env=keep_env)
+    elif mode == "container":
+      click.echo("Testing model locally inside a container...")
+      model_run_locally.main(
+          model_path, inside_container=True, run_model_server=False, keep_image=keep_image)
+    click.echo("Model tested su")
   except Exception as e:
     click.echo(f"Failed to test model locally: {e}", err=True)
 
@@ -60,11 +81,49 @@ def test_locally(model_path, keep_env=False):
     type=click.Path(exists=True),
     required=True,
     help='Path to the model directory.')
-def run_locally(model_path):
-  """Run model locally and starts a GRPC server to serve the model."""
+@click.option(
+    '--port',
+    '-p',
+    type=int,
+    default=8000,
+    show_default=True,
+    help='The port to host the gRPC server at for running the model locally.')
+@click.option(
+    '--mode',
+    type=click.Choice(['env', 'container'], case_sensitive=False),
+    default='env',
+    show_default=True,
+    help=
+    'Specify how to run the model: "env" for virtual environment or "container" for Docker container. Defaults to "env".'
+)
+@click.option(
+    '--keep_env',
+    is_flag=True,
+    help=
+    'Keep the virtual environment after testing the model locally (applicable for virtualenv mode). Defaults to False.'
+)
+@click.option(
+    '--keep_image',
+    is_flag=True,
+    help=
+    'Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.'
+)
+def run_locally(model_path, port, mode, keep_env, keep_image):
+  """Run the model locally and start a gRPC server to serve the model."""
   try:
     from clarifai.runners.models import model_run_locally
-    model_run_locally.main(model_path, run_model_server=True)
-    click.echo(f"Model server started locally from {model_path}.")
+
+    if mode == "virtualenv":
+      click.echo("Running model locally in a virtual environment...")
+      model_run_locally.main(model_path, run_model_server=True, keep_env=keep_env, port=port)
+    elif mode == "container":
+      click.echo("Running model locally inside a container...")
+      model_run_locally.main(
+          model_path,
+          inside_container=True,
+          run_model_server=True,
+          port=port,
+          keep_image=keep_image)
+    click.echo(f"Model server started locally from {model_path} in {mode} mode.")
   except Exception as e:
-    click.echo(f"Failed to starts model server locally: {e}", err=True)
+    click.echo(f"Failed to start the model server locally: {e}", err=True)
