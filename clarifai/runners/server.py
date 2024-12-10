@@ -108,7 +108,7 @@ def main():
         runner_id="n/a",
         nodepool_id="n/a",
         compute_cluster_id="n/a",
-        user_id="local-testing",
+        user_id="n/a",
         health_check_port=None,  # not needed when running local server
     )
 
