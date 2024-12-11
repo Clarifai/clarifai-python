@@ -195,4 +195,4 @@ def predict(ctx, config, model_id, user_id, app_id, model_url, file_path, url, b
         runner_selector=runner_selector,
         inference_params=inference_params,
         output_config=output_config)
-  click.echo(f"Prediction successful:\n{model_prediction}")
+  click.echo(model_prediction)
