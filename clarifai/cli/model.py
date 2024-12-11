@@ -112,22 +112,21 @@ def predict(ctx, config, model_id, user_id, app_id, model_url, file_path, url, b
   from clarifai.utils.cli import from_yaml
   if config:
     config = from_yaml(config)
-    model_id = config.get('model_id', model_id)
-    user_id = config.get('user_id', user_id)
-    app_id = config.get('app_id', app_id)
-    model_url = config.get('model_url', model_url)
-    file_path = config.get('file_path', file_path)
-    url = config.get('url', url)
-    bytes = config.get('bytes', bytes)
-    input_id = config.get('input_id', input_id)
-    input_type = config.get('input_type', input_type)
-    compute_cluster_id = config.get('compute_cluster_id', compute_cluster_id)
-    nodepool_id = config.get('nodepool_id', nodepool_id)
-    deployment_id = config.get('deployment_id', deployment_id)
-    inference_params = config.get('inference_params', inference_params)
-    output_config = config.get('output_config', output_config)
-  if sum([1 for opt in [model_id, model_url] if opt]) != 1:
-    raise ValueError("Exactly one of --model_id or --model_url must be provided.")
+    model_id, user_id, app_id, model_url, file_path, url, bytes, input_id, input_type, compute_cluster_id, nodepool_id, deployment_id, inference_params, output_config = (
+        config.get(k, v)
+        for k, v in [('model_id', model_id), ('user_id', user_id), ('app_id', app_id), (
+            'model_url', model_url), ('file_path', file_path), ('url', url), ('bytes', bytes), (
+                'input_id',
+                input_id), ('input_type',
+                            input_type), ('compute_cluster_id',
+                                          compute_cluster_id), ('nodepool_id', nodepool_id), (
+                                              'deployment_id',
+                                              deployment_id), ('inference_params',
+                                                               inference_params), ('output_config',
+                                                                                   output_config)])
+  if sum([opt[1] for opt in [(model_id, 1), (user_id, 1), (app_id, 1), (model_url, 3)]
+          if opt[0]]) != 3:
+    raise ValueError("Either --model_id & --user_id & --app_id or --model_url must be provided.")
   if sum([1 for opt in [file_path, url, bytes, input_id] if opt]) != 1:
     raise ValueError("Exactly one of --file_path, --url, --bytes or --input_id must be provided.")
   if sum([
