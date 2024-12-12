@@ -77,8 +77,8 @@ def main():
   if len(classes) != 1:
     classes = get_model_classes(os.path.join(parsed_args.model_path, "model.py"))
     if len(classes) != 1:
-      raise Exception("Expected exactly one subclass of BaseRunner, found: {}".format(len(classes)))
-
+      raise Exception("Expected exactly one subclass of BaseRunner, found: {}".format(
+          len(classes)))
   MyRunner = classes[0]
 
   # Setup the grpc server for local development.
@@ -127,6 +127,7 @@ def main():
     )
     runner.start()  # start the runner to fetch work from the API.
 
+
 def get_model_classes(runner_path: str) -> list:
   # arbitrary name given to the module to be imported
   module = "runner_module"
@@ -139,6 +140,7 @@ def get_model_classes(runner_path: str) -> list:
       cls for _, cls in inspect.getmembers(runner_module, inspect.isclass)
       if issubclass(cls, BaseRunner) and cls.__module__ == runner_module.__name__
   ]
+
 
 if __name__ == '__main__':
   main()
