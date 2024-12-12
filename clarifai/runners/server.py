@@ -72,25 +72,12 @@ def main():
   parsed_args = parser.parse_args()
 
   # import the runner class that to be implement by the user
-  runner_path = os.path.join(parsed_args.model_path, "1", "model.py")
-
-  # arbitrary name given to the module to be imported
-  module = "runner_module"
-
-  spec = importlib.util.spec_from_file_location(module, runner_path)
-  runner_module = importlib.util.module_from_spec(spec)
-  sys.modules[module] = runner_module
-  spec.loader.exec_module(runner_module)
-
-  # Find all classes in the model.py file that are subclasses of BaseRunner
-  classes = [
-      cls for _, cls in inspect.getmembers(runner_module, inspect.isclass)
-      if issubclass(cls, BaseRunner) and cls.__module__ == runner_module.__name__
-  ]
-
+  classes = get_model_classes(os.path.join(parsed_args.model_path, "1", "model.py"))
   #  Ensure there is exactly one subclass of BaseRunner in the model.py file
   if len(classes) != 1:
-    raise Exception("Expected exactly one subclass of BaseRunner, found: {}".format(len(classes)))
+    classes = get_model_classes(os.path.join(parsed_args.model_path, "model.py"))
+    if len(classes) != 1:
+      raise Exception("Expected exactly one subclass of BaseRunner, found: {}".format(len(classes)))
 
   MyRunner = classes[0]
 
@@ -140,6 +127,18 @@ def main():
     )
     runner.start()  # start the runner to fetch work from the API.
 
+def get_model_classes(runner_path: str) -> list:
+  # arbitrary name given to the module to be imported
+  module = "runner_module"
+  spec = importlib.util.spec_from_file_location(module, runner_path)
+  runner_module = importlib.util.module_from_spec(spec)
+  sys.modules[module] = runner_module
+  spec.loader.exec_module(runner_module)
+  # Find all classes in the model.py file that are subclasses of BaseRunner
+  return [
+      cls for _, cls in inspect.getmembers(runner_module, inspect.isclass)
+      if issubclass(cls, BaseRunner) and cls.__module__ == runner_module.__name__
+  ]
 
 if __name__ == '__main__':
   main()
