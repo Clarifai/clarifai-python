@@ -63,6 +63,11 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
   """Test model locally."""
   try:
     from clarifai.runners.models import model_run_locally
+    if mode == 'env' and keep_image:
+      raise ValueError("'keep_image' is applicable only for 'container' mode")
+    if mode == 'container' and keep_env:
+      raise ValueError("'keep_env' is applicable only for 'env' mode")
+
     if mode == "env":
       click.echo("Testing model locally in a virtual environment...")
       model_run_locally.main(model_path, run_model_server=False, keep_env=keep_env)
@@ -70,7 +75,7 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
       click.echo("Testing model locally inside a container...")
       model_run_locally.main(
           model_path, inside_container=True, run_model_server=False, keep_image=keep_image)
-    click.echo("Model tested su")
+    click.echo("Model tested successfully.")
   except Exception as e:
     click.echo(f"Failed to test model locally: {e}", err=True)
 
@@ -112,8 +117,12 @@ def run_locally(model_path, port, mode, keep_env, keep_image):
   """Run the model locally and start a gRPC server to serve the model."""
   try:
     from clarifai.runners.models import model_run_locally
+    if mode == 'env' and keep_image:
+      raise ValueError("'keep_image' is applicable only for 'container' mode")
+    if mode == 'container' and keep_env:
+      raise ValueError("'keep_env' is applicable only for 'env' mode")
 
-    if mode == "virtualenv":
+    if mode == "env":
       click.echo("Running model locally in a virtual environment...")
       model_run_locally.main(model_path, run_model_server=True, keep_env=keep_env, port=port)
     elif mode == "container":
