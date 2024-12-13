@@ -410,10 +410,10 @@ def main(model_path,
   if inside_container:
     if not manager.is_docker_installed():
       sys.exit(1)
+    manager.uploader.create_dockerfile()
     image_tag = manager._docker_hash()
     image_name = f"{manager.config['model']['id']}:{image_tag}"
     container_name = manager.config['model']['id']
-    manager.uploader.create_dockerfile()
     if not manager.docker_image_exists(image_name):
       manager.build_docker_image(image_name=image_name)
     try:
