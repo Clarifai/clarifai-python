@@ -405,6 +405,11 @@ def main(model_path,
          keep_env=False,
          keep_image=False):
 
+  if not os.environ['CLARIFAI_PAT']:
+    logger.error(
+        "CLARIFAI_PAT environment variable is not set! Please set your PAT in the 'CLARIFAI_PAT' environment variable."
+    )
+    sys.exit(1)
   manager = ModelRunLocally(model_path)
   manager.uploader.download_checkpoints()
   if inside_container:
