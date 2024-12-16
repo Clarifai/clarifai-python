@@ -10,6 +10,7 @@ import tempfile
 import time
 import traceback
 import venv
+import psutil
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
@@ -218,13 +219,45 @@ class ModelRunLocally:
         f"import sys; sys.path.append('{os.path.dirname(os.path.abspath(__file__))}'); "
         f"from model_run_locally import ModelRunLocally; ModelRunLocally('{self.model_path}')._run_test()",
     ]
+    process = None
     try:
       logger.info("Testing the model locally...")
-      subprocess.check_call(command)
-      logger.info("Model tested successfully!")
+      process = subprocess.Popen(command)
+      # Wait for the process to complete
+      process.wait()
+      if process.returncode == 0:
+        logger.info("Model tested successfully!")
+      if process.returncode != 0:
+        raise subprocess.CalledProcessError(process.returncode, command)
     except subprocess.CalledProcessError as e:
       logger.error(f"Error testing the model: {e}")
       sys.exit(1)
+    except Exception as e:
+      logger.error(f"Unexpected error: {e}")
+      sys.exit(1)
+    finally:
+      # After the function runs, check if the process is still running
+      if process and process.poll() is None:
+        logger.info("Process is still running. Terminating process.")
+        process.terminate()
+        try:
+          process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+          logger.info("Process did not terminate gracefully. Killing process.")
+          # Kill the process if it doesn't terminate after 5 seconds
+          process.kill()
+
+      # Terminate any child processes that may have been spawned by the main process
+      if process:
+        try:
+          parent = psutil.Process(process.pid)
+          # Get all child processes recursively
+          for child in parent.children(recursive=True):
+            child.kill()
+        except psutil.NoSuchProcess:
+          pass
+        except Exception as e:
+          logger.error(f"Error terminating child processes: {e}")
 
   # run the model server
   def run_model_server(self, port=8080):
