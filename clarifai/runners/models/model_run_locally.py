@@ -416,6 +416,22 @@ class ModelRunLocally:
       logger.error(f"Error occurred while checking if container exists: {e}")
       return False
 
+  def stop_docker_container(self, container_name="clarifai-model-container"):
+    """Stop the Docker container if it's running."""
+    try:
+      # Check if the container is running
+      result = subprocess.run(
+          ["docker", "ps", "--filter", f"name={container_name}", "--format", "{{.Names}}"],
+          check=True,
+          capture_output=True,
+          text=True)
+      if result.stdout.strip() == container_name:
+        logger.info(f"Docker container '{container_name}' is running. Stopping it...")
+        subprocess.run(["docker", "stop", container_name], check=True)
+        logger.info(f"Docker container '{container_name}' stopped successfully!")
+    except subprocess.CalledProcessError as e:
+      logger.error(f"Error occurred while stopping the Docker container: {e}")
+
   def remove_docker_container(self, container_name="clarifai-model-container"):
     """Remove the Docker container."""
     try:
@@ -474,6 +490,7 @@ def main(model_path,
             image_name=image_name, container_name=container_name, env_vars=envs)
     finally:
       if manager.container_exists(container_name):
+        manager.stop_docker_container(container_name)
         manager.remove_docker_container(container_name=container_name)
       if not keep_image:
         manager.remove_docker_image(image_name)
