@@ -34,6 +34,10 @@ Give the repo a star ⭐
 
 * **[Installation](#rocket-installation)**
 * **[Getting Started](#memo-getting-started)**
+* **[Compute Orchestration](#rocket-compute-orchestration)**
+  * [Cluster Operations](#cluster-operations)
+  * [Nodepool Operations](#nodepool-operations)
+  * [Depolyment Operations](#deployment-operations)
 * **[Interacting with Datasets](#floppy_disk-interacting-with-datasets)**
 * **[Interacting with Inputs](#floppy_disk-interacting-with-inputs)**
   * [Input Upload](#input-upload)
@@ -116,6 +120,73 @@ PAT can be passed as constructor argument
 from clarifai.client.user import User
 client = User(user_id="user_id", pat="your personal access token")
 ```
+
+
+## :rocket: Compute Orchestration
+
+Clarifai’s Compute Orchestration offers a streamlined solution for managing the infrastructure required for training, deploying, and scaling machine learning models and workflows.
+
+This flexible system supports any compute instance — across various hardware providers and deployment methods — and provides automatic scaling to match workload demands. [More Details](https://www.clarifai.com/products/compute-orchestration)
+
+#### Cluster Operations
+```python
+from clarifai.client.user import User
+client = User(user_id="user_id",base_url="https://api.clarifai.com")
+
+# Create a new compute cluster
+compute_cluster = client.create_compute_cluster(compute_cluster_id="demo-id",config_filepath="computer_cluster_config.yaml")
+
+# List Clusters
+all_compute_clusters = list(client.list_compute_clusters())
+print(all_compute_clusters)
+```
+##### [Example Cluster Config](https://github.com/Clarifai/examples/blob/main/ComputeOrchestration/configs/compute_cluster_config.yaml)
+
+
+
+#### Nodepool Operations
+```python
+from clarifai.client.compute_cluster import ComputeCluster
+
+# Initialize the ComputeCluster instance
+compute_cluster = ComputeCluster(user_id="user_id",compute_cluster_id="demo-id")
+
+# Create a new nodepool
+nodepool = compute_cluster.create_nodepool(nodepool_id="demo-nodepool-id",config_filepath="nodepool_config.yaml")
+
+#Get a nodepool
+nodepool = compute_cluster.nodepool(nodepool_id="demo-nodepool-id")
+print(nodepool)
+
+# List nodepools
+all_nodepools = list(compute_cluster.list_nodepools())
+print(all_nodepools)
+```
+##### [Example Nodepool config](https://github.com/Clarifai/examples/blob/main/ComputeOrchestration/configs/nodepool_config.yaml)
+
+#### Deployment Operations
+```python
+from clarifai.client.nodepool import Nodepool
+
+# Initialize the Nodepool instance
+nodepool = Nodepool(user_id="user_id",nodepool_id="demo-nodepool-id")
+
+# Create a new deployment
+deployment = nodepool.create_deployment(deployment_id="demo-deployment-id",config_filepath="deployment_config.yaml")
+
+#Get a deployment
+deployment = nodepool.deployment(nodepool_id="demo-deployment-id")
+print(deployment)
+
+# List deployments
+all_deployments = list(nodepool.list_deployments())
+print(all_deployments)
+
+```
+##### [Example Deployment config](https://github.com/Clarifai/examples/blob/main/ComputeOrchestration/configs/deployment_config.yaml)
+
+#### Compute Orchestration CLI Operations
+Refer Here: https://github.com/Clarifai/clarifai-python/tree/master/clarifai/cli
 
 
 ## :floppy_disk: Interacting with Datasets
