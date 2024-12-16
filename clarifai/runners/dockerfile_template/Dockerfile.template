@@ -29,8 +29,7 @@ WORKDIR /app
 
 # Copy the current folder into /app/model_dir that the SDK will expect.
 # Note(zeiler): would be nice to exclude checkpoints in case they were pre-downloaded.
-ARG INCLUDE_MODEL_DIR=true
-RUN if [ "$INCLUDE_MODEL_DIR" = "true" ]; then cp -r . /app/model_dir/${name}; fi
+COPY . /app/model_dir/${name}
 
 # Add the model directory to the python path.
 ENV PYTHONPATH=${PYTHONPATH}:/app/model_dir/${name}

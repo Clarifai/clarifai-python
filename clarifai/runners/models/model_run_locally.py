@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 import traceback
 import venv
 
@@ -271,10 +272,32 @@ class ModelRunLocally:
     """Build the docker image using the Dockerfile in the model directory."""
     try:
       logger.info(f"Building docker image from Dockerfile in {self.model_path}...")
-      subprocess.check_call([
-          'docker', 'build', '-t', image_name, self.model_path,
-          "--build-arg=INCLUDE_MODEL_DIR=false"
-      ])
+
+      # since we don't want to copy the model directory into the container, we need to modify the Dockerfile and comment out the COPY instruction
+      dockerfile_path = os.path.join(self.model_path, "Dockerfile")
+      # Read the Dockerfile
+      with open(dockerfile_path, 'r') as file:
+        lines = file.readlines()
+
+      # Comment out the COPY instruction that copies the current folder
+      modified_lines = []
+      for line in lines:
+        if 'COPY .' in line and '/app/model_dir/main' in line:
+          modified_lines.append(f'# {line}')
+        else:
+          modified_lines.append(line)
+
+      # Create a temporary directory to store the modified Dockerfile
+      with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dockerfile_path = os.path.join(temp_dir, "Dockerfile.temp")
+
+        # Write the modified Dockerfile to the temporary file
+        with open(temp_dockerfile_path, 'w') as file:
+          file.writelines(modified_lines)
+
+        # Build the Docker image using the temporary Dockerfile
+        subprocess.check_call(
+            ['docker', 'build', '-t', image_name, '-f', temp_dockerfile_path, self.model_path])
       logger.info(f"Docker image '{image_name}' built successfully!")
     except subprocess.CalledProcessError as e:
       logger.info(f"Error occurred while building the Docker image: {e}")
@@ -327,6 +350,7 @@ class ModelRunLocally:
         subprocess.run(["docker", "stop", container_name], check=True)
         process.terminate()
         logger.info(f"Docker container '{container_name}' stopped successfully!")
+        time.sleep(1)
         sys.exit(0)
 
       # Register the signal handler for SIGINT (Ctrl+C)
@@ -372,6 +396,25 @@ class ModelRunLocally:
     except subprocess.CalledProcessError as e:
       logger.error(f"Error testing the model inside the Docker container: {e}")
       sys.exit(1)
+
+  def container_exists(self, container_name="clarifai-model-container"):
+    """Check if the Docker container exists."""
+    try:
+      # Run docker ps -a to list all containers (running and stopped)
+      result = subprocess.run(
+          ["docker", "ps", "-a", "--filter", f"name={container_name}", "--format", "{{.Names}}"],
+          check=True,
+          capture_output=True,
+          text=True)
+      # If the container name is returned, it exists
+      if result.stdout.strip() == container_name:
+        logger.info(f"Docker container '{container_name}' exists.")
+        return True
+      else:
+        return False
+    except subprocess.CalledProcessError as e:
+      logger.error(f"Error occurred while checking if container exists: {e}")
+      return False
 
   def remove_docker_container(self, container_name="clarifai-model-container"):
     """Remove the Docker container."""
@@ -422,7 +465,7 @@ def main(model_path,
     if not manager.docker_image_exists(image_name):
       manager.build_docker_image(image_name=image_name)
     try:
-      envs = {'CLARIFAI_PAT': os.environ['CLARIFAI_PAT']}
+      envs = {'CLARIFAI_PAT': os.environ['CLARIFAI_PAT'], 'CLARIFAI_USER_ID': 'n/a'}
       if run_model_server:
         manager.run_docker_container(
             image_name=image_name, container_name=container_name, port=port, env_vars=envs)
@@ -430,7 +473,8 @@ def main(model_path,
         manager.test_model_container(
             image_name=image_name, container_name=container_name, env_vars=envs)
     finally:
-      manager.remove_docker_container()
+      if manager.container_exists(container_name):
+        manager.remove_docker_container(container_name=container_name)
       if not keep_image:
         manager.remove_docker_image(image_name)
 
