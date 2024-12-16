@@ -129,12 +129,13 @@ def predict(ctx, config, model_id, user_id, app_id, model_url, file_path, url, b
     raise ValueError("Either --model_id & --user_id & --app_id or --model_url must be provided.")
   if sum([1 for opt in [file_path, url, bytes, input_id] if opt]) != 1:
     raise ValueError("Exactly one of --file_path, --url, --bytes or --input_id must be provided.")
-  if sum([
-      opt[1] for opt in [(compute_cluster_id, 0.5), (nodepool_id, 0.5), (deployment_id, 1)]
-      if opt[0]
-  ]) != 1:
-    raise ValueError(
-        "Either --compute_cluster_id & --nodepool_id or --deployment_id must be provided.")
+  if compute_cluster_id or nodepool_id or deployment_id:
+    if sum([
+        opt[1] for opt in [(compute_cluster_id, 0.5), (nodepool_id, 0.5), (deployment_id, 1)]
+        if opt[0]
+    ]) != 1:
+      raise ValueError(
+          "Either --compute_cluster_id & --nodepool_id or --deployment_id must be provided.")
   if model_url:
     model = Model(url=model_url, pat=ctx.obj['pat'], base_url=ctx.obj['base_url'])
   else:
