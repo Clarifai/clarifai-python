@@ -135,7 +135,7 @@ def run_locally(model_path, port, mode, keep_env, keep_image):
           keep_image=keep_image)
     click.echo(f"Model server started locally from {model_path} in {mode} mode.")
   except Exception as e:
-    click.echo(f"Failed to start the model server locally: {e}", err=True)
+    click.echo(f"Failed to starts model server locally: {e}", err=True)
 
 
 @model.command()
