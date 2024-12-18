@@ -45,10 +45,14 @@ class RAG:
       self.logger.info("workflow_url:%s", workflow_url)
       w = Workflow(workflow_url, base_url=base_url, pat=pat)
       self._prompt_workflow = w
-      self._app = App(app_id=w.app_id, base_url=w.base, pat=w.pat)
+      self._app = App(app_id=w.app_id, user_id=w.user_id, base_url=w.base, pat=w.pat)
     elif workflow_url is None and workflow is not None:
       self._prompt_workflow = workflow
-      self._app = App(app_id=workflow.app_id, base_url=workflow.base, pat=workflow.pat)
+      self._app = App(
+          app_id=workflow.app_id,
+          user_id=workflow.user_id,
+          base_url=workflow.base,
+          pat=workflow.pat)
 
   @classmethod
   def setup(cls,
