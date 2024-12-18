@@ -10,6 +10,9 @@ from google.protobuf import json_format
 from rich import print
 
 from clarifai.client import BaseClient
+from clarifai.runners.utils.const import (AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES,
+                                          CONCEPTS_REQUIRED_MODEL_TYPE, DEFAULT_PYTHON_VERSION,
+                                          PYTHON_BASE_IMAGE, TORCH_BASE_IMAGE)
 from clarifai.runners.utils.loader import HuggingFaceLoader
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
@@ -23,48 +26,6 @@ def _clear_line(n: int = 1) -> None:
 
 
 class ModelUploader:
-  DEFAULT_PYTHON_VERSION = 3.11
-  DEFAULT_TORCH_VERSION = '2.4.0'
-  DEFAULT_CUDA_VERSION = '124'
-  # List of available torch images for matrix
-  '''
-        python_version: ['3.8', '3.9', '3.10', '3.11']
-        torch_version: ['2.0.0', '2.1.0', '2.2.0', '2.3.0', '2.4.0', '2.4.1', '2.5.0']
-        cuda_version: ['124']
-  '''
-  AVAILABLE_TORCH_IMAGES = [
-      '2.0.0-py3.8-cuda124',
-      '2.0.0-py3.9-cuda124',
-      '2.0.0-py3.10-cuda124',
-      '2.0.0-py3.11-cuda124',
-      '2.1.0-py3.8-cuda124',
-      '2.1.0-py3.9-cuda124',
-      '2.1.0-py3.10-cuda124',
-      '2.1.0-py3.11-cuda124',
-      '2.2.0-py3.8-cuda124',
-      '2.2.0-py3.9-cuda124',
-      '2.2.0-py3.10-cuda124',
-      '2.2.0-py3.11-cuda124',
-      '2.3.0-py3.8-cuda124',
-      '2.3.0-py3.9-cuda124',
-      '2.3.0-py3.10-cuda124',
-      '2.3.0-py3.11-cuda124',
-      '2.4.0-py3.8-cuda124',
-      '2.4.0-py3.9-cuda124',
-      '2.4.0-py3.10-cuda124',
-      '2.4.0-py3.11-cuda124',
-      '2.4.1-py3.8-cuda124',
-      '2.4.1-py3.9-cuda124',
-      '2.4.1-py3.10-cuda124',
-      '2.4.1-py3.11-cuda124',
-  ]
-  AVAILABLE_PYTHON_IMAGES = ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
-  PYTHON_BASE_IMAGE = 'public.ecr.aws/clarifai-models/python-base:{python_version}'
-  TORCH_BASE_IMAGE = 'public.ecr.aws/clarifai-models/torch:{torch_version}-py{python_version}-cuda{cuda_version}'
-
-  CONCEPTS_REQUIRED_MODEL_TYPE = [
-      'visual-classifier', 'visual-detector', 'visual-segmenter', 'text-classifier'
-  ]
 
   def __init__(self, folder: str):
     self._client = None
@@ -233,33 +194,35 @@ class ModelUploader:
     build_info = self.config.get('build_info', {})
     if 'python_version' in build_info:
       python_version = build_info['python_version']
-      if python_version not in self.AVAILABLE_PYTHON_IMAGES:
+      if python_version not in AVAILABLE_PYTHON_IMAGES:
         logger.error(
-            f"Python version {python_version} not supported, please use one of the following versions: {self.AVAILABLE_PYTHON_IMAGES}"
+            f"Python version {python_version} not supported, please use one of the following versions: {AVAILABLE_PYTHON_IMAGES}"
         )
         return
       logger.info(
           f"Using Python version {python_version} from the config file to build the Dockerfile")
     else:
       logger.info(
-          f"Python version not found in the config file, using default Python version: {self.DEFAULT_PYTHON_VERSION}"
+          f"Python version not found in the config file, using default Python version: {DEFAULT_PYTHON_VERSION}"
       )
-      python_version = self.DEFAULT_PYTHON_VERSION
+      python_version = DEFAULT_PYTHON_VERSION
 
-    base_image = self.PYTHON_BASE_IMAGE.format(python_version=python_version)
+    base_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
 
     # Parse the requirements.txt file to determine the base image
     dependencies = self._parse_requirements()
     if 'torch' in dependencies and dependencies['torch']:
       torch_version = dependencies['torch']
 
-      for image in self.AVAILABLE_TORCH_IMAGES:
+      for image in AVAILABLE_TORCH_IMAGES:
         if torch_version in image and f'py{python_version}' in image:
-          base_image = self.TORCH_BASE_IMAGE.format(
+          cuda_version = image.split('-')[-1].replace('cuda', '')
+          base_image = TORCH_BASE_IMAGE.format(
               torch_version=torch_version,
               python_version=python_version,
-              cuda_version=self.DEFAULT_CUDA_VERSION)
-          logger.info(f"Using Torch version {torch_version} base image  to build the Docker image")
+              cuda_version=cuda_version,
+          )
+          logger.info(f"Using Torch version {torch_version} base image to build the Docker image")
           break
 
     # Replace placeholders with actual values
@@ -314,7 +277,7 @@ class ModelUploader:
       config = yaml.safe_load(file)
     model = config.get('model')
     model_type_id = model.get('model_type_id')
-    assert model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
+    assert model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
     concept_protos = self._concepts_protos_from_concepts(labels)
 
     config['concepts'] = [{'id': concept.id, 'name': concept.name} for concept in concept_protos]
@@ -332,7 +295,7 @@ class ModelUploader:
     )
 
     model_type_id = self.config.get('model').get('model_type_id')
-    if model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE:
+    if model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE:
 
       if 'concepts' in self.config:
         labels = self.config.get('concepts')
@@ -359,7 +322,7 @@ class ModelUploader:
 
     model_type_id = self.config.get('model').get('model_type_id')
 
-    if (model_type_id in self.CONCEPTS_REQUIRED_MODEL_TYPE) and 'concepts' not in self.config:
+    if (model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE) and 'concepts' not in self.config:
       logger.info(
           f"Model type {model_type_id} requires concepts to be specified in the config.yaml file.."
       )
