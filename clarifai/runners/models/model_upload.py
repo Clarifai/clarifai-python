@@ -436,8 +436,21 @@ class ModelUploader:
             is_v3=self.is_v3,
         ))
 
+  def get_model_build_logs(self):
+    logs_request = service_pb2.ListLogEntriesRequest(
+        log_type="builder",
+        user_app_id=self.client.user_app_id,
+        model_id=self.model_proto.id,
+        model_version_id=self.model_version_id,
+        page=1,
+        per_page=50)
+    response = self.client.STUB.ListLogEntries(logs_request)
+
+    return response
+
   def monitor_model_build(self):
     st = time.time()
+    seen_logs = set()  # To avoid duplicate log messages
     while True:
       resp = self.client.STUB.GetModelVersion(
           service_pb2.GetModelVersionRequest(
@@ -448,6 +461,13 @@ class ModelUploader:
       status_code = resp.model_version.status.code
       if status_code == status_code_pb2.MODEL_BUILDING:
         print(f"Model is building... (elapsed {time.time() - st:.1f}s)", end='\r', flush=True)
+
+        # Fetch and display the logs
+        logs = self.get_model_build_logs()
+        for log_entry in logs.log_entries:
+          if log_entry.url not in seen_logs:
+            seen_logs.add(log_entry.url)
+            print(f"Model Building Logs...: {log_entry.message.strip()}")
         time.sleep(1)
       elif status_code == status_code_pb2.MODEL_TRAINED:
         logger.info(f"\nModel build complete! (elapsed {time.time() - st:.1f}s)")
