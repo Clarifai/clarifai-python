@@ -310,7 +310,10 @@ class ModelUploader:
         labels = sorted(labels.items(), key=lambda x: int(x[0]))
 
         config_file = os.path.join(self.folder, 'config.yaml')
-        self.hf_labels_to_config(labels, config_file)
+        try:
+          self.hf_labels_to_config(labels, config_file)
+        except Exception as e:
+          logger.error(f"Failed to update the config.yaml file with the concepts: {e}")
 
         model_version_proto.output_info.data.concepts.extend(
             self._concepts_protos_from_concepts(labels))

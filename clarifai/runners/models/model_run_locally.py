@@ -10,7 +10,6 @@ import tempfile
 import time
 import traceback
 import venv
-import psutil
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
@@ -116,6 +115,7 @@ class ModelRunLocally:
                 text=resources_pb2.Text(raw="How many people live in new york?"),
                 image=resources_pb2.Image(url="https://samples.clarifai.com/metro-north.jpg"),
                 audio=resources_pb2.Audio(url="https://samples.clarifai.com/GoodMorning.wav"),
+                video=resources_pb2.Video(url="https://samples.clarifai.com/beer.mp4"),
             ))
         ],
     )
@@ -246,18 +246,6 @@ class ModelRunLocally:
           logger.info("Process did not terminate gracefully. Killing process.")
           # Kill the process if it doesn't terminate after 5 seconds
           process.kill()
-
-      # Terminate any child processes that may have been spawned by the main process
-      if process:
-        try:
-          parent = psutil.Process(process.pid)
-          # Get all child processes recursively
-          for child in parent.children(recursive=True):
-            child.kill()
-        except psutil.NoSuchProcess:
-          pass
-        except Exception as e:
-          logger.error(f"Error terminating child processes: {e}")
 
   # run the model server
   def run_model_server(self, port=8080):
