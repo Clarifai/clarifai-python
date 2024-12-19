@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import inspect
 import os
+import platformdirs
 import shutil
 import signal
 import subprocess
@@ -39,11 +40,11 @@ class ModelRunLocally:
     """Create a temporary virtual environment."""
     requirements_hash = self._requirements_hash()
 
-    temp_dir = os.path.join(tempfile.gettempdir(), str(requirements_hash))
+    temp_dir = os.path.join(platformdirs.user_cache_dir('clarifai', 'clarifai'), 'venvs', str(requirements_hash))
     venv_dir = os.path.join(temp_dir, "venv")
 
-    if os.path.exists(temp_dir):
-      logger.info(f"Using previous virtual environment at {temp_dir}")
+    if os.path.exists(venv_dir):
+      logger.info(f"Using virtual environment at {temp_dir}")
       use_existing_venv = True
     else:
       logger.info("Creating temporary virtual environment...")
