@@ -9,8 +9,8 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2_grpc
 from clarifai import __version__
 from clarifai.utils.constants import CLARIFAI_PAT_ENV_VAR, CLARIFAI_SESSION_TOKEN_ENV_VAR
 
-DEFAULT_BASE = "https://api.clarifai.com"
-DEFAULT_UI = "https://clarifai.com"
+DEFAULT_BASE = os.getenv('CLARIFAI_API_BASE', "https://api.clarifai.com")
+DEFAULT_UI = os.getenv('CLARIFAI_UI', "https://clarifai.com")
 
 REQUEST_ID_PREFIX_HEADER = "x-clarifai-request-id-prefix"
 REQUEST_ID_PREFIX = f"sdk-python-{__version__}"
@@ -100,7 +100,7 @@ class ClarifaiAuthHelper:
     self._token = token
     self._root_certificates_path = root_certificates_path
 
-    self.set_base(base)
+    self.set_base(base or DEFAULT_BASE)
     self.set_ui(ui)
     if validate:
       self.validate()

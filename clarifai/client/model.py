@@ -43,7 +43,7 @@ class Model(Lister, BaseClient):
                url: str = None,
                model_id: str = None,
                model_version: Dict = {'id': ""},
-               base_url: str = "https://api.clarifai.com",
+               base_url: str = None,
                pat: str = None,
                token: str = None,
                root_certificates_path: str = None,
