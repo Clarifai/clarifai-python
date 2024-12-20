@@ -1,3 +1,16 @@
+## [[10.11.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.11.1) - [PyPI](https://pypi.org/project/clarifai/10.11.1/) - 2024-12-20
+
+### Changed
+ - Fixed issue for Model local testing [(#469)] (https://github.com/Clarifai/clarifai-python/pull/469)
+ - Updated Dockerfile for Sglang [(#468)] (https://github.com/Clarifai/clarifai-python/pull/468)
+ - Added model building logs [(#467)] (https://github.com/Clarifai/clarifai-python/pull/467)
+ - Added user_id to RAG class [(#466)] (https://github.com/Clarifai/clarifai-python/pull/466)
+ - Updated available torch images and some refactoring [(#465)] (https://github.com/Clarifai/clarifai-python/pull/465)
+ - Removed protobuf from requirements to resolve conflicts with clarifai-grpc [(#464)] (https://github.com/Clarifai/clarifai-python/pull/464)
+ - Added Compute Orchestration to README.md [(#461)] (https://github.com/Clarifai/clarifai-python/pull/461)
+ - Added Testing and Running a model locally within a container [(#460)] (https://github.com/Clarifai/clarifai-python/pull/460)
+ - Added CLI support for Model Predict [(#459)] (https://github.com/Clarifai/clarifai-python/pull/459)
+
 ## [[10.11.0]](https://github.com/Clarifai/clarifai-python/releases/tag/10.11.0) - [PyPI](https://pypi.org/project/clarifai/10.11.0/) - 2024-12-03
 
 ### Changed
