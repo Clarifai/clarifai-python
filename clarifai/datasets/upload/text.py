@@ -34,8 +34,9 @@ class TextClassificationDataset(ClarifaiDataset):
       data_item = self.data_generator[id]
       metadata = Struct()
       text = data_item.text
-      labels = data_item.labels if isinstance(data_item.labels,
-                                              list) else [data_item.labels]  # clarifai concept
+      labels = data_item.labels if ((data_item.labels is None) or
+                                    isinstance(data_item.labels, list)) else [data_item.labels
+                                                                             ]  # clarifai concept
       label_ids = data_item.label_ids
       input_id = f"{self.dataset_id}-{get_uuid(8)}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
       if data_item.metadata is not None:

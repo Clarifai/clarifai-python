@@ -34,7 +34,8 @@ class MultiModalDataset(ClarifaiDataset):
       metadata = Struct()
       image_bytes = data_item.image_bytes
       text = data_item.text
-      labels = data_item.labels if isinstance(data_item.labels, list) else [data_item.labels]
+      labels = data_item.labels if ((data_item.labels is None) or
+                                    isinstance(data_item.labels, list)) else [data_item.labels]
       input_id = f"{self.dataset_id}-{id}" if data_item.id is None else f"{self.dataset_id}-{str(data_item.id)}"
       if data_item.metadata is not None:
         metadata.update(data_item.metadata)
