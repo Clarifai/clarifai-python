@@ -1,3 +1,9 @@
+## [[11.0.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.0) - [PyPI](https://pypi.org/project/clarifai/11.0.0/) - 2025-01-07
+
+### Changed
+ - Changed labels to optional in Dataloaders to support Data Ingestion pipelines in clarifai-datautils library [(#471)] (https://github.com/Clarifai/clarifai-python/pull/471)
+
+
 ## [[10.11.1]](https://github.com/Clarifai/clarifai-python/releases/tag/10.11.1) - [PyPI](https://pypi.org/project/clarifai/10.11.1/) - 2024-12-20
 
 ### Added
