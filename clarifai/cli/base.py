@@ -159,7 +159,7 @@ class Config():
 
 #@click.group(cls=CustomMultiGroup)
 @click.group(cls=AliasedGroup)
-@click.option('--config', default=f'{os.environ["HOME"]}/.config/cfctl/config')
+@click.option('--config', default=f'{os.environ["HOME"]}/.config/clarifai/config')
 @click.pass_context
 def cli(ctx, config):
   """Clarifai CLI"""
