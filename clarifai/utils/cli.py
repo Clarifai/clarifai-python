@@ -10,6 +10,8 @@ from rich.panel import Panel
 from rich.style import Style
 from rich.text import Text
 
+from typing import OrderedDict
+from tabulate import tabulate
 
 def from_yaml(filename: str):
   try:
@@ -26,19 +28,6 @@ def dump_yaml(data, filename: str):
       yaml.dump(data, f)
   except Exception as e:
     click.echo(f"Error writing YAML file: {e}", err=True)
-
-
-def set_base_url(env):
-  environments = {
-      'prod': 'https://api.clarifai.com',
-      'staging': 'https://api-staging.clarifai.com',
-      'dev': 'https://api-dev.clarifai.com'
-  }
-
-  if env in environments:
-    return environments[env]
-  else:
-    raise ValueError("Invalid environment. Please choose from 'prod', 'staging', 'dev'.")
 
 
 # Dynamically find and import all command modules from the cli directory
@@ -68,3 +57,31 @@ def display_co_resources(response, resource_type):
         border_style="green",
         width=60)
     console.print(panel)
+
+class TableFormatter:
+
+  def __init__(self, custom_columns: OrderedDict):
+    """
+        Initializes the TableFormatter with column headers and custom column mappings.
+
+        :param headers: List of column headers for the table.
+        """
+    self.custom_columns = custom_columns
+
+  def format(self, objects, fmt='plain'):
+    """
+        Formats a list of objects into a table with custom columns.
+
+        :param objects: List of objects to format into a table.
+        :return: A string representing the table.
+        """
+    # Prepare the rows by applying the custom column functions to each object
+    rows = []
+    for obj in objects:
+      #   row = [self.custom_columns[header](obj) for header in self.headers]
+      row = [f(obj) for f in self.custom_columns.values()]
+      rows.append(row)
+
+    # Create the table
+    table = tabulate(rows, headers=self.custom_columns.keys(), tablefmt=fmt)
+    return table

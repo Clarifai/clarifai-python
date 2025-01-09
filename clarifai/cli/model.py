@@ -205,14 +205,14 @@ def predict(ctx, config, model_id, user_id, app_id, model_url, file_path, url, b
       raise ValueError(
           "Either --compute_cluster_id & --nodepool_id or --deployment_id must be provided.")
   if model_url:
-    model = Model(url=model_url, pat=ctx.obj['pat'], base_url=ctx.obj['base_url'])
+    model = Model(url=model_url, pat=ctx.obj.contexts[ctx.obj.current_context].pat, base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
   else:
     model = Model(
         model_id=model_id,
         user_id=user_id,
         app_id=app_id,
-        pat=ctx.obj['pat'],
-        base_url=ctx.obj['base_url'])
+        pat=ctx.obj.contexts[ctx.obj.current_context].pat,
+        base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
 
   if inference_params:
     inference_params = json.loads(inference_params)
@@ -252,10 +252,10 @@ def predict(ctx, config, model_id, user_id, app_id, model_url, file_path, url, b
     runner_selector = None
     if deployment_id:
       runner_selector = Deployment.get_runner_selector(
-          user_id=ctx.obj['user_id'], deployment_id=deployment_id)
+          user_id=ctx.obj.contexts[ctx.obj.current_context].user_id, deployment_id=deployment_id)
     elif compute_cluster_id and nodepool_id:
       runner_selector = Nodepool.get_runner_selector(
-          user_id=ctx.obj['user_id'],
+          user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,
           compute_cluster_id=compute_cluster_id,
           nodepool_id=nodepool_id)
     model_prediction = model.predict(

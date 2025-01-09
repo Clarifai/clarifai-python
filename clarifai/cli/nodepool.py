@@ -42,9 +42,9 @@ def create(ctx, compute_cluster_id, config, nodepool_id):
 
   compute_cluster = ComputeCluster(
       compute_cluster_id=compute_cluster_id,
-      user_id=ctx.obj['user_id'],
-      pat=ctx.obj['pat'],
-      base_url=ctx.obj['base_url'])
+      user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,
+      pat=ctx.obj.contexts[ctx.obj.current_context].pat,
+      base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
   if nodepool_id:
     compute_cluster.create_nodepool(config, nodepool_id=nodepool_id)
   else:
@@ -65,9 +65,9 @@ def list(ctx, compute_cluster_id, page_no, per_page):
 
   compute_cluster = ComputeCluster(
       compute_cluster_id=compute_cluster_id,
-      user_id=ctx.obj['user_id'],
-      pat=ctx.obj['pat'],
-      base_url=ctx.obj['base_url'])
+      user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,
+      pat=ctx.obj.contexts[ctx.obj.current_context].pat,
+      base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
   response = compute_cluster.list_nodepools(page_no, per_page)
   display_co_resources(response, "Nodepool")
 
@@ -85,7 +85,7 @@ def delete(ctx, compute_cluster_id, nodepool_id):
 
   compute_cluster = ComputeCluster(
       compute_cluster_id=compute_cluster_id,
-      user_id=ctx.obj['user_id'],
-      pat=ctx.obj['pat'],
-      base_url=ctx.obj['base_url'])
+      user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,
+      pat=ctx.obj.contexts[ctx.obj.current_context].pat,
+      base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
   compute_cluster.delete_nodepools([nodepool_id])

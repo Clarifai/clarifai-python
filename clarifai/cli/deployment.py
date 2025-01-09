@@ -35,9 +35,9 @@ def create(ctx, nodepool_id, config, deployment_id):
 
   nodepool = Nodepool(
       nodepool_id=nodepool_id,
-      user_id=ctx.obj['user_id'],
-      pat=ctx.obj['pat'],
-      base_url=ctx.obj['base_url'])
+      user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,
+      pat=ctx.obj.contexts[ctx.obj.current_context].pat,
+      base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
   if deployment_id:
     nodepool.create_deployment(config, deployment_id=deployment_id)
   else:
@@ -58,9 +58,9 @@ def list(ctx, nodepool_id, page_no, per_page):
 
   nodepool = Nodepool(
       nodepool_id=nodepool_id,
-      user_id=ctx.obj['user_id'],
-      pat=ctx.obj['pat'],
-      base_url=ctx.obj['base_url'])
+      user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,
+      pat=ctx.obj.contexts[ctx.obj.current_context].pat,
+      base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
   response = nodepool.list_deployments(page_no=page_no, per_page=per_page)
   display_co_resources(response, "Deployment")
 
@@ -78,7 +78,7 @@ def delete(ctx, nodepool_id, deployment_id):
 
   nodepool = Nodepool(
       nodepool_id=nodepool_id,
-      user_id=ctx.obj['user_id'],
-      pat=ctx.obj['pat'],
-      base_url=ctx.obj['base_url'])
+      user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,
+      pat=ctx.obj.contexts[ctx.obj.current_context].pat,
+      base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
   nodepool.delete_deployments([deployment_id])
