@@ -257,14 +257,14 @@ def dump(ctx_obj, output_format):
     json.dump(ctx_obj.to_dict(), sys.stdout, indent=2)
 
 @cli.command()
-@click.argument('api_url')
+@click.argument('api_url', default="https://api.clarifai.com")
 @click.option('--user_id', required=False, help='User ID')
 @click.pass_context
 def login(ctx, api_url, user_id):
   """Login command to set PAT and other configurations."""
 
   name=input('context name (default: "default"): ')
-  user_id=user_id if user_id is not None else input('user id: '),
+  user_id=user_id if user_id is not None else input('user id: ')
   access_token_type=input('access token type (env or raw, default: "env"): ')
   access_token_value=input('access token value (default: "CLARIFAI_PAT"): ')
 
