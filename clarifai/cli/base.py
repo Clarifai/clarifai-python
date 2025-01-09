@@ -263,15 +263,34 @@ def dump(ctx_obj, output_format):
 def login(ctx, api_url, user_id):
   """Login command to set PAT and other configurations."""
 
-  context = Context(
-    name=input('context name: '),
-    base_url=api_url,
-    user_id=user_id if user_id is not None else input('user id: '),
-    access_token=dict(
-      type=input('access token type: '),
-      value=input('access token value: '),
-    ),
-  )
+  name=input('context name (default: "default"): ')
+  user_id=user_id if user_id is not None else input('user id: '),
+  access_token_type=input('access token type (env or raw, default: "env"): ')
+  access_token_value=input('access token value (default: "CLARIFAI_PAT"): ')
+
+  if access_token_type != '':
+    access_token = dict(
+      type=access_token_type,
+      value=access_token_value
+    )
+    context = Context(
+      name=name,
+      base_url=api_url,
+      user_id=user_id,
+      access_token=access_token,
+    )
+  else:
+    context = Context(
+      name=name,
+      base_url=api_url,
+      user_id=user_id,
+    )
+    if access_token_value != '':
+      context.access_token['value'] = access_token_value
+
+
+  if context.name == '':
+    context.name = 'default'
 
   ctx.obj.contexts[context.name] = context
   ctx.obj.current_context = context.name
