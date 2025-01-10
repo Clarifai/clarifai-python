@@ -411,6 +411,9 @@ class ModelUploader:
     logger.info(f"Size of the tar is: {file_size} bytes")
 
     self.maybe_create_model()
+    if not self.check_model_exists():
+      logger.error(f"Failed to create model: {self.model_proto.id}")
+      sys.exit(1)
 
     for response in self.client.STUB.PostModelVersionsUpload(
         self.model_version_stream_upload_iterator(model_version_proto, file_path),):
