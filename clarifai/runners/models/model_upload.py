@@ -9,6 +9,7 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf import json_format
 from rich import print
+from rich.markup import escape
 
 from clarifai.client import BaseClient
 from clarifai.runners.utils.const import (AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES,
@@ -91,6 +92,10 @@ class ModelUploader:
     assert "app_id" in model, "app_id not found in the config file"
     assert "model_type_id" in model, "model_type_id not found in the config file"
     assert "id" in model, "model_id not found in the config file"
+    if '.' in model.get('id'):
+      logger.error(
+          "Model ID cannot contain '.', please remove it from the model_id in the config file")
+      sys.exit(1)
 
     assert model.get('user_id') != "", "user_id cannot be empty in the config file"
     assert model.get('app_id') != "", "app_id cannot be empty in the config file"
@@ -510,7 +515,7 @@ class ModelUploader:
         for log_entry in logs.log_entries:
           if log_entry.url not in seen_logs:
             seen_logs.add(log_entry.url)
-            print(f"Model Building Logs...: {log_entry.message.strip()}")
+            print(f"Model Building Logs...: {escape(log_entry.message.strip())}")
         time.sleep(1)
       elif status_code == status_code_pb2.MODEL_TRAINED:
         logger.info(f"\nModel build complete! (elapsed {time.time() - st:.1f}s)")
