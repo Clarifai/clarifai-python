@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import time
 from string import Template
 
@@ -31,6 +32,7 @@ class ModelUploader:
     self._client = None
     self.folder = self._validate_folder(folder)
     self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
+    self._validate_config()
     self.model_proto = self._get_model_proto()
     self.model_id = self.model_proto.id
     self.model_version_id = None
@@ -75,6 +77,43 @@ class ModelUploader:
       else:
         hf_token = self.config.get("checkpoints").get("hf_token", None)
       return repo_id, hf_token
+
+  def _check_app_exists(self):
+    resp = self.client.STUB.GetApp(service_pb2.GetAppRequest(user_app_id=self.client.user_app_id))
+    if resp.status.code == status_code_pb2.SUCCESS:
+      return True
+    return False
+
+  def _validate_config_model(self):
+    assert "model" in self.config, "model section not found in the config file"
+    model = self.config.get('model')
+    assert "user_id" in model, "user_id not found in the config file"
+    assert "app_id" in model, "app_id not found in the config file"
+    assert "model_type_id" in model, "model_type_id not found in the config file"
+    assert "id" in model, "model_id not found in the config file"
+
+    assert model.get('user_id') != "", "user_id cannot be empty in the config file"
+    assert model.get('app_id') != "", "app_id cannot be empty in the config file"
+    assert model.get('model_type_id') != "", "model_type_id cannot be empty in the config file"
+    assert model.get('id') != "", "model_id cannot be empty in the config file"
+
+    if not self._check_app_exists():
+      logger.error(
+          f"App {self.client.user_app_id.app_id} not found for user {self.client.user_app_id.user_id}"
+      )
+      sys.exit(1)
+
+  def _validate_config(self):
+    self._validate_config_model()
+
+    if self.config.get("checkpoints"):
+      self._validate_config_checkpoints()
+
+    assert "inference_compute_info" in self.config, "inference_compute_info not found in the config file"
+
+    if self.config.get("concepts"):
+      model_type_id = self.config.get('model').get('model_type_id')
+      assert model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
 
   @property
   def client(self):
@@ -259,6 +298,7 @@ class ModelUploader:
 
     if not success:
       logger.error(f"Failed to download checkpoints for model {repo_id}")
+      sys.exit(1)
     else:
       logger.info(f"Downloaded checkpoints for model {repo_id}")
     return success

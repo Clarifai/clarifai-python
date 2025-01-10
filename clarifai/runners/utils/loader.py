@@ -49,7 +49,7 @@ class HuggingFaceLoader:
         snapshot_download(
             repo_id=self.repo_id, local_dir=checkpoint_path, local_dir_use_symlinks=False)
       except Exception as e:
-        logger.exception(f"Error downloading model checkpoints {e}")
+        logger.error(f"Error downloading model checkpoints {e}")
         return False
       finally:
         is_downloaded = self.validate_download(checkpoint_path)
