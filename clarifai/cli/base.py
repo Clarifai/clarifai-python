@@ -14,7 +14,9 @@ class Context():
   name: str
   user_id: str
   base_url: str
-  access_token: dict = field(default_factory=lambda: dict(type='env', value='CLARIFAI_PAT'))
+  access_token: t.Dict[str, str] = field(default_factory=lambda: dict(type='env', value='CLARIFAI_PAT'))
+  env: t.Dict[str, str] = field(default_factory=dict)
+
   pat: str = None
 
   def _resolve_pat(self) -> str:
@@ -29,12 +31,15 @@ class Context():
     self.pat = self._resolve_pat()
 
   def to_serializable_dict(self):
-    return {
+    result = {
       'name': self.name,
       'user_id': self.user_id,
       'base_url': self.base_url,
-      'access_token': self.access_token
+      'access_token': self.access_token,
     }
+    if self.env:
+      result['env'] = self.env
+    return result
 
 
 @dataclass
@@ -44,7 +49,10 @@ class Config():
   contexts: dict[str, Context] = field(default_factory=dict)
 
   def __post_init__(self):
-    self.contexts = {k: Context(name=k, **v,) for k, v in self.contexts.items()}
+    for k, v in self.contexts.items():
+      if 'name' not in v:
+        v['name'] = k
+    self.contexts = {k: Context(**v) for k, v in self.contexts.items()}
 
   @classmethod
   def from_yaml(cls, filename: str = None):
@@ -56,11 +64,8 @@ class Config():
     return {
               'current_context': self.current_context,
               'contexts': {
-                  k: dict(
-                      user_id=v.user_id,
-                      base_url=v.base_url,
-                      access_token=v.access_token,
-                  ) for k, v in self.contexts.items()
+                  k: v.to_serializable_dict()
+                  for k, v in self.contexts.items()
               }
           }
 
@@ -70,9 +75,11 @@ class Config():
     dir = os.path.dirname(filename)
     if len(dir):
       os.makedirs(dir, exist_ok=True)
+    _dict = self.to_dict()
+    for k, v in _dict['contexts'].items():
+      v.pop('name', None)
     with open(filename, 'w') as f:
-      yaml.safe_dump(
-          self.to_dict(), f)
+      yaml.safe_dump(_dict, f)
 
 #@click.group(cls=CustomMultiGroup)
 @click.group(cls=AliasedGroup)
@@ -335,7 +342,10 @@ def use(ctx, name):
 def run(ctx, script, context=None):
   """Execute a script with the current context's environment"""
   context = ctx.obj.contexts[ctx.obj.current_context if not context else context]
-  os.system(f'CLARIFAI_USER_ID={context.user_id} CLARIFAI_API_BASE={context.base_url} CLARIFAI_PAT={context.pat} {script}')
+  cmd = f'CLARIFAI_USER_ID={context.user_id} CLARIFAI_API_BASE={context.base_url} CLARIFAI_PAT={context.pat} '
+  cmd += ' '.join([f'{k}={v}' for k, v in context.env.items()])
+  cmd += f' {script}'
+  os.system(cmd)
 
 # Import the CLI commands to register them
 load_command_modules()
