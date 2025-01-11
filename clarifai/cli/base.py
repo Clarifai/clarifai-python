@@ -6,91 +6,8 @@ import yaml
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from ..utils.cli import dump_yaml, from_yaml, load_command_modules, TableFormatter
+from ..utils.cli import dump_yaml, from_yaml, load_command_modules, TableFormatter, AliasedGroup
 
-
-class AliasedGroup(click.Group):
-
-  def __init__(self,
-               name: t.Optional[str] = None,
-               commands: t.Optional[t.Union[t.MutableMapping[str, click.Command],
-                                            t.Sequence[click.Command]]] = None,
-               **attrs: t.Any) -> None:
-    super().__init__(name, commands, **attrs)
-    self.alias_map = {}
-    self.command_to_aliases = defaultdict(list)
-
-  def add_alias(self, cmd: click.Command, alias: str) -> None:
-    self.alias_map[alias] = cmd
-    if alias != cmd.name:
-      self.command_to_aliases[cmd].append(alias)
-
-  def command(self,
-              aliases=None,
-              *args,
-              **kwargs) -> t.Callable[[t.Callable[..., t.Any]], click.Command]:
-    cmd_decorator = super().command(*args, **kwargs)
-    if aliases is None:
-      aliases = []
-
-    def aliased_decorator(f):
-      cmd = cmd_decorator(f)
-      if cmd.name:
-        self.add_alias(cmd, cmd.name)
-      for alias in aliases:
-        self.add_alias(cmd, alias)
-      return cmd
-
-    f = None
-    if args and callable(args[0]):
-      (f,) = args
-    if f is not None:
-      return aliased_decorator(f)
-    return aliased_decorator
-
-  def group(self, aliases=None, *args, **kwargs) -> t.Callable[[t.Callable[..., t.Any]], click.Group]:
-    cmd_decorator = super().group(*args, **kwargs)
-    if aliases is None:
-      aliases = []
-
-    def aliased_decorator(f):
-      cmd = cmd_decorator(f)
-      if cmd.name:
-        self.add_alias(cmd, cmd.name)
-      for alias in aliases:
-        self.add_alias(cmd, alias)
-      return cmd
-
-    f = None
-    if args and callable(args[0]):
-      (f,) = args
-    if f is not None:
-      return aliased_decorator(f)
-    return aliased_decorator
-
-  def get_command(self, ctx: click.Context, cmd_name: str) -> t.Optional[click.Command]:
-    rv = click.Group.get_command(self, ctx, cmd_name)
-    if rv is not None:
-      return rv
-    return self.alias_map.get(cmd_name)
-
-  def format_commands(self, ctx, formatter):
-    sub_commands = self.list_commands(ctx)
-
-    rows = []
-    for sub_command in sub_commands:
-      cmd = self.get_command(ctx, sub_command)
-      if cmd is None or getattr(cmd, 'hidden', False):
-        continue
-      if cmd in self.command_to_aliases:
-        aliases = ', '.join(self.command_to_aliases[cmd])
-        sub_command = f'{sub_command} ({aliases})'
-      cmd_help = cmd.help
-      rows.append((sub_command, cmd_help))
-
-    if rows:
-      with formatter.section("Commands"):
-        formatter.write_dl(rows)
 
 @dataclass
 class Context():
@@ -186,20 +103,22 @@ def shell_completion(shell):
   """Shell completion script"""
   os.system(f"_CLARIFAI_COMPLETE={shell}_source clarifai")
 
-@cli.group(['cfg'])
+@cli.group(['cfg'], cls=AliasedGroup)
 def config():
   """Manage CLI configuration"""
   pass
 
-@config.command()
+@config.command(['e'])
 @click.pass_context
 def edit(ctx):
+  """Edit the configuration file"""
   os.system(f'{os.environ.get("EDITOR", "vi")} {ctx.obj.filename}')
 
 @config.command()
 @click.option('-o', '--output-format', default='name', type=click.Choice(['name','json', 'yaml']))
 @click.pass_context
 def current_context(ctx, output_format):
+  """Get the current context"""
   if output_format == 'name':
     print(ctx.obj.current_context)
   else:
@@ -216,9 +135,11 @@ def current_context(ctx, output_format):
               type=click.Choice(['wide', 'name', 'json', 'yaml']))
 @click.pass_context
 def get_contexts(ctx, output_format):
+  """Get all contexts"""
   if output_format == 'wide':
     formatter = TableFormatter(
         custom_columns={
+            '': lambda c: '*' if c.name == ctx.obj.current_context else '',
             'NAME': lambda c: c.name,
             'USER_ID': lambda c: c.user_id,
             'BASE_URL': lambda c: c.base_url,
@@ -237,20 +158,22 @@ def get_contexts(ctx, output_format):
       print(yaml.safe_dump(dicts))
 
 
-@config.command()
+@config.command(['use'])
 @click.argument('context-name', type=str)
 @click.pass_context
-def use(ctx, context_name):
+def use_context(ctx, context_name):
+  """Set the current context"""
   if context_name not in ctx.obj.contexts:
     raise click.UsageError('Context not found')
   ctx.obj.current_context = context_name
   ctx.obj.to_yaml()
   print(f'Set {context_name} as the current context')
 
-@config.command()
+@config.command(['cat'])
 @click.option('-o', '--output-format', default='yaml', type=click.Choice(['yaml','json']))
 @click.pass_obj
 def dump(ctx_obj, output_format):
+  """Dump the configuration to stdout"""
   if output_format == 'yaml':
     yaml.safe_dump(ctx_obj.to_dict(), sys.stdout)
   else:
@@ -296,6 +219,123 @@ def login(ctx, api_url, user_id):
   ctx.obj.current_context = context.name
 
   ctx.obj.to_yaml()
+
+@cli.group(cls=AliasedGroup)
+def context():
+  """Manage contexts"""
+  pass
+
+@context.command(['ls'])
+@click.pass_context
+def list(ctx):
+  """List available contexts"""
+  formatter = TableFormatter(
+      custom_columns={
+          '': lambda c: '*' if c.name == ctx.obj.current_context else '',
+          'NAME': lambda c: c.name,
+          'USER_ID': lambda c: c.user_id,
+          'BASE_URL': lambda c: c.base_url,
+          'PAT_CONF': lambda c: c.access_token.get('type', 'default')
+      })
+  print(formatter.format(ctx.obj.contexts.values(), fmt="plain"))
+
+def input_or_default(prompt, default):
+  value = input(prompt)
+  return value if value else default
+
+@context.command()
+@click.argument('name')
+@click.option('--user-id', required=False, help='User ID')
+@click.option('--base-url', required=False, help='Base URL')
+@click.option('--access-token-type', required=False, help='Access token type')
+@click.option('--access-token-value', required=False, help='Access token value')
+@click.pass_context
+def create(
+    ctx,
+    name,
+    user_id=None,
+    base_url=None,
+    access_token_type=None,
+    access_token_value=None,
+):
+  """Create a new context"""
+  if name in ctx.obj.contexts:
+    print(f'{name} already exists')
+    exit(1)
+  if not user_id:
+    user_id = input('user id: ')
+  if not base_url:
+    base_url = input_or_default('base url (default: https://api.clarifai.com): ', 'https://api.clarifai.com')
+  if not access_token_type:
+    access_token_type = input_or_default('access token type (env or raw, default: "env"): ', 'env')
+  if not access_token_value:
+    access_token_value = input_or_default('access token value (default: "CLARIFAI_PAT"): ', 'CLARIFAI_PAT')
+
+  context = Context(
+    name=name,
+    user_id=user_id,
+    base_url=base_url,
+    access_token=dict(
+      type=access_token_type,
+      value=access_token_value
+    )
+  )
+  ctx.obj.contexts[context.name] = context
+  ctx.obj.to_yaml()
+
+@context.command(['e'])
+@click.argument('name')
+@click.pass_context
+def edit(ctx, name):
+  """Edit a config"""
+  context = ctx.obj.contexts.get(name, None)
+  if context is None:
+    print(f'{name} is not a valid context')
+    exit(1)
+
+  import tempfile
+
+  with tempfile.NamedTemporaryFile(mode='w', delete=True) as f:
+    yaml.dump(context.to_serializable_dict(), f)
+    os.system(f'{os.environ.get("EDITOR", "vi")} {f.name}')
+    with open(f.name, 'r') as f:
+      ctx.obj.contexts.pop(name)
+      new_context = Context(**yaml.safe_load(f))
+      ctx.obj.contexts[new_context.name] = new_context
+      ctx.obj.to_yaml()
+
+# write a click command to delete a context
+@context.command(['rm'])
+@click.argument('name')
+@click.pass_context
+def delete(ctx, name):
+  """Delete a context"""
+  if name not in ctx.obj.contexts:
+    print(f'{name} is not a valid context')
+    exit(1)
+  ctx.obj.contexts.pop(name)
+  ctx.obj.to_yaml()
+  print(f'{name} deleted')
+
+@context.command()
+@click.argument('name', type=str)
+@click.pass_context
+def use(ctx, name):
+  """Set the current context"""
+  if name not in ctx.obj.contexts:
+    raise click.UsageError('Context not found')
+  ctx.obj.current_context = name
+  ctx.obj.to_yaml()
+  print(f'Set {name} as the current context')
+
+@cli.command()
+@click.argument('script', type=str)
+@click.option('--context', type=str, help='Context to use')
+@click.pass_context
+def run(ctx, script, context=None):
+  """Execute a script with the current context's environment"""
+  context = ctx.obj.contexts[ctx.obj.current_context if not context else context]
+  os.system(f'CLARIFAI_USER_ID={context.user_id} CLARIFAI_API_BASE={context.base_url} CLARIFAI_PAT={context.pat} {script}')
 
 # Import the CLI commands to register them
 load_command_modules()

@@ -1,16 +1,16 @@
 import click
 from clarifai.cli.base import cli
 from clarifai.client.nodepool import Nodepool
-from clarifai.utils.cli import display_co_resources, from_yaml
+from clarifai.utils.cli import display_co_resources, from_yaml, AliasedGroup
 
 
-@cli.group(['deployment', 'dpl'])
+@cli.group(['deployment', 'dpl'], cls=AliasedGroup)
 def deployment():
   """Manage Deployments: create, delete, list"""
   pass
 
 
-@deployment.command()
+@deployment.command(['c'])
 @click.option(
     '-np_id',
     '--nodepool_id',
@@ -44,7 +44,7 @@ def create(ctx, nodepool_id, config, deployment_id):
     nodepool.create_deployment(config)
 
 
-@deployment.command()
+@deployment.command(['ls'])
 @click.option(
     '-np_id',
     '--nodepool_id',
@@ -65,7 +65,7 @@ def list(ctx, nodepool_id, page_no, per_page):
   display_co_resources(response, "Deployment")
 
 
-@deployment.command()
+@deployment.command(['rm'])
 @click.option(
     '-np_id',
     '--nodepool_id',

@@ -1,16 +1,16 @@
 import click
 from clarifai.cli.base import cli
 from clarifai.client.compute_cluster import ComputeCluster
-from clarifai.utils.cli import display_co_resources, dump_yaml, from_yaml
+from clarifai.utils.cli import display_co_resources, dump_yaml, from_yaml, AliasedGroup
 
 
-@cli.group(['nodepool', 'np'])
+@cli.group(['nodepool', 'np'], cls=AliasedGroup)
 def nodepool():
   """Manage Nodepools: create, delete, list"""
   pass
 
 
-@nodepool.command()
+@nodepool.command(['c'])
 @click.option(
     '-cc_id',
     '--compute_cluster_id',
@@ -51,7 +51,7 @@ def create(ctx, compute_cluster_id, config, nodepool_id):
     compute_cluster.create_nodepool(config)
 
 
-@nodepool.command()
+@nodepool.command(['ls'])
 @click.option(
     '-cc_id',
     '--compute_cluster_id',
@@ -72,7 +72,7 @@ def list(ctx, compute_cluster_id, page_no, per_page):
   display_co_resources(response, "Nodepool")
 
 
-@nodepool.command()
+@nodepool.command(['rm'])
 @click.option(
     '-cc_id',
     '--compute_cluster_id',

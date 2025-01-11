@@ -10,8 +10,10 @@ from rich.panel import Panel
 from rich.style import Style
 from rich.text import Text
 
+import typing as t
 from typing import OrderedDict
 from tabulate import tabulate
+from collections import defaultdict
 
 def from_yaml(filename: str):
   try:
@@ -85,3 +87,86 @@ class TableFormatter:
     # Create the table
     table = tabulate(rows, headers=self.custom_columns.keys(), tablefmt=fmt)
     return table
+
+class AliasedGroup(click.Group):
+
+  def __init__(self,
+               name: t.Optional[str] = None,
+               commands: t.Optional[t.Union[t.MutableMapping[str, click.Command],
+                                            t.Sequence[click.Command]]] = None,
+               **attrs: t.Any) -> None:
+    super().__init__(name, commands, **attrs)
+    self.alias_map = {}
+    self.command_to_aliases = defaultdict(list)
+
+  def add_alias(self, cmd: click.Command, alias: str) -> None:
+    self.alias_map[alias] = cmd
+    if alias != cmd.name:
+      self.command_to_aliases[cmd].append(alias)
+
+  def command(self,
+              aliases=None,
+              *args,
+              **kwargs) -> t.Callable[[t.Callable[..., t.Any]], click.Command]:
+    cmd_decorator = super().command(*args, **kwargs)
+    if aliases is None:
+      aliases = []
+
+    def aliased_decorator(f):
+      cmd = cmd_decorator(f)
+      if cmd.name:
+        self.add_alias(cmd, cmd.name)
+      for alias in aliases:
+        self.add_alias(cmd, alias)
+      return cmd
+
+    f = None
+    if args and callable(args[0]):
+      (f,) = args
+    if f is not None:
+      return aliased_decorator(f)
+    return aliased_decorator
+
+  def group(self, aliases=None, *args, **kwargs) -> t.Callable[[t.Callable[..., t.Any]], click.Group]:
+    cmd_decorator = super().group(*args, **kwargs)
+    if aliases is None:
+      aliases = []
+
+    def aliased_decorator(f):
+      cmd = cmd_decorator(f)
+      if cmd.name:
+        self.add_alias(cmd, cmd.name)
+      for alias in aliases:
+        self.add_alias(cmd, alias)
+      return cmd
+
+    f = None
+    if args and callable(args[0]):
+      (f,) = args
+    if f is not None:
+      return aliased_decorator(f)
+    return aliased_decorator
+
+  def get_command(self, ctx: click.Context, cmd_name: str) -> t.Optional[click.Command]:
+    rv = click.Group.get_command(self, ctx, cmd_name)
+    if rv is not None:
+      return rv
+    return self.alias_map.get(cmd_name)
+
+  def format_commands(self, ctx, formatter):
+    sub_commands = self.list_commands(ctx)
+
+    rows = []
+    for sub_command in sub_commands:
+      cmd = self.get_command(ctx, sub_command)
+      if cmd is None or getattr(cmd, 'hidden', False):
+        continue
+      if cmd in self.command_to_aliases:
+        aliases = ', '.join(self.command_to_aliases[cmd])
+        sub_command = f'{sub_command} ({aliases})'
+      cmd_help = cmd.help
+      rows.append((sub_command, cmd_help))
+
+    if rows:
+      with formatter.section("Commands"):
+        formatter.write_dl(rows)
