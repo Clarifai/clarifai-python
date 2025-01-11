@@ -8,13 +8,27 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from ..utils.cli import dump_yaml, from_yaml, load_command_modules, TableFormatter, AliasedGroup
 
+@dataclass
+class AccessToken():
+  type: str
+  value: str
+
+  def __str__(self):
+    return f'{self.type}:{self.value}' if self.type == 'env' else '********'
+
+  def to_serializable_dict(self):
+    return self.__dict__
+
+  @classmethod
+  def from_serializable_dict(cls, _dict):
+    return cls(**_dict)
 
 @dataclass
 class Context():
   name: str
   user_id: str
   base_url: str
-  access_token: t.Dict[str, str] = field(default_factory=lambda: dict(type='env', value='CLARIFAI_PAT'))
+  access_token: AccessToken = field(default_factory=lambda: AccessToken('env', 'CLARIFAI_PAT'))
   env: t.Dict[str, str] = field(default_factory=dict)
 
   pat: str = None
@@ -29,13 +43,14 @@ class Context():
 
   def __post_init__(self):
     self.pat = self._resolve_pat()
+    self.access_token = AccessToken(**self.access_token)
 
   def to_serializable_dict(self):
     result = {
       'name': self.name,
       'user_id': self.user_id,
       'base_url': self.base_url,
-      'access_token': self.access_token,
+      'access_token': self.access_token.to_serializable_dict(),
     }
     if self.env:
       result['env'] = self.env
@@ -242,7 +257,7 @@ def list(ctx):
           'NAME': lambda c: c.name,
           'USER_ID': lambda c: c.user_id,
           'BASE_URL': lambda c: c.base_url,
-          'PAT_CONF': lambda c: c.access_token.get('type', 'default')
+          'PAT_CONF': lambda c: str(c.access_token)
       })
   print(formatter.format(ctx.obj.contexts.values(), fmt="plain"))
 
