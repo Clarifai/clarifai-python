@@ -72,11 +72,7 @@ class ModelUploader:
       assert "repo_id" in self.config.get("checkpoints"), "No repo_id specified in the config file"
       repo_id = self.config.get("checkpoints").get("repo_id")
 
-      # prefer env var for HF_TOKEN but if not provided then use the one from config.yaml if any.
-      if 'HF_TOKEN' in os.environ:
-        hf_token = os.environ['HF_TOKEN']
-      else:
-        hf_token = self.config.get("checkpoints").get("hf_token", None)
+      hf_token = self.config.get("checkpoints").get("hf_token", None)
       return repo_id, hf_token
 
   def _check_app_exists(self):
@@ -119,6 +115,17 @@ class ModelUploader:
     if self.config.get("concepts"):
       model_type_id = self.config.get('model').get('model_type_id')
       assert model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
+
+    if self.config.get("checkpoints"):
+      _, hf_token = self._validate_config_checkpoints()
+
+      if hf_token:
+        is_valid_token = HuggingFaceLoader.validate_hftoken(hf_token)
+        if not is_valid_token:
+          logger.error(
+              "Invalid Hugging Face token provided in the config file, this might cause issues with downloading the restricted model checkpoints."
+          )
+          logger.info("Continuing without Hugging Face token")
 
   @property
   def client(self):

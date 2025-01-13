@@ -14,21 +14,27 @@ class HuggingFaceLoader:
     self.repo_id = repo_id
     self.token = token
     if token:
-      try:
-        if importlib.util.find_spec("huggingface_hub") is None:
-          raise ImportError(self.HF_DOWNLOAD_TEXT)
-        os.environ['HF_TOKEN'] = token
-        from huggingface_hub import HfApi
-
-        api = HfApi()
-        api.whoami(token=token)
-
+      if self.validate_hftoken(token):
         subprocess.run(f'huggingface-cli login --token={os.environ["HF_TOKEN"]}', shell=True)
-      except Exception as e:
-        logger.error(
-            f"Error setting up Hugging Face token, please make sure you have the correct token: {e}"
-        )
+        logger.info("Hugging Face token validated")
+      else:
         logger.info("Continuing without Hugging Face token")
+
+  @classmethod
+  def validate_hftoken(cls, hf_token: str):
+    try:
+      if importlib.util.find_spec("huggingface_hub") is None:
+        raise ImportError(cls.HF_DOWNLOAD_TEXT)
+      os.environ['HF_TOKEN'] = hf_token
+      from huggingface_hub import HfApi
+
+      api = HfApi()
+      api.whoami(token=hf_token)
+      return True
+    except Exception as e:
+      logger.error(
+          f"Error setting up Hugging Face token, please make sure you have the correct token: {e}")
+      return False
 
   def download_checkpoints(self, checkpoint_path: str):
     # throw error if huggingface_hub wasn't installed
