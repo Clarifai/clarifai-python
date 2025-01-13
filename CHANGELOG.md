@@ -1,3 +1,13 @@
+## [[11.0.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.1) - [PyPI](https://pypi.org/project/clarifai/11.0.1/) - 2025-01-14
+
+### Changed
+
+ - Take user_id from Env variable [(#477)] (https://github.com/Clarifai/clarifai-python/pull/477)
+ - Added HF token Validation [(#476)] (https://github.com/Clarifai/clarifai-python/pull/476)
+ - Fix Model prediction methods when configured with a dedicated compute_cluster_id and nodepool_id [(#475)] (https://github.com/Clarifai/clarifai-python/pull/475)
+ - Fix model upload issues [(#474)] (https://github.com/Clarifai/clarifai-python/pull/474)
+ - Improved error logging [(#473)] (https://github.com/Clarifai/clarifai-python/pull/473)
+
 ## [[11.0.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.0) - [PyPI](https://pypi.org/project/clarifai/11.0.0/) - 2025-01-07
 
 ### Changed
