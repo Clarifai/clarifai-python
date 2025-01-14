@@ -82,7 +82,9 @@ class ModelUploader:
     resp = self.client.STUB.GetApp(service_pb2.GetAppRequest(user_app_id=self.client.user_app_id))
     if resp.status.code == status_code_pb2.SUCCESS:
       return True
-    logger.error(f"Error checking API {self._base_api} for user app {self.client.user_app_id.user_id}/{self.client.user_app_id.app_id}. Error code: {resp.status.code}")
+    logger.error(
+        f"Error checking API {self._base_api} for user app {self.client.user_app_id.user_id}/{self.client.user_app_id.app_id}. Error code: {resp.status.code}"
+    )
     return False
 
   def _validate_config_model(self):
