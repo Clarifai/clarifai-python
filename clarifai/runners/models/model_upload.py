@@ -82,6 +82,7 @@ class ModelUploader:
     resp = self.client.STUB.GetApp(service_pb2.GetAppRequest(user_app_id=self.client.user_app_id))
     if resp.status.code == status_code_pb2.SUCCESS:
       return True
+    logger.error(f"Error checking API {self._base_api} for user app {self.client.user_app_id.user_id}/{self.client.user_app_id.app_id}. Error code: {resp.status.code}")
     return False
 
   def _validate_config_model(self):
@@ -141,9 +142,8 @@ class ModelUploader:
       user_id = model.get('user_id')
       app_id = model.get('app_id')
 
-      base = os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
-
-      self._client = BaseClient(user_id=user_id, app_id=app_id, base=base)
+      self._base_api = os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
+      self._client = BaseClient(user_id=user_id, app_id=app_id, base=self._base_api)
 
     return self._client
 
@@ -500,7 +500,7 @@ class ModelUploader:
             model_id=self.model_proto.id,
             model_version=model_version_proto,
             total_size=file_size,
-            storage_request=self.storage_request_size,
+            storage_request_size=self.storage_request_size,
             is_v3=self.is_v3,
         ))
 
