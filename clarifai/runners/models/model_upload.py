@@ -365,6 +365,12 @@ class ModelUploader:
     file_size = os.path.getsize(self.tar_file)
     logger.info(f"Size of the tar is: {file_size} bytes")
 
+    self.storage_request_size = get_tar_file_content_size(file_path)
+    if not download_checkpoints && self.config.get("checkpoints"):
+      # Query the checkpoint size and add it to the storage request.
+      repo_id, hf_token = self._validate_config_checkpoints()
+      self.storage_request_size += get_huggingface_checkpoint_total_size(repo_id)
+
     self.maybe_create_model()
 
     for response in self.client.STUB.PostModelVersionsUpload(
@@ -436,6 +442,7 @@ class ModelUploader:
             model_id=self.model_proto.id,
             model_version=model_version_proto,
             total_size=file_size,
+            storage_request=self.storage_request_size,
             is_v3=self.is_v3,
         ))
 
@@ -481,6 +488,49 @@ class ModelUploader:
             f"\nModel build failed with status: {resp.model_version.status} and response {resp}")
         return False
 
+  def get_tar_file_content_size(tar_file_path):
+    """
+    Calculates the total size of the contents of a tar file.
+
+    Args:
+      tar_file_path (str): The path to the tar file.
+
+    Returns:
+      int: The total size of the contents in bytes.
+    """
+    total_size = 0
+    with tarfile.open(tar_file_path, 'r') as tar:
+      for member in tar:
+        if member.isfile():
+          total_size += member.size
+    return total_size
+
+  def get_huggingface_checkpoint_total_size(repo_name):
+    """
+    Fetches the JSON data for a Hugging Face model using the API with `?blobs=true`.
+    Calculates the total size from the JSON output.
+
+    Args:
+        repo_name (str): The name of the model on Hugging Face Hub. e.g. "casperhansen/llama-3-8b-instruct-awq"
+
+    Returns:
+        int: The total size in bytes.
+    """
+    url = f"https://huggingface.co/api/models/{repo_name}?blobs=true"
+    response = requests.get(url)
+    response.raise_for_status()  # Raise an exception for bad status codes
+    json_data = response.json()
+
+    if isinstance(json_data, str):
+      data = json.loads(json_data)
+    else:
+      data = json_data
+
+    total_size = 0
+    for file in data['siblings']:
+      total_size += file['size']
+
+    return total_size
 
 def main(folder, download_checkpoints, skip_dockerfile):
   uploader = ModelUploader(folder)
