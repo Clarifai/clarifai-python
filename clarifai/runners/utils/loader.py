@@ -39,7 +39,7 @@ class HuggingFaceLoader:
   def download_checkpoints(self, checkpoint_path: str):
     # throw error if huggingface_hub wasn't installed
     try:
-      from huggingface_hub import snapshot_download, list_repo_files
+      from huggingface_hub import snapshot_download
     except ImportError:
       raise ImportError(self.HF_DOWNLOAD_TEXT)
     if os.path.exists(checkpoint_path) and self.validate_download(checkpoint_path):
@@ -52,15 +52,8 @@ class HuggingFaceLoader:
         if not is_hf_model_exists:
           logger.error("Model %s not found on Hugging Face" % (self.repo_id))
           return False
-
-        allow_patterns = None # Download everything.
-        repo_files = list_repo_files(repo_id=self.repo_id, token=self.token)
-        if any(f.endswith(".safetensors") for f in repo_files):
-          logger.info(f"SafeTensors found in {repo_id}, downloading only .safetensors files.")
-          allow_patterns = ["*.safetensors"]
         snapshot_download(
-            repo_id=self.repo_id, local_dir=checkpoint_path, local_dir_use_symlinks=False,
-            allow_patterns=allow_patterns)
+            repo_id=self.repo_id, local_dir=checkpoint_path, local_dir_use_symlinks=False)
       except Exception as e:
         logger.error(f"Error downloading model checkpoints {e}")
         return False
