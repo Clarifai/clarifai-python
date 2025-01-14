@@ -53,7 +53,10 @@ class HuggingFaceLoader:
           logger.error("Model %s not found on Hugging Face" % (self.repo_id))
           return False
         snapshot_download(
-            repo_id=self.repo_id, local_dir=checkpoint_path, local_dir_use_symlinks=False)
+            repo_id=self.repo_id,
+            local_dir=checkpoint_path,
+            local_dir_use_symlinks=False,
+            ignore_patterns="original/*")
       except Exception as e:
         logger.error(f"Error downloading model checkpoints {e}")
         return False
