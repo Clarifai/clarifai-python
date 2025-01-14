@@ -1,3 +1,10 @@
+## [[11.0.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.2) - [PyPI](https://pypi.org/project/clarifai/11.0.2/) - 2025-01-14
+
+### Changed
+
+ - Update base images [(#481)] (https://github.com/Clarifai/clarifai-python/pull/481)
+ - Optimize downloads from HF [(#480)] (https://github.com/Clarifai/clarifai-python/pull/480)
+
 ## [[11.0.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.1) - [PyPI](https://pypi.org/project/clarifai/11.0.1/) - 2025-01-14
 
 ### Changed
