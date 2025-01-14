@@ -1,8 +1,11 @@
+import json
 import os
 import re
+import tarfile
 import time
 from string import Template
 
+import requests
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
@@ -365,11 +368,11 @@ class ModelUploader:
     file_size = os.path.getsize(self.tar_file)
     logger.info(f"Size of the tar is: {file_size} bytes")
 
-    self.storage_request_size = get_tar_file_content_size(file_path)
+    self.storage_request_size = self.get_tar_file_content_size(file_path)
     if not download_checkpoints and self.config.get("checkpoints"):
       # Query the checkpoint size and add it to the storage request.
       repo_id, hf_token = self._validate_config_checkpoints()
-      self.storage_request_size += get_huggingface_checkpoint_total_size(repo_id)
+      self.storage_request_size += self.get_huggingface_checkpoint_total_size(repo_id)
 
     self.maybe_create_model()
 
@@ -488,7 +491,7 @@ class ModelUploader:
             f"\nModel build failed with status: {resp.model_version.status} and response {resp}")
         return False
 
-  def get_tar_file_content_size(tar_file_path):
+  def get_tar_file_content_size(self, tar_file_path):
     """
     Calculates the total size of the contents of a tar file.
 
@@ -505,7 +508,7 @@ class ModelUploader:
           total_size += member.size
     return total_size
 
-  def get_huggingface_checkpoint_total_size(repo_name):
+  def get_huggingface_checkpoint_total_size(self, repo_name):
     """
     Fetches the JSON data for a Hugging Face model using the API with `?blobs=true`.
     Calculates the total size from the JSON output.
@@ -531,6 +534,7 @@ class ModelUploader:
       total_size += file['size']
 
     return total_size
+
 
 def main(folder, download_checkpoints, skip_dockerfile):
   uploader = ModelUploader(folder)
