@@ -366,7 +366,7 @@ class ModelUploader:
     logger.info(f"Size of the tar is: {file_size} bytes")
 
     self.storage_request_size = get_tar_file_content_size(file_path)
-    if not download_checkpoints && self.config.get("checkpoints"):
+    if not download_checkpoints and self.config.get("checkpoints"):
       # Query the checkpoint size and add it to the storage request.
       repo_id, hf_token = self._validate_config_checkpoints()
       self.storage_request_size += get_huggingface_checkpoint_total_size(repo_id)
