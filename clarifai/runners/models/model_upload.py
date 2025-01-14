@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import sys
 import tarfile
 import time
 from string import Template
@@ -11,6 +12,7 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf import json_format
 from rich import print
+from rich.markup import escape
 
 from clarifai.client import BaseClient
 from clarifai.runners.utils.const import (AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES,
@@ -34,6 +36,7 @@ class ModelUploader:
     self._client = None
     self.folder = self._validate_folder(folder)
     self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
+    self._validate_config()
     self.model_proto = self._get_model_proto()
     self.model_id = self.model_proto.id
     self.model_version_id = None
@@ -72,12 +75,60 @@ class ModelUploader:
       assert "repo_id" in self.config.get("checkpoints"), "No repo_id specified in the config file"
       repo_id = self.config.get("checkpoints").get("repo_id")
 
-      # prefer env var for HF_TOKEN but if not provided then use the one from config.yaml if any.
-      if 'HF_TOKEN' in os.environ:
-        hf_token = os.environ['HF_TOKEN']
-      else:
-        hf_token = self.config.get("checkpoints").get("hf_token", None)
+      hf_token = self.config.get("checkpoints").get("hf_token", None)
       return repo_id, hf_token
+
+  def _check_app_exists(self):
+    resp = self.client.STUB.GetApp(service_pb2.GetAppRequest(user_app_id=self.client.user_app_id))
+    if resp.status.code == status_code_pb2.SUCCESS:
+      return True
+    return False
+
+  def _validate_config_model(self):
+    assert "model" in self.config, "model section not found in the config file"
+    model = self.config.get('model')
+    assert "user_id" in model, "user_id not found in the config file"
+    assert "app_id" in model, "app_id not found in the config file"
+    assert "model_type_id" in model, "model_type_id not found in the config file"
+    assert "id" in model, "model_id not found in the config file"
+    if '.' in model.get('id'):
+      logger.error(
+          "Model ID cannot contain '.', please remove it from the model_id in the config file")
+      sys.exit(1)
+
+    assert model.get('user_id') != "", "user_id cannot be empty in the config file"
+    assert model.get('app_id') != "", "app_id cannot be empty in the config file"
+    assert model.get('model_type_id') != "", "model_type_id cannot be empty in the config file"
+    assert model.get('id') != "", "model_id cannot be empty in the config file"
+
+    if not self._check_app_exists():
+      logger.error(
+          f"App {self.client.user_app_id.app_id} not found for user {self.client.user_app_id.user_id}"
+      )
+      sys.exit(1)
+
+  def _validate_config(self):
+    self._validate_config_model()
+
+    if self.config.get("checkpoints"):
+      self._validate_config_checkpoints()
+
+    assert "inference_compute_info" in self.config, "inference_compute_info not found in the config file"
+
+    if self.config.get("concepts"):
+      model_type_id = self.config.get('model').get('model_type_id')
+      assert model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
+
+    if self.config.get("checkpoints"):
+      _, hf_token = self._validate_config_checkpoints()
+
+      if hf_token:
+        is_valid_token = HuggingFaceLoader.validate_hftoken(hf_token)
+        if not is_valid_token:
+          logger.error(
+              "Invalid Hugging Face token provided in the config file, this might cause issues with downloading the restricted model checkpoints."
+          )
+          logger.info("Continuing without Hugging Face token")
 
   @property
   def client(self):
@@ -262,6 +313,7 @@ class ModelUploader:
 
     if not success:
       logger.error(f"Failed to download checkpoints for model {repo_id}")
+      sys.exit(1)
     else:
       logger.info(f"Downloaded checkpoints for model {repo_id}")
     return success
@@ -375,6 +427,9 @@ class ModelUploader:
       self.storage_request_size += self.get_huggingface_checkpoint_total_size(repo_id)
 
     self.maybe_create_model()
+    if not self.check_model_exists():
+      logger.error(f"Failed to create model: {self.model_proto.id}")
+      sys.exit(1)
 
     for response in self.client.STUB.PostModelVersionsUpload(
         self.model_version_stream_upload_iterator(model_version_proto, file_path),):
@@ -480,7 +535,7 @@ class ModelUploader:
         for log_entry in logs.log_entries:
           if log_entry.url not in seen_logs:
             seen_logs.add(log_entry.url)
-            print(f"Model Building Logs...: {log_entry.message.strip()}")
+            print(f"Model Building Logs...: {escape(log_entry.message.strip())}")
         time.sleep(1)
       elif status_code == status_code_pb2.MODEL_TRAINED:
         logger.info(f"\nModel build complete! (elapsed {time.time() - st:.1f}s)")

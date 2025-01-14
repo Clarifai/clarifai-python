@@ -281,9 +281,9 @@ class Dataset(Lister, BaseClient):
       failed_input_ids = list(set(failed_input_ids) - set(duplicate_input_ids))
       duplicate_details = [[
           input_ids[id], id, "Input has a duplicate ID.",
-          dataset_obj.data_generator[input_ids[id]].image_path,
-          dataset_obj.data_generator[input_ids[id]].labels,
-          dataset_obj.data_generator[input_ids[id]].metadata
+          getattr(dataset_obj.data_generator[input_ids[id]], 'image_path', None),
+          getattr(dataset_obj.data_generator[input_ids[id]], 'labels', None),
+          getattr(dataset_obj.data_generator[input_ids[id]], 'metadata', None)
       ] for id in duplicate_input_ids]
       duplicate_table = tabulate(
           duplicate_details,
@@ -386,7 +386,7 @@ class Dataset(Lister, BaseClient):
           tablefmt="grid")
       timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
       self.logger.warning(
-          f"{timestamp}\nFailed to upload {len(failed_retrying_inputs)} inputs in current batch {batch_no}:\n{failed_table}\n\n"
+          f"{timestamp}\nFailed to upload {len(failed_retrying_inputs)} inputs in current batch {batch_no} due to {retry_response}:\n{failed_table}\n\n"
       )
 
   def _data_upload(self,
