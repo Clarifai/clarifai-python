@@ -282,6 +282,11 @@ class JsonFormatter(logging.Formatter):
       except Exception:
         self.source_host = ""
 
+    self.extra_blacklist_fields = []
+    extra_blacklist_fields = os.getenv('EXTRA_JSON_LOGGER_BLACKLIST_FIELDS', None)
+    if extra_blacklist_fields:
+      self.extra_blacklist_fields = extra_blacklist_fields.split(",")
+
   def _build_fields(self, defaults, fields):
     """Return provided fields including any in defaults
     """
@@ -301,6 +306,8 @@ class JsonFormatter(logging.Formatter):
         fields.update(record.args)
       msg = record.getMessage()
     for k in FIELD_BLACKLIST:
+      fields.pop(k, None)
+    for k in self.extra_blacklist_fields:
       fields.pop(k, None)
     # Rename 'levelname' to 'level' and make the value lowercase to match Go logs
     level = fields.pop('levelname', None)

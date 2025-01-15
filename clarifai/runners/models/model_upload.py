@@ -32,10 +32,16 @@ def _clear_line(n: int = 1) -> None:
 
 class ModelUploader:
 
-  def __init__(self, folder: str):
+  def __init__(self, folder: str, validate_api_ids: bool = True):
+    """
+    :param folder: The folder containing the model.py, config.yaml, requirements.txt and
+    checkpoints.
+    :param validate_api_ids: Whether to validate the user_id and app_id in the config file.
+    """
     self._client = None
     self.folder = self._validate_folder(folder)
     self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
+    self.validate_api_ids = validate_api_ids
     self._validate_config()
     self.model_proto = self._get_model_proto()
     self.model_id = self.model_proto.id
@@ -79,6 +85,8 @@ class ModelUploader:
       return repo_id, hf_token
 
   def _check_app_exists(self):
+    if not self.validate_api_ids:
+      return True
     resp = self.client.STUB.GetApp(service_pb2.GetAppRequest(user_app_id=self.client.user_app_id))
     if resp.status.code == status_code_pb2.SUCCESS:
       return True
