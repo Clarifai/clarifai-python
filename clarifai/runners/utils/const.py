@@ -1,9 +1,12 @@
 import os
 
 registry = os.environ.get('CLARIFAI_BASE_IMAGE_REGISTRY', 'public.ecr.aws/clarifai-models')
-
-PYTHON_BASE_IMAGE = registry + '/python-base:{python_version}'
-TORCH_BASE_IMAGE = registry + '/torch:{torch_version}-py{python_version}-cuda{cuda_version}'
+PYTHON_IMAGE_TIMESTAMP = ""
+TORCH_IMAGE_TIMESTAMP = ""
+PYTHON_BASE_IMAGE = registry + '/python-base:{python_version}-{timestamp}'
+TORCH_BASE_IMAGE = registry + '/torch:{torch_version}-py{python_version}-cuda{cuda_version}-{timestamp}'
+PYTHON_BASE_IMAGE.format(timestamp=PYTHON_IMAGE_TIMESTAMP)
+TORCH_BASE_IMAGE.format(timestamp=TORCH_IMAGE_TIMESTAMP)
 
 # List of available python base images
 AVAILABLE_PYTHON_IMAGES = ['3.11', '3.12', '3.13']
