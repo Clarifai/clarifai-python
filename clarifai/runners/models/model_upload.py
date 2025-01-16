@@ -1,9 +1,12 @@
+import json
 import os
 import re
 import sys
+import tarfile
 import time
 from string import Template
 
+import requests
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
@@ -87,6 +90,9 @@ class ModelUploader:
     resp = self.client.STUB.GetApp(service_pb2.GetAppRequest(user_app_id=self.client.user_app_id))
     if resp.status.code == status_code_pb2.SUCCESS:
       return True
+    logger.error(
+        f"Error checking API {self._base_api} for user app {self.client.user_app_id.user_id}/{self.client.user_app_id.app_id}. Error code: {resp.status.code}"
+    )
     return False
 
   def _validate_config_model(self):
@@ -146,9 +152,8 @@ class ModelUploader:
       user_id = model.get('user_id')
       app_id = model.get('app_id')
 
-      base = os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
-
-      self._client = BaseClient(user_id=user_id, app_id=app_id, base=base)
+      self._base_api = os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
+      self._client = BaseClient(user_id=user_id, app_id=app_id, base=self._base_api)
 
     return self._client
 
@@ -425,6 +430,12 @@ class ModelUploader:
     file_size = os.path.getsize(self.tar_file)
     logger.info(f"Size of the tar is: {file_size} bytes")
 
+    self.storage_request_size = self.get_tar_file_content_size(file_path)
+    if not download_checkpoints and self.config.get("checkpoints"):
+      # Query the checkpoint size and add it to the storage request.
+      repo_id, hf_token = self._validate_config_checkpoints()
+      self.storage_request_size += self.get_huggingface_checkpoint_total_size(repo_id)
+
     self.maybe_create_model()
     if not self.check_model_exists():
       logger.error(f"Failed to create model: {self.model_proto.id}")
@@ -499,6 +510,7 @@ class ModelUploader:
             model_id=self.model_proto.id,
             model_version=model_version_proto,
             total_size=file_size,
+            storage_request_size=self.storage_request_size,
             is_v3=self.is_v3,
         ))
 
@@ -543,6 +555,50 @@ class ModelUploader:
         logger.info(
             f"\nModel build failed with status: {resp.model_version.status} and response {resp}")
         return False
+
+  def get_tar_file_content_size(self, tar_file_path):
+    """
+    Calculates the total size of the contents of a tar file.
+
+    Args:
+      tar_file_path (str): The path to the tar file.
+
+    Returns:
+      int: The total size of the contents in bytes.
+    """
+    total_size = 0
+    with tarfile.open(tar_file_path, 'r') as tar:
+      for member in tar:
+        if member.isfile():
+          total_size += member.size
+    return total_size
+
+  def get_huggingface_checkpoint_total_size(self, repo_name):
+    """
+    Fetches the JSON data for a Hugging Face model using the API with `?blobs=true`.
+    Calculates the total size from the JSON output.
+
+    Args:
+        repo_name (str): The name of the model on Hugging Face Hub. e.g. "casperhansen/llama-3-8b-instruct-awq"
+
+    Returns:
+        int: The total size in bytes.
+    """
+    url = f"https://huggingface.co/api/models/{repo_name}?blobs=true"
+    response = requests.get(url)
+    response.raise_for_status()  # Raise an exception for bad status codes
+    json_data = response.json()
+
+    if isinstance(json_data, str):
+      data = json.loads(json_data)
+    else:
+      data = json_data
+
+    total_size = 0
+    for file in data['siblings']:
+      total_size += file['size']
+
+    return total_size
 
 
 def main(folder, download_checkpoints, skip_dockerfile):
