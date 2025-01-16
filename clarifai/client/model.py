@@ -424,14 +424,14 @@ class Model(Lister, BaseClient):
       raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}."
                      )  # TODO Use Chunker for inputs len > 128
 
-    self._override_model_version(inference_params, output_config)
+    model_info = self._get_model_info_for_inference(inference_params, output_config)
     request = service_pb2.PostModelOutputsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
         version_id=self.model_version.id,
         inputs=inputs,
         runner_selector=runner_selector,
-        model=self.model_info)
+        model=model_info)
 
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
@@ -704,14 +704,16 @@ class Model(Lister, BaseClient):
       raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}."
                      )  # TODO Use Chunker for inputs len > 128
 
-    self._override_model_version(inference_params, output_config)
+    model_info = self._get_model_info_for_inference(inference_params, output_config)
     request = service_pb2.PostModelOutputsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
         version_id=self.model_version.id,
         inputs=inputs,
         runner_selector=runner_selector,
-        model=self.model_info)
+        model=model_info)
+    request.model.model_version.id = self.model_version.id
+    request.model.model_version.params
 
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
@@ -922,7 +924,7 @@ class Model(Lister, BaseClient):
         inference_params=inference_params,
         output_config=output_config)
 
-  def _req_iterator(self, input_iterator: Iterator[List[Input]], runner_selector: RunnerSelector):
+  def _req_iterator(self, input_iterator: Iterator[List[Input]], runner_selector: RunnerSelector, model_info: resources_pb2.Model):
     for inputs in input_iterator:
       yield service_pb2.PostModelOutputsRequest(
           user_app_id=self.user_app_id,
@@ -930,7 +932,7 @@ class Model(Lister, BaseClient):
           version_id=self.model_version.id,
           inputs=inputs,
           runner_selector=runner_selector,
-          model=self.model_info)
+          model=model_info)
 
   def stream(self,
              inputs: Iterator[List[Input]],
@@ -954,8 +956,8 @@ class Model(Lister, BaseClient):
     # if not isinstance(inputs, Iterator[List[Input]]):
     #   raise UserError('Invalid inputs, inputs must be a iterator of list of Input objects.')
 
-    self._override_model_version(inference_params, output_config)
-    request = self._req_iterator(inputs, runner_selector)
+    model_info = self._get_model_info_for_inference(inference_params, output_config)
+    request = self._req_iterator(inputs, runner_selector, model_info)
 
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
@@ -1168,7 +1170,7 @@ class Model(Lister, BaseClient):
         inference_params=inference_params,
         output_config=output_config)
 
-  def _override_model_version(self, inference_params: Dict = {}, output_config: Dict = {}) -> None:
+  def _get_model_info_for_inference(self, inference_params: Dict = {}, output_config: Dict = {}) -> None:
     """Overrides the model version.
 
     Args:
@@ -1179,13 +1181,14 @@ class Model(Lister, BaseClient):
           select_concepts (list[Concept]): The concepts to select.
           sample_ms (int): The number of milliseconds to sample.
     """
-    params = Struct()
-    if inference_params is not None:
-      params.update(inference_params)
+    if not inference_params and not output_config:
+      return self.model_info
 
-    self.model_info.model_version.output_info.CopyFrom(
-        resources_pb2.OutputInfo(
-            output_config=resources_pb2.OutputConfig(**output_config), params=params))
+    model_info = resources_pb2.Model()
+    model_info.CopyFrom(self.model_info)
+    model_info.model_version.output_info.params.update(inference_params)
+    model_info.model_version.output_info.output_config.update(output_config)
+    return model_info
 
   def _list_concepts(self) -> List[str]:
     """Lists all the concepts for the model type.
