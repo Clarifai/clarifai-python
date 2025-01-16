@@ -22,7 +22,6 @@ from clarifai.runners.utils.loader import HuggingFaceLoader
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
 
-
 def _clear_line(n: int = 1) -> None:
   LINE_UP = '\033[1A'  # Move cursor up one line
   LINE_CLEAR = '\x1b[2K'  # Clear the entire line
@@ -31,6 +30,7 @@ def _clear_line(n: int = 1) -> None:
 
 
 class ModelUploader:
+  DEFAULT_CHECKPOINT_SIZE = 50*1024**3 # 50 GiB
 
   def __init__(self, folder: str, validate_api_ids: bool = True):
     """
@@ -140,6 +140,24 @@ class ModelUploader:
               "Invalid Hugging Face token provided in the config file, this might cause issues with downloading the restricted model checkpoints."
           )
           logger.info("Continuing without Hugging Face token")
+
+  @staticmethod
+  def _get_tar_file_content_size(tar_file_path):
+    """
+    Calculates the total size of the contents of a tar file.
+
+    Args:
+      tar_file_path (str): The path to the tar file.
+
+    Returns:
+      int: The total size of the contents in bytes.
+    """
+    total_size = 0
+    with tarfile.open(tar_file_path, 'r') as tar:
+      for member in tar:
+        if member.isfile():
+          total_size += member.size
+    return total_size
 
   @property
   def client(self):
@@ -430,11 +448,17 @@ class ModelUploader:
     file_size = os.path.getsize(self.tar_file)
     logger.info(f"Size of the tar is: {file_size} bytes")
 
-    self.storage_request_size = self.get_tar_file_content_size(file_path)
+    self.storage_request_size = self._get_tar_file_content_size(file_path)
     if not download_checkpoints and self.config.get("checkpoints"):
-      # Query the checkpoint size and add it to the storage request.
-      repo_id, hf_token = self._validate_config_checkpoints()
-      self.storage_request_size += self.get_huggingface_checkpoint_total_size(repo_id)
+      # Get the checkpoint size to add to the storage request.
+      # First check for the env variable, then try querying huggingface. If all else fails, use the default.
+      checkpoint_size = os.environ.get('CHECKPOINT_SIZE_BYTES', 0)
+      if not checkpoint_size:
+        repo_id, _ = self._validate_config_checkpoints()
+        checkpoint_size = HuggingFaceLoader.get_huggingface_checkpoint_total_size(repo_id)
+      if not checkpoint_size:
+        checkpoint_size = self.DEFAULT_CHECKPOINT_SIZE
+      self.storage_request_size += checkpoint_size
 
     self.maybe_create_model()
     if not self.check_model_exists():
@@ -555,51 +579,6 @@ class ModelUploader:
         logger.info(
             f"\nModel build failed with status: {resp.model_version.status} and response {resp}")
         return False
-
-  def get_tar_file_content_size(self, tar_file_path):
-    """
-    Calculates the total size of the contents of a tar file.
-
-    Args:
-      tar_file_path (str): The path to the tar file.
-
-    Returns:
-      int: The total size of the contents in bytes.
-    """
-    total_size = 0
-    with tarfile.open(tar_file_path, 'r') as tar:
-      for member in tar:
-        if member.isfile():
-          total_size += member.size
-    return total_size
-
-  def get_huggingface_checkpoint_total_size(self, repo_name):
-    """
-    Fetches the JSON data for a Hugging Face model using the API with `?blobs=true`.
-    Calculates the total size from the JSON output.
-
-    Args:
-        repo_name (str): The name of the model on Hugging Face Hub. e.g. "casperhansen/llama-3-8b-instruct-awq"
-
-    Returns:
-        int: The total size in bytes.
-    """
-    url = f"https://huggingface.co/api/models/{repo_name}?blobs=true"
-    response = requests.get(url)
-    response.raise_for_status()  # Raise an exception for bad status codes
-    json_data = response.json()
-
-    if isinstance(json_data, str):
-      data = json.loads(json_data)
-    else:
-      data = json_data
-
-    total_size = 0
-    for file in data['siblings']:
-      total_size += file['size']
-
-    return total_size
-
 
 def main(folder, download_checkpoints, skip_dockerfile):
   uploader = ModelUploader(folder)
