@@ -57,7 +57,7 @@ class HuggingFaceLoader:
         repo_files = list_repo_files(repo_id=self.repo_id, token=self.token)
         if any(f.endswith(".safetensors") for f in repo_files):
           logger.info(f"SafeTensors found in {self.repo_id}, downloading only .safetensors files.")
-          ignore_patterns = ["original/*", "*.pth", "*.bin"]
+          ignore_patterns = ["**/original/*", "**/*.pth", "**/*.bin"]
         snapshot_download(
             repo_id=self.repo_id,
             local_dir=checkpoint_path,
