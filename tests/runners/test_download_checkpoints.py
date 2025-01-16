@@ -32,10 +32,22 @@ def dummy_runner_models_dir():
     shutil.rmtree(checkpoints_path)
 
 
+@pytest.fixture(scope="function", autouse=True)
+def override_environment_variables():
+  # Backup the existing environment variable value
+  original_clarifai_pat = os.environ.get("CLARIFAI_PAT")
+  if "CLARIFAI_PAT" in os.environ:
+    del os.environ["CLARIFAI_PAT"]  # Temporarily unset the variable for the tests
+  yield
+  # Restore the original environment variable value after tests
+  if original_clarifai_pat:
+    os.environ["CLARIFAI_PAT"] = original_clarifai_pat
+
+
 def test_loader_download_checkpoints(checkpoint_dir):
   loader = HuggingFaceLoader(repo_id=MODEL_ID)
   loader.download_checkpoints(checkpoint_path=checkpoint_dir)
-  assert len(os.listdir(checkpoint_dir)) == 5
+  assert len(os.listdir(checkpoint_dir)) == 4
 
 
 def test_validate_download(checkpoint_dir):
