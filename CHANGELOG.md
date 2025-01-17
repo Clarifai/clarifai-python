@@ -1,3 +1,9 @@
+## [[11.0.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.4) - [PyPI](https://pypi.org/project/clarifai/11.0.4/) - 2025-01-17
+
+### Changed
+
+ - Added tests for downloads and various improvements [(#488)] (https://github.com/Clarifai/clarifai-python/pull/488)
+
 ## [[11.0.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.3) - [PyPI](https://pypi.org/project/clarifai/11.0.3/) - 2025-01-14
 
 ### Changed
