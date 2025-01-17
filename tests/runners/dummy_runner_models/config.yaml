@@ -1,0 +1,20 @@
+# This is the sample config file for the GOT OCR2.O model.
+
+model:
+  id: "dummy-runner-model"
+  user_id: "user_id"
+  app_id: "app_id"
+  model_type_id: "multimodal-to-text"
+
+build_info:
+  python_version: "3.11"
+
+inference_compute_info:
+  cpu_limit: "1"
+  cpu_memory: "1Gi"
+  num_accelerators: 0
+
+
+checkpoints:
+  type: "huggingface"
+  repo_id: "timm/mobilenetv3_small_100.lamb_in1k"
