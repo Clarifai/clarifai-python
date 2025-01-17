@@ -78,8 +78,7 @@ class ModelUploader:
       assert "repo_id" in self.config.get("checkpoints"), "No repo_id specified in the config file"
       repo_id = self.config.get("checkpoints").get("repo_id")
 
-      # get from config.yaml otherwise fall back to HF_TOKEN env var.
-      hf_token = self.config.get("checkpoints").get("hf_token", os.environ.get("HF_TOKEN", None))
+      hf_token = self.config.get("checkpoints").get("hf_token", None)
       return repo_id, hf_token
 
   def _check_app_exists(self):
