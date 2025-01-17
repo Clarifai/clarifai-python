@@ -1,6 +1,8 @@
+import fnmatch
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 
 from clarifai.utils.logging import logger
@@ -39,7 +41,7 @@ class HuggingFaceLoader:
   def download_checkpoints(self, checkpoint_path: str):
     # throw error if huggingface_hub wasn't installed
     try:
-      from huggingface_hub import list_repo_files, snapshot_download
+      from huggingface_hub import snapshot_download
     except ImportError:
       raise ImportError(self.HF_DOWNLOAD_TEXT)
     if os.path.exists(checkpoint_path) and self.validate_download(checkpoint_path):
@@ -53,16 +55,17 @@ class HuggingFaceLoader:
           logger.error("Model %s not found on Hugging Face" % (self.repo_id))
           return False
 
-        ignore_patterns = None  # Download everything.
-        repo_files = list_repo_files(repo_id=self.repo_id, token=self.token)
-        if any(f.endswith(".safetensors") for f in repo_files):
-          logger.info(f"SafeTensors found in {self.repo_id}, downloading only .safetensors files.")
-          ignore_patterns = ["**/original/*", "**/*.pth", "**/*.bin"]
+        self.ignore_patterns = self._get_ignore_patterns()
         snapshot_download(
             repo_id=self.repo_id,
             local_dir=checkpoint_path,
             local_dir_use_symlinks=False,
-            ignore_patterns=ignore_patterns)
+            ignore_patterns=self.ignore_patterns)
+        # Remove the `.cache` folder if it exists
+        cache_path = os.path.join(checkpoint_path, ".cache")
+        if os.path.exists(cache_path) and os.path.isdir(cache_path):
+          shutil.rmtree(cache_path)
+
       except Exception as e:
         logger.error(f"Error downloading model checkpoints {e}")
         return False
@@ -109,11 +112,41 @@ class HuggingFaceLoader:
       from huggingface_hub import list_repo_files
     except ImportError:
       raise ImportError(self.HF_DOWNLOAD_TEXT)
+    # Get the list of files on the repo
+    repo_files = list_repo_files(self.repo_id, token=self.token)
+
+    self.ignore_patterns = self._get_ignore_patterns()
+    # Get the list of files on the repo that are not ignored
+    if getattr(self, "ignore_patterns", None):
+      patterns = self.ignore_patterns
+
+      def should_ignore(file_path):
+        return any(fnmatch.fnmatch(file_path, pattern) for pattern in patterns)
+
+      repo_files = [f for f in repo_files if not should_ignore(f)]
+
+    # Check if downloaded files match the files we expect (ignoring ignored patterns)
     checkpoint_dir_files = [
         f for dp, dn, fn in os.walk(os.path.expanduser(checkpoint_path)) for f in fn
     ]
-    return (len(checkpoint_dir_files) >= len(list_repo_files(self.repo_id))) and len(
-        list_repo_files(self.repo_id)) > 0
+
+    # Validate by comparing file lists
+    return len(checkpoint_dir_files) >= len(repo_files) and not (
+        len(set(repo_files) - set(checkpoint_dir_files)) > 0) and len(repo_files) > 0
+
+  def _get_ignore_patterns(self):
+    # check if model exists on HF
+    try:
+      from huggingface_hub import list_repo_files
+    except ImportError:
+      raise ImportError(self.HF_DOWNLOAD_TEXT)
+
+    # Get the list of files on the repo that are not ignored
+    repo_files = list_repo_files(self.repo_id, token=self.token)
+    self.ignore_patterns = None
+    if any(f.endswith(".safetensors") for f in repo_files):
+      self.ignore_patterns = ["**/original/*", "**/*.pth", "**/*.bin", "*.pth", "*.bin"]
+    return self.ignore_patterns
 
   @staticmethod
   def validate_config(checkpoint_path: str):
