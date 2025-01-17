@@ -126,9 +126,10 @@ class HuggingFaceLoader:
       repo_files = [f for f in repo_files if not should_ignore(f)]
 
     # Check if downloaded files match the files we expect (ignoring ignored patterns)
-    checkpoint_dir_files = [
-        f for dp, dn, fn in os.walk(os.path.expanduser(checkpoint_path)) for f in fn
-    ]
+    checkpoint_dir_files = []
+    for dp, dn, fn in os.walk(os.path.expanduser(checkpoint_path)):
+      checkpoint_dir_files.extend(
+          [os.path.relpath(os.path.join(dp, f), checkpoint_path) for f in fn])
 
     # Validate by comparing file lists
     return len(checkpoint_dir_files) >= len(repo_files) and not (

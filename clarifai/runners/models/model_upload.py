@@ -29,16 +29,19 @@ def _clear_line(n: int = 1) -> None:
 
 class ModelUploader:
 
-  def __init__(self, folder: str, validate_api_ids: bool = True):
+  def __init__(self, folder: str, validate_api_ids: bool = True, download_validation_only=False):
     """
     :param folder: The folder containing the model.py, config.yaml, requirements.txt and
     checkpoints.
-    :param validate_api_ids: Whether to validate the user_id and app_id in the config file.
+    :param validate_api_ids: Whether to validate the user_id and app_id in the config file. TODO:
+    deprecate in favor of download_validation_only.
+    :param download_validation_only: Whether to skip the API config validation. Set to True if
+    just downloading a checkpoint.
     """
     self._client = None
+    self.download_validation_only = download_validation_only
     self.folder = self._validate_folder(folder)
     self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
-    self.validate_api_ids = validate_api_ids
     self._validate_config()
     self.model_proto = self._get_model_proto()
     self.model_id = self.model_proto.id
@@ -46,19 +49,23 @@ class ModelUploader:
     self.inference_compute_info = self._get_inference_compute_info()
     self.is_v3 = True  # Do model build for v3
 
-  @staticmethod
-  def _validate_folder(folder):
+  def _validate_folder(self, folder):
+    if folder == ".":
+      folder = ""  # will getcwd() next which ends with /
     if not folder.startswith("/"):
       folder = os.path.join(os.getcwd(), folder)
     logger.info(f"Validating folder: {folder}")
     if not os.path.exists(folder):
       raise FileNotFoundError(f"Folder {folder} not found, please provide a valid folder path")
     files = os.listdir(folder)
-    assert "requirements.txt" in files, "requirements.txt not found in the folder"
     assert "config.yaml" in files, "config.yaml not found in the folder"
+    # If just downloading we don't need requirements.txt or the python code, we do need the
+    # 1/ folder to put 1/checkpoints into.
     assert "1" in files, "Subfolder '1' not found in the folder"
-    subfolder_files = os.listdir(os.path.join(folder, '1'))
-    assert 'model.py' in subfolder_files, "model.py not found in the folder"
+    if not self.download_validation_only:
+      assert "requirements.txt" in files, "requirements.txt not found in the folder"
+      subfolder_files = os.listdir(os.path.join(folder, '1'))
+      assert 'model.py' in subfolder_files, "model.py not found in the folder"
     return folder
 
   @staticmethod
@@ -83,8 +90,6 @@ class ModelUploader:
       return repo_id, hf_token
 
   def _check_app_exists(self):
-    if not self.validate_api_ids:
-      return True
     resp = self.client.STUB.GetApp(service_pb2.GetAppRequest(user_app_id=self.client.user_app_id))
     if resp.status.code == status_code_pb2.SUCCESS:
       return True
@@ -114,16 +119,14 @@ class ModelUploader:
       sys.exit(1)
 
   def _validate_config(self):
-    self._validate_config_model()
+    if not self.download_validation_only:
+      self._validate_config_model()
 
-    if self.config.get("checkpoints"):
-      self._validate_config_checkpoints()
+      assert "inference_compute_info" in self.config, "inference_compute_info not found in the config file"
 
-    assert "inference_compute_info" in self.config, "inference_compute_info not found in the config file"
-
-    if self.config.get("concepts"):
-      model_type_id = self.config.get('model').get('model_type_id')
-      assert model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
+      if self.config.get("concepts"):
+        model_type_id = self.config.get('model').get('model_type_id')
+        assert model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
 
     if self.config.get("checkpoints"):
       _, hf_token = self._validate_config_checkpoints()
@@ -414,10 +417,10 @@ class ModelUploader:
     model_version_proto = self.get_model_version_proto()
 
     if download_checkpoints:
-      tar_cmd = f"tar --exclude=*~ -czvf {self.tar_file} -C {self.folder} ."
+      tar_cmd = f"tar --exclude=*~ --exclude={self.tar_file} -czvf {self.tar_file} -C {self.folder} ."
     else:  # we don't want to send the checkpoints up even if they are in the folder.
       logger.info(f"Skipping {self.checkpoint_path} in the tar file that is uploaded.")
-      tar_cmd = f"tar --exclude={self.checkpoint_suffix} --exclude=*~ -czvf {self.tar_file} -C {self.folder} ."
+      tar_cmd = f"tar --exclude={self.checkpoint_suffix} --exclude=*~ --exclude={self.tar_file} -czvf {self.tar_file} -C {self.folder} ."
     # Tar the folder
     logger.debug(tar_cmd)
     os.system(tar_cmd)
@@ -494,7 +497,7 @@ class ModelUploader:
     file_size = os.path.getsize(file_path)
     logger.info(f"Uploading model version of model {self.model_proto.id}")
     logger.info(f"Using file '{os.path.basename(file_path)}' of size: {file_size} bytes")
-    return service_pb2.PostModelVersionsUploadRequest(
+    result = service_pb2.PostModelVersionsUploadRequest(
         upload_config=service_pb2.PostModelVersionsUploadConfig(
             user_app_id=self.client.user_app_id,
             model_id=self.model_proto.id,
@@ -502,6 +505,7 @@ class ModelUploader:
             total_size=file_size,
             is_v3=self.is_v3,
         ))
+    return result
 
   def get_model_build_logs(self):
     logs_request = service_pb2.ListLogEntriesRequest(
