@@ -57,6 +57,6 @@ def test_validate_download(checkpoint_dir):
 
 def test_download_checkpoints(dummy_runner_models_dir):
   model_folder_path = os.path.join(os.path.dirname(__file__), "dummy_runner_models")
-  model_upload = ModelUploader(model_folder_path, validate_api_ids=False)
+  model_upload = ModelUploader(model_folder_path, download_validation_only=True)
   isdownloaded = model_upload.download_checkpoints()
   assert isdownloaded is True
