@@ -39,6 +39,8 @@ class ModelUploader:
     just downloading a checkpoint.
     """
     self._client = None
+    if not validate_api_ids:  # for backwards compatibility
+      download_validation_only = True
     self.download_validation_only = download_validation_only
     self.folder = self._validate_folder(folder)
     self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
