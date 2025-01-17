@@ -146,7 +146,9 @@ class HuggingFaceLoader:
     repo_files = list_repo_files(self.repo_id, token=self.token)
     self.ignore_patterns = None
     if any(f.endswith(".safetensors") for f in repo_files):
-      self.ignore_patterns = ["**/original/*", "**/*.pth", "**/*.bin", "*.pth", "*.bin"]
+      self.ignore_patterns = [
+          "**/original/*", "**/*.pth", "**/*.bin", "*.pth", "*.bin", "**/.cache/*"
+      ]
     return self.ignore_patterns
 
   @staticmethod
