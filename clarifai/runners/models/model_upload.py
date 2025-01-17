@@ -50,6 +50,8 @@ class ModelUploader:
     self.is_v3 = True  # Do model build for v3
 
   def _validate_folder(self, folder):
+    if folder == ".":
+      folder = ""  # will getcwd() next which ends with /
     if not folder.startswith("/"):
       folder = os.path.join(os.getcwd(), folder)
     logger.info(f"Validating folder: {folder}")
