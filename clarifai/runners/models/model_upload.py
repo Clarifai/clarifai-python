@@ -78,7 +78,8 @@ class ModelUploader:
       assert "repo_id" in self.config.get("checkpoints"), "No repo_id specified in the config file"
       repo_id = self.config.get("checkpoints").get("repo_id")
 
-      hf_token = self.config.get("checkpoints").get("hf_token", None)
+      # get from config.yaml otherwise fall back to HF_TOKEN env var.
+      hf_token = self.config.get("checkpoints").get("hf_token", os.environ.get("HF_TOKEN", None))
       return repo_id, hf_token
 
   def _check_app_exists(self):
@@ -413,10 +414,10 @@ class ModelUploader:
     model_version_proto = self.get_model_version_proto()
 
     if download_checkpoints:
-      tar_cmd = f"tar --exclude=*~ -czvf {self.tar_file} -C {self.folder} ."
+      tar_cmd = f"tar --exclude=*~ --exclude={self.tar_file} -czvf {self.tar_file} -C {self.folder} ."
     else:  # we don't want to send the checkpoints up even if they are in the folder.
       logger.info(f"Skipping {self.checkpoint_path} in the tar file that is uploaded.")
-      tar_cmd = f"tar --exclude={self.checkpoint_suffix} --exclude=*~ -czvf {self.tar_file} -C {self.folder} ."
+      tar_cmd = f"tar --exclude={self.checkpoint_suffix} --exclude=*~ --exclude={self.tar_file} -czvf {self.tar_file} -C {self.folder} ."
     # Tar the folder
     logger.debug(tar_cmd)
     os.system(tar_cmd)
@@ -493,7 +494,7 @@ class ModelUploader:
     file_size = os.path.getsize(file_path)
     logger.info(f"Uploading model version of model {self.model_proto.id}")
     logger.info(f"Using file '{os.path.basename(file_path)}' of size: {file_size} bytes")
-    return service_pb2.PostModelVersionsUploadRequest(
+    result = service_pb2.PostModelVersionsUploadRequest(
         upload_config=service_pb2.PostModelVersionsUploadConfig(
             user_app_id=self.client.user_app_id,
             model_id=self.model_proto.id,
@@ -501,6 +502,7 @@ class ModelUploader:
             total_size=file_size,
             is_v3=self.is_v3,
         ))
+    return result
 
   def get_model_build_logs(self):
     logs_request = service_pb2.ListLogEntriesRequest(
