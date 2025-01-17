@@ -33,7 +33,7 @@ class ModelUploader:
     """
     :param folder: The folder containing the model.py, config.yaml, requirements.txt and
     checkpoints.
-    :param validate_api_ids: Whether to validate the user_id and app_id in the config file. TODO:
+    :param validate_api_ids: Whether to validate the user_id and app_id in the config file. TODO(zeiler):
     deprecate in favor of download_validation_only.
     :param download_validation_only: Whether to skip the API config validation. Set to True if
     just downloading a checkpoint.
@@ -75,11 +75,17 @@ class ModelUploader:
     return config
 
   def _validate_config_checkpoints(self):
-
+    """
+    Validates the checkpoints section in the config file.
+    :return: loader_type the type of loader or None if no checkpoints.
+    :return: repo_id location of checkpoint.
+    :return: hf_token token to access checkpoint.
+    """
     assert "type" in self.config.get("checkpoints"), "No loader type specified in the config file"
     loader_type = self.config.get("checkpoints").get("type")
     if not loader_type:
       logger.info("No loader type specified in the config file for checkpoints")
+      return None, None, None
     assert loader_type == "huggingface", "Only huggingface loader supported for now"
     if loader_type == "huggingface":
       assert "repo_id" in self.config.get("checkpoints"), "No repo_id specified in the config file"
@@ -87,7 +93,7 @@ class ModelUploader:
 
       # get from config.yaml otherwise fall back to HF_TOKEN env var.
       hf_token = self.config.get("checkpoints").get("hf_token", os.environ.get("HF_TOKEN", None))
-      return repo_id, hf_token
+      return loader_type, repo_id, hf_token
 
   def _check_app_exists(self):
     resp = self.client.STUB.GetApp(service_pb2.GetAppRequest(user_app_id=self.client.user_app_id))
@@ -129,9 +135,9 @@ class ModelUploader:
         assert model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
 
     if self.config.get("checkpoints"):
-      _, hf_token = self._validate_config_checkpoints()
+      loader_type, _, hf_token = self._validate_config_checkpoints()
 
-      if hf_token:
+      if loader_type == "huggingface" and hf_token:
         is_valid_token = HuggingFaceLoader.validate_hftoken(hf_token)
         if not is_valid_token:
           logger.error(
@@ -315,16 +321,19 @@ class ModelUploader:
       logger.info("No checkpoints specified in the config file")
       return True
 
-    repo_id, hf_token = self._validate_config_checkpoints()
+    loader_type, repo_id, hf_token = self._validate_config_checkpoints()
 
-    loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
-    success = loader.download_checkpoints(self.checkpoint_path)
+    success = True
+    if loader_type == "huggingface":
+      loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
+      success = loader.download_checkpoints(self.checkpoint_path)
 
-    if not success:
-      logger.error(f"Failed to download checkpoints for model {repo_id}")
-      sys.exit(1)
-    else:
-      logger.info(f"Downloaded checkpoints for model {repo_id}")
+    if loader_type:
+      if not success:
+        logger.error(f"Failed to download checkpoints for model {repo_id}")
+        sys.exit(1)
+      else:
+        logger.info(f"Downloaded checkpoints for model {repo_id}")
     return success
 
   def _concepts_protos_from_concepts(self, concepts):
@@ -404,9 +413,10 @@ class ModelUploader:
           input(
               "Press Enter to download the HuggingFace model's config.json file to infer the concepts and continue..."
           )
-          repo_id, hf_token = self._validate_config_checkpoints()
-          loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
-          loader.download_config(self.checkpoint_path)
+          loader_type, repo_id, hf_token = self._validate_config_checkpoints()
+          if loader_type == "huggingface":
+            loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
+            loader.download_config(self.checkpoint_path)
 
       else:
         logger.error(
