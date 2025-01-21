@@ -502,7 +502,10 @@ def main(model_path,
     if not manager.docker_image_exists(image_name):
       manager.build_docker_image(image_name=image_name)
     try:
-      envs = {'CLARIFAI_PAT': os.environ['CLARIFAI_PAT'], 'CLARIFAI_USER_ID': 'n/a'}
+      envs = {
+          'CLARIFAI_PAT': os.environ['CLARIFAI_PAT'],
+          'CLARIFAI_API_BASE': os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
+      }
       if run_model_server:
         manager.run_docker_container(
             image_name=image_name, container_name=container_name, port=port, env_vars=envs)
