@@ -470,7 +470,7 @@ class ModelUploader:
       # First check for the env variable, then try querying huggingface. If all else fails, use the default.
       checkpoint_size = os.environ.get('CHECKPOINT_SIZE_BYTES', 0)
       if not checkpoint_size:
-        repo_id, _ = self._validate_config_checkpoints()
+        _, repo_id, _ = self._validate_config_checkpoints()
         checkpoint_size = HuggingFaceLoader.get_huggingface_checkpoint_total_size(repo_id)
       if not checkpoint_size:
         checkpoint_size = self.DEFAULT_CHECKPOINT_SIZE
