@@ -47,3 +47,23 @@ def ensure_urls_downloaded(request, max_threads=128):
         future.result()
       except Exception as e:
         logger.exception(f"Error downloading input: {e}")
+  return request
+
+
+def map_stream(f, it, parallel=1):
+  '''
+  Applies f to each element of it, yielding the results in order.
+  If parallel >= 1, uses a ThreadPoolExecutor to apply f in parallel to the current thread.
+  '''
+  if parallel < 1:
+    return map(f, it)
+  with ThreadPoolExecutor(max_workers=parallel) as executor:
+    futures = []
+    for i in range(parallel):
+      futures.append(executor.submit(f, next(it)))
+    for r in it:
+      res = futures.pop(0).result()
+      futures.append(executor.submit(f, r))  # start computing next result before yielding this one
+      yield res
+    for f in futures:
+      yield f.result()
