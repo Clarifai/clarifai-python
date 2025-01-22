@@ -2,8 +2,8 @@
 
 model:
   id: "dummy-runner-model"
-  user_id: "user_id"
-  app_id: "app_id"
+  user_id: "luv_2261"
+  app_id: "test-upload"
   model_type_id: "multimodal-to-text"
 
 build_info:

@@ -1,4 +1,3 @@
-import hashlib
 from typing import Iterator
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -44,11 +43,9 @@ class MyRunner(ModelRunner):
       if data.image.url != "":
         output.data.text.raw = data.image.url.replace(
             "samples.clarifai.com",
-            "newdomain.com" + params_dict.get("domain",),
+            "newdomain.com" + params_dict.get("domain", ""),
         )
-      if data.image.base64 != b"":
-        output.data.image.base64 = (
-            hashlib.md5(data.image.base64).hexdigest() + "Hello World run_input")
+
       output.status.code = status_code_pb2.SUCCESS
       outputs.append(output)
     return service_pb2.MultiOutputResponse(outputs=outputs,)
@@ -74,9 +71,7 @@ class MyRunner(ModelRunner):
         if inp.data.text.raw != "":
           output.data.text.raw = f"{inp.data.text.raw}Generate Hello World {i}" + params_dict.get(
               "hello", "")
-        if inp.data.image.base64 != b"":
-          output.data.text.raw = (
-              hashlib.md5(inp.data.image.base64).hexdigest() + f"Generate Hello World {i}")
+
         output.status.code = status_code_pb2.SUCCESS
         outputs.append(output)
       yield service_pb2.MultiOutputResponse(outputs=outputs,)
@@ -102,8 +97,6 @@ class MyRunner(ModelRunner):
           output = resources_pb2.Output()
           if inp.data.text.raw != "":
             out_text = inp.data.text.raw + f"Stream Hello World {i}" + params_dict.get("hello", "")
-          if inp.data.image.base64 != b"":
-            out_text = hashlib.md5(inp.data.image.base64).hexdigest() + f"Stream Hello World {i}"
           output.status.code = status_code_pb2.SUCCESS
           print(out_text)
           output.data.text.raw = out_text
