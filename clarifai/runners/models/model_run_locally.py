@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import inspect
 import os
+import platform
 import shutil
 import signal
 import subprocess
@@ -35,6 +36,23 @@ class ModelRunLocally:
     with open(self.requirements_file, "r") as f:
       return hashlib.md5(f.read().encode('utf-8')).hexdigest()
 
+  def _get_env_executable(self):
+    """Get the python executable from the virtual environment."""
+    # Depending on the platform, venv scripts are placed in either "Scripts" (Windows) or "bin" (Linux/Mac)
+    if platform.system().lower().startswith("win"):
+      scripts_folder = "Scripts"
+      python_exe = "python.exe"
+      pip_exe = "pip.exe"
+    else:
+      scripts_folder = "bin"
+      python_exe = "python"
+      pip_exe = "pip"
+
+    self.python_executable = os.path.join(self.venv_dir, scripts_folder, python_exe)
+    self.pip_executable = os.path.join(self.venv_dir, scripts_folder, pip_exe)
+
+    return self.python_executable, self.pip_executable
+
   def create_temp_venv(self):
     """Create a temporary virtual environment."""
     requirements_hash = self._requirements_hash()
@@ -53,13 +71,13 @@ class ModelRunLocally:
 
     self.venv_dir = venv_dir
     self.temp_dir = temp_dir
-    self.python_executable = os.path.join(venv_dir, "bin", "python")
+    self.python_executable, self.pip_executable = self._get_env_executable()
 
     return use_existing_venv
 
   def install_requirements(self):
     """Install the dependencies from requirements.txt and Clarifai."""
-    pip_executable = os.path.join(self.venv_dir, "bin", "pip")
+    _, pip_executable = self._get_env_executable()
     try:
       logger.info(
           f"Installing requirements from {self.requirements_file}... in the virtual environment {self.venv_dir}"
@@ -334,6 +352,12 @@ class ModelRunLocally:
       logger.info(f"Docker image '{image_name}' does not exist!")
       return False
 
+  def _gpu_is_available(self):
+    """
+    Checks if nvidia-smi is available, indicating a GPU is likely accessible.
+    """
+    return shutil.which("nvidia-smi") is not None
+
   def run_docker_container(self,
                            image_name,
                            container_name="clarifai-model-container",
@@ -343,9 +367,9 @@ class ModelRunLocally:
     try:
       logger.info(f"Running Docker container '{container_name}' from image '{image_name}'...")
       # Base docker run command
-      cmd = [
-          "docker", "run", "--name", container_name, '--rm', "--gpus", "all", "--network", "host"
-      ]
+      cmd = ["docker", "run", "--name", container_name, '--rm', "--network", "host"]
+      if self._gpu_is_available():
+        cmd.extend(["--gpus", "all"])
       # Add volume mappings
       cmd.extend(["-v", f"{self.model_path}:/app/model_dir/main"])
       # Add environment variables
@@ -392,9 +416,9 @@ class ModelRunLocally:
     try:
       logger.info("Testing the model inside the Docker container...")
       # Base docker run command
-      cmd = [
-          "docker", "run", "--name", container_name, '--rm', "--gpus", "all", "--network", "host"
-      ]
+      cmd = ["docker", "run", "--name", container_name, '--rm', "--network", "host"]
+      if self._gpu_is_available():
+        cmd.extend(["--gpus", "all"])
       # update the entrypoint for testing the model
       cmd.extend(["--entrypoint", "python"])
       # Add volume mappings
