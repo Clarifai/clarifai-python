@@ -16,6 +16,7 @@ from clarifai_protocol.utils.grpc_server import GRPCServer
 
 from clarifai.runners.models.model_servicer import ModelServicer
 from clarifai.runners.models.model_upload import ModelUploader
+from clarifai.runners.models.model_runner import ModelRunner
 from clarifai.utils.logging import logger
 
 
@@ -56,7 +57,7 @@ def main():
       'Set to true to enable TLS (default: False) since this server is meant for local development only.',
   )
   parser.add_argument(
-      '--start_dev_server',
+      '--grpc',
       action='store_true',
       default=False,
       help=
@@ -117,25 +118,10 @@ def main():
   model = model_class(**model_args)
 
   # Setup the grpc server for local development.
-  if parsed_args.start_dev_server:
-
-    # We validate that we have checkpoints downloaded before constructing MyRunner which
-    # will call load_model()
-    uploader.download_checkpoints()
-
-    # initialize the Runner class. This is what the user implements.
-    # we aren't going to call runner.start() to engage with the API so IDs are not necessary.
-    runner = ModelRunner(
-        runner_id="n/a",
-        nodepool_id="n/a",
-        compute_cluster_id="n/a",
-        user_id="n/a",
-        health_check_port=None,  # not needed when running local server
-        model=model,
-    )
+  if parsed_args.grpc:
 
     # initialize the servicer with the runner so that it gets the predict(), generate(), stream() classes.
-    servicer = ModelServicer(runner)
+    servicer = ModelServicer(model)
 
     server = GRPCServer(
         futures.ThreadPoolExecutor(
@@ -156,12 +142,12 @@ def main():
 
     # initialize the Runner class. This is what the user implements.
     runner = ModelRunner(
+        model=model,
         runner_id=os.environ["CLARIFAI_RUNNER_ID"],
         nodepool_id=os.environ["CLARIFAI_NODEPOOL_ID"],
         compute_cluster_id=os.environ["CLARIFAI_COMPUTE_CLUSTER_ID"],
         base_url=os.environ["CLARIFAI_API_BASE"],
         num_parallel_polls=int(os.environ.get("CLARIFAI_NUM_THREADS", 1)),
-        model=model,
     )
     runner.start()  # start the runner to fetch work from the API.
 

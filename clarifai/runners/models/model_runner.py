@@ -20,6 +20,7 @@ class ModelRunner(BaseRunner, ModelClass, HealthProbeRequestHandler):
 
   def __init__(
       self,
+      model=None,
       runner_id: str,
       nodepool_id: str,
       compute_cluster_id: str,
@@ -43,11 +44,24 @@ class ModelRunner(BaseRunner, ModelClass, HealthProbeRequestHandler):
         num_parallel_polls,
         **kwargs,
     )
+    self.model = model
     self.load_model()
 
     # After model load successfully set the health probe to ready and startup
     HealthProbeRequestHandler.is_ready = True
     HealthProbeRequestHandler.is_startup = True
+
+  def load_model(self):
+    return self.model.load_model()
+
+  def predict(self, *args, **kwargs):
+    return self.model.predict(*args, **kwargs)
+
+  def generate(self, *args, **kwargs):
+    return self.model.generate(*args, **kwargs)
+
+  def stream(self, *args, **kwargs):
+    return self.model.stream(*args, **kwargs)
 
   def get_runner_item_output_for_status(self,
                                         status: status_pb2.Status) -> service_pb2.RunnerItemOutput:
