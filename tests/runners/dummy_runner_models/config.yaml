@@ -2,7 +2,7 @@
 
 model:
   id: "dummy-runner-model"
-  user_id: "luv_2261"
+  user_id: "clarifai"
   app_id: "test-upload"
   model_type_id: "multimodal-to-text"
 
