@@ -71,45 +71,67 @@ def main():
 
   parsed_args = parser.parse_args()
 
-  # import the runner class that to be implement by the user
-  runner_path = os.path.join(parsed_args.model_path, "1", "model.py")
+  uploader = ModelUploader(parsed_args.model_path)
 
-  # arbitrary name given to the module to be imported
-  module = "runner_module"
+  # server config with init args etc.
+  # server_info contains: model_file, model_class, model_args
+  server_config = uploader.config["server_info"]
 
-  spec = importlib.util.spec_from_file_location(module, runner_path)
-  runner_module = importlib.util.module_from_spec(spec)
-  sys.modules[module] = runner_module
-  spec.loader.exec_module(runner_module)
+  model_file = server_config.get("model_file")
+  if model_file:
+    model_file = os.path.join(parsed_args.model_path, model_file)
+    if not os.path.exists(model_file):
+      raise Exception(f"Model file {model_file} does not exist.")
+  else:
+    # look for default model.py file location
+    for loc in ["model.py", "1/model.py"]:
+      model_file = os.path.join(parsed_args.model_path, loc)
+      if os.path.exists(model_file):
+        break
+    if not os.path.exists(model_file):
+      raise Exception("Model file not found.")
 
-  # Find all classes in the model.py file that are subclasses of BaseRunner
-  classes = [
-      cls for _, cls in inspect.getmembers(runner_module, inspect.isclass)
-      if issubclass(cls, BaseRunner) and cls.__module__ == runner_module.__name__
-  ]
+  module_name = os.path.basename(model_file).replace(".py", "")
 
-  #  Ensure there is exactly one subclass of BaseRunner in the model.py file
-  if len(classes) != 1:
-    raise Exception("Expected exactly one subclass of BaseRunner, found: {}".format(len(classes)))
+  spec = importlib.util.spec_from_file_location(module_name, model_file)
+  module = importlib.util.module_from_spec(spec)
+  sys.modules[module_name] = module
+  spec.loader.exec_module(module)
 
-  MyRunner = classes[0]
+  if server_config.get("model_class"):
+    model_class = getattr(module, server_config["model_class"])
+  else:
+    # Find all classes in the model.py file that are subclasses of ModelClass
+    classes = [
+        cls for _, cls in inspect.getmembers(module, inspect.isclass)
+        if issubclass(cls, ModelClass) and cls.__module__ == runner_module.__name__
+    ]
+    #  Ensure there is exactly one subclass of BaseRunner in the model.py file
+    if len(classes) != 1:
+      raise Exception("Could not determine model class. Please specify it in the config with server_info.model_class.")
+    model_class = classes[0]
+
+  model_args = server_config.get("model_args", {})
+
+  # initialize the model class with the args.
+  model = model_class(**model_args)
 
   # Setup the grpc server for local development.
   if parsed_args.start_dev_server:
 
     # We validate that we have checkpoints downloaded before constructing MyRunner which
     # will call load_model()
-    uploader = ModelUploader(parsed_args.model_path)
     uploader.download_checkpoints()
 
     # initialize the Runner class. This is what the user implements.
     # we aren't going to call runner.start() to engage with the API so IDs are not necessary.
-    runner = MyRunner(
+    runner = ModelRunner(
         runner_id="n/a",
         nodepool_id="n/a",
         compute_cluster_id="n/a",
         user_id="n/a",
         health_check_port=None,  # not needed when running local server
+        model=model,
     )
 
     # initialize the servicer with the runner so that it gets the predict(), generate(), stream() classes.
@@ -133,12 +155,13 @@ def main():
   else:  # start the runner with the proper env variables and as a runner protocol.
 
     # initialize the Runner class. This is what the user implements.
-    runner = MyRunner(
+    runner = ModelRunner(
         runner_id=os.environ["CLARIFAI_RUNNER_ID"],
         nodepool_id=os.environ["CLARIFAI_NODEPOOL_ID"],
         compute_cluster_id=os.environ["CLARIFAI_COMPUTE_CLUSTER_ID"],
         base_url=os.environ["CLARIFAI_API_BASE"],
         num_parallel_polls=int(os.environ.get("CLARIFAI_NUM_THREADS", 1)),
+        model=model,
     )
     runner.start()  # start the runner to fetch work from the API.
 
