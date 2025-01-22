@@ -40,6 +40,20 @@ def upload(model_path, download_checkpoints, skip_dockerfile):
     type=click.Path(exists=True),
     required=True,
     help='Path to the model directory.')
+def download_checkpoints(model_path):
+  """Download remote checkpoints that are specified in the config."""
+  from clarifai.runners.models.model_upload import ModelUploader
+
+  uploader = ModelUploader(model_path)
+  uploader.download_checkpoints()
+
+
+@model.command()
+@click.option(
+    '--model_path',
+    type=click.Path(exists=True),
+    required=True,
+    help='Path to the model directory.')
 @click.option(
     '--mode',
     type=click.Choice(['env', 'container'], case_sensitive=False),
