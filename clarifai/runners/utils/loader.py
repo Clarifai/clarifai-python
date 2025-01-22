@@ -2,9 +2,10 @@ import fnmatch
 import importlib.util
 import json
 import os
-import requests
 import shutil
 import subprocess
+
+import requests
 
 from clarifai.utils.logging import logger
 
@@ -196,6 +197,5 @@ class HuggingFaceLoader:
         total_size += file['size']
       return total_size
     except Exception as e:
-      logger.error(
-          f"Error fetching checkpoint size from huggingface.co: {e}")
+      logger.error(f"Error fetching checkpoint size from huggingface.co: {e}")
       return 0

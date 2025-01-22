@@ -1,4 +1,3 @@
-import json
 import os
 import re
 import sys
@@ -6,7 +5,6 @@ import tarfile
 import time
 from string import Template
 
-import requests
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
@@ -22,6 +20,7 @@ from clarifai.runners.utils.loader import HuggingFaceLoader
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
 
+
 def _clear_line(n: int = 1) -> None:
   LINE_UP = '\033[1A'  # Move cursor up one line
   LINE_CLEAR = '\x1b[2K'  # Clear the entire line
@@ -30,7 +29,7 @@ def _clear_line(n: int = 1) -> None:
 
 
 class ModelUploader:
-  DEFAULT_CHECKPOINT_SIZE = 50*1024**3 # 50 GiB
+  DEFAULT_CHECKPOINT_SIZE = 50 * 1024**3  # 50 GiB
 
   def __init__(self, folder: str, validate_api_ids: bool = True, download_validation_only=False):
     """
@@ -596,6 +595,7 @@ class ModelUploader:
         logger.info(
             f"\nModel build failed with status: {resp.model_version.status} and response {resp}")
         return False
+
 
 def main(folder, download_checkpoints, skip_dockerfile):
   uploader = ModelUploader(folder)
