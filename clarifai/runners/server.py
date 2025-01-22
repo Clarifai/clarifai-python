@@ -69,10 +69,19 @@ def main():
       required=True,
       help='The path to the model directory that contains implemention of the model.',
   )
+  parser.add_argument(
+      '--download_checkpoints',
+      action='store_true',
+      help='Downloads any remote checkpoints specified in the config',
+  )
+
 
   parsed_args = parser.parse_args()
 
   uploader = ModelUploader(parsed_args.model_path)
+
+  if parsed_args.download_checkpoints:
+    uploader.download_checkpoints()
 
   # server config with init args etc.
   # server_info contains: model_file, model_class, model_args
