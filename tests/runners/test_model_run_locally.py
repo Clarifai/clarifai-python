@@ -10,7 +10,7 @@ from clarifai.runners.models.model_run_locally import ModelRunLocally
 
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "dummy_runner_models")
 CLARIFAI_USER_ID = os.environ["CLARIFAI_USER_ID"]
-CREATE_APP_ID = "test-upload"
+CREATE_APP_ID = "test-model"
 CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
 
 
