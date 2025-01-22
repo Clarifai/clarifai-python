@@ -5,45 +5,15 @@ from pathlib import Path
 
 import pytest
 
-from clarifai.client import User
 from clarifai.runners.models.model_run_locally import ModelRunLocally
 
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "dummy_runner_models")
 CLARIFAI_USER_ID = os.environ["CLARIFAI_USER_ID"]
-CREATE_APP_ID = "test-model"
 CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
 
 
-def create_app():
-  """
-    Creates a Clarifai app for testing purposes.
-    """
-  print(f"Creating app for user {CLARIFAI_USER_ID}")
-  user = User(
-      user_id=CLARIFAI_USER_ID,
-      base_url=os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com'),
-      pat=CLARIFAI_PAT,
-  )
-  app = user.create_app(app_id=CREATE_APP_ID)
-  return app.id, user
-
-
-@pytest.fixture(scope="module")
-def clarifai_app():
-  """
-    Fixture to create and clean up a Clarifai app before/after running the tests.
-    """
-  app_id, user = create_app()
-  yield app_id  # Provide the app_id to the tests
-  # Cleanup: delete the app after tests
-  try:
-    user.delete_app(app_id=app_id)
-  except Exception as e:
-    print(f"Failed to delete app '{app_id}': {e}")
-
-
 @pytest.fixture
-def model_run_locally(clarifai_app):
+def model_run_locally():
   """
   Fixture that instantiates the ModelRunLocally class
   with the dummy model_path that already exists.

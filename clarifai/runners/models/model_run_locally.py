@@ -27,7 +27,7 @@ class ModelRunLocally:
     self.requirements_file = os.path.join(self.model_path, "requirements.txt")
 
     # ModelUploader contains multiple useful methods to interact with the model
-    self.uploader = ModelUploader(self.model_path)
+    self.uploader = ModelUploader(self.model_path, download_validation_only=True)
     self.config = self.uploader.config
 
   def _requirements_hash(self):
@@ -104,8 +104,7 @@ class ModelRunLocally:
   def _build_request(self):
     """Create a mock inference request for testing the model."""
 
-    uploader = ModelUploader(self.model_path)
-    model_version_proto = uploader.get_model_version_proto()
+    model_version_proto = self.uploader.get_model_version_proto()
     model_version_proto.id = "model_version"
 
     return service_pb2.PostModelOutputsRequest(
