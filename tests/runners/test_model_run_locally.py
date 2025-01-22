@@ -9,20 +9,23 @@ from clarifai.client import User
 from clarifai.runners.models.model_run_locally import ModelRunLocally
 
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "dummy_runner_models")
+CLARIFAI_USER_ID = os.environ["CLARIFAI_USER_ID"]
+CREATE_APP_ID = "test-upload"
+CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
 
 
 def create_app():
   """
     Creates a Clarifai app for testing purposes.
     """
+  print(f"Creating app for user {CLARIFAI_USER_ID}")
   user = User(
-      user_id="clarifai",
+      user_id=CLARIFAI_USER_ID,
       base_url=os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com'),
-      pat=os.environ["CLARIFAI_PAT"],
+      pat=CLARIFAI_PAT,
   )
-  app_id = "test-upload"
-  user.create_app(app_id=app_id)
-  return app_id, user
+  app = user.create_app(app_id=CREATE_APP_ID)
+  return app.id, user
 
 
 @pytest.fixture(scope="module")
@@ -152,7 +155,7 @@ def test_docker_build_and_test_container(model_run_locally):
         image_name=image_name,
         container_name="test_clarifai_model_container",
         env_vars={
-            'CLARIFAI_PAT': os.environ["CLARIFAI_PAT"],
+            'CLARIFAI_PAT': CLARIFAI_PAT,
             'CLARIFAI_API_BASE': os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
         })
   except subprocess.CalledProcessError:
