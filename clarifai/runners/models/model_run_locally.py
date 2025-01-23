@@ -230,12 +230,23 @@ class ModelRunLocally:
 
   def test_model(self):
     """Test the model by running it locally in the virtual environment."""
-    command = [
-        self.python_executable,
-        "-c",
-        f"import sys; sys.path.append('{os.path.dirname(os.path.abspath(__file__))}'); "
-        f"from model_run_locally import ModelRunLocally; ModelRunLocally('{self.model_path}')._run_test()",
-    ]
+
+    import_path = repr(os.path.dirname(os.path.abspath(__file__)))
+    model_path = repr(self.model_path)
+
+    command_string = (f"import sys; "
+                      f"sys.path.append({import_path}); "
+                      f"from model_run_locally import ModelRunLocally; "
+                      f"ModelRunLocally({model_path})._run_test()")
+
+    command = [self.python_executable, "-c", command_string]
+
+    # command = [
+    #     self.python_executable,
+    #     "-c",
+    #     f"import sys; sys.path.append('{os.path.dirname(os.path.abspath(__file__))}'); "
+    #     f"from model_run_locally import ModelRunLocally; ModelRunLocally('{self.model_path}')._run_test()",
+    # ]
     process = None
     try:
       logger.info("Testing the model locally...")
