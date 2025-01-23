@@ -2,8 +2,8 @@
 
 model:
   id: "dummy-runner-model"
-  user_id: "python-grpc-tester"
-  app_id: "main"
+  user_id: "user_id"
+  app_id: "app_id"
   model_type_id: "multimodal-to-text"
 
 build_info:
