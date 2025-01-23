@@ -28,7 +28,7 @@ class ModelRunLocally:
     self.requirements_file = os.path.join(self.model_path, "requirements.txt")
 
     # ModelUploader contains multiple useful methods to interact with the model
-    self.uploader = ModelUploader(self.model_path, download_validation_only=True)
+    self.uploader = ModelUploader(self.model_path, validate_api_ids=False)
     self.config = self.uploader.config
 
   def _requirements_hash(self):
