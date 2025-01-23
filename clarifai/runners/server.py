@@ -15,7 +15,7 @@ from clarifai_protocol import BaseRunner
 from clarifai_protocol.utils.grpc_server import GRPCServer
 
 from clarifai.runners.models.model_servicer import ModelServicer
-from clarifai.runners.models.model_upload import ModelUploader
+from clarifai.runners.models.model_builder import ModelBuilder
 from clarifai.runners.models.model_runner import ModelRunner
 from clarifai.utils.logging import logger
 
@@ -78,14 +78,14 @@ def main():
 
   parsed_args = parser.parse_args()
 
-  uploader = ModelUploader(parsed_args.model_path)
+  builder = ModelBuilder(parsed_args.model_path)
 
   if parsed_args.download_checkpoints:
-    uploader.download_checkpoints()
+    builder.download_checkpoints()
 
   # server config with init args etc.
   # server_info contains: model_file, model_class, model_args
-  server_config = uploader.config["server_info"]
+  server_config = builder.config["server_info"]
 
   model_file = server_config.get("model_file")
   if model_file:

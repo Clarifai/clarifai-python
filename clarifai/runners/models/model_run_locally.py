@@ -15,7 +15,7 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from clarifai_protocol import BaseRunner
 
-from clarifai.runners.models.model_upload import ModelUploader
+from clarifai.runners.models.model_builder import ModelBuilder
 from clarifai.runners.utils.url_fetcher import ensure_urls_downloaded
 from clarifai.utils.logging import logger
 
@@ -26,9 +26,9 @@ class ModelRunLocally:
     self.model_path = model_path
     self.requirements_file = os.path.join(self.model_path, "requirements.txt")
 
-    # ModelUploader contains multiple useful methods to interact with the model
-    self.uploader = ModelUploader(self.model_path)
-    self.config = self.uploader.config
+    # ModelBuilder contains multiple useful methods to interact with the model
+    self.builder = ModelBuilder(self.model_path)
+    self.config = self.builder.config
 
   def _requirements_hash(self):
     """Generate a hash of the requirements file."""
@@ -104,8 +104,8 @@ class ModelRunLocally:
   def _build_request(self):
     """Create a mock inference request for testing the model."""
 
-    uploader = ModelUploader(self.model_path)
-    model_version_proto = uploader.get_model_version_proto()
+    builder = ModelBuilder(self.model_path)
+    model_version_proto = builder.get_model_version_proto()
     model_version_proto.id = "model_version"
 
     return service_pb2.PostModelOutputsRequest(
@@ -491,11 +491,11 @@ def main(model_path,
     )
     sys.exit(1)
   manager = ModelRunLocally(model_path)
-  manager.uploader.download_checkpoints()
+  manager.builder.download_checkpoints()
   if inside_container:
     if not manager.is_docker_installed():
       sys.exit(1)
-    manager.uploader.create_dockerfile()
+    manager.builder.create_dockerfile()
     image_tag = manager._docker_hash()
     image_name = f"{manager.config['model']['id']}:{image_tag}"
     container_name = manager.config['model']['id']

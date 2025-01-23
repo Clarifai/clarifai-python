@@ -42,10 +42,9 @@ def upload(model_path, download_checkpoints, skip_dockerfile):
     help='Path to the model directory.')
 def download_checkpoints(model_path):
   """Download remote checkpoints that are specified in the config."""
-  from clarifai.runners.models.model_upload import ModelUploader
+  from clarifai.runners.models.model_builder import ModelBuilder
 
-  uploader = ModelUploader(model_path)
-  uploader.download_checkpoints()
+  ModelBuilder(model_path).download_checkpoints()
 
 
 @model.command()
