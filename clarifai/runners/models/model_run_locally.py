@@ -1,6 +1,4 @@
 import hashlib
-import importlib.util
-import inspect
 import os
 import shutil
 import signal
@@ -13,7 +11,6 @@ import venv
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
-from clarifai_protocol import BaseRunner
 
 from clarifai.runners.models.model_builder import ModelBuilder
 from clarifai.runners.utils.url_fetcher import ensure_urls_downloaded

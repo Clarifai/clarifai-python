@@ -1,4 +1,5 @@
 import importlib
+import inspect
 import os
 import re
 import sys
@@ -13,6 +14,7 @@ from rich import print
 from rich.markup import escape
 
 from clarifai.client import BaseClient
+from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.const import (AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES,
                                           CONCEPTS_REQUIRED_MODEL_TYPE, DEFAULT_PYTHON_VERSION,
                                           PYTHON_BASE_IMAGE, TORCH_BASE_IMAGE)
@@ -85,11 +87,13 @@ class ModelBuilder:
       # Find all classes in the model.py file that are subclasses of ModelClass
       classes = [
           cls for _, cls in inspect.getmembers(module, inspect.isclass)
-          if issubclass(cls, ModelClass) and cls.__module__ == runner_module.__name__
+          if issubclass(cls, ModelClass) and cls.__module__ == module.__name__
       ]
       #  Ensure there is exactly one subclass of BaseRunner in the model.py file
       if len(classes) != 1:
-        raise Exception("Could not determine model class. Please specify it in the config with class_info.model_class.")
+        raise Exception(
+            "Could not determine model class. Please specify it in the config with class_info.model_class."
+        )
       model_class = classes[0]
 
     model_args = class_config.get("args", {})
@@ -610,18 +614,18 @@ class ModelBuilder:
 
 
 def upload_model(folder, download_checkpoints, skip_dockerfile):
-  buidler = ModelBuilder(folder)
+  builder = ModelBuilder(folder)
   if download_checkpoints:
-    buidler.download_checkpoints()
+    builder.download_checkpoints()
   if not skip_dockerfile:
-    buidler.create_dockerfile()
-  exists = buidler.check_model_exists()
+    builder.create_dockerfile()
+  exists = builder.check_model_exists()
   if exists:
     logger.info(
-        f"Model already exists at {buidler.model_url}, this upload will create a new version for it."
+        f"Model already exists at {builder.model_url}, this upload will create a new version for it."
     )
   else:
-    logger.info(f"New model will be created at {be.model_url} with it's first version.")
+    logger.info(f"New model will be created at {builder.model_url} with it's first version.")
 
   input("Press Enter to continue...")
-  buidler.upload_model_version(download_checkpoints)
+  builder.upload_model_version(download_checkpoints)

@@ -4,19 +4,15 @@ and starts the server.
 """
 
 import argparse
-import importlib.util
-import inspect
 import os
-import sys
 from concurrent import futures
 
 from clarifai_grpc.grpc.api import service_pb2_grpc
-from clarifai_protocol import BaseRunner
 from clarifai_protocol.utils.grpc_server import GRPCServer
 
-from clarifai.runners.models.model_servicer import ModelServicer
 from clarifai.runners.models.model_builder import ModelBuilder
 from clarifai.runners.models.model_runner import ModelRunner
+from clarifai.runners.models.model_servicer import ModelServicer
 from clarifai.utils.logging import logger
 
 
@@ -74,7 +70,6 @@ def main():
       action='store_true',
       help='Downloads any remote checkpoints specified in the config',
   )
-
 
   parsed_args = parser.parse_args()
 
