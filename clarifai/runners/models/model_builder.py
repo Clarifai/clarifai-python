@@ -51,6 +51,52 @@ class ModelBuilder:
     self.inference_compute_info = self._get_inference_compute_info()
     self.is_v3 = True  # Do model build for v3
 
+  def create_model_instance(self):
+    """
+    Create an instance of the model class, as specified in the config file.
+    """
+    class_config = self.config["class_info"]
+
+    model_file = class_config.get("file_name")
+    if model_file:
+      model_file = os.path.join(parsed_args.model_path, model_file)
+      if not os.path.exists(model_file):
+        raise Exception(f"Model file {model_file} does not exist.")
+    else:
+      # look for default model.py file location
+      for loc in ["model.py", "1/model.py"]:
+        model_file = os.path.join(parsed_args.model_path, loc)
+        if os.path.exists(model_file):
+          break
+      if not os.path.exists(model_file):
+        raise Exception("Model file not found.")
+
+    module_name = os.path.basename(model_file).replace(".py", "")
+
+    spec = importlib.util.spec_from_file_location(module_name, model_file)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    if class_config.get("class_name"):
+      model_class = getattr(module, class_config["class_name"])
+    else:
+      # Find all classes in the model.py file that are subclasses of ModelClass
+      classes = [
+          cls for _, cls in inspect.getmembers(module, inspect.isclass)
+          if issubclass(cls, ModelClass) and cls.__module__ == runner_module.__name__
+      ]
+      #  Ensure there is exactly one subclass of BaseRunner in the model.py file
+      if len(classes) != 1:
+        raise Exception("Could not determine model class. Please specify it in the config with class_info.model_class.")
+      model_class = classes[0]
+
+    model_args = class_config.get("args", {})
+
+    # initialize the model class with the args.
+    model = model_class(**model_args)
+    return model
+
   def _validate_folder(self, folder):
     if folder == ".":
       folder = ""  # will getcwd() next which ends with /
@@ -561,20 +607,3 @@ class ModelBuilder:
             f"\nModel build failed with status: {resp.model_version.status} and response {resp}")
         return False
 
-
-def main(folder, download_checkpoints, skip_dockerfile):
-  buidler = ModelBuilder(folder)
-  if download_checkpoints:
-    buidler.download_checkpoints()
-  if not skip_dockerfile:
-    buidler.create_dockerfile()
-  exists = buidler.check_model_exists()
-  if exists:
-    logger.info(
-        f"Model already exists at {buidler.model_url}, this upload will create a new version for it."
-    )
-  else:
-    logger.info(f"New model will be created at {be.model_url} with it's first version.")
-
-  input("Press Enter to continue...")
-  buidler.upload_model_version(download_checkpoints)

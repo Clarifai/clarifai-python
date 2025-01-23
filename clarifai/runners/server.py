@@ -83,48 +83,7 @@ def main():
   if parsed_args.download_checkpoints:
     builder.download_checkpoints()
 
-  # server config with init args etc.
-  # server_info contains: model_file, model_class, model_args
-  server_config = builder.config["server_info"]
-
-  model_file = server_config.get("model_file")
-  if model_file:
-    model_file = os.path.join(parsed_args.model_path, model_file)
-    if not os.path.exists(model_file):
-      raise Exception(f"Model file {model_file} does not exist.")
-  else:
-    # look for default model.py file location
-    for loc in ["model.py", "1/model.py"]:
-      model_file = os.path.join(parsed_args.model_path, loc)
-      if os.path.exists(model_file):
-        break
-    if not os.path.exists(model_file):
-      raise Exception("Model file not found.")
-
-  module_name = os.path.basename(model_file).replace(".py", "")
-
-  spec = importlib.util.spec_from_file_location(module_name, model_file)
-  module = importlib.util.module_from_spec(spec)
-  sys.modules[module_name] = module
-  spec.loader.exec_module(module)
-
-  if server_config.get("model_class"):
-    model_class = getattr(module, server_config["model_class"])
-  else:
-    # Find all classes in the model.py file that are subclasses of ModelClass
-    classes = [
-        cls for _, cls in inspect.getmembers(module, inspect.isclass)
-        if issubclass(cls, ModelClass) and cls.__module__ == runner_module.__name__
-    ]
-    #  Ensure there is exactly one subclass of BaseRunner in the model.py file
-    if len(classes) != 1:
-      raise Exception("Could not determine model class. Please specify it in the config with server_info.model_class.")
-    model_class = classes[0]
-
-  model_args = server_config.get("model_args", {})
-
-  # initialize the model class with the args.
-  model = model_class(**model_args)
+  model = builder.create_model_instance()
 
   # Setup the grpc server for local development.
   if parsed_args.grpc:

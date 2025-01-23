@@ -73,34 +73,6 @@ class ModelRunLocally:
       self.clean_up()
       sys.exit(1)
 
-  def _get_model_runner(self):
-    """Dynamically import the runner class from the model file."""
-
-    # import the runner class that to be implement by the user
-    runner_path = os.path.join(self.model_path, "1", "model.py")
-
-    # arbitrary name given to the module to be imported
-    module = "runner_module"
-
-    spec = importlib.util.spec_from_file_location(module, runner_path)
-    runner_module = importlib.util.module_from_spec(spec)
-    sys.modules[module] = runner_module
-    spec.loader.exec_module(runner_module)
-
-    # Find all classes in the model.py file that are subclasses of BaseRunner
-    classes = [
-        cls for _, cls in inspect.getmembers(runner_module, inspect.isclass)
-        if issubclass(cls, BaseRunner) and cls.__module__ == runner_module.__name__
-    ]
-
-    #  Ensure there is exactly one subclass of BaseRunner in the model.py file
-    if len(classes) != 1:
-      raise Exception("Expected exactly one subclass of BaseRunner, found: {}".format(
-          len(classes)))
-
-    MyRunner = classes[0]
-    return MyRunner
-
   def _build_request(self):
     """Create a mock inference request for testing the model."""
 
@@ -125,8 +97,8 @@ class ModelRunLocally:
     for i in range(1):
       yield request
 
-  def _run_model_inference(self, runner):
-    """Perform inference using the runner."""
+  def _run_model_inference(self, model):
+    """Perform inference using the model."""
     request = self._build_request()
     stream_request = self._build_stream_request()
 
@@ -135,7 +107,7 @@ class ModelRunLocally:
     generate_response = None
     stream_response = None
     try:
-      predict_response = runner.predict(request)
+      predict_response = model.predict(request)
     except NotImplementedError:
       logger.info("Model does not implement predict() method.")
     except Exception as e:
@@ -155,7 +127,7 @@ class ModelRunLocally:
         logger.info(f"Model Prediction succeeded: {predict_response}")
 
     try:
-      generate_response = runner.generate(request)
+      generate_response = model.generate(request)
     except NotImplementedError:
       logger.info("Model does not implement generate() method.")
     except Exception as e:
@@ -177,7 +149,7 @@ class ModelRunLocally:
             f"Model Prediction succeeded for generate and first response: {generate_first_res}")
 
     try:
-      stream_response = runner.stream(stream_request)
+      stream_response = model.stream(stream_request)
     except NotImplementedError:
       logger.info("Model does not implement stream() method.")
     except Exception as e:
@@ -200,16 +172,10 @@ class ModelRunLocally:
 
   def _run_test(self):
     """Test the model locally by making a prediction."""
-    # construct MyRunner which will call load_model()
-    MyRunner = self._get_model_runner()
-    runner = MyRunner(
-        runner_id="n/a",
-        nodepool_id="n/a",
-        compute_cluster_id="n/a",
-        user_id="n/a",
-    )
+    # Create the model
+    model = self.builder.create_model_instance()
     # send an inference.
-    self._run_model_inference(runner)
+    self._run_model_inference(model)
 
   def test_model(self):
     """Test the model by running it locally in the virtual environment."""
@@ -253,7 +219,7 @@ class ModelRunLocally:
 
     command = [
         self.python_executable, "-m", "clarifai.runners.server", "--model_path", self.model_path,
-        "--start_dev_server", "--port",
+        "--grpc", "--port",
         str(port)
     ]
     try:
