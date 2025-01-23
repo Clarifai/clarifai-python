@@ -20,7 +20,7 @@ class ModelRunner(BaseRunner, ModelClass, HealthProbeRequestHandler):
 
   def __init__(
       self,
-      model=None,
+      model: ModelClass,
       runner_id: str,
       nodepool_id: str,
       compute_cluster_id: str,
