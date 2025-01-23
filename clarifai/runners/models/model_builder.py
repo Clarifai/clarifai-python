@@ -1,3 +1,4 @@
+import importlib
 import os
 import re
 import sys
@@ -57,15 +58,15 @@ class ModelBuilder:
     """
     class_config = self.config["class_info"]
 
-    model_file = class_config.get("file_name")
+    model_file = class_config.get("file_path")
     if model_file:
-      model_file = os.path.join(parsed_args.model_path, model_file)
+      model_file = os.path.join(self.folder, model_file)
       if not os.path.exists(model_file):
         raise Exception(f"Model file {model_file} does not exist.")
     else:
       # look for default model.py file location
       for loc in ["model.py", "1/model.py"]:
-        model_file = os.path.join(parsed_args.model_path, loc)
+        model_file = os.path.join(self.folder, loc)
         if os.path.exists(model_file):
           break
       if not os.path.exists(model_file):
