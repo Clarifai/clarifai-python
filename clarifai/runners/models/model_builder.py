@@ -58,7 +58,7 @@ class ModelBuilder:
     """
     Create an instance of the model class, as specified in the config file.
     """
-    class_config = self.config["class_info"]
+    class_config = self.config.get("class_info", {})
 
     model_file = class_config.get("file_path")
     if model_file:
