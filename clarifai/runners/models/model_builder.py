@@ -608,7 +608,7 @@ class ModelBuilder:
         return False
 
 
-def main(folder, download_checkpoints, skip_dockerfile):
+def upload_model(folder, download_checkpoints, skip_dockerfile):
   buidler = ModelBuilder(folder)
   if download_checkpoints:
     buidler.download_checkpoints()
