@@ -319,9 +319,7 @@ class ModelRunLocally:
       # Add the image name
       cmd.append(image_name)
       # update the CMD to run the server
-      cmd.extend(
-          ["--model_path", "/app/model_dir/main", "--start_dev_server", "--port",
-           str(port)])
+      cmd.extend(["--model_path", "/app/model_dir/main", "--grpc", "--port", str(port)])
       # Run the container
       process = subprocess.Popen(cmd,)
       logger.info(
