@@ -13,9 +13,6 @@ from .model_class import ModelClass
 class ModelRunner(BaseRunner, HealthProbeRequestHandler):
   """
   This is a subclass of the runner class which will handle only the work items relevant to models.
-
-  It is also a subclass of ModelClass so that any subclass of ModelRunner will need to just
-  implement predict(), generate() and stream() methods and load_model() if needed.
   """
 
   def __init__(
@@ -45,14 +42,10 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         **kwargs,
     )
     self.model = model
-    self.load_model()
 
     # After model load successfully set the health probe to ready and startup
     HealthProbeRequestHandler.is_ready = True
     HealthProbeRequestHandler.is_startup = True
-
-  def load_model(self):
-    return self.model.load_model()
 
   def get_runner_item_output_for_status(self,
                                         status: status_pb2.Status) -> service_pb2.RunnerItemOutput:

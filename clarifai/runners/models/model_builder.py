@@ -55,7 +55,7 @@ class ModelBuilder:
     self.inference_compute_info = self._get_inference_compute_info()
     self.is_v3 = True  # Do model build for v3
 
-  def create_model_instance(self):
+  def create_model_instance(self, load_model=True):
     """
     Create an instance of the model class, as specified in the config file.
     """
@@ -101,6 +101,8 @@ class ModelBuilder:
 
     # initialize the model class with the args.
     model = model_class(**model_args)
+    if load_model:
+      model.load_model()
     return model
 
   def _validate_folder(self, folder):
