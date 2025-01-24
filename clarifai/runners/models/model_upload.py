@@ -467,9 +467,9 @@ class ModelUploader:
     self.model_version_id = response.model_version_id
     logger.info(f"Created Model Version ID: {self.model_version_id}")
     logger.info(f"Full url to that version is: {self.model_url}")
-
-    success = self.monitor_model_build()
-    if success:  # cleanup the tar_file if it exists
+    try:
+      self.monitor_model_build()
+    finally:
       if os.path.exists(self.tar_file):
         logger.info(f"Cleaning up upload file: {self.tar_file}")
         os.remove(self.tar_file)
