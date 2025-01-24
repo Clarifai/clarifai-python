@@ -1,5 +1,6 @@
 import hashlib
 import os
+import platform
 import shutil
 import signal
 import subprocess
@@ -24,13 +25,30 @@ class ModelRunLocally:
     self.requirements_file = os.path.join(self.model_path, "requirements.txt")
 
     # ModelBuilder contains multiple useful methods to interact with the model
-    self.builder = ModelBuilder(self.model_path)
+    self.builder = ModelBuilder(self.model_path, download_validation_only=True)
     self.config = self.builder.config
 
   def _requirements_hash(self):
     """Generate a hash of the requirements file."""
     with open(self.requirements_file, "r") as f:
       return hashlib.md5(f.read().encode('utf-8')).hexdigest()
+
+  def _get_env_executable(self):
+    """Get the python executable from the virtual environment."""
+    # Depending on the platform, venv scripts are placed in either "Scripts" (Windows) or "bin" (Linux/Mac)
+    if platform.system().lower().startswith("win"):
+      scripts_folder = "Scripts"
+      python_exe = "python.exe"
+      pip_exe = "pip.exe"
+    else:
+      scripts_folder = "bin"
+      python_exe = "python"
+      pip_exe = "pip"
+
+    self.python_executable = os.path.join(self.venv_dir, scripts_folder, python_exe)
+    self.pip_executable = os.path.join(self.venv_dir, scripts_folder, pip_exe)
+
+    return self.python_executable, self.pip_executable
 
   def create_temp_venv(self):
     """Create a temporary virtual environment."""
@@ -50,13 +68,13 @@ class ModelRunLocally:
 
     self.venv_dir = venv_dir
     self.temp_dir = temp_dir
-    self.python_executable = os.path.join(venv_dir, "bin", "python")
+    self.python_executable, self.pip_executable = self._get_env_executable()
 
     return use_existing_venv
 
   def install_requirements(self):
     """Install the dependencies from requirements.txt and Clarifai."""
-    pip_executable = os.path.join(self.venv_dir, "bin", "pip")
+    _, pip_executable = self._get_env_executable()
     try:
       logger.info(
           f"Installing requirements from {self.requirements_file}... in the virtual environment {self.venv_dir}"
@@ -73,8 +91,7 @@ class ModelRunLocally:
   def _build_request(self):
     """Create a mock inference request for testing the model."""
 
-    builder = ModelBuilder(self.model_path)
-    model_version_proto = builder.get_model_version_proto()
+    model_version_proto = self.builder.get_model_version_proto()
     model_version_proto.id = "model_version"
 
     return service_pb2.PostModelOutputsRequest(
@@ -176,12 +193,16 @@ class ModelRunLocally:
 
   def test_model(self):
     """Test the model by running it locally in the virtual environment."""
-    command = [
-        self.python_executable,
-        "-c",
-        f"import sys; sys.path.append('{os.path.dirname(os.path.abspath(__file__))}'); "
-        f"from model_run_locally import ModelRunLocally; ModelRunLocally('{self.model_path}')._run_test()",
-    ]
+
+    import_path = repr(os.path.dirname(os.path.abspath(__file__)))
+    model_path = repr(self.model_path)
+
+    command_string = (f"import sys; "
+                      f"sys.path.append({import_path}); "
+                      f"from model_run_locally import ModelRunLocally; "
+                      f"ModelRunLocally({model_path})._run_test()")
+
+    command = [self.python_executable, "-c", command_string]
     process = None
     try:
       logger.info("Testing the model locally...")
@@ -298,6 +319,12 @@ class ModelRunLocally:
       logger.info(f"Docker image '{image_name}' does not exist!")
       return False
 
+  def _gpu_is_available(self):
+    """
+    Checks if nvidia-smi is available, indicating a GPU is likely accessible.
+    """
+    return shutil.which("nvidia-smi") is not None
+
   def run_docker_container(self,
                            image_name,
                            container_name="clarifai-model-container",
@@ -307,9 +334,9 @@ class ModelRunLocally:
     try:
       logger.info(f"Running Docker container '{container_name}' from image '{image_name}'...")
       # Base docker run command
-      cmd = [
-          "docker", "run", "--name", container_name, '--rm', "--gpus", "all", "--network", "host"
-      ]
+      cmd = ["docker", "run", "--name", container_name, '--rm', "--network", "host"]
+      if self._gpu_is_available():
+        cmd.extend(["--gpus", "all"])
       # Add volume mappings
       cmd.extend(["-v", f"{self.model_path}:/app/model_dir/main"])
       # Add environment variables
@@ -354,9 +381,9 @@ class ModelRunLocally:
     try:
       logger.info("Testing the model inside the Docker container...")
       # Base docker run command
-      cmd = [
-          "docker", "run", "--name", container_name, '--rm', "--gpus", "all", "--network", "host"
-      ]
+      cmd = ["docker", "run", "--name", container_name, '--rm', "--network", "host"]
+      if self._gpu_is_available():
+        cmd.extend(["--gpus", "all"])
       # update the entrypoint for testing the model
       cmd.extend(["--entrypoint", "python"])
       # Add volume mappings

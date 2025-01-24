@@ -3,6 +3,7 @@ import inspect
 import os
 import re
 import sys
+import tarfile
 import time
 from string import Template
 
@@ -105,7 +106,7 @@ class ModelBuilder:
   def _validate_folder(self, folder):
     if folder == ".":
       folder = ""  # will getcwd() next which ends with /
-    if not folder.startswith("/"):
+    if not os.path.isabs(folder):
       folder = os.path.join(os.getcwd(), folder)
     logger.info(f"Validating folder: {folder}")
     if not os.path.exists(folder):
@@ -479,14 +480,15 @@ class ModelBuilder:
 
     model_version_proto = self.get_model_version_proto()
 
-    if download_checkpoints:
-      tar_cmd = f"tar --exclude=*~ --exclude={self.tar_file} -czvf {self.tar_file} -C {self.folder} ."
-    else:  # we don't want to send the checkpoints up even if they are in the folder.
-      logger.info(f"Skipping {self.checkpoint_path} in the tar file that is uploaded.")
-      tar_cmd = f"tar --exclude={self.checkpoint_suffix} --exclude=*~ --exclude={self.tar_file} -czvf {self.tar_file} -C {self.folder} ."
-    # Tar the folder
-    logger.debug(tar_cmd)
-    os.system(tar_cmd)
+    def filter_func(tarinfo):
+      name = tarinfo.name
+      exclude = [self.tar_file, "*~"]
+      if not download_checkpoints:
+        exclude.append(self.checkpoint_suffix)
+      return None if any(name.endswith(ex) for ex in exclude) else tarinfo
+
+    with tarfile.open(self.tar_file, "w:gz") as tar:
+      tar.add(self.folder, arcname=".", filter=filter_func)
     logger.info("Tarring complete, about to start upload.")
 
     file_size = os.path.getsize(self.tar_file)
@@ -518,9 +520,9 @@ class ModelBuilder:
     self.model_version_id = response.model_version_id
     logger.info(f"Created Model Version ID: {self.model_version_id}")
     logger.info(f"Full url to that version is: {self.model_url}")
-
-    success = self.monitor_model_build()
-    if success:  # cleanup the tar_file if it exists
+    try:
+      self.monitor_model_build()
+    finally:
       if os.path.exists(self.tar_file):
         logger.info(f"Cleaning up upload file: {self.tar_file}")
         os.remove(self.tar_file)
