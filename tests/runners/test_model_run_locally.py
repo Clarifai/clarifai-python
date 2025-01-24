@@ -1,8 +1,10 @@
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 from clarifai.runners.models.model_run_locally import ModelRunLocally
 
@@ -12,12 +14,44 @@ CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
 
 
 @pytest.fixture
+def dummy_models_path(tmp_path):
+  """
+  Copy the dummy_runner_models folder to a temp directory and update app_id in config.yaml
+  so that your e2e tests use a newly created ephemeral app on your Clarifai account.
+  """
+  tests_dir = Path(__file__).parent.resolve()
+  original_dummy_path = tests_dir / "dummy_runner_models"
+  if not original_dummy_path.exists():
+    # Adjust or raise an error if you cannot locate the dummy_runner_models folder
+    raise FileNotFoundError(f"Could not find dummy_runner_models at {original_dummy_path}. "
+                            "Adjust path or ensure it exists.")
+
+  # Copy the entire folder to tmp_path
+  target_folder = tmp_path / "dummy_runner_models"
+  shutil.copytree(original_dummy_path, target_folder)
+
+  # Update the config.yaml to override the app_id with the ephemeral one
+  config_yaml_path = target_folder / "config.yaml"
+  with config_yaml_path.open("r") as f:
+    config = yaml.safe_load(f)
+
+  # Overwrite the app_id with the newly created clarifai_app
+  config["model"]["user_id"] = CLARIFAI_USER_ID
+
+  # Rewrite config.yaml
+  with config_yaml_path.open("w") as f:
+    yaml.dump(config, f, sort_keys=False)
+
+  return target_folder
+
+
+@pytest.fixture
 def model_run_locally():
   """
   Fixture that instantiates the ModelRunLocally class
   with the dummy model_path that already exists.
   """
-  return ModelRunLocally(MODEL_PATH)
+  return ModelRunLocally(dummy_models_path)
 
 
 def test_get_model_runner(model_run_locally):
@@ -68,9 +102,6 @@ def test_install_requirements(model_run_locally):
     model_run_locally.install_requirements()
   except SystemExit:
     pytest.fail("install_requirements() failed and exited.")
-  # You might want to verify the presence of installed packages by checking
-  # the venv's site-packages or something similar. For simplicity, we'll only
-  # verify that no exception was raised.
   # Clean up
   model_run_locally.clean_up()
 
