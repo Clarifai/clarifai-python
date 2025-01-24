@@ -8,7 +8,7 @@ import yaml
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
 from clarifai.client import User
-from clarifai.runners.models.model_upload import ModelUploader
+from clarifai.runners.models.model_builder import ModelBuilder
 
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "dummy_runner_models")
 CLARIFAI_USER_ID = os.environ["CLARIFAI_USER_ID"]
@@ -100,48 +100,47 @@ def dummy_models_path(tmp_path, clarifai_app):
 
 
 @pytest.fixture
-def model_uploader(dummy_models_path):
+def model_builder(dummy_models_path):
   """
-  Returns a ModelUploader instance for general usage in tests.
+  Returns a ModelBuilder instance for general usage in tests.
   """
-  uploader = ModelUploader(folder=dummy_models_path, validate_api_ids=False)
-  return uploader
+  return ModelBuilder(folder=dummy_models_path, validate_api_ids=False)
 
 
-def test_init_valid_folder(model_uploader):
+def test_init_valid_folder(model_builder):
   """
-  Ensure that creating a ModelUploader with a valid folder
+  Ensure that creating a ModelBuilder with a valid folder
   does not raise any exceptions and sets up the object correctly.
   """
-  assert os.path.exists(model_uploader.folder)
-  assert "config.yaml" in os.listdir(model_uploader.folder)
+  assert os.path.exists(model_builder.folder)
+  assert "config.yaml" in os.listdir(model_builder.folder)
 
 
 def test_model_uploader_flow(dummy_models_path):
   """
   End-to-end test that:
-  1. Initializes the ModelUploader on the dummy_runner_models folder
+  1. Initializes the ModelBuilder on the dummy_runner_models folder
   2. Checks folder validation
   3. Creates or reuses an existing model
   4. Uploads a new model version
   5. Waits for the build
   """
   # Initialize
-  uploader = ModelUploader(folder=str(dummy_models_path))
-  assert uploader.folder == str(dummy_models_path), "Uploader folder mismatch"
+  builder = ModelBuilder(folder=str(dummy_models_path))
+  assert builder.folder == str(dummy_models_path), "Uploader folder mismatch"
 
   # Basic checks on config
-  assert uploader.config["model"]["id"] == "dummy-runner-model"
-  assert uploader.config["model"]["user_id"] == os.environ["CLARIFAI_USER_ID"]
+  assert builder.config["model"]["id"] == "dummy-runner-model"
+  assert builder.config["model"]["user_id"] == os.environ["CLARIFAI_USER_ID"]
   # The app_id should be updated to the newly created ephemeral one
-  assert uploader.config["model"]["app_id"] == CREATE_APP_ID
+  assert builder.config["model"]["app_id"] == CREATE_APP_ID
 
   # # Validate that the model doesn't exist yet
   # # Because we are using a new ephemeral app, it's unlikely to exist
-  # assert uploader.check_model_exists() is False, "Model should not exist on new ephemeral app"
+  # assert builder.check_model_exists() is False, "Model should not exist on new ephemeral app"
 
   # Create the model (on Clarifai side)
-  create_resp = uploader.maybe_create_model()
+  create_resp = builder.maybe_create_model()
 
   if create_resp:
     returned_code = create_resp.status.code
@@ -150,17 +149,17 @@ def test_model_uploader_flow(dummy_models_path):
     ], f"Model creation failed with {returned_code}"
 
   # Now the model should exist
-  assert uploader.check_model_exists() is True, "Model should exist after creation"
+  assert builder.check_model_exists() is True, "Model should exist after creation"
 
   # Create the Dockerfile (not crucial for the actual build, but tested in the script)
-  uploader.create_dockerfile()
-  dockerfile_path = Path(uploader.folder) / "Dockerfile"
+  builder.create_dockerfile()
+  dockerfile_path = Path(builder.folder) / "Dockerfile"
   assert dockerfile_path.exists(), "Dockerfile was not created."
 
   # Upload a new version
-  uploader.upload_model_version(download_checkpoints=False)
+  builder.upload_model_version(download_checkpoints=False)
 
   # After starting the upload/build, we expect model_version_id to be set if it began building
-  assert uploader.model_version_id is not None, "Model version upload failed to initialize"
+  assert builder.model_version_id is not None, "Model version upload failed to initialize"
 
-  print(f"Test completed successfully with model_version_id={uploader.model_version_id}")
+  print(f"Test completed successfully with model_version_id={builder.model_version_id}")
