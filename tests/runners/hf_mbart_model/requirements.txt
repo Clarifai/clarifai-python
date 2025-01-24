@@ -1,6 +1,6 @@
 torch==2.4.0
 tokenizers==0.21.0
-transformers>=4.47
+transformers>=4.46
 accelerate==1.2.0
 optimum==1.23.3
 sentencepiece==0.2.0
