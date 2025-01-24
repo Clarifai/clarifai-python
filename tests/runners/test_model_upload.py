@@ -15,6 +15,22 @@ CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
 CREATE_APP_ID = "pytest-model-upload-test"
 
 
+def check_app_exists():
+  """
+  Check if the app exists on the user account.
+  """
+  user = User(
+      user_id=CLARIFAI_USER_ID,
+      base_url=os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com'),
+      pat=CLARIFAI_PAT,
+  )
+  apps = user.list_apps()
+  for app in apps:
+    if app.id == CREATE_APP_ID:
+      return True
+  return False
+
+
 def create_app():
   """
   Creates a Clarifai app for testing purposes.
@@ -25,8 +41,12 @@ def create_app():
       base_url=os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com'),
       pat=CLARIFAI_PAT,
   )
-  app = user.create_app(app_id=CREATE_APP_ID)
-  return app.id, user
+  if check_app_exists():
+    print(f"App '{CREATE_APP_ID}' already exists.")
+  else:
+    print(f"Creating app '{CREATE_APP_ID}'...")
+    user.create_app(app_id=CREATE_APP_ID)
+  return CREATE_APP_ID, user
 
 
 @pytest.fixture(scope="session")
@@ -67,8 +87,8 @@ def dummy_models_path(tmp_path, clarifai_app):
     config = yaml.safe_load(f)
 
   # Overwrite the app_id with the newly created clarifai_app
-  config["model"]["app_id"] = clarifai_app
   config["model"]["user_id"] = CLARIFAI_USER_ID
+  config["model"]["app_id"] = clarifai_app
 
   # Rewrite config.yaml
   with config_yaml_path.open("w") as f:
@@ -132,7 +152,7 @@ def test_model_uploader_flow(dummy_models_path):
 
   # Create the Dockerfile (not crucial for the actual build, but tested in the script)
   uploader.create_dockerfile()
-  dockerfile_path = dummy_models_path / "Dockerfile"
+  dockerfile_path = Path(uploader.folder) / "Dockerfile"
   assert dockerfile_path.exists(), "Dockerfile was not created."
 
   # Upload a new version
