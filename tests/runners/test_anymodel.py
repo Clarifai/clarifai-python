@@ -26,6 +26,7 @@ EXPECTED_AUDIO = b"111"
 
 
 class _AnyModel(AnyAnyModel):
+
   def __init__(self, output_text):
     self.output_text = output_text
 
