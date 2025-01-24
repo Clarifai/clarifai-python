@@ -179,7 +179,7 @@ def test_docker_build_and_test_container(model_run_locally):
   assert model_run_locally.is_docker_installed(), "Docker not installed, skipping."
 
   # Build or re-build the Docker image
-  model_run_locally.uploader.create_dockerfile()
+  model_run_locally.builder.create_dockerfile()
   image_tag = model_run_locally._docker_hash()
   image_name = f"{model_run_locally.config['model']['id']}:{image_tag}"
 
@@ -212,7 +212,7 @@ def test_hf_test_model_success(hf_model_run_locally):
   Test that test_model succeeds with the dummy model.
   This calls the script's test_model method, which runs a subprocess.
   """
-  hf_model_run_locally.uploader.download_checkpoints()
+  hf_model_run_locally.builder.download_checkpoints()
   hf_model_run_locally.create_temp_venv()
   hf_model_run_locally.install_requirements()
 
@@ -238,13 +238,13 @@ def test_hf_docker_build_and_test_container(hf_model_run_locally):
   """
 
   # Download the checkpoints for the model
-  hf_model_run_locally.uploader.download_checkpoints()
+  hf_model_run_locally.builder.download_checkpoints()
 
   # Test if Docker is installed
   assert hf_model_run_locally.is_docker_installed(), "Docker not installed, skipping."
 
   # Build or re-build the Docker image
-  hf_model_run_locally.uploader.create_dockerfile()
+  hf_model_run_locally.builder.create_dockerfile()
   image_tag = hf_model_run_locally._docker_hash()
   image_name = f"{hf_model_run_locally.config['model']['id']}:{image_tag}"
 
