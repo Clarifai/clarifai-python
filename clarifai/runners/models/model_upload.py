@@ -54,7 +54,7 @@ class ModelUploader:
   def _validate_folder(self, folder):
     if folder == ".":
       folder = ""  # will getcwd() next which ends with /
-    if not folder.startswith("/"):
+    if not os.path.isabs(folder):
       folder = os.path.join(os.getcwd(), folder)
     logger.info(f"Validating folder: {folder}")
     if not os.path.exists(folder):
