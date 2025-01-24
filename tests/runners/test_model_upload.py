@@ -26,8 +26,11 @@ def check_app_exists():
   )
   apps = user.list_apps()
   for app in apps:
+    print(f"Found app: {app} with id={app.id}")
     if app.id == CREATE_APP_ID:
+      print(f"App '{CREATE_APP_ID}' already exists.")
       return True
+  print(f"App '{CREATE_APP_ID}' does not exist.")
   return False
 
 
@@ -49,7 +52,7 @@ def create_app():
   return CREATE_APP_ID, user
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def clarifai_app():
   """
   Fixture to create and clean up a Clarifai app before/after running the tests.
