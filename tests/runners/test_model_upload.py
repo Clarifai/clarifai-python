@@ -1,5 +1,6 @@
 import os
 import shutil
+import uuid
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,8 @@ from clarifai.runners.models.model_upload import ModelUploader
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "dummy_runner_models")
 CLARIFAI_USER_ID = os.environ["CLARIFAI_USER_ID"]
 CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
-CREATE_APP_ID = "pytest-model-upload-test"
+NOW = uuid.uuid4().hex[:10]
+CREATE_APP_ID = f"pytest-model-upload-test-{NOW}"
 
 
 def check_app_exists():
@@ -26,11 +28,8 @@ def check_app_exists():
   )
   apps = user.list_apps()
   for app in apps:
-    print(f"Found app: {app} with id={app.id}")
     if app.id == CREATE_APP_ID:
-      print(f"App '{CREATE_APP_ID}' already exists.")
       return True
-  print(f"App '{CREATE_APP_ID}' does not exist.")
   return False
 
 
