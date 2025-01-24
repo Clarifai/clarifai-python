@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from clarifai_grpc.grpc.api import status_code_pb2
+from clarifai_grpc.grpc.api.status import status_code_pb2
 
 from clarifai.client import User
 from clarifai.runners.models.model_upload import ModelUploader
