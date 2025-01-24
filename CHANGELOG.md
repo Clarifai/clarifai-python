@@ -1,3 +1,9 @@
+## [[11.0.7]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.7) - [PyPI](https://pypi.org/project/clarifai/11.0.7/) - 2025-01-24
+
+### Changed
+
+ - Updated model upload experience [(#498)] (https://github.com/Clarifai/clarifai-python/pull/498)
+
 ## [[11.0.6]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.6) - [PyPI](https://pypi.org/project/clarifai/11.0.6/) - 2025-01-24
 
 ### Changed

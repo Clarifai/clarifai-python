@@ -3,7 +3,6 @@ import importlib.util
 import json
 import os
 import shutil
-import subprocess
 
 from clarifai.utils.logging import logger
 
@@ -17,7 +16,11 @@ class HuggingFaceLoader:
     self.token = token
     if token:
       if self.validate_hftoken(token):
-        subprocess.run(f'huggingface-cli login --token={os.environ["HF_TOKEN"]}', shell=True)
+        try:
+          from huggingface_hub import login
+        except ImportError:
+          raise ImportError(self.HF_DOWNLOAD_TEXT)
+        login(token=token)
         logger.info("Hugging Face token validated")
       else:
         logger.info("Continuing without Hugging Face token")

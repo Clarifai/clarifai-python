@@ -13,9 +13,9 @@ from rich import print
 from rich.markup import escape
 
 from clarifai.client import BaseClient
-from clarifai.runners.utils.const import (AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES,
-                                          CONCEPTS_REQUIRED_MODEL_TYPE, DEFAULT_PYTHON_VERSION,
-                                          PYTHON_BASE_IMAGE, TORCH_BASE_IMAGE)
+from clarifai.runners.utils.const import (
+    AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES, CONCEPTS_REQUIRED_MODEL_TYPE,
+    DEFAULT_PYTHON_VERSION, PYTHON_BUILDER_IMAGE, PYTHON_RUNTIME_IMAGE, TORCH_BASE_IMAGE)
 from clarifai.runners.utils.loader import HuggingFaceLoader
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
@@ -247,6 +247,10 @@ class ModelUploader:
         if match:
           dependency = match.group('dependency')
           version = match.group('version')
+          if dependency == "torch" and line.find(
+              'whl/cpu') > 0:  # Ignore torch-cpu whl files, use base mage.
+            continue
+
           deendencies_version[dependency] = version if version else None
     return deendencies_version
 
@@ -279,28 +283,37 @@ class ModelUploader:
       )
       python_version = DEFAULT_PYTHON_VERSION
 
-    base_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
+    # This is always the final image used for runtime.
+    runtime_image = PYTHON_RUNTIME_IMAGE.format(python_version=python_version)
+    builder_image = PYTHON_BUILDER_IMAGE.format(python_version=python_version)
+    downloader_image = PYTHON_BUILDER_IMAGE.format(python_version=python_version)
 
     # Parse the requirements.txt file to determine the base image
     dependencies = self._parse_requirements()
     if 'torch' in dependencies and dependencies['torch']:
       torch_version = dependencies['torch']
 
-      for image in AVAILABLE_TORCH_IMAGES:
+      # Sort in reverse so that newer cuda versions come first and are preferred.
+      for image in sorted(AVAILABLE_TORCH_IMAGES, reverse=True):
         if torch_version in image and f'py{python_version}' in image:
           cuda_version = image.split('-')[-1].replace('cuda', '')
-          base_image = TORCH_BASE_IMAGE.format(
+          builder_image = TORCH_BASE_IMAGE.format(
               torch_version=torch_version,
               python_version=python_version,
               cuda_version=cuda_version,
           )
+          # download_image = base_image
           logger.info(f"Using Torch version {torch_version} base image to build the Docker image")
           break
-
+    # else:  # if not torch then use the download image for the base image too
+    #   # base_image = download_image
+    #   requirements_image = base_image
     # Replace placeholders with actual values
     dockerfile_content = dockerfile_template.safe_substitute(
         name='main',
-        BASE_IMAGE=base_image,
+        BUILDER_IMAGE=builder_image,  # for pip requirements
+        RUNTIME_IMAGE=runtime_image,  # for runtime
+        DOWNLOADER_IMAGE=downloader_image,  # for downloading checkpoints
     )
 
     # Write Dockerfile
@@ -309,7 +322,10 @@ class ModelUploader:
 
   @property
   def checkpoint_path(self):
-    return os.path.join(self.folder, self.checkpoint_suffix)
+    return self._checkpoint_path(self.folder)
+
+  def _checkpoint_path(self, folder):
+    return os.path.join(folder, self.checkpoint_suffix)
 
   @property
   def checkpoint_suffix(self):
@@ -319,7 +335,14 @@ class ModelUploader:
   def tar_file(self):
     return f"{self.folder}.tar.gz"
 
-  def download_checkpoints(self):
+  def download_checkpoints(self, checkpoint_path_override: str = None):
+    """
+    Downloads the checkpoints specified in the config file.
+
+    :param checkpoint_path_override: The path to download the checkpoints to. If not provided, the
+    default path is used based on the folder ModelUploader was initialized with. The
+    checkpoint_suffix will be appended to the path.
+    """
     if not self.config.get("checkpoints"):
       logger.info("No checkpoints specified in the config file")
       return True
@@ -329,7 +352,9 @@ class ModelUploader:
     success = True
     if loader_type == "huggingface":
       loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
-      success = loader.download_checkpoints(self.checkpoint_path)
+      path = self._checkpoint_path(
+          checkpoint_path_override) if checkpoint_path_override else self.checkpoint_path
+      success = loader.download_checkpoints(path)
 
     if loader_type:
       if not success:
@@ -462,7 +487,7 @@ class ModelUploader:
           f"request_id: {response.status.req_id}",
           end='\r',
           flush=True)
-    print()
+    logger.info("")
     if response.status.code != status_code_pb2.MODEL_BUILDING:
       logger.error(f"Failed to upload model version: {response}")
       return
@@ -552,11 +577,11 @@ class ModelUploader:
         for log_entry in logs.log_entries:
           if log_entry.url not in seen_logs:
             seen_logs.add(log_entry.url)
-            print(f"Model Building Logs...: {escape(log_entry.message.strip())}")
+            logger.info(f"{escape(log_entry.message.strip())}")
         time.sleep(1)
       elif status_code == status_code_pb2.MODEL_TRAINED:
         logger.info(f"\nModel build complete! (elapsed {time.time() - st:.1f}s)")
-        logger.info(f"Check out the model at {self.model_url}")
+        logger.info(f"Check out the model at {self.model_url} version: {self.model_version_id}")
         return True
       else:
         logger.info(
