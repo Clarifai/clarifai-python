@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir -r /home/nonroot/requirements.txt && \
 FROM --platform=$TARGETPLATFORM ${DOWNLOADER_IMAGE} as downloader
 
 # make sure we have the latest clarifai package.
-RUN (pip install --upgrade --upgrade-strategy only-if-needed --no-cache-dir clarifai==11.0.7rc2 clarifai-grpc clarifai-protocol== || true)
+RUN (pip install --upgrade --upgrade-strategy only-if-needed --no-cache-dir clarifai clarifai-grpc clarifai-protocol || true)
 #####
 
 
