@@ -1,6 +1,7 @@
 # This test will create dummy runner and start the runner at first
 # Testing outputs received by client and programmed outputs of runner server
 #
+import importlib
 import os
 import threading
 import uuid
@@ -13,7 +14,6 @@ from google.protobuf import json_format
 
 from clarifai.client import BaseClient, Model, User
 from clarifai.client.auth.helper import ClarifaiAuthHelper
-from clarifai.runners.models.model_builder import ModelBuilder
 from clarifai.runners.models.model_runner import ModelRunner
 
 MY_MODEL_PATH = os.path.join(os.path.dirname(__file__), "dummy_runner_models", "1", "model.py")
@@ -24,6 +24,14 @@ MY_WRAPPER_MODEL_PATH = os.path.join(
 
 TEXT_FILE_PATH = os.path.dirname(os.path.dirname(__file__)) + "/assets/sample.txt"
 TEXT_URL = "https://samples.clarifai.com/negative_sentence_12.txt"
+
+
+def _get_model_instance(model_path, model_name="MyModel"):
+  spec = importlib.util.spec_from_file_location(model_name, model_path)
+  module = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(module)
+  cls = getattr(module, model_name)
+  return cls()
 
 
 def init_components(
@@ -150,7 +158,7 @@ class TestRunnerServer:
         pat=cls.AUTH.pat,
     )
 
-    cls.runner_model = ModelBuilder(MY_MODEL_PATH).create_model_instance()
+    cls.runner_model = _get_model_instance(MY_MODEL_PATH)
 
     cls.runner = ModelRunner(
         model=cls.runner_model,
@@ -470,7 +478,7 @@ class TestWrapperRunnerServer(TestRunnerServer):
         cls.COMPUTE_CLUSTER_ID,
     )
 
-    cls.runner_model = ModelBuilder(MY_WRAPPER_MODEL_PATH).create_model_instance()
+    cls.runner_model = _get_model_instance(MY_WRAPPER_MODEL_PATH)
 
     cls.runner = ModelRunner(
         model=cls.runner_model,
