@@ -10,7 +10,7 @@ from ..utils.url_fetcher import ensure_urls_downloaded
 from .model_class import ModelClass
 
 
-class ModelRunner(BaseRunner, ModelClass, HealthProbeRequestHandler):
+class ModelRunner(BaseRunner, HealthProbeRequestHandler):
   """
   This is a subclass of the runner class which will handle only the work items relevant to models.
 
@@ -54,15 +54,6 @@ class ModelRunner(BaseRunner, ModelClass, HealthProbeRequestHandler):
   def load_model(self):
     return self.model.load_model()
 
-  def predict(self, *args, **kwargs):
-    return self.model.predict(*args, **kwargs)
-
-  def generate(self, *args, **kwargs):
-    return self.model.generate(*args, **kwargs)
-
-  def stream(self, *args, **kwargs):
-    return self.model.stream(*args, **kwargs)
-
   def get_runner_item_output_for_status(self,
                                         status: status_pb2.Status) -> service_pb2.RunnerItemOutput:
     """
@@ -97,7 +88,7 @@ class ModelRunner(BaseRunner, ModelClass, HealthProbeRequestHandler):
     request = runner_item.post_model_outputs_request
     ensure_urls_downloaded(request)
 
-    resp = self.predict_wrapper(request)
+    resp = self.model.predict_wrapper(request)
     successes = [o.status.code == status_code_pb2.SUCCESS for o in resp.outputs]
     if all(successes):
       status = status_pb2.Status(
@@ -127,7 +118,7 @@ class ModelRunner(BaseRunner, ModelClass, HealthProbeRequestHandler):
     request = runner_item.post_model_outputs_request
     ensure_urls_downloaded(request)
 
-    for resp in self.generate_wrapper(request):
+    for resp in self.model.generate_wrapper(request):
       successes = []
       for output in resp.outputs:
         if not output.HasField('status') or not output.status.code:
@@ -155,7 +146,7 @@ class ModelRunner(BaseRunner, ModelClass, HealthProbeRequestHandler):
   def runner_item_stream(self, runner_item_iterator: Iterator[service_pb2.RunnerItem]
                         ) -> Iterator[service_pb2.RunnerItemOutput]:
     # Call the generate() method the underlying model implements.
-    for resp in self.stream_wrapper(pmo_iterator(runner_item_iterator)):
+    for resp in self.model.stream_wrapper(pmo_iterator(runner_item_iterator)):
       successes = []
       for output in resp.outputs:
         if not output.HasField('status') or not output.status.code:

@@ -126,6 +126,7 @@ def init_components(
 
 @pytest.mark.requires_secrets
 class TestRunnerServer:
+  MODEL_PATH = MY_MODEL_PATH
 
   @classmethod
   def setup_class(cls):
@@ -158,7 +159,7 @@ class TestRunnerServer:
         pat=cls.AUTH.pat,
     )
 
-    cls.runner_model = _get_model_instance(MY_MODEL_PATH)
+    cls.runner_model = _get_model_instance(cls.MODEL_PATH)
 
     cls.runner = ModelRunner(
         model=cls.runner_model,
@@ -457,46 +458,4 @@ class TestRunnerServer:
 
 @pytest.mark.requires_secrets
 class TestWrapperRunnerServer(TestRunnerServer):
-
-  @classmethod
-  def setup_class(cls):
-    NOW = uuid.uuid4().hex[:10]
-    cls.MODEL_ID = f"test-runner-model-{NOW}"
-    cls.NODEPOOL_ID = f"test-nodepool-{NOW}"
-    cls.COMPUTE_CLUSTER_ID = f"test-compute_cluster-{NOW}"
-    cls.APP_ID = f"ci-test-runner-app-{NOW}"
-    cls.CLIENT = BaseClient.from_env()
-    cls.AUTH = cls.CLIENT.auth_helper
-    cls.AUTH.app_id = cls.APP_ID
-
-    cls.MODEL_VERSION_ID, cls.RUNNER_ID = init_components(
-        cls.AUTH,
-        cls.CLIENT,
-        cls.APP_ID,
-        cls.MODEL_ID,
-        cls.NODEPOOL_ID,
-        cls.COMPUTE_CLUSTER_ID,
-    )
-
-    cls.runner_model = _get_model_instance(MY_WRAPPER_MODEL_PATH)
-
-    cls.runner = ModelRunner(
-        model=cls.runner_model,
-        runner_id=cls.RUNNER_ID,
-        nodepool_id=cls.NODEPOOL_ID,
-        compute_cluster_id=cls.COMPUTE_CLUSTER_ID,
-        num_parallel_polls=1,
-        base_url=cls.AUTH.base,
-        user_id=cls.AUTH.user_id,
-    )
-    cls.model = Model(
-        user_id=cls.AUTH.user_id,
-        app_id=cls.AUTH.app_id,
-        model_id=cls.MODEL_ID,
-        model_version={'id': cls.MODEL_VERSION_ID},
-        base_url=cls.AUTH.base,
-        pat=cls.AUTH.pat,
-    )
-    cls.thread = threading.Thread(target=cls.runner.start)
-    cls.thread.daemon = True  # close when python closes
-    cls.thread.start()
+  MODEL_PATH = MY_WRAPPER_MODEL_PATH
