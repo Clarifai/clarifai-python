@@ -1,3 +1,13 @@
+## [[11.0.6]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.6) - [PyPI](https://pypi.org/project/clarifai/11.0.6/) - 2025-01-24
+
+### Changed
+
+ - Added Model Upload Tests [(#495)] (https://github.com/Clarifai/clarifai-python/pull/495)
+ - Updated Torch version Images and Delete tar file for every upload [(#493)] (https://github.com/Clarifai/clarifai-python/pull/493)
+ - Added Tests for Model run locally [(#492)] (https://github.com/Clarifai/clarifai-python/pull/492)
+ - Added CLARIFAI_API_BASE in the test container [(#491)] (https://github.com/Clarifai/clarifai-python/pull/491)
+ - remove triton requirements [(#490)] (https://github.com/Clarifai/clarifai-python/pull/490)
+
 ## [[11.0.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.5) - [PyPI](https://pypi.org/project/clarifai/11.0.5/) - 2025-01-17
 
 ### Changed
