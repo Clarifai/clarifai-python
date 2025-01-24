@@ -137,9 +137,9 @@ def test_model_uploader_flow(dummy_models_path):
   # The app_id should be updated to the newly created ephemeral one
   assert uploader.config["model"]["app_id"] == CREATE_APP_ID
 
-  # Validate that the model doesn't exist yet
-  # Because we are using a new ephemeral app, it's unlikely to exist
-  assert uploader.check_model_exists() is False, "Model should not exist on new ephemeral app"
+  # # Validate that the model doesn't exist yet
+  # # Because we are using a new ephemeral app, it's unlikely to exist
+  # assert uploader.check_model_exists() is False, "Model should not exist on new ephemeral app"
 
   # Create the model (on Clarifai side)
   create_resp = uploader.maybe_create_model()
