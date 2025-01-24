@@ -8,7 +8,6 @@ import yaml
 
 from clarifai.runners.models.model_run_locally import ModelRunLocally
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "dummy_runner_models")
 CLARIFAI_USER_ID = os.environ["CLARIFAI_USER_ID"]
 CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
 
@@ -42,7 +41,7 @@ def dummy_models_path(tmp_path):
   with config_yaml_path.open("w") as f:
     yaml.dump(config, f, sort_keys=False)
 
-  return target_folder
+  return str(target_folder)
 
 
 @pytest.fixture
@@ -52,6 +51,47 @@ def model_run_locally(dummy_models_path):
   with the dummy model_path that already exists.
   """
   return ModelRunLocally(dummy_models_path)
+
+
+@pytest.fixture
+def dummy_hf_models_path(tmp_path):
+  """
+  Copy the hf_mbart_model folder to a temp directory and update app_id in config.yaml
+  so that your e2e tests use a newly created ephemeral app on your Clarifai account.
+  """
+  tests_dir = Path(__file__).parent.resolve()
+  original_dummy_path = tests_dir / "hf_mbart_model"
+  if not original_dummy_path.exists():
+    # Adjust or raise an error if you cannot locate the hf_mbart_model folder
+    raise FileNotFoundError(f"Could not find hf_mbart_model at {original_dummy_path}. "
+                            "Adjust path or ensure it exists.")
+
+  # Copy the entire folder to tmp_path
+  target_folder = tmp_path / "hf_mbart_model"
+  shutil.copytree(original_dummy_path, target_folder)
+
+  # Update the config.yaml to override the app_id with the ephemeral one
+  config_yaml_path = target_folder / "config.yaml"
+  with config_yaml_path.open("r") as f:
+    config = yaml.safe_load(f)
+
+  # Overwrite the app_id with the newly created clarifai_app
+  config["model"]["user_id"] = CLARIFAI_USER_ID
+
+  # Rewrite config.yaml
+  with config_yaml_path.open("w") as f:
+    yaml.dump(config, f, sort_keys=False)
+
+  return str(target_folder)
+
+
+@pytest.fixture
+def hf_model_run_locally(dummy_hf_models_path):
+  """
+  Fixture that instantiates the ModelRunLocally class
+  with the dummy model_path that already exists.
+  """
+  return ModelRunLocally(dummy_hf_models_path)
 
 
 def test_get_model_runner(model_run_locally):
@@ -134,10 +174,6 @@ def test_docker_build_and_test_container(model_run_locally):
   Test building a Docker image and running a container test using the dummy model.
   This test will be skipped if Docker is not installed.
   """
-  # Setup
-  # download_checkpoints & createDockerfile are called in the main()
-  # but we can do it here if needed. The code calls them automatically
-  # in main if inside_container is True, we directly test the method:
 
   # Test if Docker is installed
   assert model_run_locally.is_docker_installed(), "Docker not installed, skipping."
