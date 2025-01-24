@@ -46,7 +46,7 @@ def dummy_models_path(tmp_path):
 
 
 @pytest.fixture
-def model_run_locally():
+def model_run_locally(dummy_models_path):
   """
   Fixture that instantiates the ModelRunLocally class
   with the dummy model_path that already exists.
