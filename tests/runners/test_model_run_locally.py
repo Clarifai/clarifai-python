@@ -168,7 +168,7 @@ def test_test_model_success(model_run_locally):
 
 
 # @pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed or not in PATH.")
-@pytest.mark.skip(reason="Will add later after new clarifai package is released")
+# @pytest.mark.skip(reason="Will add later after new clarifai package is released")
 def test_docker_build_and_test_container(model_run_locally):
   """
   Test building a Docker image and running a container test using the dummy model.
@@ -230,7 +230,7 @@ def test_hf_test_model_success(hf_model_run_locally):
 
 
 # @pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed or not in PATH.")
-@pytest.mark.skip(reason="Will add later after new clarifai package is released")
+# @pytest.mark.skip(reason="Will add later after new clarifai package is released")
 def test_hf_docker_build_and_test_container(hf_model_run_locally):
   """
   Test building a Docker image and running a container test using the dummy model.
