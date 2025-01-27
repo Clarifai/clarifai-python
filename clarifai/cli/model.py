@@ -5,8 +5,7 @@ from clarifai.cli.base import cli
 
 @cli.group(['model'])
 def model():
-  """Manage models: upload, test locally, run_locally, predict"""
-  pass
+  """Manage models: upload, test locally, run locally, predict, and more"""
 
 
 @model.command()
@@ -39,10 +38,20 @@ def upload(model_path, download_checkpoints, skip_dockerfile):
     type=click.Path(exists=True),
     required=True,
     help='Path to the model directory.')
-def download_checkpoints(model_path):
-  """Download remote checkpoints that are specified in the config."""
+@click.option(
+    '--out_path',
+    type=click.Path(exists=False),
+    required=False,
+    default=None,
+    help=
+    'Option path to write the checkpoints to. This will place them in {out_path}/ If not provided it will default to {model_path}/1/checkpoints where the config.yaml is read..'
+)
+def download_checkpoints(model_path, out_path):
+  """Download checkpoints from external source to local model_path"""
+
   from clarifai.runners.models.model_builder import ModelBuilder
-  ModelBuilder(model_path).download_checkpoints()
+  builder = ModelBuilder(model_path, download_validation_only=True)
+  builder.download_checkpoints(out_path)
 
 
 @model.command()

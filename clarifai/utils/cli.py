@@ -46,7 +46,7 @@ def load_command_modules():
   package_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'cli')
 
   for _, module_name, _ in pkgutil.iter_modules([package_dir]):
-    if module_name != 'base':  # Skip the base.py file itself
+    if module_name not in ['base', '__main__']:  # Skip the base.py and __main__ file itself
       importlib.import_module(f'clarifai.cli.{module_name}')
 
 

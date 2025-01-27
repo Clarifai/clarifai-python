@@ -108,5 +108,6 @@ def login(ctx, config, env, user_id):
 # Import the CLI commands to register them
 load_command_modules()
 
-if __name__ == '__main__':
+
+def main():
   cli()

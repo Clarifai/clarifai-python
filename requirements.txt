@@ -1,5 +1,5 @@
-clarifai-grpc>=11.0.0
-clarifai-protocol>=0.0.14
+clarifai-grpc>=11.0.5
+clarifai-protocol>=0.0.16
 numpy>=1.22.0
 tqdm>=4.65.0
 rich>=13.4.2

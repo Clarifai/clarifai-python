@@ -143,8 +143,8 @@ def _configure_logger(name: str, logger_level: Union[int, str] = logging.NOTSET)
   else:
     # Add the new rich handler and formatter
     handler = RichHandler(
-        rich_tracebacks=True, log_time_format="%Y-%m-%d %H:%M:%S", console=Console(width=255))
-    formatter = logging.Formatter('%(name)s:  %(message)s')
+        rich_tracebacks=True, log_time_format="%Y-%m-%d %H:%M:%S.%f", console=Console(width=255))
+    formatter = logging.Formatter('%(message)s')
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 

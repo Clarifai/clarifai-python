@@ -169,6 +169,7 @@ class TestRunnerServer:
         num_parallel_polls=1,
         base_url=cls.AUTH.base,
         user_id=cls.AUTH.user_id,
+        health_check_port=None,
     )
     cls.thread = threading.Thread(target=cls.runner.start)
     cls.thread.daemon = True  # close when python closes
