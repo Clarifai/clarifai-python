@@ -1,4 +1,5 @@
 import os
+import tempfile
 import uuid
 
 import pytest
@@ -87,47 +88,56 @@ class TestComputeOrchestration:
       pass  # Ignore if not found
 
   def test_create_compute_cluster(self, test_cli):
+    config_file = tempfile.NamedTemporaryFile("w")
+
     with open(COMPUTE_CLUSTER_CONFIG_FILE) as f:
       config = yaml.safe_load(f)
     config["compute_cluster"]["id"] = self.CREATE_COMPUTE_CLUSTER_ID
-    with open(COMPUTE_CLUSTER_CONFIG_FILE, "w") as f:
+
+    with open(config_file.name, "w") as f:
       yaml.dump(config, f)
 
     test_cli.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = test_cli.invoke(cli, [
-        "computecluster", "create", "--config", COMPUTE_CLUSTER_CONFIG_FILE,
-        "--compute_cluster_id", self.CREATE_COMPUTE_CLUSTER_ID
+        "computecluster", "create", "--config", config_file.name, "--compute_cluster_id",
+        self.CREATE_COMPUTE_CLUSTER_ID
     ])
     assert result.exit_code == 0
 
   def test_create_nodepool(self, test_cli):
+    config_file = tempfile.NamedTemporaryFile("w")
+
     with open(NODEPOOL_CONFIG_FILE) as f:
       config = yaml.safe_load(f)
     config["nodepool"]["id"] = self.CREATE_NODEPOOL_ID
-    with open(NODEPOOL_CONFIG_FILE, "w") as f:
+
+    with open(config_file.name, "w") as f:
       yaml.dump(config, f)
 
     test_cli.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = test_cli.invoke(cli, [
         "nodepool", "create", "--compute_cluster_id", self.CREATE_COMPUTE_CLUSTER_ID, "--config",
-        NODEPOOL_CONFIG_FILE, "--nodepool_id", self.CREATE_NODEPOOL_ID
+        config_file.name, "--nodepool_id", self.CREATE_NODEPOOL_ID
     ])
     assert result.exit_code == 0
 
   @pytest.mark.coverage_only
   def test_create_deployment(self, test_cli):
+    config_file = tempfile.NamedTemporaryFile("w")
+
     with open(DEPLOYMENT_CONFIG_FILE) as f:
       config = yaml.safe_load(f)
     config["deployment"]["id"] = self.CREATE_DEPLOYMENT_ID
     config["deployment"]["nodepools"][0]["id"] = self.CREATE_NODEPOOL_ID
     config["deployment"]["nodepools"][0]["compute_cluster"]["id"] = self.CREATE_COMPUTE_CLUSTER_ID
-    with open(DEPLOYMENT_CONFIG_FILE, "w") as f:
+
+    with open(config_file.name, "w") as f:
       yaml.dump(config, f)
 
     test_cli.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = test_cli.invoke(cli, [
         "deployment", "create", "--nodepool_id", self.CREATE_NODEPOOL_ID, "--config",
-        DEPLOYMENT_CONFIG_FILE, "--deployment_id", self.CREATE_DEPLOYMENT_ID
+        config_file.name, "--deployment_id", self.CREATE_DEPLOYMENT_ID
     ])
     assert result.exit_code == 0
 
