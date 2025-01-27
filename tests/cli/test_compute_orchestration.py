@@ -110,6 +110,7 @@ class TestComputeOrchestration:
     with open(NODEPOOL_CONFIG_FILE) as f:
       config = yaml.safe_load(f)
     config["nodepool"]["id"] = self.CREATE_NODEPOOL_ID
+    config["nodepool"]["compute_cluster"]["id"] = self.CREATE_COMPUTE_CLUSTER_ID
 
     with open(config_file.name, "w") as f:
       yaml.dump(config, f)
