@@ -224,6 +224,7 @@ class ModelRunLocally:
         nodepool_id="n/a",
         compute_cluster_id="n/a",
         user_id="n/a",
+        health_check_port=None,
     )
     # send an inference.
     self._run_model_inference(runner)
