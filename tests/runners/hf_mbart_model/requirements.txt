@@ -4,4 +4,4 @@ transformers>=4.44
 accelerate>=1.0.1
 optimum>=1.20.0
 sentencepiece==0.2.0
-requests==2.23.0
+requests
