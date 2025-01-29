@@ -21,8 +21,9 @@ class ModelClass(ABC):
     """This method is used for input/output proto data conversion and yield outcome"""
     return self.stream(request)
 
+  @abstractmethod
   def load_model(self):
-    pass
+    raise NotImplementedError("load_model() not implemented")
 
   @abstractmethod
   def predict(self,
