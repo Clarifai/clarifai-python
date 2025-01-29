@@ -56,6 +56,7 @@ class TestTextInputModel(unittest.TestCase):
 
   def setUp(self):
     self.model = _TextGenerationModel()
+    self.model.load_model()
 
   def _test_predict(self):
     input_data = [TEXT]

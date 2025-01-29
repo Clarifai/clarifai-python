@@ -63,6 +63,7 @@ class TestAnyAnyModel(unittest.TestCase):
 
   def setUp(self):
     self.model = _AnyModel()
+    self.model.load_model()
 
   def _test_predict(self):
     input_data = dict(image=IMAGE, text=TEXT, audio=AUDIO)
