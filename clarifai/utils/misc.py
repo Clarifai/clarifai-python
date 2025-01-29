@@ -81,8 +81,8 @@ def get_uuid(val: int) -> str:
 def clean_input_id(input_id: str) -> str:
   """Clean input_id string into a valid input ID"""
   input_id = re.sub('[., /]+', '_', input_id)
-  input_id = re.sub('__', '_', input_id)
-  input_id = re.sub('--', '-', input_id)
+  input_id = re.sub('[_]+', '_', input_id)
+  input_id = re.sub('[-]+', '-', input_id)
   input_id = input_id.lower().strip('_-')
   input_id = re.sub('[^a-z0-9-_]+', '', input_id)
   return input_id
