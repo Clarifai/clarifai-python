@@ -59,21 +59,13 @@ class ModelBuilder:
     """
     Create an instance of the model class, as specified in the config file.
     """
-    class_config = self.config.get("class_info", {})
-
-    model_file = class_config.get("file_path")
-    if model_file:
-      model_file = os.path.join(self.folder, model_file)
-      if not os.path.exists(model_file):
-        raise Exception(f"Model file {model_file} does not exist.")
-    else:
-      # look for default model.py file location
-      for loc in ["model.py", "1/model.py"]:
-        model_file = os.path.join(self.folder, loc)
-        if os.path.exists(model_file):
-          break
-      if not os.path.exists(model_file):
-        raise Exception("Model file not found.")
+    # look for default model.py file location
+    for loc in ["model.py", "1/model.py"]:
+      model_file = os.path.join(self.folder, loc)
+      if os.path.exists(model_file):
+        break
+    if not os.path.exists(model_file):
+      raise Exception("Model file not found.")
 
     module_name = os.path.basename(model_file).replace(".py", "")
 
@@ -82,37 +74,32 @@ class ModelBuilder:
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
 
-    if class_config.get("class_name"):
-      model_class = getattr(module, class_config["class_name"])
-    else:
-      # Find all classes in the model.py file that are subclasses of ModelClass
-      classes = [
+    # Find all classes in the model.py file that are subclasses of ModelClass
+    classes = [
+        cls for _, cls in inspect.getmembers(module, inspect.isclass)
+        if issubclass(cls, ModelClass) and cls.__module__ == module.__name__
+    ]
+    #  Ensure there is exactly one subclass of BaseRunner in the model.py file
+    if len(classes) != 1:
+      # check for old inheritence structure, ModelRunner used to be a ModelClass
+      runner_classes = [
           cls for _, cls in inspect.getmembers(module, inspect.isclass)
-          if issubclass(cls, ModelClass) and cls.__module__ == module.__name__
+          if cls.__module__ == module.__name__ and any(c.__name__ == 'ModelRunner'
+                                                       for c in cls.__bases__)
       ]
-      #  Ensure there is exactly one subclass of BaseRunner in the model.py file
-      if len(classes) != 1:
-        # check for old inheritence structure, ModelRunner used to be a ModelClass
-        runner_classes = [
-            cls for _, cls in inspect.getmembers(module, inspect.isclass)
-            if cls.__module__ == module.__name__ and any(c.__name__ == 'ModelRunner'
-                                                         for c in cls.__bases__)
-        ]
-        if runner_classes and len(runner_classes) == 1:
-          raise Exception(
-              f'Could not determine model class.'
-              f' Models should now inherit from {ModelClass.__module__}.ModelClass, not ModelRunner.'
-              f' Please update your model "{runner_classes[0].__name__}" to inherit from ModelClass.'
-          )
+      if runner_classes and len(runner_classes) == 1:
         raise Exception(
-            "Could not determine model class. Please specify it in the config with class_info.model_class."
+            f'Could not determine model class.'
+            f' Models should now inherit from {ModelClass.__module__}.ModelClass, not ModelRunner.'
+            f' Please update your model "{runner_classes[0].__name__}" to inherit from ModelClass.'
         )
-      model_class = classes[0]
+      raise Exception(
+          "Could not determine model class. There should be exactly one model inheriting from ModelClass defined in the model.py"
+      )
+    model_class = classes[0]
 
-    model_args = class_config.get("args", {})
-
-    # initialize the model class with the args.
-    model = model_class(**model_args)
+    # initialize the model
+    model = model_class()
     if load_model:
       model.load_model()
     return model

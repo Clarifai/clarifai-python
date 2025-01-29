@@ -27,11 +27,8 @@ EXPECTED_AUDIO = b"111"
 
 class _AnyModel(AnyAnyModel):
 
-  def __init__(self, output_text):
-    self.output_text = output_text
-
   def load_model(self):
-    pass
+    self.output_text = "any-anymodel"
 
   def predict(self, input_data: List[Dict],
               inference_parameters: Dict[str, Any]) -> List[OutputDataHandler]:
@@ -65,7 +62,7 @@ class _AnyModel(AnyAnyModel):
 class TestAnyAnyModel(unittest.TestCase):
 
   def setUp(self):
-    self.model = _AnyModel(output_text="any-anymodel")
+    self.model = _AnyModel()
 
   def _test_predict(self):
     input_data = dict(image=IMAGE, text=TEXT, audio=AUDIO)

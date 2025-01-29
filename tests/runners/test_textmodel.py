@@ -27,11 +27,8 @@ EXPECTED_AUDIO = b"111"
 
 class _TextGenerationModel(TextInputModel):
 
-  def __init__(self, output_text: str):
-    self.output_text = output_text
-
   def load_model(self):
-    pass
+    self.output_text = "any-anymodel"
 
   def predict(self, input_data: List[str],
               inference_parameters: Dict[str, Any]) -> List[OutputDataHandler]:
@@ -58,7 +55,7 @@ class _TextGenerationModel(TextInputModel):
 class TestTextInputModel(unittest.TestCase):
 
   def setUp(self):
-    self.model = _TextGenerationModel(output_text="any-anymodel",)
+    self.model = _TextGenerationModel()
 
   def _test_predict(self):
     input_data = [TEXT]
