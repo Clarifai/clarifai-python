@@ -92,6 +92,18 @@ class ModelBuilder:
       ]
       #  Ensure there is exactly one subclass of BaseRunner in the model.py file
       if len(classes) != 1:
+        # check for old inheritence structure, ModelRunner used to be a ModelClass
+        runner_classes = [
+            cls for _, cls in inspect.getmembers(module, inspect.isclass)
+            if cls.__module__ == module.__name__ and any(c.__name__ == 'ModelRunner'
+                                                         for c in cls.__bases__)
+        ]
+        if runner_classes and len(runner_classes) == 1:
+          raise Exception(
+              f'Could not determine model class.'
+              f' Models should now inherit from {ModelClass.__module__}.ModelClass, not ModelRunner.'
+              f' Please update your model "{runner_classes[0].__name__}" to inherit from ModelClass.'
+          )
         raise Exception(
             "Could not determine model class. Please specify it in the config with class_info.model_class."
         )
