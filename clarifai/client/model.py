@@ -1,5 +1,7 @@
 import json
+import logging
 import os
+import subprocess
 import time
 from typing import Any, Dict, Generator, Iterator, List, Tuple, Union
 
@@ -924,7 +926,8 @@ class Model(Lister, BaseClient):
         inference_params=inference_params,
         output_config=output_config)
 
-  def _req_iterator(self, input_iterator: Iterator[List[Input]], runner_selector: RunnerSelector, model_info: resources_pb2.Model):
+  def _req_iterator(self, input_iterator: Iterator[List[Input]], runner_selector: RunnerSelector,
+                    model_info: resources_pb2.Model):
     for inputs in input_iterator:
       yield service_pb2.PostModelOutputsRequest(
           user_app_id=self.user_app_id,
@@ -1170,7 +1173,55 @@ class Model(Lister, BaseClient):
         inference_params=inference_params,
         output_config=output_config)
 
-  def _get_model_info_for_inference(self, inference_params: Dict = {}, output_config: Dict = {}) -> None:
+  def stream_by_video_file(self,
+                           filepath: str,
+                           input_type: str = 'video',
+                           compute_cluster_id: str = None,
+                           nodepool_id: str = None,
+                           deployment_id: str = None,
+                           user_id: str = None,
+                           inference_params: Dict = {},
+                           output_config: Dict = {}):
+    """
+    Stream the model output based on the given video file.
+
+    Converts the video file to a streamable format, streams as bytes to the model,
+    and streams back the model outputs.
+
+    Args:
+        filepath (str): The filepath to predict.
+        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        compute_cluster_id (str): The compute cluster ID to use for the model.
+        nodepool_id (str): The nodepool ID to use for the model.
+        deployment_id (str): The deployment ID to use for the model.
+        inference_params (dict): The inference params to override.
+        output_config (dict): The output config to override.
+    """
+
+    if not os.path.isfile(filepath):
+      raise UserError('Invalid filepath.')
+
+    # TODO check if the file is streamable already
+
+    # Convert the video file to a streamable format
+    # TODO this conversion can offset the start time by a little bit; we should account for this
+    # by getting the original start time ffprobe and either sending that to the model so it can adjust
+    # with the ts of the first frame (too fragile to do all of this adjustment in the client input stream)
+    command = 'ffmpeg -i FILEPATH -c copy -f mpegts -muxpreload 0 -muxdelay 0 pipe:'.split()
+    command[command.index('FILEPATH')] = filepath  # handles special characters in filepath
+    proc = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL if self.logger.level >= logging.INFO else None)
+
+    chunk_size = 1024 * 1024  # 1 MB
+    chunk_iterator = iter(lambda: proc.stdout.read(chunk_size), b'')
+
+    return self.stream_by_bytes(chunk_iterator, input_type, compute_cluster_id, nodepool_id,
+                                deployment_id, user_id, inference_params, output_config)
+
+  def _get_model_info_for_inference(self, inference_params: Dict = {},
+                                    output_config: Dict = {}) -> None:
     """Overrides the model version.
 
     Args:
