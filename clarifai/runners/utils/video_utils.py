@@ -26,7 +26,7 @@ def stream_video_from_url(url, download_ok=True):
     # otherwise download the whole file
     # e.g. if linking to a streamable file format like mpegts (not mp4)
     file = tempfile.NamedTemporaryFile(delete=True)
-    _download_video(url, file)
+    download_file(url, file.name)
     container = av.open(file.name)
   else:
     # TODO others: s3, etc.
@@ -36,13 +36,12 @@ def stream_video_from_url(url, download_ok=True):
   yield from container.decode(video=0)
 
 
-def _download_video(url, file):
+def download_file(url, file_name):
   response = requests.get(url, stream=True)
   response.raise_for_status()
-  for chunk in response.iter_content(chunk_size=1024):
-    file.write(chunk)
-  file.flush()
-  return file
+  with open(file_name, 'wb') as f:
+    for chunk in response.iter_content(chunk_size=1024):
+      f.write(chunk)
 
 
 def stream_video_from_bytes(bytes_iterator):
