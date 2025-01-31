@@ -62,7 +62,7 @@ COPY --link=true --from=pip_packages /venv /venv
 # for the actual model.
 # If checkpoints aren't downloaded since a checkpoints: block is not provided, then they will
 # be in the build context and copied here as well.
-COPY --link=true 1/model.py /home/nonroot/main/1/model.py
+COPY --link=true 1 /home/nonroot/main/1
 # At this point we only need these for validation in the SDK.
 COPY --link=true requirements.txt config.yaml /home/nonroot/main/
 

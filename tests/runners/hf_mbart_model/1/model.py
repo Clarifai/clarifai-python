@@ -6,7 +6,7 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-from clarifai.runners.models.model_runner import ModelRunner
+from clarifai.runners.models.model_class import ModelClass
 from clarifai.utils.logging import logger
 
 NUM_GPUS = 1
@@ -23,7 +23,7 @@ def set_output(texts: list):
   return output_protos
 
 
-class MyRunner(ModelRunner):
+class MyModel(ModelClass):
   """A custom runner that loads the model and generates text using lmdeploy inference.
   """
 

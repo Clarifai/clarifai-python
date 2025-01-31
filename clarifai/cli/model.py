@@ -28,9 +28,8 @@ def model():
 )
 def upload(model_path, download_checkpoints, skip_dockerfile):
   """Upload a model to Clarifai."""
-  from clarifai.runners.models import model_upload
-
-  model_upload.main(model_path, download_checkpoints, skip_dockerfile)
+  from clarifai.runners.models.model_builder import upload_model
+  upload_model(model_path, download_checkpoints, skip_dockerfile)
 
 
 @model.command()
@@ -50,9 +49,9 @@ def upload(model_path, download_checkpoints, skip_dockerfile):
 def download_checkpoints(model_path, out_path):
   """Download checkpoints from external source to local model_path"""
 
-  from clarifai.runners.models.model_upload import ModelUploader
-  uploader = ModelUploader(model_path, download_validation_only=True)
-  uploader.download_checkpoints(out_path)
+  from clarifai.runners.models.model_builder import ModelBuilder
+  builder = ModelBuilder(model_path, download_validation_only=True)
+  builder.download_checkpoints(out_path)
 
 
 @model.command()

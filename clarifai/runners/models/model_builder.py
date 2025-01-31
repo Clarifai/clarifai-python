@@ -1,3 +1,5 @@
+import importlib
+import inspect
 import os
 import re
 import sys
@@ -13,6 +15,7 @@ from rich import print
 from rich.markup import escape
 
 from clarifai.client import BaseClient
+from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.const import (
     AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES, CONCEPTS_REQUIRED_MODEL_TYPE,
     DEFAULT_PYTHON_VERSION, PYTHON_BUILDER_IMAGE, PYTHON_RUNTIME_IMAGE, TORCH_BASE_IMAGE)
@@ -28,7 +31,7 @@ def _clear_line(n: int = 1) -> None:
     print(LINE_UP, end=LINE_CLEAR, flush=True)
 
 
-class ModelUploader:
+class ModelBuilder:
 
   def __init__(self, folder: str, validate_api_ids: bool = True, download_validation_only=False):
     """
@@ -51,6 +54,55 @@ class ModelUploader:
     self.model_version_id = None
     self.inference_compute_info = self._get_inference_compute_info()
     self.is_v3 = True  # Do model build for v3
+
+  def create_model_instance(self, load_model=True):
+    """
+    Create an instance of the model class, as specified in the config file.
+    """
+    # look for default model.py file location
+    for loc in ["model.py", "1/model.py"]:
+      model_file = os.path.join(self.folder, loc)
+      if os.path.exists(model_file):
+        break
+    if not os.path.exists(model_file):
+      raise Exception("Model file not found.")
+
+    module_name = os.path.basename(model_file).replace(".py", "")
+
+    spec = importlib.util.spec_from_file_location(module_name, model_file)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    # Find all classes in the model.py file that are subclasses of ModelClass
+    classes = [
+        cls for _, cls in inspect.getmembers(module, inspect.isclass)
+        if issubclass(cls, ModelClass) and cls.__module__ == module.__name__
+    ]
+    #  Ensure there is exactly one subclass of BaseRunner in the model.py file
+    if len(classes) != 1:
+      # check for old inheritence structure, ModelRunner used to be a ModelClass
+      runner_classes = [
+          cls for _, cls in inspect.getmembers(module, inspect.isclass)
+          if cls.__module__ == module.__name__ and any(c.__name__ == 'ModelRunner'
+                                                       for c in cls.__bases__)
+      ]
+      if runner_classes and len(runner_classes) == 1:
+        raise Exception(
+            f'Could not determine model class.'
+            f' Models should now inherit from {ModelClass.__module__}.ModelClass, not ModelRunner.'
+            f' Please update your model "{runner_classes[0].__name__}" to inherit from ModelClass.'
+        )
+      raise Exception(
+          "Could not determine model class. There should be exactly one model inheriting from ModelClass defined in the model.py"
+      )
+    model_class = classes[0]
+
+    # initialize the model
+    model = model_class()
+    if load_model:
+      model.load_model()
+    return model
 
   def _validate_folder(self, folder):
     if folder == ".":
@@ -589,19 +641,19 @@ class ModelUploader:
         return False
 
 
-def main(folder, download_checkpoints, skip_dockerfile):
-  uploader = ModelUploader(folder)
+def upload_model(folder, download_checkpoints, skip_dockerfile):
+  builder = ModelBuilder(folder)
   if download_checkpoints:
-    uploader.download_checkpoints()
+    builder.download_checkpoints()
   if not skip_dockerfile:
-    uploader.create_dockerfile()
-  exists = uploader.check_model_exists()
+    builder.create_dockerfile()
+  exists = builder.check_model_exists()
   if exists:
     logger.info(
-        f"Model already exists at {uploader.model_url}, this upload will create a new version for it."
+        f"Model already exists at {builder.model_url}, this upload will create a new version for it."
     )
   else:
-    logger.info(f"New model will be created at {uploader.model_url} with it's first version.")
+    logger.info(f"New model will be created at {builder.model_url} with it's first version.")
 
   input("Press Enter to continue...")
-  uploader.upload_model_version(download_checkpoints)
+  builder.upload_model_version(download_checkpoints)
