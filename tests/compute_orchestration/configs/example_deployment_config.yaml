@@ -10,11 +10,11 @@ deployment:
     disable_packing: false
   worker:
     model:
-      id: "apparel-clusterering"
+      id: "python_string_cat"
       model_version:
-        id: "cc911f6b0ed748efb89e3d1359c146c4"
+        id: "b7038e059a0c4ddca29c22aec561824d"
       user_id: "clarifai"
-      app_id: "main"
+      app_id: "Test-Model-Upload"
   scheduling_choice: 4
   nodepools:
     - id: "test-nodepool-6"
