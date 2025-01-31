@@ -70,7 +70,11 @@ def main():
 
   builder = ModelBuilder(parsed_args.model_path)
 
-  model = builder.create_model_instance()
+  try:
+    model = builder.create_model_instance()
+  except Exception as e:
+    logger.exception("Error creating model instance")
+    model = builder.create_error_model_instance(e)
 
   # Setup the grpc server for local development.
   if parsed_args.grpc:
