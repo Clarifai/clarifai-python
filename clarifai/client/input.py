@@ -22,7 +22,7 @@ from clarifai.constants.dataset import MAX_RETRIES
 from clarifai.constants.input import MAX_UPLOAD_BATCH_SIZE
 from clarifai.errors import UserError
 from clarifai.utils.logging import logger
-from clarifai.utils.misc import BackoffIterator, Chunker
+from clarifai.utils.misc import BackoffIterator, Chunker, clean_input_id
 
 
 class Inputs(Lister, BaseClient):
@@ -282,7 +282,7 @@ class Inputs(Lister, BaseClient):
     for filename in os.listdir(folder_path):
       if filename.split('.')[-1] not in ['jpg', 'jpeg', 'png', 'tiff', 'webp']:
         continue
-      input_id = filename.split('.')[0]
+      input_id = clean_input_id(filename.split('.')[0])
       image_pb = resources_pb2.Image(base64=open(os.path.join(folder_path, filename), 'rb').read())
       input_protos.append(
           Inputs._get_proto(
@@ -473,7 +473,7 @@ class Inputs(Lister, BaseClient):
     for filename in os.listdir(folder_path):
       if filename.split('.')[-1] != 'txt':
         continue
-      input_id = filename.split('.')[0]
+      input_id = clean_input_id(filename.split('.')[0])
       text_pb = resources_pb2.Text(raw=open(os.path.join(folder_path, filename), 'rb').read())
       input_protos.append(
           Inputs._get_proto(
