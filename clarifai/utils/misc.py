@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 from typing import Any, Dict, List
 
@@ -75,3 +76,13 @@ def concept_relations_accumulation(relations_dict: Dict[str, Any], subject_conce
 def get_uuid(val: int) -> str:
   """Generates a UUID."""
   return uuid.uuid4().hex[:val]
+
+
+def clean_input_id(input_id: str) -> str:
+  """Clean input_id string into a valid input ID"""
+  input_id = re.sub('[., /]+', '_', input_id)
+  input_id = re.sub('[_]+', '_', input_id)
+  input_id = re.sub('[-]+', '-', input_id)
+  input_id = input_id.lower().strip('_-')
+  input_id = re.sub('[^a-z0-9-_]+', '', input_id)
+  return input_id
