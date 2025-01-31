@@ -17,4 +17,3 @@ inference_compute_info:
 checkpoints:
   type: "huggingface"
   repo_id: "sshleifer/tiny-mbart"
-  hf_token: ""
