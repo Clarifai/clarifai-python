@@ -1,7 +1,5 @@
 import json
-import logging
 import os
-import subprocess
 import time
 from typing import Any, Dict, Generator, Iterator, List, Tuple, Union
 
@@ -1207,15 +1205,13 @@ class Model(Lister, BaseClient):
     # TODO this conversion can offset the start time by a little bit; we should account for this
     # by getting the original start time ffprobe and either sending that to the model so it can adjust
     # with the ts of the first frame (too fragile to do all of this adjustment in the client input stream)
-    command = 'ffmpeg -i FILEPATH -c copy -f mpegts -muxpreload 0 -muxdelay 0 pipe:'.split()
-    command[command.index('FILEPATH')] = filepath  # handles special characters in filepath
-    proc = subprocess.Popen(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL if self.logger.level >= logging.INFO else None)
+    # or by adjusting the timestamps in the output stream
+    from clarifai.runners.utils import video_utils
+    stream = video_utils.recontain_as_streamable(filepath)
 
+    # TODO accumulate reads to fill the chunk size
     chunk_size = 1024 * 1024  # 1 MB
-    chunk_iterator = iter(lambda: proc.stdout.read(chunk_size), b'')
+    chunk_iterator = iter(lambda: stream.read(chunk_size), b'')
 
     return self.stream_by_bytes(chunk_iterator, input_type, compute_cluster_id, nodepool_id,
                                 deployment_id, user_id, inference_params, output_config)

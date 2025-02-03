@@ -1,5 +1,7 @@
 import io
+import os
 import tempfile
+import threading
 
 import av
 import requests
@@ -55,3 +57,42 @@ def stream_video_from_bytes(bytes_iterator):
   reader = io.BufferedReader(buffer)
   container = av.open(reader)
   yield from container.decode(video=0)
+
+
+def recontain_as_streamable(filepath):
+  return recontain(filepath, "mpegts", {"muxpreload": "0", "muxdelay": "0"})
+
+
+def recontain(input, format, options={}):
+  # pyav-only implementation of "ffmpeg -i filepath -f mpegts -muxpreload 0 -muxdelay 0 pipe:"
+  read_pipe_fd, write_pipe_fd = os.pipe()
+  read_pipe = os.fdopen(read_pipe_fd, "rb")
+  write_pipe = os.fdopen(write_pipe_fd, "wb")
+
+  def _run_av():
+    input_container = output_container = None
+    try:
+      # open input and output containers, using mpegts as output format
+      input_container = av.open(input, options=options)
+      output_container = av.open(write_pipe, mode="w", format=format)
+
+      # Copy streams directly without re-encoding
+      for stream in input_container.streams:
+        output_container.add_stream_from_template(stream)
+
+      # Read packets from input and write them to output
+      for packet in input_container.demux():
+        if not packet.size:
+          break
+        output_container.mux(packet)
+
+    finally:
+      if output_container:
+        output_container.close()
+      if input_container:
+        input_container.close()
+
+  t = threading.Thread(target=_run_av)
+  t.start()
+
+  return read_pipe
