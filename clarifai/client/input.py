@@ -572,6 +572,24 @@ class Inputs(Lister, BaseClient):
 
     return input_mask_proto
 
+  def get_input(self, input_id: str) -> Input:
+    """Get Input object of input with input_id provided from the app.
+
+    Args:
+        input_id (str): The input ID for the annotation to get.
+
+    Returns:
+        Input: An Input object for the specified input ID.
+
+    Example:
+        >>> from clarifai.client.input import Inputs
+        >>> input_obj = Inputs(user_id = 'user_id', app_id = 'demo_app')
+        >>> input_obj.get_input(input_id='demo')
+    """
+    request = service_pb2.GetInputRequest(user_app_id=self.user_app_id, input_id=input_id)
+    response = self._grpc_request(self.STUB.GetInput, request)
+    return response.input
+
   def upload_from_url(self,
                       input_id: str,
                       image_url: str = None,
