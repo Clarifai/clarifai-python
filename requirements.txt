@@ -1,13 +1,11 @@
-clarifai-grpc>=11.0.3
-clarifai-protocol>=0.0.14
+clarifai-grpc>=11.0.5
+clarifai-protocol>=0.0.16
 numpy>=1.22.0
 tqdm>=4.65.0
-tritonclient>=2.34.0
 rich>=13.4.2
 PyYAML>=6.0.1
 schema==0.7.5
 Pillow>=9.5.0
-inquirerpy==0.3.4
 tabulate>=0.9.0
 fsspec==2024.6.1
 click==8.1.7

@@ -4,7 +4,7 @@ import tempfile
 
 import pytest
 
-from clarifai.runners.models.model_upload import ModelUploader
+from clarifai.runners.models.model_builder import ModelBuilder
 from clarifai.runners.utils.loader import HuggingFaceLoader
 
 MODEL_ID = "timm/mobilenetv3_small_100.lamb_in1k"
@@ -57,6 +57,6 @@ def test_validate_download(checkpoint_dir):
 
 def test_download_checkpoints(dummy_runner_models_dir):
   model_folder_path = os.path.join(os.path.dirname(__file__), "dummy_runner_models")
-  model_upload = ModelUploader(model_folder_path, download_validation_only=True)
-  isdownloaded = model_upload.download_checkpoints()
+  model_builder = ModelBuilder(model_folder_path, download_validation_only=True)
+  isdownloaded = model_builder.download_checkpoints()
   assert isdownloaded is True

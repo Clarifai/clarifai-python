@@ -7,10 +7,10 @@ from clarifai_grpc.grpc.api.service_pb2 import PostModelOutputsRequest
 from google.protobuf import json_format
 
 from ..utils.data_handler import InputDataHandler, OutputDataHandler
-from .model_runner import ModelRunner
+from .model_class import ModelClass
 
 
-class AnyAnyModel(ModelRunner):
+class AnyAnyModel(ModelClass):
 
   def load_model(self):
     """

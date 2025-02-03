@@ -1,3 +1,5 @@
+import importlib
+import inspect
 import os
 import re
 import sys
@@ -13,9 +15,10 @@ from rich import print
 from rich.markup import escape
 
 from clarifai.client import BaseClient
-from clarifai.runners.utils.const import (AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES,
-                                          CONCEPTS_REQUIRED_MODEL_TYPE, DEFAULT_PYTHON_VERSION,
-                                          PYTHON_BASE_IMAGE, TORCH_BASE_IMAGE)
+from clarifai.runners.models.model_class import ModelClass
+from clarifai.runners.utils.const import (
+    AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES, CONCEPTS_REQUIRED_MODEL_TYPE,
+    DEFAULT_PYTHON_VERSION, PYTHON_BUILDER_IMAGE, PYTHON_RUNTIME_IMAGE, TORCH_BASE_IMAGE)
 from clarifai.runners.utils.loader import HuggingFaceLoader
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
@@ -28,7 +31,7 @@ def _clear_line(n: int = 1) -> None:
     print(LINE_UP, end=LINE_CLEAR, flush=True)
 
 
-class ModelUploader:
+class ModelBuilder:
   DEFAULT_CHECKPOINT_SIZE = 50 * 1024**3  # 50 GiB
 
   def __init__(self, folder: str, validate_api_ids: bool = True, download_validation_only=False):
@@ -53,10 +56,59 @@ class ModelUploader:
     self.inference_compute_info = self._get_inference_compute_info()
     self.is_v3 = True  # Do model build for v3
 
+  def create_model_instance(self, load_model=True):
+    """
+    Create an instance of the model class, as specified in the config file.
+    """
+    # look for default model.py file location
+    for loc in ["model.py", "1/model.py"]:
+      model_file = os.path.join(self.folder, loc)
+      if os.path.exists(model_file):
+        break
+    if not os.path.exists(model_file):
+      raise Exception("Model file not found.")
+
+    module_name = os.path.basename(model_file).replace(".py", "")
+
+    spec = importlib.util.spec_from_file_location(module_name, model_file)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    # Find all classes in the model.py file that are subclasses of ModelClass
+    classes = [
+        cls for _, cls in inspect.getmembers(module, inspect.isclass)
+        if issubclass(cls, ModelClass) and cls.__module__ == module.__name__
+    ]
+    #  Ensure there is exactly one subclass of BaseRunner in the model.py file
+    if len(classes) != 1:
+      # check for old inheritence structure, ModelRunner used to be a ModelClass
+      runner_classes = [
+          cls for _, cls in inspect.getmembers(module, inspect.isclass)
+          if cls.__module__ == module.__name__ and any(c.__name__ == 'ModelRunner'
+                                                       for c in cls.__bases__)
+      ]
+      if runner_classes and len(runner_classes) == 1:
+        raise Exception(
+            f'Could not determine model class.'
+            f' Models should now inherit from {ModelClass.__module__}.ModelClass, not ModelRunner.'
+            f' Please update your model "{runner_classes[0].__name__}" to inherit from ModelClass.'
+        )
+      raise Exception(
+          "Could not determine model class. There should be exactly one model inheriting from ModelClass defined in the model.py"
+      )
+    model_class = classes[0]
+
+    # initialize the model
+    model = model_class()
+    if load_model:
+      model.load_model()
+    return model
+
   def _validate_folder(self, folder):
     if folder == ".":
       folder = ""  # will getcwd() next which ends with /
-    if not folder.startswith("/"):
+    if not os.path.isabs(folder):
       folder = os.path.join(os.getcwd(), folder)
     logger.info(f"Validating folder: {folder}")
     if not os.path.exists(folder):
@@ -268,6 +320,10 @@ class ModelUploader:
         if match:
           dependency = match.group('dependency')
           version = match.group('version')
+          if dependency == "torch" and line.find(
+              'whl/cpu') > 0:  # Ignore torch-cpu whl files, use base mage.
+            continue
+
           deendencies_version[dependency] = version if version else None
     return deendencies_version
 
@@ -300,28 +356,37 @@ class ModelUploader:
       )
       python_version = DEFAULT_PYTHON_VERSION
 
-    base_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
+    # This is always the final image used for runtime.
+    runtime_image = PYTHON_RUNTIME_IMAGE.format(python_version=python_version)
+    builder_image = PYTHON_BUILDER_IMAGE.format(python_version=python_version)
+    downloader_image = PYTHON_BUILDER_IMAGE.format(python_version=python_version)
 
     # Parse the requirements.txt file to determine the base image
     dependencies = self._parse_requirements()
     if 'torch' in dependencies and dependencies['torch']:
       torch_version = dependencies['torch']
 
-      for image in AVAILABLE_TORCH_IMAGES:
+      # Sort in reverse so that newer cuda versions come first and are preferred.
+      for image in sorted(AVAILABLE_TORCH_IMAGES, reverse=True):
         if torch_version in image and f'py{python_version}' in image:
           cuda_version = image.split('-')[-1].replace('cuda', '')
-          base_image = TORCH_BASE_IMAGE.format(
+          builder_image = TORCH_BASE_IMAGE.format(
               torch_version=torch_version,
               python_version=python_version,
               cuda_version=cuda_version,
           )
+          # download_image = base_image
           logger.info(f"Using Torch version {torch_version} base image to build the Docker image")
           break
-
+    # else:  # if not torch then use the download image for the base image too
+    #   # base_image = download_image
+    #   requirements_image = base_image
     # Replace placeholders with actual values
     dockerfile_content = dockerfile_template.safe_substitute(
         name='main',
-        BASE_IMAGE=base_image,
+        BUILDER_IMAGE=builder_image,  # for pip requirements
+        RUNTIME_IMAGE=runtime_image,  # for runtime
+        DOWNLOADER_IMAGE=downloader_image,  # for downloading checkpoints
     )
 
     # Write Dockerfile
@@ -330,7 +395,10 @@ class ModelUploader:
 
   @property
   def checkpoint_path(self):
-    return os.path.join(self.folder, self.checkpoint_suffix)
+    return self._checkpoint_path(self.folder)
+
+  def _checkpoint_path(self, folder):
+    return os.path.join(folder, self.checkpoint_suffix)
 
   @property
   def checkpoint_suffix(self):
@@ -340,7 +408,14 @@ class ModelUploader:
   def tar_file(self):
     return f"{self.folder}.tar.gz"
 
-  def download_checkpoints(self):
+  def download_checkpoints(self, checkpoint_path_override: str = None):
+    """
+    Downloads the checkpoints specified in the config file.
+
+    :param checkpoint_path_override: The path to download the checkpoints to. If not provided, the
+    default path is used based on the folder ModelUploader was initialized with. The
+    checkpoint_suffix will be appended to the path.
+    """
     if not self.config.get("checkpoints"):
       logger.info("No checkpoints specified in the config file")
       return True
@@ -350,7 +425,9 @@ class ModelUploader:
     success = True
     if loader_type == "huggingface":
       loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
-      success = loader.download_checkpoints(self.checkpoint_path)
+      path = self._checkpoint_path(
+          checkpoint_path_override) if checkpoint_path_override else self.checkpoint_path
+      success = loader.download_checkpoints(path)
 
     if loader_type:
       if not success:
@@ -450,14 +527,15 @@ class ModelUploader:
 
     model_version_proto = self.get_model_version_proto()
 
-    if download_checkpoints:
-      tar_cmd = f"tar --exclude=*~ --exclude={self.tar_file} -czvf {self.tar_file} -C {self.folder} ."
-    else:  # we don't want to send the checkpoints up even if they are in the folder.
-      logger.info(f"Skipping {self.checkpoint_path} in the tar file that is uploaded.")
-      tar_cmd = f"tar --exclude={self.checkpoint_suffix} --exclude=*~ --exclude={self.tar_file} -czvf {self.tar_file} -C {self.folder} ."
-    # Tar the folder
-    logger.debug(tar_cmd)
-    os.system(tar_cmd)
+    def filter_func(tarinfo):
+      name = tarinfo.name
+      exclude = [self.tar_file, "*~"]
+      if not download_checkpoints:
+        exclude.append(self.checkpoint_suffix)
+      return None if any(name.endswith(ex) for ex in exclude) else tarinfo
+
+    with tarfile.open(self.tar_file, "w:gz") as tar:
+      tar.add(self.folder, arcname=".", filter=filter_func)
     logger.info("Tarring complete, about to start upload.")
 
     file_size = os.path.getsize(self.tar_file)
@@ -494,16 +572,16 @@ class ModelUploader:
           f"request_id: {response.status.req_id}",
           end='\r',
           flush=True)
-    print()
+    logger.info("")
     if response.status.code != status_code_pb2.MODEL_BUILDING:
       logger.error(f"Failed to upload model version: {response}")
       return
     self.model_version_id = response.model_version_id
     logger.info(f"Created Model Version ID: {self.model_version_id}")
     logger.info(f"Full url to that version is: {self.model_url}")
-
-    success = self.monitor_model_build()
-    if success:  # cleanup the tar_file if it exists
+    try:
+      self.monitor_model_build()
+    finally:
       if os.path.exists(self.tar_file):
         logger.info(f"Cleaning up upload file: {self.tar_file}")
         os.remove(self.tar_file)
@@ -585,11 +663,11 @@ class ModelUploader:
         for log_entry in logs.log_entries:
           if log_entry.url not in seen_logs:
             seen_logs.add(log_entry.url)
-            print(f"Model Building Logs...: {escape(log_entry.message.strip())}")
+            logger.info(f"{escape(log_entry.message.strip())}")
         time.sleep(1)
       elif status_code == status_code_pb2.MODEL_TRAINED:
         logger.info(f"\nModel build complete! (elapsed {time.time() - st:.1f}s)")
-        logger.info(f"Check out the model at {self.model_url}")
+        logger.info(f"Check out the model at {self.model_url} version: {self.model_version_id}")
         return True
       else:
         logger.info(
@@ -597,19 +675,19 @@ class ModelUploader:
         return False
 
 
-def main(folder, download_checkpoints, skip_dockerfile):
-  uploader = ModelUploader(folder)
+def upload_model(folder, download_checkpoints, skip_dockerfile):
+  builder = ModelBuilder(folder)
   if download_checkpoints:
-    uploader.download_checkpoints()
+    builder.download_checkpoints()
   if not skip_dockerfile:
-    uploader.create_dockerfile()
-  exists = uploader.check_model_exists()
+    builder.create_dockerfile()
+  exists = builder.check_model_exists()
   if exists:
     logger.info(
-        f"Model already exists at {uploader.model_url}, this upload will create a new version for it."
+        f"Model already exists at {builder.model_url}, this upload will create a new version for it."
     )
   else:
-    logger.info(f"New model will be created at {uploader.model_url} with it's first version.")
+    logger.info(f"New model will be created at {builder.model_url} with it's first version.")
 
   input("Press Enter to continue...")
-  uploader.upload_model_version(download_checkpoints)
+  builder.upload_model_version(download_checkpoints)

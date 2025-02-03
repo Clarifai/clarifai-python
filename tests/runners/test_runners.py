@@ -1,56 +1,37 @@
 # This test will create dummy runner and start the runner at first
 # Testing outputs received by client and programmed outputs of runner server
 #
-import importlib.util
-import inspect
+import importlib
 import os
-import sys
 import threading
 import uuid
 
 import pytest
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
-from clarifai_protocol import BaseRunner
 from clarifai_protocol.utils.logging import logger
 from google.protobuf import json_format
 
 from clarifai.client import BaseClient, Model, User
 from clarifai.client.auth.helper import ClarifaiAuthHelper
+from clarifai.runners.models.model_runner import ModelRunner
 
-
-def runner_class(runner_path):
-
-  # arbitrary name given to the module to be imported
-  module = "runner_module"
-
-  spec = importlib.util.spec_from_file_location(module, runner_path)
-  runner_module = importlib.util.module_from_spec(spec)
-  sys.modules[module] = runner_module
-  spec.loader.exec_module(runner_module)
-
-  # Find all classes in the model.py file that are subclasses of BaseRunner
-  classes = [
-      cls for _, cls in inspect.getmembers(runner_module, inspect.isclass)
-      if issubclass(cls, BaseRunner) and cls.__module__ == runner_module.__name__
-  ]
-
-  #  Ensure there is exactly one subclass of BaseRunner in the model.py file
-  if len(classes) != 1:
-    raise Exception("Expected exactly one subclass of BaseRunner, found: {}".format(len(classes)))
-
-  return classes[0]
-
-
-MyRunner = runner_class(
-    runner_path=os.path.join(os.path.dirname(__file__), "dummy_runner_models", "1", "model.py"))
-MyWrapperRunner = runner_class(runner_path=os.path.join(
-    os.path.dirname(__file__), "dummy_runner_models", "1", "model_wrapper.py"))
+MY_MODEL_PATH = os.path.join(os.path.dirname(__file__), "dummy_runner_models", "1", "model.py")
+MY_WRAPPER_MODEL_PATH = os.path.join(
+    os.path.dirname(__file__), "dummy_runner_models", "1", "model_wrapper.py")
 
 # logger.disabled = True
 
 TEXT_FILE_PATH = os.path.dirname(os.path.dirname(__file__)) + "/assets/sample.txt"
 TEXT_URL = "https://samples.clarifai.com/negative_sentence_12.txt"
+
+
+def _get_model_instance(model_path, model_name="MyModel"):
+  spec = importlib.util.spec_from_file_location(model_name, model_path)
+  module = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(module)
+  cls = getattr(module, model_name)
+  return cls()
 
 
 def init_components(
@@ -145,6 +126,7 @@ def init_components(
 
 @pytest.mark.requires_secrets
 class TestRunnerServer:
+  MODEL_PATH = MY_MODEL_PATH
 
   @classmethod
   def setup_class(cls):
@@ -176,13 +158,18 @@ class TestRunnerServer:
         base_url=cls.AUTH.base,
         pat=cls.AUTH.pat,
     )
-    cls.runner = MyRunner(
+
+    cls.runner_model = _get_model_instance(cls.MODEL_PATH)
+
+    cls.runner = ModelRunner(
+        model=cls.runner_model,
         runner_id=cls.RUNNER_ID,
         nodepool_id=cls.NODEPOOL_ID,
         compute_cluster_id=cls.COMPUTE_CLUSTER_ID,
         num_parallel_polls=1,
         base_url=cls.AUTH.base,
         user_id=cls.AUTH.user_id,
+        health_check_port=None,
     )
     cls.thread = threading.Thread(target=cls.runner.start)
     cls.thread.daemon = True  # close when python closes
@@ -472,42 +459,4 @@ class TestRunnerServer:
 
 @pytest.mark.requires_secrets
 class TestWrapperRunnerServer(TestRunnerServer):
-
-  @classmethod
-  def setup_class(cls):
-    NOW = uuid.uuid4().hex[:10]
-    cls.MODEL_ID = f"test-runner-model-{NOW}"
-    cls.NODEPOOL_ID = f"test-nodepool-{NOW}"
-    cls.COMPUTE_CLUSTER_ID = f"test-compute_cluster-{NOW}"
-    cls.APP_ID = f"ci-test-runner-app-{NOW}"
-    cls.CLIENT = BaseClient.from_env()
-    cls.AUTH = cls.CLIENT.auth_helper
-    cls.AUTH.app_id = cls.APP_ID
-
-    cls.MODEL_VERSION_ID, cls.RUNNER_ID = init_components(
-        cls.AUTH,
-        cls.CLIENT,
-        cls.APP_ID,
-        cls.MODEL_ID,
-        cls.NODEPOOL_ID,
-        cls.COMPUTE_CLUSTER_ID,
-    )
-    cls.runner = MyWrapperRunner(
-        runner_id=cls.RUNNER_ID,
-        nodepool_id=cls.NODEPOOL_ID,
-        compute_cluster_id=cls.COMPUTE_CLUSTER_ID,
-        num_parallel_polls=1,
-        base_url=cls.AUTH.base,
-        user_id=cls.AUTH.user_id,
-    )
-    cls.model = Model(
-        user_id=cls.AUTH.user_id,
-        app_id=cls.AUTH.app_id,
-        model_id=cls.MODEL_ID,
-        model_version={'id': cls.MODEL_VERSION_ID},
-        base_url=cls.AUTH.base,
-        pat=cls.AUTH.pat,
-    )
-    cls.thread = threading.Thread(target=cls.runner.start)
-    cls.thread.daemon = True  # close when python closes
-    cls.thread.start()
+  MODEL_PATH = MY_WRAPPER_MODEL_PATH
