@@ -5,6 +5,7 @@ registry = os.environ.get('CLARIFAI_BASE_IMAGE_REGISTRY', 'public.ecr.aws/clarif
 PYTHON_BUILDER_IMAGE = registry + '/python-base:builder-{python_version}'
 PYTHON_RUNTIME_IMAGE = registry + '/python-base:runtime-{python_version}'
 TORCH_BASE_IMAGE = registry + '/torch:builder-{torch_version}-py{python_version}-cuda{cuda_version}'
+TORCH_RUNTIME_IMAGE = registry + '/torch:runtime-{torch_version}-py{python_version}-cuda{cuda_version}'
 
 # List of available python base images
 AVAILABLE_PYTHON_IMAGES = ['3.11', '3.12']

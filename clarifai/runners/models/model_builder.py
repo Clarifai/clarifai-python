@@ -16,9 +16,10 @@ from rich.markup import escape
 
 from clarifai.client import BaseClient
 from clarifai.runners.models.model_class import ModelClass
-from clarifai.runners.utils.const import (
-    AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES, CONCEPTS_REQUIRED_MODEL_TYPE,
-    DEFAULT_PYTHON_VERSION, PYTHON_BUILDER_IMAGE, PYTHON_RUNTIME_IMAGE, TORCH_BASE_IMAGE)
+from clarifai.runners.utils.const import (AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES,
+                                          CONCEPTS_REQUIRED_MODEL_TYPE, DEFAULT_PYTHON_VERSION,
+                                          PYTHON_BUILDER_IMAGE, PYTHON_RUNTIME_IMAGE,
+                                          TORCH_BASE_IMAGE, TORCH_RUNTIME_IMAGE)
 from clarifai.runners.utils.loader import HuggingFaceLoader
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
@@ -350,6 +351,11 @@ class ModelBuilder:
         if torch_version in image and f'py{python_version}' in image:
           cuda_version = image.split('-')[-1].replace('cuda', '')
           builder_image = TORCH_BASE_IMAGE.format(
+              torch_version=torch_version,
+              python_version=python_version,
+              cuda_version=cuda_version,
+          )
+          runtime_image = TORCH_RUNTIME_IMAGE.format(
               torch_version=torch_version,
               python_version=python_version,
               cuda_version=cuda_version,

@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1.13-labs
 #############################
 # User specific requirements installed in the pip_packages
 #############################
@@ -54,7 +54,7 @@ RUN ["python", "-m", "clarifai.cli", "model", "download-checkpoints", "--model_p
 
 
 #####
-# Copy the python packages from the previous stage.
+# Copy the python packages from the builder stage.
 COPY --link=true --from=pip_packages /venv /venv
 #####
 
