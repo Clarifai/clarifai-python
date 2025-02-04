@@ -340,7 +340,7 @@ class ModelRunLocally:
       if self._gpu_is_available():
         cmd.extend(["--gpus", "all"])
       # Add volume mappings
-      cmd.extend(["-v", f"{self.model_path}:/app/model_dir/main"])
+      cmd.extend(["-v", f"{self.model_path}:/home/nonroot/main"])
       # Add environment variables
       if env_vars:
         for key, value in env_vars.items():
@@ -348,7 +348,7 @@ class ModelRunLocally:
       # Add the image name
       cmd.append(image_name)
       # update the CMD to run the server
-      cmd.extend(["--model_path", "/app/model_dir/main", "--grpc", "--port", str(port)])
+      cmd.extend(["--model_path", "/home/nonroot/main", "--grpc", "--port", str(port)])
       # Run the container
       process = subprocess.Popen(cmd,)
       logger.info(
@@ -389,7 +389,7 @@ class ModelRunLocally:
       # update the entrypoint for testing the model
       cmd.extend(["--entrypoint", "python"])
       # Add volume mappings
-      cmd.extend(["-v", f"{self.model_path}:/app/model_dir/main"])
+      cmd.extend(["-v", f"{self.model_path}:/home/nonroot/main"])
       # Add environment variables
       if env_vars:
         for key, value in env_vars.items():
@@ -399,7 +399,7 @@ class ModelRunLocally:
       # update the CMD to test the model inside the container
       cmd.extend([
           "-c",
-          "from clarifai.runners.models.model_run_locally import ModelRunLocally; ModelRunLocally('/app/model_dir/main')._run_test()"
+          "from clarifai.runners.models.model_run_locally import ModelRunLocally; ModelRunLocally('/home/nonroot/main')._run_test()"
       ])
       # Run the container
       subprocess.check_call(cmd)
