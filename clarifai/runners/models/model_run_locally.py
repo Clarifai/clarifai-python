@@ -81,9 +81,6 @@ class ModelRunLocally:
       logger.info(
           f"Installing requirements from {self.requirements_file}... in the virtual environment {self.venv_dir}"
       )
-      logger.info("Installing Clarifai package...")
-      subprocess.check_call(
-          [pip_executable, "install", "clarifai==" + __import__("clarifai").__version__])
       logger.info("Installing model requirements...")
       subprocess.check_call([pip_executable, "install", "-r", self.requirements_file])
       logger.info("Requirements installed successfully!")
