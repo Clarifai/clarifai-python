@@ -9,7 +9,7 @@ import requests
 from clarifai.runners.utils import stream_utils
 
 
-def stream_video_from_url(url, download_ok=True):
+def stream_frames_from_url(url, download_ok=True):
   """
     Streams a video at the specified resolution using PyAV.
 
@@ -46,7 +46,7 @@ def download_file(url, file_name):
       f.write(chunk)
 
 
-def stream_video_from_bytes(bytes_iterator):
+def stream_frames_from_bytes(bytes_iterator):
   """
     Streams a video from a sequence of chunked byte strings of a streamable video
     container format.
