@@ -23,6 +23,7 @@ class HuggingFaceLoader:
         login(token=token)
         logger.info("Hugging Face token validated")
       else:
+        self.token = None
         logger.info("Continuing without Hugging Face token")
 
   @classmethod
@@ -30,7 +31,6 @@ class HuggingFaceLoader:
     try:
       if importlib.util.find_spec("huggingface_hub") is None:
         raise ImportError(cls.HF_DOWNLOAD_TEXT)
-      os.environ['HF_TOKEN'] = hf_token
       from huggingface_hub import HfApi
 
       api = HfApi()
