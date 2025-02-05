@@ -68,11 +68,9 @@ def download_checkpoints(model_path, out_path):
     help=
     'Specify how to test the model locally: "env" for virtual environment or "container" for Docker container. Defaults to "env".'
 )
-@click.option('--pdb', is_flag=True, help='Enable PDB debugging when testing the model locally.')
 @click.option(
     '--keep_env',
     is_flag=True,
-    default=True,
     help=
     'Keep the virtual environment after testing the model locally (applicable for virtualenv mode). Defaults to False.'
 )
@@ -82,7 +80,7 @@ def download_checkpoints(model_path, out_path):
     help=
     'Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.'
 )
-def test_locally(model_path, pdb=False, keep_env=False, keep_image=False, mode='env'):
+def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
   """Test model locally."""
   try:
     from clarifai.runners.models import model_run_locally
@@ -91,12 +89,9 @@ def test_locally(model_path, pdb=False, keep_env=False, keep_image=False, mode='
     if mode == 'container' and keep_env:
       raise ValueError("'keep_env' is applicable only for 'env' mode")
 
-    if pdb and mode == "container":
-      raise ValueError("PDB debugging is not supported in container mode.")
-
     if mode == "env":
       click.echo("Testing model locally in a virtual environment...")
-      model_run_locally.main(model_path, run_model_server=False, keep_env=keep_env, use_pdb=pdb)
+      model_run_locally.main(model_path, run_model_server=False, keep_env=keep_env)
     elif mode == "container":
       click.echo("Testing model locally inside a container...")
       model_run_locally.main(
@@ -130,7 +125,6 @@ def test_locally(model_path, pdb=False, keep_env=False, keep_image=False, mode='
 @click.option(
     '--keep_env',
     is_flag=True,
-    default=True,
     help=
     'Keep the virtual environment after testing the model locally (applicable for virtualenv mode). Defaults to False.'
 )

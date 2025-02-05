@@ -10,7 +10,6 @@ import time
 import traceback
 import venv
 
-import platformdirs
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
@@ -53,14 +52,17 @@ class ModelRunLocally:
 
   def create_temp_venv(self):
     """Create a temporary virtual environment."""
-    venv_key = hashlib.md5(self.model_path.encode('utf-8')).hexdigest()
-    temp_dir = os.path.join(platformdirs.user_cache_dir('clarifai', 'clarifai'), 'venvs', venv_key)
+    requirements_hash = self._requirements_hash()
+
+    temp_dir = os.path.join(tempfile.gettempdir(), str(requirements_hash))
     venv_dir = os.path.join(temp_dir, "venv")
 
     if os.path.exists(temp_dir):
-      logger.info(f"Using previous virtual environment at {venv_dir}")
+      logger.info(f"Using previous virtual environment at {temp_dir}")
+      use_existing_venv = True
     else:
-      logger.info("Creating virtual environment...")
+      logger.info("Creating temporary virtual environment...")
+      use_existing_venv = False
       venv.create(venv_dir, with_pip=True)
       logger.info(f"Created temporary virtual environment at {venv_dir}")
 
@@ -68,24 +70,19 @@ class ModelRunLocally:
     self.temp_dir = temp_dir
     self.python_executable, self.pip_executable = self._get_env_executable()
 
+    return use_existing_venv
+
   def install_requirements(self):
     """Install the dependencies from requirements.txt and Clarifai."""
-    if os.path.exists(os.path.join(self.temp_dir, "requirements.txt")):
-      requirements = open(self.requirements_file).read()
-      installed_requirements = open(os.path.join(self.temp_dir, "requirements.txt")).read()
-      if requirements == installed_requirements:
-        logger.info("Requirements already installed.")
-        return
     _, pip_executable = self._get_env_executable()
     try:
       logger.info(
           f"Installing requirements from {self.requirements_file}... in the virtual environment {self.venv_dir}"
       )
-      logger.info("Installing model requirements...")
       subprocess.check_call([pip_executable, "install", "-r", self.requirements_file])
+      logger.info("Installing Clarifai package...")
+      subprocess.check_call([pip_executable, "install", "clarifai"])
       logger.info("Requirements installed successfully!")
-      with open(os.path.join(self.temp_dir, "requirements.txt"), "w") as f:
-        f.write(open(self.requirements_file).read())
     except subprocess.CalledProcessError as e:
       logger.error(f"Error installing requirements: {e}")
       self.clean_up()
@@ -180,12 +177,9 @@ class ModelRunLocally:
       ))
 
     if stream_response:
-      try:
-        stream_first_res = next(stream_response)
-      except StopIteration:
-        stream_first_res = None
-      if stream_first_res is None or stream_first_res.outputs[0].status.code != status_code_pb2.SUCCESS:
-        logger.error(f"Model stream failed: {stream_first_res}")
+      stream_first_res = next(stream_response)
+      if stream_first_res.outputs[0].status.code != status_code_pb2.SUCCESS:
+        logger.error(f"Moddel Prediction failed: {stream_first_res}")
       else:
         logger.info(
             f"Model Prediction succeeded for stream and first response: {stream_first_res}")
@@ -197,7 +191,7 @@ class ModelRunLocally:
     # send an inference.
     self._run_model_inference(model)
 
-  def test_model(self, use_pdb=False):
+  def test_model(self):
     """Test the model by running it locally in the virtual environment."""
 
     import_path = repr(os.path.dirname(os.path.abspath(__file__)))
@@ -207,12 +201,8 @@ class ModelRunLocally:
                       f"sys.path.append({import_path}); "
                       f"from model_run_locally import ModelRunLocally; "
                       f"ModelRunLocally({model_path})._run_test()")
-    main_file = tempfile.NamedTemporaryFile(mode="w")
-    with open(main_file.name, "w") as f:
-      f.write(command_string)
 
-    pdb_args = ["-m", "pdb"] if use_pdb else []
-    command = [self.python_executable, *pdb_args, main_file.name]
+    command = [self.python_executable, "-c", command_string]
     process = None
     try:
       logger.info("Testing the model locally...")
@@ -242,13 +232,12 @@ class ModelRunLocally:
           process.kill()
 
   # run the model server
-  def run_model_server(self, port=8080, use_pdb=False):
+  def run_model_server(self, port=8080):
     """Run the Clarifai Runners's model server."""
 
-    pdb_args = ["-m", "pdb"] if use_pdb else []
     command = [
-        self.python_executable, *pdb_args, "-m", "clarifai.runners.server", "--model_path",
-        self.model_path, "--grpc", "--port",
+        self.python_executable, "-m", "clarifai.runners.server", "--model_path", self.model_path,
+        "--grpc", "--port",
         str(port)
     ]
     try:
@@ -473,19 +462,16 @@ class ModelRunLocally:
   def clean_up(self):
     """Clean up the temporary virtual environment."""
     if os.path.exists(self.temp_dir):
-      logger.info("Cleaning up virtual environment...")
+      logger.info("Cleaning up temporary virtual environment...")
       shutil.rmtree(self.temp_dir)
 
 
-def main(
-    model_path,
-    run_model_server=False,
-    inside_container=False,
-    port=8080,
-    keep_env=True,
-    keep_image=False,
-    use_pdb=False,
-):
+def main(model_path,
+         run_model_server=False,
+         inside_container=False,
+         port=8080,
+         keep_env=False,
+         keep_image=False):
 
   if not os.environ['CLARIFAI_PAT']:
     logger.error(
@@ -527,9 +513,9 @@ def main(
       if not use_existing_env:
         manager.install_requirements()
       if run_model_server:
-        manager.run_model_server(port, use_pdb=use_pdb)
+        manager.run_model_server(port)
       else:
-        manager.test_model(use_pdb=use_pdb)
+        manager.test_model()
     finally:
       if not keep_env:
         manager.clean_up()

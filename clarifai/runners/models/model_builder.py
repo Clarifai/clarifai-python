@@ -104,12 +104,6 @@ class ModelBuilder:
       model.load_model()
     return model
 
-  def create_error_model_instance(self, exception: Exception):
-    """
-    Create an instance of the model class that just raises the given exception.
-    """
-    return ErrorModel(exception)
-
   def _validate_folder(self, folder):
     if folder == ".":
       folder = ""  # will getcwd() next which ends with /
@@ -645,24 +639,6 @@ class ModelBuilder:
         logger.info(
             f"\nModel build failed with status: {resp.model_version.status} and response {resp}")
         return False
-
-
-class ErrorModel(ModelClass):
-
-  def __init__(self, exception):
-    self.exception = exception
-
-  def load_model(self):
-    pass
-
-  def predict(self, *args, **kwargs):
-    raise self.exception from self.exception
-
-  def generate(self, *args, **kwargs):
-    raise self.exception from self.exception
-
-  def stream(self, *args, **kwargs):
-    raise self.exception from self.exception
 
 
 def upload_model(folder, download_checkpoints, skip_dockerfile):
