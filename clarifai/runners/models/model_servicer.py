@@ -3,7 +3,8 @@ from typing import Iterator
 from clarifai_grpc.grpc.api import service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
-from ..utils.url_fetcher import ensure_urls_downloaded, map_stream
+from ..utils.stream_utils import readahead
+from ..utils.url_fetcher import ensure_urls_downloaded
 
 
 class ModelServicer(service_pb2_grpc.V2Servicer):
@@ -68,7 +69,7 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
 
     # Download any urls that are not already bytes.
     def _download_urls_stream(requests):
-      yield from map_stream(ensure_urls_downloaded, requests)
+      return readahead(map(ensure_urls_downloaded, requests))
 
     try:
       return self.model_class.stream(_download_urls_stream(request))

@@ -1,7 +1,9 @@
 import concurrent.futures
+from typing import Iterable
 
 import fsspec
 
+from clarifai.runners.utils import MB
 from clarifai.utils.logging import logger
 
 
@@ -50,20 +52,10 @@ def ensure_urls_downloaded(request, max_threads=128):
   return request
 
 
-def map_stream(f, it, parallel=1):
-  '''
-  Applies f to each element of it, yielding the results in order.
-  If parallel >= 1, uses a ThreadPoolExecutor to apply f in parallel to the current thread.
-  '''
-  if parallel < 1:
-    return map(f, it)
-  with ThreadPoolExecutor(max_workers=parallel) as executor:
-    futures = []
-    for i in range(parallel):
-      futures.append(executor.submit(f, next(it)))
-    for r in it:
-      res = futures.pop(0).result()
-      futures.append(executor.submit(f, r))  # start computing next result before yielding this one
-      yield res
-    for f in futures:
-      yield f.result()
+def stream_url(url: str, chunk_size: int = 1 * MB) -> Iterable[bytes]:
+  """
+  Opens a stream of byte chunks from a URL.
+  """
+  # block_size=0 means that the file is streamed
+  with fsspec.open(url, 'rb', block_size=0) as f:
+    yield from iter(lambda: f.read(chunk_size), b'')
