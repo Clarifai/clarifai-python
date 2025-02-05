@@ -3,9 +3,6 @@ from typing import Iterator
 from clarifai_grpc.grpc.api import service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
-from ..utils.stream_utils import readahead
-from ..utils.url_fetcher import ensure_urls_downloaded
-
 
 class ModelServicer(service_pb2_grpc.V2Servicer):
   """
@@ -27,9 +24,6 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
     returns an output.
     """
 
-    # Download any urls that are not already bytes.
-    ensure_urls_downloaded(request)
-
     try:
       return self.model.predict_wrapper(request)
     except Exception as e:
@@ -46,9 +40,6 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
     This is the method that will be called when the servicer is run. It takes in an input and
     returns an output.
     """
-    # Download any urls that are not already bytes.
-    ensure_urls_downloaded(request)
-
     try:
       return self.model.generate_wrapper(request)
     except Exception as e:
@@ -66,13 +57,8 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
     This is the method that will be called when the servicer is run. It takes in an input and
     returns an output.
     """
-
-    # Download any urls that are not already bytes.
-    def _download_urls_stream(requests):
-      return readahead(map(ensure_urls_downloaded, requests))
-
     try:
-      return self.model_class.stream(_download_urls_stream(request))
+      return self.model_class.stream(request)
     except Exception as e:
       yield service_pb2.MultiOutputResponse(status=status_pb2.Status(
           code=status_code_pb2.MODEL_PREDICTION_FAILED,

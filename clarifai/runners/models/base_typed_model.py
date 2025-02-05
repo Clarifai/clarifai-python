@@ -6,6 +6,9 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.service_pb2 import PostModelOutputsRequest
 from google.protobuf import json_format
 
+from clarifai.runners.utils.stream_utils import readahead
+from clarifai.runners.utils.url_fetcher import ensure_urls_downloaded
+
 from ..utils.data_handler import InputDataHandler, OutputDataHandler
 from .model_class import ModelClass
 
@@ -46,6 +49,8 @@ class AnyAnyModel(ModelClass):
 
   def predict_wrapper(
       self, request: service_pb2.PostModelOutputsRequest) -> service_pb2.MultiOutputResponse:
+    if self.download_request_urls:
+      ensure_urls_downloaded(request)
     list_dict_input, inference_params = self.parse_input_request(request)
     outputs = self.predict(list_dict_input, inference_parameters=inference_params)
     return self.convert_output_to_proto(outputs)
@@ -53,6 +58,8 @@ class AnyAnyModel(ModelClass):
   def generate_wrapper(
       self, request: PostModelOutputsRequest) -> Iterator[service_pb2.MultiOutputResponse]:
     list_dict_input, inference_params = self.parse_input_request(request)
+    if self.download_request_urls:
+      ensure_urls_downloaded(request)
     outputs = self.generate(list_dict_input, inference_parameters=inference_params)
     for output in outputs:
       yield self.convert_output_to_proto(output)
@@ -69,6 +76,8 @@ class AnyAnyModel(ModelClass):
     first_request = next(request)
     _, inference_params = self.parse_input_request(first_request)
     request_iterator = itertools.chain([first_request], request)
+    if self.download_request_urls:
+      request_iterator = readahead(map(ensure_urls_downloaded, request_iterator))
     outputs = self.stream(self._preprocess_stream(request_iterator), inference_params)
     for output in outputs:
       yield self.convert_output_to_proto(output)
