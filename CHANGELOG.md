@@ -6,6 +6,7 @@
  - Fixed HF checkpoints error [(#504)] (https://github.com/Clarifai/clarifai-python/pull/504)
  - Fixed Deployment Tests [(#502)] (https://github.com/Clarifai/clarifai-python/pull/502)
  - Fixed Issue with Filename as Invalid Input ID [(#501)] (https://github.com/Clarifai/clarifai-python/pull/501)
+ - Update Model Predict CLI [(#500)] (https://github.com/Clarifai/clarifai-python/pull/500)
  - Tests Health Port to None [(#499)] (https://github.com/Clarifai/clarifai-python/pull/499)
  - Refactor model class and runners to be more independent [(#494)] (https://github.com/Clarifai/clarifai-python/pull/494)
  - Add storage request inferred from tar and checkpoint size [(#479)] (https://github.com/Clarifai/clarifai-python/pull/479)
