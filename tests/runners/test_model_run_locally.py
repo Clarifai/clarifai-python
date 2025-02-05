@@ -167,6 +167,9 @@ def test_test_model_success(model_run_locally):
 
 
 @pytest.mark.skipif(shutil.which("docker") is None, reason="Docker not installed or not in PATH.")
+@pytest.mark.skipif(
+    sys.platform not in ["linux", "darwin"],
+    reason="Test only runs on Linux and macOS because base image only supports those platforms.")
 def test_docker_build_and_test_container(model_run_locally):
   """
   Test building a Docker image and running a container test using the dummy model.
