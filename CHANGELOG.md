@@ -1,3 +1,16 @@
+## [[11.1.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.0) - [PyPI](https://pypi.org/project/clarifai/11.1.0/) - 2025-02-05
+
+### Changed
+
+ - Fixed Docker test locally [(#505)] (https://github.com/Clarifai/clarifai-python/pull/505)
+ - Fixed HF checkpoints error [(#504)] (https://github.com/Clarifai/clarifai-python/pull/504)
+ - Fixed Deployment Tests [(#502)] (https://github.com/Clarifai/clarifai-python/pull/502)
+ - Fixed Issue with Filename as Invalid Input ID [(#501)] (https://github.com/Clarifai/clarifai-python/pull/501)
+ - Update Model Predict CLI [(#500)] (https://github.com/Clarifai/clarifai-python/pull/500)
+ - Tests Health Port to None [(#499)] (https://github.com/Clarifai/clarifai-python/pull/499)
+ - Refactor model class and runners to be more independent [(#494)] (https://github.com/Clarifai/clarifai-python/pull/494)
+ - Add storage request inferred from tar and checkpoint size [(#479)] (https://github.com/Clarifai/clarifai-python/pull/479)
+
 ## [[11.0.7]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.7) - [PyPI](https://pypi.org/project/clarifai/11.0.7/) - 2025-01-24
 
 ### Changed
