@@ -161,6 +161,18 @@ class HuggingFaceLoader:
         os.path.join(checkpoint_path, 'config.json'))
 
   @staticmethod
+  def validate_concept(checkpoint_path: str):
+    # check if downloaded concept exists in hf model
+    config_path = os.path.join(checkpoint_path, 'config.json')
+    with open(config_path, 'r') as f:
+      config = json.load(f)
+
+    labels = config.get('id2label', None)
+    if labels:
+      return True
+    return False
+
+  @staticmethod
   def fetch_labels(checkpoint_path: str):
     # Fetch labels for classification, detection and segmentation models
     config_path = os.path.join(checkpoint_path, 'config.json')
