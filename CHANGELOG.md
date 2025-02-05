@@ -1,4 +1,4 @@
-## [[11.0.8]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.8) - [PyPI](https://pypi.org/project/clarifai/11.0.8/) - 2025-02-05
+## [[11.1.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.0) - [PyPI](https://pypi.org/project/clarifai/11.1.0/) - 2025-02-05
 
 ### Changed
 
