@@ -32,6 +32,7 @@ def _clear_line(n: int = 1) -> None:
 
 
 class ModelBuilder:
+  DEFAULT_CHECKPOINT_SIZE = 50 * 1024**3  # 50 GiB
 
   def __init__(self, folder: str, validate_api_ids: bool = True, download_validation_only=False):
     """
@@ -154,6 +155,9 @@ class ModelBuilder:
     resp = self.client.STUB.GetApp(service_pb2.GetAppRequest(user_app_id=self.client.user_app_id))
     if resp.status.code == status_code_pb2.SUCCESS:
       return True
+    logger.error(
+        f"Error checking API {self._base_api} for user app {self.client.user_app_id.user_id}/{self.client.user_app_id.app_id}. Error code: {resp.status.code}"
+    )
     return False
 
   def _validate_config_model(self):
@@ -200,6 +204,24 @@ class ModelBuilder:
           )
           logger.info("Continuing without Hugging Face token")
 
+  @staticmethod
+  def _get_tar_file_content_size(tar_file_path):
+    """
+    Calculates the total size of the contents of a tar file.
+
+    Args:
+      tar_file_path (str): The path to the tar file.
+
+    Returns:
+      int: The total size of the contents in bytes.
+    """
+    total_size = 0
+    with tarfile.open(tar_file_path, 'r') as tar:
+      for member in tar:
+        if member.isfile():
+          total_size += member.size
+    return total_size
+
   @property
   def client(self):
     if self._client is None:
@@ -211,9 +233,8 @@ class ModelBuilder:
       user_id = model.get('user_id')
       app_id = model.get('app_id')
 
-      base = os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
-
-      self._client = BaseClient(user_id=user_id, app_id=app_id, base=base)
+      self._base_api = os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
+      self._client = BaseClient(user_id=user_id, app_id=app_id, base=self._base_api)
 
     return self._client
 
@@ -521,6 +542,18 @@ class ModelBuilder:
     file_size = os.path.getsize(self.tar_file)
     logger.info(f"Size of the tar is: {file_size} bytes")
 
+    self.storage_request_size = self._get_tar_file_content_size(file_path)
+    if not download_checkpoints and self.config.get("checkpoints"):
+      # Get the checkpoint size to add to the storage request.
+      # First check for the env variable, then try querying huggingface. If all else fails, use the default.
+      checkpoint_size = os.environ.get('CHECKPOINT_SIZE_BYTES', 0)
+      if not checkpoint_size:
+        _, repo_id, _ = self._validate_config_checkpoints()
+        checkpoint_size = HuggingFaceLoader.get_huggingface_checkpoint_total_size(repo_id)
+      if not checkpoint_size:
+        checkpoint_size = self.DEFAULT_CHECKPOINT_SIZE
+      self.storage_request_size += checkpoint_size
+
     self.maybe_create_model()
     if not self.check_model_exists():
       logger.error(f"Failed to create model: {self.model_proto.id}")
@@ -595,6 +628,7 @@ class ModelBuilder:
             model_id=self.model_proto.id,
             model_version=model_version_proto,
             total_size=file_size,
+            storage_request_size=self.storage_request_size,
             is_v3=self.is_v3,
         ))
     return result
