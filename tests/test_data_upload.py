@@ -137,7 +137,7 @@ class Testdataupload:
       self.input_object.upload_from_bytes(input_id='input_13', text_bytes=text_bytes)
       assert "SUCCESS" in caplog.text
 
-  def test_get_multimodal_input(self, caplog):
+  def test_get_multimodal_input(self):
     input_object = self.input_object.get_multimodal_input(
         input_id='input_14', raw_text='This is a multimodal test text', image_url=IMAGE_URL)
     assert input_object.id == 'input_14' and input_object.data.text.raw == 'This is a multimodal test text'
@@ -145,6 +145,10 @@ class Testdataupload:
   def test_get_text_inputs_from_folder(self):
     text_inputs = self.input_object.get_text_inputs_from_folder(TEXTS_FOLDER_PATH)
     assert len(text_inputs) == 3
+
+  def test_get_input_from_app(self):
+    input_object = self.input_object.get_input(input_id='input_1')
+    assert input_object.id == 'input_1'
 
   def test_get_mask_proto(self):
     polygon_points = [[.2, .2], [.8, .2], [.8, .8], [.2, .8]]
