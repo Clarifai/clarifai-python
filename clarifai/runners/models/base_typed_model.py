@@ -57,9 +57,9 @@ class AnyAnyModel(ModelClass):
 
   def generate_wrapper(
       self, request: PostModelOutputsRequest) -> Iterator[service_pb2.MultiOutputResponse]:
-    list_dict_input, inference_params = self.parse_input_request(request)
     if self.download_request_urls:
       ensure_urls_downloaded(request)
+    list_dict_input, inference_params = self.parse_input_request(request)
     outputs = self.generate(list_dict_input, inference_parameters=inference_params)
     for output in outputs:
       yield self.convert_output_to_proto(output)
@@ -71,13 +71,13 @@ class AnyAnyModel(ModelClass):
       input_data, _ = self.parse_input_request(req)
       yield input_data
 
-  def stream_wrapper(self, request: Iterator[PostModelOutputsRequest]
+  def stream_wrapper(self, request_iterator: Iterator[PostModelOutputsRequest]
                     ) -> Iterator[service_pb2.MultiOutputResponse]:
-    first_request = next(request)
-    _, inference_params = self.parse_input_request(first_request)
-    request_iterator = itertools.chain([first_request], request)
     if self.download_request_urls:
       request_iterator = readahead(map(ensure_urls_downloaded, request_iterator))
+    first_request = next(request_iterator)
+    _, inference_params = self.parse_input_request(first_request)
+    request_iterator = itertools.chain([first_request], request_iterator)
     outputs = self.stream(self._preprocess_stream(request_iterator), inference_params)
     for output in outputs:
       yield self.convert_output_to_proto(output)
