@@ -127,6 +127,7 @@ def test_locally(model_path, pdb=False, keep_env=False, keep_image=False, mode='
     help=
     'Specifies how to run the model: "env" for virtual environment or "container" for Docker container. Defaults to "env".'
 )
+@click.option('--pdb', is_flag=True, help='Enable PDB debugging when testing the model locally.')
 @click.option(
     '--keep_env',
     is_flag=True,
@@ -140,7 +141,7 @@ def test_locally(model_path, pdb=False, keep_env=False, keep_image=False, mode='
     help=
     'Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.'
 )
-def run_locally(model_path, port, mode, keep_env, keep_image):
+def run_locally(model_path, port, mode, pdb, keep_env, keep_image):
   """Run the model locally and start a gRPC server to serve the model."""
   try:
     from clarifai.runners.models import model_run_locally
@@ -149,9 +150,13 @@ def run_locally(model_path, port, mode, keep_env, keep_image):
     if mode == 'container' and keep_env:
       raise ValueError("'keep_env' is applicable only for 'env' mode")
 
+    if pdb and mode == "container":
+      raise ValueError("PDB debugging is not supported in container mode.")
+
     if mode == "env":
       click.echo("Running model locally in a virtual environment...")
-      model_run_locally.main(model_path, run_model_server=True, keep_env=keep_env, port=port)
+      model_run_locally.main(
+          model_path, run_model_server=True, keep_env=keep_env, port=port, use_pdb=pdb)
     elif mode == "container":
       click.echo("Running model locally inside a container...")
       model_run_locally.main(
