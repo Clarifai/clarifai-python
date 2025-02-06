@@ -73,7 +73,7 @@ ENV PYTHONPATH=${PYTHONPATH}:/home/nonroot/main \
     CLARIFAI_RUNNER_ID=${CLARIFAI_RUNNER_ID} \
     CLARIFAI_NODEPOOL_ID=${CLARIFAI_NODEPOOL_ID} \
     CLARIFAI_COMPUTE_CLUSTER_ID=${CLARIFAI_COMPUTE_CLUSTER_ID} \
-    CLARIFAI_API_BASE=${CLARIFAI_API_BASE}
+    CLARIFAI_API_BASE=${CLARIFAI_API_BASE:-https://api.clarifai.com}
 
 # Finally run the clarifai entrypoint to start the runner loop and local dev server.
 # Note(zeiler): we may want to make this a clarifai CLI call.
