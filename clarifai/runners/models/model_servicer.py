@@ -58,7 +58,7 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
     returns an output.
     """
     try:
-      return self.model_class.stream(request)
+      return self.model_class.stream_wrapper(request)
     except Exception as e:
       yield service_pb2.MultiOutputResponse(status=status_pb2.Status(
           code=status_code_pb2.MODEL_PREDICTION_FAILED,

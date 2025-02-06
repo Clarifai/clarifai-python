@@ -712,7 +712,6 @@ class Model(Lister, BaseClient):
         inputs=inputs,
         runner_selector=runner_selector,
         model=model_info)
-    request.model.model_version.id = self.model_version.id
 
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
