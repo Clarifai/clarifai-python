@@ -480,7 +480,7 @@ class ModelBuilder:
 
   def upload_model_version(self, download_checkpoints):
     file_path = f"{self.folder}.tar.gz"
-    logger.info(f"Will tar it into file: {file_path}")
+    logger.debug(f"Will tar it into file: {file_path}")
 
     model_type_id = self.config.get('model').get('model_type_id')
 
@@ -521,10 +521,10 @@ class ModelBuilder:
 
     with tarfile.open(self.tar_file, "w:gz") as tar:
       tar.add(self.folder, arcname=".", filter=filter_func)
-    logger.info("Tarring complete, about to start upload.")
+    logger.debug("Tarring complete, about to start upload.")
 
     file_size = os.path.getsize(self.tar_file)
-    logger.info(f"Size of the tar is: {file_size} bytes")
+    logger.debug(f"Size of the tar is: {file_size} bytes")
 
     self.maybe_create_model()
     if not self.check_model_exists():
@@ -545,7 +545,6 @@ class ModelBuilder:
           f"request_id: {response.status.req_id}",
           end='\r',
           flush=True)
-    logger.info("")
     if response.status.code != status_code_pb2.MODEL_BUILDING:
       logger.error(f"Failed to upload model version: {response}")
       return
@@ -556,7 +555,7 @@ class ModelBuilder:
       self.monitor_model_build()
     finally:
       if os.path.exists(self.tar_file):
-        logger.info(f"Cleaning up upload file: {self.tar_file}")
+        logger.debug(f"Cleaning up upload file: {self.tar_file}")
         os.remove(self.tar_file)
 
   def model_version_stream_upload_iterator(self, model_version_proto, file_path):
@@ -566,9 +565,9 @@ class ModelBuilder:
       chunk_size = int(127 * 1024 * 1024)  # 127MB chunk size
       num_chunks = (file_size // chunk_size) + 1
       logger.info("Uploading file...")
-      logger.info(f"File size: {file_size}")
-      logger.info(f"Chunk size: {chunk_size}")
-      logger.info(f"Number of chunks: {num_chunks}")
+      logger.debug(f"File size: {file_size}")
+      logger.debug(f"Chunk size: {chunk_size}")
+      logger.debug(f"Number of chunks: {num_chunks}")
       read_so_far = 0
       for part_id in range(num_chunks):
         try:
@@ -588,12 +587,12 @@ class ModelBuilder:
           break
 
     if read_so_far == file_size:
-      logger.info("\nUpload complete!, waiting for model build...")
+      logger.info("Upload complete!")
 
   def init_upload_model_version(self, model_version_proto, file_path):
     file_size = os.path.getsize(file_path)
-    logger.info(f"Uploading model version of model {self.model_proto.id}")
-    logger.info(f"Using file '{os.path.basename(file_path)}' of size: {file_size} bytes")
+    logger.debug(f"Uploading model version of model {self.model_proto.id}")
+    logger.debug(f"Using file '{os.path.basename(file_path)}' of size: {file_size} bytes")
     result = service_pb2.PostModelVersionsUploadRequest(
         upload_config=service_pb2.PostModelVersionsUploadConfig(
             user_app_id=self.client.user_app_id,
@@ -635,10 +634,11 @@ class ModelBuilder:
         for log_entry in logs.log_entries:
           if log_entry.url not in seen_logs:
             seen_logs.add(log_entry.url)
-            logger.info(f"{escape(log_entry.message.strip())}")
+            logger.debug(f"{escape(log_entry.message.strip())}")
         time.sleep(1)
       elif status_code == status_code_pb2.MODEL_TRAINED:
-        logger.info(f"\nModel build complete! (elapsed {time.time() - st:.1f}s)")
+        logger.info("Model build complete!")
+        logger.info(f"Build time elapsed {time.time() - st:.1f}s)")
         logger.info(f"Check out the model at {self.model_url} version: {self.model_version_id}")
         return True
       else:
