@@ -2,7 +2,7 @@
 
 ### Changed
 
- - Don't validate API in server.py [(#505)] (https://github.com/Clarifai/clarifai-python/pull/506)
+ - Don't validate API in server.py [(#509)] (https://github.com/Clarifai/clarifai-python/pull/506)
 
 ## [[11.1.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.0) - [PyPI](https://pypi.org/project/clarifai/11.1.0/) - 2025-02-05
 
