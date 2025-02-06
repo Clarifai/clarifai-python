@@ -68,7 +68,7 @@ def main():
 
   parsed_args = parser.parse_args()
 
-  builder = ModelBuilder(parsed_args.model_path)
+  builder = ModelBuilder(parsed_args.model_path, download_validation_only=True)
 
   model = builder.create_model_instance()
 
@@ -101,7 +101,7 @@ def main():
         runner_id=os.environ["CLARIFAI_RUNNER_ID"],
         nodepool_id=os.environ["CLARIFAI_NODEPOOL_ID"],
         compute_cluster_id=os.environ["CLARIFAI_COMPUTE_CLUSTER_ID"],
-        base_url=os.environ["CLARIFAI_API_BASE"],
+        base_url=os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com"),
         num_parallel_polls=int(os.environ.get("CLARIFAI_NUM_THREADS", 1)),
     )
     runner.start()  # start the runner to fetch work from the API.

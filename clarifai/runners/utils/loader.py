@@ -4,6 +4,8 @@ import json
 import os
 import shutil
 
+import requests
+
 from clarifai.utils.logging import logger
 
 
@@ -23,6 +25,7 @@ class HuggingFaceLoader:
         login(token=token)
         logger.info("Hugging Face token validated")
       else:
+        self.token = None
         logger.info("Continuing without Hugging Face token")
 
   @classmethod
@@ -30,7 +33,6 @@ class HuggingFaceLoader:
     try:
       if importlib.util.find_spec("huggingface_hub") is None:
         raise ImportError(cls.HF_DOWNLOAD_TEXT)
-      os.environ['HF_TOKEN'] = hf_token
       from huggingface_hub import HfApi
 
       api = HfApi()
@@ -169,3 +171,34 @@ class HuggingFaceLoader:
 
     labels = config['id2label']
     return labels
+
+  @staticmethod
+  def get_huggingface_checkpoint_total_size(repo_name):
+    """
+    Fetches the JSON data for a Hugging Face model using the API with `?blobs=true`.
+    Calculates the total size from the JSON output.
+
+    Args:
+        repo_name (str): The name of the model on Hugging Face Hub. e.g. "casperhansen/llama-3-8b-instruct-awq"
+
+    Returns:
+        int: The total size in bytes.
+    """
+    try:
+      url = f"https://huggingface.co/api/models/{repo_name}?blobs=true"
+      response = requests.get(url)
+      response.raise_for_status()  # Raise an exception for bad status codes
+      json_data = response.json()
+
+      if isinstance(json_data, str):
+        data = json.loads(json_data)
+      else:
+        data = json_data
+
+      total_size = 0
+      for file in data['siblings']:
+        total_size += file['size']
+      return total_size
+    except Exception as e:
+      logger.error(f"Error fetching checkpoint size from huggingface.co: {e}")
+      return 0
