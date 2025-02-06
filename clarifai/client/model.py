@@ -1218,7 +1218,7 @@ class Model(Lister, BaseClient):
 
   def _get_model_info_for_inference(self, inference_params: Dict = {},
                                     output_config: Dict = {}) -> None:
-    """Overrides the model version.
+    """Gets the model_info with modified inference params and output config.
 
     Args:
         inference_params (dict): The inference params to override.
@@ -1228,13 +1228,11 @@ class Model(Lister, BaseClient):
           select_concepts (list[Concept]): The concepts to select.
           sample_ms (int): The number of milliseconds to sample.
     """
-    if not inference_params and not output_config:
-      return self.model_info
-
     model_info = resources_pb2.Model()
     model_info.CopyFrom(self.model_info)
-    model_info.model_version.output_info.params.update(inference_params)
-    model_info.model_version.output_info.output_config.update(output_config)
+    model_info.model_version.output_info.params = inference_params
+    model_info.model_version.output_info.output_config.CopyFrom(
+        resources_pb2.OutputConfig(**output_config))
     return model_info
 
   def _list_concepts(self) -> List[str]:
