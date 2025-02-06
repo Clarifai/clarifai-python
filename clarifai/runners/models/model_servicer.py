@@ -1,3 +1,4 @@
+import traceback
 from itertools import tee
 from typing import Iterator
 
@@ -36,7 +37,8 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
       return service_pb2.MultiOutputResponse(status=status_pb2.Status(
           code=status_code_pb2.MODEL_PREDICTION_FAILED,
           description="Failed",
-          details="",
+          details=str(e),
+          stack_trace=traceback.format_exc().split('\n'),
           internal_details=str(e),
       ))
 
@@ -56,7 +58,8 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
       yield service_pb2.MultiOutputResponse(status=status_pb2.Status(
           code=status_code_pb2.MODEL_PREDICTION_FAILED,
           description="Failed",
-          details="",
+          details=str(e),
+          stack_trace=traceback.format_exc().split('\n'),
           internal_details=str(e),
       ))
 
@@ -81,6 +84,7 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
       yield service_pb2.MultiOutputResponse(status=status_pb2.Status(
           code=status_code_pb2.MODEL_PREDICTION_FAILED,
           description="Failed",
-          details="",
+          details=str(e),
+          stack_trace=traceback.format_exc().split('\n'),
           internal_details=str(e),
       ))
