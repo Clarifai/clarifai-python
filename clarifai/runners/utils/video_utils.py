@@ -53,7 +53,7 @@ def stream_frames_from_bytes(bytes_iterator):
 
     :param bytes_iterator: An iterator that yields byte chunks with the video data
     """
-  buffer = stream_utils.BufferStream(bytes_iterator)
+  buffer = stream_utils.StreamingChunksReader(bytes_iterator)
   reader = io.BufferedReader(buffer)
   container = av.open(reader)
   yield from container.decode(video=0)
