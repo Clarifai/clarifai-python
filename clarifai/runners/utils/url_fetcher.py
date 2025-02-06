@@ -3,7 +3,7 @@ from typing import Iterable
 
 import fsspec
 
-from clarifai.runners.utils import MB
+from clarifai.runners.utils.stream_utils import MB
 from clarifai.utils.logging import logger
 
 
