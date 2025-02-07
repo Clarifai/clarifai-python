@@ -23,8 +23,21 @@ on:
         type: string
 
 jobs:
-  build:
+  check_dockerfile_changes:
+    runs-on: ubuntu-latest
+    outputs:
+      dockerfile_changed: ${{ steps.check_changes.outputs.dockerfile_changed }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+    - name: Check for Dockerfile.template changes
+      id: check_changes
+      run: |
+        git diff --name-only HEAD^ HEAD | grep -q "clarifai/runners/dockerfile_template/Dockerfile.template" && echo "dockerfile_changed=true" >> $GITHUB_OUTPUT || echo "dockerfile_changed=false" >> $GITHUB_OUTPUT
 
+  build:
+    needs: check_dockerfile_changes
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -70,6 +83,9 @@ jobs:
         export PYTHONPATH=.
         export CLARIFAI_USER_ID="$(python scripts/key_for_tests.py --get-userid)"
         export CLARIFAI_PAT="$(python scripts/key_for_tests.py --create-pat)"
+        if [ "${{ needs.check_dockerfile_changes.outputs.dockerfile_changed }}" = "true" ]; then
+          pytest tests/runners/test_model_run_locally-container.py --cov=. --cov-report=xml:coverage/coverage.cobertura.xml
+        fi
         if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
           pytest --cov=. --cov-report=xml:coverage/coverage.cobertura.xml
         elif [ "${{ inputs.PERIODIC_CHECKS }}" = "true" ]; then
