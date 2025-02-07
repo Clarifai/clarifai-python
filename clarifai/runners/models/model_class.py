@@ -4,6 +4,7 @@ from typing import Iterator
 
 from clarifai_grpc.grpc.api import service_pb2
 
+_METHOD_INFO_ATTR = '_cf_model_method'
 _METHOD_REGISTRY = {}  # class -> {method_name -> _MethodInfo}
 
 
@@ -79,7 +80,7 @@ class ModelClass(ABC):
     methods = {}
     for base in reversed(cls.__mro__):
       for name, method in base.__dict__.items():
-        method_info = getattr(method, '_cf_model_method', None)
+        method_info = getattr(method, _METHOD_INFO_ATTR, None)
         if not method_info:
           continue
         methods[name] = method_info
@@ -89,7 +90,7 @@ class ModelClass(ABC):
         method = getattr(cls, name)
       except AttributeError:
         continue
-      if not hasattr(method, '_cf_model_method'):  # not already put in registry
+      if not hasattr(method, _METHOD_INFO_ATTR):  # not already put in registry
         methods[name] = _MethodInfo(method, method_type=name)
     # set method table for this class in the registry
     _METHOD_REGISTRY[cls] = methods
@@ -104,15 +105,15 @@ class _MethodInfo:
 
 
 def predict(method):
-  method._cf_model_method = _MethodInfo(method, 'predict')
+  setattr(method, _METHOD_INFO_ATTR, _MethodInfo(method, 'predict'))
   return method
 
 
 def generate(method):
-  method._cf_model_method = _MethodInfo(method, 'generate')
+  setattr(method, _METHOD_INFO_ATTR, _MethodInfo(method, 'generate'))
   return method
 
 
 def stream(method):
-  method._cf_model_method = _MethodInfo(method, 'stream')
+  setattr(method, _METHOD_INFO_ATTR, _MethodInfo(method, 'stream'))
   return method
