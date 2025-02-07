@@ -477,7 +477,8 @@ class ModelBuilder:
         for concept in labels:
           concept_proto = json_format.ParseDict(concept, resources_pb2.Concept())
           model_version_proto.output_info.data.concepts.append(concept_proto)
-      else:
+      elif self.config.get("checkpoints") and HuggingFaceLoader.validate_concept(
+          self.checkpoint_path):
         labels = HuggingFaceLoader.fetch_labels(self.checkpoint_path)
         logger.info(f"Found {len(labels)} concepts from the model checkpoints.")
         # sort the concepts by id and then update the config file
