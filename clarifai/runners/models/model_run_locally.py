@@ -475,7 +475,7 @@ def main(model_path,
          keep_env=False,
          keep_image=False):
 
-  if 'CLARIFAI_PAT' not in os.environ:
+  if not os.environ.get("CLARIFAI_PAT", None):
     logger.error(
         "CLARIFAI_PAT environment variable is not set! Please set your PAT in the 'CLARIFAI_PAT' environment variable."
     )
