@@ -1205,7 +1205,7 @@ class Model(Lister, BaseClient):
     # with the ts of the first frame (too fragile to do all of this adjustment in the client input stream)
     # or by adjusting the timestamps in the output stream
     from clarifai.runners.utils import video_utils
-    stream = video_utils.recontain_as_streamable(filepath)
+    stream = video_utils.convert_to_streamable(filepath)
 
     # TODO accumulate reads to fill the chunk size
     chunk_size = 1024 * 1024  # 1 MB

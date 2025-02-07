@@ -59,7 +59,7 @@ def stream_frames_from_bytes(bytes_iterator):
   yield from container.decode(video=0)
 
 
-def recontain_as_streamable(filepath):
+def convert_to_streamable(filepath):
   return recontain(filepath, "mpegts", {"muxpreload": "0", "muxdelay": "0"})
 
 
