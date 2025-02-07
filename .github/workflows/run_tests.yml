@@ -101,6 +101,7 @@ jobs:
           if [ "${{ steps.check_dockerfile_change.outputs.changed }}" = "true" ]; then
             pytest -m "not requires_secrets" --cov=. --cov-append --cov-report=xml:coverage/coverage.cobertura.xml tests/runners/test_model_run_locally-container.py
           fi
+        fi
     - name: Code Coverage Report
       if: runner.os == 'Linux' && matrix.python-version == '3.11'
       uses: irongut/CodeCoverageSummary@v1.3.0
