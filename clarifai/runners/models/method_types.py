@@ -14,7 +14,7 @@ def build_function_serializers(func):
   types = dict(func.__annotations__)
   output_type = types.pop('return', None)
   if len(types) == 1:
-    input_type = types.values()[0]
+    input_type = list(types.values())[0]
   else:
     input_type = Input(**types)
   input_serializer = build_serializer(input_type)
@@ -162,13 +162,13 @@ class DataField(Serializer):
   def _serialize_singleton(self, data, dst, proto):
     # single field
     if self.field_is_message:
-      self.serializer.serialize(dst, data)
+      self.serializer.serialize(data, dst)
     else:
       setattr(proto, self.field_name, self.serializer.serialize(data))
 
   def deserialize(self, proto):
     src = getattr(proto, self.field_name)
-    if self.repeated:
+    if self.field_is_repeated:
       data = [self.serializer.deserialize(item) for item in src]
       if self.is_tuple:
         return tuple(data)
@@ -181,12 +181,21 @@ class DataField(Serializer):
 
 class TextSerializer(Serializer):
 
+  def __init__(self, python_type=str):
+    self.python_type = python_type
+
   def serialize(self, data, proto=None):
-    assert proto is None
-    return data
+    if proto is None:
+      proto = resources_pb2.Text()
+    proto.raw = data
+    return proto
 
   def deserialize(self, proto):
-    return proto  # atomic text str
+    if self.python_type is None:
+      return proto
+    if self.python_type is str:
+      return proto.raw
+    raise ValueError(f'Unsupported text type: {self.python_type}')
 
 
 class BytesSerializer(Serializer):
@@ -271,8 +280,8 @@ _SERIALIZERS = {
     # basic atomic types
     str:
         DataField('text', TextSerializer(str)),
-    bytes:
-        DataField('ndarray', BytesSerializer(bytes)),
+    #bytes:
+    #    DataField('ndarray', BytesSerializer(bytes)),
     float:
         DataField('ndarray', NDArraySerializer(float)),  # TODO too much overhead?
     int:
@@ -312,7 +321,7 @@ _SERIALIZERS = {
 }
 
 # add serializers lists of things that are in repeated fields
-for tp, serializer in _SERIALIZERS.items():
+for tp, serializer in list(_SERIALIZERS.items()):
   if serializer.field_is_repeated and not serializer.is_list:
     _SERIALIZERS[List[tp]] = DataField(serializer.field_name, serializer, is_list=True)
     _SERIALIZERS[Tuple[tp]] = DataField(serializer.field_name, serializer, is_tuple=True)
