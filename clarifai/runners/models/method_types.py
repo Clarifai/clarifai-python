@@ -42,14 +42,23 @@ def build_serializer(type_annotation):
   # named parts fields
   if isinstance(type_annotation, Parts):
     cls = type_annotation.__class__
-    names, types = zip(*type_annotation.fields.items())
+    #names, types = zip(*type_annotation.fields.items())
+    names = type_annotation._fields
+    types = [getattr(type_annotation, name) for name in names]
     return PartsSerializer(names, types, cls)
 
 
 class Parts:
 
   def __init__(self, **fields):
-    self.fields = fields
+    self._fields = list(fields.keys())
+    for name, value in fields.items():
+      setattr(self, name, value)
+
+  def __setattr__(self, name, value):
+    if name != '_fields':
+      assert name in self._fields, f'Field {name} not found in {self.__class__.__name__}'
+    super().__setattr__(name, value)
 
 
 class Input(Parts):
@@ -84,7 +93,7 @@ class PartsSerializer(Serializer):
       part = proto.parts.add()
       #part.id = name  # TODO add id to parts
       part.data.metadata['name'] = name
-      part_data = data.fields[name]
+      part_data = getattr(data, name)
       serializer.serialize(part_data, part.data)
     return proto
 
@@ -219,15 +228,14 @@ class NDArraySerializer(Serializer):
   def serialize(self, data, proto=None):
     if proto is None:
       proto = resources_pb2.NDArray()
-    data = np.asarray(data).as_contiguousarray()
-    proto.ndarray.buffer = data.tobytes()
-    proto.ndarray.shape.extend(data.shape)
-    proto.ndarray.dtype = str(data.dtype)
+    data = np.asarray(data)
+    proto.buffer = np.ascontiguousarray(data).tobytes()
+    proto.shape.extend(data.shape)
+    proto.dtype = str(data.dtype)
     return proto
 
   def deserialize(self, proto):
-    array = np.frombuffer(
-        proto.ndarray.buffer, dtype=proto.ndarray.dtype).reshape(proto.ndarray.shape)
+    array = np.frombuffer(proto.buffer, dtype=proto.dtype).reshape(proto.shape)
     if self.python_type is not np.ndarray:
       return self.python_type(array)
     return array
