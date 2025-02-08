@@ -81,17 +81,20 @@ class PartsSerializer(Serializer):
     if proto is None:
       proto = resources_pb2.Data()
     for name, serializer in self.fields.items():
-      part = data.parts.add()
-      part.id = name
-      part_data = getattr(data, name)
+      part = proto.parts.add()
+      #part.id = name  # TODO add id to parts
+      part.data.metadata['name'] = name
+      part_data = data.fields[name]
       serializer.serialize(part_data, part.data)
     return proto
 
   def deserialize(self, proto):
     data = {}
     for part in proto.parts:
-      serializer = self.fields[part.id]
-      data[part.id] = serializer.deserialize(part.data)
+      #part_name = part.id  # TODO add id field to parts
+      part_name = part.data.metadata['name']
+      serializer = self.fields[part_name]
+      data[part_name] = serializer.deserialize(part.data)
     return self.python_type(**data)
 
 
