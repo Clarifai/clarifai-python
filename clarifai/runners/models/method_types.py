@@ -111,13 +111,14 @@ class ListSerializer(Serializer):
 
   def __init__(self, serializer, python_type=list):
     self.serializer = serializer
+    self.python_type = python_type
 
   def serialize(self, data, proto=None):
     if proto is None:
       proto = resources_pb2.Data()
     for i, item in enumerate(data):
       part = proto.parts.add()
-      part.id = str(i)
+      #part.id = str(i)  # TODO add id to parts
       self.serializer.serialize(item, part.data)
     return proto
 
