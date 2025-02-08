@@ -1,7 +1,10 @@
+import io
 from typing import List, Tuple, get_args, get_origin
 
 import numpy as np
 from clarifai_grpc.grpc.api import resources_pb2
+from clarifai_grpc.grpc.api.resources_pb2 import Concept, Image
+from PIL import Image as PILImage
 
 
 def build_serializer(type_annotation):
@@ -22,10 +25,20 @@ def build_serializer(type_annotation):
     raise NotImplementedError(f'List of {inner_type} not supported')
 
   # named parts fields
-  if isinstance(type_annotation, (Input, Output)):
+  if isinstance(type_annotation, Parts):
     cls = type_annotation.__class__
     names, types = zip(*type_annotation.fields.items())
     return PartsSerializer(names, types, cls)
+
+
+class Parts:
+
+  def __init__(self, **fields):
+    self.fields = fields
+
+
+class Output(Parts):
+  pass
 
 
 class Serializer:
@@ -184,9 +197,44 @@ class NDArraySerializer(Serializer):
   def deserialize(self, proto):
     array = np.frombuffer(
         proto.ndarray.buffer, dtype=proto.ndarray.dtype).reshape(proto.ndarray.shape)
-    if python_type is not np.ndarray:
-      return python_type(array)
+    if self.python_type is not np.ndarray:
+      return self.python_type(array)
     return array
+
+
+class ImageSerializer(Serializer):
+
+  def __init__(self, python_type=None):
+    self.python_type = python_type
+
+  def serialize(self, data, proto=None):
+    if proto is None:
+      proto = resources_pb2.Image()
+    if isinstance(data, PILImage):
+      self.write_image(data, proto)
+    elif isinstance(data, np.ndarray):
+      self.write_image(PILImage.fromarray(data), proto)
+    elif isinstance(data, resources_pb2.Image):
+      proto.CopyFrom(data)
+    else:
+      raise ValueError(f'Unsupported image type: {type(data)}')
+    return proto
+
+  def write_image(self, image, proto):
+    buf = io.BytesIO()
+    image.save(buf, format='PNG')
+    proto.base64 = buf.getvalue()
+    proto.image_info.width, proto.image_info.height = image.size
+
+  def deserialize(self, proto):
+    if self.python_type is None:
+      return proto
+    img = PILImage.open(io.BytesIO(proto.base64))
+    if self.python_type is PILImage:
+      return img
+    if self.python_type is np.ndarray:
+      return np.asarray(img)
+    raise ValueError(f'Unsupported image type: {self.python_type}')
 
 
 class ConceptSerializer(Serializer):
@@ -198,8 +246,6 @@ class ConceptSerializer(Serializer):
 
   def deserialize(self, proto):
     return proto  # TODO
-
-
 
 
 _SERIALIZERS = {
@@ -216,18 +262,18 @@ _SERIALIZERS = {
         DataField('ndarray', NDArraySerializer(np.ndarray)),
 
     # specialized proto message types
-    Text:
-        DataField('text', TextSerializer()),
+    #Text:
+    #    DataField('text', TextSerializer()),
     Image:
         DataField('image', ImageSerializer()),
-    Video:
-        DataField('video', VideoSerializer()),
+    #Video:
+    #    DataField('video', VideoSerializer()),
     Concept:
         DataField('concepts', ConceptSerializer()),
-    Region:
-        DataField('regions', RegionSerializer()),
-    Frame:
-        DataField('frames', FrameSerializer()),
+    #Region:
+    #    DataField('regions', RegionSerializer()),
+    #Frame:
+    #    DataField('frames', FrameSerializer()),
 
     # common python types
     PILImage:
