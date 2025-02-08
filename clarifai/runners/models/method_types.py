@@ -7,6 +7,21 @@ from clarifai_grpc.grpc.api.resources_pb2 import Concept, Image
 from PIL import Image as PILImage
 
 
+def build_function_serializers(func):
+  '''
+    Build serializers for the given function.
+    '''
+  types = dict(func.__annotations__)
+  output_type = types.pop('return', None)
+  if len(types) == 1:
+    input_type = types.values()[0]
+  else:
+    input_type = Input(**types)
+  input_serializer = build_serializer(input_type)
+  output_serializer = build_serializer(output_type)
+  return input_serializer, output_serializer
+
+
 def build_serializer(type_annotation):
   '''
     Build a serializer for the given type annotation.
@@ -35,6 +50,10 @@ class Parts:
 
   def __init__(self, **fields):
     self.fields = fields
+
+
+class Input(Parts):
+  pass
 
 
 class Output(Parts):
