@@ -224,7 +224,11 @@ class BytesSerializer(Serializer):
 class NDArraySerializer(Serializer):
 
   def __init__(self, python_type=np.ndarray):
-    self.python_type = python_type
+    if get_origin(python_type) == list:
+      tp = get_args(python_type)[0]
+      self.python_type = lambda arr: [tp(a) for a in arr]
+    else:
+      self.python_type = python_type
 
   def serialize(self, data, proto=None):
     if proto is None:
