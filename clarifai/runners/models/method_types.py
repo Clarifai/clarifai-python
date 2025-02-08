@@ -3,56 +3,6 @@ from typing import List, Tuple, get_args, get_origin
 import numpy as np
 from clarifai_grpc.grpc.api import resources_pb2
 
-_SERIALIZERS = {
-    # basic atomic types
-    str:
-        DataField('text', TextSerializer(str)),
-    bytes:
-        DataField('ndarray', BytesSerializer(bytes)),
-    float:
-        DataField('ndarray', NDArraySerializer(float)),  # TODO too much overhead?
-    int:
-        DataField('ndarray', NDArraySerializer(int)),
-    np.ndarray:
-        DataField('ndarray', NDArraySerializer(np.ndarray)),
-
-    # specialized proto message types
-    Text:
-        DataField('text', TextSerializer()),
-    Image:
-        DataField('image', ImageSerializer()),
-    Video:
-        DataField('video', VideoSerializer()),
-    Concept:
-        DataField('concepts', ConceptSerializer()),
-    Region:
-        DataField('regions', RegionSerializer()),
-    Frame:
-        DataField('frames', FrameSerializer()),
-
-    # common python types
-    PILImage:
-        DataField('image', ImageSerializer(PILImage)),
-
-    # lists of basic atomic types
-    #    List[str]: json? TODO
-    #    List[bytes]: json? TODO
-    List[int]:
-        DataField('ndarray', NDArraySerializer(List[int])),
-    Tuple[int]:
-        DataField('ndarray', NDArraySerializer(Tuple[int])),
-    List[float]:
-        DataField('ndarray', NDArraySerializer(List[float])),
-    Tuple[float]:
-        DataField('ndarray', NDArraySerializer(Tuple[float])),
-}
-
-# add serializers lists of things that are in repeated fields
-for tp, serializer in _SERIALIZERS.items():
-  if serializer.field_is_repeated and not serializer.is_list:
-    _SERIALIZERS[List[tp]] = DataField(serializer.field_name, serializer, is_list=True)
-    _SERIALIZERS[Tuple[tp]] = DataField(serializer.field_name, serializer, is_tuple=True)
-
 
 def build_serializer(type_annotation):
   '''
@@ -248,3 +198,56 @@ class ConceptSerializer(Serializer):
 
   def deserialize(self, proto):
     return proto  # TODO
+
+
+
+
+_SERIALIZERS = {
+    # basic atomic types
+    str:
+        DataField('text', TextSerializer(str)),
+    bytes:
+        DataField('ndarray', BytesSerializer(bytes)),
+    float:
+        DataField('ndarray', NDArraySerializer(float)),  # TODO too much overhead?
+    int:
+        DataField('ndarray', NDArraySerializer(int)),
+    np.ndarray:
+        DataField('ndarray', NDArraySerializer(np.ndarray)),
+
+    # specialized proto message types
+    Text:
+        DataField('text', TextSerializer()),
+    Image:
+        DataField('image', ImageSerializer()),
+    Video:
+        DataField('video', VideoSerializer()),
+    Concept:
+        DataField('concepts', ConceptSerializer()),
+    Region:
+        DataField('regions', RegionSerializer()),
+    Frame:
+        DataField('frames', FrameSerializer()),
+
+    # common python types
+    PILImage:
+        DataField('image', ImageSerializer(PILImage)),
+
+    # lists of basic atomic types
+    #    List[str]: json? TODO
+    #    List[bytes]: json? TODO
+    List[int]:
+        DataField('ndarray', NDArraySerializer(List[int])),
+    Tuple[int]:
+        DataField('ndarray', NDArraySerializer(Tuple[int])),
+    List[float]:
+        DataField('ndarray', NDArraySerializer(List[float])),
+    Tuple[float]:
+        DataField('ndarray', NDArraySerializer(Tuple[float])),
+}
+
+# add serializers lists of things that are in repeated fields
+for tp, serializer in _SERIALIZERS.items():
+  if serializer.field_is_repeated and not serializer.is_list:
+    _SERIALIZERS[List[tp]] = DataField(serializer.field_name, serializer, is_list=True)
+    _SERIALIZERS[Tuple[tp]] = DataField(serializer.field_name, serializer, is_tuple=True)
