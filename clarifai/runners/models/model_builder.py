@@ -18,8 +18,7 @@ from clarifai.client import BaseClient
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.const import (AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES,
                                           CONCEPTS_REQUIRED_MODEL_TYPE, DEFAULT_PYTHON_VERSION,
-                                          PYTHON_BUILDER_IMAGE, PYTHON_RUNTIME_IMAGE,
-                                          TORCH_BASE_IMAGE, TORCH_RUNTIME_IMAGE)
+                                          PYTHON_BASE_IMAGE, TORCH_BASE_IMAGE)
 from clarifai.runners.utils.loader import HuggingFaceLoader
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
@@ -359,9 +358,8 @@ class ModelBuilder:
       python_version = DEFAULT_PYTHON_VERSION
 
     # This is always the final image used for runtime.
-    runtime_image = PYTHON_RUNTIME_IMAGE.format(python_version=python_version)
-    builder_image = PYTHON_BUILDER_IMAGE.format(python_version=python_version)
-    downloader_image = PYTHON_BUILDER_IMAGE.format(python_version=python_version)
+    final_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
+    downloader_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
 
     # Parse the requirements.txt file to determine the base image
     dependencies = self._parse_requirements()
@@ -372,17 +370,11 @@ class ModelBuilder:
       for image in sorted(AVAILABLE_TORCH_IMAGES, reverse=True):
         if torch_version in image and f'py{python_version}' in image:
           cuda_version = image.split('-')[-1].replace('cuda', '')
-          builder_image = TORCH_BASE_IMAGE.format(
+          final_image = TORCH_BASE_IMAGE.format(
               torch_version=torch_version,
               python_version=python_version,
               cuda_version=cuda_version,
           )
-          runtime_image = TORCH_RUNTIME_IMAGE.format(
-              torch_version=torch_version,
-              python_version=python_version,
-              cuda_version=cuda_version,
-          )
-          # download_image = base_image
           logger.info(f"Using Torch version {torch_version} base image to build the Docker image")
           break
 
@@ -392,14 +384,10 @@ class ModelBuilder:
       )
     clarifai_version = dependencies['clarifai']
 
-    # else:  # if not torch then use the download image for the base image too
-    #   # base_image = download_image
-    #   requirements_image = base_image
     # Replace placeholders with actual values
     dockerfile_content = dockerfile_template.safe_substitute(
         name='main',
-        BUILDER_IMAGE=builder_image,  # for pip requirements
-        RUNTIME_IMAGE=runtime_image,  # for runtime
+        FINAL_IMAGE=final_image,  # for pip requirements
         DOWNLOADER_IMAGE=downloader_image,  # for downloading checkpoints
         CLARIFAI_VERSION=clarifai_version,  # for clarifai
     )
@@ -670,15 +658,15 @@ class ModelBuilder:
               version_id=self.model_version_id,
           ))
       status_code = resp.model_version.status.code
+      logs = self.get_model_build_logs()
+      for log_entry in logs.log_entries:
+        if log_entry.url not in seen_logs:
+          seen_logs.add(log_entry.url)
+          logger.info(f"{escape(log_entry.message.strip())}")
       if status_code == status_code_pb2.MODEL_BUILDING:
         print(f"Model is building... (elapsed {time.time() - st:.1f}s)", end='\r', flush=True)
 
         # Fetch and display the logs
-        logs = self.get_model_build_logs()
-        for log_entry in logs.log_entries:
-          if log_entry.url not in seen_logs:
-            seen_logs.add(log_entry.url)
-            logger.debug(f"{escape(log_entry.message.strip())}")
         time.sleep(1)
       elif status_code == status_code_pb2.MODEL_TRAINED:
         logger.info("Model build complete!")

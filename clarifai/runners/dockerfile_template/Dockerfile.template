@@ -2,12 +2,13 @@
 #############################
 # User specific requirements installed in the pip_packages
 #############################
-FROM --platform=$TARGETPLATFORM ${BUILDER_IMAGE} as pip_packages
+FROM --platform=$TARGETPLATFORM ${FINAL_IMAGE} as pip_packages
 
 COPY --link requirements.txt /home/nonroot/requirements.txt
 
 # Update clarifai package so we always have latest protocol to the API. Everything should land in /venv
-RUN pip install --no-cache-dir -r /home/nonroot/requirements.txt && pip show clarifai
+RUN ["pip", "install", "--no-cache-dir", "-r", "/home/nonroot/requirements.txt"]
+RUN ["pip", "show", "clarifai"]
 #############################
 
 #############################
@@ -16,14 +17,14 @@ RUN pip install --no-cache-dir -r /home/nonroot/requirements.txt && pip show cla
 FROM --platform=$TARGETPLATFORM ${DOWNLOADER_IMAGE} as downloader
 
 # make sure we have the latest clarifai package. This version is filled in by SDK.
-RUN pip install clarifai==${CLARIFAI_VERSION}
+RUN ["pip", "install", "clarifai==${CLARIFAI_VERSION}"]
 #####
 
 
 #############################
 # Final runtime image
 #############################
-FROM --platform=$TARGETPLATFORM ${RUNTIME_IMAGE} as final
+FROM --platform=$TARGETPLATFORM ${FINAL_IMAGE} as final
 
 # Set the NUMBA cache dir to /tmp
 # Set the TORCHINDUCTOR cache dir to /tmp
