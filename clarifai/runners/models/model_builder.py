@@ -16,9 +16,9 @@ from rich.markup import escape
 
 from clarifai.client import BaseClient
 from clarifai.runners.models.model_class import ModelClass
-from clarifai.runners.utils.const import (
-    AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES, CONCEPTS_REQUIRED_MODEL_TYPE,
-    DEFAULT_PYTHON_VERSION, PYTHON_BUILDER_IMAGE, PYTHON_RUNTIME_IMAGE, TORCH_BASE_IMAGE)
+from clarifai.runners.utils.const import (AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES,
+                                          CONCEPTS_REQUIRED_MODEL_TYPE, DEFAULT_PYTHON_VERSION,
+                                          PYTHON_BASE_IMAGE, TORCH_BASE_IMAGE)
 from clarifai.runners.utils.loader import HuggingFaceLoader
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
@@ -356,10 +356,9 @@ class ModelBuilder:
       )
       python_version = DEFAULT_PYTHON_VERSION
 
-    # This is always the final image used for runtime.
-    runtime_image = PYTHON_RUNTIME_IMAGE.format(python_version=python_version)
-    builder_image = PYTHON_BUILDER_IMAGE.format(python_version=python_version)
-    downloader_image = PYTHON_BUILDER_IMAGE.format(python_version=python_version)
+    # Set the base image to the default Python image
+    builder_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
+    runtime_image = builder_image
 
     # Parse the requirements.txt file to determine the base image
     dependencies = self._parse_requirements()
@@ -375,6 +374,7 @@ class ModelBuilder:
               python_version=python_version,
               cuda_version=cuda_version,
           )
+          runtime_image = builder_image
           # download_image = base_image
           logger.info(f"Using Torch version {torch_version} base image to build the Docker image")
           break
@@ -386,7 +386,6 @@ class ModelBuilder:
         name='main',
         BUILDER_IMAGE=builder_image,  # for pip requirements
         RUNTIME_IMAGE=runtime_image,  # for runtime
-        DOWNLOADER_IMAGE=downloader_image,  # for downloading checkpoints
     )
 
     # Write Dockerfile

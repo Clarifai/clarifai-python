@@ -11,15 +11,6 @@ RUN pip install --no-cache-dir -r /home/nonroot/requirements.txt && \
     (pip install --upgrade --upgrade-strategy only-if-needed --no-deps --no-cache-dir clarifai clarifai-grpc clarifai-protocol || true)
 #############################
 
-#############################
-# Downloader dependencies image
-#############################
-FROM --platform=$TARGETPLATFORM ${DOWNLOADER_IMAGE} as downloader
-
-# make sure we have the latest clarifai package.
-RUN (pip install --upgrade --upgrade-strategy only-if-needed --no-cache-dir clarifai clarifai-grpc clarifai-protocol || true)
-#####
-
 
 #############################
 # Final runtime image
@@ -35,9 +26,9 @@ ENV NUMBA_CACHE_DIR=/tmp/numba_cache \
     DEBIAN_FRONTEND=noninteractive
 
 #####
-# Copy the python requirements needed to download checkpoints
+# Copy the python packages from the previous stage, needed to download checkpoints and run the model.
 #####
-COPY --link=true --from=downloader /venv /venv
+COPY --link=true --from=pip_packages /venv /venv
 #####
 
 #####
@@ -52,11 +43,6 @@ COPY --link=true config.yaml /home/nonroot/main/
 RUN ["python", "-m", "clarifai.cli", "model", "download-checkpoints", "--model_path", "/home/nonroot/main", "--out_path", "/home/nonroot/main"]
 #####
 
-
-#####
-# Copy the python packages from the previous stage.
-COPY --link=true --from=pip_packages /venv /venv
-#####
 
 # Copy in the actual files like config.yaml, requirements.txt, and most importantly 1/model.py
 # for the actual model.
