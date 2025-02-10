@@ -3,7 +3,7 @@ from typing import List, get_args, get_origin
 
 import numpy as np
 from clarifai_grpc.grpc.api import resources_pb2
-from clarifai_grpc.grpc.api.resources_pb2 import Concept, Image
+from clarifai_grpc.grpc.api.resources_pb2 import Concept, Frame, Image, Region, Text, Video
 from PIL import Image as PILImage
 
 
@@ -26,14 +26,6 @@ def build_serializer(type_annotation):
     return _SERIALIZERS[type_annotation]
 
   # TODO check json-able types
-
-  # lists of data fields
-  # note we only support one level of nesting, more might get difficult to maintain
-  if get_origin(type_annotation) == list:
-    inner_type = get_args(type_annotation)[0]
-    if inner_type in _SERIALIZERS:
-      return PartsList(_SERIALIZERS[inner_type])
-    raise NotImplementedError(f'List of {inner_type} not supported')
 
   # named parts fields
   if isinstance(type_annotation, Parts):
@@ -142,24 +134,26 @@ class DataMessageField(Message):
 
   def _serialize_repeated_list(self, data, dst, proto):
     # list with repeated field
-    if self.field_is_message:
+    if self.field_is_message and self.serializer is not None:
       for item in data:
         self.serializer.serialize(item, dst.add())
     else:
-      # list of atomic types
+      # list of atomic types or messages that are already in protos
       dst.extend(data)
 
   def _serialize_repeated_singleton(self, data, dst, proto):
     # single data, but repeated field
-    if self.field_is_message:
+    if self.field_is_message and self.serializer is not None:
       self.serializer.serialize(data, dst.add())
     else:
       dst.append(data)
 
   def _serialize_singleton(self, data, dst, proto):
     # single field
-    if self.field_is_message:
+    if self.field_is_message and self.serializer is not None:
       self.serializer.serialize(data, dst)
+    elif self.field_is_message:
+      dst.CopyFrom(data)
     else:
       setattr(proto, self.field_name, self.serializer.serialize(data))
 
@@ -195,12 +189,21 @@ class TextMessage(Message):
 
 class BytesMessage(Message):
 
+  def __init__(self, python_type=bytes):
+    self.python_type = python_type
+
   def serialize(self, data, proto=None):
-    assert proto is None
-    return data
+    if proto is None:
+      proto = resources_pb2.Bytes()
+    proto.raw = data
+    return proto
 
   def deserialize(self, proto):
-    return proto  # atomic bytes
+    if self.python_type is None:
+      return proto
+    if self.python_type is bytes:
+      return proto.raw
+    raise ValueError(f'Unsupported text type: {self.python_type}')
 
 
 class NDArrayMessage(Message):
@@ -280,8 +283,6 @@ _SERIALIZERS = {
         DataMessageField('text', TextMessage(str)),
     bytes:
         DataMessageField('bytes', BytesMessage(bytes)),
-    List[str]:
-        PartsList(DataMessageField('text', TextMessage(str))),
 
     # numeric types
     float:
@@ -290,39 +291,41 @@ _SERIALIZERS = {
         DataMessageField('ndarray', NDArrayMessage(int)),
     np.ndarray:
         DataMessageField('ndarray', NDArrayMessage(np.ndarray)),
-    # list of floats or ints are handled by ndarrays
-    # (lists of ndarrays are handled generically as enumerated parts)
+    # list of floats or ints are handled by 1d ndarrays, not as generic lists
+    # (lists of ndarrays are handled generically as enumerated parts, below)
     List[float]:
         DataMessageField('ndarray', NDArrayMessage(List[float])),
     List[int]:
         DataMessageField('ndarray', NDArrayMessage(List[int])),
 
-    # specialized proto message types
-    #Text:
-    #    DataMessageField('text', TextMessage()),
+    # existing resources_pb2 proto message types are serialized as they are
+    Text:
+        DataMessageField('text', None),
     Image:
-        DataMessageField('image', ImageMessage()),
-    #Video:
-    #    DataMessageField('video', VideoMessage()),
+        DataMessageField('image', None),
+    Video:
+        DataMessageField('video', None),
     Concept:
-        DataMessageField('concepts', ConceptMessage()),
-    #Region:
-    #    DataMessageField('regions', RegionMessage()),
-    #Frame:
-    #    DataMessageField('frames', FrameMessage()),
+        DataMessageField('concepts', None),
+    Region:
+        DataMessageField('regions', None),
+    Frame:
+        DataMessageField('frames', None),
 
     # common python types
     PILImage:
         DataMessageField('image', ImageMessage(PILImage)),
-
-    # lists of basic atomic types
-    #    List[str]: json? TODO
-    #    List[bytes]: json? TODO
-    List[str]:
-        DataMessageField('text', TextMessage(str), is_list=True),
 }
 
-# add serializers for lists of things that are in repeated fields
+# add serializers for single-level lists of non-list data fields
+# only support one level of nesting, more will be difficult to maintain
 for tp, serializer in list(_SERIALIZERS.items()):
-  if serializer.field_is_repeated and not serializer.is_list:
+  if get_origin(tp) == list:
+    continue  # already a list
+  if serializer.field_is_repeated:
+    # lists of items that have repeated fields in the Data proto
+    assert not serializer.is_list, 'List of lists not supported'
     _SERIALIZERS[List[tp]] = DataMessageField(serializer.field_name, serializer, is_list=True)
+  else:
+    # lists of items that have single fields in the Data proto -- use enumerated parts
+    _SERIALIZERS[List[tp]] = PartsList(DataMessageField(serializer.field_name, serializer))
