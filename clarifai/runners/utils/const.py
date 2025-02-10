@@ -4,8 +4,8 @@ registry = os.environ.get('CLARIFAI_BASE_IMAGE_REGISTRY', 'public.ecr.aws/clarif
 
 GIT_SHA = "de9e9a77b952b30c735d8734dd4308734dbbc5b4"
 
-PYTHON_BASE_IMAGE = registry + '/python-base:{python_version}' + GIT_SHA
-TORCH_BASE_IMAGE = registry + '/torch:{torch_version}-py{python_version}-cuda{cuda_version}' + GIT_SHA
+PYTHON_BASE_IMAGE = registry + '/python-base:{python_version}-' + GIT_SHA
+TORCH_BASE_IMAGE = registry + '/torch:{torch_version}-py{python_version}-cuda{cuda_version}-' + GIT_SHA
 
 # List of available python base images
 AVAILABLE_PYTHON_IMAGES = ['3.11', '3.12']
