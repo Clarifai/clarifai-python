@@ -2,9 +2,9 @@ import io
 from typing import List, get_args, get_origin
 
 import numpy as np
+import PIL.Image
 from clarifai_grpc.grpc.api import resources_pb2
-from clarifai_grpc.grpc.api.resources_pb2 import Concept, Frame, Image, Region, Text, Video
-from PIL import Image as PILImage
+from PIL.Image import Image as PILImage
 
 
 def build_function_serializers(func):
@@ -13,40 +13,26 @@ def build_function_serializers(func):
     '''
   input_type = dict(func.__annotations__)
   output_type = input_type.pop('return', None)
+
+  if len(input_type) == 1:
+    input_type = list(input_type.values())[0]  # single input, no need for named parts
+
   input_serializer = build_serializer(input_type)
   output_serializer = build_serializer(output_type)
   return input_serializer, output_serializer
 
 
-def build_serializer(type_annotation):
+def build_serializer(data_type):
   '''
     Build a serializer for the given type annotation.
     '''
-  if type_annotation in _SERIALIZERS:
-    return _SERIALIZERS[type_annotation]
+  if isinstance(data_type, dict):
+    # named multi-part parts fields
+    names, types = zip(*data_type.items())
+    return PartsDict(names, types)
 
-  # TODO check json-able types
-
-  # named parts fields
-  if isinstance(type_annotation, Parts):
-    cls = type_annotation.__class__
-    #names, types = zip(*type_annotation.fields.items())
-    names = type_annotation._fields
-    types = [getattr(type_annotation, name) for name in names]
-    return PartsDict(names, types, cls)
-
-
-class Parts:
-
-  def __init__(self, **fields):
-    self._fields = list(fields.keys())
-    for name, value in fields.items():
-      setattr(self, name, value)
-
-  def __setattr__(self, name, value):
-    if name != '_fields':
-      assert name in self._fields, f'Field {name} not found in {self.__class__.__name__}'
-    super().__setattr__(name, value)
+  if data_type in _SERIALIZERS:
+    return _SERIALIZERS[data_type]
 
 
 class Message:
@@ -72,7 +58,7 @@ class PartsDict(Message):
     for name, serializer in self.fields.items():
       part = proto.parts.add()
       part.name = name
-      part_data = getattr(data, name)
+      part_data = data[name]
       serializer.serialize(part_data, part.data)
     return proto
 
@@ -176,7 +162,12 @@ class TextMessage(Message):
   def serialize(self, data, proto=None):
     if proto is None:
       proto = resources_pb2.Text()
-    proto.raw = data
+    if isinstance(data, str):
+      proto.raw = data
+    elif isinstance(data, resources_pb2.Text):
+      proto.CopyFrom(data)
+    else:
+      raise ValueError(f'Unsupported text type: {type(data)}')
     return proto
 
   def deserialize(self, proto):
@@ -299,33 +290,35 @@ _SERIALIZERS = {
         DataMessageField('ndarray', NDArrayMessage(List[int])),
 
     # existing resources_pb2 proto message types are serialized as they are
-    Text:
+    resources_pb2.Text:
         DataMessageField('text', None),
-    Image:
+    resources_pb2.Image:
         DataMessageField('image', None),
-    Video:
+    resources_pb2.Video:
         DataMessageField('video', None),
-    Concept:
+    resources_pb2.Concept:
         DataMessageField('concepts', None),
-    Region:
+    resources_pb2.Region:
         DataMessageField('regions', None),
-    Frame:
+    resources_pb2.Frame:
         DataMessageField('frames', None),
 
     # common python types
-    PILImage:
-        DataMessageField('image', ImageMessage(PILImage)),
+    PIL.Image.Image:
+        DataMessageField('image', ImageMessage(PIL.Image.Image)),
 }
 
 # add serializers for single-level lists of non-list data fields
 # only support one level of nesting, more will be difficult to maintain
-for tp, serializer in list(_SERIALIZERS.items()):
+for tp, data_field in list(_SERIALIZERS.items()):
   if get_origin(tp) == list:
     continue  # already a list
-  if serializer.field_is_repeated:
+  if data_field.field_is_repeated:
     # lists of items that have repeated fields in the Data proto
-    assert not serializer.is_list, 'List of lists not supported'
-    _SERIALIZERS[List[tp]] = DataMessageField(serializer.field_name, serializer, is_list=True)
+    assert not data_field.is_list, 'List of lists not supported'
+    _SERIALIZERS[List[tp]] = DataMessageField(
+        data_field.field_name, data_field.serializer, is_list=True)
   else:
     # lists of items that have single fields in the Data proto -- use enumerated parts
-    _SERIALIZERS[List[tp]] = PartsList(DataMessageField(serializer.field_name, serializer))
+    _SERIALIZERS[List[tp]] = PartsList(data_field)
+print(_SERIALIZERS)
