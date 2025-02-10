@@ -295,6 +295,7 @@ class ModelBuilder:
     # List of dependencies to look for
     dependencies = [
         'torch',
+        'clarifai',
     ]
     # Escape dependency names for regex
     dep_pattern = '|'.join(map(re.escape, dependencies))
@@ -310,7 +311,7 @@ class ModelBuilder:
           (?P<version>[^\s;]+)?                 # Optional version (up to space or semicolon)
           """, re.VERBOSE)
 
-    deendencies_version = {}
+    dependencies_version = {}
     with open(os.path.join(self.folder, 'requirements.txt'), 'r') as file:
       for line in file:
         # Skip empty lines and comments
@@ -325,8 +326,8 @@ class ModelBuilder:
               'whl/cpu') > 0:  # Ignore torch-cpu whl files, use base mage.
             continue
 
-          deendencies_version[dependency] = version if version else None
-    return deendencies_version
+          dependencies_version[dependency] = version if version else None
+    return dependencies_version
 
   def create_dockerfile(self):
     dockerfile_template = os.path.join(
@@ -384,6 +385,13 @@ class ModelBuilder:
           # download_image = base_image
           logger.info(f"Using Torch version {torch_version} base image to build the Docker image")
           break
+
+    if 'clarifai' not in dependencies:
+      raise Exception(
+          "clarifai not found in requirements.txt, please add clarifai to the requirements.txt file with a fixed version."
+      )
+    clarifai_version = dependencies['clarifai']
+
     # else:  # if not torch then use the download image for the base image too
     #   # base_image = download_image
     #   requirements_image = base_image
@@ -393,6 +401,7 @@ class ModelBuilder:
         BUILDER_IMAGE=builder_image,  # for pip requirements
         RUNTIME_IMAGE=runtime_image,  # for runtime
         DOWNLOADER_IMAGE=downloader_image,  # for downloading checkpoints
+        CLARIFAI_VERSION=clarifai_version,  # for clarifai
     )
 
     # Write Dockerfile
