@@ -357,8 +357,7 @@ class ModelBuilder:
       python_version = DEFAULT_PYTHON_VERSION
 
     # Set the base image to the default Python image
-    builder_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
-    runtime_image = builder_image
+    model_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
 
     # Parse the requirements.txt file to determine the base image
     dependencies = self._parse_requirements()
@@ -369,12 +368,11 @@ class ModelBuilder:
       for image in sorted(AVAILABLE_TORCH_IMAGES, reverse=True):
         if torch_version in image and f'py{python_version}' in image:
           cuda_version = image.split('-')[-1].replace('cuda', '')
-          builder_image = TORCH_BASE_IMAGE.format(
+          model_image = TORCH_BASE_IMAGE.format(
               torch_version=torch_version,
               python_version=python_version,
               cuda_version=cuda_version,
           )
-          runtime_image = builder_image
           # download_image = base_image
           logger.info(f"Using Torch version {torch_version} base image to build the Docker image")
           break
@@ -382,11 +380,7 @@ class ModelBuilder:
     #   # base_image = download_image
     #   requirements_image = base_image
     # Replace placeholders with actual values
-    dockerfile_content = dockerfile_template.safe_substitute(
-        name='main',
-        BUILDER_IMAGE=builder_image,  # for pip requirements
-        RUNTIME_IMAGE=runtime_image,  # for runtime
-    )
+    dockerfile_content = dockerfile_template.safe_substitute(IMAGE=model_image,)
 
     # Write Dockerfile
     with open(os.path.join(self.folder, 'Dockerfile'), 'w') as dockerfile:

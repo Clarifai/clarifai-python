@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 #############################
-# User specific requirements installed in the pip_packages
+# Installing User specific requirements
 #############################
-FROM --platform=$TARGETPLATFORM ${BUILDER_IMAGE} as pip_packages
+FROM --platform=$TARGETPLATFORM ${IMAGE} as final
 
 COPY --link requirements.txt /home/nonroot/requirements.txt
 
@@ -12,11 +12,6 @@ RUN pip install --no-cache-dir -r /home/nonroot/requirements.txt && \
 #############################
 
 
-#############################
-# Final runtime image
-#############################
-FROM --platform=$TARGETPLATFORM ${RUNTIME_IMAGE} as final
-
 # Set the NUMBA cache dir to /tmp
 # Set the TORCHINDUCTOR cache dir to /tmp
 # The CLARIFAI* will be set by the templaing system.
@@ -24,12 +19,6 @@ ENV NUMBA_CACHE_DIR=/tmp/numba_cache \
     TORCHINDUCTOR_CACHE_DIR=/tmp/torchinductor_cache \
     HOME=/tmp \
     DEBIAN_FRONTEND=noninteractive
-
-#####
-# Copy the python packages from the previous stage, needed to download checkpoints and run the model.
-#####
-COPY --link=true --from=pip_packages /venv /venv
-#####
 
 #####
 # Copy the files needed to download
