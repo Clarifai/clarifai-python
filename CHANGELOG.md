@@ -1,3 +1,9 @@
+## [[11.1.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.2) - [PyPI](https://pypi.org/project/clarifai/11.1.2/) - 2025-02-10
+
+### Changed
+
+ - User new base images and fix clarifai version [(#513)] (https://github.com/Clarifai/clarifai-python/pull/513)
+
 ## [[11.1.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.1) - [PyPI](https://pypi.org/project/clarifai/11.1.1/) - 2025-02-06
 
 ### Changed

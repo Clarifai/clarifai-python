@@ -16,12 +16,33 @@ from rich.markup import escape
 
 from clarifai.client import BaseClient
 from clarifai.runners.models.model_class import ModelClass
-from clarifai.runners.utils.const import (
-    AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES, CONCEPTS_REQUIRED_MODEL_TYPE,
-    DEFAULT_PYTHON_VERSION, PYTHON_BUILDER_IMAGE, PYTHON_RUNTIME_IMAGE, TORCH_BASE_IMAGE)
+from clarifai.runners.utils.const import (AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES,
+                                          CONCEPTS_REQUIRED_MODEL_TYPE, DEFAULT_PYTHON_VERSION,
+                                          PYTHON_BASE_IMAGE, TORCH_BASE_IMAGE)
 from clarifai.runners.utils.loader import HuggingFaceLoader
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
+from clarifai.versions import CLIENT_VERSION
+
+# parse the user's requirements.txt to determine the proper base image to build on top of, based on the torch and other large dependencies and it's versions
+# List of dependencies to look for
+dependencies = [
+    'torch',
+    'clarifai',
+]
+# Escape dependency names for regex
+dep_pattern = '|'.join(map(re.escape, dependencies))
+# All possible version specifiers
+version_specifiers = '==|>=|<=|!=|~=|>|<'
+# Compile a regex pattern with verbose mode for readability
+pattern = re.compile(r"""
+      ^\s*                                   # Start of line, optional whitespace
+      (?P<dependency>""" + dep_pattern + r""")   # Dependency name
+      \s*                                   # Optional whitespace
+      (?P<specifier>""" + version_specifiers + r""")?  # Optional version specifier
+      \s*                                   # Optional whitespace
+      (?P<version>[^\s;]+)?                 # Optional version (up to space or semicolon)
+      """, re.VERBOSE)
 
 
 def _clear_line(n: int = 1) -> None:
@@ -290,32 +311,15 @@ class ModelBuilder:
     return self.client.STUB.PostModels(request)
 
   def _parse_requirements(self):
-    # parse the user's requirements.txt to determine the proper base image to build on top of, based on the torch and other large dependencies and it's versions
-    # List of dependencies to look for
-    dependencies = [
-        'torch',
-    ]
-    # Escape dependency names for regex
-    dep_pattern = '|'.join(map(re.escape, dependencies))
-    # All possible version specifiers
-    version_specifiers = '==|>=|<=|!=|~=|>|<'
-    # Compile a regex pattern with verbose mode for readability
-    pattern = re.compile(r"""
-          ^\s*                                   # Start of line, optional whitespace
-          (?P<dependency>""" + dep_pattern + r""")   # Dependency name
-          \s*                                   # Optional whitespace
-          (?P<specifier>""" + version_specifiers + r""")?  # Optional version specifier
-          \s*                                   # Optional whitespace
-          (?P<version>[^\s;]+)?                 # Optional version (up to space or semicolon)
-          """, re.VERBOSE)
-
-    deendencies_version = {}
+    dependencies_version = {}
     with open(os.path.join(self.folder, 'requirements.txt'), 'r') as file:
       for line in file:
         # Skip empty lines and comments
         line = line.strip()
         if not line or line.startswith('#'):
           continue
+        # split on whitespace followed by #
+        line = re.split(r'\s+#', line)[0]
         match = pattern.match(line)
         if match:
           dependency = match.group('dependency')
@@ -324,8 +328,8 @@ class ModelBuilder:
               'whl/cpu') > 0:  # Ignore torch-cpu whl files, use base mage.
             continue
 
-          deendencies_version[dependency] = version if version else None
-    return deendencies_version
+          dependencies_version[dependency] = version if version else None
+    return dependencies_version
 
   def create_dockerfile(self):
     dockerfile_template = os.path.join(
@@ -357,9 +361,8 @@ class ModelBuilder:
       python_version = DEFAULT_PYTHON_VERSION
 
     # This is always the final image used for runtime.
-    runtime_image = PYTHON_RUNTIME_IMAGE.format(python_version=python_version)
-    builder_image = PYTHON_BUILDER_IMAGE.format(python_version=python_version)
-    downloader_image = PYTHON_BUILDER_IMAGE.format(python_version=python_version)
+    final_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
+    downloader_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
 
     # Parse the requirements.txt file to determine the base image
     dependencies = self._parse_requirements()
@@ -370,23 +373,45 @@ class ModelBuilder:
       for image in sorted(AVAILABLE_TORCH_IMAGES, reverse=True):
         if torch_version in image and f'py{python_version}' in image:
           cuda_version = image.split('-')[-1].replace('cuda', '')
-          builder_image = TORCH_BASE_IMAGE.format(
+          final_image = TORCH_BASE_IMAGE.format(
               torch_version=torch_version,
               python_version=python_version,
               cuda_version=cuda_version,
           )
-          # download_image = base_image
           logger.info(f"Using Torch version {torch_version} base image to build the Docker image")
           break
-    # else:  # if not torch then use the download image for the base image too
-    #   # base_image = download_image
-    #   requirements_image = base_image
+
+    if 'clarifai' not in dependencies:
+      raise Exception(
+          f"clarifai not found in requirements.txt, please add clarifai to the requirements.txt file with a fixed version. Current version is clarifai=={CLIENT_VERSION}"
+      )
+    clarifai_version = dependencies['clarifai']
+    if not clarifai_version:
+      logger.warn(
+          f"clarifai version not found in requirements.txt, using the latest version {CLIENT_VERSION}"
+      )
+      clarifai_version = CLIENT_VERSION
+      lines = []
+      with open(os.path.join(self.folder, 'requirements.txt'), 'r') as file:
+        for line in file:
+          # if the line without whitespace is "clarifai"
+          # split on whitespace followed by #
+          matchline = re.split(r'\s+#', line)[0]
+          match = pattern.match(matchline)
+          if match and match.group('dependency') == "clarifai":
+            lines.append(line.replace("clarifai", f"clarifai=={CLIENT_VERSION}"))
+          else:
+            lines.append(line)
+      with open(os.path.join(self.folder, 'requirements.txt'), 'w') as file:
+        file.writelines(lines)
+      logger.warn(f"Updated requirements.txt to have clarifai=={CLIENT_VERSION}")
+
     # Replace placeholders with actual values
     dockerfile_content = dockerfile_template.safe_substitute(
         name='main',
-        BUILDER_IMAGE=builder_image,  # for pip requirements
-        RUNTIME_IMAGE=runtime_image,  # for runtime
+        FINAL_IMAGE=final_image,  # for pip requirements
         DOWNLOADER_IMAGE=downloader_image,  # for downloading checkpoints
+        CLARIFAI_VERSION=clarifai_version,  # for clarifai
     )
 
     # Write Dockerfile
@@ -496,7 +521,7 @@ class ModelBuilder:
 
   def upload_model_version(self, download_checkpoints):
     file_path = f"{self.folder}.tar.gz"
-    logger.info(f"Will tar it into file: {file_path}")
+    logger.debug(f"Will tar it into file: {file_path}")
 
     model_type_id = self.config.get('model').get('model_type_id')
 
@@ -537,10 +562,10 @@ class ModelBuilder:
 
     with tarfile.open(self.tar_file, "w:gz") as tar:
       tar.add(self.folder, arcname=".", filter=filter_func)
-    logger.info("Tarring complete, about to start upload.")
+    logger.debug("Tarring complete, about to start upload.")
 
     file_size = os.path.getsize(self.tar_file)
-    logger.info(f"Size of the tar is: {file_size} bytes")
+    logger.debug(f"Size of the tar is: {file_size} bytes")
 
     self.storage_request_size = self._get_tar_file_content_size(file_path)
     if not download_checkpoints and self.config.get("checkpoints"):
@@ -573,7 +598,6 @@ class ModelBuilder:
           f"request_id: {response.status.req_id}",
           end='\r',
           flush=True)
-    logger.info("")
     if response.status.code != status_code_pb2.MODEL_BUILDING:
       logger.error(f"Failed to upload model version: {response}")
       return
@@ -584,7 +608,7 @@ class ModelBuilder:
       self.monitor_model_build()
     finally:
       if os.path.exists(self.tar_file):
-        logger.info(f"Cleaning up upload file: {self.tar_file}")
+        logger.debug(f"Cleaning up upload file: {self.tar_file}")
         os.remove(self.tar_file)
 
   def model_version_stream_upload_iterator(self, model_version_proto, file_path):
@@ -594,9 +618,9 @@ class ModelBuilder:
       chunk_size = int(127 * 1024 * 1024)  # 127MB chunk size
       num_chunks = (file_size // chunk_size) + 1
       logger.info("Uploading file...")
-      logger.info(f"File size: {file_size}")
-      logger.info(f"Chunk size: {chunk_size}")
-      logger.info(f"Number of chunks: {num_chunks}")
+      logger.debug(f"File size: {file_size}")
+      logger.debug(f"Chunk size: {chunk_size}")
+      logger.debug(f"Number of chunks: {num_chunks}")
       read_so_far = 0
       for part_id in range(num_chunks):
         try:
@@ -616,12 +640,12 @@ class ModelBuilder:
           break
 
     if read_so_far == file_size:
-      logger.info("\nUpload complete!, waiting for model build...")
+      logger.info("Upload complete!")
 
   def init_upload_model_version(self, model_version_proto, file_path):
     file_size = os.path.getsize(file_path)
-    logger.info(f"Uploading model version of model {self.model_proto.id}")
-    logger.info(f"Using file '{os.path.basename(file_path)}' of size: {file_size} bytes")
+    logger.debug(f"Uploading model version of model {self.model_proto.id}")
+    logger.debug(f"Using file '{os.path.basename(file_path)}' of size: {file_size} bytes")
     result = service_pb2.PostModelVersionsUploadRequest(
         upload_config=service_pb2.PostModelVersionsUploadConfig(
             user_app_id=self.client.user_app_id,
@@ -656,18 +680,19 @@ class ModelBuilder:
               version_id=self.model_version_id,
           ))
       status_code = resp.model_version.status.code
+      logs = self.get_model_build_logs()
+      for log_entry in logs.log_entries:
+        if log_entry.url not in seen_logs:
+          seen_logs.add(log_entry.url)
+          logger.info(f"{escape(log_entry.message.strip())}")
       if status_code == status_code_pb2.MODEL_BUILDING:
         print(f"Model is building... (elapsed {time.time() - st:.1f}s)", end='\r', flush=True)
 
         # Fetch and display the logs
-        logs = self.get_model_build_logs()
-        for log_entry in logs.log_entries:
-          if log_entry.url not in seen_logs:
-            seen_logs.add(log_entry.url)
-            logger.info(f"{escape(log_entry.message.strip())}")
         time.sleep(1)
       elif status_code == status_code_pb2.MODEL_TRAINED:
-        logger.info(f"\nModel build complete! (elapsed {time.time() - st:.1f}s)")
+        logger.info("Model build complete!")
+        logger.info(f"Build time elapsed {time.time() - st:.1f}s)")
         logger.info(f"Check out the model at {self.model_url} version: {self.model_version_id}")
         return True
       else:

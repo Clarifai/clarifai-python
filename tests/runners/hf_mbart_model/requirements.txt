@@ -5,3 +5,4 @@ accelerate>=1.0.1
 optimum>=1.20.0
 sentencepiece==0.2.0
 requests
+clarifai
