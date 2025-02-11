@@ -22,6 +22,27 @@ from clarifai.runners.utils.const import (AVAILABLE_PYTHON_IMAGES, AVAILABLE_TOR
 from clarifai.runners.utils.loader import HuggingFaceLoader
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
+from clarifai.versions import CLIENT_VERSION
+
+# parse the user's requirements.txt to determine the proper base image to build on top of, based on the torch and other large dependencies and it's versions
+# List of dependencies to look for
+dependencies = [
+    'torch',
+    'clarifai',
+]
+# Escape dependency names for regex
+dep_pattern = '|'.join(map(re.escape, dependencies))
+# All possible version specifiers
+version_specifiers = '==|>=|<=|!=|~=|>|<'
+# Compile a regex pattern with verbose mode for readability
+pattern = re.compile(r"""
+      ^\s*                                   # Start of line, optional whitespace
+      (?P<dependency>""" + dep_pattern + r""")   # Dependency name
+      \s*                                   # Optional whitespace
+      (?P<specifier>""" + version_specifiers + r""")?  # Optional version specifier
+      \s*                                   # Optional whitespace
+      (?P<version>[^\s;]+)?                 # Optional version (up to space or semicolon)
+      """, re.VERBOSE)
 
 
 def _clear_line(n: int = 1) -> None:
@@ -290,26 +311,6 @@ class ModelBuilder:
     return self.client.STUB.PostModels(request)
 
   def _parse_requirements(self):
-    # parse the user's requirements.txt to determine the proper base image to build on top of, based on the torch and other large dependencies and it's versions
-    # List of dependencies to look for
-    dependencies = [
-        'torch',
-        'clarifai',
-    ]
-    # Escape dependency names for regex
-    dep_pattern = '|'.join(map(re.escape, dependencies))
-    # All possible version specifiers
-    version_specifiers = '==|>=|<=|!=|~=|>|<'
-    # Compile a regex pattern with verbose mode for readability
-    pattern = re.compile(r"""
-          ^\s*                                   # Start of line, optional whitespace
-          (?P<dependency>""" + dep_pattern + r""")   # Dependency name
-          \s*                                   # Optional whitespace
-          (?P<specifier>""" + version_specifiers + r""")?  # Optional version specifier
-          \s*                                   # Optional whitespace
-          (?P<version>[^\s;]+)?                 # Optional version (up to space or semicolon)
-          """, re.VERBOSE)
-
     dependencies_version = {}
     with open(os.path.join(self.folder, 'requirements.txt'), 'r') as file:
       for line in file:
@@ -317,6 +318,8 @@ class ModelBuilder:
         line = line.strip()
         if not line or line.startswith('#'):
           continue
+        # split on whitespace followed by #
+        line = re.split(r'\s+#', line)[0]
         match = pattern.match(line)
         if match:
           dependency = match.group('dependency')
@@ -380,9 +383,28 @@ class ModelBuilder:
 
     if 'clarifai' not in dependencies:
       raise Exception(
-          "clarifai not found in requirements.txt, please add clarifai to the requirements.txt file with a fixed version."
+          f"clarifai not found in requirements.txt, please add clarifai to the requirements.txt file with a fixed version. Current version is clarifai=={CLIENT_VERSION}"
       )
     clarifai_version = dependencies['clarifai']
+    if not clarifai_version:
+      logger.warn(
+          f"clarifai version not found in requirements.txt, using the latest version {CLIENT_VERSION}"
+      )
+      clarifai_version = CLIENT_VERSION
+      lines = []
+      with open(os.path.join(self.folder, 'requirements.txt'), 'r') as file:
+        for line in file:
+          # if the line without whitespace is "clarifai"
+          # split on whitespace followed by #
+          matchline = re.split(r'\s+#', line)[0]
+          match = pattern.match(matchline)
+          if match and match.group('dependency') == "clarifai":
+            lines.append(line.replace("clarifai", f"clarifai=={CLIENT_VERSION}"))
+          else:
+            lines.append(line)
+      with open(os.path.join(self.folder, 'requirements.txt'), 'w') as file:
+        file.writelines(lines)
+      logger.warn(f"Updated requirements.txt to have clarifai=={CLIENT_VERSION}")
 
     # Replace placeholders with actual values
     dockerfile_content = dockerfile_template.safe_substitute(
