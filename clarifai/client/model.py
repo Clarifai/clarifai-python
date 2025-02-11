@@ -24,6 +24,7 @@ from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_MODEL_PRED
                                       MAX_RANGE_SIZE, MIN_CHUNK_SIZE, MIN_RANGE_SIZE,
                                       MODEL_EXPORT_TIMEOUT, RANGE_SIZE, TRAINABLE_MODEL_TYPES)
 from clarifai.errors import UserError
+from clarifai.runners.utils.data_handler import Audio, Image, Text, Video
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator
@@ -407,47 +408,79 @@ class Model(Lister, BaseClient):
           model_id=self.id,
           **dict(self.kwargs, model_version=model_version_info))
 
-  def predict(self,
-              inputs: List[Input],
-              runner_selector: RunnerSelector = None,
-              inference_params: Dict = {},
-              output_config: Dict = {}):
+  def _convert_python_to_proto_inputs(self,
+                                      inputs: List[Dict[str, Any]]) -> List[resources_pb2.Input]:
+    """Converts Python inputs to protobuf Input objects.
+
+      Args:
+          inputs (List[Dict[str, Any]]): The Python inputs to convert.
+
+      Returns:
+          List[resources_pb2.Input]: The converted protobuf Input objects.
+      """
+    proto_inputs = []
+    for input_dict in inputs:
+      input_proto = resources_pb2.Input()
+      for key, value in input_dict.items():
+        part = resources_pb2.Part(id=key)
+        if isinstance(value, Text):
+          part.data.text.CopyFrom(value.to_proto())
+        elif isinstance(value, Image):
+          part.data.image.CopyFrom(value.to_proto())
+        elif isinstance(value, Audio):
+          part.data.audio.CopyFrom(value.to_proto())
+        elif isinstance(value, Video):
+          part.data.video.CopyFrom(value.to_proto())
+        input_proto.data.parts.append(part)
+      proto_inputs.append(input_proto)
+    return proto_inputs
+
+  def predict(
+      self,
+      inputs: Union[Dict[str, Any], List[Dict[str, Any]]],
+      runner_selector: RunnerSelector = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ) -> service_pb2.MultiOutputResponse:
     """Predicts the model based on the given inputs.
 
-    Args:
-        inputs (list[Input]): The inputs to predict, must be less than 128.
-        runner_selector (RunnerSelector): The runner selector to use for the model.
-    """
-    if not isinstance(inputs, list):
-      raise UserError('Invalid inputs, inputs must be a list of Input objects.')
+      Args:
+          inputs (Union[Dict[str, Any], List[Dict[str, Any]]]): The inputs to predict.
+          runner_selector (RunnerSelector): The runner selector to use for the model.
+          inference_params (Dict): Inference parameters to override.
+          output_config (Dict): Output configuration to override.
+
+      Returns:
+          service_pb2.MultiOutputResponse: The prediction response(s).
+      """
+    if isinstance(inputs, dict):
+      inputs = [inputs]
     if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
-      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}."
-                     )  # TODO Use Chunker for inputs len > 128
+      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}.")
 
     self._override_model_version(inference_params, output_config)
+    proto_inputs = self._convert_python_to_proto_inputs(inputs)
     request = service_pb2.PostModelOutputsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
         version_id=self.model_version.id,
-        inputs=inputs,
+        inputs=proto_inputs,
         runner_selector=runner_selector,
-        model=self.model_info)
+        model=self.model_info,
+    )
 
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
     while True:
       response = self._grpc_request(self.STUB.PostModelOutputs, request)
-
-      if response.status.code == status_code_pb2.MODEL_DEPLOYING and \
-              time.time() - start_time < 60 * 10:  # 10 minutes
+      if response.status.code == status_code_pb2.MODEL_DEPLOYING and time.time(
+      ) - start_time < 60 * 10:
         self.logger.info(f"{self.id} model is still deploying, please wait...")
         time.sleep(next(backoff_iterator))
         continue
-
       if response.status.code != status_code_pb2.SUCCESS:
         raise Exception(f"Model Predict failed with response {response.status!r}")
-      else:
-        break
+      break
 
     return response
 
