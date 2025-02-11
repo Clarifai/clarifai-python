@@ -1,9 +1,14 @@
+import io
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
 from clarifai_grpc.grpc.api import resources_pb2
+from clarifai_grpc.grpc.api.resources_pb2 import Audio as AudioProto
+from clarifai_grpc.grpc.api.resources_pb2 import Image as ImageProto
+from clarifai_grpc.grpc.api.resources_pb2 import Text as TextProto
+from clarifai_grpc.grpc.api.resources_pb2 import Video as VideoProto
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
-from PIL import Image
+from PIL import Image as PILImage
 
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 
@@ -54,7 +59,7 @@ class BaseDataHandler:
 
   # Image
   @property
-  def image(self, format: str = "np") -> Union[None, Image.Image, np.ndarray]:
+  def image(self, format: str = "np") -> Union[None, PILImage.Image, np.ndarray]:
     data = self._proto.data.image
     image = None
     if data.ByteSize():
@@ -67,9 +72,9 @@ class BaseDataHandler:
       image = image if not format == "np" else np.asarray(image).astype("uint8")
     return image
 
-  def set_image(self, image: Union[Image.Image, np.ndarray]):
+  def set_image(self, image: Union[PILImage.Image, np.ndarray]):
     if isinstance(image, np.ndarray):
-      image = Image.fromarray(image)
+      image = PILImage.fromarray(image)
     self._proto.data.image.base64 = image_to_bytes(image)
 
   # Audio
@@ -191,14 +196,14 @@ class BaseDataHandler:
       status_code: int = status_code_pb2.SUCCESS,
       status_description: str = "",
       text: str = None,
-      image: Union[Image.Image, np.ndarray] = None,
+      image: Union[PILImage.Image, np.ndarray] = None,
       audio: bytes = None,
       boxes: dict = None,
       concepts: Dict[str, float] = {},
       embeddings: List[List[float]] = [],
   ) -> 'OutputDataHandler':
     clss = cls(proto=resources_pb2.Output())
-    if isinstance(image, Image.Image) or isinstance(image, np.ndarray):
+    if isinstance(image, PILImage.Image) or isinstance(image, np.ndarray):
       clss.set_image(image)
     if text:
       clss.set_text(text)
@@ -229,3 +234,75 @@ class OutputDataHandler(BaseDataHandler):
                proto: resources_pb2.Output = resources_pb2.Output(),
                auth: ClarifaiAuthHelper = None):
     super().__init__(proto=proto, auth=auth)
+
+
+class Text:
+
+  def __init__(self, text: str):
+    self.text = text
+
+  def to_proto(self) -> TextProto:
+    return TextProto(raw=self.text)
+
+  @classmethod
+  def from_proto(cls, proto: TextProto) -> "Text":
+    return cls(proto.raw)
+
+
+class Image:
+
+  def __init__(self, proto_image: ImageProto):
+    self.proto = proto_image
+
+  @property
+  def url(self) -> str:
+    return self.proto.url
+
+  @url.setter
+  def url(self, value: str):
+    self.proto.url = value
+
+  @property
+  def bytes(self) -> bytes:
+    return self.proto.base64
+
+  @bytes.setter
+  def bytes(self, value: bytes):
+    self.proto.base64 = value
+
+  @classmethod
+  def from_url(cls, url: str) -> "Image":
+    proto_image = ImageProto(url=url)
+    return cls(proto_image)
+
+  @classmethod
+  def from_pil(cls, pil_image: PILImage.Image) -> "Image":
+    with io.BytesIO() as output:
+      pil_image.save(output, format="PNG")
+      image_bytes = output.getvalue()
+    proto_image = ImageProto(base64=image_bytes)
+    return cls(proto_image)
+
+  def to_pil(self) -> PILImage.Image:
+    return PILImage.open(io.BytesIO(self.proto.base64))
+
+  def to_proto(self) -> ImageProto:
+    return self.proto
+
+
+class Audio:
+
+  def __init__(self, proto_audio: AudioProto):
+    self.proto = proto_audio
+
+  def to_proto(self) -> AudioProto:
+    return self.proto
+
+
+class Video:
+
+  def __init__(self, proto_video: VideoProto):
+    self.proto = proto_video
+
+  def to_proto(self) -> VideoProto:
+    return self.proto
