@@ -1,8 +1,8 @@
 from typing import List, get_args, get_origin
 
 import numpy as np
+import PIL.Image
 from clarifai_grpc.grpc.api import resources_pb2
-from PIL.Image import Image as PILImage
 
 
 def build_function_signature(func):
@@ -43,21 +43,12 @@ def build_variables_signature(var_types):
 
   # get fields for each variable based on type
   for name, tp in var_types.items():
-    is_list = (get_origin(tp) == list)
-    if is_list:
-      tp = get_args(tp)[0]
-    if get_origin(tp) == np.ndarray:
-      tp = np.ndarray
-    if tp not in _PYTHON_TYPES:
-      raise ValueError(f'Unsupported type: {tp}')
+    tp = _normalize_type(tp)
 
     var = resources_pb2.MethodVariable()
     var.name = name
+    var.python_type = _PYTHON_TYPES[tp]
     var.data_field = _DATA_FIELDS[tp]
-    if is_list:
-      var.python_type = 'List[%s]' % _PYTHON_TYPES[tp]
-    else:
-      var.python_type = _PYTHON_TYPES[tp]
     vars.append(var)
 
   # check if any fields are used more than once, and if so, use parts
@@ -67,6 +58,35 @@ def build_variables_signature(var_types):
       var.data_field = 'parts[%s].%s' % (var.name, var.data_field)
 
   return vars
+
+
+def _normalize_type(tp):
+  '''
+    Normalize the given type.
+    '''
+
+  # check if list, and if so, get inner type
+  is_list = (get_origin(tp) == list)
+  if is_list:
+    tp = get_args(tp)[0]
+
+  # check if numpy array, and if so, use ndarray
+  if get_origin(tp) == np.ndarray:
+    tp = np.ndarray
+
+  # check for PIL images (sometimes types use the module, sometimes the class)
+  if tp in (PIL.Image, PIL.Image.Image):
+    tp = PIL.Image.Image
+
+  # put back list
+  if is_list:
+    tp = List[tp]
+
+  # check if supported type
+  if tp not in _PYTHON_TYPES:
+    raise ValueError(f'Unsupported type: {tp}')
+
+  return tp
 
 
 class _NamedFields(dict):
@@ -91,7 +111,7 @@ _PYTHON_TYPES = {
     float: 'float',
     bool: 'bool',
     np.ndarray: 'np.ndarray',
-    PILImage: 'PIL.Image.Image',
+    PIL.Image.Image: 'PIL.Image.Image',
 
     # protos, copied as-is
     resources_pb2.Text: 'Text',
@@ -111,7 +131,7 @@ _DATA_FIELDS = {
     float: 'ndarray',
     bool: 'ndarray',
     np.ndarray: 'ndarray',
-    PILImage: 'image',
+    PIL.Image.Image: 'image',
 
     # protos, copied as-is
     resources_pb2.Text: 'text',
@@ -125,18 +145,23 @@ _DATA_FIELDS = {
     List[int]: 'ndarray',
     List[float]: 'ndarray',
     List[bool]: 'ndarray',
-    List[PILImage]: 'frames',  # TODO use this or generic list?
+    List[PIL.Image.Image]: 'frames',  # TODO use this or generic list?
 }
 
 
 # add generic lists using parts, for all supported types
 def _add_list_fields():
-  for tp in _PYTHON_TYPES.keys():
+  for tp in list(_PYTHON_TYPES.keys()):
+    assert get_origin(tp) != list, 'List type already exists'
+    # add to supported types
+    _PYTHON_TYPES[List[tp]] = 'List[%s]' % _PYTHON_TYPES[tp]
+
+    # add field mapping
     list_tp = List[tp]
-    field_name = _DATA_FIELDS[tp]
     if list_tp in _DATA_FIELDS:
       # already added as special case
       continue
+    field_name = _DATA_FIELDS[tp]
     # check if repeated field (we can use repeated fields for lists directly)
     descriptor = resources_pb2.Data.DESCRIPTOR.fields_by_name[field_name]
     repeated = (descriptor.label == descriptor.LABEL_REPEATED)
