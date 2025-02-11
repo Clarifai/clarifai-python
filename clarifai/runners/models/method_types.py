@@ -46,6 +46,8 @@ def build_variables_signature(var_types):
     is_list = (get_origin(tp) == list)
     if is_list:
       tp = get_args(tp)[0]
+    if get_origin(tp) == np.ndarray:
+      tp = np.ndarray
     if tp not in _PYTHON_TYPES:
       raise ValueError(f'Unsupported type: {tp}')
 
@@ -65,6 +67,19 @@ def build_variables_signature(var_types):
       var.data_field = 'parts[%s].%s' % (var.name, var.data_field)
 
   return vars
+
+
+class _NamedFields(dict):
+  __getattr__ = dict.__getitem__
+  __setattr__ = dict.__setitem__
+
+
+class Input(_NamedFields):
+  pass
+
+
+class Output(_NamedFields):
+  pass
 
 
 # names for supported python types
