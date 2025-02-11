@@ -3,10 +3,12 @@ import os
 import tempfile
 import threading
 
-import av
 import requests
 
 from clarifai.runners.utils import stream_utils
+from clarifai.utils.misc import optional_import
+
+av = optional_import("av", pip_package="av")
 
 
 def stream_frames_from_url(url, download_ok=True):

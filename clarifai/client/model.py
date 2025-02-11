@@ -24,6 +24,7 @@ from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_MODEL_PRED
                                       MAX_RANGE_SIZE, MIN_CHUNK_SIZE, MIN_RANGE_SIZE,
                                       MODEL_EXPORT_TIMEOUT, RANGE_SIZE, TRAINABLE_MODEL_TYPES)
 from clarifai.errors import UserError
+from clarifai.runners.utils import video_utils
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator
@@ -1204,7 +1205,6 @@ class Model(Lister, BaseClient):
     # by getting the original start time ffprobe and either sending that to the model so it can adjust
     # with the ts of the first frame (too fragile to do all of this adjustment in the client input stream)
     # or by adjusting the timestamps in the output stream
-    from clarifai.runners.utils import video_utils
     stream = video_utils.convert_to_streamable(filepath)
 
     # TODO accumulate reads to fill the chunk size
