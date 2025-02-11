@@ -30,19 +30,6 @@ dependencies = [
     'torch',
     'clarifai',
 ]
-# Escape dependency names for regex
-dep_pattern = '|'.join(map(re.escape, dependencies))
-# All possible version specifiers
-version_specifiers = '==|>=|<=|!=|~=|>|<'
-# Compile a regex pattern with verbose mode for readability
-pattern = re.compile(r"""
-      ^\s*                                   # Start of line, optional whitespace
-      (?P<dependency>""" + dep_pattern + r""")   # Dependency name
-      \s*                                   # Optional whitespace
-      (?P<specifier>""" + version_specifiers + r""")?  # Optional version specifier
-      \s*                                   # Optional whitespace
-      (?P<version>[^\s;]+)?                 # Optional version (up to space or semicolon)
-      """, re.VERBOSE)
 
 
 def _clear_line(n: int = 1) -> None:
@@ -310,25 +297,41 @@ class ModelBuilder:
     )
     return self.client.STUB.PostModels(request)
 
+  def _match_req_line(self, line):
+    line = line.strip()
+    if not line or line.startswith('#'):
+      return None, None
+    # split on whitespace followed by #
+    line = re.split(r'\s+#', line)[0]
+    if "==" in line:
+      pkg, version = line.split("==")
+    elif ">=" in line:
+      pkg, version = line.split(">=")
+    elif ">" in line:
+      pkg, version = line.split(">")
+    elif "<=" in line:
+      pkg, version = line.split("<=")
+    elif "<" in line:
+      pkg, version = line.split("<")
+    else:
+      pkg, version = line, None  # No version specified
+    for dep in dependencies:
+      if dep == pkg:
+        if dep == 'torch' and line.find(
+            'whl/cpu') > 0:  # Ignore torch-cpu whl files, use base mage.
+          return None, None
+        return dep.strip(), version.strip() if version else None
+    return None, None
+
   def _parse_requirements(self):
     dependencies_version = {}
     with open(os.path.join(self.folder, 'requirements.txt'), 'r') as file:
       for line in file:
         # Skip empty lines and comments
-        line = line.strip()
-        if not line or line.startswith('#'):
+        dependency, version = self._match_req_line(line)
+        if dependency is None:
           continue
-        # split on whitespace followed by #
-        line = re.split(r'\s+#', line)[0]
-        match = pattern.match(line)
-        if match:
-          dependency = match.group('dependency')
-          version = match.group('version')
-          if dependency == "torch" and line.find(
-              'whl/cpu') > 0:  # Ignore torch-cpu whl files, use base mage.
-            continue
-
-          dependencies_version[dependency] = version if version else None
+        dependencies_version[dependency] = version if version else None
     return dependencies_version
 
   def create_dockerfile(self):
@@ -395,10 +398,8 @@ class ModelBuilder:
       with open(os.path.join(self.folder, 'requirements.txt'), 'r') as file:
         for line in file:
           # if the line without whitespace is "clarifai"
-          # split on whitespace followed by #
-          matchline = re.split(r'\s+#', line)[0]
-          match = pattern.match(matchline)
-          if match and match.group('dependency') == "clarifai":
+          dependency, version = self._match_req_line(line)
+          if dependency and dependency == "clarifai":
             lines.append(line.replace("clarifai", f"clarifai=={CLIENT_VERSION}"))
           else:
             lines.append(line)

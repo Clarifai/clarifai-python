@@ -1,3 +1,9 @@
+## [[11.1.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.3) - [PyPI](https://pypi.org/project/clarifai/11.1.2/) - 2025-02-11
+
+### Changed
+
+ - Fix dependency parsing [(#514)] (https://github.com/Clarifai/clarifai-python/pull/514)
+
 ## [[11.1.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.2) - [PyPI](https://pypi.org/project/clarifai/11.1.2/) - 2025-02-10
 
 ### Changed
