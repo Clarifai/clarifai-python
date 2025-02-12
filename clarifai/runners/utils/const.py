@@ -12,6 +12,12 @@ AVAILABLE_PYTHON_IMAGES = ['3.11', '3.12']
 
 DEFAULT_PYTHON_VERSION = 3.12
 
+# By default we download at runtime.
+DEFAULT_DOWNLOAD_CHECKPOINT_WHEN = "runtime"
+
+# Folder for downloading checkpoints at runtime.
+DEFAULT_RUNTIME_DOWNLOAD_PATH = "/tmp/.cache"
+
 # List of available torch images
 # Keep sorted by most recent cuda version.
 AVAILABLE_TORCH_IMAGES = [

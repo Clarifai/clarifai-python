@@ -18,7 +18,7 @@ def model():
     '--download_checkpoints',
     is_flag=True,
     help=
-    'Flag to download checkpoints before uploading and including them in the tar file that is uploaded. Defaults to False, which will attempt to download them at docker build time.',
+    'Flag to download checkpoints before uploading and including them in the tar file that is uploaded. Defaults to False, which will use the "when" field in config.yaml checkpoints section which can be "upload", "build", or "runtime".',
 )
 @click.option(
     '--skip_dockerfile',
@@ -29,7 +29,11 @@ def model():
 def upload(model_path, download_checkpoints, skip_dockerfile):
   """Upload a model to Clarifai."""
   from clarifai.runners.models.model_builder import upload_model
-  upload_model(model_path, download_checkpoints, skip_dockerfile)
+  if download_checkpoints:
+    stage = "any"  # ignore config.yaml and force download now.
+  else:
+    stage = "upload"
+  upload_model(model_path, stage, skip_dockerfile)
 
 
 @model.command()
@@ -44,14 +48,23 @@ def upload(model_path, download_checkpoints, skip_dockerfile):
     required=False,
     default=None,
     help=
-    'Option path to write the checkpoints to. This will place them in {out_path}/ If not provided it will default to {model_path}/1/checkpoints where the config.yaml is read..'
+    'Option path to write the checkpoints to. This will place them in {out_path}/1/checkpoints If not provided it will default to {model_path}/1/checkpoints where the config.yaml is read.'
 )
-def download_checkpoints(model_path, out_path):
+@click.option(
+    '--stage',
+    type=str,
+    required=False,
+    default="build",
+    show_default=True,
+    help=
+    'The stage we are calling download checkpoints from. Typically this would be in the build stage which is the default. Other options include "runtime" to be used in load_model, "upload" to be used during model upload or "any" which will force download now regardless of config.yaml'
+)
+def download_checkpoints(model_path, out_path, stage):
   """Download checkpoints from external source to local model_path"""
 
   from clarifai.runners.models.model_builder import ModelBuilder
   builder = ModelBuilder(model_path, download_validation_only=True)
-  builder.download_checkpoints(out_path)
+  builder.download_checkpoints(stage=stage, checkpoint_path_override=out_path)
 
 
 @model.command()
