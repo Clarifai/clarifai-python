@@ -425,12 +425,43 @@ class Model(Lister, BaseClient):
         part = resources_pb2.Part(id=key)
         if isinstance(value, Text):
           part.data.text.CopyFrom(value.to_proto())
+        elif isinstance(value, str):
+          part.data.text.value = value
         elif isinstance(value, Image):
           part.data.image.CopyFrom(value.to_proto())
         elif isinstance(value, Audio):
           part.data.audio.CopyFrom(value.to_proto())
         elif isinstance(value, Video):
           part.data.video.CopyFrom(value.to_proto())
+        elif isinstance(value, list):
+          for item in value:
+            if isinstance(item, Text):
+              part.data.parts.append(resources_pb2.Part(data=item.to_proto()))
+            elif isinstance(item, str):
+              part.data.parts.append(
+                  resources_pb2.Part(data=resources_pb2.Data(text=Text(value=item).to_proto())))
+            elif isinstance(item, Image):
+              part.data.parts.append(resources_pb2.Part(data=item.to_proto()))
+            elif isinstance(item, Audio):
+              part.data.parts.append(resources_pb2.Part(data=item.to_proto()))
+            elif isinstance(item, Video):
+              part.data.parts.append(resources_pb2.Part(data=item.to_proto()))
+            else:
+              raise TypeError(f"Unknown type: {item}")
+        elif isinstance(value, dict):
+          for key, item in value.items():
+            if isinstance(item, Text):
+              part.data.parts.append(resources_pb2.Part(id=key, data=item.to_proto()))
+            elif isinstance(item, str):
+              part.data.parts.append(
+                  resources_pb2.Part(
+                      id=key, data=resources_pb2.Data(text=Text(value=item).to_proto())))
+            elif isinstance(item, Image):
+              part.data.parts.append(resources_pb2.Part(id=key, data=item.to_proto()))
+            elif isinstance(item, Audio):
+              part.data.parts.append(resources_pb2.Part(id=key, data=item.to_proto()))
+            elif isinstance(item, Video):
+              part.data.parts.append(resources_pb2.Part(id=key, data=item.to_proto()))
         input_proto.data.parts.append(part)
       proto_inputs.append(input_proto)
     return proto_inputs
