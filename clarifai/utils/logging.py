@@ -142,8 +142,12 @@ def _configure_logger(name: str, logger_level: Union[int, str] = logging.NOTSET)
     logger.addHandler(handler)
   else:
     # Add the new rich handler and formatter
+    try:
+      width, _ = os.get_terminal_size()
+    except OSError:
+      width = 255
     handler = RichHandler(
-        rich_tracebacks=True, log_time_format="%Y-%m-%d %H:%M:%S.%f", console=Console(width=255))
+        rich_tracebacks=True, log_time_format="%Y-%m-%d %H:%M:%S.%f", console=Console(width=width))
     formatter = logging.Formatter('%(message)s')
     handler.setFormatter(formatter)
     logger.addHandler(handler)

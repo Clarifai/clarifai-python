@@ -18,10 +18,19 @@ from clarifai.client import BaseClient
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.const import (
     AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES, CONCEPTS_REQUIRED_MODEL_TYPE,
-    DEFAULT_PYTHON_VERSION, PYTHON_BUILDER_IMAGE, PYTHON_RUNTIME_IMAGE, TORCH_BASE_IMAGE)
+    DEFAULT_DOWNLOAD_CHECKPOINT_WHEN, DEFAULT_PYTHON_VERSION, DEFAULT_RUNTIME_DOWNLOAD_PATH,
+    PYTHON_BASE_IMAGE, TORCH_BASE_IMAGE)
 from clarifai.runners.utils.loader import HuggingFaceLoader
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
+from clarifai.versions import CLIENT_VERSION
+
+# parse the user's requirements.txt to determine the proper base image to build on top of, based on the torch and other large dependencies and it's versions
+# List of dependencies to look for
+dependencies = [
+    'torch',
+    'clarifai',
+]
 
 
 def _clear_line(n: int = 1) -> None:
@@ -137,11 +146,24 @@ class ModelBuilder:
     :return: repo_id location of checkpoint.
     :return: hf_token token to access checkpoint.
     """
+    if "checkpoints" not in self.config:
+      return None, None, None, DEFAULT_DOWNLOAD_CHECKPOINT_WHEN
     assert "type" in self.config.get("checkpoints"), "No loader type specified in the config file"
     loader_type = self.config.get("checkpoints").get("type")
     if not loader_type:
       logger.info("No loader type specified in the config file for checkpoints")
       return None, None, None
+    checkpoints = self.config.get("checkpoints")
+    if 'when' not in checkpoints:
+      logger.warn(
+          f"No 'when' specified in the config file for checkpoints, defaulting to download at {DEFAULT_DOWNLOAD_CHECKPOINT_WHEN}"
+      )
+    when = checkpoints.get("when", DEFAULT_DOWNLOAD_CHECKPOINT_WHEN)
+    assert when in [
+        "upload",
+        "build",
+        "runtime",
+    ], "Invalid value for when in the checkpoint loader when, needs to be one of ['upload', 'build', 'runtime']"
     assert loader_type == "huggingface", "Only huggingface loader supported for now"
     if loader_type == "huggingface":
       assert "repo_id" in self.config.get("checkpoints"), "No repo_id specified in the config file"
@@ -149,7 +171,7 @@ class ModelBuilder:
 
       # get from config.yaml otherwise fall back to HF_TOKEN env var.
       hf_token = self.config.get("checkpoints").get("hf_token", os.environ.get("HF_TOKEN", None))
-      return loader_type, repo_id, hf_token
+      return loader_type, repo_id, hf_token, when
 
   def _check_app_exists(self):
     resp = self.client.STUB.GetApp(service_pb2.GetAppRequest(user_app_id=self.client.user_app_id))
@@ -194,7 +216,7 @@ class ModelBuilder:
         assert model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
 
     if self.config.get("checkpoints"):
-      loader_type, _, hf_token = self._validate_config_checkpoints()
+      loader_type, _, hf_token, _ = self._validate_config_checkpoints()
 
       if loader_type == "huggingface" and hf_token:
         is_valid_token = HuggingFaceLoader.validate_hftoken(hf_token)
@@ -289,43 +311,42 @@ class ModelBuilder:
     )
     return self.client.STUB.PostModels(request)
 
-  def _parse_requirements(self):
-    # parse the user's requirements.txt to determine the proper base image to build on top of, based on the torch and other large dependencies and it's versions
-    # List of dependencies to look for
-    dependencies = [
-        'torch',
-    ]
-    # Escape dependency names for regex
-    dep_pattern = '|'.join(map(re.escape, dependencies))
-    # All possible version specifiers
-    version_specifiers = '==|>=|<=|!=|~=|>|<'
-    # Compile a regex pattern with verbose mode for readability
-    pattern = re.compile(r"""
-          ^\s*                                   # Start of line, optional whitespace
-          (?P<dependency>""" + dep_pattern + r""")   # Dependency name
-          \s*                                   # Optional whitespace
-          (?P<specifier>""" + version_specifiers + r""")?  # Optional version specifier
-          \s*                                   # Optional whitespace
-          (?P<version>[^\s;]+)?                 # Optional version (up to space or semicolon)
-          """, re.VERBOSE)
+  def _match_req_line(self, line):
+    line = line.strip()
+    if not line or line.startswith('#'):
+      return None, None
+    # split on whitespace followed by #
+    line = re.split(r'\s+#', line)[0]
+    if "==" in line:
+      pkg, version = line.split("==")
+    elif ">=" in line:
+      pkg, version = line.split(">=")
+    elif ">" in line:
+      pkg, version = line.split(">")
+    elif "<=" in line:
+      pkg, version = line.split("<=")
+    elif "<" in line:
+      pkg, version = line.split("<")
+    else:
+      pkg, version = line, None  # No version specified
+    for dep in dependencies:
+      if dep == pkg:
+        if dep == 'torch' and line.find(
+            'whl/cpu') > 0:  # Ignore torch-cpu whl files, use base mage.
+          return None, None
+        return dep.strip(), version.strip() if version else None
+    return None, None
 
-    deendencies_version = {}
+  def _parse_requirements(self):
+    dependencies_version = {}
     with open(os.path.join(self.folder, 'requirements.txt'), 'r') as file:
       for line in file:
         # Skip empty lines and comments
-        line = line.strip()
-        if not line or line.startswith('#'):
+        dependency, version = self._match_req_line(line)
+        if dependency is None:
           continue
-        match = pattern.match(line)
-        if match:
-          dependency = match.group('dependency')
-          version = match.group('version')
-          if dependency == "torch" and line.find(
-              'whl/cpu') > 0:  # Ignore torch-cpu whl files, use base mage.
-            continue
-
-          deendencies_version[dependency] = version if version else None
-    return deendencies_version
+        dependencies_version[dependency] = version if version else None
+    return dependencies_version
 
   def create_dockerfile(self):
     dockerfile_template = os.path.join(
@@ -357,9 +378,8 @@ class ModelBuilder:
       python_version = DEFAULT_PYTHON_VERSION
 
     # This is always the final image used for runtime.
-    runtime_image = PYTHON_RUNTIME_IMAGE.format(python_version=python_version)
-    builder_image = PYTHON_BUILDER_IMAGE.format(python_version=python_version)
-    downloader_image = PYTHON_BUILDER_IMAGE.format(python_version=python_version)
+    final_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
+    downloader_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
 
     # Parse the requirements.txt file to determine the base image
     dependencies = self._parse_requirements()
@@ -370,23 +390,43 @@ class ModelBuilder:
       for image in sorted(AVAILABLE_TORCH_IMAGES, reverse=True):
         if torch_version in image and f'py{python_version}' in image:
           cuda_version = image.split('-')[-1].replace('cuda', '')
-          builder_image = TORCH_BASE_IMAGE.format(
+          final_image = TORCH_BASE_IMAGE.format(
               torch_version=torch_version,
               python_version=python_version,
               cuda_version=cuda_version,
           )
-          # download_image = base_image
           logger.info(f"Using Torch version {torch_version} base image to build the Docker image")
           break
-    # else:  # if not torch then use the download image for the base image too
-    #   # base_image = download_image
-    #   requirements_image = base_image
+
+    if 'clarifai' not in dependencies:
+      raise Exception(
+          f"clarifai not found in requirements.txt, please add clarifai to the requirements.txt file with a fixed version. Current version is clarifai=={CLIENT_VERSION}"
+      )
+    clarifai_version = dependencies['clarifai']
+    if not clarifai_version:
+      logger.warn(
+          f"clarifai version not found in requirements.txt, using the latest version {CLIENT_VERSION}"
+      )
+      clarifai_version = CLIENT_VERSION
+      lines = []
+      with open(os.path.join(self.folder, 'requirements.txt'), 'r') as file:
+        for line in file:
+          # if the line without whitespace is "clarifai"
+          dependency, version = self._match_req_line(line)
+          if dependency and dependency == "clarifai":
+            lines.append(line.replace("clarifai", f"clarifai=={CLIENT_VERSION}"))
+          else:
+            lines.append(line)
+      with open(os.path.join(self.folder, 'requirements.txt'), 'w') as file:
+        file.writelines(lines)
+      logger.warn(f"Updated requirements.txt to have clarifai=={CLIENT_VERSION}")
+
     # Replace placeholders with actual values
     dockerfile_content = dockerfile_template.safe_substitute(
         name='main',
-        BUILDER_IMAGE=builder_image,  # for pip requirements
-        RUNTIME_IMAGE=runtime_image,  # for runtime
+        FINAL_IMAGE=final_image,  # for pip requirements
         DOWNLOADER_IMAGE=downloader_image,  # for downloading checkpoints
+        CLARIFAI_VERSION=clarifai_version,  # for clarifai
     )
 
     # Write Dockerfile
@@ -402,31 +442,51 @@ class ModelBuilder:
 
   @property
   def checkpoint_suffix(self):
-    return '1/checkpoints'
+    return os.path.join('1', 'checkpoints')
 
   @property
   def tar_file(self):
     return f"{self.folder}.tar.gz"
 
-  def download_checkpoints(self, checkpoint_path_override: str = None):
+  def default_runtime_checkpoint_path(self):
+    return DEFAULT_RUNTIME_DOWNLOAD_PATH
+
+  def download_checkpoints(self,
+                           stage: str = DEFAULT_DOWNLOAD_CHECKPOINT_WHEN,
+                           checkpoint_path_override: str = None):
     """
     Downloads the checkpoints specified in the config file.
 
-    :param checkpoint_path_override: The path to download the checkpoints to. If not provided, the
-    default path is used based on the folder ModelUploader was initialized with. The
-    checkpoint_suffix will be appended to the path.
+    :param stage: The stage of the build process. This is used to determine when to download the
+    checkpoints. The stage can be one of ['build', 'upload', 'runtime']. If you want to force
+    downloading now then set stage to match e when field of the checkpoints section of you config.yaml.
+    :param checkpoint_path_override: The path to download the checkpoints to (with 1/checkpoints added as suffix). If not provided, the
+    default path is used based on the folder ModelUploader was initialized with. The checkpoint_suffix will be appended to the path.
+    If stage is 'runtime' and checkpoint_path_override is None, the default runtime path will be used.
+
+    :return: The path to the downloaded checkpoints. Even if it doesn't download anything, it will return the default path.
     """
+    path = self.checkpoint_path  # default checkpoint path.
     if not self.config.get("checkpoints"):
       logger.info("No checkpoints specified in the config file")
-      return True
+      return path
 
-    loader_type, repo_id, hf_token = self._validate_config_checkpoints()
+    loader_type, repo_id, hf_token, when = self._validate_config_checkpoints()
+    if stage not in ["build", "upload", "runtime"]:
+      raise Exception("Invalid stage provided, must be one of ['build', 'upload', 'runtime']")
+    if when != stage:
+      logger.info(
+          f"Skipping downloading checkpoints for stage {stage} since config.yaml says to download them at stage {when}"
+      )
+      return path
 
     success = True
     if loader_type == "huggingface":
       loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
-      path = self._checkpoint_path(
-          checkpoint_path_override) if checkpoint_path_override else self.checkpoint_path
+      # for runtime default to /tmp path
+      if stage == "runtime" and checkpoint_path_override is None:
+        checkpoint_path_override = self.default_runtime_checkpoint_path()
+      path = checkpoint_path_override if checkpoint_path_override else self.checkpoint_path
       success = loader.download_checkpoints(path)
 
     if loader_type:
@@ -435,7 +495,7 @@ class ModelBuilder:
         sys.exit(1)
       else:
         logger.info(f"Downloaded checkpoints for model {repo_id}")
-    return success
+    return path
 
   def _concepts_protos_from_concepts(self, concepts):
     concept_protos = []
@@ -494,11 +554,12 @@ class ModelBuilder:
             self._concepts_protos_from_concepts(labels))
     return model_version_proto
 
-  def upload_model_version(self, download_checkpoints):
+  def upload_model_version(self):
     file_path = f"{self.folder}.tar.gz"
-    logger.info(f"Will tar it into file: {file_path}")
+    logger.debug(f"Will tar it into file: {file_path}")
 
     model_type_id = self.config.get('model').get('model_type_id')
+    loader_type, repo_id, hf_token, when = self._validate_config_checkpoints()
 
     if (model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE) and 'concepts' not in self.config:
       logger.info(
@@ -508,15 +569,13 @@ class ModelBuilder:
         logger.info(
             "Checkpoints specified in the config.yaml file, will download the HF model's config.json file to infer the concepts."
         )
-
-        if not download_checkpoints and not HuggingFaceLoader.validate_config(
-            self.checkpoint_path):
-
-          input(
-              "Press Enter to download the HuggingFace model's config.json file to infer the concepts and continue..."
-          )
-          loader_type, repo_id, hf_token = self._validate_config_checkpoints()
-          if loader_type == "huggingface":
+        # If we don't already have the concepts, download the config.json file from HuggingFace
+        if loader_type == "huggingface":
+          # If the config.yaml says we'll download in the future (build time or runtime) then we need to get this config now.
+          if when != "upload" and not HuggingFaceLoader.validate_config(self.checkpoint_path):
+            input(
+                "Press Enter to download the HuggingFace model's config.json file to infer the concepts and continue..."
+            )
             loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
             loader.download_config(self.checkpoint_path)
 
@@ -531,24 +590,24 @@ class ModelBuilder:
     def filter_func(tarinfo):
       name = tarinfo.name
       exclude = [self.tar_file, "*~"]
-      if not download_checkpoints:
+      if when != "upload":
         exclude.append(self.checkpoint_suffix)
       return None if any(name.endswith(ex) for ex in exclude) else tarinfo
 
     with tarfile.open(self.tar_file, "w:gz") as tar:
       tar.add(self.folder, arcname=".", filter=filter_func)
-    logger.info("Tarring complete, about to start upload.")
+    logger.debug("Tarring complete, about to start upload.")
 
     file_size = os.path.getsize(self.tar_file)
-    logger.info(f"Size of the tar is: {file_size} bytes")
+    logger.debug(f"Size of the tar is: {file_size} bytes")
 
     self.storage_request_size = self._get_tar_file_content_size(file_path)
-    if not download_checkpoints and self.config.get("checkpoints"):
+    if when != "upload" and self.config.get("checkpoints"):
       # Get the checkpoint size to add to the storage request.
       # First check for the env variable, then try querying huggingface. If all else fails, use the default.
       checkpoint_size = os.environ.get('CHECKPOINT_SIZE_BYTES', 0)
       if not checkpoint_size:
-        _, repo_id, _ = self._validate_config_checkpoints()
+        _, repo_id, _, _ = self._validate_config_checkpoints()
         checkpoint_size = HuggingFaceLoader.get_huggingface_checkpoint_total_size(repo_id)
       if not checkpoint_size:
         checkpoint_size = self.DEFAULT_CHECKPOINT_SIZE
@@ -573,7 +632,6 @@ class ModelBuilder:
           f"request_id: {response.status.req_id}",
           end='\r',
           flush=True)
-    logger.info("")
     if response.status.code != status_code_pb2.MODEL_BUILDING:
       logger.error(f"Failed to upload model version: {response}")
       return
@@ -584,7 +642,7 @@ class ModelBuilder:
       self.monitor_model_build()
     finally:
       if os.path.exists(self.tar_file):
-        logger.info(f"Cleaning up upload file: {self.tar_file}")
+        logger.debug(f"Cleaning up upload file: {self.tar_file}")
         os.remove(self.tar_file)
 
   def model_version_stream_upload_iterator(self, model_version_proto, file_path):
@@ -594,9 +652,9 @@ class ModelBuilder:
       chunk_size = int(127 * 1024 * 1024)  # 127MB chunk size
       num_chunks = (file_size // chunk_size) + 1
       logger.info("Uploading file...")
-      logger.info(f"File size: {file_size}")
-      logger.info(f"Chunk size: {chunk_size}")
-      logger.info(f"Number of chunks: {num_chunks}")
+      logger.debug(f"File size: {file_size}")
+      logger.debug(f"Chunk size: {chunk_size}")
+      logger.debug(f"Number of chunks: {num_chunks}")
       read_so_far = 0
       for part_id in range(num_chunks):
         try:
@@ -616,12 +674,12 @@ class ModelBuilder:
           break
 
     if read_so_far == file_size:
-      logger.info("\nUpload complete!, waiting for model build...")
+      logger.info("Upload complete!")
 
   def init_upload_model_version(self, model_version_proto, file_path):
     file_size = os.path.getsize(file_path)
-    logger.info(f"Uploading model version of model {self.model_proto.id}")
-    logger.info(f"Using file '{os.path.basename(file_path)}' of size: {file_size} bytes")
+    logger.debug(f"Uploading model version of model {self.model_proto.id}")
+    logger.debug(f"Using file '{os.path.basename(file_path)}' of size: {file_size} bytes")
     result = service_pb2.PostModelVersionsUploadRequest(
         upload_config=service_pb2.PostModelVersionsUploadConfig(
             user_app_id=self.client.user_app_id,
@@ -656,18 +714,19 @@ class ModelBuilder:
               version_id=self.model_version_id,
           ))
       status_code = resp.model_version.status.code
+      logs = self.get_model_build_logs()
+      for log_entry in logs.log_entries:
+        if log_entry.url not in seen_logs:
+          seen_logs.add(log_entry.url)
+          logger.info(f"{escape(log_entry.message.strip())}")
       if status_code == status_code_pb2.MODEL_BUILDING:
         print(f"Model is building... (elapsed {time.time() - st:.1f}s)", end='\r', flush=True)
 
         # Fetch and display the logs
-        logs = self.get_model_build_logs()
-        for log_entry in logs.log_entries:
-          if log_entry.url not in seen_logs:
-            seen_logs.add(log_entry.url)
-            logger.info(f"{escape(log_entry.message.strip())}")
         time.sleep(1)
       elif status_code == status_code_pb2.MODEL_TRAINED:
-        logger.info(f"\nModel build complete! (elapsed {time.time() - st:.1f}s)")
+        logger.info("Model build complete!")
+        logger.info(f"Build time elapsed {time.time() - st:.1f}s)")
         logger.info(f"Check out the model at {self.model_url} version: {self.model_version_id}")
         return True
       else:
@@ -676,10 +735,16 @@ class ModelBuilder:
         return False
 
 
-def upload_model(folder, download_checkpoints, skip_dockerfile):
+def upload_model(folder, stage, skip_dockerfile):
+  """
+  Uploads a model to Clarifai.
+
+  :param folder: The folder containing the model files.
+  :param stage: The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.
+  :param skip_dockerfile: If True, will not create a Dockerfile.
+  """
   builder = ModelBuilder(folder)
-  if download_checkpoints:
-    builder.download_checkpoints()
+  builder.download_checkpoints(stage=stage)
   if not skip_dockerfile:
     builder.create_dockerfile()
   exists = builder.check_model_exists()
@@ -691,4 +756,4 @@ def upload_model(folder, download_checkpoints, skip_dockerfile):
     logger.info(f"New model will be created at {builder.model_url} with it's first version.")
 
   input("Press Enter to continue...")
-  builder.upload_model_version(download_checkpoints)
+  builder.upload_model_version()

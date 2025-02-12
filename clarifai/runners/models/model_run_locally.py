@@ -475,13 +475,14 @@ def main(model_path,
          keep_env=False,
          keep_image=False):
 
-  if not os.environ['CLARIFAI_PAT']:
+  if not os.environ.get("CLARIFAI_PAT", None):
     logger.error(
         "CLARIFAI_PAT environment variable is not set! Please set your PAT in the 'CLARIFAI_PAT' environment variable."
     )
     sys.exit(1)
   manager = ModelRunLocally(model_path)
-  manager.builder.download_checkpoints()
+  # stage="any" forces downloaded now regardless of config.yaml
+  manager.builder.download_checkpoints(stage="any")
   if inside_container:
     if not manager.is_docker_installed():
       sys.exit(1)
