@@ -443,7 +443,7 @@ class ModelBuilder:
 
   @property
   def checkpoint_suffix(self):
-    return '1/checkpoints'
+    return os.path.join('1', 'checkpoints')
 
   @property
   def tar_file(self):
