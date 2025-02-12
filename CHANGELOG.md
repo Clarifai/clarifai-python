@@ -1,4 +1,10 @@
-## [[11.1.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.3) - [PyPI](https://pypi.org/project/clarifai/11.1.2/) - 2025-02-11
+## [[11.1.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.4) - [PyPI](https://pypi.org/project/clarifai/11.1.4/) - 2025-02-12
+
+### Changed
+
+ - Introduce 3 times when you can download checkpoints [(#515)] (https://github.com/Clarifai/clarifai-python/pull/515)
+
+## [[11.1.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.3) - [PyPI](https://pypi.org/project/clarifai/11.1.3/) - 2025-02-11
 
 ### Changed
 

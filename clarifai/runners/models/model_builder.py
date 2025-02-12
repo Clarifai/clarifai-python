@@ -16,9 +16,10 @@ from rich.markup import escape
 
 from clarifai.client import BaseClient
 from clarifai.runners.models.model_class import ModelClass
-from clarifai.runners.utils.const import (AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES,
-                                          CONCEPTS_REQUIRED_MODEL_TYPE, DEFAULT_PYTHON_VERSION,
-                                          PYTHON_BASE_IMAGE, TORCH_BASE_IMAGE)
+from clarifai.runners.utils.const import (
+    AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES, CONCEPTS_REQUIRED_MODEL_TYPE,
+    DEFAULT_DOWNLOAD_CHECKPOINT_WHEN, DEFAULT_PYTHON_VERSION, DEFAULT_RUNTIME_DOWNLOAD_PATH,
+    PYTHON_BASE_IMAGE, TORCH_BASE_IMAGE)
 from clarifai.runners.utils.loader import HuggingFaceLoader
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
@@ -145,11 +146,24 @@ class ModelBuilder:
     :return: repo_id location of checkpoint.
     :return: hf_token token to access checkpoint.
     """
+    if "checkpoints" not in self.config:
+      return None, None, None, DEFAULT_DOWNLOAD_CHECKPOINT_WHEN
     assert "type" in self.config.get("checkpoints"), "No loader type specified in the config file"
     loader_type = self.config.get("checkpoints").get("type")
     if not loader_type:
       logger.info("No loader type specified in the config file for checkpoints")
       return None, None, None
+    checkpoints = self.config.get("checkpoints")
+    if 'when' not in checkpoints:
+      logger.warn(
+          f"No 'when' specified in the config file for checkpoints, defaulting to download at {DEFAULT_DOWNLOAD_CHECKPOINT_WHEN}"
+      )
+    when = checkpoints.get("when", DEFAULT_DOWNLOAD_CHECKPOINT_WHEN)
+    assert when in [
+        "upload",
+        "build",
+        "runtime",
+    ], "Invalid value for when in the checkpoint loader when, needs to be one of ['upload', 'build', 'runtime']"
     assert loader_type == "huggingface", "Only huggingface loader supported for now"
     if loader_type == "huggingface":
       assert "repo_id" in self.config.get("checkpoints"), "No repo_id specified in the config file"
@@ -157,7 +171,7 @@ class ModelBuilder:
 
       # get from config.yaml otherwise fall back to HF_TOKEN env var.
       hf_token = self.config.get("checkpoints").get("hf_token", os.environ.get("HF_TOKEN", None))
-      return loader_type, repo_id, hf_token
+      return loader_type, repo_id, hf_token, when
 
   def _check_app_exists(self):
     resp = self.client.STUB.GetApp(service_pb2.GetAppRequest(user_app_id=self.client.user_app_id))
@@ -202,7 +216,7 @@ class ModelBuilder:
         assert model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
 
     if self.config.get("checkpoints"):
-      loader_type, _, hf_token = self._validate_config_checkpoints()
+      loader_type, _, hf_token, _ = self._validate_config_checkpoints()
 
       if loader_type == "huggingface" and hf_token:
         is_valid_token = HuggingFaceLoader.validate_hftoken(hf_token)
@@ -428,31 +442,51 @@ class ModelBuilder:
 
   @property
   def checkpoint_suffix(self):
-    return '1/checkpoints'
+    return os.path.join('1', 'checkpoints')
 
   @property
   def tar_file(self):
     return f"{self.folder}.tar.gz"
 
-  def download_checkpoints(self, checkpoint_path_override: str = None):
+  def default_runtime_checkpoint_path(self):
+    return DEFAULT_RUNTIME_DOWNLOAD_PATH
+
+  def download_checkpoints(self,
+                           stage: str = DEFAULT_DOWNLOAD_CHECKPOINT_WHEN,
+                           checkpoint_path_override: str = None):
     """
     Downloads the checkpoints specified in the config file.
 
-    :param checkpoint_path_override: The path to download the checkpoints to. If not provided, the
-    default path is used based on the folder ModelUploader was initialized with. The
-    checkpoint_suffix will be appended to the path.
+    :param stage: The stage of the build process. This is used to determine when to download the
+    checkpoints. The stage can be one of ['build', 'upload', 'runtime']. If you want to force
+    downloading now then set stage to match e when field of the checkpoints section of you config.yaml.
+    :param checkpoint_path_override: The path to download the checkpoints to (with 1/checkpoints added as suffix). If not provided, the
+    default path is used based on the folder ModelUploader was initialized with. The checkpoint_suffix will be appended to the path.
+    If stage is 'runtime' and checkpoint_path_override is None, the default runtime path will be used.
+
+    :return: The path to the downloaded checkpoints. Even if it doesn't download anything, it will return the default path.
     """
+    path = self.checkpoint_path  # default checkpoint path.
     if not self.config.get("checkpoints"):
       logger.info("No checkpoints specified in the config file")
-      return True
+      return path
 
-    loader_type, repo_id, hf_token = self._validate_config_checkpoints()
+    loader_type, repo_id, hf_token, when = self._validate_config_checkpoints()
+    if stage not in ["build", "upload", "runtime"]:
+      raise Exception("Invalid stage provided, must be one of ['build', 'upload', 'runtime']")
+    if when != stage:
+      logger.info(
+          f"Skipping downloading checkpoints for stage {stage} since config.yaml says to download them at stage {when}"
+      )
+      return path
 
     success = True
     if loader_type == "huggingface":
       loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
-      path = self._checkpoint_path(
-          checkpoint_path_override) if checkpoint_path_override else self.checkpoint_path
+      # for runtime default to /tmp path
+      if stage == "runtime" and checkpoint_path_override is None:
+        checkpoint_path_override = self.default_runtime_checkpoint_path()
+      path = checkpoint_path_override if checkpoint_path_override else self.checkpoint_path
       success = loader.download_checkpoints(path)
 
     if loader_type:
@@ -461,7 +495,7 @@ class ModelBuilder:
         sys.exit(1)
       else:
         logger.info(f"Downloaded checkpoints for model {repo_id}")
-    return success
+    return path
 
   def _concepts_protos_from_concepts(self, concepts):
     concept_protos = []
@@ -520,11 +554,12 @@ class ModelBuilder:
             self._concepts_protos_from_concepts(labels))
     return model_version_proto
 
-  def upload_model_version(self, download_checkpoints):
+  def upload_model_version(self):
     file_path = f"{self.folder}.tar.gz"
     logger.debug(f"Will tar it into file: {file_path}")
 
     model_type_id = self.config.get('model').get('model_type_id')
+    loader_type, repo_id, hf_token, when = self._validate_config_checkpoints()
 
     if (model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE) and 'concepts' not in self.config:
       logger.info(
@@ -534,15 +569,13 @@ class ModelBuilder:
         logger.info(
             "Checkpoints specified in the config.yaml file, will download the HF model's config.json file to infer the concepts."
         )
-
-        if not download_checkpoints and not HuggingFaceLoader.validate_config(
-            self.checkpoint_path):
-
-          input(
-              "Press Enter to download the HuggingFace model's config.json file to infer the concepts and continue..."
-          )
-          loader_type, repo_id, hf_token = self._validate_config_checkpoints()
-          if loader_type == "huggingface":
+        # If we don't already have the concepts, download the config.json file from HuggingFace
+        if loader_type == "huggingface":
+          # If the config.yaml says we'll download in the future (build time or runtime) then we need to get this config now.
+          if when != "upload" and not HuggingFaceLoader.validate_config(self.checkpoint_path):
+            input(
+                "Press Enter to download the HuggingFace model's config.json file to infer the concepts and continue..."
+            )
             loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
             loader.download_config(self.checkpoint_path)
 
@@ -557,7 +590,7 @@ class ModelBuilder:
     def filter_func(tarinfo):
       name = tarinfo.name
       exclude = [self.tar_file, "*~"]
-      if not download_checkpoints:
+      if when != "upload":
         exclude.append(self.checkpoint_suffix)
       return None if any(name.endswith(ex) for ex in exclude) else tarinfo
 
@@ -569,12 +602,12 @@ class ModelBuilder:
     logger.debug(f"Size of the tar is: {file_size} bytes")
 
     self.storage_request_size = self._get_tar_file_content_size(file_path)
-    if not download_checkpoints and self.config.get("checkpoints"):
+    if when != "upload" and self.config.get("checkpoints"):
       # Get the checkpoint size to add to the storage request.
       # First check for the env variable, then try querying huggingface. If all else fails, use the default.
       checkpoint_size = os.environ.get('CHECKPOINT_SIZE_BYTES', 0)
       if not checkpoint_size:
-        _, repo_id, _ = self._validate_config_checkpoints()
+        _, repo_id, _, _ = self._validate_config_checkpoints()
         checkpoint_size = HuggingFaceLoader.get_huggingface_checkpoint_total_size(repo_id)
       if not checkpoint_size:
         checkpoint_size = self.DEFAULT_CHECKPOINT_SIZE
@@ -702,10 +735,16 @@ class ModelBuilder:
         return False
 
 
-def upload_model(folder, download_checkpoints, skip_dockerfile):
+def upload_model(folder, stage, skip_dockerfile):
+  """
+  Uploads a model to Clarifai.
+
+  :param folder: The folder containing the model files.
+  :param stage: The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.
+  :param skip_dockerfile: If True, will not create a Dockerfile.
+  """
   builder = ModelBuilder(folder)
-  if download_checkpoints:
-    builder.download_checkpoints()
+  builder.download_checkpoints(stage=stage)
   if not skip_dockerfile:
     builder.create_dockerfile()
   exists = builder.check_model_exists()
@@ -717,4 +756,4 @@ def upload_model(folder, download_checkpoints, skip_dockerfile):
     logger.info(f"New model will be created at {builder.model_url} with it's first version.")
 
   input("Press Enter to continue...")
-  builder.upload_model_version(download_checkpoints)
+  builder.upload_model_version()
