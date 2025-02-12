@@ -15,10 +15,13 @@ def model():
     required=True,
     help='Path to the model directory.')
 @click.option(
-    '--download_checkpoints',
-    is_flag=True,
+    '--stage',
+    required=False,
+    type=click.Choice(['runtime', 'build', 'upload'], case_sensitive=True),
+    default="upload",
+    show_default=True,
     help=
-    'Flag to download checkpoints before uploading and including them in the tar file that is uploaded. Defaults to False, which will use the "when" field in config.yaml checkpoints section which can be "upload", "build", or "runtime".',
+    'The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.'
 )
 @click.option(
     '--skip_dockerfile',
@@ -26,13 +29,9 @@ def model():
     help=
     'Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile.',
 )
-def upload(model_path, download_checkpoints, skip_dockerfile):
+def upload(model_path, stage, skip_dockerfile):
   """Upload a model to Clarifai."""
   from clarifai.runners.models.model_builder import upload_model
-  if download_checkpoints:
-    stage = "any"  # ignore config.yaml and force download now.
-  else:
-    stage = "upload"
   upload_model(model_path, stage, skip_dockerfile)
 
 
@@ -52,12 +51,12 @@ def upload(model_path, download_checkpoints, skip_dockerfile):
 )
 @click.option(
     '--stage',
-    type=str,
     required=False,
+    type=click.Choice(['runtime', 'build', 'upload'], case_sensitive=True),
     default="build",
     show_default=True,
     help=
-    'The stage we are calling download checkpoints from. Typically this would be in the build stage which is the default. Other options include "runtime" to be used in load_model, "upload" to be used during model upload or "any" which will force download now regardless of config.yaml'
+    'The stage we are calling download checkpoints from. Typically this would be in the build stage which is the default. Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.'
 )
 def download_checkpoints(model_path, out_path, stage):
   """Download checkpoints from external source to local model_path"""

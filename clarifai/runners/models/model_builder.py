@@ -159,7 +159,6 @@ class ModelBuilder:
           f"No 'when' specified in the config file for checkpoints, defaulting to download at {DEFAULT_DOWNLOAD_CHECKPOINT_WHEN}"
       )
     when = checkpoints.get("when", DEFAULT_DOWNLOAD_CHECKPOINT_WHEN)
-    # In the config.yaml we don't allow "any", that's only used in download_checkpoints to force download.
     assert when in [
         "upload",
         "build",
@@ -443,7 +442,7 @@ class ModelBuilder:
 
   @property
   def checkpoint_suffix(self):
-    return '1/checkpoints'
+    return os.path.join('1', 'checkpoints')
 
   @property
   def tar_file(self):
@@ -457,8 +456,8 @@ class ModelBuilder:
     Downloads the checkpoints specified in the config file.
 
     :param stage: The stage of the build process. This is used to determine when to download the
-    checkpoints. The stage can be one of ['build', 'upload', 'runtime', 'any']. If "any" it will always try to download
-    regardless of what is specified in config.yaml. Otherwise it must match what is in config.yaml
+    checkpoints. The stage can be one of ['build', 'upload', 'runtime']. If you want to force
+    downloading now then set stage to match e when field of the checkpoints section of you config.yaml.
     :param checkpoint_path_override: The path to download the checkpoints to (with 1/checkpoints added as suffix). If not provided, the
     default path is used based on the folder ModelUploader was initialized with. The checkpoint_suffix will be appended to the path.
     If stage is 'runtime' and checkpoint_path_override is None, the default runtime path will be used.
@@ -471,9 +470,9 @@ class ModelBuilder:
       return path
 
     loader_type, repo_id, hf_token, when = self._validate_config_checkpoints()
-    if stage not in ["build", "upload", "runtime", "any"]:
+    if stage not in ["build", "upload", "runtime"]:
       raise Exception("Invalid stage provided, must be one of ['build', 'upload', 'runtime']")
-    if when != stage and stage != "any":
+    if when != stage:
       logger.info(
           f"Skipping downloading checkpoints for stage {stage} since config.yaml says to download them at stage {when}"
       )
@@ -739,8 +738,8 @@ def upload_model(folder, stage, skip_dockerfile):
   Uploads a model to Clarifai.
 
   :param folder: The folder containing the model files.
-  :param stage: The stage of when you're uploading this model. This is used to determine when to download the checkpoints based on a match with the "when" field in the config.yaml checkpoints section or if you set stage to "any" it will always download the checkpoints.
-  :param skip_dockerfile: If True, skips creating the Dockerfile so you can re-use the local one.
+  :param stage: The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.
+  :param skip_dockerfile: If True, will not create a Dockerfile.
   """
   builder = ModelBuilder(folder)
   builder.download_checkpoints(stage=stage)
