@@ -1,3 +1,4 @@
+import re
 from typing import List, get_args, get_origin
 
 import numpy as np
@@ -60,6 +61,155 @@ def build_variables_signature(var_types):
   return vars
 
 
+def serialize(kwargs, signatures, proto=None):
+  '''
+    '''
+  if proto is None:
+    proto = resources_pb2.Data()
+  unknown = set(kwargs.keys()) - set(sig.name for sig in signatures)
+  if unknown:
+    raise TypeError('Got unexpected argument: %s' % ', '.join(unknown))
+  for sig in signatures:
+    if sig.name not in kwargs:
+      continue  # skip missing fields, they can be set to default on the server
+    data = kwargs[sig.name]
+    field = sig.data_field
+    _check_type(data, sig.python_type)
+    _set_data_proto_field(data, field, proto)
+  return proto
+
+
+def _check_type(data, type_string):
+  tp = _PYTHON_TYPES.reverse_map[type_string]
+  # TODO: can also check for compatibility with proto fields and other types that are ok to use
+  if not isinstance(data, tp):
+    raise TypeError('Expected type %s, got %s' % (tp, type(data)))
+
+
+def _set_data_proto_field(data, field, proto):
+  # first traverse to get the leaf field
+  parts = field.split('.')
+  leaf_field = parts[-1]
+  is_parts_list = False
+  for part_ind, part_field in enumerate(parts[:-1]):
+    if not (m := re.match(r'part\[(\w*)\]', part_field)):
+      raise ValueError('Invalid field: %s' % field)
+    name = m.group(1)
+    if name:
+      # descend to the named part
+      part = proto.parts.add()
+      part.name = name
+      proto = part.data
+    else:
+      # list, break out of the loop to fill values
+      is_parts_list = True
+      break
+  if is_parts_list:
+    # add to parts list
+    # only supporting single-level lists for now
+    assert part_ind == len(parts) - 2
+    for item in data:
+      part = proto.parts.add()
+      _serialize_data(item, leaf_field, part.data)  # fill the leaf field
+  else:
+    # fill the leaf field
+    assert part_ind == len(parts) - 1  # should be at the last part
+    _serialize_data(data, leaf_field, proto)
+
+
+def _serialize_data(data, field, proto):
+  descriptor = proto.DESCRIPTOR.fields_by_name[field]
+  is_message = (descriptor.type == descriptor.TYPE_MESSAGE)
+  is_repeated = (descriptor.label == descriptor.LABEL_REPEATED)
+  if is_repeated:
+    if is_message:
+      serializer = _DATA_SERIALIZERS[field]
+      repeated_field = getattr(proto, field)
+      for item in data:
+        serializer.serialize(item, repeated_field.add())
+    else:
+      getattr(proto, field).extend(data)
+  else:
+    if is_message:
+      serializer = _DATA_SERIALIZERS[field]
+      serializer.serialize(data, getattr(proto, field))
+    else:
+      setattr(proto, field, data)
+
+
+class _NestedData:
+  '''
+    Mixin for allowing direct access to nested data fields using dot notation.
+
+    For example, given a proto with a field `data` containing a field `text`, you can access the text field directly using `proto.text`.
+    '''
+
+  def __getattr__(self, name):
+    # check this proto first, then data
+    # note we don't need to implement setattr, since all fields in Data are non-atomic messages
+    if name in self.DESCRIPTOR.fields_by_name:
+      return super().__getattr__(name)
+    if name in self.data.DESCRIPTOR.fields_by_name:
+      return getattr(self.data, name)
+    return super().__getattr__(name)  # raise AttributeError
+
+
+class Concept(resources_pb2.Concept):
+  '''
+  Concept proto, containing the following fields:
+
+  * id (str): concept id
+  * name (str): concept name
+  * value (float): concept value, e.g. 0.9
+  '''
+
+
+class Region(resources_pb2.Region, _NestedData):
+  '''
+  Region proto, containing the following fields:
+
+  * id (str): region id, internally set
+  * region_info (RegionInfo): shape and position of the region, e.g. bounding box
+  * data (Data): region data, e.g. concepts, text, etc
+
+  This class also contains convenience methods for getting and setting region data.
+  '''
+
+  @property
+  def box(self):
+    '''
+    Get the bounding box of the region in xyxy format.
+    '''
+    b = self.region_info.bounding_box
+    return (b.left_col, b.top_row, b.right_col, b.bottom_row)
+
+  @box.setter
+  def box(self, box):
+    '''
+    Set the bounding box of the region, given as a tuple (x1, y1, x2, y2).
+
+    Args:
+      box (tuple): bounding box in xyxy format
+    '''
+    b = self.region_info.bounding_box
+    b.left_col = box[0]
+    b.top_row = box[1]
+    b.right_col = box[2]
+    b.bottom_row = box[3]
+
+  # TODO similar methods for polygon, mask, etc
+
+
+class Part(resources_pb2.Part, _NestedData):
+  '''
+    Part proto, containing the following fields:
+
+    * name (str): part name
+    * data (Data): part data, e.g. concepts, text, etc (nested data, can be accessed directly)
+    '''
+  pass
+
+
 def _normalize_type(tp):
   '''
     Normalize the given type.
@@ -115,6 +265,7 @@ _PYTHON_TYPES = {
 
     # protos, copied as-is
     resources_pb2.Text: 'Text',
+    #resources_pb2.Bytes: 'Bytes',
     resources_pb2.Image: 'Image',
     resources_pb2.Video: 'Video',
     resources_pb2.Concept: 'Concept',
@@ -145,7 +296,7 @@ _DATA_FIELDS = {
     List[int]: 'ndarray',
     List[float]: 'ndarray',
     List[bool]: 'ndarray',
-    List[PIL.Image.Image]: 'frames',  # TODO use this or generic list?
+    #List[PIL.Image.Image]: 'frames',  # TODO use this or generic parts list?
 }
 
 
@@ -168,4 +319,10 @@ def _add_list_fields():
     _DATA_FIELDS[list_tp] = field_name if repeated else 'parts[].' + field_name
 
 
+def _add_reverse_types_map():
+  _PYTHON_TYPES.reverse_map = {v: k for k, v in _PYTHON_TYPES.items()}
+  assert len(_PYTHON_TYPES) == len(_PYTHON_TYPES.reverse_map)
+
+
 _add_list_fields()
+_add_reverse_types_map()
