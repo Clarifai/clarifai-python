@@ -170,7 +170,7 @@ def test_hf_test_model_success(hf_model_run_locally):
   Test that test_model succeeds with the dummy model.
   This calls the script's test_model method, which runs a subprocess.
   """
-  hf_model_run_locally.builder.download_checkpoints(stage="any")
+  hf_model_run_locally.builder.download_checkpoints(stage="build")
   hf_model_run_locally.create_temp_venv()
   hf_model_run_locally.install_requirements()
 

@@ -58,6 +58,6 @@ def test_validate_download(checkpoint_dir):
 def test_download_checkpoints(dummy_runner_models_dir):
   model_folder_path = os.path.join(os.path.dirname(__file__), "dummy_runner_models")
   model_builder = ModelBuilder(model_folder_path, download_validation_only=True)
-  checkpoint_dir = model_builder.download_checkpoints(stage="any")  # any forces download now.
+  checkpoint_dir = model_builder.download_checkpoints()  # any forces download now.
   assert checkpoint_dir == os.path.join(
       os.path.dirname(__file__), "dummy_runner_models", "1", "checkpoints")

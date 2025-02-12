@@ -451,7 +451,9 @@ class ModelBuilder:
   def default_runtime_checkpoint_path(self):
     return DEFAULT_RUNTIME_DOWNLOAD_PATH
 
-  def download_checkpoints(self, stage: str, checkpoint_path_override: str = None):
+  def download_checkpoints(self,
+                           stage: str = DEFAULT_DOWNLOAD_CHECKPOINT_WHEN,
+                           checkpoint_path_override: str = None):
     """
     Downloads the checkpoints specified in the config file.
 
