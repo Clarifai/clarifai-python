@@ -1,10 +1,11 @@
+import inspect
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, Iterator, List, Union
+from typing import Any, Dict, Iterator, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 
-from clarifai.runners.utils.data_handler import Audio, Image, Text, Video
+from clarifai.runners.utils.data_handler import Audio, Image, Output, Text, Video
 
 
 class ModelClass(ABC):
@@ -15,126 +16,172 @@ class ModelClass(ABC):
     raise NotImplementedError("load_model() not implemented")
 
   @abstractmethod
-  def predict(self, *args, **kwargs) -> Union[Any, List[Any]]:
+  def predict(self, *args, **kwargs) -> Output:
     """Predict method for single or batched inputs."""
     raise NotImplementedError("predict() not implemented")
 
   @abstractmethod
-  def generate(self, *args, **kwargs) -> Iterator[Any]:
+  def generate(self, *args, **kwargs) -> Iterator[Output]:
     """Generate method for streaming outputs."""
     raise NotImplementedError("generate() not implemented")
 
   @abstractmethod
-  def stream(self, *args, **kwargs) -> Iterator[Any]:
+  def stream(self, *args, **kwargs) -> Iterator[Output]:
     """Stream method for streaming inputs and outputs."""
     raise NotImplementedError("stream() not implemented")
 
-  def batch_predict(self, inputs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+  def batch_predict(self, inputs: List[Dict[str, Any]]) -> List[Output]:
     """Batch predict method for multiple inputs."""
     with ThreadPoolExecutor() as executor:
       futures = [executor.submit(self.predict, **input) for input in inputs]
       return [future.result() for future in futures]
 
-  def batch_generate(self, inputs: List[Dict[str, Any]]) -> Iterator[List[Dict[str, Any]]]:
+  def batch_generate(self, inputs: List[Dict[str, Any]]) -> Iterator[List[Output]]:
     """Batch generate method for multiple inputs."""
     with ThreadPoolExecutor() as executor:
       futures = [executor.submit(self.generate, **input) for input in inputs]
       return [future.result() for future in futures]
 
-  def batch_stream(self, inputs: List[Dict[str, Any]]) -> Iterator[List[Dict[str, Any]]]:
+  def batch_stream(self, inputs: List[Dict[str, Any]]) -> Iterator[List[Output]]:
     """Batch stream method for multiple inputs."""
     NotImplementedError("batch_stream() not implemented")
 
-  def _convert_to_proto(self, arg: Any) -> resources_pb2.Data:
-    """Convert Python types to Clarifai protobuf Data."""
-    if isinstance(arg, Text):
-      return resources_pb2.Data(text=arg.to_proto())
-    elif isinstance(arg, Image):
-      return resources_pb2.Data(image=arg.to_proto())
-    elif isinstance(arg, Audio):
-      return resources_pb2.Data(audio=arg.to_proto())
-    elif isinstance(arg, Video):
-      return resources_pb2.Data(video=arg.to_proto())
-    else:
-      raise ValueError(f"Unknown type: {type(arg)}")
-
-  def _create_input_proto(self, *args, **kwargs) -> resources_pb2.Input:
-    """Create a Clarifai Input protobuf from Python args and kwargs."""
-    data = resources_pb2.Data()
-    for arg in args:
-      part = resources_pb2.Part(data=self._convert_to_proto(arg))
-      data.parts.append(part)
-    for key, value in kwargs.items():
-      part = resources_pb2.Part(data=self._convert_to_proto(value), id=key)
-      data.parts.append(part)
-    return resources_pb2.Input(data=data)
-
   def predict_wrapper(
       self, request: service_pb2.PostModelOutputsRequest) -> service_pb2.MultiOutputResponse:
-    inputs = self._convert_proto_to_python(request.inputs[0])
+    outputs = []
+    inputs = self._convert_proto_to_python(request.inputs)
     if len(inputs) == 1:
       inputs = inputs[0]
       output = self.predict(**inputs)
-      output = [output]
+      outputs.append(self._convert_output_to_proto(output))
     else:
-      output = self.batch_predict(inputs)
-    return self._convert_python_to_proto(output)
+      outputs = self.batch_predict(inputs)
+      outputs = [self._convert_output_to_proto(output) for output in outputs]
+    return service_pb2.MultiOutputResponse(outputs=outputs)
 
   def generate_wrapper(self, request: service_pb2.PostModelOutputsRequest
                       ) -> Iterator[service_pb2.MultiOutputResponse]:
-    inputs = self._convert_proto_to_python(request.inputs[0])
+    inputs = self._convert_proto_to_python(request.inputs)
     if len(inputs) == 1:
       inputs = inputs[0]
       for output in self.generate(**inputs):
-        yield self._convert_python_to_proto([output])
+        output_proto = self._convert_output_to_proto(output)
+        yield service_pb2.MultiOutputResponse(outputs=[output_proto])
     else:
+      outputs = []
       for output in self.batch_generate(inputs):
-        yield self._convert_python_to_proto(output)
+        output_proto = self._convert_output_to_proto(output)
+        outputs.append(output_proto)
+      yield service_pb2.MultiOutputResponse(outputs=outputs)
 
   def stream_wrapper(self, request_iterator: Iterator[service_pb2.PostModelOutputsRequest]
                     ) -> Iterator[service_pb2.MultiOutputResponse]:
     for request in request_iterator:
-      inputs = self._convert_proto_to_python(request.inputs[0])
+      inputs = self._convert_proto_to_python(request.inputs)
       if len(inputs) == 1:
         inputs = inputs[0]
         for output in self.stream(**inputs):
-          yield self._convert_python_to_proto([output])
+          output_proto = self._convert_output_to_proto(output)
+          yield service_pb2.MultiOutputResponse(outputs=[output_proto])
       else:
+        outputs = []
         for output in self.batch_stream(inputs):
-          yield self._convert_python_to_proto(output)
+          output_proto = self._convert_output_to_proto(output)
+          outputs.append(output_proto)
+        yield service_pb2.MultiOutputResponse(outputs=outputs)
 
   def _convert_proto_to_python(self, inputs: List[resources_pb2.Input]) -> List[Dict[str, Any]]:
 
-    python_list = []
+    kwargs_list = []
+    predict_params = inspect.signature(self.predict).parameters
     for input in inputs:
-      python_inputs = {}
+      kwargs = {}
       for part in input.data.parts:
-        if part.data.HasField("text"):
-          python_inputs[part.id] = Text.from_proto(part.data.text)
-        elif part.data.HasField("image"):
-          python_inputs[part.id] = Image(part.data.image)
-        elif part.data.HasField("audio"):
-          python_inputs[part.id] = Audio(part.data.audio)
-        elif part.data.HasField("video"):
-          python_inputs[part.id] = Video(part.data.video)
-      python_list.append(python_inputs)
-    return python_list
+        param_name = part.id
+        if param_name not in predict_params:
+          raise ValueError(f"Unknown parameter: {param_name}")
+        param = predict_params[param_name]
+        param_type = param.annotation
+        if param_type is inspect.Parameter.empty:
+          raise TypeError(f"Missing type annotation for parameter: {param_name}")
+        value = self._convert_part_data(part.data, param_type)
+        kwargs[param_name] = value
 
-  def _convert_python_to_proto(self,
-                               outputs: List[Dict[str, Any]]) -> service_pb2.MultiOutputResponse:
-    response = service_pb2.MultiOutputResponse()
-    for output in outputs:
-      output_proto = resources_pb2.Output()
-      for key, value in output.items():
-        part = resources_pb2.Part(id=key)
-        if isinstance(value, Text):
-          part.data.text.CopyFrom(value.to_proto())
-        elif isinstance(value, Image):
-          part.data.image.CopyFrom(value.to_proto())
-        elif isinstance(value, Audio):
-          part.data.audio.CopyFrom(value.to_proto())
-        elif isinstance(value, Video):
-          part.data.video.CopyFrom(value.to_proto())
-        output_proto.data.parts.append(part)
-      response.outputs.append(output_proto)
-    return response
+      # Check for missing required parameters
+      self._validate_required_params(predict_params, kwargs)
+      kwargs_list.append(kwargs)
+    return kwargs_list
+
+  def _convert_part_data(self, data: resources_pb2.Data, param_type: type) -> Any:
+    if param_type == Text:
+      return Text.from_proto(data.text)
+    elif param_type == str:
+      return data.text.value
+    elif param_type == Image:
+      return Image.from_proto(data.image)
+    elif param_type == Audio:
+      return Audio.from_proto(data.audio)
+    elif param_type == Video:
+      return Video.from_proto(data.video)
+    elif param_type == Any:
+      if data.text.value:
+        return data.text.value
+      elif data.image.url:
+        return data.image.url
+      elif data.audio.url:
+        return data.audio.url
+      elif data.video.url:
+        return data.video.url
+      else:
+        raise ValueError(f"Unknown type: {data}")
+    elif param_type == List[Text]:
+      return [Text.from_proto(part.data.text) for part in data.parts]
+    elif param_type == List[str]:
+      return [part.data.text.value for part in data.parts]
+    elif param_type == List[Image]:
+      return [Image.from_proto(part.data.image) for part in data.parts]
+    elif param_type == List[Audio]:
+      return [Audio.from_proto(part.data.audio) for part in data.parts]
+    elif param_type == List[Video]:
+      return [Video.from_proto(part.data.video) for part in data.parts]
+    elif param_type == List:
+      return [self._convert_part_data(part.data, Any) for part in data.parts]
+    elif param_type == Dict[str, Text]:
+      return {part.id: Text.from_proto(part.data.text) for part in data.parts}
+    elif param_type == Dict[str, str]:
+      return {part.id: part.data.text.value for part in data.parts}
+    elif param_type == Dict[str, Image]:
+      return {part.id: Image.from_proto(part.data.image) for part in data.parts}
+    elif param_type == Dict[str, Audio]:
+      return {part.id: Audio.from_proto(part.data.audio) for part in data.parts}
+    elif param_type == Dict[str, Video]:
+      return {part.id: Video.from_proto(part.data.video) for part in data.parts}
+    elif param_type == Dict[str, Any]:
+      return {part.id: self._convert_part_data(part.data, Any) for part in data.parts}
+    elif param_type == Dict:
+      return {part.id: self._convert_part_data(part.data, Any) for part in data.parts}
+    else:
+      raise ValueError(f"Unsupported type: {param_type}")
+
+  def _validate_required_params(self, params: dict, kwargs: dict):
+    for name, param in params.items():
+      if param.default == inspect.Parameter.empty and name not in kwargs:
+        raise ValueError(f"Missing required parameter: {name}")
+
+  def _convert_output_to_proto(self, output: Any) -> resources_pb2.Output:
+    data = resources_pb2.Data()
+    if isinstance(output, Output):
+      return output.to_proto()
+    elif isinstance(output, str):
+      data.text.raw = output
+    elif isinstance(output, Text):
+      data.text.raw = output.text
+    elif isinstance(output, Image):
+      data.image.bytes = output.bytes
+    elif isinstance(output, Audio):
+      data.audio = output.to_proto()
+    elif isinstance(output, Video):
+      data.video = output.to_proto()
+    else:
+      raise ValueError(f"Unsupported output type: {type(output)}")
+    return resources_pb2.Output(data=data)
