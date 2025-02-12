@@ -73,9 +73,10 @@ def serialize(kwargs, signatures, proto=None):
     if sig.name not in kwargs:
       continue  # skip missing fields, they can be set to default on the server
     data = kwargs[sig.name]
-    field = sig.data_field
-    _check_type(data, sig.python_type)
-    _set_data_proto_field(data, field, proto)
+    #_check_type(data, sig.python_type)
+    data_proto, field = _get_named_part(proto, sig.data_field)
+    serializer = _get_serializer(data_field=field, python_type=sig.python_type)
+    serializer.serialize(data, data_proto)
   return proto
 
 
@@ -86,55 +87,30 @@ def _check_type(data, type_string):
     raise TypeError('Expected type %s, got %s' % (tp, type(data)))
 
 
-def _set_data_proto_field(data, field, proto):
-  # first traverse to get the leaf field
-  parts = field.split('.')
-  leaf_field = parts[-1]
-  is_parts_list = False
-  for part_ind, part_field in enumerate(parts[:-1]):
-    if not (m := re.match(r'part\[(\w*)\]', part_field)):
+def _get_named_part(proto, field):
+  # gets the named part from the proto, according to the field path
+  # note we only support one level of named parts
+  parts = field.replace(' ', '').split('.')
+
+  if len(parts) not in (1, 2, 3):  # field, parts[name].field, parts[name].parts[].field
+    raise ValueError('Invalid field: %s' % field)
+
+  if len(parts) == 1:
+    return proto, field
+
+  # list
+  if parts[0] == 'parts[]':
+    if len(parts) != 2:
       raise ValueError('Invalid field: %s' % field)
-    name = m.group(1)
-    if name:
-      # descend to the named part
-      part = proto.parts.add()
-      part.name = name
-      proto = part.data
-    else:
-      # list, break out of the loop to fill values
-      is_parts_list = True
-      break
-  if is_parts_list:
-    # add to parts list
-    # only supporting single-level lists for now
-    assert part_ind == len(parts) - 2
-    for item in data:
-      part = proto.parts.add()
-      _serialize_data(item, leaf_field, part.data)  # fill the leaf field
-  else:
-    # fill the leaf field
-    assert part_ind == len(parts) - 1  # should be at the last part
-    _serialize_data(data, leaf_field, proto)
+    return proto, field  # return the data that contains the list itself
 
-
-def _serialize_data(data, field, proto):
-  descriptor = proto.DESCRIPTOR.fields_by_name[field]
-  is_message = (descriptor.type == descriptor.TYPE_MESSAGE)
-  is_repeated = (descriptor.label == descriptor.LABEL_REPEATED)
-  if is_repeated:
-    if is_message:
-      serializer = _DATA_SERIALIZERS[field]
-      repeated_field = getattr(proto, field)
-      for item in data:
-        serializer.serialize(item, repeated_field.add())
-    else:
-      getattr(proto, field).extend(data)
-  else:
-    if is_message:
-      serializer = _DATA_SERIALIZERS[field]
-      serializer.serialize(data, getattr(proto, field))
-    else:
-      setattr(proto, field, data)
+  # named part
+  if not (m := re.match(r'parts\[(\w+)\]', parts[0])):
+    raise ValueError('Invalid field: %s' % field)
+  if not (name := m.group(1)):
+    raise ValueError('Invalid field: %s' % field)
+  assert len(parts) in (2, 3)  # parts[name].field, parts[name].parts[].field
+  return proto.parts[name].data, '.'.join(parts[1:])
 
 
 class _NestedData:
