@@ -5,7 +5,6 @@ import tempfile
 import pytest
 
 from clarifai.runners.models.model_builder import ModelBuilder
-from clarifai.runners.utils.const import DEFAULT_RUNTIME_DOWNLOAD_PATH
 from clarifai.runners.utils.loader import HuggingFaceLoader
 
 MODEL_ID = "timm/mobilenetv3_small_100.lamb_in1k"
@@ -65,8 +64,8 @@ def test_download_checkpoints(dummy_runner_models_dir):
   # also always write to where upload/build wants to, not the /tmp folder that runtime stage uses
   _, _, _, when = model_builder._validate_config_checkpoints()
   checkpoint_dir = model_builder.download_checkpoints(
-      stage=when, checkpoint_path=model_builder.checkpoint_path)
-  assert checkpoint_dir == DEFAULT_RUNTIME_DOWNLOAD_PATH
+      stage=when, checkpoint_path_override=model_builder.checkpoint_path)
+  assert checkpoint_dir == model_builder.checkpoint_path
 
   # This doesn't have when in it's config.yaml so build.
   model_folder_path = os.path.join(os.path.dirname(__file__), "hf_mbart_model")
@@ -76,6 +75,6 @@ def test_download_checkpoints(dummy_runner_models_dir):
   # also always write to where upload/build wants to, not the /tmp folder that runtime stage uses
   _, _, _, when = model_builder._validate_config_checkpoints()
   checkpoint_dir = model_builder.download_checkpoints(
-      stage=when, checkpoint_path=model_builder.checkpoint_path)
+      stage=when, checkpoint_path_override=model_builder.checkpoint_path)
   assert checkpoint_dir == os.path.join(
       os.path.dirname(__file__), "hf_mbart_model", "1", "checkpoints")

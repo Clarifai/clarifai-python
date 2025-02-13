@@ -86,7 +86,7 @@ def test_hf_docker_build_and_test_container(hf_model_run_locally):
   # Download the checkpoints for the model
   _, _, _, when = hf_model_run_locally.builder._validate_config_checkpoints()
   hf_model_run_locally.builder.download_checkpoints(
-      stage=when, checkpoint_path=hf_model_run_locally.builder.checkpoint_path)
+      stage=when, checkpoint_path_override=hf_model_run_locally.builder.checkpoint_path)
 
   # Test if Docker is installed
   assert hf_model_run_locally.is_docker_installed(), "Docker not installed, skipping."
