@@ -81,8 +81,12 @@ def test_hf_docker_build_and_test_container(hf_model_run_locally):
   This test will be skipped if Docker is not installed.
   """
 
+  # get whatever stage is in config.yaml to force download now
+  # also always write to where upload/build wants to, not the /tmp folder that runtime stage uses
   # Download the checkpoints for the model
-  hf_model_run_locally.builder.download_checkpoints()
+  _, _, _, when = hf_model_run_locally.builder._validate_config_checkpoints()
+  hf_model_run_locally.builder.download_checkpoints(
+      stage=when, checkpoint_path_override=hf_model_run_locally.builder.checkpoint_path)
 
   # Test if Docker is installed
   assert hf_model_run_locally.is_docker_installed(), "Docker not installed, skipping."
