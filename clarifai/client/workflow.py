@@ -15,7 +15,7 @@ from clarifai.constants.workflow import MAX_WORKFLOW_PREDICT_INPUTS
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
-from clarifai.utils.misc import BackoffIterator
+from clarifai.utils.misc import BackoffIterator, status_is_retryable
 from clarifai.workflows.export import Exporter
 
 
@@ -99,7 +99,7 @@ class Workflow(Lister, BaseClient):
     while True:
       response = self._grpc_request(self.STUB.PostWorkflowResults, request)
 
-      if response.status.code == status_code_pb2.MODEL_DEPLOYING and \
+      if status_is_retryable(response.status.code) and \
           time.time() - start_time < 60*10:  # 10 minutes
         self.logger.info(f"{self.id} Workflow is still deploying, please wait...")
         time.sleep(next(backoff_iterator))

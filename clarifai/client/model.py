@@ -26,7 +26,7 @@ from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_MODEL_PRED
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
-from clarifai.utils.misc import BackoffIterator
+from clarifai.utils.misc import BackoffIterator, status_is_retryable
 from clarifai.utils.model_train import (find_and_replace_key, params_parser,
                                         response_to_model_params, response_to_param_info,
                                         response_to_templates)
@@ -438,7 +438,7 @@ class Model(Lister, BaseClient):
     while True:
       response = self._grpc_request(self.STUB.PostModelOutputs, request)
 
-      if response.status.code == status_code_pb2.MODEL_DEPLOYING and \
+      if status_is_retryable(response.status.code) and \
               time.time() - start_time < 60 * 10:  # 10 minutes
         self.logger.info(f"{self.id} model is still deploying, please wait...")
         time.sleep(next(backoff_iterator))
@@ -721,7 +721,7 @@ class Model(Lister, BaseClient):
         break
       stream_response = self._grpc_request(self.STUB.GenerateModelOutputs, request)
       for response in stream_response:
-        if response.status.code == status_code_pb2.MODEL_DEPLOYING and \
+        if status_is_retryable(response.status.code) and \
                 time.time() - start_time < 60 * 10:
           self.logger.info(f"{self.id} model is still deploying, please wait...")
           time.sleep(next(backoff_iterator))
@@ -965,7 +965,7 @@ class Model(Lister, BaseClient):
         break
       stream_response = self._grpc_request(self.STUB.StreamModelOutputs, request)
       for response in stream_response:
-        if response.status.code == status_code_pb2.MODEL_DEPLOYING and \
+        if status_is_retryable(response.status.code) and \
                 time.time() - start_time < 60 * 10:
           self.logger.info(f"{self.id} model is still deploying, please wait...")
           time.sleep(next(backoff_iterator))
