@@ -1,6 +1,7 @@
 import io
+from typing import Any
 
-from clarifai_grpc.grpc.api import resources_pb2, service_pb2
+from clarifai_grpc.grpc.api import resources_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import Audio as AudioProto
 from clarifai_grpc.grpc.api.resources_pb2 import Image as ImageProto
 from clarifai_grpc.grpc.api.resources_pb2 import Text as TextProto
@@ -10,43 +11,33 @@ from PIL import Image as PILImage
 
 class Output:
 
-  def __init__(self, text=None, image=None, audio=None, video=None, metadata=None):
-    self.text = text
-    self.image = image
-    self.audio = audio
-    self.video = video
+  def __init__(self, **kwargs: Any):
+    self.parts = kwargs  # Stores named output parts
 
-  def to_proto(self, output):
+  def to_proto(self) -> resources_pb2.Output:
+    """Converts the Output instance to a Clarifai protobuf Output message."""
     data_proto = resources_pb2.Data()
+    for part_name, part_value in self.parts.items():
+      part = data_proto.parts.add()
+      part.id = part_name  # Assign the part name as the ID
 
-    if output.text is not None:
-      if isinstance(output.text, Text):
-        data_proto.text.raw = output.text.text
-      elif isinstance(output.text, str):
-        data_proto.text.raw = output.text
+      # Handle different data types and convert to proto
+      if isinstance(part_value, Text):
+        part.data.text.CopyFrom(part_value.to_proto())
+      elif isinstance(part_value, Image):
+        part.data.image.CopyFrom(part_value.to_proto())
+      elif isinstance(part_value, Audio):
+        part.data.audio.CopyFrom(part_value.to_proto())
+      elif isinstance(part_value, Video):
+        part.data.video.CopyFrom(part_value.to_proto())
+      elif isinstance(part_value, str):
+        part.data.text.raw = part_value
+      elif isinstance(part_value, bytes):
+        part.data.image.base64 = part_value
       else:
-        raise TypeError("Output text must be of type str or Text")
+        raise TypeError(f"Unsupported type {type(part_value)} for part '{part_name}'")
 
-    if output.image is not None:
-      if isinstance(output.image, Image):
-        data_proto.image.bytes = output.image.bytes
-      elif isinstance(output.image, bytes):
-        data_proto.image.bytes = output.image
-      else:
-        raise TypeError("Output image must be of type bytes or Image")
-
-    if output.audio is not None:
-      if isinstance(output.audio, Audio):
-        data_proto.audio = output.audio.to_proto()
-      else:
-        raise TypeError("Output audio must be of type Audio")
-    if output.video is not None:
-      if isinstance(output.video, Video):
-        data_proto.video = output.video.to_proto()
-      else:
-        raise TypeError("Output video must be of type Video")
-
-    return service_pb2.Output(data=data_proto)
+    return resources_pb2.Output(data=data_proto)
 
 
 class Text:

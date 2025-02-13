@@ -169,19 +169,23 @@ class ModelClass(ABC):
         raise ValueError(f"Missing required parameter: {name}")
 
   def _convert_output_to_proto(self, output: Any) -> resources_pb2.Output:
-    data = resources_pb2.Data()
     if isinstance(output, Output):
       return output.to_proto()
-    elif isinstance(output, str):
-      data.text.raw = output
-    elif isinstance(output, Text):
-      data.text.raw = output.text
-    elif isinstance(output, Image):
-      data.image.bytes = output.bytes
-    elif isinstance(output, Audio):
-      data.audio = output.to_proto()
-    elif isinstance(output, Video):
-      data.video = output.to_proto()
     else:
-      raise ValueError(f"Unsupported output type: {type(output)}")
-    return resources_pb2.Output(data=data)
+      # Handle basic types (legacy support)
+      data = resources_pb2.Data()
+      if isinstance(output, str):
+        data.text.raw = output
+      elif isinstance(output, Text):
+        data.text.raw = output.text
+      elif isinstance(output, Image):
+        data.image.CopyFrom(output.to_proto())
+      elif isinstance(output, bytes):
+        data.image.base64 = output
+      elif isinstance(output, Audio):
+        data.audio.CopyFrom(output.to_proto())
+      elif isinstance(output, Video):
+        data.video.CopyFrom(output.to_proto())
+      else:
+        raise ValueError(f"Unsupported output type: {type(output)}")
+      return resources_pb2.Output(data=data)
