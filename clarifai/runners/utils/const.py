@@ -16,7 +16,7 @@ DEFAULT_PYTHON_VERSION = 3.12
 DEFAULT_DOWNLOAD_CHECKPOINT_WHEN = "runtime"
 
 # Folder for downloading checkpoints at runtime.
-DEFAULT_RUNTIME_DOWNLOAD_PATH = "/tmp/.cache"
+DEFAULT_RUNTIME_DOWNLOAD_PATH = os.path.join(os.sep, "tmp", ".cache")
 
 # List of available torch images
 # Keep sorted by most recent cuda version.

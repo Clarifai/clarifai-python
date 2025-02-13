@@ -365,10 +365,10 @@ class ModelBuilder:
     if 'python_version' in build_info:
       python_version = build_info['python_version']
       if python_version not in AVAILABLE_PYTHON_IMAGES:
-        logger.error(
-            f"Python version {python_version} not supported, please use one of the following versions: {AVAILABLE_PYTHON_IMAGES}"
+        raise Exception(
+            f"Python version {python_version} not supported, please use one of the following versions: {AVAILABLE_PYTHON_IMAGES} in your config.yaml"
         )
-        return
+
       logger.info(
           f"Using Python version {python_version} from the config file to build the Dockerfile")
     else:
@@ -589,7 +589,7 @@ class ModelBuilder:
 
     def filter_func(tarinfo):
       name = tarinfo.name
-      exclude = [self.tar_file, "*~"]
+      exclude = [self.tar_file, "*~", "*.pyc", "*.pyo", "__pycache__"]
       if when != "upload":
         exclude.append(self.checkpoint_suffix)
       return None if any(name.endswith(ex) for ex in exclude) else tarinfo
