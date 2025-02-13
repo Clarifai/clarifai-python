@@ -3,7 +3,19 @@ import re
 import uuid
 from typing import Any, Dict, List
 
+from clarifai_grpc.grpc.api.status import status_code_pb2
+
 from clarifai.errors import UserError
+
+RETRYABLE_CODES = [
+    status_code_pb2.MODEL_DEPLOYING, status_code_pb2.MODEL_LOADING,
+    status_code_pb2.MODEL_BUSY_PLEASE_RETRY
+]
+
+
+def status_is_retryable(status_code: int) -> bool:
+  """Check if a status code is retryable."""
+  return status_code in RETRYABLE_CODES
 
 
 class Chunker:
