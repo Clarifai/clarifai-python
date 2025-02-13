@@ -481,7 +481,9 @@ def main(model_path,
     )
     sys.exit(1)
   manager = ModelRunLocally(model_path)
-  manager.builder.download_checkpoints()
+  # get whatever stage is in config.yaml to force download now
+  _, _, _, when = manager.builder._validate_config_checkpoints()
+  manager.builder.download_checkpoints(stage=when)
   if inside_container:
     if not manager.is_docker_installed():
       sys.exit(1)
