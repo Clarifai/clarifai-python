@@ -423,10 +423,18 @@ class Model(Lister, BaseClient):
       input_proto = resources_pb2.Input()
       for key, value in input_dict.items():
         part = resources_pb2.Part(id=key)
-        if isinstance(value, Text):
-          part.data.text.CopyFrom(value.to_proto())
-        elif isinstance(value, str):
+        if isinstance(value, str):
           part.data.text.value = value
+        if isinstance(value, int):
+          part.data.int_value = value
+        if isinstance(value, float):
+          part.data.float_value = value
+        if isinstance(value, bool):
+          part.data.boolean = value
+        if isinstance(value, bytes):
+          part.data.base64 = value
+        elif isinstance(value, Text):
+          part.data.text.CopyFrom(value.to_proto())
         elif isinstance(value, Image):
           part.data.image.CopyFrom(value.to_proto())
         elif isinstance(value, Audio):
@@ -469,7 +477,10 @@ class Model(Lister, BaseClient):
   def predict(
       self,
       inputs: Union[Dict[str, Any], List[Dict[str, Any]]],
-      runner_selector: RunnerSelector = None,
+      compute_cluster_id: str = None,
+      nodepool_id: str = None,
+      deployment_id: str = None,
+      user_id: str = None,
       inference_params: Dict = {},
       output_config: Dict = {},
   ) -> service_pb2.MultiOutputResponse:
@@ -477,7 +488,9 @@ class Model(Lister, BaseClient):
 
       Args:
           inputs (Union[Dict[str, Any], List[Dict[str, Any]]]): The inputs to predict.
-          runner_selector (RunnerSelector): The runner selector to use for the model.
+          compute_cluster_id (str): The compute cluster ID to use for the model.
+          nodepool_id (str): The nodepool ID to use for the model.
+          deployment_id (str): The deployment ID to use for the model.
           inference_params (Dict): Inference parameters to override.
           output_config (Dict): Output configuration to override.
 
@@ -488,6 +501,30 @@ class Model(Lister, BaseClient):
       inputs = [inputs]
     if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
       raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}.")
+
+    if deployment_id and (compute_cluster_id or nodepool_id):
+      raise UserError(
+          "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
+
+    runner_selector = None
+    if deployment_id:
+      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
+        raise UserError(
+            "User ID is required for model prediction with deployment ID, please provide user_id in the method call."
+        )
+      if not user_id:
+        user_id = os.environ.get('CLARIFAI_USER_ID')
+      runner_selector = Deployment.get_runner_selector(
+          user_id=user_id, deployment_id=deployment_id)
+    elif compute_cluster_id and nodepool_id:
+      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
+        raise UserError(
+            "User ID is required for model prediction with compute cluster ID and nodepool ID, please provide user_id in the method call."
+        )
+      if not user_id:
+        user_id = os.environ.get('CLARIFAI_USER_ID')
+      runner_selector = Nodepool.get_runner_selector(
+          user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id)
 
     self._override_model_version(inference_params, output_config)
     proto_inputs = self._convert_python_to_proto_inputs(inputs)

@@ -1,12 +1,14 @@
 import inspect
+import numpy as np
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, Iterator, List
+from PIL import Image as PILImage
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 
 from clarifai.runners.utils.data_handler import Audio, Image, Output, Text, Video
-
+ 
 
 class ModelClass(ABC):
 
@@ -113,10 +115,22 @@ class ModelClass(ABC):
     return kwargs_list
 
   def _convert_part_data(self, data: resources_pb2.Data, param_type: type) -> Any:
-    if param_type == Text:
-      return Text.from_proto(data.text)
-    elif param_type == str:
+    if param_type == str:
       return data.text.value
+    elif param_type == int:
+      return data.int_value
+    elif param_type == float:
+      return data.float_value
+    elif param_type == bool:
+      return data.boolean
+    elif param_type == bytes:
+      return data.base64
+    elif param_type == np.ndarray:
+      return np.frombuffer(data.ndarray.buffer, dtype=np.dtype(data.ndarray.dtype)).reshape(data.ndarray.shape)
+    elif param_type == PILImage.Image:
+      return Image.from_proto(data.image).to_pil()
+    elif param_type == Text:
+      return Text.from_proto(data.text)
     elif param_type == Image:
       return Image.from_proto(data.image)
     elif param_type == Audio:
@@ -132,12 +146,30 @@ class ModelClass(ABC):
         return data.audio.url
       elif data.video.url:
         return data.video.url
+      elif data.int_value:
+        return data.int_value
+      elif data.float_value:
+        return data.int_value
+      elif data.boolean:
+        return data.int_value
+      elif data.base64:
+        return data.base64
       else:
         raise ValueError(f"Unknown type: {data}")
-    elif param_type == List[Text]:
-      return [Text.from_proto(part.data.text) for part in data.parts]
     elif param_type == List[str]:
       return [part.data.text.value for part in data.parts]
+    elif param_type == List[int]:
+      return [part.data.int_value for part in data.parts]
+    elif param_type == List[float]:
+      return [part.data.float_value for part in data.parts]
+    elif param_type == List[bool]:
+      return [part.data.boolean for part in data.parts]
+    elif param_type == List[PILImage.Image]:
+      return [Image.from_proto(part.data.image).to_pil() for part in data.parts]
+    elif param_type == List[PILImage.Image]:
+      return [np.frombuffer(part.data.ndarray.buffer, dtype=np.dtype(part.data.ndarray.dtype)).reshape(part.data.ndarray.shape) for part in data.parts]
+    elif param_type == List[Text]:
+      return [Text.from_proto(part.data.text) for part in data.parts]
     elif param_type == List[Image]:
       return [Image.from_proto(part.data.image) for part in data.parts]
     elif param_type == List[Audio]:
@@ -156,12 +188,8 @@ class ModelClass(ABC):
       return {part.id: Audio.from_proto(part.data.audio) for part in data.parts}
     elif param_type == Dict[str, Video]:
       return {part.id: Video.from_proto(part.data.video) for part in data.parts}
-    elif param_type == Dict[str, Any]:
-      return {part.id: self._convert_part_data(part.data, Any) for part in data.parts}
-    elif param_type == Dict:
-      return {part.id: self._convert_part_data(part.data, Any) for part in data.parts}
     else:
-      raise ValueError(f"Unsupported type: {param_type}")
+      raise ValueError(f"Unsupported input type: {param_type}")
 
   def _validate_required_params(self, params: dict, kwargs: dict):
     for name, param in params.items():
@@ -176,16 +204,29 @@ class ModelClass(ABC):
       data = resources_pb2.Data()
       if isinstance(output, str):
         data.text.raw = output
+      elif isinstance(output, bytes):
+        data.base64 = output
+      elif isinstance(output, int):
+        data.int_value = output
+      elif isinstance(output, float):
+        data.float_value = output
+      elif isinstance(output, bool):
+        data.boolean = output
       elif isinstance(output, Text):
         data.text.raw = output.text
       elif isinstance(output, Image):
         data.image.CopyFrom(output.to_proto())
-      elif isinstance(output, bytes):
-        data.image.base64 = output
       elif isinstance(output, Audio):
         data.audio.CopyFrom(output.to_proto())
       elif isinstance(output, Video):
         data.video.CopyFrom(output.to_proto())
+      elif isinstance(output, np.ndarray):
+        ndarray_proto = resources_pb2.NDArray(
+            buffer=output.tobytes(), shape=output.shape, dtype=str(output.dtype))
+        data.ndarray.CopyFrom(ndarray_proto)
+      elif isinstance(output, PILImage.Image):
+        image = Image.from_pil(output)
+        data.image.CopyFrom(image.to_proto())
       else:
         raise ValueError(f"Unsupported output type: {type(output)}")
       return resources_pb2.Output(data=data)

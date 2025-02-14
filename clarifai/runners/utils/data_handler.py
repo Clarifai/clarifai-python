@@ -1,5 +1,7 @@
 import io
+import numpy as np
 from typing import Any
+from PIL import Image as PILImage
 
 from clarifai_grpc.grpc.api import resources_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import Audio as AudioProto
@@ -33,9 +35,26 @@ class Output:
       elif isinstance(part_value, str):
         part.data.text.raw = part_value
       elif isinstance(part_value, bytes):
-        part.data.image.base64 = part_value
+        part.data.base64 = part_value
+      elif isinstance(part_value, int):
+        part.data.int_value = part_value
+      elif isinstance(part_value, float):
+        part.data.float_value = part_value
+      elif isinstance(part_value, bool):
+        part.data.boolean = part_value
+      elif isinstance(part_value, np.ndarray):
+        ndarray_proto = resources_pb2.NDArray(
+            buffer=part_value.tobytes(),
+            shape=part_value.shape,
+            dtype=str(part_value.dtype))
+        part.data.ndarray.CopyFrom(ndarray_proto)
+      elif isinstance(part_value, PILImage.Image):
+        image = Image.from_pil(part_value)
+        part.data.image.CopyFrom(image.to_proto())
       else:
-        raise TypeError(f"Unsupported type {type(part_value)} for part '{part_name}'")
+        raise TypeError(f"Unsupported Output type {type(part_value)} for part '{part_name}'")
+      else:
+        raise TypeError(f"Unsupported Output type {type(part_value)} for part '{part_name}'")
 
     return resources_pb2.Output(data=data_proto)
 
