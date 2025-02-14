@@ -1,7 +1,9 @@
 import concurrent.futures
+from typing import Iterable
 
 import fsspec
 
+from clarifai.runners.utils.stream_utils import MB
 from clarifai.utils.logging import logger
 
 
@@ -47,3 +49,13 @@ def ensure_urls_downloaded(request, max_threads=128):
         future.result()
       except Exception as e:
         logger.exception(f"Error downloading input: {e}")
+  return request
+
+
+def stream_url(url: str, chunk_size: int = 1 * MB) -> Iterable[bytes]:
+  """
+  Opens a stream of byte chunks from a URL.
+  """
+  # block_size=0 means that the file is streamed
+  with fsspec.open(url, 'rb', block_size=0) as f:
+    yield from iter(lambda: f.read(chunk_size), b'')
