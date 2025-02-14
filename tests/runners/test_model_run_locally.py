@@ -170,7 +170,11 @@ def test_hf_test_model_success(hf_model_run_locally):
   Test that test_model succeeds with the dummy model.
   This calls the script's test_model method, which runs a subprocess.
   """
-  hf_model_run_locally.builder.download_checkpoints(stage="build")
+  # get whatever stage is in config.yaml to force download now
+  # also always write to where upload/build wants to, not the /tmp folder that runtime stage uses
+  _, _, _, when = hf_model_run_locally.builder._validate_config_checkpoints()
+  hf_model_run_locally.builder.download_checkpoints(
+      stage=when, checkpoint_path_override=hf_model_run_locally.builder.checkpoint_path)
   hf_model_run_locally.create_temp_venv()
   hf_model_run_locally.install_requirements()
 

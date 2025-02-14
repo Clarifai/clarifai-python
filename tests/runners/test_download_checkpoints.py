@@ -56,8 +56,25 @@ def test_validate_download(checkpoint_dir):
 
 
 def test_download_checkpoints(dummy_runner_models_dir):
+  # This doesn't have when in it's config.yaml so runtime.
   model_folder_path = os.path.join(os.path.dirname(__file__), "dummy_runner_models")
   model_builder = ModelBuilder(model_folder_path, download_validation_only=True)
-  checkpoint_dir = model_builder.download_checkpoints(stage="build")  # any forces download now.
+  # defaults to runtime stage which matches config.yaml not having a when field.
+  # get whatever stage is in config.yaml to force download now
+  # also always write to where upload/build wants to, not the /tmp folder that runtime stage uses
+  _, _, _, when = model_builder._validate_config_checkpoints()
+  checkpoint_dir = model_builder.download_checkpoints(
+      stage=when, checkpoint_path_override=model_builder.checkpoint_path)
+  assert checkpoint_dir == model_builder.checkpoint_path
+
+  # This doesn't have when in it's config.yaml so build.
+  model_folder_path = os.path.join(os.path.dirname(__file__), "hf_mbart_model")
+  model_builder = ModelBuilder(model_folder_path, download_validation_only=True)
+  # defaults to runtime stage which matches config.yaml not having a when field.
+  # get whatever stage is in config.yaml to force download now
+  # also always write to where upload/build wants to, not the /tmp folder that runtime stage uses
+  _, _, _, when = model_builder._validate_config_checkpoints()
+  checkpoint_dir = model_builder.download_checkpoints(
+      stage=when, checkpoint_path_override=model_builder.checkpoint_path)
   assert checkpoint_dir == os.path.join(
-      os.path.dirname(__file__), "dummy_runner_models", "1", "checkpoints")
+      os.path.dirname(__file__), "hf_mbart_model", "1", "checkpoints")
