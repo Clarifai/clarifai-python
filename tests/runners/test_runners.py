@@ -455,8 +455,3 @@ class TestRunnerServer:
 
       for i, res in enumerate(model_response):
         self._validate_response(res, text + out.format(i=i))
-
-
-@pytest.mark.requires_secrets
-class TestWrapperRunnerServer(TestRunnerServer):
-  MODEL_PATH = MY_WRAPPER_MODEL_PATH
