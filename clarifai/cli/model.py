@@ -173,6 +173,18 @@ def run_locally(model_path, port, mode, keep_env, keep_image):
 
 @model.command()
 @click.option(
+    '--model_path',
+    type=click.Path(exists=True),
+    required=True,
+    help='Path to the model directory.')
+def local_dev(model_path):
+  """Run the model as a local dev runner to help debug your model connected to the API. You must set several envvars such as CLARIFAI_PAT, CLARIFAI_RUNNER_ID, CLARIFAI_NODEPOOL_ID, CLARIFAI_COMPUTE_CLUSTER_ID. """
+  from clarifai.runners.server import serve
+  serve(model_path)
+
+
+@model.command()
+@click.option(
     '--config',
     type=click.Path(exists=True),
     required=False,
