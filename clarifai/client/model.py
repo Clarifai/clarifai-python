@@ -24,7 +24,7 @@ from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_MODEL_PRED
                                       MAX_RANGE_SIZE, MIN_CHUNK_SIZE, MIN_RANGE_SIZE,
                                       MODEL_EXPORT_TIMEOUT, RANGE_SIZE, TRAINABLE_MODEL_TYPES)
 from clarifai.errors import UserError
-from clarifai.runners.utils.data_handler import Audio, Image, Text, Video
+from clarifai.runners.utils.data_handler import Output, kwargs_to_proto, proto_to_kwargs
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator
@@ -421,56 +421,8 @@ class Model(Lister, BaseClient):
     proto_inputs = []
     for input_dict in inputs:
       input_proto = resources_pb2.Input()
-      for key, value in input_dict.items():
-        part = resources_pb2.Part(id=key)
-        if isinstance(value, str):
-          part.data.text.value = value
-        if isinstance(value, int):
-          part.data.int_value = value
-        if isinstance(value, float):
-          part.data.float_value = value
-        if isinstance(value, bool):
-          part.data.boolean = value
-        if isinstance(value, bytes):
-          part.data.base64 = value
-        elif isinstance(value, Text):
-          part.data.text.CopyFrom(value.to_proto())
-        elif isinstance(value, Image):
-          part.data.image.CopyFrom(value.to_proto())
-        elif isinstance(value, Audio):
-          part.data.audio.CopyFrom(value.to_proto())
-        elif isinstance(value, Video):
-          part.data.video.CopyFrom(value.to_proto())
-        elif isinstance(value, list):
-          for item in value:
-            if isinstance(item, Text):
-              part.data.parts.append(resources_pb2.Part(data=item.to_proto()))
-            elif isinstance(item, str):
-              part.data.parts.append(
-                  resources_pb2.Part(data=resources_pb2.Data(text=Text(value=item).to_proto())))
-            elif isinstance(item, Image):
-              part.data.parts.append(resources_pb2.Part(data=item.to_proto()))
-            elif isinstance(item, Audio):
-              part.data.parts.append(resources_pb2.Part(data=item.to_proto()))
-            elif isinstance(item, Video):
-              part.data.parts.append(resources_pb2.Part(data=item.to_proto()))
-            else:
-              raise TypeError(f"Unknown type: {item}")
-        elif isinstance(value, dict):
-          for key, item in value.items():
-            if isinstance(item, Text):
-              part.data.parts.append(resources_pb2.Part(id=key, data=item.to_proto()))
-            elif isinstance(item, str):
-              part.data.parts.append(
-                  resources_pb2.Part(
-                      id=key, data=resources_pb2.Data(text=Text(value=item).to_proto())))
-            elif isinstance(item, Image):
-              part.data.parts.append(resources_pb2.Part(id=key, data=item.to_proto()))
-            elif isinstance(item, Audio):
-              part.data.parts.append(resources_pb2.Part(id=key, data=item.to_proto()))
-            elif isinstance(item, Video):
-              part.data.parts.append(resources_pb2.Part(id=key, data=item.to_proto()))
-        input_proto.data.parts.append(part)
+      data_proto = kwargs_to_proto(**input_dict)
+      input_proto.data.CopyFrom(data_proto)
       proto_inputs.append(input_proto)
     return proto_inputs
 
@@ -497,8 +449,10 @@ class Model(Lister, BaseClient):
       Returns:
           service_pb2.MultiOutputResponse: The prediction response(s).
       """
+    batch_input = True
     if isinstance(inputs, dict):
       inputs = [inputs]
+      batch_input = False
     if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
       raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}.")
 
@@ -550,7 +504,12 @@ class Model(Lister, BaseClient):
         raise Exception(f"Model Predict failed with response {response.status!r}")
       break
 
-    return response
+    outputs = []
+    if batch_input:
+      for output in response.outputs:
+        outputs.append(Output(proto_to_kwargs(output.data)))
+      return outputs
+    return Output(proto_to_kwargs(response.outputs[0].data))
 
   def _check_predict_input_type(self, input_type: str) -> None:
     """Checks if the input type is valid for the model.
