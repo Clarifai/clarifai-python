@@ -15,10 +15,13 @@ def model():
     required=True,
     help='Path to the model directory.')
 @click.option(
-    '--download_checkpoints',
-    is_flag=True,
+    '--stage',
+    required=False,
+    type=click.Choice(['runtime', 'build', 'upload'], case_sensitive=True),
+    default="upload",
+    show_default=True,
     help=
-    'Flag to download checkpoints before uploading and including them in the tar file that is uploaded. Defaults to False, which will attempt to download them at docker build time.',
+    'The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.'
 )
 @click.option(
     '--skip_dockerfile',
@@ -26,10 +29,10 @@ def model():
     help=
     'Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile.',
 )
-def upload(model_path, download_checkpoints, skip_dockerfile):
+def upload(model_path, stage, skip_dockerfile):
   """Upload a model to Clarifai."""
   from clarifai.runners.models.model_builder import upload_model
-  upload_model(model_path, download_checkpoints, skip_dockerfile)
+  upload_model(model_path, stage, skip_dockerfile)
 
 
 @model.command()
@@ -44,14 +47,23 @@ def upload(model_path, download_checkpoints, skip_dockerfile):
     required=False,
     default=None,
     help=
-    'Option path to write the checkpoints to. This will place them in {out_path}/ If not provided it will default to {model_path}/1/checkpoints where the config.yaml is read..'
+    'Option path to write the checkpoints to. This will place them in {out_path}/1/checkpoints If not provided it will default to {model_path}/1/checkpoints where the config.yaml is read.'
 )
-def download_checkpoints(model_path, out_path):
+@click.option(
+    '--stage',
+    required=False,
+    type=click.Choice(['runtime', 'build', 'upload'], case_sensitive=True),
+    default="build",
+    show_default=True,
+    help=
+    'The stage we are calling download checkpoints from. Typically this would be in the build stage which is the default. Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.'
+)
+def download_checkpoints(model_path, out_path, stage):
   """Download checkpoints from external source to local model_path"""
 
   from clarifai.runners.models.model_builder import ModelBuilder
   builder = ModelBuilder(model_path, download_validation_only=True)
-  builder.download_checkpoints(out_path)
+  builder.download_checkpoints(stage=stage, checkpoint_path_override=out_path)
 
 
 @model.command()
@@ -157,6 +169,18 @@ def run_locally(model_path, port, mode, keep_env, keep_image):
     click.echo(f"Model server started locally from {model_path} in {mode} mode.")
   except Exception as e:
     click.echo(f"Failed to starts model server locally: {e}", err=True)
+
+
+@model.command()
+@click.option(
+    '--model_path',
+    type=click.Path(exists=True),
+    required=True,
+    help='Path to the model directory.')
+def local_dev(model_path):
+  """Run the model as a local dev runner to help debug your model connected to the API. You must set several envvars such as CLARIFAI_PAT, CLARIFAI_RUNNER_ID, CLARIFAI_NODEPOOL_ID, CLARIFAI_COMPUTE_CLUSTER_ID. """
+  from clarifai.runners.server import serve
+  serve(model_path)
 
 
 @model.command()
