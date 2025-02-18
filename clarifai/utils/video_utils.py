@@ -5,7 +5,7 @@ import threading
 
 import requests
 
-from clarifai.runners.utils import stream_utils
+from clarifai.utils import stream_utils
 from clarifai.utils.misc import optional_import
 
 av = optional_import("av", pip_package="av")

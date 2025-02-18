@@ -3,8 +3,8 @@ from typing import Iterable
 
 import fsspec
 
-from clarifai.runners.utils.stream_utils import MB
 from clarifai.utils.logging import logger
+from clarifai.utils.stream_utils import MB
 
 
 def download_input(input):

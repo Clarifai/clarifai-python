@@ -1,8 +1,7 @@
 import io
 import unittest
 
-from clarifai.runners.utils.stream_utils import (SeekableStreamingChunksReader,
-                                                 StreamingChunksReader)
+from clarifai.utils.stream_utils import SeekableStreamingChunksReader, StreamingChunksReader
 
 
 class TestStreamingChunksReader(unittest.TestCase):

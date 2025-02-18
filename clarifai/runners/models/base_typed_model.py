@@ -6,8 +6,8 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.service_pb2 import PostModelOutputsRequest
 from google.protobuf import json_format
 
-from clarifai.runners.utils.stream_utils import readahead
 from clarifai.runners.utils.url_fetcher import ensure_urls_downloaded
+from clarifai.utils.stream_utils import readahead
 
 from ..utils.data_handler import InputDataHandler, OutputDataHandler
 from .model_class import ModelClass

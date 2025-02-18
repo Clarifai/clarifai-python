@@ -3,8 +3,8 @@ from typing import Iterator
 
 from clarifai_grpc.grpc.api import service_pb2
 
-from clarifai.runners.utils.stream_utils import readahead
 from clarifai.runners.utils.url_fetcher import ensure_urls_downloaded
+from clarifai.utils.stream_utils import readahead
 
 
 class ModelClass(ABC):
