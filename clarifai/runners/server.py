@@ -68,30 +68,43 @@ def main():
 
   parsed_args = parser.parse_args()
 
-  builder = ModelBuilder(parsed_args.model_path, download_validation_only=True)
+  serve(parsed_args.model_path, parsed_args.port, parsed_args.pool_size,
+        parsed_args.max_queue_size, parsed_args.max_msg_length, parsed_args.enable_tls,
+        parsed_args.grpc)
+
+
+def serve(model_path,
+          port=8000,
+          pool_size=32,
+          max_queue_size=10,
+          max_msg_length=1024 * 1024 * 1024,
+          enable_tls=False,
+          grpc=False):
+
+  builder = ModelBuilder(model_path, download_validation_only=True)
 
   model = builder.create_model_instance()
 
   # Setup the grpc server for local development.
-  if parsed_args.grpc:
+  if grpc:
 
     # initialize the servicer with the runner so that it gets the predict(), generate(), stream() classes.
     servicer = ModelServicer(model)
 
     server = GRPCServer(
         futures.ThreadPoolExecutor(
-            max_workers=parsed_args.pool_size,
+            max_workers=pool_size,
             thread_name_prefix="ServeCalls",
         ),
-        parsed_args.max_msg_length,
-        parsed_args.max_queue_size,
+        max_msg_length,
+        max_queue_size,
     )
-    server.add_port_to_server('[::]:%s' % parsed_args.port, parsed_args.enable_tls)
+    server.add_port_to_server('[::]:%s' % port, enable_tls)
 
     service_pb2_grpc.add_V2Servicer_to_server(servicer, server)
     server.start()
-    logger.info("Started server on port %s", parsed_args.port)
-    logger.info(f"Access the model at http://localhost:{parsed_args.port}")
+    logger.info("Started server on port %s", port)
+    logger.info(f"Access the model at http://localhost:{port}")
     server.wait_for_termination()
   else:  # start the runner with the proper env variables and as a runner protocol.
 
