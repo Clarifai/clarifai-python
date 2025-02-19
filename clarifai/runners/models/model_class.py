@@ -5,6 +5,7 @@ from typing import Any, Dict, Iterator, List
 
 import numpy as np
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
+from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from PIL import Image as PILImage
 
 from clarifai.runners.utils.data_handler import (Audio, Image, Output, Text, Video,
@@ -52,30 +53,39 @@ class ModelClass(ABC):
   def predict_wrapper(
       self, request: service_pb2.PostModelOutputsRequest) -> service_pb2.MultiOutputResponse:
     outputs = []
-    inputs = self._convert_proto_to_python(request.inputs)
-    if len(inputs) == 1:
-      inputs = inputs[0]
-      output = self.predict(**inputs)
-      outputs.append(self._convert_output_to_proto(output))
-    else:
-      outputs = self.batch_predict(inputs)
-      outputs = [self._convert_output_to_proto(output) for output in outputs]
-    return service_pb2.MultiOutputResponse(outputs=outputs)
+    try:
+      inputs = self._convert_proto_to_python(request.inputs)
+      if len(inputs) == 1:
+        inputs = inputs[0]
+        output = self.predict(**inputs)
+        outputs.append(self._convert_output_to_proto(output))
+      else:
+        outputs = self.batch_predict(inputs)
+        outputs = [self._convert_output_to_proto(output) for output in outputs]
+      return service_pb2.MultiOutputResponse(
+          outputs=outputs, status=status_pb2.Status(code=status_code_pb2.SUCCESS))
+    except Exception as e:
+      return service_pb2.MultiOutputResponse(
+          status=status_pb2.Status(code=status_code_pb2.FAILURE, details=str(e)),)
 
   def generate_wrapper(self, request: service_pb2.PostModelOutputsRequest
                       ) -> Iterator[service_pb2.MultiOutputResponse]:
-    inputs = self._convert_proto_to_python(request.inputs)
-    if len(inputs) == 1:
-      inputs = inputs[0]
-      for output in self.generate(**inputs):
-        output_proto = self._convert_output_to_proto(output)
-        yield service_pb2.MultiOutputResponse(outputs=[output_proto])
-    else:
-      outputs = []
-      for output in self.batch_generate(inputs):
-        output_proto = self._convert_output_to_proto(output)
-        outputs.append(output_proto)
-      yield service_pb2.MultiOutputResponse(outputs=outputs)
+    try:
+      inputs = self._convert_proto_to_python(request.inputs)
+      if len(inputs) == 1:
+        inputs = inputs[0]
+        for output in self.generate(**inputs):
+          output_proto = self._convert_output_to_proto(output)
+          yield service_pb2.MultiOutputResponse(outputs=[output_proto])
+      else:
+        outputs = []
+        for output in self.batch_generate(inputs):
+          output_proto = self._convert_output_to_proto(output)
+          outputs.append(output_proto)
+        yield service_pb2.MultiOutputResponse(outputs=outputs, status=status_code_pb2.SUCCESS)
+    except Exception as e:
+      yield service_pb2.MultiOutputResponse(
+          status=status_pb2.Status(code=status_code_pb2.FAILURE, details=str(e)),)
 
   def stream_wrapper(self, request_iterator: Iterator[service_pb2.PostModelOutputsRequest]
                     ) -> Iterator[service_pb2.MultiOutputResponse]:

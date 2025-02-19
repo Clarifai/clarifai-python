@@ -507,9 +507,9 @@ class Model(Lister, BaseClient):
     outputs = []
     if batch_input:
       for output in response.outputs:
-        outputs.append(Output(proto_to_kwargs(output.data)))
+        outputs.append(**Output(proto_to_kwargs(output.data)))
       return outputs
-    return Output(proto_to_kwargs(response.outputs[0].data))
+    return Output(**proto_to_kwargs(response.outputs[0].data))
 
   def _check_predict_input_type(self, input_type: str) -> None:
     """Checks if the input type is valid for the model.

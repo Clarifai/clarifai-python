@@ -7,6 +7,7 @@ from clarifai_grpc.grpc.api.resources_pb2 import Audio as AudioProto
 from clarifai_grpc.grpc.api.resources_pb2 import Image as ImageProto
 from clarifai_grpc.grpc.api.resources_pb2 import Text as TextProto
 from clarifai_grpc.grpc.api.resources_pb2 import Video as VideoProto
+from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.struct_pb2 import Struct
 from PIL import Image as PILImage
@@ -171,7 +172,8 @@ class Output:
     """Converts the Output instance to a Clarifai protobuf Output message."""
     data_proto = kwargs_to_proto(**self.parts)
 
-    return resources_pb2.Output(data=data_proto)
+    return resources_pb2.Output(
+        data=data_proto, status=status_pb2.Status(code=status_code_pb2.SUCCESS))
 
 
 class Text:
