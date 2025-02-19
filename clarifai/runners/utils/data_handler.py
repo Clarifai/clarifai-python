@@ -22,8 +22,13 @@ def dict_to_metadata(data: resources_pb2.Data, metadata_dict: dict):
   data.metadata.CopyFrom(struct)
 
 
-def kwargs_to_proto(**kwargs) -> resources_pb2.Data:
+def kwargs_to_proto(*args, **kwargs) -> resources_pb2.Data:
   """Converts the kwargs to a Clarifai protobuf Data message."""
+  kwargs = dict(kwargs)
+  if any(k.startswith("_arg_") for k in kwargs.keys()):
+    raise ValueError("Keys starting with '_arg_' are reserved for positional arguments")
+  for arg_i, arg in enumerate(args):
+    kwargs[f"_arg_{arg_i}"] = arg
   data_proto = resources_pb2.Data()
   for part_name, part_value in kwargs.items():
     part = data_proto.parts.add()
@@ -100,9 +105,10 @@ def kwargs_to_proto(**kwargs) -> resources_pb2.Data:
 def proto_to_kwargs(data: resources_pb2.Data) -> dict:
   """Converts the Clarifai protobuf Data message to a dictionary."""
   kwargs = {}
-  for part in data.parts:
-    part_name = part.id
-    part_data = part.data
+  part_names = [part.id for part in data.parts]
+  assert "return" not in part_names, "The key 'return' is reserved"
+  for part_name in part_names + ["return"]:
+    part_data = part.data if part_name != "return" else data
     if part_data.HasField("text"):
       kwargs[part_name] = Text.from_proto(part_data.text)
     elif part_data.HasField("image"):
@@ -153,7 +159,8 @@ def proto_to_kwargs(data: resources_pb2.Data) -> dict:
     else:
       raise ValueError(f"Unknown part data: {part_data}")
 
-  return kwargs
+  args = [kwargs.pop(f"_arg_{i}") for i in range(len(kwargs)) if f"_arg_{i}" in kwargs]
+  return args, kwargs
 
 
 class Output:
