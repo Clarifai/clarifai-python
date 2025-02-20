@@ -1,4 +1,4 @@
-Example signature using method_types_v2.py:
+Example signature using method_signatures.py:
 
 results of build_function_signature(f), for the functions below:
 
