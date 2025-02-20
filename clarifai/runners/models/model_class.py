@@ -54,7 +54,7 @@ class ModelClass(ABC):
       self, request: service_pb2.PostModelOutputsRequest) -> service_pb2.MultiOutputResponse:
     outputs = []
     try:
-      inputs = self._convert_proto_to_python(request.inputs)
+      inputs = self._convert_proto_to_python(request.inputs, self.predict)
       if len(inputs) == 1:
         inputs = inputs[0]
         output = self.predict(**inputs)
@@ -71,7 +71,7 @@ class ModelClass(ABC):
   def generate_wrapper(self, request: service_pb2.PostModelOutputsRequest
                       ) -> Iterator[service_pb2.MultiOutputResponse]:
     try:
-      inputs = self._convert_proto_to_python(request.inputs)
+      inputs = self._convert_proto_to_python(request.inputs, self.generate)
       if len(inputs) == 1:
         inputs = inputs[0]
         for output in self.generate(**inputs):
@@ -91,7 +91,7 @@ class ModelClass(ABC):
                     ) -> Iterator[service_pb2.MultiOutputResponse]:
     try:
       for request in request_iterator:
-        inputs = self._convert_proto_to_python(request.inputs)
+        inputs = self._convert_proto_to_python(request.inputs, self.stream)
         if len(inputs) == 1:
           inputs = inputs[0]
           for output in self.stream(**inputs):
@@ -107,20 +107,25 @@ class ModelClass(ABC):
       yield service_pb2.MultiOutputResponse(
           status=status_pb2.Status(code=status_code_pb2.FAILURE, details=str(e)),)
 
-  def _convert_proto_to_python(self, inputs: List[resources_pb2.Input]) -> List[Dict[str, Any]]:
+  def _convert_proto_to_python(self, inputs: List[resources_pb2.Input],
+                               method) -> List[Dict[str, Any]]:
 
     kwargs_list = []
-    predict_params = inspect.signature(self.predict).parameters
+    predict_params = inspect.signature(method).parameters
     for input in inputs:
       kwargs = {}
       for part in input.data.parts:
         param_name = part.id
         if param_name not in predict_params:
-          raise ValueError(f"Unknown parameter: {param_name}")
+          raise ValueError(
+              f"Unknown parameter: `{param_name}` in {method.__name__} method, available parameters: {predict_params.keys()}"
+          )
         param = predict_params[param_name]
         param_type = param.annotation
         if param_type is inspect.Parameter.empty:
-          raise TypeError(f"Missing type annotation for parameter: {param_name}")
+          raise TypeError(
+              f"Missing type annotation for parameter: {param_name} in {method.__name__} method, available types: {predict_params.values()}"
+          )
         value = self._convert_part_data(part.data, param_type)
         kwargs[param_name] = value
 
