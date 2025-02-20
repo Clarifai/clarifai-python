@@ -136,6 +136,8 @@ class ModelClass(ABC):
 
   def _convert_part_data(self, data: resources_pb2.Data, param_type: type) -> Any:
     if param_type == str:
+      if not data.HasField("text"):
+        raise ValueError('expected str datatype but the provided input is not a str')
       return data.text.raw
     elif param_type == int:
       return data.int_value
@@ -146,20 +148,33 @@ class ModelClass(ABC):
     elif param_type == bytes:
       return data.bytes_value
     elif param_type == np.ndarray:
+      if not data.HasField("ndarray"):
+        raise ValueError(
+            'expected numpy.ndarray datatype but the provided input is not a numpy.ndarray')
       return np.frombuffer(
           data.ndarray.buffer, dtype=np.dtype(data.ndarray.dtype)).reshape(data.ndarray.shape)
     elif param_type == PILImage.Image:
+      if not data.HasField("image"):
+        raise ValueError('expected PIL.Image datatype but the provided input is not a PIL.Image')
       return Image.from_proto(data.image).to_pil()
     elif param_type == Text:
+      if not data.HasField("text"):
+        raise ValueError('expected Text datatype but the provided input is not a Text')
       return Text.from_proto(data.text)
     elif param_type == Image:
+      if not data.HasField("image"):
+        raise ValueError('expected Image datatype but the provided input is not a Image')
       return Image.from_proto(data.image)
     elif param_type == Audio:
+      if not data.HasField("audio"):
+        raise ValueError('expected Audio datatype but the provided input is not a Audio')
       return Audio.from_proto(data.audio)
     elif param_type == Video:
+      if not data.HasField("video"):
+        raise ValueError('expected Video datatype but the provided input is not a Video')
       return Video.from_proto(data.video)
     elif param_type == Any:
-      raise ValueError("Any type is not supported")
+      raise ValueError("Any type is not supported in input parameters")
     elif param_type == List:
       list_output = []
       for part in data.parts:
