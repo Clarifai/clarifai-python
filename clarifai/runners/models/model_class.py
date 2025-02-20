@@ -1,6 +1,5 @@
 import inspect
 from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, Iterator, List
 
 import numpy as np
@@ -36,15 +35,15 @@ class ModelClass(ABC):
 
   def batch_predict(self, inputs: List[Dict[str, Any]]) -> List[Output]:
     """Batch predict method for multiple inputs."""
-    with ThreadPoolExecutor() as executor:
-      futures = [executor.submit(self.predict, **input) for input in inputs]
-      return [future.result() for future in futures]
+    outputs = []
+    for input in inputs:
+      output = self.predict(**input)
+      outputs.append(output)
+    return outputs
 
   def batch_generate(self, inputs: List[Dict[str, Any]]) -> Iterator[List[Output]]:
     """Batch generate method for multiple inputs."""
-    with ThreadPoolExecutor() as executor:
-      futures = [executor.submit(self.generate, **input) for input in inputs]
-      return [future.result() for future in futures]
+    NotImplementedError("batch_generate() not implemented")
 
   def batch_stream(self, inputs: List[Dict[str, Any]]) -> Iterator[List[Output]]:
     """Batch stream method for multiple inputs."""
@@ -89,19 +88,23 @@ class ModelClass(ABC):
 
   def stream_wrapper(self, request_iterator: Iterator[service_pb2.PostModelOutputsRequest]
                     ) -> Iterator[service_pb2.MultiOutputResponse]:
-    for request in request_iterator:
-      inputs = self._convert_proto_to_python(request.inputs)
-      if len(inputs) == 1:
-        inputs = inputs[0]
-        for output in self.stream(**inputs):
-          output_proto = self._convert_output_to_proto(output)
-          yield service_pb2.MultiOutputResponse(outputs=[output_proto])
-      else:
-        outputs = []
-        for output in self.batch_stream(inputs):
-          output_proto = self._convert_output_to_proto(output)
-          outputs.append(output_proto)
-        yield service_pb2.MultiOutputResponse(outputs=outputs)
+    try:
+      for request in request_iterator:
+        inputs = self._convert_proto_to_python(request.inputs)
+        if len(inputs) == 1:
+          inputs = inputs[0]
+          for output in self.stream(**inputs):
+            output_proto = self._convert_output_to_proto(output)
+            yield service_pb2.MultiOutputResponse(outputs=[output_proto])
+        else:
+          outputs = []
+          for output in self.batch_stream(inputs):
+            output_proto = self._convert_output_to_proto(output)
+            outputs.append(output_proto)
+          yield service_pb2.MultiOutputResponse(outputs=outputs)
+    except Exception as e:
+      yield service_pb2.MultiOutputResponse(
+          status=status_pb2.Status(code=status_code_pb2.FAILURE, details=str(e)),)
 
   def _convert_proto_to_python(self, inputs: List[resources_pb2.Input]) -> List[Dict[str, Any]]:
 
@@ -133,9 +136,9 @@ class ModelClass(ABC):
     elif param_type == float:
       return data.float_value
     elif param_type == bool:
-      return data.boolean
+      return data.bool_value
     elif param_type == bytes:
-      return data.base64
+      return data.bytes_value
     elif param_type == np.ndarray:
       return np.frombuffer(
           data.ndarray.buffer, dtype=np.dtype(data.ndarray.dtype)).reshape(data.ndarray.shape)
@@ -168,8 +171,8 @@ class ModelClass(ABC):
           list_output.append(part.data.int_value)
         elif part.data.HasField("float_value"):
           list_output.append(part.data.float_value)
-        elif part.data.HasField("boolean"):
-          list_output.append(part.data.boolean)
+        elif part.data.HasField("bool_value"):
+          list_output.append(part.data.bool_value)
         elif part.data.HasField("ndarray"):
           ndarray = part.data.ndarray
           list_output.append(

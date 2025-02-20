@@ -27,7 +27,7 @@ from clarifai.errors import UserError
 from clarifai.runners.utils.data_handler import Output, kwargs_to_proto, proto_to_kwargs
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
-from clarifai.utils.misc import BackoffIterator
+from clarifai.utils.misc import BackoffIterator, status_is_retryable
 from clarifai.utils.model_train import (find_and_replace_key, params_parser,
                                         response_to_model_params, response_to_param_info,
                                         response_to_templates)
@@ -495,11 +495,12 @@ class Model(Lister, BaseClient):
     backoff_iterator = BackoffIterator(10)
     while True:
       response = self._grpc_request(self.STUB.PostModelOutputs, request)
-      if response.status.code == status_code_pb2.MODEL_DEPLOYING and time.time(
-      ) - start_time < 60 * 10:  # 10 minutes
-        self.logger.info(f"{self.id} model is still deploying, please wait...")
+      if status_is_retryable(
+          response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
+        self.logger.info(f"{self.id} model predict failed with response {response.status!r}")
         time.sleep(next(backoff_iterator))
         continue
+
       if response.status.code != status_code_pb2.SUCCESS:
         raise Exception(f"Model Predict failed with response {response.status!r}")
       break

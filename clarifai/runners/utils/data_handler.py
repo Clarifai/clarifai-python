@@ -25,135 +25,99 @@ def dict_to_metadata(data: resources_pb2.Data, metadata_dict: dict):
 
 def kwargs_to_proto(**kwargs) -> resources_pb2.Data:
   """Converts the kwargs to a Clarifai protobuf Data message."""
+
+  def _handle_list(target_data, value_list, part_name):
+    """Handles list values by processing each item into a new part."""
+    if not value_list:
+      raise ValueError("List must have at least one element")
+    if isinstance(value_list[0], dict):
+      raise ValueError("List of dictionaries is not supported")
+
+    for item in value_list:
+      new_part = target_data.parts.add()
+      _process_value(new_part.data, item, part_name)
+
+  def _process_value(target_data, value, part_name):
+    """Processes individual values and sets the appropriate proto field."""
+    if isinstance(value, Text):
+      target_data.text.CopyFrom(value.to_proto())
+    elif isinstance(value, Image):
+      target_data.image.CopyFrom(value.to_proto())
+    elif isinstance(value, Audio):
+      target_data.audio.CopyFrom(value.to_proto())
+    elif isinstance(value, Video):
+      target_data.video.CopyFrom(value.to_proto())
+    elif isinstance(value, str):
+      target_data.text.raw = value
+    elif isinstance(value, bytes):
+      target_data.bytes_value = value
+    elif isinstance(value, int):
+      target_data.int_value = value
+    elif isinstance(value, float):
+      target_data.float_value = value
+    elif isinstance(value, bool):
+      target_data.bool_value = value
+    elif isinstance(value, np.ndarray):
+      ndarray_proto = resources_pb2.NDArray(
+          buffer=value.tobytes(), shape=value.shape, dtype=str(value.dtype))
+      target_data.ndarray.CopyFrom(ndarray_proto)
+    elif isinstance(value, PILImage.Image):
+      image = Image.from_pil(value)
+      target_data.image.CopyFrom(image.to_proto())
+    else:
+      raise TypeError(f"Unsupported type {type(value)} for part '{part_name}'")
+
   data_proto = resources_pb2.Data()
   for part_name, part_value in kwargs.items():
     part = data_proto.parts.add()
-    part.id = part_name  # Assign the part name as the ID
+    part.id = part_name
 
-    # Handle different data types and convert to proto
-    if isinstance(part_value, Text):
-      part.data.text.CopyFrom(part_value.to_proto())
-    elif isinstance(part_value, Image):
-      part.data.image.CopyFrom(part_value.to_proto())
-    elif isinstance(part_value, Audio):
-      part.data.audio.CopyFrom(part_value.to_proto())
-    elif isinstance(part_value, Video):
-      part.data.video.CopyFrom(part_value.to_proto())
-    elif isinstance(part_value, str):
-      part.data.text.raw = part_value
-    elif isinstance(part_value, bytes):
-      part.data.bytes_value = part_value
-    elif isinstance(part_value, int):
-      part.data.int_value = part_value
-    elif isinstance(part_value, float):
-      part.data.float_value = part_value
-    elif isinstance(part_value, bool):
-      part.data.boolean = part_value
-    elif isinstance(part_value, np.ndarray):
-      ndarray_proto = resources_pb2.NDArray(
-          buffer=part_value.tobytes(), shape=part_value.shape, dtype=str(part_value.dtype))
-      part.data.ndarray.CopyFrom(ndarray_proto)
-    elif isinstance(part_value, PILImage.Image):
-      image = Image.from_pil(part_value)
-      part.data.image.CopyFrom(image.to_proto())
-    elif isinstance(part_value, list):
-      if len(part_value) == 0:
-        raise ValueError("List must have at least one element")
-      if isinstance(part_value[0], dict):
-        raise ValueError("List of dictionaries is not supported")
-      else:
-        for part_item in part_value:
-          if isinstance(part_item, Text):
-            part.data.parts.add().data.text.CopyFrom(part_item.to_proto())
-          elif isinstance(part_item, Image):
-            part.data.parts.add().data.image.CopyFrom(part_item.to_proto())
-          elif isinstance(part_item, Audio):
-            part.data.parts.add().data.audio.CopyFrom(part_item.to_proto())
-          elif isinstance(part_item, Video):
-            part.data.parts.add().data.video.CopyFrom(part_item.to_proto())
-          elif isinstance(part_item, str):
-            part.data.parts.add().data.text.raw = part_item
-          elif isinstance(part_item, bytes):
-            part.data.parts.add().data.bytes_value = part_item
-          elif isinstance(part_item, int):
-            part.data.parts.add().data.int_value = part_item
-          elif isinstance(part_item, float):
-            part.data.parts.add().data.float_value = part_item
-          elif isinstance(part_item, bool):
-            part.data.parts.add().data.boolean = part_item
-          elif isinstance(part_item, np.ndarray):
-            ndarray_proto = resources_pb2.NDArray(
-                buffer=part_item.tobytes(), shape=part_item.shape, dtype=str(part_item.dtype))
-            part.data.parts.add().data.ndarray.CopyFrom(ndarray_proto)
-          elif isinstance(part_item, PILImage.Image):
-            image = Image.from_pil(part_item)
-            part.data.parts.add().data.image.CopyFrom(image.to_proto())
-          else:
-            raise TypeError(f"Unsupported Output type {type(part_item)} for part '{part_name}'")
+    if isinstance(part_value, list):
+      _handle_list(part.data, part_value, part_name)
     elif isinstance(part_value, dict):
       dict_to_metadata(part.data, part_value)
     else:
-      raise TypeError(f"Unsupported Output type {type(part_value)} for part '{part_name}'")
-
+      _process_value(part.data, part_value, part_name)
   return data_proto
 
 
 def proto_to_kwargs(data: resources_pb2.Data) -> dict:
   """Converts the Clarifai protobuf Data message to a dictionary."""
+
+  def process_part(part, allow_metadata: bool = True) -> object:
+    if part.HasField("text"):
+      return Text.from_proto(part.text)
+    elif part.HasField("image"):
+      return Image(part.image)
+    elif part.HasField("audio"):
+      return Audio(part.audio)
+    elif part.HasField("video"):
+      return Video(part.video)
+    elif part.bytes_value != b'':
+      return part.bytes_value
+    elif part.int_value != 0:
+      return part.int_value
+    elif part.float_value != 0.0:
+      return part.float_value
+    elif part.bool_value is not False:
+      return part.bool_value
+    elif part.HasField("ndarray"):
+      ndarray = part.ndarray
+      return np.frombuffer(ndarray.buffer, dtype=np.dtype(ndarray.dtype)).reshape(ndarray.shape)
+    elif part.HasField("metadata"):
+      if not allow_metadata:
+        raise ValueError("Metadata in list is not supported")
+      return metadata_to_dict(part)
+    elif part.parts:
+      return [process_part(p, allow_metadata=False) for p in part.parts]
+    else:
+      raise ValueError(f"Unknown part data: {part}")
+
   kwargs = {}
   for part in data.parts:
     part_name = part.id
     part_data = part.data
-    if part_data.HasField("text"):
-      kwargs[part_name] = Text.from_proto(part_data.text)
-    elif part_data.HasField("image"):
-      kwargs[part_name] = Image(part_data.image)
-    elif part_data.HasField("audio"):
-      kwargs[part_name] = Audio(part_data.audio)
-    elif part_data.HasField("video"):
-      kwargs[part_name] = Video(part_data.video)
-    elif part_data.HasField("bytes_value"):
-      kwargs[part_name] = part_data.bytes_value
-    elif part_data.HasField("int_value"):
-      kwargs[part_name] = part_data.int_value
-    elif part_data.HasField("float_value"):
-      kwargs[part_name] = part_data.float_value
-    elif part_data.HasField("boolean"):
-      kwargs[part_name] = part_data.boolean
-    elif part_data.HasField("ndarray"):
-      ndarray = part_data.ndarray
-      kwargs[part_name] = np.frombuffer(
-          ndarray.buffer, dtype=np.dtype(ndarray.dtype)).reshape(ndarray.shape)
-    elif part_data.HasField("metadata"):
-      kwargs[part_name] = metadata_to_dict(part_data)
-    elif part_data.parts:
-      kwargs[part_name] = []
-      for part_item in part_data.parts:
-        if part_item.HasField("text"):
-          kwargs[part_name].append(Text.from_proto(part_item.text))
-        elif part_item.HasField("image"):
-          kwargs[part_name].append(Image(part_item.image))
-        elif part_item.HasField("audio"):
-          kwargs[part_name].append(Audio(part_item.audio))
-        elif part_item.HasField("video"):
-          kwargs[part_name].append(Video(part_item.video))
-        elif part_item.HasField("bytes_value"):
-          kwargs[part_name].append(part_item.bytes_value)
-        elif part_item.HasField("int_value"):
-          kwargs[part_name].append(part_item.int_value)
-        elif part_item.HasField("float_value"):
-          kwargs[part_name].append(part_item.float_value)
-        elif part_item.HasField("boolean"):
-          kwargs[part_name].append(part_item.boolean)
-        elif part_item.HasField("ndarray"):
-          ndarray = part_item.ndarray
-          kwargs[part_name].append(
-              np.frombuffer(ndarray.buffer, dtype=np.dtype(ndarray.dtype)).reshape(ndarray.shape))
-        elif part_item.HasField("metadata"):
-          raise ValueError("Metadata in list is not supported")
-    else:
-      raise ValueError(f"Unknown part data: {part_data}")
-
+    kwargs[part_name] = process_part(part_data)
   return kwargs
 
 
