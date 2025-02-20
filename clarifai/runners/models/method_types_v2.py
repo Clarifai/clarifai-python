@@ -18,14 +18,17 @@ def build_function_signature(func):
   input_vars = build_variables_signature(input_type)
   output_vars = build_variables_signature(output_type)
 
-  method_signature = resources_pb2.MethodSignature()
+  #method_signature = resources_pb2.MethodSignature()   # TODO
+  method_signature = _NamedFields()  #for now
 
   method_signature.name = func.__name__
   method_type = 'UNARY_UNARY'  # for now
   method_signature.method_type = getattr(resources_pb2.RunnerMethodType, method_type)
 
-  method_signature.input_variables.extend(input_vars)
-  method_signature.output_variables.extend(output_vars)
+  #method_signature.input_variables.extend(input_vars)
+  #method_signature.output_variables.extend(output_vars)
+  method_signature.input_variables = input_vars
+  method_signature.output_variables = output_vars
   return method_signature
 
 
@@ -46,15 +49,19 @@ def build_variables_signature(var_types):
   for name, tp in var_types.items():
     tp = _normalize_type(tp)
 
-    var = resources_pb2.MethodVariable()
+    #var = resources_pb2.MethodVariable()   # TODO
+    var = _NamedFields()
     var.name = name
     var.python_type = _PYTHON_TYPES[tp]
     var.data_field = _DATA_FIELDS[tp]
     vars.append(var)
 
   # check if any fields are used more than once, and if so, use parts
+  # also if more than one field uses parts lists, also use parts, since the lists can be different lengths
+  # NOTE this is a little fancy, another way would just be to check if there is more than one arg
   fields_unique = (len(set(var.data_field for var in vars)) == len(vars))
-  if not fields_unique:
+  num_parts_lists = sum(int(var.data_field.startswith('parts[]')) for var in vars)
+  if not fields_unique or num_parts_lists > 1:
     for var in vars:
       var.data_field = 'parts[%s].%s' % (var.name, var.data_field)
 
@@ -130,7 +137,32 @@ class _NestedData:
     return super().__getattr__(name)  # raise AttributeError
 
 
-class Concept(resources_pb2.Concept):
+def _MessageProxy(proto_cls):
+  '''
+    Create a proxy class for the given proto class, which allows direct access to nested data fields using dot notation.
+    '''
+
+  class Proxy:
+
+    def __init__(self, *args, **kwargs):
+      self._proto = proto_cls(*args, **kwargs)
+
+    def __getattr__(self, name):
+      try:
+        return getattr(self._proto, name)
+      except AttributeError:
+        return super().__getattr__(name)
+
+    def __setattr__(self, name, value):
+      if name in self._proto.DESCRIPTOR.fields_by_name:
+        setattr(self._proto, name, value)
+      else:
+        super().__setattr__(name, value)
+
+  return Proxy
+
+
+class Concept(_MessageProxy(resources_pb2.Concept)):
   '''
   Concept proto, containing the following fields:
 
@@ -140,7 +172,7 @@ class Concept(resources_pb2.Concept):
   '''
 
 
-class Region(resources_pb2.Region, _NestedData):
+class Region(_MessageProxy(resources_pb2.Region), _NestedData):
   '''
   Region proto, containing the following fields:
 
@@ -176,7 +208,7 @@ class Region(resources_pb2.Region, _NestedData):
   # TODO similar methods for polygon, mask, etc
 
 
-class Part(resources_pb2.Part, _NestedData):
+class Part(_MessageProxy(resources_pb2.Part), _NestedData):
   '''
     Part proto, containing the following fields:
 
@@ -228,11 +260,25 @@ class Output(_NamedFields):
   pass
 
 
+class _ReversableDict(dict):
+  '''
+    Reversable dictionary, allowing reverse lookups.
+    '''
+
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.reverse_map = {v: k for k, v in self.items()}
+
+  def __setitem__(self, key, value):
+    super().__setitem__(key, value)
+    self.reverse_map[value] = key
+
+
 # names for supported python types
-_PYTHON_TYPES = {
+_PYTHON_TYPES = _ReversableDict({
     # common python types
     str: 'str',
-    bytes: 'bytes',
+    #bytes: 'bytes',
     int: 'int',
     float: 'float',
     bool: 'bool',
@@ -247,13 +293,13 @@ _PYTHON_TYPES = {
     resources_pb2.Concept: 'Concept',
     resources_pb2.Region: 'Region',
     resources_pb2.Frame: 'Frame',
-}
+})
 
 # data fields for supported python types
 _DATA_FIELDS = {
     # common python types
     str: 'text',
-    bytes: 'bytes',
+    #bytes: 'bytes',
     int: 'ndarray',
     float: 'ndarray',
     bool: 'ndarray',
@@ -295,10 +341,4 @@ def _add_list_fields():
     _DATA_FIELDS[list_tp] = field_name if repeated else 'parts[].' + field_name
 
 
-def _add_reverse_types_map():
-  _PYTHON_TYPES.reverse_map = {v: k for k, v in _PYTHON_TYPES.items()}
-  assert len(_PYTHON_TYPES) == len(_PYTHON_TYPES.reverse_map)
-
-
 _add_list_fields()
-_add_reverse_types_map()
