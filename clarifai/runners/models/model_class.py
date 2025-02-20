@@ -171,13 +171,13 @@ class ModelClass(ABC):
           list_output.append(Audio(part.data.audio))
         elif part.data.HasField("video"):
           list_output.append(Video(part.data.video))
-        elif part.data.HasField("bytes_value"):
+        elif part.data.bytes_value != b'':
           list_output.append(part.data.bytes_value)
-        elif part.data.HasField("int_value"):
+        elif part.data.int_value != 0:
           list_output.append(part.data.int_value)
-        elif part.data.HasField("float_value"):
+        elif part.data.float_value != 0.0:
           list_output.append(part.data.float_value)
-        elif part.data.HasField("bool_value"):
+        elif part.data.bool_value is not False:
           list_output.append(part.data.bool_value)
         elif part.data.HasField("ndarray"):
           ndarray = part.data.ndarray
