@@ -28,8 +28,6 @@ def kwargs_to_proto(**kwargs) -> resources_pb2.Data:
 
   def _handle_list(target_data, value_list, part_name):
     """Handles list values by processing each item into a new part."""
-    if not value_list:
-      raise ValueError("List must have at least one element")
     if isinstance(value_list[0], dict):
       raise ValueError("List of dictionaries is not supported")
 

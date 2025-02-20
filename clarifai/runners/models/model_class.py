@@ -43,7 +43,8 @@ class ModelClass(ABC):
 
   def batch_generate(self, inputs: List[Dict[str, Any]]) -> Iterator[List[Output]]:
     """Batch generate method for multiple inputs."""
-    NotImplementedError("batch_generate() not implemented")
+    NotImplementedError(
+        "batch_generate() not implemented, batching with generate() is not supported.")
 
   def batch_stream(self, inputs: List[Dict[str, Any]]) -> Iterator[List[Output]]:
     """Batch stream method for multiple inputs."""
