@@ -157,7 +157,7 @@ def test_model_uploader_flow(dummy_models_path):
   assert dockerfile_path.exists(), "Dockerfile was not created."
 
   # Upload a new version
-  builder.upload_model_version(download_checkpoints=False)
+  builder.upload_model_version()
 
   # After starting the upload/build, we expect model_version_id to be set if it began building
   assert builder.model_version_id is not None, "Model version upload failed to initialize"

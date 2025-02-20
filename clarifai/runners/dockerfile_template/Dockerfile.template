@@ -1,30 +1,11 @@
 # syntax=docker/dockerfile:1.13-labs
-#############################
-# User specific requirements installed in the pip_packages
-#############################
-FROM --platform=$TARGETPLATFORM ${FINAL_IMAGE} as pip_packages
+FROM --platform=$TARGETPLATFORM ${FINAL_IMAGE} as final
 
 COPY --link requirements.txt /home/nonroot/requirements.txt
 
 # Update clarifai package so we always have latest protocol to the API. Everything should land in /venv
 RUN ["pip", "install", "--no-cache-dir", "-r", "/home/nonroot/requirements.txt"]
 RUN ["pip", "show", "clarifai"]
-#############################
-
-#############################
-# Downloader dependencies image
-#############################
-FROM --platform=$TARGETPLATFORM ${DOWNLOADER_IMAGE} as downloader
-
-# make sure we have the latest clarifai package. This version is filled in by SDK.
-RUN ["pip", "install", "clarifai==${CLARIFAI_VERSION}"]
-#####
-
-
-#############################
-# Final runtime image
-#############################
-FROM --platform=$TARGETPLATFORM ${FINAL_IMAGE} as final
 
 # Set the NUMBA cache dir to /tmp
 # Set the TORCHINDUCTOR cache dir to /tmp
@@ -35,27 +16,15 @@ ENV NUMBA_CACHE_DIR=/tmp/numba_cache \
     DEBIAN_FRONTEND=noninteractive
 
 #####
-# Copy the python requirements needed to download checkpoints
-#####
-COPY --link=true --from=downloader /venv /venv
-#####
-
-#####
 # Copy the files needed to download
 #####
 # This creates the directory that HF downloader will populate and with nonroot:nonroot permissions up.
 COPY --chown=nonroot:nonroot downloader/unused.yaml /home/nonroot/main/1/checkpoints/.cache/unused.yaml
 
 #####
-# Download checkpoints
+# Download checkpoints if config.yaml has checkpoints.when = "build"
 COPY --link=true config.yaml /home/nonroot/main/
-RUN ["python", "-m", "clarifai.cli", "model", "download-checkpoints", "--model_path", "/home/nonroot/main", "--out_path", "/home/nonroot/main"]
-#####
-
-
-#####
-# Copy the python packages from the builder stage.
-COPY --link=true --from=pip_packages /venv /venv
+RUN ["python", "-m", "clarifai.cli", "model", "download-checkpoints", "--model_path", "/home/nonroot/main", "--out_path", "/home/nonroot/main/1/checkpoints", "--stage", "build"]
 #####
 
 # Copy in the actual files like config.yaml, requirements.txt, and most importantly 1/model.py
