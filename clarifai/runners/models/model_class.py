@@ -19,17 +19,17 @@ class ModelClass(ABC):
     raise NotImplementedError("load_model() not implemented")
 
   @abstractmethod
-  def predict(self, *args, **kwargs) -> Output:
+  def predict(self, **kwargs) -> Output:
     """Predict method for single or batched inputs."""
     raise NotImplementedError("predict() not implemented")
 
   @abstractmethod
-  def generate(self, *args, **kwargs) -> Iterator[Output]:
+  def generate(self, **kwargs) -> Iterator[Output]:
     """Generate method for streaming outputs."""
     raise NotImplementedError("generate() not implemented")
 
   @abstractmethod
-  def stream(self, *args, **kwargs) -> Iterator[Output]:
+  def stream(self, **kwargs) -> Iterator[Output]:
     """Stream method for streaming inputs and outputs."""
     raise NotImplementedError("stream() not implemented")
 

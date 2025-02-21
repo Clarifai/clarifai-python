@@ -37,6 +37,21 @@ MIN_CHUNK_FOR_UPLOAD_FILE = int(5_242_880)  # 5MiB
 MAX_CHUNK_FOR_UPLOAD_FILE = int(5_242_880_000)  # 5GiB
 
 
+def proto_to_output(response) -> Any:
+  """Converts a protobuf Output object to an Output object.
+
+  Args:
+      response (service_pb2.Output): The protobuf Output object to convert.
+
+  Returns:
+      Any: The converted Output object.
+  """
+  arg, kwargs = proto_to_kwargs(response.data)
+  if len(kwargs) == 1 and "return" in kwargs:
+    return kwargs["return"]
+  return Output(**kwargs)
+
+
 class Model(Lister, BaseClient):
   """Model is a class that provides access to Clarifai API endpoints related to Model information."""
 
