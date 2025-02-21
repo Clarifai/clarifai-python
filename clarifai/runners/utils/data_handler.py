@@ -90,7 +90,7 @@ def proto_to_kwargs(data: resources_pb2.Data) -> dict:
 
   def process_part(part, allow_metadata: bool = True) -> object:
     if part.HasField("text"):
-      return Text.from_proto(part.text)
+      return Text.from_proto(part.text).text
     elif part.HasField("image"):
       return Image(part.image)
     elif part.HasField("audio"):
@@ -113,16 +113,16 @@ def proto_to_kwargs(data: resources_pb2.Data) -> dict:
         raise ValueError("Metadata in list is not supported")
       return metadata_to_dict(part)
     elif part.parts:
-      return [process_part(p, allow_metadata=False) for p in part.parts]
+      return [process_part(p.data,) for p in part.parts]
     else:
       raise ValueError(f"Unknown part data: {part}")
 
   kwargs = {}
   part_names = [part.id for part in data.parts]
   assert "return" not in part_names, "The key 'return' is reserved"
-  for part_name in part_names + ["return"]:
-    part_data = data.parts.data if part_name != "return" else data
-
+  for part in data.parts:
+    part_name = part.id
+    part_data = part.data
     kwargs[part_name] = process_part(part_data)
   args = [kwargs.pop(f"_arg_{i}") for i in range(len(kwargs)) if f"_arg_{i}" in kwargs]
   return args, kwargs
@@ -130,7 +130,9 @@ def proto_to_kwargs(data: resources_pb2.Data) -> dict:
 
 class Output:
 
-  def __init__(self, **kwargs: Any):
+  def __init__(self, *args, **kwargs: Any):
+    print(f"args: {args}")
+    print(f"kwargs: {kwargs}")
     if not kwargs:
       raise ValueError("Output must have at least one  key-value pair")
     if isinstance(kwargs, dict):
@@ -138,10 +140,11 @@ class Output:
     else:
       raise ValueError("Output must be a dictionary")
     self.parts = kwargs
+    self.args = args
 
   def to_proto(self) -> resources_pb2.Output:
     """Converts the Output instance to a Clarifai protobuf Output message."""
-    data_proto = kwargs_to_proto(**self.parts)
+    data_proto = kwargs_to_proto(*self.args, **self.parts)
 
     return resources_pb2.Output(
         data=data_proto, status=status_pb2.Status(code=status_code_pb2.SUCCESS))

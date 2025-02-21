@@ -217,4 +217,5 @@ class ModelClass(ABC):
     else:
       # Handle basic types (legacy support)
       data_proto = kwargs_to_proto(output)
-      return resources_pb2.Output(data=data_proto)
+      return resources_pb2.Output(
+          data=data_proto, status=status_pb2.Status(code=status_code_pb2.SUCCESS))

@@ -37,21 +37,6 @@ MIN_CHUNK_FOR_UPLOAD_FILE = int(5_242_880)  # 5MiB
 MAX_CHUNK_FOR_UPLOAD_FILE = int(5_242_880_000)  # 5GiB
 
 
-def proto_to_output(response) -> Any:
-  """Converts a protobuf Output object to an Output object.
-
-  Args:
-      response (service_pb2.Output): The protobuf Output object to convert.
-
-  Returns:
-      Any: The converted Output object.
-  """
-  arg, kwargs = proto_to_kwargs(response.data)
-  if len(kwargs) == 1 and "return" in kwargs:
-    return kwargs["return"]
-  return Output(**kwargs)
-
-
 class Model(Lister, BaseClient):
   """Model is a class that provides access to Clarifai API endpoints related to Model information."""
 
@@ -423,6 +408,22 @@ class Model(Lister, BaseClient):
           model_id=self.id,
           **dict(self.kwargs, model_version=model_version_info))
 
+  def proto_to_output(self, response) -> Any:
+    """Converts a protobuf Output object to an Output object.
+
+    Args:
+        response (service_pb2.Output): The protobuf Output object to convert.
+
+    Returns:
+        Any: The converted Output object.
+    """
+    args, kwargs = proto_to_kwargs(response.data)
+    if not kwargs:
+      if len(args) == 1:
+        args = args[0]
+      return args
+    return Output(*args, **kwargs)
+
   def _convert_python_to_proto_inputs(self,
                                       inputs: List[Dict[str, Any]]) -> List[resources_pb2.Input]:
     """Converts Python inputs to protobuf Input objects.
@@ -523,9 +524,9 @@ class Model(Lister, BaseClient):
     outputs = []
     if batch_input:
       for output in response.outputs:
-        outputs.append(**Output(proto_to_kwargs(output.data)))
+        outputs.append(self.proto_to_output(output))
       return outputs
-    return Output(**proto_to_kwargs(response.outputs[0].data))
+    return self.proto_to_output(response.outputs[0])
 
   def _check_predict_input_type(self, input_type: str) -> None:
     """Checks if the input type is valid for the model.
