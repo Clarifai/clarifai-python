@@ -142,6 +142,16 @@ class Output:
     self.parts = kwargs
     self.args = args
 
+  def __str__(self):
+    args_str = ', '.join(repr(arg) for arg in self.args)
+    kwargs_str = ', '.join(f"{k}={v!r}" for k, v in self.parts.items())
+    parts = []
+    if args_str:
+      parts.append(args_str)
+    if kwargs_str:
+      parts.append(kwargs_str)
+    return f"Output({', '.join(parts)})"
+
   def to_proto(self) -> resources_pb2.Output:
     """Converts the Output instance to a Clarifai protobuf Output message."""
     data_proto = kwargs_to_proto(*self.args, **self.parts)
@@ -184,6 +194,14 @@ class Image:
   def bytes(self, value: bytes):
     self.proto.base64 = value
 
+  def __repr__(self) -> str:
+    attrs = []
+    if self.url:
+      attrs.append(f"url={self.url!r}")
+    if self.bytes:
+      attrs.append(f"bytes=<{len(self.bytes)} bytes>")
+    return f"Image({', '.join(attrs)})"
+
   @classmethod
   def from_url(cls, url: str) -> "Image":
     proto_image = ImageProto(url=url)
@@ -214,6 +232,30 @@ class Audio:
   def __init__(self, proto_audio: AudioProto):
     self.proto = proto_audio
 
+  @property
+  def url(self) -> str:
+    return self.proto.url
+
+  @url.setter
+  def url(self, value: str):
+    self.proto.url = value
+
+  @property
+  def bytes(self) -> bytes:
+    return self.proto.base64
+
+  @bytes.setter
+  def bytes(self, value: bytes):
+    self.proto.base64 = value
+
+  def __repr__(self) -> str:
+    attrs = []
+    if self.url:
+      attrs.append(f"url={self.url!r}")
+    if self.bytes:
+      attrs.append(f"bytes=<{len(self.bytes)} bytes>")
+    return f"Audio({', '.join(attrs)})"
+
   def to_proto(self) -> AudioProto:
     return self.proto
 
@@ -222,6 +264,30 @@ class Video:
 
   def __init__(self, proto_video: VideoProto):
     self.proto = proto_video
+
+  @property
+  def url(self) -> str:
+    return self.proto.url
+
+  @url.setter
+  def url(self, value: str):
+    self.proto.url = value
+
+  @property
+  def bytes(self) -> bytes:
+    return self.proto.base64
+
+  @bytes.setter
+  def bytes(self, value: bytes):
+    self.proto.base64 = value
+
+  def __repr__(self) -> str:
+    attrs = []
+    if self.url:
+      attrs.append(f"url={self.url!r}")
+    if self.bytes:
+      attrs.append(f"bytes=<{len(self.bytes)} bytes>")
+    return f"Video({', '.join(attrs)})"
 
   def to_proto(self) -> VideoProto:
     return self.proto
