@@ -25,6 +25,7 @@ from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_MODEL_PRED
                                       MODEL_EXPORT_TIMEOUT, RANGE_SIZE, TRAINABLE_MODEL_TYPES)
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
+from clarifai.utils import video_utils
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator, status_is_retryable
 from clarifai.utils.model_train import (find_and_replace_key, params_parser,
@@ -424,14 +425,14 @@ class Model(Lister, BaseClient):
       raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}."
                      )  # TODO Use Chunker for inputs len > 128
 
-    self._override_model_version(inference_params, output_config)
+    model_info = self._get_model_info_for_inference(inference_params, output_config)
     request = service_pb2.PostModelOutputsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
         version_id=self.model_version.id,
         inputs=inputs,
         runner_selector=runner_selector,
-        model=self.model_info)
+        model=model_info)
 
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
@@ -704,14 +705,14 @@ class Model(Lister, BaseClient):
       raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}."
                      )  # TODO Use Chunker for inputs len > 128
 
-    self._override_model_version(inference_params, output_config)
+    model_info = self._get_model_info_for_inference(inference_params, output_config)
     request = service_pb2.PostModelOutputsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
         version_id=self.model_version.id,
         inputs=inputs,
         runner_selector=runner_selector,
-        model=self.model_info)
+        model=model_info)
 
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
@@ -922,7 +923,8 @@ class Model(Lister, BaseClient):
         inference_params=inference_params,
         output_config=output_config)
 
-  def _req_iterator(self, input_iterator: Iterator[List[Input]], runner_selector: RunnerSelector):
+  def _req_iterator(self, input_iterator: Iterator[List[Input]], runner_selector: RunnerSelector,
+                    model_info: resources_pb2.Model):
     for inputs in input_iterator:
       yield service_pb2.PostModelOutputsRequest(
           user_app_id=self.user_app_id,
@@ -930,7 +932,7 @@ class Model(Lister, BaseClient):
           version_id=self.model_version.id,
           inputs=inputs,
           runner_selector=runner_selector,
-          model=self.model_info)
+          model=model_info)
 
   def stream(self,
              inputs: Iterator[List[Input]],
@@ -954,8 +956,8 @@ class Model(Lister, BaseClient):
     # if not isinstance(inputs, Iterator[List[Input]]):
     #   raise UserError('Invalid inputs, inputs must be a iterator of list of Input objects.')
 
-    self._override_model_version(inference_params, output_config)
-    request = self._req_iterator(inputs, runner_selector)
+    model_info = self._get_model_info_for_inference(inference_params, output_config)
+    request = self._req_iterator(inputs, runner_selector, model_info)
 
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
@@ -1168,8 +1170,53 @@ class Model(Lister, BaseClient):
         inference_params=inference_params,
         output_config=output_config)
 
-  def _override_model_version(self, inference_params: Dict = {}, output_config: Dict = {}) -> None:
-    """Overrides the model version.
+  def stream_by_video_file(self,
+                           filepath: str,
+                           input_type: str = 'video',
+                           compute_cluster_id: str = None,
+                           nodepool_id: str = None,
+                           deployment_id: str = None,
+                           user_id: str = None,
+                           inference_params: Dict = {},
+                           output_config: Dict = {}):
+    """
+    Stream the model output based on the given video file.
+
+    Converts the video file to a streamable format, streams as bytes to the model,
+    and streams back the model outputs.
+
+    Args:
+        filepath (str): The filepath to predict.
+        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
+        compute_cluster_id (str): The compute cluster ID to use for the model.
+        nodepool_id (str): The nodepool ID to use for the model.
+        deployment_id (str): The deployment ID to use for the model.
+        inference_params (dict): The inference params to override.
+        output_config (dict): The output config to override.
+    """
+
+    if not os.path.isfile(filepath):
+      raise UserError('Invalid filepath.')
+
+    # TODO check if the file is streamable already
+
+    # Convert the video file to a streamable format
+    # TODO this conversion can offset the start time by a little bit; we should account for this
+    # by getting the original start time ffprobe and either sending that to the model so it can adjust
+    # with the ts of the first frame (too fragile to do all of this adjustment in the client input stream)
+    # or by adjusting the timestamps in the output stream
+    stream = video_utils.convert_to_streamable(filepath)
+
+    # TODO accumulate reads to fill the chunk size
+    chunk_size = 1024 * 1024  # 1 MB
+    chunk_iterator = iter(lambda: stream.read(chunk_size), b'')
+
+    return self.stream_by_bytes(chunk_iterator, input_type, compute_cluster_id, nodepool_id,
+                                deployment_id, user_id, inference_params, output_config)
+
+  def _get_model_info_for_inference(self, inference_params: Dict = {},
+                                    output_config: Dict = {}) -> None:
+    """Gets the model_info with modified inference params and output config.
 
     Args:
         inference_params (dict): The inference params to override.
@@ -1179,13 +1226,12 @@ class Model(Lister, BaseClient):
           select_concepts (list[Concept]): The concepts to select.
           sample_ms (int): The number of milliseconds to sample.
     """
-    params = Struct()
-    if inference_params is not None:
-      params.update(inference_params)
-
-    self.model_info.model_version.output_info.CopyFrom(
-        resources_pb2.OutputInfo(
-            output_config=resources_pb2.OutputConfig(**output_config), params=params))
+    model_info = resources_pb2.Model()
+    model_info.CopyFrom(self.model_info)
+    model_info.model_version.output_info.params = inference_params
+    model_info.model_version.output_info.output_config.CopyFrom(
+        resources_pb2.OutputConfig(**output_config))
+    return model_info
 
   def _list_concepts(self) -> List[str]:
     """Lists all the concepts for the model type.
