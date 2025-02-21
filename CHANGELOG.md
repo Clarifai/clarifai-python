@@ -1,3 +1,11 @@
+## [[11.1.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.5) - [PyPI](https://pypi.org/project/clarifai/11.1.5/) - 2025-02-21
+
+### Changed
+ - Adds support for local dev runners from CLI  [(#521)] (https://github.com/Clarifai/clarifai-python/pull/521)
+ - Use the non-runtime path for tests [(#520)] (https://github.com/Clarifai/clarifai-python/pull/520)
+ - Fix local tests [(#518)] (https://github.com/Clarifai/clarifai-python/pull/518)
+ - Catch additional codes that models have at startup [(#517)] (https://github.com/Clarifai/clarifai-python/pull/517)
+
 ## [[11.1.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.4) - [PyPI](https://pypi.org/project/clarifai/11.1.4/) - 2025-02-12
 
 ### Changed
