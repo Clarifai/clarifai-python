@@ -24,6 +24,7 @@ from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_MODEL_PRED
                                       MAX_RANGE_SIZE, MIN_CHUNK_SIZE, MIN_RANGE_SIZE,
                                       MODEL_EXPORT_TIMEOUT, RANGE_SIZE, TRAINABLE_MODEL_TYPES)
 from clarifai.errors import UserError
+from clarifai.runners.utils.data_handler import Output, kwargs_to_proto, proto_to_kwargs
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator, status_is_retryable
@@ -407,49 +408,126 @@ class Model(Lister, BaseClient):
           model_id=self.id,
           **dict(self.kwargs, model_version=model_version_info))
 
-  def predict(self,
-              inputs: List[Input],
-              runner_selector: RunnerSelector = None,
-              inference_params: Dict = {},
-              output_config: Dict = {}):
-    """Predicts the model based on the given inputs.
+  def proto_to_output(self, response) -> Any:
+    """Converts a protobuf Output object to an Output object.
 
     Args:
-        inputs (list[Input]): The inputs to predict, must be less than 128.
-        runner_selector (RunnerSelector): The runner selector to use for the model.
+        response (service_pb2.Output): The protobuf Output object to convert.
+
+    Returns:
+        Any: The converted Output object.
     """
-    if not isinstance(inputs, list):
-      raise UserError('Invalid inputs, inputs must be a list of Input objects.')
+    args, kwargs = proto_to_kwargs(response.data)
+    if not kwargs:
+      if len(args) == 1:
+        args = args[0]
+      return args
+    return Output(*args, **kwargs)
+
+  def _convert_python_to_proto_inputs(self,
+                                      inputs: List[Dict[str, Any]]) -> List[resources_pb2.Input]:
+    """Converts Python inputs to protobuf Input objects.
+
+      Args:
+          inputs (List[Dict[str, Any]]): The Python inputs to convert.
+
+      Returns:
+          List[resources_pb2.Input]: The converted protobuf Input objects.
+      """
+    proto_inputs = []
+    for input_dict in inputs:
+      input_proto = resources_pb2.Input()
+      data_proto = kwargs_to_proto(**input_dict)
+      input_proto.data.CopyFrom(data_proto)
+      proto_inputs.append(input_proto)
+    return proto_inputs
+
+  def predict(
+      self,
+      inputs: Union[Dict[str, Any], List[Dict[str, Any]]],
+      compute_cluster_id: str = None,
+      nodepool_id: str = None,
+      deployment_id: str = None,
+      user_id: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ) -> service_pb2.MultiOutputResponse:
+    """Predicts the model based on the given inputs.
+
+      Args:
+          inputs (Union[Dict[str, Any], List[Dict[str, Any]]]): The inputs to predict.
+          compute_cluster_id (str): The compute cluster ID to use for the model.
+          nodepool_id (str): The nodepool ID to use for the model.
+          deployment_id (str): The deployment ID to use for the model.
+          user_id (str): The user ID to use for nodepool or deployment.
+          inference_params (Dict): Inference parameters to override.
+          output_config (Dict): Output configuration to override.
+
+      Returns:
+          service_pb2.MultiOutputResponse: The prediction response(s).
+      """
+    batch_input = True
+    if isinstance(inputs, dict):
+      inputs = [inputs]
+      batch_input = False
     if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
-      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}."
-                     )  # TODO Use Chunker for inputs len > 128
+      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}.")
+
+    if deployment_id and (compute_cluster_id or nodepool_id):
+      raise UserError(
+          "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
+
+    runner_selector = None
+    if deployment_id:
+      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
+        raise UserError(
+            "User ID is required for model prediction with deployment ID, please provide user_id in the method call."
+        )
+      if not user_id:
+        user_id = os.environ.get('CLARIFAI_USER_ID')
+      runner_selector = Deployment.get_runner_selector(
+          user_id=user_id, deployment_id=deployment_id)
+    elif compute_cluster_id and nodepool_id:
+      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
+        raise UserError(
+            "User ID is required for model prediction with compute cluster ID and nodepool ID, please provide user_id in the method call."
+        )
+      if not user_id:
+        user_id = os.environ.get('CLARIFAI_USER_ID')
+      runner_selector = Nodepool.get_runner_selector(
+          user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id)
 
     self._override_model_version(inference_params, output_config)
+    proto_inputs = self._convert_python_to_proto_inputs(inputs)
     request = service_pb2.PostModelOutputsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
         version_id=self.model_version.id,
-        inputs=inputs,
+        inputs=proto_inputs,
         runner_selector=runner_selector,
-        model=self.model_info)
+        model=self.model_info,
+    )
 
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
     while True:
       response = self._grpc_request(self.STUB.PostModelOutputs, request)
-
-      if status_is_retryable(response.status.code) and \
-              time.time() - start_time < 60 * 10:  # 10 minutes
-        self.logger.info(f"{self.id} model is still deploying, please wait...")
+      if status_is_retryable(
+          response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
+        self.logger.info(f"{self.id} model predict failed with response {response.status!r}")
         time.sleep(next(backoff_iterator))
         continue
 
       if response.status.code != status_code_pb2.SUCCESS:
         raise Exception(f"Model Predict failed with response {response.status!r}")
-      else:
-        break
+      break
 
-    return response
+    outputs = []
+    if batch_input:
+      for output in response.outputs:
+        outputs.append(self.proto_to_output(output))
+      return outputs
+    return self.proto_to_output(response.outputs[0])
 
   def _check_predict_input_type(self, input_type: str) -> None:
     """Checks if the input type is valid for the model.
@@ -678,40 +756,68 @@ class Model(Lister, BaseClient):
         inference_params=inference_params,
         output_config=output_config)
 
-  def generate(self,
-               inputs: List[Input],
-               runner_selector: RunnerSelector = None,
-               inference_params: Dict = {},
-               output_config: Dict = {}):
+  def generate(
+      self,
+      inputs: Union[Dict[str, Any], List[Dict[str, Any]]],
+      compute_cluster_id: str = None,
+      nodepool_id: str = None,
+      deployment_id: str = None,
+      user_id: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     """Generate the stream output on model based on the given inputs.
 
     Args:
         inputs (list[Input]): The inputs to generate, must be less than 128.
-        runner_selector (RunnerSelector): The runner selector to use for the model.
+        compute_cluster_id (str): The compute cluster ID to use for the model.
+        nodepool_id (str): The nodepool ID to use for the model.
+        deployment_id (str): The deployment ID to use for the model.
+        user_id (str): The user ID to use for nodepool or deployment.
         inference_params (dict): The inference params to override.
-
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
-                    or
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> stream_response = model.generate(inputs=[input1, input2], runner_selector=runner_selector)
-        >>> list_stream_response = [response for response in stream_response]
+        output_config (dict): The output config to override.
     """
-    if not isinstance(inputs, list):
-      raise UserError('Invalid inputs, inputs must be a list of Input objects.')
+    batch_input = True
+    if isinstance(inputs, dict):
+      inputs = [inputs]
+      batch_input = False
     if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
-      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}."
-                     )  # TODO Use Chunker for inputs len > 128
+      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}.")
+
+    if deployment_id and (compute_cluster_id or nodepool_id):
+      raise UserError(
+          "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
+
+    runner_selector = None
+    if deployment_id:
+      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
+        raise UserError(
+            "User ID is required for model prediction with deployment ID, please provide user_id in the method call."
+        )
+      if not user_id:
+        user_id = os.environ.get('CLARIFAI_USER_ID')
+      runner_selector = Deployment.get_runner_selector(
+          user_id=user_id, deployment_id=deployment_id)
+    elif compute_cluster_id and nodepool_id:
+      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
+        raise UserError(
+            "User ID is required for model prediction with compute cluster ID and nodepool ID, please provide user_id in the method call."
+        )
+      if not user_id:
+        user_id = os.environ.get('CLARIFAI_USER_ID')
+      runner_selector = Nodepool.get_runner_selector(
+          user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id)
 
     self._override_model_version(inference_params, output_config)
+    proto_inputs = self._convert_python_to_proto_inputs(inputs)
     request = service_pb2.PostModelOutputsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
         version_id=self.model_version.id,
-        inputs=inputs,
+        inputs=proto_inputs,
         runner_selector=runner_selector,
-        model=self.model_info)
+        model=self.model_info,
+    )
 
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
@@ -721,7 +827,7 @@ class Model(Lister, BaseClient):
         break
       stream_response = self._grpc_request(self.STUB.GenerateModelOutputs, request)
       for response in stream_response:
-        if status_is_retryable(response.status.code) and \
+        if response.status.code == status_code_pb2.MODEL_DEPLOYING and \
                 time.time() - start_time < 60 * 10:
           self.logger.info(f"{self.id} model is still deploying, please wait...")
           time.sleep(next(backoff_iterator))
@@ -731,7 +837,13 @@ class Model(Lister, BaseClient):
         else:
           if not generation_started:
             generation_started = True
-          yield response
+          if batch_input:
+            outputs = []
+            for output in response.outputs:
+              outputs.append(self.proto_to_output(output))
+            yield outputs
+          else:
+            yield self.proto_to_output(response.outputs[0])
 
   def generate_by_filepath(self,
                            filepath: str,
@@ -965,7 +1077,7 @@ class Model(Lister, BaseClient):
         break
       stream_response = self._grpc_request(self.STUB.StreamModelOutputs, request)
       for response in stream_response:
-        if status_is_retryable(response.status.code) and \
+        if response.status.code == status_code_pb2.MODEL_DEPLOYING and \
                 time.time() - start_time < 60 * 10:
           self.logger.info(f"{self.id} model is still deploying, please wait...")
           time.sleep(next(backoff_iterator))
