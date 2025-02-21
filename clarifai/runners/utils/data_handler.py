@@ -131,8 +131,7 @@ def proto_to_kwargs(data: resources_pb2.Data) -> dict:
 class Output:
 
   def __init__(self, *args, **kwargs: Any):
-    print(f"args: {args}")
-    print(f"kwargs: {kwargs}")
+
     if not kwargs:
       raise ValueError("Output must have at least one  key-value pair")
     if isinstance(kwargs, dict):
@@ -142,7 +141,7 @@ class Output:
     self.parts = kwargs
     self.args = args
 
-  def __str__(self):
+  def __repr__(self):
     args_str = ', '.join(repr(arg) for arg in self.args)
     kwargs_str = ', '.join(f"{k}={v!r}" for k, v in self.parts.items())
     parts = []
