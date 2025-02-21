@@ -175,31 +175,14 @@ class ModelClass(ABC):
       return Video.from_proto(data.video)
     elif param_type == Any:
       raise ValueError("Any type is not supported in input parameters")
-    elif param_type == List:
-      list_output = []
-      for part in data.parts:
-        if part.data.HasField("text"):
-          list_output.append(Text.from_proto(part.data.text))
-        elif part.data.HasField("image"):
-          list_output.append(Image(part.data.image))
-        elif part.data.HasField("audio"):
-          list_output.append(Audio(part.data.audio))
-        elif part.data.HasField("video"):
-          list_output.append(Video(part.data.video))
-        elif part.data.bytes_value != b'':
-          list_output.append(part.data.bytes_value)
-        elif part.data.int_value != 0:
-          list_output.append(part.data.int_value)
-        elif part.data.float_value != 0.0:
-          list_output.append(part.data.float_value)
-        elif part.data.bool_value is not False:
-          list_output.append(part.data.bool_value)
-        elif part.data.HasField("ndarray"):
-          ndarray = part.data.ndarray
-          list_output.append(
-              np.frombuffer(ndarray.buffer, dtype=np.dtype(ndarray.dtype)).reshape(ndarray.shape))
-        elif part.data.HasField("metadata"):
-          raise ValueError("Metadata in list is not supported")
+    elif typing.get_origin(param_type) == list:
+      inner_type = typing.get_args(param_type)
+      if len(inner_type) != 1:
+        raise TypeError('Expected single type argument for List argument')  # TODO add param name to this and above exceptions
+      inner_type = inner_type[0]
+      if inner_type.get_origin(inner_type) not in (None, dict):
+        raise TypeError('Only single-level lists (not nested lists) are supported')
+      list_output = [self._convert_part_data(part.data, inner_type) for part in data.parts]
       return list_output
     elif param_type == Dict:
       return metadata_to_dict(data)

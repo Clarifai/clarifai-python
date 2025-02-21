@@ -88,6 +88,11 @@ def kwargs_to_proto(*args, **kwargs) -> resources_pb2.Data:
 def proto_to_kwargs(data: resources_pb2.Data) -> dict:
   """Converts the Clarifai protobuf Data message to a dictionary."""
 
+  # TODO this needs to be able to handle empty strings and 0 int/floats.
+  # but when using to deserialize the output on the client, we don't have the
+  # type annos from the server to check the types.
+  # This means we need to send the types of each data message to the client, either
+  # for this call or in a static type signature in a separate initial call
   def process_part(part, allow_metadata: bool = True) -> object:
     if part.HasField("text"):
       return Text.from_proto(part.text).text

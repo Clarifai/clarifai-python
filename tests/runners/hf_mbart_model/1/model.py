@@ -22,6 +22,7 @@ class MyModel(ModelClass):
     self.model = AutoModelForSeq2SeqLM.from_pretrained(
         checkpoints, torch_dtype="auto", device_map=self.device)
 
+  # TODO do we need to set types for the Output as well here
   def predict(self, prompt: str = "") -> Output:
     """This is the method that will be called when the runner is run. It takes in an input and
     returns an output.
