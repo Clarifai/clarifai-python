@@ -247,6 +247,11 @@ class Audio:
   def bytes(self, value: bytes):
     self.proto.base64 = value
 
+  @classmethod
+  def from_url(cls, url: str) -> "Audio":
+    proto_audio = AudioProto(url=url)
+    return cls(proto_audio)
+
   def __repr__(self) -> str:
     attrs = []
     if self.url:
@@ -279,6 +284,11 @@ class Video:
   @bytes.setter
   def bytes(self, value: bytes):
     self.proto.base64 = value
+
+  @classmethod
+  def from_url(cls, url: str) -> "Video":
+    proto_video = VideoProto(url=url)
+    return cls(proto_video)
 
   def __repr__(self) -> str:
     attrs = []
