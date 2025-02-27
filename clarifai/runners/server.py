@@ -85,6 +85,10 @@ def serve(model_path,
 
   model = builder.create_model_instance()
 
+  # `num_threads` can be set in config.yaml or via the environment variable CLARIFAI_NUM_THREADS="<integer>".
+  # Note: The value in config.yaml takes precedence over the environment variable.
+  num_threads = builder.config.get("num_threads")
+
   # Setup the grpc server for local development.
   if grpc:
 
@@ -115,7 +119,7 @@ def serve(model_path,
         nodepool_id=os.environ["CLARIFAI_NODEPOOL_ID"],
         compute_cluster_id=os.environ["CLARIFAI_COMPUTE_CLUSTER_ID"],
         base_url=os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com"),
-        num_parallel_polls=int(os.environ.get("CLARIFAI_NUM_THREADS", 1)),
+        num_parallel_polls=num_threads,
     )
     runner.start()  # start the runner to fetch work from the API.
 
