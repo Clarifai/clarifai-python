@@ -48,6 +48,16 @@ def download_file(url, file_name):
       f.write(chunk)
 
 
+def stream_frames_from_file(filename):
+  """
+    Streams a video from a file using PyAV.
+
+    :param filename: The video file path
+    """
+  container = av.open(filename)
+  yield from container.decode(video=0)
+
+
 def stream_frames_from_bytes(bytes_iterator):
   """
     Streams a video from a sequence of chunked byte strings of a streamable video
