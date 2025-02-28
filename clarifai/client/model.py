@@ -24,7 +24,7 @@ from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_MODEL_PRED
                                       MAX_RANGE_SIZE, MIN_CHUNK_SIZE, MIN_RANGE_SIZE,
                                       MODEL_EXPORT_TIMEOUT, RANGE_SIZE, TRAINABLE_MODEL_TYPES)
 from clarifai.errors import UserError
-from clarifai.runners.utils.data_handler import Output, kwargs_to_proto, proto_to_kwargs
+#from clarifai.runners.utils.data_handler import Output, kwargs_to_proto, proto_to_kwargs
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator, status_is_retryable
@@ -417,12 +417,7 @@ class Model(Lister, BaseClient):
     Returns:
         Any: The converted Output object.
     """
-    args, kwargs = proto_to_kwargs(response.data)
-    if not kwargs:
-      if len(args) == 1:
-        args = args[0]
-      return args
-    return Output(*args, **kwargs)
+    # TODO: using model signature, deserialize outputs
 
   def _convert_python_to_proto_inputs(self,
                                       inputs: List[Dict[str, Any]]) -> List[resources_pb2.Input]:
@@ -434,13 +429,7 @@ class Model(Lister, BaseClient):
       Returns:
           List[resources_pb2.Input]: The converted protobuf Input objects.
       """
-    proto_inputs = []
-    for input_dict in inputs:
-      input_proto = resources_pb2.Input()
-      data_proto = kwargs_to_proto(**input_dict)
-      input_proto.data.CopyFrom(data_proto)
-      proto_inputs.append(input_proto)
-    return proto_inputs
+    # TODO: using model signature, serialize inputs
 
   def predict(
       self,
