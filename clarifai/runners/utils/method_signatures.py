@@ -5,6 +5,7 @@ from typing import List, get_args, get_origin
 import numpy as np
 import PIL.Image
 from clarifai_grpc.grpc.api import resources_pb2
+from clarifai.runners.utils.serializers import get_serializer
 
 
 def build_function_signature(func):
@@ -87,18 +88,10 @@ def serialize(kwargs, signatures, proto=None):
     if sig.name not in kwargs:
       continue  # skip missing fields, they can be set to default on the server
     data = kwargs[sig.name]
-    #_check_type(data, sig.python_type)
     data_proto, field = _get_named_part(proto, sig.data_field)
     serializer = get_serializer(python_type=sig.python_type)
     serializer.serialize(data_proto, field, data)
   return proto
-
-
-def _check_type(data, type_string):
-  tp = _PYTHON_TYPES.reverse_map[type_string]
-  # TODO: can also check for compatibility with proto fields and other types that are ok to use
-  if not isinstance(data, tp):
-    raise TypeError('Expected type %s, got %s' % (tp, type(data)))
 
 
 def _get_named_part(proto, field):
