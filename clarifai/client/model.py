@@ -408,29 +408,6 @@ class Model(Lister, BaseClient):
           model_id=self.id,
           **dict(self.kwargs, model_version=model_version_info))
 
-  def proto_to_output(self, response) -> Any:
-    """Converts a protobuf Output object to an Output object.
-
-    Args:
-        response (service_pb2.Output): The protobuf Output object to convert.
-
-    Returns:
-        Any: The converted Output object.
-    """
-    # TODO: using model signature, deserialize outputs
-
-  def _convert_python_to_proto_inputs(self,
-                                      inputs: List[Dict[str, Any]]) -> List[resources_pb2.Input]:
-    """Converts Python inputs to protobuf Input objects.
-
-      Args:
-          inputs (List[Dict[str, Any]]): The Python inputs to convert.
-
-      Returns:
-          List[resources_pb2.Input]: The converted protobuf Input objects.
-      """
-    # TODO: using model signature, serialize inputs
-
   def predict(
       self,
       inputs: Union[Dict[str, Any], List[Dict[str, Any]]],
@@ -440,7 +417,7 @@ class Model(Lister, BaseClient):
       user_id: str = None,
       inference_params: Dict = {},
       output_config: Dict = {},
-  ) -> service_pb2.MultiOutputResponse:
+  ) -> Any:
     """Predicts the model based on the given inputs.
 
       Args:
@@ -453,8 +430,10 @@ class Model(Lister, BaseClient):
           output_config (Dict): Output configuration to override.
 
       Returns:
-          service_pb2.MultiOutputResponse: The prediction response(s).
+          The prediction response(s).
       """
+    # TODO need to move location of this to avoid circular import
+    from clarifai.runners.utils.method_signatures import deserialize, serialize
     batch_input = True
     if isinstance(inputs, dict):
       inputs = [inputs]
@@ -462,6 +441,55 @@ class Model(Lister, BaseClient):
     if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
       raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}.")
 
+    input_signature = self._method_signature('predict').input_variables
+    proto_inputs = []
+    for input in inputs:
+      proto = resources_pb2.Input()
+      serialize(input.data, proto, input_signature)
+      proto_inputs.append(proto)
+
+    response = self.predict_by_proto(
+        inputs=proto_inputs,
+        compute_cluster_id=compute_cluster_id,
+        nodepool_id=nodepool_id,
+        deployment_id=deployment_id,
+        user_id=user_id,
+        inference_params=inference_params,
+        output_config=output_config,
+    )
+
+    output_signature = self._method_signature('predict').output_variables
+    outputs = []
+    for output in response.outputs:
+      outputs.append(deserialize(output.data, output_signature))
+    if batch_input:
+      return outputs
+    return outputs[0]
+
+  def predict_by_proto(
+      self,
+      inputs: List[resources_pb2.Input],
+      compute_cluster_id: str = None,
+      nodepool_id: str = None,
+      deployment_id: str = None,
+      user_id: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ) -> service_pb2.MultiOutputResponse:
+    """Predicts the model based on the given inputs.
+
+      Args:
+          inputs (List[resources_pb2.Input]): The inputs to predict.
+          compute_cluster_id (str): The compute cluster ID to use for the model.
+          nodepool_id (str): The nodepool ID to use for the model.
+          deployment_id (str): The deployment ID to use for the model.
+          user_id (str): The user ID to use for nodepool or deployment.
+          inference_params (Dict): Inference parameters to override.
+          output_config (Dict): Output configuration to override.
+
+      Returns:
+          service_pb2.MultiOutputResponse: The prediction response(s).
+      """
     if deployment_id and (compute_cluster_id or nodepool_id):
       raise UserError(
           "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
@@ -487,12 +515,11 @@ class Model(Lister, BaseClient):
           user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id)
 
     self._override_model_version(inference_params, output_config)
-    proto_inputs = self._convert_python_to_proto_inputs(inputs)
     request = service_pb2.PostModelOutputsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
         version_id=self.model_version.id,
-        inputs=proto_inputs,
+        inputs=inputs,
         runner_selector=runner_selector,
         model=self.model_info,
     )
@@ -511,12 +538,7 @@ class Model(Lister, BaseClient):
         raise Exception(f"Model Predict failed with response {response.status!r}")
       break
 
-    outputs = []
-    if batch_input:
-      for output in response.outputs:
-        outputs.append(self.proto_to_output(output))
-      return outputs
-    return self.proto_to_output(response.outputs[0])
+    return response
 
   def _check_predict_input_type(self, input_type: str) -> None:
     """Checks if the input type is valid for the model.
