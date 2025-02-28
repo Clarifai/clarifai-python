@@ -161,15 +161,16 @@ class Output:
 
 class Text:
 
-  def __init__(self, text: str):
+  def __init__(self, text: str, url: str = None):
     self.text = text
+    self.url = url
 
   def to_proto(self) -> TextProto:
-    return TextProto(raw=self.text)
+    return TextProto(raw=self.text or '', self_url=self.url or '')
 
   @classmethod
   def from_proto(cls, proto: TextProto) -> "Text":
-    return cls(proto.raw)
+    return cls(proto.raw, proto.url or None)
 
 
 class Image:
