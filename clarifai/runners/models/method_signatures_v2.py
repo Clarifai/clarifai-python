@@ -1,3 +1,4 @@
+import inspect
 import re
 from typing import List, get_args, get_origin
 
@@ -8,15 +9,19 @@ from clarifai_grpc.grpc.api import resources_pb2
 
 def build_function_signature(func):
   '''
-    Build a signature for the given function.
-    '''
-  input_type = dict(func.__annotations__)
-  output_type = input_type.pop('return', None)
-  if not isinstance(output_type, dict):
-    output_type = {'return': output_type}
+  Build a signature for the given function.
+  '''
+  sig = inspect.signature(func)
 
-  input_vars = build_variables_signature(input_type)
-  output_vars = build_variables_signature(output_type)
+  return_annotation = sig.return_annotation
+  if not isinstance(return_annotation, dict):
+    return_annotation = {'return': return_annotation}
+
+  input_vars = build_variables_signature(sig.parameters.values())
+  output_vars = build_variables_signature([
+      inspect.Parameter(name=name, kind=0, annotation=tp)
+      for name, tp in return_annotation.items()
+  ])
 
   #method_signature = resources_pb2.MethodSignature()   # TODO
   method_signature = _NamedFields()  #for now
@@ -32,28 +37,30 @@ def build_function_signature(func):
   return method_signature
 
 
-def build_variables_signature(var_types):
+def build_variables_signature(var_types: List[inspect.Parameter]):
   '''
-    Build a data proto signature for the given type annotation.
-    '''
-  assert isinstance(var_types, dict)
+  Build a data proto signature for the given variable or return type annotation.
+  '''
 
   vars = []
 
   # check valid names (should already be constrained by python naming, but check anyway)
-  for name in var_types.keys():
-    if not name.isidentifier():
+  for param in var_types:
+    if not param.name.isidentifier():
       raise ValueError(f'Invalid variable name: {name}')
 
   # get fields for each variable based on type
-  for name, tp in var_types.items():
-    tp = _normalize_type(tp)
+  for param in var_types:
+    tp = _normalize_type(param.annotation)
+    # TODO: check default is compatible with type and figure out how to represent in the signature proto
+    default = param.default  #if param.default != inspect.Parameter.empty else None
 
     #var = resources_pb2.MethodVariable()   # TODO
     var = _NamedFields()
-    var.name = name
+    var.name = param.name
     var.python_type = _PYTHON_TYPES[tp]
     var.data_field = _DATA_FIELDS[tp]
+    var.default = default
     vars.append(var)
 
   # check if any fields are used more than once, and if so, use parts
