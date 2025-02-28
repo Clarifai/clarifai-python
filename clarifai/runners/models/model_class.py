@@ -1,5 +1,6 @@
 import functools
 import itertools
+import json
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Iterator, List
 
@@ -37,6 +38,14 @@ class ModelClass(ABC):
   def _method_signature(self, func):
     return build_function_signature(func)
 
+  def _handle_get_signatures_request(self) -> service_pb2.MultiOutputResponse:
+    # TODO for now just predict
+    signatures = []
+    signatures.append(self._method_signature(self.predict))
+    resp = service_pb2.MultiOutputResponse(status=status_pb2.Status(code=status_code_pb2.SUCCESS))
+    resp.outputs.add().data.string_value = json.dumps(signatures)
+    return resp
+
   def batch_predict(self, inputs: List[Dict[str, Any]]) -> List[Output]:
     """Batch predict method for multiple inputs."""
     outputs = []
@@ -55,6 +64,10 @@ class ModelClass(ABC):
       self, request: service_pb2.PostModelOutputsRequest) -> service_pb2.MultiOutputResponse:
     outputs = []
     try:
+      # TODO add model name field to proto
+      method_name = request.model.model_version.output_info.params['_method_name']
+      if method_name == '_GET_SIGNATURES':
+        return self._handle_get_signatures_request()
       inputs_signature = self._method_signature(self.predict).input_variables
       inputs = self._convert_input_protos_to_python(request.inputs, inputs_signature)
       if len(inputs) == 1:

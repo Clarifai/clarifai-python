@@ -74,6 +74,7 @@ class Model(Lister, BaseClient):
     self.logger = logger
     self.training_params = {}
     self.input_types = None
+    self._method_signatures = None
     BaseClient.__init__(
         self,
         user_id=self.user_id,
@@ -407,6 +408,42 @@ class Model(Lister, BaseClient):
           auth=self.auth_helper,
           model_id=self.id,
           **dict(self.kwargs, model_version=model_version_info))
+
+  def _method_signature(self, func_name):
+    if self._method_signatures is None:
+      # TODO this could use a new endpoint to get the signatures
+      # for local grpc models, we'll also have to add the endpoint to the model servicer
+      # for now we'll just use the predict endpoint with a special method name
+      self._override_model_version({}, {})
+      request = service_pb2.PostModelOutputsRequest(
+          user_app_id=self.user_app_id,
+          model_id=self.id,
+          version_id=self.model_version.id,
+          model=self.model_info,
+      )
+      # TODO add method name field to request or model
+      request.model.model_version.output_info.params['_method_name'] = '_GET_SIGNATURES'
+      request.inputs.add()  # empty input for this method
+      response = self._grpc_request(self.STUB.PostModelOutputs, request)
+      if response.status.code != status_code_pb2.SUCCESS:
+        raise Exception(response.status)
+      self._method_signatures = json.loads(response.outputs[0].data.string_value)
+
+      #request = service_pb2.GetModelMethodSignaturesRequest(
+      #    user_app_id=self.user_app_id,
+      #    model_id=self.id,
+      #    version_id=self.model_version.id,
+      #    #model=self.model_info,  # probably not needed?
+      #)
+      #response = self._grpc_request(self.STUB.GetModelMethodSignatures, request)
+      #if response.status.code != status_code_pb2.SUCCESS:
+      #    raise Exception(response.status)
+      #self._method_signatures = {
+      #    method_signature.name: method_signature
+      #    for method_signature in response.method_signatures
+      #}
+
+    return self._method_signatures[func_name]
 
   def predict(
       self,
