@@ -47,7 +47,7 @@ def build_variables_signature(var_types: List[inspect.Parameter]):
   # check valid names (should already be constrained by python naming, but check anyway)
   for param in var_types:
     if not param.name.isidentifier():
-      raise ValueError(f'Invalid variable name: {name}')
+      raise ValueError(f'Invalid variable name: {param.name}')
 
   # get fields for each variable based on type
   for param in var_types:
@@ -89,8 +89,8 @@ def serialize(kwargs, signatures, proto=None):
     data = kwargs[sig.name]
     #_check_type(data, sig.python_type)
     data_proto, field = _get_named_part(proto, sig.data_field)
-    serializer = _get_serializer(data_field=field, python_type=sig.python_type)
-    serializer.serialize(data, data_proto)
+    serializer = get_serializer(python_type=sig.python_type)
+    serializer.serialize(data_proto, field, data)
   return proto
 
 
@@ -191,7 +191,7 @@ _PYTHON_TYPES = _ReversableDict({
     int: 'int',
     float: 'float',
     bool: 'bool',
-    np.ndarray: 'np.ndarray',
+    np.ndarray: 'ndarray',
     PIL.Image.Image: 'PIL.Image.Image',
 
     # protos, copied as-is
