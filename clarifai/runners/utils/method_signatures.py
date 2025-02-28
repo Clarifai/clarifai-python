@@ -5,6 +5,8 @@ from typing import List, get_args, get_origin
 import numpy as np
 import PIL.Image
 from clarifai_grpc.grpc.api import resources_pb2
+
+from clarifai.runners.utils import data_handler
 from clarifai.runners.utils.serializers import get_serializer
 
 
@@ -78,7 +80,8 @@ def build_variables_signature(var_types: List[inspect.Parameter]):
 
 def serialize(kwargs, signatures, proto=None):
   '''
-    '''
+  Serialize the given kwargs into the proto using the given signatures.
+  '''
   if proto is None:
     proto = resources_pb2.Data()
   unknown = set(kwargs.keys()) - set(sig.name for sig in signatures)
@@ -92,6 +95,19 @@ def serialize(kwargs, signatures, proto=None):
     serializer = get_serializer(sig.python_type)
     serializer.serialize(data_proto, field, data)
   return proto
+
+
+def deserialize(proto, signatures):
+  '''
+    Deserialize the given proto into kwargs using the given signatures.
+    '''
+  kwargs = {}
+  for sig in signatures:
+    data_proto, field = _get_named_part(proto, sig.data_field)
+    serializer = get_serializer(sig.python_type)
+    data = serializer.deserialize(data_proto, field, _PYTHON_TYPES.reverse_map[sig.python_type])
+    kwargs[sig.name] = data
+  return kwargs
 
 
 def _get_named_part(proto, field):
@@ -186,15 +202,12 @@ _PYTHON_TYPES = _ReversableDict({
     bool: 'bool',
     np.ndarray: 'ndarray',
     PIL.Image.Image: 'PIL.Image.Image',
-
-    # protos, copied as-is
-    resources_pb2.Text: 'Text',
-    #resources_pb2.Bytes: 'Bytes',
-    resources_pb2.Image: 'Image',
-    resources_pb2.Video: 'Video',
-    resources_pb2.Concept: 'Concept',
-    resources_pb2.Region: 'Region',
-    resources_pb2.Frame: 'Frame',
+    data_handler.Text: 'Text',
+    data_handler.Image: 'Image',
+    data_handler.Video: 'Video',
+    data_handler.Concept: 'Concept',
+    data_handler.Region: 'Region',
+    data_handler.Frame: 'Frame',
 })
 
 # data fields for supported python types
@@ -209,12 +222,12 @@ _DATA_FIELDS = {
     PIL.Image.Image: 'image',
 
     # protos, copied as-is
-    resources_pb2.Text: 'text',
-    resources_pb2.Image: 'image',
-    resources_pb2.Video: 'video',
-    resources_pb2.Concept: 'concepts',
-    resources_pb2.Region: 'regions',
-    resources_pb2.Frame: 'frames',
+    data_handler.Text: 'text',
+    data_handler.Image: 'image',
+    data_handler.Video: 'video',
+    data_handler.Concept: 'concepts',
+    data_handler.Region: 'regions',
+    data_handler.Frame: 'frames',
 
     # lists handled specially, not as generic lists using parts
     List[int]: 'ndarray',

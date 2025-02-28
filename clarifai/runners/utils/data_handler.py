@@ -1,8 +1,12 @@
 import io
+from typing import List
 
 import numpy as np
 from clarifai_grpc.grpc.api.resources_pb2 import Audio as AudioProto
+from clarifai_grpc.grpc.api.resources_pb2 import Concept as ConceptProto
+from clarifai_grpc.grpc.api.resources_pb2 import Frame as FrameProto
 from clarifai_grpc.grpc.api.resources_pb2 import Image as ImageProto
+from clarifai_grpc.grpc.api.resources_pb2 import Region as RegionProto
 from clarifai_grpc.grpc.api.resources_pb2 import Text as TextProto
 from clarifai_grpc.grpc.api.resources_pb2 import Video as VideoProto
 from PIL import Image as PILImage
@@ -18,6 +22,10 @@ class MessageData:
     raise NotImplementedError
 
 
+class Output(dict):
+  pass
+
+
 class Text(MessageData):
 
   def __init__(self, text: str, url: str = None):
@@ -30,6 +38,44 @@ class Text(MessageData):
   @classmethod
   def from_proto(cls, proto: TextProto) -> "Text":
     return cls(proto.raw, proto.url or None)
+
+
+class Concept(MessageData):
+
+  def __init__(self, name: str, value: float = 0):
+    self.name = name
+    self.value = value
+
+  def to_proto(self):
+    return ConceptProto(name=self.name, value=self.value)
+
+  @classmethod
+  def from_proto(cls, proto: ConceptProto) -> "Concept":
+    return cls(proto.name, proto.value)
+
+
+class Region(MessageData):
+
+  def __init__(self, proto_region: RegionProto):
+    self.proto = proto_region
+
+  @property
+  def box(self) -> List[float]:
+    bbox = self.proto.region_info.bounding_box
+    return [bbox.left_col, bbox.top_row, bbox.right_col, bbox.bottom_row]  # x1, y1, x2, y2
+
+  @box.setter
+  def box(self, value: List[float]):
+    bbox = self.proto.region_info.bounding_box
+    bbox.left_col, bbox.top_row, bbox.right_col, bbox.bottom_row = value
+
+  @property
+  def concepts(self) -> List[Concept]:
+    return [Concept.from_proto(proto) for proto in self.proto.data.concepts]
+
+  @concepts.setter
+  def concepts(self, value: List[Concept]):
+    self.proto.data.concepts.extend([concept.to_proto() for concept in value])
 
 
 class Image(MessageData):
@@ -122,6 +168,38 @@ class Audio(MessageData):
 
   def to_proto(self) -> AudioProto:
     return self.proto
+
+
+class Frame(MessageData):
+
+  def __init__(self, proto_frame: FrameProto):
+    self.proto = proto_frame
+
+  @property
+  def time(self) -> float:
+    # TODO: time is a uint32, so this will overflow at 49.7 days
+    # we should be using double or uint64 in the proto instead
+    return self.proto.frame_info.time / 1000.0
+
+  @time.setter
+  def time(self, value: float):
+    self.proto.frame_info.time = int(value * 1000)
+
+  @property
+  def image(self) -> Image:
+    return Image.from_proto(self.proto.data.image)
+
+  @image.setter
+  def image(self, value: Image):
+    self.proto.data.image.CopyFrom(value.to_proto())
+
+  @property
+  def regions(self) -> List[Region]:
+    return [Region(region) for region in self.proto.data.regions]
+
+  @regions.setter
+  def regions(self, value: List[Region]):
+    self.proto.data.regions.extend([region.proto for region in value])
 
 
 class Video(MessageData):
