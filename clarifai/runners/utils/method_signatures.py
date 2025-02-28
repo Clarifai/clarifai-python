@@ -89,7 +89,7 @@ def serialize(kwargs, signatures, proto=None):
       continue  # skip missing fields, they can be set to default on the server
     data = kwargs[sig.name]
     data_proto, field = _get_named_part(proto, sig.data_field)
-    serializer = get_serializer(python_type=sig.python_type)
+    serializer = get_serializer(sig.python_type)
     serializer.serialize(data_proto, field, data)
   return proto
 
@@ -200,11 +200,11 @@ _PYTHON_TYPES = _ReversableDict({
 # data fields for supported python types
 _DATA_FIELDS = {
     # common python types
-    str: 'text',
-    #bytes: 'bytes',
-    int: 'ndarray',
-    float: 'ndarray',
-    bool: 'ndarray',
+    str: 'string_value',
+    bytes: 'bytes_value',
+    int: 'int_value',
+    float: 'float_value',
+    bool: 'bool_value',
     np.ndarray: 'ndarray',
     PIL.Image.Image: 'image',
 
@@ -238,8 +238,8 @@ def _add_list_fields():
       continue
     field_name = _DATA_FIELDS[tp]
     # check if repeated field (we can use repeated fields for lists directly)
-    descriptor = resources_pb2.Data.DESCRIPTOR.fields_by_name[field_name]
-    repeated = (descriptor.label == descriptor.LABEL_REPEATED)
+    descriptor = resources_pb2.Data.DESCRIPTOR.fields_by_name.get(field_name)
+    repeated = descriptor and descriptor.label == descriptor.LABEL_REPEATED
     _DATA_FIELDS[list_tp] = field_name if repeated else 'parts[].' + field_name
 
 
