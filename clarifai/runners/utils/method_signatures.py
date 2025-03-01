@@ -5,6 +5,7 @@ from typing import List, get_args, get_origin
 
 import numpy as np
 import PIL.Image
+import yaml
 from clarifai_grpc.grpc.api import resources_pb2
 
 from clarifai.runners.utils import data_handler
@@ -16,6 +17,11 @@ def build_function_signature(func):
   Build a signature for the given function.
   '''
   sig = inspect.signature(func)
+
+  # check if func is bound, and if not, remove self/cls
+  if getattr(func, '__self__', None) is None and sig.parameters and list(
+      sig.parameters.values())[0].name in ('self', 'cls'):
+    sig = sig.replace(parameters=list(sig.parameters.values())[1:])
 
   return_annotation = sig.return_annotation
   if not isinstance(return_annotation, dict):
@@ -88,6 +94,17 @@ def signatures_to_json(signatures):
 
 def signatures_from_json(json_str):
   return json.loads(json_str, object_pairs_hook=_NamedFields)
+
+
+def signatures_to_yaml(signatures):
+  # XXX go in/out of json to get the correct format and python dict types
+  d = json.loads(signatures_to_json(signatures))
+  return yaml.dump(d, default_flow_style=False)
+
+
+def signatures_from_yaml(yaml_str):
+  d = yaml.safe_load(yaml_str)
+  return signatures_from_json(json.dumps(d))
 
 
 def serialize(kwargs, signatures, proto=None):

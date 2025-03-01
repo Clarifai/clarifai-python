@@ -21,6 +21,7 @@ from clarifai.runners.utils.const import (
     DEFAULT_DOWNLOAD_CHECKPOINT_WHEN, DEFAULT_PYTHON_VERSION, DEFAULT_RUNTIME_DOWNLOAD_PATH,
     PYTHON_BASE_IMAGE, TORCH_BASE_IMAGE)
 from clarifai.runners.utils.loader import HuggingFaceLoader
+from clarifai.runners.utils.method_signatures import build_function_signature, signatures_to_yaml
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
 from clarifai.versions import CLIENT_VERSION
@@ -69,6 +70,18 @@ class ModelBuilder:
     """
     Create an instance of the model class, as specified in the config file.
     """
+    model_class = self.load_model_class()
+
+    # initialize the model
+    model = model_class()
+    if load_model:
+      model.load_model()
+    return model
+
+  def load_model_class(self):
+    """
+    Import the model class from the model.py file.
+    """
     # look for default model.py file location
     for loc in ["model.py", "1/model.py"]:
       model_file = os.path.join(self.folder, loc)
@@ -107,12 +120,7 @@ class ModelBuilder:
           "Could not determine model class. There should be exactly one model inheriting from ModelClass defined in the model.py"
       )
     model_class = classes[0]
-
-    # initialize the model
-    model = model_class()
-    if load_model:
-      model.load_model()
-    return model
+    return model_class
 
   def _validate_folder(self, folder):
     if folder == ".":
@@ -243,6 +251,21 @@ class ModelBuilder:
         if member.isfile():
           total_size += member.size
     return total_size
+
+  def method_signatures_yaml(self):
+    """
+    Returns the method signatures for the model class in YAML format.
+    """
+    model_class = self.load_model_class()
+    # TODO arbitrary user-labeled function names
+    signatures = []
+    #for fname in ('predict', 'generate', 'stream'):
+    for fname in ('predict',):
+      if hasattr(model_class, fname):
+        method = getattr(model_class, fname)
+        signature = build_function_signature(method)
+        signatures.append(signature)
+    return signatures_to_yaml(signatures)
 
   @property
   def client(self):
