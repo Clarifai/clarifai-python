@@ -56,14 +56,17 @@ def build_variables_signature(var_types: List[inspect.Parameter]):
   for param in var_types:
     tp = _normalize_type(param.annotation)
     # TODO: check default is compatible with type and figure out how to represent in the signature proto
-    default = param.default  #if param.default != inspect.Parameter.empty else None
+    required = (param.default == inspect.Parameter.empty)
 
     #var = resources_pb2.MethodVariable()   # TODO
     var = _NamedFields()
     var.name = param.name
     var.python_type = _PYTHON_TYPES[tp]
     var.data_field = _DATA_FIELDS[tp]
-    var.default = default
+    if required:
+      var.required = True
+    else:
+      var.default = param.default
     vars.append(var)
 
   # check if any fields are used more than once, and if so, use parts
