@@ -65,9 +65,8 @@ class ImageSerializer(Serializer):
     if isinstance(value, PILImage.Image):
       value = Image.from_pil(value)
     if isinstance(value, MessageData):
-      value = value.to_proto(getattr(data_proto, field))
-    else:
-      getattr(data_proto, field).CopyFrom(value)
+      value = value.to_proto()
+    getattr(data_proto, field).CopyFrom(value)
 
   def deserialize(self, data_proto, field):
     value = getattr(data_proto, field)
