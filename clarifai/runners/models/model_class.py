@@ -1,6 +1,5 @@
 import functools
 import itertools
-import json
 import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Iterator, List
@@ -10,7 +9,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
 from clarifai.runners.utils.data_handler import Output
 from clarifai.runners.utils.method_signatures import (build_function_signature, deserialize,
-                                                      serialize)
+                                                      serialize, signatures_to_json)
 
 
 class ModelClass(ABC):
@@ -38,10 +37,11 @@ class ModelClass(ABC):
 
   def _handle_get_signatures_request(self) -> service_pb2.MultiOutputResponse:
     # TODO for now just predict
-    signatures = []
-    signatures.append(self._method_signature(self.predict))
+    signatures = {}
+    for f in [self.predict]:
+      signatures[f.__name__] = self._method_signature(f)
     resp = service_pb2.MultiOutputResponse(status=status_pb2.Status(code=status_code_pb2.SUCCESS))
-    resp.outputs.add().data.string_value = json.dumps(signatures)
+    resp.outputs.add().data.string_value = signatures_to_json(signatures)
     return resp
 
   def batch_predict(self, inputs: List[Dict[str, Any]]) -> List[Output]:

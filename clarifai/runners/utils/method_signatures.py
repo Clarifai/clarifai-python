@@ -89,6 +89,8 @@ def build_variables_signature(var_types: List[inspect.Parameter]):
 
 
 def signatures_to_json(signatures):
+  assert isinstance(
+      signatures, dict), 'Expected dict of signatures {name: signature}, got %s' % type(signatures)
   return json.dumps(signatures)
 
 
