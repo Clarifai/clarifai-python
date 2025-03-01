@@ -38,6 +38,31 @@ def build_function_signature(func, method_type: str):
       for name, tp in return_annotation.items()
   ])
 
+  # check for streams
+  if method_type == 'predict':
+    for var in input_vars:
+      if var.streaming:
+        raise ValueError('Stream inputs are not supported for predict methods')
+    for var in output_vars:
+      if var.streaming:
+        raise ValueError('Stream outputs are not supported for predict methods')
+  elif method_type == 'generate':
+    for var in input_vars:
+      if var.streaming:
+        raise ValueError('Stream inputs are not supported for generate methods')
+    if len(output_vars) != 1 or not output_vars[0].streaming:
+      raise ValueError('Generate methods must return a single Stream')
+  elif method_type == 'stream':
+    # TODO handle initial non-stream inputs, check for one stream input and one stream output
+    if len(input_vars) != 1:
+      raise ValueError('Stream methods must take a single Stream input')
+    if not input_vars[0].streaming:
+      raise ValueError('Stream methods must take a stream input')
+    if len(output_vars) != 1 or not output_vars[0].streaming:
+      raise ValueError('Stream methods must return a single Stream')
+  else:
+    raise ValueError('Invalid method type: %s' % method_type)
+
   #method_signature = resources_pb2.MethodSignature()   # TODO
   method_signature = _NamedFields()  #for now
 
@@ -67,7 +92,7 @@ def build_variables_signature(var_types: List[inspect.Parameter]):
 
   # get fields for each variable based on type
   for param in var_types:
-    tp = _normalize_type(param.annotation)
+    tp, streaming = _normalize_type(param.annotation)
     # TODO: check default is compatible with type and figure out how to represent in the signature proto
     required = (param.default == inspect.Parameter.empty)
 
@@ -76,6 +101,7 @@ def build_variables_signature(var_types: List[inspect.Parameter]):
     var.name = param.name
     var.data_type = _DATA_TYPES[tp].data_type
     var.data_field = _DATA_TYPES[tp].data_field
+    var.streaming = streaming
     if required:
       var.required = True
     else:
@@ -189,6 +215,10 @@ def _normalize_type(tp):
   '''
   Normalize the given type.
   '''
+  # check if stream first
+  streaming = (get_origin(tp) == data_handler.Stream)
+  if streaming:
+    tp = get_args(tp)[0]
 
   # check if list, and if so, get inner type
   is_list = (get_origin(tp) == list)
@@ -212,7 +242,7 @@ def _normalize_type(tp):
   if tp not in _DATA_TYPES:
     raise ValueError(f'Unsupported type: {tp}')
 
-  return tp
+  return tp, streaming
 
 
 class _NamedFields(dict):
