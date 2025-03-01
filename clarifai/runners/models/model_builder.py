@@ -21,7 +21,7 @@ from clarifai.runners.utils.const import (
     DEFAULT_DOWNLOAD_CHECKPOINT_WHEN, DEFAULT_PYTHON_VERSION, DEFAULT_RUNTIME_DOWNLOAD_PATH,
     PYTHON_BASE_IMAGE, TORCH_BASE_IMAGE)
 from clarifai.runners.utils.loader import HuggingFaceLoader
-from clarifai.runners.utils.method_signatures import build_function_signature, signatures_to_yaml
+from clarifai.runners.utils.method_signatures import signatures_to_yaml
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
 from clarifai.versions import CLIENT_VERSION
@@ -257,14 +257,8 @@ class ModelBuilder:
     Returns the method signatures for the model class in YAML format.
     """
     model_class = self.load_model_class()
-    # TODO arbitrary user-labeled function names
-    signatures = {}
-    #for fname in ('predict', 'generate', 'stream'):
-    for fname in ('predict',):
-      if hasattr(model_class, fname):
-        method = getattr(model_class, fname)
-        signature = build_function_signature(method)
-        signatures[fname] = signature
+    method_info = model_class._get_method_info()
+    signatures = {name: m.signature for name, m in method_info.items()}
     return signatures_to_yaml(signatures)
 
   @property

@@ -15,7 +15,7 @@ from clarifai.runners.utils.serializers import (AtomicFieldSerializer, ImageSeri
                                                 NDArraySerializer, NullValueSerializer, Serializer)
 
 
-def build_function_signature(func):
+def build_function_signature(func, method_type: str):
   '''
   Build a signature for the given function.
   '''
@@ -42,8 +42,9 @@ def build_function_signature(func):
   method_signature = _NamedFields()  #for now
 
   method_signature.name = func.__name__
-  method_type = 'UNARY_UNARY'  # for now
-  method_signature.method_type = getattr(resources_pb2.RunnerMethodType, method_type)
+  #method_signature.method_type = getattr(resources_pb2.RunnerMethodType, method_type)
+  assert method_type in ('predict', 'generate', 'stream')
+  method_signature.method_type = method_type
 
   #method_signature.inputs.extend(input_vars)
   #method_signature.outputs.extend(output_vars)

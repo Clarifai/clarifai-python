@@ -13,7 +13,6 @@ from clarifai.runners.utils.method_signatures import (build_function_signature, 
                                                       serialize, signatures_to_json)
 
 _METHOD_INFO_ATTR = '_cf_method_info'
-_METHOD_REGISTRY = {}  # class -> {method_name -> _MethodInfo}
 
 
 class ModelClass(ABC):
@@ -35,11 +34,8 @@ class ModelClass(ABC):
     """Stream method for streaming inputs and outputs."""
     raise NotImplementedError("stream() not implemented")
 
-  def _method_info(self, func):
-    return _METHOD_REGISTRY[self.__class__][func.__name__]
-
   def _handle_get_signatures_request(self) -> service_pb2.MultiOutputResponse:
-    methods = _METHOD_REGISTRY[self.__class__]
+    methods = self._get_method_info()
     signatures = {method.name: method.signature for method in methods.values()}
     resp = service_pb2.MultiOutputResponse(status=status_pb2.Status(code=status_code_pb2.SUCCESS))
     resp.outputs.add().data.string_value = signatures_to_json(signatures)
@@ -67,7 +63,7 @@ class ModelClass(ABC):
       method_name = request.model.model_version.output_info.params['_method_name']
       if method_name == '_GET_SIGNATURES':  # special case to fetch signatures, TODO add endpoint for this
         return self._handle_get_signatures_request()
-      if method_name not in _METHOD_REGISTRY[self.__class__]:
+      if method_name not in self._get_method_info():
         raise ValueError(f"Method {method_name} not found in model class")
       method = getattr(self, method_name)
       method_info = method._cf_method_info
@@ -146,20 +142,14 @@ class ModelClass(ABC):
     serialize(output, variables_signature, proto.data)
     return proto
 
-  def __new__(cls, *args, **kwargs):
-    cls._register_cf_model_methods()
-    return super().__new__(cls, *args, **kwargs)
-
   @classmethod
-  def _register_cf_model_methods(cls):
-    if cls in _METHOD_REGISTRY:
-      return
+  def _register_model_methods(cls):
     # go up the class hierarchy to find all decorated methods, and add to registry of current class
     methods = {}
     for base in reversed(cls.__mro__):
       for name, method in base.__dict__.items():
         method_info = getattr(method, _METHOD_INFO_ATTR, None)
-        if not method_info:
+        if not method_info:  # regular function, not a model method
           continue
         methods[name] = method_info
     # check for generic predict(request) -> response, etc. methods
@@ -169,15 +159,19 @@ class ModelClass(ABC):
     #    if not hasattr(method, _METHOD_INFO_ATTR):  # not already put in registry
     #      methods[name] = _MethodInfo(method, method_type=name)
     # set method table for this class in the registry
-    _METHOD_REGISTRY[cls] = methods
+    return methods
+
+  @classmethod
+  def _get_method_info(cls):
+    if not hasattr(cls, _METHOD_INFO_ATTR):
+      setattr(cls, _METHOD_INFO_ATTR, cls._register_model_methods())
+    return getattr(cls, _METHOD_INFO_ATTR)
 
 
 class _MethodInfo:
 
   def __init__(self, method, method_type):
-    self.method_name = method.__name__
-    self.method_type = method_type
-    self.signature = build_function_signature(method)
+    self.signature = build_function_signature(method, method_type)
     self.python_param_types = {
         p.name: p.annotation
         for p in inspect.signature(method).parameters.values()
