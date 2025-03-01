@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterator, List
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
-from clarifai.runners.utils.data_handler import MessageData, Output
+from clarifai.runners.utils import data_handler
 from clarifai.runners.utils.method_signatures import (build_function_signature, deserialize,
                                                       serialize, signatures_to_json)
 
@@ -20,15 +20,15 @@ class ModelClass(ABC):
     """Load the model."""
     raise NotImplementedError("load_model() not implemented")
 
-  def predict(self, **kwargs) -> Output:
+  def predict(self, **kwargs):
     """Predict method for single or batched inputs."""
     raise NotImplementedError("predict() not implemented")
 
-  def generate(self, **kwargs) -> Iterator[Output]:
+  def generate(self, **kwargs) -> Iterator:
     """Generate method for streaming outputs."""
     raise NotImplementedError("generate() not implemented")
 
-  def stream(self, **kwargs) -> Iterator[Output]:
+  def stream(self, **kwargs) -> Iterator:
     """Stream method for streaming inputs and outputs."""
     raise NotImplementedError("stream() not implemented")
 
@@ -53,7 +53,7 @@ class ModelClass(ABC):
     resp.outputs.add().data.string_value = signatures_to_json(signatures)
     return resp
 
-  def batch_predict(self, inputs: List[Dict[str, Any]]) -> List[Output]:
+  def batch_predict(self, inputs: List[Dict[str, Any]]) -> List[Any]:
     """Batch predict method for multiple inputs."""
     outputs = []
     for input in inputs:
@@ -61,11 +61,11 @@ class ModelClass(ABC):
       outputs.append(output)
     return outputs
 
-  def batch_generate(self, inputs: List[Dict[str, Any]]) -> Iterator[List[Output]]:
+  def batch_generate(self, inputs: List[Dict[str, Any]]) -> Iterator[List[Any]]:
     """Batch generate method for multiple inputs."""
     generators = [self.generate(**input) for input in inputs]
     for outputs in itertools.zip_longest(*generators):
-      yield [output if output is not None else Output() for output in outputs]
+      yield outputs
 
   def predict_wrapper(
       self, request: service_pb2.PostModelOutputsRequest) -> service_pb2.MultiOutputResponse:
@@ -128,10 +128,11 @@ class ModelClass(ABC):
     result = []
     for input in inputs:
       kwargs = deserialize(input.data, variables_signature)
-      kwargs = {
-          k: v.cast(python_param_types[k]) if isinstance(v, MessageData) else v
-          for k, v in kwargs.items()
-      }
+      # dynamic cast to annotated types
+      for k, v in kwargs.items():
+        if k not in python_param_types:
+          continue
+        kwargs[k] = data_handler.cast(v, python_param_types[k])
       result.append(kwargs)
     return result
 

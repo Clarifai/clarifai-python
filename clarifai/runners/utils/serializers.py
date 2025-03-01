@@ -77,6 +77,15 @@ class NDArraySerializer(Serializer):
     return array
 
 
+class NullValueSerializer(Serializer):
+
+  def serialize(self, data_proto, field, value):
+    pass
+
+  def deserialize(self, data_proto, field):
+    return None
+
+
 class ListSerializer(Serializer):
 
   def __init__(self, inner_serializer):

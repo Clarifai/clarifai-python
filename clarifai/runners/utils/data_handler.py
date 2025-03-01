@@ -1,5 +1,5 @@
 import io
-from typing import List, get_origin
+from typing import List, get_args, get_origin
 
 import numpy as np
 from clarifai_grpc.grpc.api.resources_pb2 import Audio as AudioProto
@@ -298,3 +298,15 @@ class Video(MessageData):
   @classmethod
   def from_proto(cls, proto: VideoProto) -> "Video":
     return cls(proto)
+
+
+def cast(value, python_type):
+  list_type = (get_origin(python_type) == list)
+  if isinstance(value, MessageData):
+    return value.cast(python_type)
+  if list_type and isinstance(value, np.ndarray):
+    return value.tolist()
+  if list_type and isinstance(value, list):
+    inner_type = get_args(python_type)[0]
+    return [cast(item, inner_type) for item in value]
+  return value

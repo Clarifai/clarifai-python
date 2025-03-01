@@ -12,7 +12,7 @@ from clarifai_grpc.grpc.api import resources_pb2
 from clarifai.runners.utils import data_handler
 from clarifai.runners.utils.serializers import (AtomicFieldSerializer, ImageSerializer,
                                                 ListSerializer, MessageSerializer,
-                                                NDArraySerializer, Serializer)
+                                                NDArraySerializer, NullValueSerializer, Serializer)
 
 
 def build_function_signature(func):
@@ -27,6 +27,8 @@ def build_function_signature(func):
     sig = sig.replace(parameters=list(sig.parameters.values())[1:])
 
   return_annotation = sig.return_annotation
+  if return_annotation == inspect.Parameter.empty:
+    raise ValueError('Function must have a return annotation')
   if not isinstance(return_annotation, dict):
     return_annotation = {'return': return_annotation}
 
@@ -225,6 +227,9 @@ class Output(_NamedFields):
   pass
 
 
+# data_type: name of the data type
+# data_field: name of the field in the data proto
+# serializer: serializer for the data type
 _DataType = namedtuple('_DataType', ('data_type', 'data_field', 'serializer'))
 
 # mapping of supported python types to data type names, fields, and serializers
@@ -239,6 +244,8 @@ _DATA_TYPES = {
         _DataType('float', 'float_value', AtomicFieldSerializer()),
     bool:
         _DataType('bool', 'bool_value', AtomicFieldSerializer()),
+    None:
+        _DataType('None', '', NullValueSerializer()),
     np.ndarray:
         _DataType('ndarray', 'ndarray', NDArraySerializer()),
     data_handler.Text:
