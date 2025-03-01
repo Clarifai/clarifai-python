@@ -531,28 +531,11 @@ class ModelBuilder:
     logger.info(f"Updated config.yaml with {len(concepts)} concepts.")
 
   def get_model_version_proto(self):
-    from clarifai.client import Model
-    inference_params = [{
-        "path":
-            "max_tokens",
-        "description":
-            "The maximum number of tokens to generate. Shorter token lengths will provide faster performance.",
-        "field_type":
-            3,
-        "default_value":
-            1024
-    }, {
-        "path": "temperature",
-        "description": "Temperature",
-        "field_type": 3,
-        "default_value": 0.7
-    }]
-    inference_param_proto = Model._make_inference_params_proto(inference_params)
-    print(inference_param_proto)
+
     model_version_proto = resources_pb2.ModelVersion(
         pretrained_model_config=resources_pb2.PretrainedModelConfig(),
         inference_compute_info=self.inference_compute_info,
-        output_info=resources_pb2.OutputInfo(params_specs=inference_param_proto))
+    )
 
     model_type_id = self.config.get('model').get('model_type_id')
     if model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE:
