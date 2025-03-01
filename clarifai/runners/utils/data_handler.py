@@ -1,5 +1,5 @@
 import io
-from typing import List, get_args, get_origin
+from typing import Iterable, List, get_args, get_origin
 
 import numpy as np
 from clarifai_grpc.grpc.api.resources_pb2 import Audio as AudioProto
@@ -28,6 +28,10 @@ class MessageData:
 
 
 class Output(dict):
+  pass
+
+
+class Stream(Iterable):
   pass
 
 

@@ -1,7 +1,7 @@
-import functools
 import inspect
 import itertools
 import logging
+import types
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Iterator, List
 
@@ -11,6 +11,9 @@ from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from clarifai.runners.utils import data_handler
 from clarifai.runners.utils.method_signatures import (build_function_signature, deserialize,
                                                       serialize, signatures_to_json)
+
+_METHOD_INFO_ATTR = '_cf_method_info'
+_METHOD_REGISTRY = {}  # class -> {method_name -> _MethodInfo}
 
 
 class ModelClass(ABC):
@@ -32,38 +35,27 @@ class ModelClass(ABC):
     """Stream method for streaming inputs and outputs."""
     raise NotImplementedError("stream() not implemented")
 
-  @functools.lru_cache(maxsize=None)
-  def _method_signature(self, func):
-    signature = build_function_signature(func)
-    python_param_types = {
-        p.name: p.annotation
-        for p in inspect.signature(func).parameters.values()
-        if p.annotation != inspect.Parameter.empty
-    }
-    python_param_types.pop('self', None)
-    return signature, python_param_types
+  def _method_info(self, func):
+    return _METHOD_REGISTRY[self.__class__][func.__name__]
 
   def _handle_get_signatures_request(self) -> service_pb2.MultiOutputResponse:
-    # TODO for now just predict
-    signatures = {}
-    for f in [self.predict]:
-      sig, _ = self._method_signature(f)
-      signatures[f.__name__] = sig
+    methods = _METHOD_REGISTRY[self.__class__]
+    signatures = {method.name: method.signature for method in methods.values()}
     resp = service_pb2.MultiOutputResponse(status=status_pb2.Status(code=status_code_pb2.SUCCESS))
     resp.outputs.add().data.string_value = signatures_to_json(signatures)
     return resp
 
-  def batch_predict(self, inputs: List[Dict[str, Any]]) -> List[Any]:
+  def batch_predict(self, method, inputs: List[Dict[str, Any]]) -> List[Any]:
     """Batch predict method for multiple inputs."""
     outputs = []
     for input in inputs:
-      output = self.predict(**input)
+      output = method(**input)
       outputs.append(output)
     return outputs
 
-  def batch_generate(self, inputs: List[Dict[str, Any]]) -> Iterator[List[Any]]:
+  def batch_generate(self, method, inputs: List[Dict[str, Any]]) -> Iterator[List[Any]]:
     """Batch generate method for multiple inputs."""
-    generators = [self.generate(**input) for input in inputs]
+    generators = [method(**input) for input in inputs]
     for outputs in itertools.zip_longest(*generators):
       yield outputs
 
@@ -73,19 +65,24 @@ class ModelClass(ABC):
     try:
       # TODO add method name field to proto
       method_name = request.model.model_version.output_info.params['_method_name']
-      if method_name == '_GET_SIGNATURES':
+      if method_name == '_GET_SIGNATURES':  # special case to fetch signatures, TODO add endpoint for this
         return self._handle_get_signatures_request()
-      f = getattr(self, method_name)
-      signature, python_param_types = self._method_signature(f)
+      if method_name not in _METHOD_REGISTRY[self.__class__]:
+        raise ValueError(f"Method {method_name} not found in model class")
+      method = getattr(self, method_name)
+      method_info = method._cf_method_info
+      signature = method_info.signature
+      python_param_types = method_info.python_param_types
       inputs = self._convert_input_protos_to_python(request.inputs, signature.inputs,
                                                     python_param_types)
       if len(inputs) == 1:
         inputs = inputs[0]
-        output = self.predict(**inputs)
+        output = method(**inputs)
         outputs.append(self._convert_output_to_proto(output, signature.outputs))
       else:
-        outputs = self.batch_predict(inputs)
+        outputs = self.batch_predict(method, inputs)
         outputs = [self._convert_output_to_proto(output, signature.outputs) for output in outputs]
+
       return service_pb2.MultiOutputResponse(
           outputs=outputs, status=status_pb2.Status(code=status_code_pb2.SUCCESS))
     except Exception as e:
@@ -96,22 +93,26 @@ class ModelClass(ABC):
   def generate_wrapper(self, request: service_pb2.PostModelOutputsRequest
                       ) -> Iterator[service_pb2.MultiOutputResponse]:
     try:
-      inputs_signature = self._method_signature(self.generate).inputs
-      outputs_signature = self._method_signature(self.generate).outputs
-      # TODO get inner type of stream iterator for outputs
-      inputs = self._convert_input_protos_to_python(request.inputs, inputs_signature)
+      method_name = request.model.model_version.output_info.params['_method_name']
+      method = getattr(self, method_name)
+      method_info = method._cf_method_info
+      signature = method_info.signature
+      python_param_types = method_info.python_param_types
+
+      inputs = self._convert_input_protos_to_python(request.inputs, signature.inputs,
+                                                    python_param_types)
       if len(inputs) == 1:
         inputs = inputs[0]
-        for output in self.generate(**inputs):
+        for output in method(**inputs):
           resp = service_pb2.MultiOutputResponse()
-          self._convert_output_to_proto(output, outputs_signature, proto=resp.outputs.add())
+          self._convert_output_to_proto(output, signature.outputs, proto=resp.outputs.add())
           resp.status = status_pb2.Status(code=status_code_pb2.SUCCESS)
           yield resp
       else:
-        for outputs in self.batch_generate(inputs):
+        for outputs in self.batch_generate(method, inputs):
           resp = service_pb2.MultiOutputResponse()
           for output in outputs:
-            self._convert_output_to_proto(output, outputs_signature, proto=resp.outputs.add())
+            self._convert_output_to_proto(output, signature.outputs, proto=resp.outputs.add())
           resp.status = status_pb2.Status(code=status_code_pb2.SUCCESS)
           yield resp
     except Exception as e:
@@ -144,3 +145,60 @@ class ModelClass(ABC):
       output = {'return': output}
     serialize(output, variables_signature, proto.data)
     return proto
+
+  def __new__(cls, *args, **kwargs):
+    cls._register_cf_model_methods()
+    return super().__new__(cls, *args, **kwargs)
+
+  @classmethod
+  def _register_cf_model_methods(cls):
+    if cls in _METHOD_REGISTRY:
+      return
+    # go up the class hierarchy to find all decorated methods, and add to registry of current class
+    methods = {}
+    for base in reversed(cls.__mro__):
+      for name, method in base.__dict__.items():
+        method_info = getattr(method, _METHOD_INFO_ATTR, None)
+        if not method_info:
+          continue
+        methods[name] = method_info
+    # check for generic predict(request) -> response, etc. methods
+    #for name in ('predict', 'generate', 'stream'):
+    #  if hasattr(cls, name):
+    #    method = getattr(cls, name)
+    #    if not hasattr(method, _METHOD_INFO_ATTR):  # not already put in registry
+    #      methods[name] = _MethodInfo(method, method_type=name)
+    # set method table for this class in the registry
+    _METHOD_REGISTRY[cls] = methods
+
+
+class _MethodInfo:
+
+  def __init__(self, method, method_type):
+    self.method_name = method.__name__
+    self.method_type = method_type
+    self.signature = build_function_signature(method)
+    self.python_param_types = {
+        p.name: p.annotation
+        for p in inspect.signature(method).parameters.values()
+        if p.annotation != inspect.Parameter.empty
+    }
+    self.python_param_types.pop('self', None)
+
+
+def predict(method):
+  setattr(method, _METHOD_INFO_ATTR, _MethodInfo(method, 'predict'))
+  return method
+
+
+def generate(method):
+  setattr(method, _METHOD_INFO_ATTR, _MethodInfo(method, 'generate'))
+  return method
+
+
+def stream(method):
+  setattr(method, _METHOD_INFO_ATTR, _MethodInfo(method, 'stream'))
+  return method
+
+
+methods = types.SimpleNamespace(predict=predict, generate=generate, stream=stream)
