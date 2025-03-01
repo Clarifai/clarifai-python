@@ -6,6 +6,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 
 from clarifai.constants.model import MAX_MODEL_PREDICT_INPUTS
 from clarifai.errors import UserError
+from clarifai.runners.utils.method_signatures import deserialize, serialize, signatures_from_json
 from clarifai.utils.misc import BackoffIterator, status_is_retryable
 
 
@@ -43,8 +44,6 @@ class ModelClient:
     # for local grpc models, we'll also have to add the endpoint to the model servicer
     # for now we'll just use the predict endpoint with a special method name
 
-    # TODO need to move location of this to avoid circular import
-    from clarifai.runners.utils.method_signatures import signatures_from_json
     request = service_pb2.PostModelOutputsRequest()
     request.CopyFrom(self.request_template)
     request.model.model_version.output_info.params['_method_name'] = '_GET_SIGNATURES'
@@ -60,8 +59,6 @@ class ModelClient:
       inputs,  # TODO set up functions according to fetched signatures?
       method_name: str = 'predict',
   ) -> Any:
-    # TODO need to move location of this to avoid circular import
-    from clarifai.runners.utils.method_signatures import deserialize, serialize
     self._fetch_signatures()
     input_signature = self._method_signatures[method_name].input_variables
     output_signature = self._method_signatures[method_name].output_variables
