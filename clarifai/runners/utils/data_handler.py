@@ -46,6 +46,9 @@ class Concept(MessageData):
     self.name = name
     self.value = value
 
+  def __repr__(self) -> str:
+    return f"Concept(name={self.name!r}, value={self.value})"
+
   def to_proto(self):
     return ConceptProto(name=self.name, value=self.value)
 
@@ -76,6 +79,9 @@ class Region(MessageData):
   @concepts.setter
   def concepts(self, value: List[Concept]):
     self.proto.data.concepts.extend([concept.to_proto() for concept in value])
+
+  def __repr__(self) -> str:
+    return f"Region(box={self.box}, concepts={self.concepts})"
 
   def to_proto(self) -> RegionProto:
     return self.proto

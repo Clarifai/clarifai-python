@@ -1,4 +1,4 @@
-from typing import get_origin
+from typing import get_args, get_origin
 
 import numpy as np
 from PIL import Image as PILImage
@@ -13,7 +13,7 @@ def get_serializer(python_type_string):
     inner_type_string = python_type_string[len('List['):-1]
     inner_serializer = get_serializer(inner_type_string)
     return ListSerializer(inner_serializer)
-  raise ValueError(f"Unsupported type {python_type_string}")
+  raise ValueError(f'Unsupported type: "{python_type_string}"')
 
 
 def is_repeated(field):
@@ -43,15 +43,20 @@ class MessageSerializer(Serializer):
   def serialize(self, data_proto, field, value):
     if isinstance(value, MessageData):
       value = value.to_proto()
-    getattr(data_proto, field).CopyFrom(value)
+    dst = getattr(data_proto, field)
+    if is_repeated(dst):
+      dst.add().CopyFrom(value)
+    else:
+      dst.CopyFrom(value)
 
   def deserialize(self, data_proto, field, python_type):
-    value = getattr(data_proto, field)
-    if issubclass(python_type, MessageData):
-      return python_type.from_proto(value)
-    if python_type is None:
-      return value
-    raise ValueError(f"Unsupported type {python_type} for message")
+    if not issubclass(python_type, MessageData):
+      raise ValueError(f"Unsupported type {python_type} for message")
+    src = getattr(data_proto, field)
+    if is_repeated(src):
+      return [python_type.from_proto(item) for item in src]
+    else:
+      return python_type.from_proto(src)
 
 
 class ImageSerializer(Serializer):
@@ -106,18 +111,21 @@ class ListSerializer(Serializer):
     repeated = getattr(data_proto, field)
     assert is_repeated(repeated), f"Field {field} is not repeated"
     for item in value:
-      self.inner_serializer.serialize(repeated.add(), item)
+      self.inner_serializer.serialize(data_proto, field, item)  # appends to repeated field
 
   def deserialize(self, data_proto, field, python_type):
+    assert get_origin(python_type) == list, f"Type {python_type} must be a list for ListSerializer"
+    inner_python_type = get_args(python_type)[0]
     if field.startswith('parts[].'):
       inner_field = field[len('parts[].'):]
       return [
-          self.inner_serializer.deserialize(part.data, inner_field, python_type)
+          self.inner_serializer.deserialize(part.data, inner_field, inner_python_type)
           for part in data_proto.parts
       ]
     repeated = getattr(data_proto, field)
     assert is_repeated(repeated), f"Field {field} is not repeated"
-    return [self.inner_serializer.deserialize(item, python_type) for item in repeated]
+    return self.inner_serializer.deserialize(data_proto, field,
+                                             inner_python_type)  # returns repeated field list
 
 
 # TODO dict serializer, maybe json only?
@@ -132,6 +140,7 @@ _SERIALIZERS_BY_TYPE_STRING = {
     'Image': ImageSerializer(),
     'PIL.Image.Image': ImageSerializer(),
     'Text': MessageSerializer(),
+    'Concept': MessageSerializer(),
     'Audio': MessageSerializer(),
     'Video': MessageSerializer(),
 
