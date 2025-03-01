@@ -212,22 +212,8 @@ class Output(_NamedFields):
   pass
 
 
-class _ReversableDict(dict):
-  '''
-    Reversable dictionary, allowing reverse lookups.
-    '''
-
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-    self.reverse_map = {v: k for k, v in self.items()}
-
-  def __setitem__(self, key, value):
-    super().__setitem__(key, value)
-    self.reverse_map[value] = key
-
-
 # names for supported python types
-_DATA_TYPES = _ReversableDict({
+_DATA_TYPES = {
     # common python types
     str: 'str',
     bytes: 'bytes',
@@ -241,7 +227,7 @@ _DATA_TYPES = _ReversableDict({
     data_handler.Concept: 'Concept',
     data_handler.Region: 'Region',
     data_handler.Frame: 'Frame',
-})
+}
 
 # data fields for supported python types
 _DATA_FIELDS = {
@@ -253,7 +239,7 @@ _DATA_FIELDS = {
     bool: 'bool_value',
     np.ndarray: 'ndarray',
 
-    # protos, copied as-is
+    # proto message types
     data_handler.Text: 'text',
     data_handler.Image: 'image',
     data_handler.Video: 'video',
