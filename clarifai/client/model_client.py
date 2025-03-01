@@ -123,16 +123,15 @@ class ModelClient:
 
       Args:
           inputs (List[resources_pb2.Input]): The inputs to predict.
-          compute_cluster_id (str): The compute cluster ID to use for the model.
-          nodepool_id (str): The nodepool ID to use for the model.
-          deployment_id (str): The deployment ID to use for the model.
-          user_id (str): The user ID to use for nodepool or deployment.
+          method_name (str): The remote method name to call.
           inference_params (Dict): Inference parameters to override.
           output_config (Dict): Output configuration to override.
 
       Returns:
           service_pb2.MultiOutputResponse: The prediction response(s).
       """
+    if not isinstance(inputs, list):
+      raise UserError('Invalid inputs, inputs must be a list of Input objects.')
     if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
       raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}.")
 
@@ -164,3 +163,57 @@ class ModelClient:
       break
 
     return response
+
+  def _generate_by_proto(
+      self,
+      inputs: List[resources_pb2.Input],
+      method_name: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
+    """Generate the stream output on model based on the given inputs.
+
+    Args:
+        inputs (list[Input]): The inputs to generate, must be less than 128.
+        method_name (str): The remote method name to call.
+        inference_params (dict): The inference params to override.
+        output_config (dict): The output config to override.
+    """
+    if not isinstance(inputs, list):
+      raise UserError('Invalid inputs, inputs must be a list of Input objects.')
+    if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
+      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}."
+                     )  # TODO Use Chunker for inputs len > 128
+
+    request = service_pb2.PostModelOutputsRequest()
+    request.CopyFrom(self.request_template)
+
+    request.inputs.extend(inputs)
+
+    if method_name:
+      # TODO put in new proto field?
+      request.model.model_version.output_info.params['_method_name'] = method_name
+    if inference_params:
+      request.model.model_version.output_info.params.update(inference_params)
+    if output_config:
+      request.model.model_version.output_info.output_config.MergeFromDict(output_config)
+
+    start_time = time.time()
+    backoff_iterator = BackoffIterator(10)
+    generation_started = False
+    while True:
+      if generation_started:
+        break
+      stream_response = self._grpc_request(self.STUB.GenerateModelOutputs, request)
+      for response in stream_response:
+        if status_is_retryable(response.status.code) and \
+                time.time() - start_time < 60 * 10:
+          self.logger.info(f"{self.id} model is still deploying, please wait...")
+          time.sleep(next(backoff_iterator))
+          break
+        if response.status.code != status_code_pb2.SUCCESS:
+          raise Exception(f"Model Predict failed with response {response.status!r}")
+        else:
+          if not generation_started:
+            generation_started = True
+          yield response

@@ -21,9 +21,9 @@ from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
 from clarifai.client.model_client import ModelClient
 from clarifai.client.nodepool import Nodepool
-from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_MODEL_PREDICT_INPUTS,
-                                      MAX_RANGE_SIZE, MIN_CHUNK_SIZE, MIN_RANGE_SIZE,
-                                      MODEL_EXPORT_TIMEOUT, RANGE_SIZE, TRAINABLE_MODEL_TYPES)
+from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_RANGE_SIZE, MIN_CHUNK_SIZE,
+                                      MIN_RANGE_SIZE, MODEL_EXPORT_TIMEOUT, RANGE_SIZE,
+                                      TRAINABLE_MODEL_TYPES)
 from clarifai.errors import UserError
 #from clarifai.runners.utils.data_handler import Output, kwargs_to_proto, proto_to_kwargs
 from clarifai.urls.helper import ClarifaiUrlHelper
@@ -441,7 +441,6 @@ class Model(Lister, BaseClient):
 
     return self.model_client._predict_by_proto(
         inputs=inputs,
-        method_name='predict',
         inference_params=inference_params,
         output_config=output_config,
     )
@@ -643,40 +642,11 @@ class Model(Lister, BaseClient):
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
     """
-    if not isinstance(inputs, list):
-      raise UserError('Invalid inputs, inputs must be a list of Input objects.')
-    if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
-      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}."
-                     )  # TODO Use Chunker for inputs len > 128
-
-    self._override_model_version(inference_params, output_config)
-    request = service_pb2.PostModelOutputsRequest(
-        user_app_id=self.user_app_id,
-        model_id=self.id,
-        version_id=self.model_version.id,
+    return self.model_client._generate_by_proto(
         inputs=inputs,
-        runner_selector=runner_selector,
-        model=self.model_info)
-
-    start_time = time.time()
-    backoff_iterator = BackoffIterator(10)
-    generation_started = False
-    while True:
-      if generation_started:
-        break
-      stream_response = self._grpc_request(self.STUB.GenerateModelOutputs, request)
-      for response in stream_response:
-        if status_is_retryable(response.status.code) and \
-                time.time() - start_time < 60 * 10:
-          self.logger.info(f"{self.id} model is still deploying, please wait...")
-          time.sleep(next(backoff_iterator))
-          break
-        if response.status.code != status_code_pb2.SUCCESS:
-          raise Exception(f"Model Predict failed with response {response.status!r}")
-        else:
-          if not generation_started:
-            generation_started = True
-          yield response
+        inference_params=inference_params,
+        output_config=output_config,
+    )
 
   def generate_by_filepath(self,
                            filepath: str,
