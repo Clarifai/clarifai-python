@@ -1,5 +1,5 @@
 import time
-from typing import Any, List
+from typing import Any, Dict, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
@@ -96,8 +96,6 @@ class ModelClient:
     if isinstance(inputs, dict):
       inputs = [inputs]
       batch_input = False
-    if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
-      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}.")
 
     proto_inputs = []
     for input in inputs:
@@ -117,7 +115,9 @@ class ModelClient:
   def _predict_by_proto(
       self,
       inputs: List[resources_pb2.Input],
-      method_name: str,
+      method_name: str = None,
+      inference_params: Dict = None,
+      output_config: Dict = None,
   ) -> service_pb2.MultiOutputResponse:
     """Predicts the model based on the given inputs.
 
@@ -133,10 +133,21 @@ class ModelClient:
       Returns:
           service_pb2.MultiOutputResponse: The prediction response(s).
       """
+    if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
+      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}.")
+
     request = service_pb2.PostModelOutputsRequest()
     request.CopyFrom(self.request_template)
-    request.model.model_version.output_info.params['_method_name'] = method_name
+
     request.inputs.extend(inputs)
+
+    if method_name:
+      # TODO put in new proto field?
+      request.model.model_version.output_info.params['_method_name'] = method_name
+    if inference_params:
+      request.model.model_version.output_info.params.update(inference_params)
+    if output_config:
+      request.model.model_version.output_info.output_config.MergeFromDict(output_config)
 
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
