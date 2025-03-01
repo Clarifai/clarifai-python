@@ -62,7 +62,7 @@ class ModelClass(ABC):
       self, request: service_pb2.PostModelOutputsRequest) -> service_pb2.MultiOutputResponse:
     outputs = []
     try:
-      # TODO add model name field to proto
+      # TODO add method name field to proto
       method_name = request.model.model_version.output_info.params['_method_name']
       if method_name == '_GET_SIGNATURES':
         return self._handle_get_signatures_request()

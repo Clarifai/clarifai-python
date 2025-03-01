@@ -84,12 +84,12 @@ class ModelClient:
       f.__name__ = method_name
       f.__qualname__ = f'{self.__class__.__name__}.{method_name}'
       input_spec = ', '.join(
-          f'{var.name}: {var.python_type}{" = " + var.default if not var.required else ""}'
+          f'{var.name}: {var.data_type}{" = " + var.default if not var.required else ""}'
           for var in input_vars)
       if len(output_vars) == 1 and output_vars[0].name == 'return':
-        output_spec = output_vars[0].python_type
+        output_spec = output_vars[0].data_type
       else:
-        output_spec = f'Output({", ".join(f"{var.name}={var.python_type}" for var in output_vars)})'
+        output_spec = f'Output({", ".join(f"{var.name}={var.data_type}" for var in output_vars)})'
       f.__doc__ = f'''{method_name}(self, {input_spec}) -> {output_spec}\n'''
       #f.__doc__ += method_signature.description  # TODO
       setattr(self, method_name, f)

@@ -68,7 +68,7 @@ def build_variables_signature(var_types: List[inspect.Parameter]):
     #var = resources_pb2.MethodVariable()   # TODO
     var = _NamedFields()
     var.name = param.name
-    var.python_type = _PYTHON_TYPES[tp]
+    var.data_type = _DATA_TYPES[tp]
     var.data_field = _DATA_FIELDS[tp]
     if required:
       var.required = True
@@ -123,20 +123,20 @@ def serialize(kwargs, signatures, proto=None):
       continue  # skip missing fields, they can be set to default on the server
     data = kwargs[sig.name]
     data_proto, field = _get_named_part(proto, sig.data_field)
-    serializer = get_serializer(sig.python_type)
+    serializer = get_serializer(sig.data_type)
     serializer.serialize(data_proto, field, data)
   return proto
 
 
 def deserialize(proto, signatures):
   '''
-    Deserialize the given proto into kwargs using the given signatures.
-    '''
+  Deserialize the given proto into kwargs using the given signatures.
+  '''
   kwargs = {}
   for sig in signatures:
     data_proto, field = _get_named_part(proto, sig.data_field)
-    serializer = get_serializer(sig.python_type)
-    data = serializer.deserialize(data_proto, field, _PYTHON_TYPES.reverse_map[sig.python_type])
+    serializer = get_serializer(sig.data_type)
+    data = serializer.deserialize(data_proto, field)
     kwargs[sig.name] = data
   if len(kwargs) == 1 and 'return' in kwargs:  # case for single return value
     return kwargs['return']
@@ -171,8 +171,8 @@ def _get_named_part(proto, field):
 
 def _normalize_type(tp):
   '''
-    Normalize the given type.
-    '''
+  Normalize the given type.
+  '''
 
   # check if list, and if so, get inner type
   is_list = (get_origin(tp) == list)
@@ -184,15 +184,16 @@ def _normalize_type(tp):
     tp = np.ndarray
 
   # check for PIL images (sometimes types use the module, sometimes the class)
+  # set these to use the Image data handler
   if tp in (PIL.Image, PIL.Image.Image):
-    tp = PIL.Image.Image
+    tp = data_handler.Image
 
   # put back list
   if is_list:
     tp = List[tp]
 
   # check if supported type
-  if tp not in _PYTHON_TYPES:
+  if tp not in _DATA_TYPES:
     raise ValueError(f'Unsupported type: {tp}')
 
   return tp
@@ -226,7 +227,7 @@ class _ReversableDict(dict):
 
 
 # names for supported python types
-_PYTHON_TYPES = _ReversableDict({
+_DATA_TYPES = _ReversableDict({
     # common python types
     str: 'str',
     bytes: 'bytes',
@@ -234,7 +235,6 @@ _PYTHON_TYPES = _ReversableDict({
     float: 'float',
     bool: 'bool',
     np.ndarray: 'ndarray',
-    PIL.Image.Image: 'PIL.Image.Image',
     data_handler.Text: 'Text',
     data_handler.Image: 'Image',
     data_handler.Video: 'Video',
@@ -252,7 +252,6 @@ _DATA_FIELDS = {
     float: 'float_value',
     bool: 'bool_value',
     np.ndarray: 'ndarray',
-    PIL.Image.Image: 'image',
 
     # protos, copied as-is
     data_handler.Text: 'text',
@@ -272,10 +271,10 @@ _DATA_FIELDS = {
 
 # add generic lists using parts, for all supported types
 def _add_list_fields():
-  for tp in list(_PYTHON_TYPES.keys()):
+  for tp in list(_DATA_TYPES.keys()):
     assert get_origin(tp) != list, 'List type already exists'
     # add to supported types
-    _PYTHON_TYPES[List[tp]] = 'List[%s]' % _PYTHON_TYPES[tp]
+    _DATA_TYPES[List[tp]] = 'List[%s]' % _DATA_TYPES[tp]
 
     # add field mapping
     list_tp = List[tp]

@@ -1,5 +1,5 @@
 import io
-from typing import List
+from typing import List, get_origin
 
 import numpy as np
 from clarifai_grpc.grpc.api.resources_pb2 import Audio as AudioProto
@@ -21,6 +21,11 @@ class MessageData:
   def from_proto(cls, proto):
     raise NotImplementedError
 
+  def cast(self, python_type):
+    if python_type == self.__class__:
+      return self
+    raise TypeError(f'Incompatible type for {self.__class__.__name__}: {python_type}')
+
 
 class Output(dict):
   pass
@@ -38,6 +43,13 @@ class Text(MessageData):
   @classmethod
   def from_proto(cls, proto: TextProto) -> "Text":
     return cls(proto.raw, proto.url or None)
+
+  def cast(self, python_type):
+    if python_type == str:
+      return self.text
+    if python_type == Text:
+      return self
+    raise TypeError(f'Incompatible type for Text: {python_type}')
 
 
 class Concept(MessageData):
@@ -154,6 +166,15 @@ class Image(MessageData):
   @classmethod
   def from_proto(cls, proto: ImageProto) -> "Image":
     return cls(proto)
+
+  def cast(self, python_type):
+    if python_type == Image:
+      return self
+    if python_type in (PILImage.Image, PILImage):
+      return self.to_pil()
+    if python_type == np.ndarray or get_origin(python_type) == np.ndarray:
+      return self.to_numpy()
+    raise TypeError(f'Incompatible type for Image: {python_type}')
 
 
 class Audio(MessageData):
