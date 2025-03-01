@@ -25,7 +25,6 @@ from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_RANGE_SIZE
                                       MIN_RANGE_SIZE, MODEL_EXPORT_TIMEOUT, RANGE_SIZE,
                                       TRAINABLE_MODEL_TYPES)
 from clarifai.errors import UserError
-#from clarifai.runners.utils.data_handler import Output, kwargs_to_proto, proto_to_kwargs
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator

@@ -103,6 +103,7 @@ class ModelClient:
       proto_inputs.append(proto)
 
     response = self._predict_by_proto(proto_inputs, method_name)
+    #print(response)
 
     outputs = []
     for output in response.outputs:
