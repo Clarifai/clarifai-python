@@ -27,6 +27,7 @@ class ModelClient:
     self.STUB = stub
     self.request_template = request_template or service_pb2.PostModelOutputsRequest()
     self._method_signatures = None
+    self._fetch_signatures()
 
   def _fetch_signatures(self):
     '''
@@ -53,8 +54,35 @@ class ModelClient:
       raise Exception(response.status)
     method_signatures = signatures_from_json(response.outputs[0].data.string_value)
     self._method_signatures = {method.name: method for method in method_signatures}
+    self._define_functions()
 
-  def predict(
+  def _define_functions(self):
+    '''
+      Define the functions based on the method signatures.
+      '''
+    for method_name, method_signature in self._method_signatures.items():
+      input_vars = method_signature.input_variables
+      output_vars = method_signature.output_variables
+
+      def f(*args, **kwargs):
+        for var, arg in zip(input_vars, args):  # handle positional with zip shortest
+          kwargs[var.name] = arg
+        return self._predict(kwargs, method_name)
+
+      f.__name__ = method_name
+      f.__qualname__ = f'{self.__class__.__name__}.{method_name}'
+      input_spec = ', '.join(
+          f'{var.name}: {var.python_type}{" = " + var.default if not var.required else ""}'
+          for var in input_vars)
+      if len(output_vars) == 1 and output_vars[0].name == 'return':
+        output_spec = output_vars[0].python_type
+      else:
+        output_spec = f'Output({", ".join(f"{var.name}={var.python_type}" for var in output_vars)})'
+      f.__doc__ = f'''{method_name}(self, {input_spec}) -> {output_spec}\n'''
+      #f.__doc__ += method_signature.description  # TODO
+      setattr(self, method_name, f)
+
+  def _predict(
       self,
       inputs,  # TODO set up functions according to fetched signatures?
       method_name: str = 'predict',

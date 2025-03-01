@@ -210,7 +210,7 @@ class _ReversableDict(dict):
 _PYTHON_TYPES = _ReversableDict({
     # common python types
     str: 'str',
-    #bytes: 'bytes',
+    bytes: 'bytes',
     int: 'int',
     float: 'float',
     bool: 'bool',
