@@ -1,4 +1,5 @@
 import inspect
+import json
 import re
 from typing import List, get_args, get_origin
 
@@ -79,6 +80,14 @@ def build_variables_signature(var_types: List[inspect.Parameter]):
       var.data_field = 'parts[%s].%s' % (var.name, var.data_field)
 
   return vars
+
+
+def signatures_to_json(signatures):
+  return json.dumps(signatures)
+
+
+def signatures_from_json(json_str):
+  return json.loads(json_str, object_pairs_hook=_NamedFields)
 
 
 def serialize(kwargs, signatures, proto=None):

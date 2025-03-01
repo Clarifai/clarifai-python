@@ -1,6 +1,5 @@
-import json
 import time
-from typing import Any, Dict, List, Union
+from typing import Any, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
@@ -15,7 +14,7 @@ class ModelClient:
   Client for calling model predict, generate, and stream methods.
   '''
 
-  def __init__(self, stub, request_template: resources_pb2.PostModelOutputsRequest = None):
+  def __init__(self, stub, request_template: service_pb2.PostModelOutputsRequest = None):
     '''
         Initialize the model client.
 
@@ -24,8 +23,8 @@ class ModelClient:
             request_template: The template for the request to send to the model, including
             common fields like model_id, model_version, cluster, etc.
         '''
-    self.stub = stub
-    self.request_template = request_template or resources_pb2.PostModelOutputsRequest()
+    self.STUB = stub
+    self.request_template = request_template or service_pb2.PostModelOutputsRequest()
     self._method_signatures = None
 
   def _fetch_signatures(self):
@@ -44,24 +43,28 @@ class ModelClient:
     # for local grpc models, we'll also have to add the endpoint to the model servicer
     # for now we'll just use the predict endpoint with a special method name
 
-    request = service_pb2.PostModelOutputsRequest().CopyFrom(self.request_template)
+    # TODO need to move location of this to avoid circular import
+    from clarifai.runners.utils.method_signatures import signatures_from_json
+    request = service_pb2.PostModelOutputsRequest()
+    request.CopyFrom(self.request_template)
     request.model.model_version.output_info.params['_method_name'] = '_GET_SIGNATURES'
     request.inputs.add()  # empty input for this method
     response = self.STUB.PostModelOutputs(request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
-    method_signatures = json.loads(response.outputs[0].data.string_value)
-    self._method_signatures = {method['name']: method for method in method_signatures}
+    method_signatures = signatures_from_json(response.outputs[0].data.string_value)
+    self._method_signatures = {method.name: method for method in method_signatures}
 
   def predict(
       self,
-      inputs: Union[Dict[str, Any], List[Dict[str, Any]]],
+      inputs,  # TODO set up functions according to fetched signatures?
+      method_name: str = 'predict',
   ) -> Any:
     # TODO need to move location of this to avoid circular import
     from clarifai.runners.utils.method_signatures import deserialize, serialize
     self._fetch_signatures()
-    input_signature = self._method_signatures['predict'].input_variables
-    output_signature = self._method_signatures['predict'].output_variables
+    input_signature = self._method_signatures[method_name].input_variables
+    output_signature = self._method_signatures[method_name].output_variables
 
     batch_input = True
     if isinstance(inputs, dict):
@@ -73,10 +76,10 @@ class ModelClient:
     proto_inputs = []
     for input in inputs:
       proto = resources_pb2.Input()
-      serialize(input.data, proto, input_signature)
+      serialize(input, input_signature, proto.data)
       proto_inputs.append(proto)
 
-    response = self.predict_by_proto(proto_inputs)
+    response = self._predict_by_proto(proto_inputs, method_name)
 
     outputs = []
     for output in response.outputs:
@@ -88,6 +91,7 @@ class ModelClient:
   def _predict_by_proto(
       self,
       inputs: List[resources_pb2.Input],
+      method_name: str,
   ) -> service_pb2.MultiOutputResponse:
     """Predicts the model based on the given inputs.
 
@@ -103,13 +107,15 @@ class ModelClient:
       Returns:
           service_pb2.MultiOutputResponse: The prediction response(s).
       """
-    request = service_pb2.PostModelOutputsRequest().CopyFrom(self.request_template)
+    request = service_pb2.PostModelOutputsRequest()
+    request.CopyFrom(self.request_template)
+    request.model.model_version.output_info.params['_method_name'] = method_name
     request.inputs.extend(inputs)
 
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
     while True:
-      response = self._grpc_request(self.STUB.PostModelOutputs, request)
+      response = self.STUB.PostModelOutputs(request)
       if status_is_retryable(
           response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
         self.logger.info(f"{self.id} model predict failed with response {response.status!r}")
