@@ -93,8 +93,15 @@ class Region(MessageData):
 
 class Image(MessageData):
 
-  def __init__(self, proto_image: ImageProto):
+  def __init__(self, proto_image: ImageProto = None, url: str = None, bytes: bytes = None):
+    if proto_image is None:
+      proto_image = ImageProto()
     self.proto = proto_image
+    # use setters for init vals
+    if url:
+      self.url = url
+    if bytes:
+      self.bytes = bytes
 
   @property
   def url(self) -> str:
@@ -134,6 +141,8 @@ class Image(MessageData):
     return cls(proto_image)
 
   def to_pil(self) -> PILImage.Image:
+    if not self.proto.base64:
+      raise ValueError("Image has no bytes")
     return PILImage.open(io.BytesIO(self.proto.base64))
 
   def to_numpy(self) -> np.ndarray:
