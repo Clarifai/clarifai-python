@@ -258,13 +258,13 @@ class ModelBuilder:
     """
     model_class = self.load_model_class()
     # TODO arbitrary user-labeled function names
-    signatures = []
+    signatures = {}
     #for fname in ('predict', 'generate', 'stream'):
     for fname in ('predict',):
       if hasattr(model_class, fname):
         method = getattr(model_class, fname)
         signature = build_function_signature(method)
-        signatures.append(signature)
+        signatures[fname] = signature
     return signatures_to_yaml(signatures)
 
   @property
