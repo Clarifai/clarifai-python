@@ -50,8 +50,7 @@ class ModelClient:
     response = self.STUB.PostModelOutputs(request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
-    method_signatures = signatures_from_json(response.outputs[0].data.string_value)
-    self._method_signatures = {method.name: method for method in method_signatures}
+    self._method_signatures = signatures_from_json(response.outputs[0].data.string_value)
 
   def _define_functions(self):
     '''
@@ -59,8 +58,8 @@ class ModelClient:
     '''
     for method_name, method_signature in self._method_signatures.items():
       # define the function in this client instance
-      input_vars = method_signature.input_variables
-      output_vars = method_signature.output_variables
+      input_vars = method_signature.inputs
+      output_vars = method_signature.outputs
 
       def f(*args, **kwargs):
         for var, arg in zip(input_vars, args):  # handle positional with zip shortest
@@ -88,8 +87,8 @@ class ModelClient:
       inputs,  # TODO set up functions according to fetched signatures?
       method_name: str = 'predict',
   ) -> Any:
-    input_signature = self._method_signatures[method_name].input_variables
-    output_signature = self._method_signatures[method_name].output_variables
+    input_signature = self._method_signatures[method_name].inputs
+    output_signature = self._method_signatures[method_name].outputs
 
     batch_input = True
     if isinstance(inputs, dict):

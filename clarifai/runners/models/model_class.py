@@ -66,8 +66,8 @@ class ModelClass(ABC):
       method_name = request.model.model_version.output_info.params['_method_name']
       if method_name == '_GET_SIGNATURES':
         return self._handle_get_signatures_request()
-      inputs_signature = self._method_signature(self.predict).input_variables
-      outputs_signature = self._method_signature(self.predict).output_variables
+      inputs_signature = self._method_signature(self.predict).inputs
+      outputs_signature = self._method_signature(self.predict).outputs
       inputs = self._convert_input_protos_to_python(request.inputs, inputs_signature)
       if len(inputs) == 1:
         inputs = inputs[0]
@@ -86,8 +86,8 @@ class ModelClass(ABC):
   def generate_wrapper(self, request: service_pb2.PostModelOutputsRequest
                       ) -> Iterator[service_pb2.MultiOutputResponse]:
     try:
-      inputs_signature = self._method_signature(self.generate).input_variables
-      outputs_signature = self._method_signature(self.generate).output_variables
+      inputs_signature = self._method_signature(self.generate).inputs
+      outputs_signature = self._method_signature(self.generate).outputs
       # TODO get inner type of stream iterator for outputs
       inputs = self._convert_input_protos_to_python(request.inputs, inputs_signature)
       if len(inputs) == 1:

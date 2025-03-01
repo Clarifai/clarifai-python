@@ -40,10 +40,10 @@ def build_function_signature(func):
   method_type = 'UNARY_UNARY'  # for now
   method_signature.method_type = getattr(resources_pb2.RunnerMethodType, method_type)
 
-  #method_signature.input_variables.extend(input_vars)
-  #method_signature.output_variables.extend(output_vars)
-  method_signature.input_variables = input_vars
-  method_signature.output_variables = output_vars
+  #method_signature.inputs.extend(input_vars)
+  #method_signature.outputs.extend(output_vars)
+  method_signature.inputs = input_vars
+  method_signature.outputs = output_vars
   return method_signature
 
 
