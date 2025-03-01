@@ -1,6 +1,7 @@
 import functools
 import itertools
 import json
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Iterator, List
 
@@ -19,17 +20,14 @@ class ModelClass(ABC):
     """Load the model."""
     raise NotImplementedError("load_model() not implemented")
 
-  @abstractmethod
   def predict(self, **kwargs) -> Output:
     """Predict method for single or batched inputs."""
     raise NotImplementedError("predict() not implemented")
 
-  @abstractmethod
   def generate(self, **kwargs) -> Iterator[Output]:
     """Generate method for streaming outputs."""
     raise NotImplementedError("generate() not implemented")
 
-  @abstractmethod
   def stream(self, **kwargs) -> Iterator[Output]:
     """Stream method for streaming inputs and outputs."""
     raise NotImplementedError("stream() not implemented")
@@ -69,17 +67,19 @@ class ModelClass(ABC):
       if method_name == '_GET_SIGNATURES':
         return self._handle_get_signatures_request()
       inputs_signature = self._method_signature(self.predict).input_variables
+      outputs_signature = self._method_signature(self.predict).output_variables
       inputs = self._convert_input_protos_to_python(request.inputs, inputs_signature)
       if len(inputs) == 1:
         inputs = inputs[0]
         output = self.predict(**inputs)
-        outputs.append(self._convert_output_to_proto(output))
+        outputs.append(self._convert_output_to_proto(output, outputs_signature))
       else:
         outputs = self.batch_predict(inputs)
-        outputs = [self._convert_output_to_proto(output) for output in outputs]
+        outputs = [self._convert_output_to_proto(output, outputs_signature) for output in outputs]
       return service_pb2.MultiOutputResponse(
           outputs=outputs, status=status_pb2.Status(code=status_code_pb2.SUCCESS))
     except Exception as e:
+      logging.exception("Error in predict")
       return service_pb2.MultiOutputResponse(
           status=status_pb2.Status(code=status_code_pb2.FAILURE, details=str(e)),)
 
@@ -123,5 +123,5 @@ class ModelClass(ABC):
       proto = resources_pb2.Output()
     if not isinstance(output, dict):  # TODO Output type, not just dict
       output = {'return': output}
-    serialize(output.data, variables_signature, proto)
+    serialize(output, variables_signature, proto.data)
     return proto
