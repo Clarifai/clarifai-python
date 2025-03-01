@@ -146,9 +146,7 @@ class Image(MessageData):
     return PILImage.open(io.BytesIO(self.proto.base64))
 
   def to_numpy(self) -> np.ndarray:
-    # below is very slow, need to find a better way
-    # return np.array(self.to_pil())
-    pass
+    return np.asarray(self.to_pil())
 
   def to_proto(self) -> ImageProto:
     return self.proto
