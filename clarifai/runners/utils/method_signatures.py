@@ -1,6 +1,7 @@
 import inspect
 import json
 import re
+from collections import namedtuple
 from typing import List, get_args, get_origin
 
 import numpy as np
@@ -9,7 +10,9 @@ import yaml
 from clarifai_grpc.grpc.api import resources_pb2
 
 from clarifai.runners.utils import data_handler
-from clarifai.runners.utils.serializers import get_serializer
+from clarifai.runners.utils.serializers import (AtomicFieldSerializer, ImageSerializer,
+                                                ListSerializer, MessageSerializer,
+                                                NDArraySerializer, Serializer)
 
 
 def build_function_signature(func):
@@ -68,8 +71,8 @@ def build_variables_signature(var_types: List[inspect.Parameter]):
     #var = resources_pb2.MethodVariable()   # TODO
     var = _NamedFields()
     var.name = param.name
-    var.data_type = _DATA_TYPES[tp]
-    var.data_field = _DATA_FIELDS[tp]
+    var.data_type = _DATA_TYPES[tp].data_type
+    var.data_field = _DATA_TYPES[tp].data_field
     if required:
       var.required = True
     else:
@@ -143,6 +146,16 @@ def deserialize(proto, signatures):
   return kwargs
 
 
+def get_serializer(data_type: str) -> Serializer:
+  if data_type in _SERIALIZERS_BY_TYPE_STRING:
+    return _SERIALIZERS_BY_TYPE_STRING[data_type]
+  if data_type.startswith('List['):
+    inner_type_string = data_type[len('List['):-1]
+    inner_serializer = get_serializer(inner_type_string)
+    return ListSerializer(inner_serializer)
+  raise ValueError(f'Unsupported type: "{data_type}"')
+
+
 def _get_named_part(proto, field):
   # gets the named part from the proto, according to the field path
   # note we only support one level of named parts
@@ -212,66 +225,66 @@ class Output(_NamedFields):
   pass
 
 
-# names for supported python types
+_DataType = namedtuple('_DataType', ('data_type', 'data_field', 'serializer'))
+
+# mapping of supported python types to data type names, fields, and serializers
 _DATA_TYPES = {
-    # common python types
-    str: 'str',
-    bytes: 'bytes',
-    int: 'int',
-    float: 'float',
-    bool: 'bool',
-    np.ndarray: 'ndarray',
-    data_handler.Text: 'Text',
-    data_handler.Image: 'Image',
-    data_handler.Video: 'Video',
-    data_handler.Concept: 'Concept',
-    data_handler.Region: 'Region',
-    data_handler.Frame: 'Frame',
-}
-
-# data fields for supported python types
-_DATA_FIELDS = {
-    # common python types
-    str: 'string_value',
-    bytes: 'bytes_value',
-    int: 'int_value',
-    float: 'float_value',
-    bool: 'bool_value',
-    np.ndarray: 'ndarray',
-
-    # proto message types
-    data_handler.Text: 'text',
-    data_handler.Image: 'image',
-    data_handler.Video: 'video',
-    data_handler.Concept: 'concepts',
-    data_handler.Region: 'regions',
-    data_handler.Frame: 'frames',
+    str:
+        _DataType('str', 'string_value', AtomicFieldSerializer()),
+    bytes:
+        _DataType('bytes', 'bytes_value', AtomicFieldSerializer()),
+    int:
+        _DataType('int', 'int_value', AtomicFieldSerializer()),
+    float:
+        _DataType('float', 'float_value', AtomicFieldSerializer()),
+    bool:
+        _DataType('bool', 'bool_value', AtomicFieldSerializer()),
+    np.ndarray:
+        _DataType('ndarray', 'ndarray', NDArraySerializer()),
+    data_handler.Text:
+        _DataType('Text', 'text', MessageSerializer(data_handler.Text)),
+    data_handler.Image:
+        _DataType('Image', 'image', ImageSerializer()),
+    data_handler.Concept:
+        _DataType('Concept', 'concepts', MessageSerializer(data_handler.Concept)),
+    data_handler.Region:
+        _DataType('Region', 'regions', MessageSerializer(data_handler.Region)),
+    data_handler.Frame:
+        _DataType('Frame', 'frames', MessageSerializer(data_handler.Frame)),
+    data_handler.Audio:
+        _DataType('Audio', 'audio', MessageSerializer(data_handler.Audio)),
+    data_handler.Video:
+        _DataType('Video', 'video', MessageSerializer(data_handler.Video)),
 
     # lists handled specially, not as generic lists using parts
-    List[int]: 'ndarray',
-    List[float]: 'ndarray',
-    List[bool]: 'ndarray',
-    #List[PIL.Image.Image]: 'frames',  # TODO use this or generic parts list?
+    List[int]:
+        _DataType('ndarray', 'ndarray', NDArraySerializer()),
+    List[float]:
+        _DataType('ndarray', 'ndarray', NDArraySerializer()),
+    List[bool]:
+        _DataType('ndarray', 'ndarray', NDArraySerializer()),
 }
 
 
 # add generic lists using parts, for all supported types
 def _add_list_fields():
   for tp in list(_DATA_TYPES.keys()):
-    assert get_origin(tp) != list, 'List type already exists'
-    # add to supported types
-    _DATA_TYPES[List[tp]] = 'List[%s]' % _DATA_TYPES[tp]
-
-    # add field mapping
-    list_tp = List[tp]
-    if list_tp in _DATA_FIELDS:
+    if List[tp] in _DATA_TYPES:
       # already added as special case
       continue
-    field_name = _DATA_FIELDS[tp]
-    # check if repeated field (we can use repeated fields for lists directly)
+
+    # check if data field is repeated, and if so, use repeated field for list
+    field_name = _DATA_TYPES[tp].data_field
     descriptor = resources_pb2.Data.DESCRIPTOR.fields_by_name.get(field_name)
     repeated = descriptor and descriptor.label == descriptor.LABEL_REPEATED
-    _DATA_FIELDS[list_tp] = field_name if repeated else 'parts[].' + field_name
+
+    # add to supported types
+    data_type = 'List[%s]' % _DATA_TYPES[tp].data_type
+    data_field = field_name if repeated else 'parts[].' + field_name
+    serializer = ListSerializer(_DATA_TYPES[tp].serializer)
+
+    _DATA_TYPES[List[tp]] = _DataType(data_type, data_field, serializer)
 
 
 _add_list_fields()
+_SERIALIZERS_BY_TYPE_STRING = {dt.data_type: dt.serializer for dt in _DATA_TYPES.values()}

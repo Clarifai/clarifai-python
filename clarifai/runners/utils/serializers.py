@@ -1,7 +1,6 @@
 import numpy as np
 from PIL import Image as PILImage
 
-from clarifai.runners.utils import data_handler
 from clarifai.runners.utils.data_handler import Image, MessageData
 
 
@@ -12,16 +11,6 @@ class Serializer:
 
   def deserialize(self, data_proto, field):
     pass
-
-
-def get_serializer(data_type: str) -> Serializer:
-  if data_type in _SERIALIZERS_BY_TYPE_STRING:
-    return _SERIALIZERS_BY_TYPE_STRING[data_type]
-  if data_type.startswith('List['):
-    inner_type_string = data_type[len('List['):-1]
-    inner_serializer = get_serializer(inner_type_string)
-    return ListSerializer(inner_serializer)
-  raise ValueError(f'Unsupported type: "{data_type}"')
 
 
 def is_repeated(field):
@@ -117,23 +106,3 @@ class ListSerializer(Serializer):
 
 
 # TODO dict serializer, maybe json only?
-
-_SERIALIZERS_BY_TYPE_STRING = {
-    'str': AtomicFieldSerializer(),
-    'bytes': AtomicFieldSerializer(),
-    'int': AtomicFieldSerializer(),
-    'float': AtomicFieldSerializer(),
-    'bool': AtomicFieldSerializer(),
-    'ndarray': NDArraySerializer(),
-    'Image': ImageSerializer(),
-    'Text': MessageSerializer(data_handler.Text),
-    'Concept': MessageSerializer(data_handler.Concept),
-    'Region': MessageSerializer(data_handler.Region),
-    'Audio': MessageSerializer(data_handler.Audio),
-    'Video': MessageSerializer(data_handler.Video),
-
-    # special cases for lists of numeric types serialized as ndarrays
-    'List[int]': NDArraySerializer(),
-    'List[float]': NDArraySerializer(),
-    'List[bool]': NDArraySerializer(),
-}
