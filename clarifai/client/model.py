@@ -20,6 +20,7 @@ from clarifai.client.deployment import Deployment
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
 from clarifai.client.nodepool import Nodepool
+from clarifai.client.model_client import ModelClient
 from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_MODEL_PREDICT_INPUTS,
                                       MAX_RANGE_SIZE, MIN_CHUNK_SIZE, MIN_RANGE_SIZE,
                                       MODEL_EXPORT_TIMEOUT, RANGE_SIZE, TRAINABLE_MODEL_TYPES)
@@ -77,12 +78,12 @@ class Model(Lister, BaseClient):
     self.logger = logger
     self.training_params = {}
     self.input_types = None
+    self._model_client = None
     self._set_runner_selector(
         compute_cluster_id=compute_cluster_id,
         nodepool_id=nodepool_id,
         deployment_id=deployment_id,
     )
-    self._method_signatures = None
     BaseClient.__init__(
         self,
         user_id=self.user_id,
@@ -416,6 +417,39 @@ class Model(Lister, BaseClient):
           auth=self.auth_helper,
           model_id=self.id,
           **dict(self.kwargs, model_version=model_version_info))
+
+
+  @property
+  def model_client(self):
+    if self._model_client is None:
+        request_template = service_pb2.PostModelOutputsRequest(
+            user_app_id=self.user_app_id,
+            model_id=self.id,
+            version_id=self.model_version.id,
+            inputs=proto_inputs,
+            model=self.model_info,
+            runner_selector=self._runner_selector,
+        )
+        self._model_client = ModelClient(self.STUB, request_template=request_template)
+    return self._model_client
+
+
+  def predict(self,
+              inputs: List[Input],
+              inference_params: Dict = {},
+              output_config: Dict = {}):
+    """Predicts the model based on the given inputs.
+
+    Args:
+        inputs (list[Input]): The inputs to predict, must be less than 128.
+    """
+
+    return self.model_client._predict_by_proto(
+        inputs=inputs,
+        method_name='predict',
+        inference_params=inference_params,
+        output_config=output_config,
+    )
 
   def _check_predict_input_type(self, input_type: str) -> None:
     """Checks if the input type is valid for the model.
