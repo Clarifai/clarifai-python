@@ -26,8 +26,8 @@ class ModelClient:
         '''
     self.STUB = stub
     self.request_template = request_template or service_pb2.PostModelOutputsRequest()
-    self._method_signatures = None
     self._fetch_signatures()
+    self._define_functions()
 
   def _fetch_signatures(self):
     '''
@@ -36,8 +36,6 @@ class ModelClient:
       Returns:
           Dict: The method signatures.
       '''
-    if self._method_signatures is not None:
-      return
     #request = resources_pb2.GetModelSignaturesRequest()
     #response = self.stub.GetModelSignatures(request)
     #self._method_signatures = json.loads(response.signatures)  # or define protos
@@ -54,13 +52,13 @@ class ModelClient:
       raise Exception(response.status)
     method_signatures = signatures_from_json(response.outputs[0].data.string_value)
     self._method_signatures = {method.name: method for method in method_signatures}
-    self._define_functions()
 
   def _define_functions(self):
     '''
-      Define the functions based on the method signatures.
-      '''
+    Define the functions based on the method signatures.
+    '''
     for method_name, method_signature in self._method_signatures.items():
+      # define the function in this client instance
       input_vars = method_signature.input_variables
       output_vars = method_signature.output_variables
 
@@ -69,6 +67,9 @@ class ModelClient:
           kwargs[var.name] = arg
         return self._predict(kwargs, method_name)
 
+      # set names and docstrings
+      # note we could also have used exec with strings from the signature to define the
+      # function, but this is safer (no xss), and docstrings with the signature is ok enough
       f.__name__ = method_name
       f.__qualname__ = f'{self.__class__.__name__}.{method_name}'
       input_spec = ', '.join(
