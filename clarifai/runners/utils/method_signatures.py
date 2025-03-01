@@ -119,6 +119,8 @@ def deserialize(proto, signatures):
     serializer = get_serializer(sig.python_type)
     data = serializer.deserialize(data_proto, field, _PYTHON_TYPES.reverse_map[sig.python_type])
     kwargs[sig.name] = data
+  if len(kwargs) == 1 and 'return' in kwargs:  # case for single return value
+    return kwargs['return']
   return kwargs
 
 
