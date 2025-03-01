@@ -47,7 +47,19 @@ class ModelClient:
     request.CopyFrom(self.request_template)
     request.model.model_version.output_info.params['_method_name'] = '_GET_SIGNATURES'
     request.inputs.add()  # empty input for this method
-    response = self.STUB.PostModelOutputs(request)
+    start_time = time.time()
+    backoff_iterator = BackoffIterator(10)
+    while True:
+      response = self.STUB.PostModelOutputs(request)
+      if status_is_retryable(
+          response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
+        self.logger.info(f"Retrying model info fetch with response {response.status!r}")
+        time.sleep(next(backoff_iterator))
+        continue
+
+      if response.status.code != status_code_pb2.SUCCESS:
+        raise Exception(f"Model failed with response {response.status!r}")
+      break
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self._method_signatures = signatures_from_json(response.outputs[0].data.string_value)
@@ -153,7 +165,7 @@ class ModelClient:
       response = self.STUB.PostModelOutputs(request)
       if status_is_retryable(
           response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
-        self.logger.info(f"{self.id} model predict failed with response {response.status!r}")
+        self.logger.info(f"Model predict failed with response {response.status!r}")
         time.sleep(next(backoff_iterator))
         continue
 
@@ -207,7 +219,7 @@ class ModelClient:
       for response in stream_response:
         if status_is_retryable(response.status.code) and \
                 time.time() - start_time < 60 * 10:
-          self.logger.info(f"{self.id} model is still deploying, please wait...")
+          self.logger.info("Model is still deploying, please wait...")
           time.sleep(next(backoff_iterator))
           break
         if response.status.code != status_code_pb2.SUCCESS:
@@ -257,7 +269,7 @@ class ModelClient:
       for response in stream_response:
         if status_is_retryable(response.status.code) and \
                 time.time() - start_time < 60 * 10:
-          self.logger.info(f"{self.id} model is still deploying, please wait...")
+          self.logger.info("Model is still deploying, please wait...")
           time.sleep(next(backoff_iterator))
           break
         if response.status.code != status_code_pb2.SUCCESS:
