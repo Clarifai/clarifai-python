@@ -171,6 +171,7 @@ class ModelClass(ABC):
 class _MethodInfo:
 
   def __init__(self, method, method_type):
+    self.name = method.__name__
     self.signature = build_function_signature(method, method_type)
     self.python_param_types = {
         p.name: p.annotation

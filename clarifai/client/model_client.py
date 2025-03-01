@@ -73,10 +73,17 @@ class ModelClient:
       input_vars = method_signature.inputs
       output_vars = method_signature.outputs
 
-      def f(*args, **kwargs):
-        for var, arg in zip(input_vars, args):  # handle positional with zip shortest
-          kwargs[var.name] = arg
-        return self._predict(kwargs, method_name)
+      def bind_f(method_name, input_vars, output_vars):
+
+        def f(*args, **kwargs):
+          for var, arg in zip(input_vars, args):  # handle positional with zip shortest
+            kwargs[var.name] = arg
+          return self._predict(kwargs, method_name)
+
+        return f
+
+      # need to bind method_name to the value, not the mutating loop variable
+      f = bind_f(method_name, input_vars, output_vars)
 
       # set names and docstrings
       # note we could also have used exec with strings from the signature to define the
