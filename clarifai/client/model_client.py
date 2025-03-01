@@ -88,7 +88,6 @@ class ModelClient:
       inputs,  # TODO set up functions according to fetched signatures?
       method_name: str = 'predict',
   ) -> Any:
-    self._fetch_signatures()
     input_signature = self._method_signatures[method_name].input_variables
     output_signature = self._method_signatures[method_name].output_variables
 

@@ -49,13 +49,15 @@ class MessageSerializer(Serializer):
     value = getattr(data_proto, field)
     if issubclass(python_type, MessageData):
       return python_type.from_proto(value)
-    return value
+    if python_type is None:
+      return value
+    raise ValueError(f"Unsupported type {python_type} for message")
 
 
 class ImageSerializer(Serializer):
 
   def serialize(self, data_proto, field, value):
-    if isinstance(value, PILImage):
+    if isinstance(value, PILImage.Image):
       value = Image.from_pil(value)
     if isinstance(value, MessageData):
       value = value.to_proto()
@@ -63,11 +65,11 @@ class ImageSerializer(Serializer):
 
   def deserialize(self, data_proto, field, python_type):
     value = getattr(data_proto, field)
-    if python_type == PILImage:
+    if python_type in (PILImage.Image, PILImage):
       return Image.from_proto(value).to_pil()
     if issubclass(python_type, MessageData):
       return python_type.from_proto(value)
-    return value
+    raise ValueError(f"Unsupported type {python_type} for image")
 
 
 class NDArraySerializer(Serializer):
@@ -84,10 +86,9 @@ class NDArraySerializer(Serializer):
     array = np.frombuffer(proto.buffer, dtype=np.dtype(proto.dtype)).reshape(proto.shape)
     if python_type == np.ndarray:
       return array
-    elif get_origin(python_type) == list:
+    if get_origin(python_type) == list:
       return array.tolist()
-    else:
-      raise ValueError(f"Unsupported type {python_type} for ndarray proto")
+    raise ValueError(f"Unsupported type {python_type} for ndarray proto")
 
 
 class ListSerializer(Serializer):

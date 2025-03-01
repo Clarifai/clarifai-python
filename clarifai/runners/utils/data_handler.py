@@ -77,6 +77,13 @@ class Region(MessageData):
   def concepts(self, value: List[Concept]):
     self.proto.data.concepts.extend([concept.to_proto() for concept in value])
 
+  def to_proto(self) -> RegionProto:
+    return self.proto
+
+  @classmethod
+  def from_proto(cls, proto: RegionProto) -> "Region":
+    return cls(proto)
+
 
 class Image(MessageData):
 
@@ -131,6 +138,10 @@ class Image(MessageData):
   def to_proto(self) -> ImageProto:
     return self.proto
 
+  @classmethod
+  def from_proto(cls, proto: ImageProto) -> "Image":
+    return cls(proto)
+
 
 class Audio(MessageData):
 
@@ -169,6 +180,10 @@ class Audio(MessageData):
   def to_proto(self) -> AudioProto:
     return self.proto
 
+  @classmethod
+  def from_proto(cls, proto: AudioProto) -> "Audio":
+    return cls(proto)
+
 
 class Frame(MessageData):
 
@@ -200,6 +215,13 @@ class Frame(MessageData):
   @regions.setter
   def regions(self, value: List[Region]):
     self.proto.data.regions.extend([region.proto for region in value])
+
+  def to_proto(self) -> FrameProto:
+    return self.proto
+
+  @classmethod
+  def from_proto(cls, proto: FrameProto) -> "Frame":
+    return cls(proto)
 
 
 class Video(MessageData):
@@ -238,3 +260,7 @@ class Video(MessageData):
 
   def to_proto(self) -> VideoProto:
     return self.proto
+
+  @classmethod
+  def from_proto(cls, proto: VideoProto) -> "Video":
+    return cls(proto)
