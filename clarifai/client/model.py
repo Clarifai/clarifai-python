@@ -19,8 +19,8 @@ from clarifai.client.dataset import Dataset
 from clarifai.client.deployment import Deployment
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
-from clarifai.client.nodepool import Nodepool
 from clarifai.client.model_client import ModelClient
+from clarifai.client.nodepool import Nodepool
 from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_MODEL_PREDICT_INPUTS,
                                       MAX_RANGE_SIZE, MIN_CHUNK_SIZE, MIN_RANGE_SIZE,
                                       MODEL_EXPORT_TIMEOUT, RANGE_SIZE, TRAINABLE_MODEL_TYPES)
@@ -418,26 +418,21 @@ class Model(Lister, BaseClient):
           model_id=self.id,
           **dict(self.kwargs, model_version=model_version_info))
 
-
   @property
   def model_client(self):
     if self._model_client is None:
-        request_template = service_pb2.PostModelOutputsRequest(
-            user_app_id=self.user_app_id,
-            model_id=self.id,
-            version_id=self.model_version.id,
-            inputs=proto_inputs,
-            model=self.model_info,
-            runner_selector=self._runner_selector,
-        )
-        self._model_client = ModelClient(self.STUB, request_template=request_template)
+      request_template = service_pb2.PostModelOutputsRequest(
+          user_app_id=self.user_app_id,
+          model_id=self.id,
+          version_id=self.model_version.id,
+          inputs=proto_inputs,
+          model=self.model_info,
+          runner_selector=self._runner_selector,
+      )
+      self._model_client = ModelClient(self.STUB, request_template=request_template)
     return self._model_client
 
-
-  def predict(self,
-              inputs: List[Input],
-              inference_params: Dict = {},
-              output_config: Dict = {}):
+  def predict(self, inputs: List[Input], inference_params: Dict = {}, output_config: Dict = {}):
     """Predicts the model based on the given inputs.
 
     Args:
@@ -637,7 +632,7 @@ class Model(Lister, BaseClient):
 
   def generate(
       self,
-      inputs: Union[Dict[str, Any], List[Dict[str, Any]]],
+      inputs: List[Input],
       inference_params: Dict = {},
       output_config: Dict = {},
   ):
@@ -648,23 +643,20 @@ class Model(Lister, BaseClient):
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
     """
-    batch_input = True
-    if isinstance(inputs, dict):
-      inputs = [inputs]
-      batch_input = False
+    if not isinstance(inputs, list):
+      raise UserError('Invalid inputs, inputs must be a list of Input objects.')
     if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
-      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}.")
+      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}."
+                     )  # TODO Use Chunker for inputs len > 128
 
     self._override_model_version(inference_params, output_config)
-    proto_inputs = self._convert_python_to_proto_inputs(inputs)
     request = service_pb2.PostModelOutputsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
         version_id=self.model_version.id,
-        inputs=proto_inputs,
-        model=self.model_info,
-        runner_selector=self._runner_selector,
-    )
+        inputs=inputs,
+        runner_selector=runner_selector,
+        model=self.model_info)
 
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
@@ -674,7 +666,7 @@ class Model(Lister, BaseClient):
         break
       stream_response = self._grpc_request(self.STUB.GenerateModelOutputs, request)
       for response in stream_response:
-        if response.status.code == status_code_pb2.MODEL_DEPLOYING and \
+        if status_is_retryable(response.status.code) and \
                 time.time() - start_time < 60 * 10:
           self.logger.info(f"{self.id} model is still deploying, please wait...")
           time.sleep(next(backoff_iterator))
@@ -684,13 +676,7 @@ class Model(Lister, BaseClient):
         else:
           if not generation_started:
             generation_started = True
-          if batch_input:
-            outputs = []
-            for output in response.outputs:
-              outputs.append(self.proto_to_output(output))
-            yield outputs
-          else:
-            yield self.proto_to_output(response.outputs[0])
+          yield response
 
   def generate_by_filepath(self,
                            filepath: str,
@@ -848,7 +834,7 @@ class Model(Lister, BaseClient):
         break
       stream_response = self._grpc_request(self.STUB.StreamModelOutputs, request)
       for response in stream_response:
-        if response.status.code == status_code_pb2.MODEL_DEPLOYING and \
+        if status_is_retryable(response.status.code) and \
                 time.time() - start_time < 60 * 10:
           self.logger.info(f"{self.id} model is still deploying, please wait...")
           time.sleep(next(backoff_iterator))
