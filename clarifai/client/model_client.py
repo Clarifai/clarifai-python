@@ -1,5 +1,5 @@
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterator, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
@@ -204,7 +204,57 @@ class ModelClient:
     while True:
       if generation_started:
         break
-      stream_response = self._grpc_request(self.STUB.GenerateModelOutputs, request)
+      stream_response = self.STUB.GenerateModelOutputs(request)
+      for response in stream_response:
+        if status_is_retryable(response.status.code) and \
+                time.time() - start_time < 60 * 10:
+          self.logger.info(f"{self.id} model is still deploying, please wait...")
+          time.sleep(next(backoff_iterator))
+          break
+        if response.status.code != status_code_pb2.SUCCESS:
+          raise Exception(f"Model Predict failed with response {response.status!r}")
+        else:
+          if not generation_started:
+            generation_started = True
+          yield response
+
+  def _req_iterator(self,
+                    input_iterator: Iterator[List[resources_pb2.Input]],
+                    method_name: str = None,
+                    inference_params: Dict = {},
+                    output_config: Dict = {}):
+    request = service_pb2.PostModelOutputsRequest()
+    request.CopyFrom(self.request_template)
+    request.model.model_version.output_info.params['_method_name'] = method_name
+    if inference_params:
+      request.model.model_version.output_info.params.update(inference_params)
+    if output_config:
+      request.model.model_version.output_info.output_config.MergeFromDict(output_config)
+    for inputs in input_iterator:
+      req = service_pb2.PostModelOutputsRequest()
+      req.CopyFrom(request)
+      req.inputs.extend(inputs)
+      yield req
+
+  def _stream_by_proto(self,
+                       inputs: Iterator[List[resources_pb2.Input]],
+                       method_name: str = None,
+                       inference_params: Dict = {},
+                       output_config: Dict = {}):
+    """Generate the stream output on model based on the given stream of inputs.
+    """
+    # if not isinstance(inputs, Iterator[List[Input]]):
+    #   raise UserError('Invalid inputs, inputs must be a iterator of list of Input objects.')
+
+    request = self._req_iterator(inputs, method_name, inference_params, output_config)
+
+    start_time = time.time()
+    backoff_iterator = BackoffIterator(10)
+    generation_started = False
+    while True:
+      if generation_started:
+        break
+      stream_response = self.STUB.StreamModelOutputs(request)
       for response in stream_response:
         if status_is_retryable(response.status.code) and \
                 time.time() - start_time < 60 * 10:

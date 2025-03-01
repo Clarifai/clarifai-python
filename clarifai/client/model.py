@@ -7,7 +7,7 @@ import numpy as np
 import requests
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
-from clarifai_grpc.grpc.api.resources_pb2 import Input, RunnerSelector
+from clarifai_grpc.grpc.api.resources_pb2 import Input
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.struct_pb2 import Struct, Value
@@ -425,7 +425,6 @@ class Model(Lister, BaseClient):
           user_app_id=self.user_app_id,
           model_id=self.id,
           version_id=self.model_version.id,
-          inputs=proto_inputs,
           model=self.model_info,
           runner_selector=self._runner_selector,
       )
@@ -760,27 +759,14 @@ class Model(Lister, BaseClient):
     return self.generate(
         inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
-  def _req_iterator(self, input_iterator: Iterator[List[Input]]):
-    for inputs in input_iterator:
-      yield service_pb2.PostModelOutputsRequest(
-          user_app_id=self.user_app_id,
-          model_id=self.id,
-          version_id=self.model_version.id,
-          inputs=inputs,
-          model=self.model_info,
-          runner_selector=self._runner_selector,
-      )
-
   def stream(self,
              inputs: Iterator[List[Input]],
-             runner_selector: RunnerSelector = None,
              inference_params: Dict = {},
              output_config: Dict = {}):
     """Generate the stream output on model based on the given stream of inputs.
 
     Args:
         inputs (Iterator[list[Input]]): stream of inputs to predict, must be less than 128.
-        runner_selector (RunnerSelector): The runner selector to use for the model.
 
     Example:
         >>> from clarifai.client.model import Model
@@ -790,31 +776,11 @@ class Model(Lister, BaseClient):
         >>> stream_response = model.stream(inputs=inputs, runner_selector=runner_selector)
         >>> list_stream_response = [response for response in stream_response]
     """
-    # if not isinstance(inputs, Iterator[List[Input]]):
-    #   raise UserError('Invalid inputs, inputs must be a iterator of list of Input objects.')
-
-    self._override_model_version(inference_params, output_config)
-    request = self._req_iterator(inputs)
-
-    start_time = time.time()
-    backoff_iterator = BackoffIterator(10)
-    generation_started = False
-    while True:
-      if generation_started:
-        break
-      stream_response = self._grpc_request(self.STUB.StreamModelOutputs, request)
-      for response in stream_response:
-        if status_is_retryable(response.status.code) and \
-                time.time() - start_time < 60 * 10:
-          self.logger.info(f"{self.id} model is still deploying, please wait...")
-          time.sleep(next(backoff_iterator))
-          break
-        if response.status.code != status_code_pb2.SUCCESS:
-          raise Exception(f"Model Predict failed with response {response.status!r}")
-        else:
-          if not generation_started:
-            generation_started = True
-          yield response
+    return self.model_client._stream_by_proto(
+        inputs=inputs,
+        inference_params=inference_params,
+        output_config=output_config,
+    )
 
   def stream_by_filepath(self,
                          filepath: str,
