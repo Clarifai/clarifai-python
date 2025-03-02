@@ -102,14 +102,14 @@ class ModelClass(ABC):
         for output in method(**inputs):
           resp = service_pb2.MultiOutputResponse()
           self._convert_output_to_proto(output, signature.outputs, proto=resp.outputs.add())
-          resp.status = status_pb2.Status(code=status_code_pb2.SUCCESS)
+          resp.status.code = status_code_pb2.SUCCESS
           yield resp
       else:
         for outputs in self.batch_generate(method, inputs):
           resp = service_pb2.MultiOutputResponse()
           for output in outputs:
             self._convert_output_to_proto(output, signature.outputs, proto=resp.outputs.add())
-          resp.status = status_pb2.Status(code=status_code_pb2.SUCCESS)
+          resp.status.code = status_code_pb2.SUCCESS
           yield resp
     except Exception as e:
       yield service_pb2.MultiOutputResponse(

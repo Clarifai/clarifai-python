@@ -72,18 +72,26 @@ class ModelClient:
       # define the function in this client instance
       input_vars = method_signature.inputs
       output_vars = method_signature.outputs
+      if method_signature.method_type == 'predict':
+        call_func = self._predict
+      elif method_signature.method_type == 'generate':
+        call_func = self._generate
+      elif method_signature.method_type == 'stream':
+        call_func = self._stream
+      else:
+        raise ValueError(f"Unknown method type {method_signature.method_type}")
 
-      def bind_f(method_name, input_vars, output_vars):
+      def bind_f(method_name, call_func, input_vars, output_vars):
 
         def f(*args, **kwargs):
           for var, arg in zip(input_vars, args):  # handle positional with zip shortest
             kwargs[var.name] = arg
-          return self._predict(kwargs, method_name)
+          return call_func(kwargs, method_name)
 
         return f
 
       # need to bind method_name to the value, not the mutating loop variable
-      f = bind_f(method_name, input_vars, output_vars)
+      f = bind_f(method_name, call_func, input_vars, output_vars)
 
       # set names and docstrings
       # note we could also have used exec with strings from the signature to define the
@@ -182,6 +190,36 @@ class ModelClient:
 
     return response
 
+  def _generate(
+      self,
+      inputs,  # TODO set up functions according to fetched signatures?
+      method_name: str = 'generate',
+  ) -> Any:
+    input_signature = self._method_signatures[method_name].inputs
+    output_signature = self._method_signatures[method_name].outputs
+
+    batch_input = True
+    if isinstance(inputs, dict):
+      inputs = [inputs]
+      batch_input = False
+
+    proto_inputs = []
+    for input in inputs:
+      proto = resources_pb2.Input()
+      serialize(input, input_signature, proto.data)
+      proto_inputs.append(proto)
+
+    response_stream = self._generate_by_proto(proto_inputs, method_name)
+    #print(response)
+
+    for response in response_stream:
+      outputs = []
+      for output in response.outputs:
+        outputs.append(deserialize(output.data, output_signature))
+      if batch_input:
+        yield outputs
+      yield outputs[0]
+
   def _generate_by_proto(
       self,
       inputs: List[resources_pb2.Input],
@@ -218,23 +256,28 @@ class ModelClient:
 
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
-    generation_started = False
-    while True:
-      if generation_started:
-        break
+    started = False
+    while not started:
       stream_response = self.STUB.GenerateModelOutputs(request)
-      for response in stream_response:
-        if status_is_retryable(response.status.code) and \
-                time.time() - start_time < 60 * 10:
-          self.logger.info("Model is still deploying, please wait...")
-          time.sleep(next(backoff_iterator))
-          break
-        if response.status.code != status_code_pb2.SUCCESS:
-          raise Exception(f"Model Predict failed with response {response.status!r}")
-        else:
-          if not generation_started:
-            generation_started = True
-          yield response
+      try:
+        response = next(stream_response)  # get the first response
+      except StopIteration:
+        raise Exception("Model Generate failed with no response")
+      if status_is_retryable(response.status.code) and \
+              time.time() - start_time < 60 * 10:
+        self.logger.info("Model is still deploying, please wait...")
+        time.sleep(next(backoff_iterator))
+        continue
+      if response.status.code != status_code_pb2.SUCCESS:
+        raise Exception(f"Model Generate failed with response {response.status!r}")
+      started = True
+
+    yield response  # yield the first response
+
+    for response in stream_response:
+      if response.status.code != status_code_pb2.SUCCESS:
+        raise Exception(f"Model Generate failed with response {response.status!r}")
+      yield response
 
   def _req_iterator(self,
                     input_iterator: Iterator[List[resources_pb2.Input]],

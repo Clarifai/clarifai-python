@@ -50,7 +50,7 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
     ensure_urls_downloaded(request)
 
     try:
-      return self.model.generate_wrapper(request)
+      yield from self.model.generate_wrapper(request)
     except Exception as e:
       yield service_pb2.MultiOutputResponse(status=status_pb2.Status(
           code=status_code_pb2.MODEL_PREDICTION_FAILED,
