@@ -7,7 +7,7 @@ from PIL import Image, ImageOps
 from clarifai.client.model_client import ModelClient
 from clarifai.runners.models.model_class import ModelClass, methods
 from clarifai.runners.models.model_servicer import ModelServicer
-from clarifai.runners.utils.data_handler import Concept
+from clarifai.runners.utils.data_handler import Concept, Stream
 
 _ENABLE_PPRINT = False
 
@@ -380,6 +380,56 @@ class TestModelSignatures(unittest.TestCase):
     client = _get_servicer_client(MyModel())
     result = client.f(np.array([1, 2, 3]))
     self.assertTrue(np.allclose(result, np.array([0.5, 1.0, 1.5])))
+
+  def test_exception_in_predict(self):
+
+    class MyModel(ModelClass):
+
+      @methods.predict
+      def f(self, x: int) -> int:
+        raise ValueError('test exception')
+
+    client = _get_servicer_client(MyModel())
+    # TODO this raises Exception, not ValueError, because of server-client
+    # should this raise common exception types as raised by the server?
+    with self.assertRaisesRegex(Exception, 'test exception'):
+      client.f(5)
+
+  def test_generate(self):
+
+    class MyModel(ModelClass):
+
+      @methods.generate
+      def f(self, x: int) -> Stream[int]:
+        for i in range(x):
+          yield i
+
+    pprint(MyModel._get_method_info('f').signature)
+    self.assertEqual(
+        MyModel._get_method_info('f').signature, {
+            'inputs': [{
+                'data_field': 'int_value',
+                'data_type': 'int',
+                'name': 'x',
+                'required': True,
+                'streaming': False
+            }],
+            'method_type':
+                'generate',
+            'name':
+                'f',
+            'outputs': [{
+                'data_field': 'int_value',
+                'data_type': 'int',
+                'name': 'return',
+                'streaming': True
+            }]
+        })
+
+    # test call
+    client = _get_servicer_client(MyModel())
+    result = list(client.f(5))
+    self.assertEqual(result, [0, 1, 2, 3, 4])
 
 
 def _get_servicer_client(model):
