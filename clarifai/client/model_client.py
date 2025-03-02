@@ -102,8 +102,13 @@ class ModelClient:
           f'{var.name}: {var.data_type}{" = " + var.default if not var.required else ""}'
           for var in input_vars)
       if len(output_vars) == 1 and output_vars[0].name == 'return':
+        # single output
         output_spec = output_vars[0].data_type
+      elif output_vars[0].name == 'return.0':
+        # tuple output
+        output_spec = '(' + ', '.join(var.data_type for var in output_vars) + ')'
       else:
+        # named output
         output_spec = f'Output({", ".join(f"{var.name}={var.data_type}" for var in output_vars)})'
       f.__doc__ = f'''{method_name}(self, {input_spec}) -> {output_spec}\n'''
       #f.__doc__ += method_signature.description  # TODO

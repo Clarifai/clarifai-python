@@ -150,6 +150,8 @@ class ModelClass(ABC):
                                proto=None) -> resources_pb2.Output:
     if proto is None:
       proto = resources_pb2.Output()
+    if isinstance(output, tuple):
+      output = {f'return.{i}': item for i, item in enumerate(output)}
     if not isinstance(output, dict):  # TODO Output type, not just dict
       output = {'return': output}
     serialize(output, variables_signature, proto.data)

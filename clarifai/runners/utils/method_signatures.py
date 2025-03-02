@@ -1,6 +1,7 @@
 import inspect
 import json
 import re
+import types
 from collections import namedtuple
 from typing import List, get_args, get_origin
 
@@ -29,14 +30,22 @@ def build_function_signature(func, method_type: str):
   return_annotation = sig.return_annotation
   if return_annotation == inspect.Parameter.empty:
     raise ValueError('Function must have a return annotation')
+  # check for multiple return values and convert to dict for named values
+  if get_origin(return_annotation) == tuple:
+    return_annotation = tuple(get_args(return_annotation))
+  if isinstance(return_annotation, tuple):
+    return_annotation = {'return.%s' % i: tp for i, tp in enumerate(return_annotation)}
   if not isinstance(return_annotation, dict):
     return_annotation = {'return': return_annotation}
 
   input_vars = build_variables_signature(sig.parameters.values())
-  output_vars = build_variables_signature([
-      inspect.Parameter(name=name, kind=0, annotation=tp)
-      for name, tp in return_annotation.items()
-  ])
+  output_vars = build_variables_signature(
+      [
+          # XXX inspect.Parameter errors for the special return names, so use SimpleNamespace
+          types.SimpleNamespace(name=name, annotation=tp, default=inspect.Parameter.empty)
+          for name, tp in return_annotation.items()
+      ],
+      is_output=True)
 
   # check for streams
   if method_type == 'predict':
@@ -78,7 +87,7 @@ def build_function_signature(func, method_type: str):
   return method_signature
 
 
-def build_variables_signature(var_types: List[inspect.Parameter]):
+def build_variables_signature(var_types: List[inspect.Parameter], is_output=False):
   '''
   Build a data proto signature for the given variable or return type annotation.
   '''
@@ -87,13 +96,13 @@ def build_variables_signature(var_types: List[inspect.Parameter]):
 
   # check valid names (should already be constrained by python naming, but check anyway)
   for param in var_types:
-    if not param.name.isidentifier():
+    if not param.name.isidentifier() and not (is_output and
+                                              re.match(r'return(\.\d+)?', param.name)):
       raise ValueError(f'Invalid variable name: {param.name}')
 
   # get fields for each variable based on type
   for param in var_types:
-    tp, streaming = _normalize_type(param.annotation)
-    # TODO: check default is compatible with type and figure out how to represent in the signature proto
+    tp, streaming = _normalize_type(param.annotation, is_output=is_output)
     required = (param.default == inspect.Parameter.empty)
 
     #var = resources_pb2.MethodVariable()   # TODO
@@ -175,6 +184,8 @@ def deserialize(proto, signatures):
     kwargs[sig.name] = data
   if len(kwargs) == 1 and 'return' in kwargs:  # case for single return value
     return kwargs['return']
+  if kwargs and 'return.0' in kwargs:  # case for tuple return values
+    return tuple(kwargs[f'return.{i}'] for i in range(len(kwargs)))
   return kwargs
 
 
@@ -214,7 +225,7 @@ def _get_named_part(proto, field):
   return proto.parts[name].data, '.'.join(parts[1:])
 
 
-def _normalize_type(tp):
+def _normalize_type(tp, is_output=False):
   '''
   Normalize the given type.
   '''
@@ -223,11 +234,12 @@ def _normalize_type(tp):
   if streaming:
     tp = get_args(tp)[0]
 
-  # output type used for multiple return values, each with their own data type
-  if isinstance(tp, (dict, data_handler.Output)):
-    return {name: _normalize_data_type(val) for name, val in tp.items()}, streaming
-  if tp == data_handler.Output:
-    raise TypeError('Output types must be instantiated with inner type values for each key')
+  if is_output:
+    # output type used for named return values, each with their own data type
+    if isinstance(tp, (dict, data_handler.Output)):
+      return {name: _normalize_data_type(val) for name, val in tp.items()}, streaming
+    if tp == data_handler.Output:  # check for Output type without values
+      raise TypeError('Output types must be instantiated with inner type values for each key')
 
   return _normalize_data_type(tp), streaming
 
