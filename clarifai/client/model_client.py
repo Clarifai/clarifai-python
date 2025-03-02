@@ -105,7 +105,7 @@ class ModelClient:
       f.__name__ = method_name
       f.__qualname__ = f'{self.__class__.__name__}.{method_name}'
       input_spec = ', '.join(
-          f'{var.name}: {var.data_type}{" = " + var.default if not var.required else ""}'
+          f'{var.name}: {var.data_type}{" = " + str(var.default) if not var.required else ""}'
           for var in input_vars)
       if len(output_vars) == 1 and output_vars[0].name == 'return':
         # single output

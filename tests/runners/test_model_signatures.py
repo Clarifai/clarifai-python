@@ -578,6 +578,48 @@ class TestModelSignatures(unittest.TestCase):
     self.assertEqual(result.x, 3)
     self.assertEqual(result.y, 'abc result')
 
+  def test_kwarg_defaults(self):
+
+    class MyModel(ModelClass):
+
+      @methods.predict
+      def f(self, x: int = 5) -> int:
+        return x + 1
+
+    pprint(MyModel._get_method_info('f').signature)
+    self.assertEqual(
+        MyModel._get_method_info('f').signature, {
+            'inputs': [{
+                'data_field': 'int_value',
+                'data_type': 'int',
+                'name': 'x',
+                'default': 5,
+                'required': False,
+                'streaming': False
+            }],
+            'method_type':
+                'predict',
+            'name':
+                'f',
+            'outputs': [{
+                'data_field': 'int_value',
+                'data_type': 'int',
+                'name': 'return',
+                'streaming': False
+            }]
+        })
+
+    # test call
+    client = _get_servicer_client(MyModel())
+    result = client.f()
+    self.assertEqual(result, 6)
+    result = client.f(10)
+    self.assertEqual(result, 11)
+    with self.assertRaises(TypeError):
+      client.f('abc')
+    with self.assertRaises(TypeError):
+      client.f(4, 5)
+
 
 def _get_servicer_client(model):
   servicer = ModelServicer(model)

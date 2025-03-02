@@ -112,9 +112,8 @@ def build_variables_signature(var_types: List[inspect.Parameter], is_output=Fals
     var.data_field = _DATA_TYPES[tp].data_field
     var.streaming = streaming
     if not is_output:
-      if required:
-        var.required = True
-      else:
+      var.required = required
+      if not required:
         var.default = param.default
     vars.append(var)
 
