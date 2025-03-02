@@ -149,7 +149,10 @@ def serialize(kwargs, signatures, proto=None):
     proto = resources_pb2.Data()
   unknown = set(kwargs.keys()) - set(sig.name for sig in signatures)
   if unknown:
-    raise TypeError('Got unexpected argument: %s' % ', '.join(unknown))
+    if unknown == {'return'} and len(signatures) > 1:
+      raise TypeError('Got a single return value, but expected multiple outputs {%s}' %
+                      ', '.join(sig.name for sig in signatures))
+    raise TypeError('Got unexpected key: %s' % ', '.join(unknown))
   for sig in signatures:
     if sig.name not in kwargs:
       continue  # skip missing fields, they can be set to default on the server
@@ -215,11 +218,21 @@ def _normalize_type(tp):
   '''
   Normalize the given type.
   '''
-  # check if stream first
+  # stream type indicates streaming, not part of the data itself
   streaming = (get_origin(tp) == data_handler.Stream)
   if streaming:
     tp = get_args(tp)[0]
 
+  # output type used for multiple return values, each with their own data type
+  if isinstance(tp, (dict, data_handler.Output)):
+    return {name: _normalize_data_type(val) for name, val in tp.items()}, streaming
+  if tp == data_handler.Output:
+    raise TypeError('Output types must be instantiated with inner type values for each key')
+
+  return _normalize_data_type(tp), streaming
+
+
+def _normalize_data_type(tp):
   # check if list, and if so, get inner type
   is_list = (get_origin(tp) == list)
   if is_list:
@@ -242,20 +255,12 @@ def _normalize_type(tp):
   if tp not in _DATA_TYPES:
     raise ValueError(f'Unsupported type: {tp}')
 
-  return tp, streaming
+  return tp
 
 
 class _NamedFields(dict):
   __getattr__ = dict.__getitem__
   __setattr__ = dict.__setitem__
-
-
-class Input(_NamedFields):
-  pass
-
-
-class Output(_NamedFields):
-  pass
 
 
 # data_type: name of the data type

@@ -28,7 +28,8 @@ class MessageData:
 
 
 class Output(dict):
-  pass
+  __getattr__ = dict.__getitem__
+  __setattr__ = dict.__setitem__
 
 
 class Stream(Iterable):

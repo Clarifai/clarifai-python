@@ -1,6 +1,8 @@
 import inspect
 import itertools
 import logging
+import os
+import traceback
 import types
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Iterator, List
@@ -13,6 +15,8 @@ from clarifai.runners.utils.method_signatures import (build_function_signature, 
                                                       serialize, signatures_to_json)
 
 _METHOD_INFO_ATTR = '_cf_method_info'
+
+_RAISE_EXCEPTIONS = os.getenv("RAISE_EXCEPTIONS", "false").lower() == "true"
 
 
 class ModelClass(ABC):
@@ -82,9 +86,13 @@ class ModelClass(ABC):
       return service_pb2.MultiOutputResponse(
           outputs=outputs, status=status_pb2.Status(code=status_code_pb2.SUCCESS))
     except Exception as e:
+      if _RAISE_EXCEPTIONS:
+        raise
       logging.exception("Error in predict")
-      return service_pb2.MultiOutputResponse(
-          status=status_pb2.Status(code=status_code_pb2.FAILURE, details=str(e)),)
+      return service_pb2.MultiOutputResponse(status=status_pb2.Status(
+          code=status_code_pb2.FAILURE,
+          details=str(e),
+          stack_trace=traceback.format_exc().split('\n')))
 
   def generate_wrapper(self, request: service_pb2.PostModelOutputsRequest
                       ) -> Iterator[service_pb2.MultiOutputResponse]:
@@ -112,8 +120,13 @@ class ModelClass(ABC):
           resp.status.code = status_code_pb2.SUCCESS
           yield resp
     except Exception as e:
-      yield service_pb2.MultiOutputResponse(
-          status=status_pb2.Status(code=status_code_pb2.FAILURE, details=str(e)),)
+      if _RAISE_EXCEPTIONS:
+        raise
+      logging.exception("Error in generate")
+      yield service_pb2.MultiOutputResponse(status=status_pb2.Status(
+          code=status_code_pb2.FAILURE,
+          details=str(e),
+          stack_trace=traceback.format_exc().split('\n')))
 
   def stream_wrapper(self, request_iterator: Iterator[service_pb2.PostModelOutputsRequest]
                     ) -> Iterator[service_pb2.MultiOutputResponse]:

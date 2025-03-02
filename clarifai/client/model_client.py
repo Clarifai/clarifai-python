@@ -185,7 +185,7 @@ class ModelClient:
         continue
 
       if response.status.code != status_code_pb2.SUCCESS:
-        raise Exception(f"Model Predict failed with response {response.status!r}")
+        raise Exception(f"Model predict failed with response {response.status!r}")
       break
 
     return response
