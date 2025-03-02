@@ -469,6 +469,72 @@ class TestModelSignatures(unittest.TestCase):
         def f(self, x: int) -> int:
           return x
 
+  def test_two_predict_functions(self):
+
+    class MyModel(ModelClass):
+
+      @methods.predict
+      def f(self, x: int) -> int:
+        return x + 1
+
+      @methods.predict
+      def g(self, x: str) -> int:
+        return len(x)
+
+    assert len(MyModel._get_method_info()) == 2
+    assert MyModel._get_method_info().keys() == {'f', 'g'}
+
+    pprint(MyModel._get_method_info('f').signature)
+    self.assertEqual(
+        MyModel._get_method_info('f').signature, {
+            'inputs': [{
+                'data_field': 'int_value',
+                'data_type': 'int',
+                'name': 'x',
+                'required': True,
+                'streaming': False
+            }],
+            'method_type':
+                'predict',
+            'name':
+                'f',
+            'outputs': [{
+                'data_field': 'int_value',
+                'data_type': 'int',
+                'name': 'return',
+                'streaming': False
+            }]
+        })
+
+    pprint(MyModel._get_method_info('g').signature)
+    self.assertEqual(
+        MyModel._get_method_info('g').signature, {
+            'inputs': [{
+                'data_field': 'string_value',
+                'data_type': 'str',
+                'name': 'x',
+                'required': True,
+                'streaming': False
+            }],
+            'method_type':
+                'predict',
+            'name':
+                'g',
+            'outputs': [{
+                'data_field': 'int_value',
+                'data_type': 'int',
+                'name': 'return',
+                'streaming': False
+            }]
+        })
+
+    # test calls
+    client = _get_servicer_client(MyModel())
+    result = client.f(5)
+    self.assertEqual(result, 6)
+    result = client.g('abc')
+    self.assertEqual(result, 3)
+
 
 def _get_servicer_client(model):
   servicer = ModelServicer(model)
