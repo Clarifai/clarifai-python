@@ -234,6 +234,15 @@ class ModelBuilder:
           )
           logger.info("Continuing without Hugging Face token")
 
+    num_threads = self.config.get("num_threads")
+    if num_threads or num_threads == 0:
+      assert isinstance(num_threads, int) and num_threads >= 1, ValueError(
+          f"`num_threads` must be an integer greater than or equal to 1. Received type {type(num_threads)} with value {num_threads}."
+      )
+    else:
+      num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 1))
+      self.config["num_threads"] = num_threads
+
   @staticmethod
   def _get_tar_file_content_size(tar_file_path):
     """
