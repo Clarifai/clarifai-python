@@ -84,7 +84,13 @@ class ModelClient:
       def bind_f(method_name, call_func, input_vars, output_vars):
 
         def f(*args, **kwargs):
+          if len(args) > len(input_vars):
+            raise TypeError(
+                f"{method_name}() takes {len(input_vars)} positional arguments but {len(args)} were given"
+            )
           for var, arg in zip(input_vars, args):  # handle positional with zip shortest
+            if var.name in kwargs:
+              raise TypeError(f"Multiple values for argument {var.name}")
             kwargs[var.name] = arg
           return call_func(kwargs, method_name)
 

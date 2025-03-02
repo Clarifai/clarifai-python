@@ -165,9 +165,11 @@ def serialize(kwargs, signatures, proto=None):
     raise TypeError('Got unexpected key: %s' % ', '.join(unknown))
   for sig in signatures:
     if sig.name not in kwargs:
+      if sig.required:
+        raise TypeError(f'Missing required argument: {sig.name}')
       continue  # skip missing fields, they can be set to default on the server
     data = kwargs[sig.name]
-    data_proto, field = _get_named_part(proto, sig.data_field)
+    data_proto, field = _get_named_part(proto, sig.data_field, add_parts=True)
     serializer = get_serializer(sig.data_type)
     serializer.serialize(data_proto, field, data)
   return proto
@@ -179,7 +181,7 @@ def deserialize(proto, signatures):
   '''
   kwargs = {}
   for sig in signatures:
-    data_proto, field = _get_named_part(proto, sig.data_field)
+    data_proto, field = _get_named_part(proto, sig.data_field, add_parts=False)
     serializer = get_serializer(sig.data_type)
     data = serializer.deserialize(data_proto, field)
     kwargs[sig.name] = data
@@ -200,7 +202,7 @@ def get_serializer(data_type: str) -> Serializer:
   raise ValueError(f'Unsupported type: "{data_type}"')
 
 
-def _get_named_part(proto, field):
+def _get_named_part(proto, field, add_parts):
   # gets the named part from the proto, according to the field path
   # note we only support one level of named parts
   parts = field.replace(' ', '').split('.')
@@ -223,7 +225,13 @@ def _get_named_part(proto, field):
   if not (name := m.group(1)):
     raise ValueError('Invalid field: %s' % field)
   assert len(parts) in (2, 3)  # parts[name].field, parts[name].parts[].field
-  return proto.parts[name].data, '.'.join(parts[1:])
+  part = next((part for part in proto.parts if part.id == name), None)
+  if part is None:
+    if not add_parts:
+      raise ValueError('Missing part: %s' % name)
+    part = proto.parts.add()
+    part.id = name
+  return part.data, '.'.join(parts[1:])
 
 
 def _normalize_type(tp, is_output=False):

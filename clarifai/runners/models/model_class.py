@@ -4,7 +4,7 @@ import logging
 import os
 import traceback
 import types
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Any, Dict, Iterator, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -21,10 +21,9 @@ _RAISE_EXCEPTIONS = os.getenv("RAISE_EXCEPTIONS", "false").lower() == "true"
 
 class ModelClass(ABC):
 
-  @abstractmethod
   def load_model(self):
     """Load the model."""
-    raise NotImplementedError("load_model() not implemented")
+    pass
 
   def predict(self, **kwargs):
     """Predict method for single or batched inputs."""
