@@ -111,10 +111,11 @@ def build_variables_signature(var_types: List[inspect.Parameter], is_output=Fals
     var.data_type = _DATA_TYPES[tp].data_type
     var.data_field = _DATA_TYPES[tp].data_field
     var.streaming = streaming
-    if required:
-      var.required = True
-    else:
-      var.default = param.default
+    if not is_output:
+      if required:
+        var.required = True
+      else:
+        var.default = param.default
     vars.append(var)
 
   # check if any fields are used more than once, and if so, use parts

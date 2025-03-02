@@ -177,10 +177,13 @@ class ModelClass(ABC):
     return methods
 
   @classmethod
-  def _get_method_info(cls):
+  def _get_method_info(cls, func_name=None):
     if not hasattr(cls, _METHOD_INFO_ATTR):
       setattr(cls, _METHOD_INFO_ATTR, cls._register_model_methods())
-    return getattr(cls, _METHOD_INFO_ATTR)
+    method_info = getattr(cls, _METHOD_INFO_ATTR)
+    if func_name:
+      return method_info[func_name]
+    return method_info
 
 
 class _MethodInfo:
