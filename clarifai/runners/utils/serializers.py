@@ -1,4 +1,7 @@
+from typing import Iterable
+
 import numpy as np
+from clarifai_grpc.grpc.api import resources_pb2
 from PIL import Image as PILImage
 
 from clarifai.runners.utils.data_handler import Image, MessageData
@@ -20,7 +23,10 @@ def is_repeated(field):
 class AtomicFieldSerializer(Serializer):
 
   def serialize(self, data_proto, field, value):
-    setattr(data_proto, field, value)
+    try:
+      setattr(data_proto, field, value)
+    except TypeError as e:
+      raise TypeError(f"Incompatible type for {field}: {type(value)}") from e
 
   def deserialize(self, data_proto, field):
     return getattr(data_proto, field)
@@ -35,10 +41,13 @@ class MessageSerializer(Serializer):
     if isinstance(value, MessageData):
       value = value.to_proto()
     dst = getattr(data_proto, field)
-    if is_repeated(dst):
-      dst.add().CopyFrom(value)
-    else:
-      dst.CopyFrom(value)
+    try:
+      if is_repeated(dst):
+        dst.add().CopyFrom(value)
+      else:
+        dst.CopyFrom(value)
+    except TypeError as e:
+      raise TypeError(f"Incompatible type for {field}: {type(value)}") from e
 
   def deserialize(self, data_proto, field):
     src = getattr(data_proto, field)
@@ -51,6 +60,8 @@ class MessageSerializer(Serializer):
 class ImageSerializer(Serializer):
 
   def serialize(self, data_proto, field, value):
+    if not isinstance(value, (PILImage.Image, Image, resources_pb2.Image)):
+      raise TypeError(f"Expected Image, got {type(value)}")
     if isinstance(value, PILImage.Image):
       value = Image.from_pil(value)
     if isinstance(value, MessageData):
@@ -66,6 +77,8 @@ class NDArraySerializer(Serializer):
 
   def serialize(self, data_proto, field, value):
     value = np.asarray(value)
+    if not np.issubdtype(value.dtype, np.number):
+      raise TypeError(f"Expected number array, got {value.dtype}")
     proto = getattr(data_proto, field)
     proto.buffer = value.tobytes()
     proto.shape.extend(value.shape)
@@ -92,6 +105,8 @@ class ListSerializer(Serializer):
     self.inner_serializer = inner_serializer
 
   def serialize(self, data_proto, field, value):
+    if not isinstance(value, Iterable):
+      raise TypeError(f"Expected iterable, got {type(value)}")
     if field.startswith('parts[].'):
       inner_field = field[len('parts[].'):]
       for item in value:

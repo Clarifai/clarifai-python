@@ -431,6 +431,44 @@ class TestModelSignatures(unittest.TestCase):
     result = list(client.f(5))
     self.assertEqual(result, [0, 1, 2, 3, 4])
 
+  def test_generate_wrong_return_type(self):
+
+    class MyModel(ModelClass):
+
+      @methods.generate
+      def f(self, x: int) -> Stream[str]:
+        for i in range(x):
+          yield int(i)
+
+    client = _get_servicer_client(MyModel())
+    with self.assertRaisesRegex(Exception, 'Incompatible type'), self.assertLogs(level='ERROR'):
+      list(client.f(5))
+
+  def test_generate_exception(self):
+
+    class MyModel(ModelClass):
+
+      @methods.generate
+      def f(self, x: int) -> Stream[int]:
+        for i in range(x):
+          if i == 3:
+            raise ValueError('test exception')
+          yield i
+
+    client = _get_servicer_client(MyModel())
+    with self.assertRaisesRegex(Exception, 'test exception'):
+      list(client.f(5))
+
+  def test_generate_not_streaming(self):
+
+    with self.assertRaisesRegex(TypeError, 'Generate methods must return a stream'):
+
+      class MyModel(ModelClass):
+
+        @methods.generate
+        def f(self, x: int) -> int:
+          return x
+
 
 def _get_servicer_client(model):
   servicer = ModelServicer(model)

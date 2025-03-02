@@ -51,26 +51,26 @@ def build_function_signature(func, method_type: str):
   if method_type == 'predict':
     for var in input_vars:
       if var.streaming:
-        raise ValueError('Stream inputs are not supported for predict methods')
+        raise TypeError('Stream inputs are not supported for predict methods')
     for var in output_vars:
       if var.streaming:
-        raise ValueError('Stream outputs are not supported for predict methods')
+        raise TypeError('Stream outputs are not supported for predict methods')
   elif method_type == 'generate':
     for var in input_vars:
       if var.streaming:
-        raise ValueError('Stream inputs are not supported for generate methods')
-    if len(output_vars) != 1 or not output_vars[0].streaming:
-      raise ValueError('Generate methods must return a single Stream')
+        raise TypeError('Stream inputs are not supported for generate methods')
+    if not (len(output_vars) == 1 and output_vars[0].streaming):
+      raise TypeError('Generate methods must return a stream')
   elif method_type == 'stream':
     # TODO handle initial non-stream inputs, check for one stream input and one stream output
     if len(input_vars) != 1:
-      raise ValueError('Stream methods must take a single Stream input')
+      raise TypeError('Stream methods must take a single Stream input')
     if not input_vars[0].streaming:
-      raise ValueError('Stream methods must take a stream input')
+      raise TypeError('Stream methods must take a stream input')
     if len(output_vars) != 1 or not output_vars[0].streaming:
-      raise ValueError('Stream methods must return a single Stream')
+      raise TypeError('Stream methods must return a single Stream')
   else:
-    raise ValueError('Invalid method type: %s' % method_type)
+    raise TypeError('Invalid method type: %s' % method_type)
 
   #method_signature = resources_pb2.MethodSignature()   # TODO
   method_signature = _NamedFields()  #for now
