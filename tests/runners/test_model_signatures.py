@@ -341,10 +341,12 @@ class TestModelSignatures(unittest.TestCase):
     testimg1 = Image.fromarray(np.ones([50, 50, 3], dtype="uint8"))
     testimg2 = Image.fromarray(200 + np.zeros([50, 50, 3], dtype="uint8"))
     result = client.f('prompt', [testimg1, testimg2])
-    self.assertEqual(result[0], 'prompt result')
-    self.assertEqual(len(result[1]), 2)
-    self.assertTrue(np.all(result[1][0].to_numpy() == np.asarray(ImageOps.invert(testimg1))))
-    self.assertTrue(np.all(result[1][1].to_numpy() == np.asarray(ImageOps.invert(testimg2))))
+    assert len(result) == 2
+    (result_prompt, result_images) = result
+    self.assertEqual(result_prompt, 'prompt result')
+    self.assertEqual(len(result_images), 2)
+    self.assertTrue(np.all(result_images[0].to_numpy() == np.asarray(ImageOps.invert(testimg1))))
+    self.assertTrue(np.all(result_images[1].to_numpy() == np.asarray(ImageOps.invert(testimg2))))
 
   def test_ndarrayint__ndarrayfloat(self):
 
