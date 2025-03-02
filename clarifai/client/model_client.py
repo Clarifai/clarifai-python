@@ -144,7 +144,7 @@ class ModelClient:
 
     outputs = []
     for output in response.outputs:
-      outputs.append(deserialize(output.data, output_signature))
+      outputs.append(deserialize(output.data, output_signature, is_output=True))
     if batch_input:
       return outputs
     return outputs[0]
@@ -226,7 +226,7 @@ class ModelClient:
     for response in response_stream:
       outputs = []
       for output in response.outputs:
-        outputs.append(deserialize(output.data, output_signature))
+        outputs.append(deserialize(output.data, output_signature, is_output=True))
       if batch_input:
         yield outputs
       yield outputs[0]

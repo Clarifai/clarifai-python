@@ -175,7 +175,7 @@ def serialize(kwargs, signatures, proto=None):
   return proto
 
 
-def deserialize(proto, signatures):
+def deserialize(proto, signatures, is_output=False):
   '''
   Deserialize the given proto into kwargs using the given signatures.
   '''
@@ -185,10 +185,12 @@ def deserialize(proto, signatures):
     serializer = get_serializer(sig.data_type)
     data = serializer.deserialize(data_proto, field)
     kwargs[sig.name] = data
-  if len(kwargs) == 1 and 'return' in kwargs:  # case for single return value
-    return kwargs['return']
-  if kwargs and 'return.0' in kwargs:  # case for tuple return values
-    return tuple(kwargs[f'return.{i}'] for i in range(len(kwargs)))
+  if is_output:
+    if len(kwargs) == 1 and 'return' in kwargs:  # case for single return value
+      return kwargs['return']
+    if kwargs and 'return.0' in kwargs:  # case for tuple return values
+      return tuple(kwargs[f'return.{i}'] for i in range(len(kwargs)))
+    return data_handler.Output(kwargs)
   return kwargs
 
 

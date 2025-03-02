@@ -7,7 +7,7 @@ from PIL import Image, ImageOps
 from clarifai.client.model_client import ModelClient
 from clarifai.runners.models.model_class import ModelClass, methods
 from clarifai.runners.models.model_servicer import ModelServicer
-from clarifai.runners.utils.data_handler import Concept, Stream
+from clarifai.runners.utils.data_handler import Concept, Output, Stream
 
 _ENABLE_PPRINT = False
 
@@ -534,6 +534,47 @@ class TestModelSignatures(unittest.TestCase):
     self.assertEqual(result, 6)
     result = client.g('abc')
     self.assertEqual(result, 3)
+
+  def test_named_outputs(self):
+
+    class MyModel(ModelClass):
+
+      @methods.predict
+      def f(self, input: str) -> Output(x=int, y=str):
+        return Output(x=len(input), y=input + ' result')
+
+    pprint(MyModel._get_method_info('f').signature)
+    self.assertEqual(
+        MyModel._get_method_info('f').signature, {
+            'inputs': [{
+                'data_field': 'string_value',
+                'data_type': 'str',
+                'name': 'input',
+                'required': True,
+                'streaming': False
+            }],
+            'method_type':
+                'predict',
+            'name':
+                'f',
+            'outputs': [{
+                'data_field': 'int_value',
+                'data_type': 'int',
+                'name': 'x',
+                'streaming': False
+            }, {
+                'data_field': 'string_value',
+                'data_type': 'str',
+                'name': 'y',
+                'streaming': False
+            }]
+        })
+
+    # test call
+    client = _get_servicer_client(MyModel())
+    result = client.f('abc')
+    self.assertEqual(result.x, 3)
+    self.assertEqual(result.y, 'abc result')
 
 
 def _get_servicer_client(model):
