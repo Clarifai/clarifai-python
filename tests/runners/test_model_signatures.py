@@ -865,6 +865,45 @@ class TestModelCalls(unittest.TestCase):
     self.assertEqual(result, ['0abc5', '1xyz5'])
 
 
+#  @unittest.skip("Not implemented yet")
+#  def test_stream_named_inputs_str_str__str(self):
+#
+#    class MyModel(ModelClass):
+#
+#      @methods.stream
+#      def f(self, stream: Stream[Input(x=str, y=str)]) -> Stream[str]:
+#        for i, input in enumerate(stream):
+#          yield str(i) + input.x + input.y
+#
+#    pprint(MyModel._get_method_info('f').signature)
+#    self.assertEqual(
+#        MyModel._get_method_info('f').signature, {
+#            'inputs': [{
+#                'data_field': 'parts[x].string_value',
+#                'data_type': 'str',
+#                'name': 'x',
+#                'required': True,
+#                'streaming': True
+#            }, {
+#                'data_field': 'parts[y].string_value',
+#                'data_type': 'str',
+#                'name': 'y',
+#                'required': True,
+#                'streaming': True
+#            }],
+#            'method_type':
+#                'stream',
+#            'name':
+#                'f',
+#            'outputs': [{
+#                'data_field': 'string_value',
+#                'data_type': 'str',
+#                'name': 'return',
+#                'streaming': True
+#            }]
+#        })
+
+
 def _get_servicer_client(model):
   servicer = ModelServicer(model)
   client = ModelClient(servicer)
