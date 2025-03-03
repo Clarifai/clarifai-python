@@ -81,7 +81,7 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
       ensure_urls_downloaded(req)
 
     try:
-      return self.model.stream_wrapper(request_copy)
+      yield from self.model.stream_wrapper(request_copy)
     except Exception as e:
       if _RAISE_EXCEPTIONS:
         raise

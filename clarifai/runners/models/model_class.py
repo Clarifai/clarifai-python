@@ -129,8 +129,57 @@ class ModelClass(ABC):
 
   def stream_wrapper(self, request_iterator: Iterator[service_pb2.PostModelOutputsRequest]
                     ) -> Iterator[service_pb2.MultiOutputResponse]:
-    # TODO: Implement this with the new method signatures
-    return self.stream(request_iterator)
+    try:
+      request = next(request_iterator)  # get first request to determine method
+      assert len(request.inputs) == 1, "Streaming requires exactly one input"
+
+      method_name = request.model.model_version.output_info.params['_method_name']
+      method = getattr(self, method_name)
+      method_info = method._cf_method_info
+      signature = method_info.signature
+      python_param_types = method_info.python_param_types
+
+      # find the streaming var in the signature
+      streaming_var = [var for var in signature.inputs if var.streaming]
+      if len(streaming_var) != 1:
+        raise TypeError('Streaming requires exactly one streaming input')
+      streaming_var = streaming_var[0]
+
+      # convert all inputs for the first request, including the first streaming input
+      inputs = self._convert_input_protos_to_python(request.inputs, signature.inputs,
+                                                    python_param_types)
+      kwargs = inputs[0]
+
+      # first streaming item
+      first_item = kwargs.pop(streaming_var.name)
+
+      # streaming generator
+      def InputStream():
+        yield first_item
+        # subsequent streaming items contain only the streaming input
+        streaming_var_signature = [streaming_var]
+        for request in request_iterator:
+          item = self._convert_input_protos_to_python(request.inputs, streaming_var_signature,
+                                                      python_param_types)
+          item = item[0][streaming_var.name]
+          yield item
+
+      # add stream generator back to the input kwargs
+      kwargs[streaming_var.name] = InputStream()
+
+      for output in method(**kwargs):
+        resp = service_pb2.MultiOutputResponse()
+        self._convert_output_to_proto(output, signature.outputs, proto=resp.outputs.add())
+        resp.status.code = status_code_pb2.SUCCESS
+        yield resp
+    except Exception as e:
+      if _RAISE_EXCEPTIONS:
+        raise
+      logging.exception("Error in stream")
+      yield service_pb2.MultiOutputResponse(status=status_pb2.Status(
+          code=status_code_pb2.FAILURE,
+          details=str(e),
+          stack_trace=traceback.format_exc().split('\n')))
 
   def _convert_input_protos_to_python(self, inputs: List[resources_pb2.Input], variables_signature,
                                       python_param_types) -> List[Dict[str, Any]]:

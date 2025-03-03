@@ -290,6 +290,54 @@ class ModelClient:
         raise Exception(f"Model Generate failed with response {response.status!r}")
       yield response
 
+  def _stream(
+      self,
+      inputs,
+      method_name: str = 'stream',
+  ) -> Any:
+    input_signature = self._method_signatures[method_name].inputs
+    output_signature = self._method_signatures[method_name].outputs
+
+    if isinstance(inputs, list):
+      assert len(inputs) == 1, 'streaming methods do not support batched calls'
+      inputs = inputs[0]
+    assert isinstance(inputs, dict)
+    kwargs = inputs
+
+    # find the streaming var in the signature
+    streaming_var = [var for var in input_signature if var.streaming]
+    if len(streaming_var) != 1:
+      raise TypeError('Streaming requires exactly one streaming input')
+    streaming_var = streaming_var[0]
+
+    streaming_input = kwargs.pop(streaming_var.name)
+
+    def _input_proto_stream():
+      # first item contains all the inputs and the first stream item
+      proto = resources_pb2.Input()
+      try:
+        item = next(streaming_input)
+      except StopIteration:
+        return  # no items to stream
+      kwargs[streaming_var.name] = item
+      serialize(kwargs, input_signature, proto.data)
+
+      yield proto
+
+      # subsequent items are just the stream items
+      stream_signature = [streaming_var]
+      for item in streaming_input:
+        proto = resources_pb2.Input()
+        serialize({streaming_var.name: item}, stream_signature, proto.data)
+        yield proto
+
+    response_stream = self._stream_by_proto(_input_proto_stream(), method_name)
+    #print(response)
+
+    for response in response_stream:
+      assert len(response.outputs) == 1, 'streaming methods must have exactly one output'
+      yield deserialize(response.outputs[0].data, output_signature, is_output=True)
+
   def _req_iterator(self,
                     input_iterator: Iterator[List[resources_pb2.Input]],
                     method_name: str = None,
@@ -305,7 +353,10 @@ class ModelClient:
     for inputs in input_iterator:
       req = service_pb2.PostModelOutputsRequest()
       req.CopyFrom(request)
-      req.inputs.extend(inputs)
+      if isinstance(inputs, list):
+        req.inputs.extend(inputs)
+      else:
+        req.inputs.append(inputs)
       yield req
 
   def _stream_by_proto(self,
