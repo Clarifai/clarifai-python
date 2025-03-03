@@ -578,7 +578,7 @@ class TestModelSignatures(unittest.TestCase):
     self.assertEqual(result.x, 3)
     self.assertEqual(result.y, 'abc result')
 
-  def test_kwarg_defaults(self):
+  def test_kwarg_defaults_one_arg(self):
 
     class MyModel(ModelClass):
 
@@ -613,6 +613,10 @@ class TestModelSignatures(unittest.TestCase):
     client = _get_servicer_client(MyModel())
     result = client.f()
     self.assertEqual(result, 6)
+    result = client.f(0)
+    self.assertEqual(result, 1)
+    result = client.f(-1)
+    self.assertEqual(result, 0)
     result = client.f(10)
     self.assertEqual(result, 11)
     with self.assertRaises(TypeError):
