@@ -25,6 +25,12 @@ def fail_pdb(f):
   import pdb
   import traceback
 
+  if isinstance(f, type):
+    for name, method in f.__dict__.items():
+      if callable(method):
+        setattr(f, name, fail_pdb(method))
+    return f
+
   @functools.wraps(f)
   def decorated(*args, **kwargs):
     try:
@@ -37,6 +43,7 @@ def fail_pdb(f):
   return decorated
 
 
+#@fail_pdb
 class TestModelCalls(unittest.TestCase):
 
   def test_int__int(self):
@@ -981,19 +988,19 @@ class TestModelCalls(unittest.TestCase):
     self.assertEqual(
         MyModel._get_method_info('f').signature, {
             'inputs': [{
-                'data_field': 'parts[x].string_value',
+                'data_field': 'parts[streamvar.x].string_value',
                 'data_type': 'str',
                 'name': 'streamvar.x',
                 'required': True,
                 'streaming': True
             }, {
-                'data_field': 'parts[y].int_value',
+                'data_field': 'parts[streamvar.y].int_value',
                 'data_type': 'int',
                 'name': 'streamvar.y',
                 'required': True,
                 'streaming': True
             }, {
-                'data_field': 'string_value',
+                'data_field': 'parts[x].string_value',
                 'data_type': 'str',
                 'name': 'x',
                 'required': True,
@@ -1010,6 +1017,11 @@ class TestModelCalls(unittest.TestCase):
                 'streaming': True
             }]
         })
+
+    # test call
+    client = _get_servicer_client(MyModel())
+    result = list(client.f(iter([Input(x='a', y=1), Input(x='x', y=2)]), 'z'))
+    self.assertEqual(result, ['0a1z', '1x2z'])
 
 
 def _get_servicer_client(model):

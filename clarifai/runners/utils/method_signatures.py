@@ -163,7 +163,7 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
   if proto is None:
     proto = resources_pb2.Data()
   if not is_output:  # TODO: use this consistently for return keys also
-    _flatten_nested_keys(kwargs, signatures, is_output)
+    flatten_nested_keys(kwargs, signatures, is_output)
   unknown = set(kwargs.keys()) - set(sig.name for sig in signatures)
   if unknown:
     if unknown == {'return'} and len(signatures) > 1:
@@ -205,7 +205,7 @@ def deserialize(proto, signatures, is_output=False):
     if kwargs and 'return.0' in kwargs:  # case for tuple return values
       return tuple(kwargs[f'return.{i}'] for i in range(len(kwargs)))
     return data_handler.Output(kwargs)
-  _unflatten_nested_keys(kwargs, signatures, is_output)
+  unflatten_nested_keys(kwargs, signatures, is_output)
   return kwargs
 
 
@@ -219,7 +219,11 @@ def get_serializer(data_type: str) -> Serializer:
   raise ValueError(f'Unsupported type: "{data_type}"')
 
 
-def _flatten_nested_keys(kwargs, signatures, is_output):
+def flatten_nested_keys(kwargs, signatures, is_output):
+  '''
+  Flatten nested keys into a single key with a dot, e.g. {'a': {'b': 1}} -> {'a.b': 1}
+  in the kwargs, using the given signatures to determine which keys are nested.
+  '''
   nested_keys = [sig.name for sig in signatures if '.' in sig.name]
   outer_keys = set(key.split('.')[0] for key in nested_keys)
   for outer in outer_keys:
@@ -229,7 +233,12 @@ def _flatten_nested_keys(kwargs, signatures, is_output):
   return kwargs
 
 
-def _unflatten_nested_keys(kwargs, signatures, is_output):
+def unflatten_nested_keys(kwargs, signatures, is_output):
+  '''
+  Unflatten nested keys in kwargs into a dict, e.g. {'a.b': 1} -> {'a': {'b': 1}}
+  Uses the signatures to determine which keys are nested.
+  The dict subclass is Input or Output, depending on the is_output flag.
+  '''
   for sig in signatures:
     if '.' not in sig.name:
       continue

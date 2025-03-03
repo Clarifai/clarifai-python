@@ -70,8 +70,6 @@ class ModelClient:
     '''
     for method_name, method_signature in self._method_signatures.items():
       # define the function in this client instance
-      input_vars = method_signature.inputs
-      output_vars = method_signature.outputs
       if method_signature.method_type == 'predict':
         call_func = self._predict
       elif method_signature.method_type == 'generate':
@@ -81,23 +79,31 @@ class ModelClient:
       else:
         raise ValueError(f"Unknown method type {method_signature.method_type}")
 
-      def bind_f(method_name, call_func, input_vars, output_vars):
+      # method argnames, in order, collapsing nested keys to corresponding user function args
+      method_argnames = []
+      for var in method_signature.inputs:
+        outer = var.name.split('.', 1)[0]
+        if outer in method_argnames:
+          continue
+        method_argnames.append(outer)
+
+      def bind_f(method_name, method_argnames, call_func):
 
         def f(*args, **kwargs):
-          if len(args) > len(input_vars):
+          if len(args) > len(method_argnames):
             raise TypeError(
-                f"{method_name}() takes {len(input_vars)} positional arguments but {len(args)} were given"
+                f"{method_name}() takes {len(method_argnames)} positional arguments but {len(args)} were given"
             )
-          for var, arg in zip(input_vars, args):  # handle positional with zip shortest
-            if var.name in kwargs:
-              raise TypeError(f"Multiple values for argument {var.name}")
-            kwargs[var.name] = arg
+          for name, arg in zip(method_argnames, args):  # handle positional with zip shortest
+            if name in kwargs:
+              raise TypeError(f"Multiple values for argument {name}")
+            kwargs[name] = arg
           return call_func(kwargs, method_name)
 
         return f
 
       # need to bind method_name to the value, not the mutating loop variable
-      f = bind_f(method_name, call_func, input_vars, output_vars)
+      f = bind_f(method_name, method_argnames, call_func)
 
       # set names and docstrings
       # note we could also have used exec with strings from the signature to define the
@@ -106,7 +112,8 @@ class ModelClient:
       f.__qualname__ = f'{self.__class__.__name__}.{method_name}'
       input_spec = ', '.join(
           f'{var.name}: {var.data_type}{" = " + str(var.default) if not var.required else ""}'
-          for var in input_vars)
+          for var in method_signature.inputs)
+      output_vars = method_signature.outputs
       if len(output_vars) == 1 and output_vars[0].name == 'return':
         # single output
         output_spec = output_vars[0].data_type
