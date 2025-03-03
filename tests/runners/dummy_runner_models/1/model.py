@@ -30,7 +30,18 @@ class MyModel(ModelClass):
   def stream(self, input_iterator: Stream[Text]) -> Stream[Text]:
     """Example yielding a whole batch of streamed stuff back."""
 
-    for ri, input in enumerate(input_iterator):
-      for i in range(10):  # fake something iterating generating 10 times.
-        output_text = input.text + f"Stream Hello World {i}"
-        yield Text(output_text)
+    for i, input in enumerate(input_iterator):
+      output_text = input.text + f"Stream Hello World {i}"
+      yield Text(output_text)
+
+  def test(self):
+    res = self.predict(Text("test"))
+    assert res.text == "testHello World"
+
+    res = self.generate(Text("test"))
+    for i, r in enumerate(res):
+      assert r.text == f"testGenerate Hello World {i}"
+
+    res = self.stream(iter([Text("test")] * 5))
+    for i, r in enumerate(res):
+      assert r.text == f"testStream Hello World {i}"
