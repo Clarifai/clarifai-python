@@ -190,7 +190,8 @@ class ModelClient:
     if inference_params:
       request.model.model_version.output_info.params.update(inference_params)
     if output_config:
-      request.model.model_version.output_info.output_config.MergeFromDict(output_config)
+      request.model.model_version.output_info.output_config.MergeFrom(
+          resources_pb2.OutputConfig(**output_config))
 
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)

@@ -494,8 +494,7 @@ class Model(Lister, BaseClient):
                            nodepool_id: str = None,
                            deployment_id: str = None,
                            user_id: str = None):
-    runner_selector = resources_pb2.RunnerSelector()
-
+    runner_selector = None
     if deployment_id and (compute_cluster_id or nodepool_id):
       raise UserError(
           "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
