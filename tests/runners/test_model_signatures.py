@@ -19,7 +19,7 @@ else:
     pass
 
 
-class TestModelSignatures(unittest.TestCase):
+class TestModelCalls(unittest.TestCase):
 
   def test_int__int(self):
 
@@ -681,6 +681,110 @@ class TestModelSignatures(unittest.TestCase):
       client.f(y='abc')
     with self.assertRaises(TypeError):
       client.f('abc', x='def')
+
+  def test_kwarg_defaults_str_int(self):
+
+    class MyModel(ModelClass):
+
+      @methods.predict
+      def f(self, x: str = 'abc', y: int = 5) -> str:
+        return x + str(y)
+
+    pprint(MyModel._get_method_info('f').signature)
+    self.assertEqual(
+        MyModel._get_method_info('f').signature, {
+            'inputs': [{
+                'data_field': 'string_value',
+                'data_type': 'str',
+                'name': 'x',
+                'default': 'abc',
+                'required': False,
+                'streaming': False
+            }, {
+                'data_field': 'int_value',
+                'data_type': 'int',
+                'name': 'y',
+                'default': 5,
+                'required': False,
+                'streaming': False
+            }],
+            'method_type':
+                'predict',
+            'name':
+                'f',
+            'outputs': [{
+                'data_field': 'string_value',
+                'data_type': 'str',
+                'name': 'return',
+                'streaming': False
+            }]
+        })
+
+    # test call
+    client = _get_servicer_client(MyModel())
+    result = client.f()
+    self.assertEqual(result, 'abc5')
+    result = client.f('xyz')
+    self.assertEqual(result, 'xyz5')
+    result = client.f(y=10)
+    self.assertEqual(result, 'abc10')
+    result = client.f('xyz', 10)
+    self.assertEqual(result, 'xyz10')
+    with self.assertRaises(TypeError):
+      client.f(5)
+    with self.assertRaises(TypeError):
+      client.f('abc', 5, 'def')
+    result = client.f(x='abc')
+    self.assertEqual(result, 'abc5')
+    result = client.f(x='xyz')
+    self.assertEqual(result, 'xyz5')
+    result = client.f(y=10)
+    self.assertEqual(result, 'abc10')
+    result = client.f(x='xyz', y=10)
+    self.assertEqual(result, 'xyz10')
+    with self.assertRaises(TypeError):
+      client.f(x=5)
+    with self.assertRaises(TypeError):
+      client.f('abc', x=5)
+    with self.assertRaises(TypeError):
+      client.f('abc', y='def')
+    with self.assertRaises(TypeError):
+      client.f(y='abc')
+    with self.assertRaises(TypeError):
+      client.f('abc', x='def')
+    with self.assertRaises(TypeError):
+      client.f('abc', y=5, x='def')
+
+  def test_kwarg_defaults_ndarray(self):
+
+    class MyModel(ModelClass):
+
+      @methods.predict
+      def f(self, x: np.ndarray = np.array([1, 2, 3])) -> np.ndarray:
+        return x * 2
+
+    pprint(MyModel._get_method_info('f').signature)
+
+    # test call
+    client = _get_servicer_client(MyModel())
+    result = client.f()
+    self.assertTrue(np.all(result == np.array([2, 4, 6])))
+    result = client.f(np.array([10, 20, 30]))
+    self.assertTrue(np.all(result == np.array([20, 40, 60])))
+    result = client.f(5)
+    self.assertTrue(np.all(result == np.array(10)))
+    with self.assertRaises(TypeError):
+      client.f(np.array([1, 2, 3]), np.array([4, 5, 6]))
+    result = client.f(x=np.array([1, 2, 3]))
+    self.assertTrue(np.all(result == np.array([2, 4, 6])))
+    result = client.f(x=np.array([10, 20, 30]))
+    self.assertTrue(np.all(result == np.array([20, 40, 60])))
+    with self.assertRaises(TypeError):
+      client.f(np.array([1, 2, 3]), x=np.array([4, 5, 6]))
+    with self.assertRaises(TypeError):
+      client.f(y=np.array([1, 2, 3]))
+    with self.assertRaises(TypeError):
+      client.f(np.array([1, 2, 3]), y=np.array([4, 5, 6]))
 
 
 def _get_servicer_client(model):

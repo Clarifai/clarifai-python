@@ -9,6 +9,7 @@ import numpy as np
 import PIL.Image
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2
+from google.protobuf.message import Message as MessageProto
 
 from clarifai.runners.utils import data_handler
 from clarifai.runners.utils.serializers import (AtomicFieldSerializer, ImageSerializer,
@@ -103,7 +104,7 @@ def build_variables_signature(var_types: List[inspect.Parameter], is_output=Fals
   # get fields for each variable based on type
   for param in var_types:
     tp, streaming = _normalize_type(param.annotation, is_output=is_output)
-    required = (param.default == inspect.Parameter.empty)
+    required = (param.default is inspect.Parameter.empty)
 
     #var = resources_pb2.MethodVariable()   # TODO
     var = _NamedFields()
@@ -132,7 +133,7 @@ def build_variables_signature(var_types: List[inspect.Parameter], is_output=Fals
 def signatures_to_json(signatures):
   assert isinstance(
       signatures, dict), 'Expected dict of signatures {name: signature}, got %s' % type(signatures)
-  return json.dumps(signatures)
+  return json.dumps(signatures, default=repr)
 
 
 def signatures_from_json(json_str):
@@ -177,7 +178,11 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
 
 
 def _is_empty_proto_data(data):
-  return isinstance(data, (str, bytes, int, float, bool, np.number)) and not data
+  if isinstance(data, np.ndarray):
+    return False
+  if isinstance(data, MessageProto):
+    return not data.ByteSize()
+  return not data
 
 
 def deserialize(proto, signatures, is_output=False):
@@ -233,7 +238,7 @@ def _get_data_part(proto, sig, is_output, serializing, force_named_part=False):
     part = next((part for part in proto.parts if part.id == sig.name), None)
     if part:
       return part.data, field
-    if not serializing and not is_output and not getattr(proto, field):
+    if not serializing and not is_output and _is_empty_proto_data(getattr(proto, field)):
       return None, field
     return proto, field
 
