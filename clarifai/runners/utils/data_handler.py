@@ -38,6 +38,17 @@ class Output(dict):
     return list(self.keys())
 
 
+class Input(dict):
+  __getattr__ = dict.__getitem__
+  __setattr__ = dict.__setitem__
+
+  def __origin__(self):
+    return self
+
+  def __args__(self):
+    return list(self.keys())
+
+
 class Stream(Iterable):
   pass
 

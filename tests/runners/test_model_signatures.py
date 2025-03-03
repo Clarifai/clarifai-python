@@ -1,3 +1,5 @@
+import functools
+import os
 import unittest
 from typing import List
 
@@ -7,9 +9,9 @@ from PIL import Image, ImageOps
 from clarifai.client.model_client import ModelClient
 from clarifai.runners.models.model_class import ModelClass, methods
 from clarifai.runners.models.model_servicer import ModelServicer
-from clarifai.runners.utils.data_handler import Concept, Output, Stream
+from clarifai.runners.utils.data_handler import Concept, Input, Output, Stream
 
-_ENABLE_PPRINT = False
+_ENABLE_PPRINT = os.getenv("ENABLE_PPRINT", "false").lower() in ("true", "1")
 
 if _ENABLE_PPRINT:
   from pprint import pprint
@@ -17,6 +19,22 @@ else:
 
   def pprint(*args, **kwargs):
     pass
+
+
+def fail_pdb(f):
+  import pdb
+  import traceback
+
+  @functools.wraps(f)
+  def decorated(*args, **kwargs):
+    try:
+      return f(*args, **kwargs)
+    except:
+      traceback.print_exc()
+      pdb.post_mortem()
+      raise
+
+  return decorated
 
 
 class TestModelCalls(unittest.TestCase):
@@ -908,44 +926,90 @@ class TestModelCalls(unittest.TestCase):
     result = list(client.f(iter(['abc', 'xyz']), 5))
     self.assertEqual(result, ['0abc5', '1xyz5'])
 
+  def test_stream_named_inputs_str_str__str(self):
 
-#  @unittest.skip("Not implemented yet")
-#  def test_stream_named_inputs_str_str__str(self):
-#
-#    class MyModel(ModelClass):
-#
-#      @methods.stream
-#      def f(self, stream: Stream[Input(x=str, y=str)]) -> Stream[str]:
-#        for i, input in enumerate(stream):
-#          yield str(i) + input.x + input.y
-#
-#    pprint(MyModel._get_method_info('f').signature)
-#    self.assertEqual(
-#        MyModel._get_method_info('f').signature, {
-#            'inputs': [{
-#                'data_field': 'parts[x].string_value',
-#                'data_type': 'str',
-#                'name': 'x',
-#                'required': True,
-#                'streaming': True
-#            }, {
-#                'data_field': 'parts[y].string_value',
-#                'data_type': 'str',
-#                'name': 'y',
-#                'required': True,
-#                'streaming': True
-#            }],
-#            'method_type':
-#                'stream',
-#            'name':
-#                'f',
-#            'outputs': [{
-#                'data_field': 'string_value',
-#                'data_type': 'str',
-#                'name': 'return',
-#                'streaming': True
-#            }]
-#        })
+    class MyModel(ModelClass):
+
+      @methods.stream
+      def f(self, stream: Stream[Input(x=str, y=str)]) -> Stream[str]:
+        for i, input in enumerate(stream):
+          yield str(i) + input.x + input.y
+
+    pprint(MyModel._get_method_info('f').signature)
+    self.assertEqual(
+        MyModel._get_method_info('f').signature, {
+            'inputs': [{
+                'data_field': 'parts[stream.x].string_value',
+                'data_type': 'str',
+                'name': 'stream.x',
+                'required': True,
+                'streaming': True
+            }, {
+                'data_field': 'parts[stream.y].string_value',
+                'data_type': 'str',
+                'name': 'stream.y',
+                'required': True,
+                'streaming': True
+            }],
+            'method_type':
+                'stream',
+            'name':
+                'f',
+            'outputs': [{
+                'data_field': 'string_value',
+                'data_type': 'str',
+                'name': 'return',
+                'streaming': True
+            }]
+        })
+
+    # test call
+    client = _get_servicer_client(MyModel())
+    result = list(client.f(stream=iter([Input(x='a', y='b'), Input(x='x', y='y')])))
+    self.assertEqual(result, ['0ab', '1xy'])
+
+  def test_stream_names_nonunique_nested(self):
+
+    class MyModel(ModelClass):
+
+      @methods.stream
+      def f(self, streamvar: Stream[Input(x=str, y=int)], x: str) -> Stream[str]:
+        for i, val in enumerate(streamvar):
+          yield str(i) + val.x + str(val.y) + x
+
+    pprint(MyModel._get_method_info('f').signature)
+    self.assertEqual(
+        MyModel._get_method_info('f').signature, {
+            'inputs': [{
+                'data_field': 'parts[x].string_value',
+                'data_type': 'str',
+                'name': 'streamvar.x',
+                'required': True,
+                'streaming': True
+            }, {
+                'data_field': 'parts[y].int_value',
+                'data_type': 'int',
+                'name': 'streamvar.y',
+                'required': True,
+                'streaming': True
+            }, {
+                'data_field': 'string_value',
+                'data_type': 'str',
+                'name': 'x',
+                'required': True,
+                'streaming': False
+            }],
+            'method_type':
+                'stream',
+            'name':
+                'f',
+            'outputs': [{
+                'data_field': 'string_value',
+                'data_type': 'str',
+                'name': 'return',
+                'streaming': True
+            }]
+        })
 
 
 def _get_servicer_client(model):

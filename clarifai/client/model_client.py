@@ -304,31 +304,33 @@ class ModelClient:
     assert isinstance(inputs, dict)
     kwargs = inputs
 
-    # find the streaming var in the signature
-    streaming_var = [var for var in input_signature if var.streaming]
-    if len(streaming_var) != 1:
-      raise TypeError('Streaming requires exactly one streaming input')
-    streaming_var = streaming_var[0]
+    # find the streaming vars in the input signature, and the streaming input python param
+    streaming_var_signatures = [var for var in input_signature if var.streaming]
+    stream_argname = set([var.name.split('.', 1)[0] for var in streaming_var_signatures])
+    assert len(
+        stream_argname) == 1, 'streaming methods must have exactly one streaming function arg'
+    stream_argname = stream_argname.pop()
 
-    streaming_input = kwargs.pop(streaming_var.name)
+    # get the streaming input generator from the user-provided function arg values
+    user_inputs_generator = kwargs.pop(stream_argname)
 
     def _input_proto_stream():
       # first item contains all the inputs and the first stream item
       proto = resources_pb2.Input()
       try:
-        item = next(streaming_input)
+        item = next(user_inputs_generator)
       except StopIteration:
         return  # no items to stream
-      kwargs[streaming_var.name] = item
+      kwargs[stream_argname] = item
       serialize(kwargs, input_signature, proto.data)
 
       yield proto
 
       # subsequent items are just the stream items
-      stream_signature = [streaming_var]
-      for item in streaming_input:
+      for item in user_inputs_generator:
+        assert isinstance(item, dict), 'streaming input must be a dict or Input dict object'
         proto = resources_pb2.Input()
-        serialize({streaming_var.name: item}, stream_signature, proto.data)
+        serialize({stream_argname: item}, streaming_var_signatures, proto.data)
         yield proto
 
     response_stream = self._stream_by_proto(_input_proto_stream(), method_name)

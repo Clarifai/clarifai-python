@@ -139,33 +139,33 @@ class ModelClass(ABC):
       signature = method_info.signature
       python_param_types = method_info.python_param_types
 
-      # find the streaming var in the signature
-      streaming_var = [var for var in signature.inputs if var.streaming]
-      if len(streaming_var) != 1:
-        raise TypeError('Streaming requires exactly one streaming input')
-      streaming_var = streaming_var[0]
+      # find the streaming vars in the signature
+      streaming_var_signatures = [var for var in signature.inputs if var.streaming]
+      stream_argname = set([var.name.split('.', 1)[0] for var in streaming_var_signatures])
+      assert len(
+          stream_argname) == 1, 'streaming methods must have exactly one streaming function arg'
+      stream_argname = stream_argname.pop()
 
-      # convert all inputs for the first request, including the first streaming input
+      # convert all inputs for the first request, including the first stream value
       inputs = self._convert_input_protos_to_python(request.inputs, signature.inputs,
                                                     python_param_types)
       kwargs = inputs[0]
 
       # first streaming item
-      first_item = kwargs.pop(streaming_var.name)
+      first_item = kwargs.pop(stream_argname)
 
       # streaming generator
       def InputStream():
         yield first_item
         # subsequent streaming items contain only the streaming input
-        streaming_var_signature = [streaming_var]
         for request in request_iterator:
-          item = self._convert_input_protos_to_python(request.inputs, streaming_var_signature,
+          item = self._convert_input_protos_to_python(request.inputs, streaming_var_signatures,
                                                       python_param_types)
-          item = item[0][streaming_var.name]
+          item = item[0][stream_argname]
           yield item
 
       # add stream generator back to the input kwargs
-      kwargs[streaming_var.name] = InputStream()
+      kwargs[stream_argname] = InputStream()
 
       for output in method(**kwargs):
         resp = service_pb2.MultiOutputResponse()

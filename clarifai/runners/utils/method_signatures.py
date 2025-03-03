@@ -70,9 +70,9 @@ def build_function_signature(func, method_type: str):
     if not all(var.streaming for var in output_vars):
       raise TypeError('Generate methods must return a stream')
   elif method_type == 'stream':
-    input_stream_var = [var for var in input_vars if var.streaming]
-    if len(input_stream_var) != 1:
-      raise TypeError('Stream methods must take a single Stream input')
+    input_stream_vars = [var for var in input_vars if var.streaming]
+    if len(input_stream_vars) == 0:
+      raise TypeError('Stream methods must include a Stream input')
     if len(output_vars) != 1 or not output_vars[0].streaming:
       raise TypeError('Stream methods must return a single Stream')
   else:
@@ -93,7 +93,7 @@ def build_function_signature(func, method_type: str):
   return method_signature
 
 
-def build_variables_signature(var_types: List[inspect.Parameter], is_output=False):
+def build_variables_signature(parameters: List[inspect.Parameter], is_output=False):
   '''
   Build a data proto signature for the given variable or return type annotation.
   '''
@@ -101,26 +101,27 @@ def build_variables_signature(var_types: List[inspect.Parameter], is_output=Fals
   vars = []
 
   # check valid names (should already be constrained by python naming, but check anyway)
-  for param in var_types:
+  for param in parameters:
     if not param.name.isidentifier() and not (is_output and
                                               re.match(r'return(\.\d+)?', param.name)):
       raise ValueError(f'Invalid variable name: {param.name}')
 
   # get fields for each variable based on type
-  for param in var_types:
-    tp, streaming = _normalize_type(param.annotation, is_output=is_output)
+  for param in parameters:
+    param_types, streaming = _normalize_types(param, is_output=is_output)
 
-    #var = resources_pb2.MethodVariable()   # TODO
-    var = _NamedFields()
-    var.name = param.name
-    var.data_type = _DATA_TYPES[tp].data_type
-    var.data_field = _DATA_TYPES[tp].data_field
-    var.streaming = streaming
-    if not is_output:
-      var.required = (param.default is inspect.Parameter.empty)
-      if not var.required:
-        var.default = param.default
-    vars.append(var)
+    for name, tp in param_types.items():
+      #var = resources_pb2.MethodVariable()   # TODO
+      var = _NamedFields()
+      var.name = name
+      var.data_type = _DATA_TYPES[tp].data_type
+      var.data_field = _DATA_TYPES[tp].data_field
+      var.streaming = streaming
+      if not is_output:
+        var.required = (param.default is inspect.Parameter.empty)
+        if not var.required:
+          var.default = param.default
+      vars.append(var)
 
   # check if any fields are used more than once, and if so, use parts
   # also if more than one field uses parts lists, also use parts, since the lists can be different lengths
@@ -161,6 +162,8 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
   '''
   if proto is None:
     proto = resources_pb2.Data()
+  if not is_output:  # TODO: use this consistently for return keys also
+    _flatten_nested_keys(kwargs, signatures, is_output)
   unknown = set(kwargs.keys()) - set(sig.name for sig in signatures)
   if unknown:
     if unknown == {'return'} and len(signatures) > 1:
@@ -179,14 +182,6 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
     serializer = get_serializer(sig.data_type)
     serializer.serialize(data_proto, field, data)
   return proto
-
-
-def _is_empty_proto_data(data):
-  if isinstance(data, np.ndarray):
-    return False
-  if isinstance(data, MessageProto):
-    return not data.ByteSize()
-  return not data
 
 
 def deserialize(proto, signatures, is_output=False):
@@ -210,6 +205,7 @@ def deserialize(proto, signatures, is_output=False):
     if kwargs and 'return.0' in kwargs:  # case for tuple return values
       return tuple(kwargs[f'return.{i}'] for i in range(len(kwargs)))
     return data_handler.Output(kwargs)
+  _unflatten_nested_keys(kwargs, signatures, is_output)
   return kwargs
 
 
@@ -223,6 +219,38 @@ def get_serializer(data_type: str) -> Serializer:
   raise ValueError(f'Unsupported type: "{data_type}"')
 
 
+def _flatten_nested_keys(kwargs, signatures, is_output):
+  nested_keys = [sig.name for sig in signatures if '.' in sig.name]
+  outer_keys = set(key.split('.')[0] for key in nested_keys)
+  for outer in outer_keys:
+    if outer not in kwargs:
+      continue
+    kwargs.update({outer + '.' + k: v for k, v in kwargs.pop(outer).items()})
+  return kwargs
+
+
+def _unflatten_nested_keys(kwargs, signatures, is_output):
+  for sig in signatures:
+    if '.' not in sig.name:
+      continue
+    if sig.name not in kwargs:
+      continue
+    parts = sig.name.split('.')
+    assert len(parts) == 2, 'Only one level of nested keys is supported'
+    if parts[0] not in kwargs:
+      kwargs[parts[0]] = data_handler.Output() if is_output else data_handler.Input()
+    kwargs[parts[0]][parts[1]] = kwargs.pop(sig.name)
+  return kwargs
+
+
+def _is_empty_proto_data(data):
+  if isinstance(data, np.ndarray):
+    return False
+  if isinstance(data, MessageProto):
+    return not data.ByteSize()
+  return not data
+
+
 def _get_data_part(proto, sig, is_output, serializing, force_named_part=False):
   field = sig.data_field
 
@@ -232,7 +260,9 @@ def _get_data_part(proto, sig, is_output, serializing, force_named_part=False):
 
   # gets the named part from the proto, according to the field path
   # note we only support one level of named parts
-  parts = field.replace(' ', '').split('.')
+  #parts = field.replace(' ', '').split('.')
+  # split on . but not if it is inside brackets, e.g. parts[outer.inner].field
+  parts = re.split(r'\.(?![^\[]*\])', field.replace(' ', ''))
 
   if len(parts) not in (1, 2, 3):  # field, parts[name].field, parts[name].parts[].field
     raise ValueError('Invalid field: %s' % field)
@@ -253,7 +283,7 @@ def _get_data_part(proto, sig, is_output, serializing, force_named_part=False):
     return proto, field  # return the data that contains the list itself
 
   # named part
-  if not (m := re.match(r'parts\[(\w+)\]', parts[0])):
+  if not (m := re.match(r'parts\[([\w.]+)\]', parts[0])):
     raise ValueError('Invalid field: %s' % field)
   if not (name := m.group(1)):
     raise ValueError('Invalid field: %s' % field)
@@ -267,23 +297,34 @@ def _get_data_part(proto, sig, is_output, serializing, force_named_part=False):
   return part.data, '.'.join(parts[1:])
 
 
-def _normalize_type(tp, is_output=False):
+def _normalize_types(param, is_output=False):
   '''
-  Normalize the given type.
+  Normalize the types for the given parameter.  Returns a dict of names to types,
+  including named return values for outputs, and a flag indicating if streaming is used.
   '''
+  tp = param.annotation
+
   # stream type indicates streaming, not part of the data itself
   streaming = (get_origin(tp) == data_handler.Stream)
   if streaming:
     tp = get_args(tp)[0]
 
-  if is_output:
+  if is_output or streaming:  # named types can be used for outputs or streaming inputs
     # output type used for named return values, each with their own data type
-    if isinstance(tp, (dict, data_handler.Output)):
-      return {name: _normalize_data_type(val) for name, val in tp.items()}, streaming
+    if isinstance(tp, (dict, data_handler.Output, data_handler.Input)):
+      return {param.name + '.' + name: _normalize_data_type(val)
+              for name, val in tp.items()}, streaming
     if tp == data_handler.Output:  # check for Output type without values
+      if not is_output:
+        raise TypeError('Output types can only be used for output values')
       raise TypeError('Output types must be instantiated with inner type values for each key')
+    if tp == data_handler.Input:  # check for Output type without values
+      if is_output:
+        raise TypeError('Input types can only be used for input values')
+      raise TypeError(
+          'Stream[Input(...)] types must be instantiated with inner type values for each key')
 
-  return _normalize_data_type(tp), streaming
+  return {param.name: _normalize_data_type(tp)}, streaming
 
 
 def _normalize_data_type(tp):
