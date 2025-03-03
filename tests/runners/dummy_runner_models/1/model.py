@@ -1,6 +1,5 @@
-from typing import Iterator
-
-from clarifai.runners.models.model_class import ModelClass
+from clarifai.runners.models.model_class import ModelClass, methods
+from clarifai.runners.utils.data_handler import Stream, Text
 
 
 class MyModel(ModelClass):
@@ -9,27 +8,29 @@ class MyModel(ModelClass):
   def load_model(self):
     """Load the model here."""
 
-  def predict(self, text1: str = "", image_url: str = "") -> str:
+  @methods.predict
+  def predict(self, text1: Text = "") -> Text:
     """This is the method that will be called when the runner is run. It takes in an input and
     returns an output.
     """
 
-    output_text = text1 + "Hello World"
-    output_image_url = image_url.replace("samples.clarifai.com", "newdomain.com")
+    output_text = text1.text + "Hello World"
 
-    return output_text + " " + output_image_url
+    return Text(output_text)
 
-  def generate(self, text1: str = "", image_url: str = "") -> Iterator[str]:
+  @methods.generate
+  def generate(self, text1: Text = Text("")) -> Stream[Text]:
     """Example yielding a whole batch of streamed stuff back."""
 
     for i in range(10):  # fake something iterating generating 10 times.
-      output_text = text1 + f"Generate Hello World {i}"
-      yield output_text
+      output_text = text1.text + f"Generate Hello World {i}"
+      yield Text(output_text)
 
-  def stream(self, input_iterator) -> Iterator[str]:
+  @methods.stream
+  def stream(self, input_iterator: Stream[Text]) -> Stream[Text]:
     """Example yielding a whole batch of streamed stuff back."""
 
     for ri, input in enumerate(input_iterator):
       for i in range(10):  # fake something iterating generating 10 times.
         output_text = input.text + f"Stream Hello World {i}"
-        yield output_text
+        yield Text(output_text)

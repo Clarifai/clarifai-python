@@ -63,7 +63,8 @@ class ModelClass(ABC):
     outputs = []
     try:
       # TODO add method name field to proto
-      method_name = request.model.model_version.output_info.params['_method_name']
+      call_params = dict(request.model.model_version.output_info.params)
+      method_name = call_params.get('_method_name', 'predict')
       if method_name == '_GET_SIGNATURES':  # special case to fetch signatures, TODO add endpoint for this
         return self._handle_get_signatures_request()
       if method_name not in self._get_method_info():
@@ -96,7 +97,8 @@ class ModelClass(ABC):
   def generate_wrapper(self, request: service_pb2.PostModelOutputsRequest
                       ) -> Iterator[service_pb2.MultiOutputResponse]:
     try:
-      method_name = request.model.model_version.output_info.params['_method_name']
+      call_params = dict(request.model.model_version.output_info.params)
+      method_name = call_params.get('_method_name', 'generate')
       method = getattr(self, method_name)
       method_info = method._cf_method_info
       signature = method_info.signature
@@ -133,7 +135,8 @@ class ModelClass(ABC):
       request = next(request_iterator)  # get first request to determine method
       assert len(request.inputs) == 1, "Streaming requires exactly one input"
 
-      method_name = request.model.model_version.output_info.params['_method_name']
+      call_params = dict(request.model.model_version.output_info.params)
+      method_name = call_params.get('_method_name', 'stream')
       method = getattr(self, method_name)
       method_info = method._cf_method_info
       signature = method_info.signature
@@ -203,6 +206,7 @@ class ModelClass(ABC):
     if not isinstance(output, dict):  # TODO Output type, not just dict
       output = {'return': output}
     serialize(output, variables_signature, proto.data, is_output=True)
+    proto.status.code = status_code_pb2.SUCCESS
     return proto
 
   @classmethod

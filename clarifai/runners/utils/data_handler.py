@@ -60,7 +60,7 @@ class Text(MessageData):
     self.url = url
 
   def to_proto(self) -> TextProto:
-    return TextProto(raw=self.text or '', self_url=self.url or '')
+    return TextProto(raw=self.text or '', url=self.url or '')
 
   @classmethod
   def from_proto(cls, proto: TextProto) -> "Text":
