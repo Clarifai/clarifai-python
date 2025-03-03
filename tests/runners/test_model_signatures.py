@@ -578,6 +578,50 @@ class TestModelCalls(unittest.TestCase):
     self.assertEqual(result.x, 3)
     self.assertEqual(result.y, 'abc result')
 
+  def test_generate_named_outputs(self):
+
+    class MyModel(ModelClass):
+
+      @methods.generate
+      def f(self, x: int) -> Stream[Output(x=int, y=str)]:
+        for i in range(x):
+          yield Output(x=i, y=str(i))
+
+    pprint(MyModel._get_method_info('f').signature)
+    self.assertEqual(
+        MyModel._get_method_info('f').signature, {
+            'inputs': [{
+                'data_field': 'int_value',
+                'data_type': 'int',
+                'name': 'x',
+                'required': True,
+                'streaming': False
+            }],
+            'method_type':
+                'generate',
+            'name':
+                'f',
+            'outputs': [{
+                'data_field': 'int_value',
+                'data_type': 'int',
+                'name': 'x',
+                'streaming': True
+            }, {
+                'data_field': 'string_value',
+                'data_type': 'str',
+                'name': 'y',
+                'streaming': True
+            }]
+        })
+
+    # test call
+    client = _get_servicer_client(MyModel())
+    result = list(client.f(5))
+    self.assertEqual(len(result), 5)
+    for i, output in enumerate(result):
+      self.assertEqual(output.x, i)
+      self.assertEqual(output.y, str(i))
+
   def test_kwarg_defaults_int(self):
 
     class MyModel(ModelClass):

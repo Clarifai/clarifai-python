@@ -32,6 +32,10 @@ def build_function_signature(func, method_type: str):
   if return_annotation == inspect.Parameter.empty:
     raise ValueError('Function must have a return annotation')
   # check for multiple return values and convert to dict for named values
+  return_streaming = False
+  if get_origin(return_annotation) == data_handler.Stream:
+    return_annotation = get_args(return_annotation)[0]
+    return_streaming = True
   if get_origin(return_annotation) == tuple:
     return_annotation = tuple(get_args(return_annotation))
   if isinstance(return_annotation, tuple):
@@ -47,6 +51,9 @@ def build_function_signature(func, method_type: str):
           for name, tp in return_annotation.items()
       ],
       is_output=True)
+  if return_streaming:
+    for var in output_vars:
+      var.streaming = True
 
   # check for streams
   if method_type == 'predict':
@@ -60,7 +67,7 @@ def build_function_signature(func, method_type: str):
     for var in input_vars:
       if var.streaming:
         raise TypeError('Stream inputs are not supported for generate methods')
-    if not (len(output_vars) == 1 and output_vars[0].streaming):
+    if not all(var.streaming for var in output_vars):
       raise TypeError('Generate methods must return a stream')
   elif method_type == 'stream':
     input_stream_var = [var for var in input_vars if var.streaming]
@@ -102,7 +109,6 @@ def build_variables_signature(var_types: List[inspect.Parameter], is_output=Fals
   # get fields for each variable based on type
   for param in var_types:
     tp, streaming = _normalize_type(param.annotation, is_output=is_output)
-    required = (param.default is inspect.Parameter.empty)
 
     #var = resources_pb2.MethodVariable()   # TODO
     var = _NamedFields()
@@ -111,8 +117,8 @@ def build_variables_signature(var_types: List[inspect.Parameter], is_output=Fals
     var.data_field = _DATA_TYPES[tp].data_field
     var.streaming = streaming
     if not is_output:
-      var.required = required
-      if not required:
+      var.required = (param.default is inspect.Parameter.empty)
+      if not var.required:
         var.default = param.default
     vars.append(var)
 
