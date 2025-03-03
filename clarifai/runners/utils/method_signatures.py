@@ -63,11 +63,9 @@ def build_function_signature(func, method_type: str):
     if not (len(output_vars) == 1 and output_vars[0].streaming):
       raise TypeError('Generate methods must return a stream')
   elif method_type == 'stream':
-    # TODO handle initial non-stream inputs, check for one stream input and one stream output
-    if len(input_vars) != 1:
+    input_stream_var = [var for var in input_vars if var.streaming]
+    if len(input_stream_var) != 1:
       raise TypeError('Stream methods must take a single Stream input')
-    if not input_vars[0].streaming:
-      raise TypeError('Stream methods must take a stream input')
     if len(output_vars) != 1 or not output_vars[0].streaming:
       raise TypeError('Stream methods must return a single Stream')
   else:

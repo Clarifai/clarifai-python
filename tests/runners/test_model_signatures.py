@@ -822,6 +822,48 @@ class TestModelCalls(unittest.TestCase):
     result = list(client.f(iter(['abc', 'xyz'])))
     self.assertEqual(result, ['0abc', '1xyz'])
 
+  def test_stream_str_nonstream_int__str(self):
+
+    class MyModel(ModelClass):
+
+      @methods.stream
+      def f(self, input_stream: Stream[str], y: int) -> Stream[str]:
+        for i, x in enumerate(input_stream):
+          yield str(i) + x + str(y)
+
+    pprint(MyModel._get_method_info('f').signature)
+    self.assertEqual(
+        MyModel._get_method_info('f').signature, {
+            'inputs': [{
+                'data_field': 'string_value',
+                'data_type': 'str',
+                'name': 'input_stream',
+                'required': True,
+                'streaming': True
+            }, {
+                'data_field': 'int_value',
+                'data_type': 'int',
+                'name': 'y',
+                'required': True,
+                'streaming': False
+            }],
+            'method_type':
+                'stream',
+            'name':
+                'f',
+            'outputs': [{
+                'data_field': 'string_value',
+                'data_type': 'str',
+                'name': 'return',
+                'streaming': True
+            }]
+        })
+
+    # test call
+    client = _get_servicer_client(MyModel())
+    result = list(client.f(iter(['abc', 'xyz']), 5))
+    self.assertEqual(result, ['0abc5', '1xyz5'])
+
 
 def _get_servicer_client(model):
   servicer = ModelServicer(model)
