@@ -578,7 +578,7 @@ class TestModelSignatures(unittest.TestCase):
     self.assertEqual(result.x, 3)
     self.assertEqual(result.y, 'abc result')
 
-  def test_kwarg_defaults_one_arg(self):
+  def test_kwarg_defaults_int(self):
 
     class MyModel(ModelClass):
 
@@ -623,6 +623,64 @@ class TestModelSignatures(unittest.TestCase):
       client.f('abc')
     with self.assertRaises(TypeError):
       client.f(4, 5)
+
+  def test_kwarg_defaults_str(self):
+
+    class MyModel(ModelClass):
+
+      @methods.predict
+      def f(self, x: str = 'abc') -> str:
+        return x[::-1]
+
+    pprint(MyModel._get_method_info('f').signature)
+    self.assertEqual(
+        MyModel._get_method_info('f').signature, {
+            'inputs': [{
+                'data_field': 'string_value',
+                'data_type': 'str',
+                'name': 'x',
+                'default': 'abc',
+                'required': False,
+                'streaming': False
+            }],
+            'method_type':
+                'predict',
+            'name':
+                'f',
+            'outputs': [{
+                'data_field': 'string_value',
+                'data_type': 'str',
+                'name': 'return',
+                'streaming': False
+            }]
+        })
+
+    # test call
+    client = _get_servicer_client(MyModel())
+    result = client.f()
+    self.assertEqual(result, 'cba')
+    result = client.f('xyz')
+    self.assertEqual(result, 'zyx')
+    result = client.f('')
+    self.assertEqual(result, '')
+    with self.assertRaises(TypeError):
+      client.f(5)
+    with self.assertRaises(TypeError):
+      client.f('abc', 'def')
+    result = client.f(x='abc')
+    self.assertEqual(result, 'cba')
+    result = client.f(x='xyz')
+    self.assertEqual(result, 'zyx')
+    result = client.f(x='')
+    self.assertEqual(result, '')
+    with self.assertRaises(TypeError):
+      client.f(x=5)
+    with self.assertRaises(TypeError):
+      client.f(x='abc', y='def')
+    with self.assertRaises(TypeError):
+      client.f(y='abc')
+    with self.assertRaises(TypeError):
+      client.f('abc', x='def')
 
 
 def _get_servicer_client(model):
