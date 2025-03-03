@@ -335,7 +335,6 @@ class ModelClient:
 
       # subsequent items are just the stream items
       for item in user_inputs_generator:
-        assert isinstance(item, dict), 'streaming input must be a dict or Input dict object'
         proto = resources_pb2.Input()
         serialize({stream_argname: item}, streaming_var_signatures, proto.data)
         yield proto
