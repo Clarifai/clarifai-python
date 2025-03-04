@@ -29,8 +29,23 @@ class ModelClient:
         '''
     self.STUB = stub
     self.request_template = request_template or service_pb2.PostModelOutputsRequest()
-    self._fetch_signatures()
-    self._define_functions()
+    self._method_signatures = None
+    self._defined = False
+
+  def fetch(self):
+    '''
+    Fetch function signature definitions from the model and define the functions in the client
+    '''
+    try:
+      self._fetch_signatures()
+      self._define_functions()
+    finally:
+      self._defined = True
+
+  def __getattr__(self, name):
+    if not self._defined:
+      self.fetch()
+    return self.__getattribute__(name)
 
   def _fetch_signatures(self):
     '''

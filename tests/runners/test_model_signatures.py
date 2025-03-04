@@ -1097,6 +1097,39 @@ class TestModelCalls(unittest.TestCase):
             ' ', ''))
 
 
+class TestClient(unittest.TestCase):
+
+  def test_client_simple(self):
+
+    class MyModel(ModelClass):
+
+      @methods.predict
+      def f(self, x: int) -> int:
+        return x + 1
+
+    client = _get_servicer_client(MyModel())
+    result = client.f(5)
+    self.assertEqual(result, 6)
+
+  def test_nonexistent_function(self):
+
+    class MyModel(ModelClass):
+
+      @methods.predict
+      def f(self, x: int) -> int:
+        return x + 1
+
+    client = _get_servicer_client(MyModel())
+    with self.assertRaises(AttributeError):
+      client.g
+
+    result = client.f(5)
+    self.assertEqual(result, 6)
+
+    with self.assertRaises(AttributeError):
+      client.g
+
+
 def _get_servicer_client(model):
   servicer = ModelServicer(model)
   client = ModelClient(servicer)
