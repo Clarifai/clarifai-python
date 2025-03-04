@@ -3,6 +3,7 @@
 #
 import importlib
 import os
+import sys
 import threading
 import uuid
 
@@ -128,6 +129,9 @@ class TestRunnerServer:
 
   @classmethod
   def setup_class(cls):
+    if sys.version_info < (3, 9):
+      pytest.skip("This test requires Python 3.9 or higher.")
+
     NOW = uuid.uuid4().hex[:10]
     cls.MODEL_ID = f"test-runner-model-{NOW}"
     cls.NODEPOOL_ID = f"test-nodepool-{NOW}"
