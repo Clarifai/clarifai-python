@@ -20,6 +20,9 @@ _RAISE_EXCEPTIONS = os.getenv("RAISE_EXCEPTIONS", "false").lower() == "true"
 
 
 class methods:
+  '''
+  Decorators to mark methods as predict, generate, or stream methods.
+  '''
 
   @staticmethod
   def predict(method):
@@ -38,6 +41,32 @@ class methods:
 
 
 class ModelClass(ABC):
+  '''
+  Base class for model classes that can be run as a service.
+
+  Define methods as predict, generate, or stream methods using the @methods decorators.
+
+  Example:
+
+    from clarifai.runners.model_class import ModelClass, methods
+    from clarifai.runners.utils.data_types import Input, Stream
+
+    class MyModel(ModelClass):
+
+      @methods.predict
+      def predict(self, x: str, y: int) -> List[str]:
+        return [x] * y
+
+      @methods.generate
+      def generate(self, x: str, y: int) -> Stream[str]:
+        for i in range(y):
+          yield x + str(i)
+
+      @methods.stream
+      def stream(self, input_stream: Stream[Input(x=str, y=int)]) -> Stream[str]:
+        for item in input_stream:
+          yield item.x + ' ' + str(item.y)
+  '''
 
   def load_model(self):
     """Load the model."""
