@@ -10,7 +10,7 @@ from PIL import Image, ImageOps
 from clarifai.client.model_client import ModelClient
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.models.model_servicer import ModelServicer
-from clarifai.runners.utils.data_types import Concept, Input, Output, Stream
+from clarifai.runners.utils.data_types import Concept, NamedFields, Stream
 
 _ENABLE_PPRINT = os.getenv("ENABLE_PPRINT", "false").lower() in ("true", "1")
 
@@ -578,8 +578,8 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, input: str) -> Output(x=int, y=str):
-        return Output(x=len(input), y=input + ' result')
+      def f(self, input: str) -> NamedFields(x=int, y=str):
+        return NamedFields(x=len(input), y=input + ' result')
 
     sig = dict(MyModel._get_method_info('f').signature)
     del sig['docstring']
@@ -619,9 +619,9 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, x: int) -> Stream[Output(x=int, y=str)]:
+      def f(self, x: int) -> Stream[NamedFields(x=int, y=str)]:
         for i in range(x):
-          yield Output(x=i, y=str(i))
+          yield NamedFields(x=i, y=str(i))
 
     sig = dict(MyModel._get_method_info('f').signature)
     del sig['docstring']
@@ -949,7 +949,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, stream: Stream[Input(x=str, y=str)]) -> Stream[str]:
+      def f(self, stream: Stream[NamedFields(x=str, y=str)]) -> Stream[str]:
         for i, input in enumerate(stream):
           yield str(i) + input.x + input.y
 
@@ -983,7 +983,7 @@ class TestModelCalls(unittest.TestCase):
 
     # test call
     client = _get_servicer_client(MyModel())
-    result = list(client.f(stream=iter([Input(x='a', y='b'), Input(x='x', y='y')])))
+    result = list(client.f(stream=iter([NamedFields(x='a', y='b'), NamedFields(x='x', y='y')])))
     self.assertEqual(result, ['0ab', '1xy'])
 
   def test_stream_names_nonunique_nested(self):
@@ -991,7 +991,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, streamvar: Stream[Input(x=str, y=int)], x: str) -> Stream[str]:
+      def f(self, streamvar: Stream[NamedFields(x=str, y=int)], x: str) -> Stream[str]:
         for i, val in enumerate(streamvar):
           yield str(i) + val.x + str(val.y) + x
 
@@ -1031,7 +1031,7 @@ class TestModelCalls(unittest.TestCase):
 
     # test call
     client = _get_servicer_client(MyModel())
-    result = list(client.f(iter([Input(x='a', y=1), Input(x='x', y=2)]), 'z'))
+    result = list(client.f(iter([NamedFields(x='a', y=1), NamedFields(x='x', y=2)]), 'z'))
     self.assertEqual(result, ['0a1z', '1x2z'])
 
   def test_docstrings(self):
@@ -1054,11 +1054,11 @@ class TestModelCalls(unittest.TestCase):
         return range(len(x))
 
       @ModelClass.method
-      def stream(self, stream: Stream[Input(x=str, y=str)],
-                 n: int) -> Stream[Output(xout=str, yout=str)]:
+      def stream(self, stream: Stream[NamedFields(x=str, y=str)],
+                 n: int) -> Stream[NamedFields(xout=str, yout=str)]:
         """This is a stream test function."""
         for i, input in enumerate(stream):
-          yield Output(xout=input.x + str(i), yout=input.y + str(n))
+          yield NamedFields(xout=input.x + str(i), yout=input.y + str(n))
 
     pprint(MyModel._get_method_info())
 
@@ -1095,8 +1095,8 @@ class TestModelCalls(unittest.TestCase):
     sig = str(sig).replace("'", "").replace('"', '').replace(' ', '')
     self.assertEqual(
         str(sig),
-        '(stream: Stream[{x: str, y: str}], n: int) -> Stream[Output(xout=str, yout=str)]'.replace(
-            ' ', ''))
+        '(stream: Stream[{x: str, y: str}], n: int) -> Stream[NamedFields(xout=str, yout=str)]'.
+        replace(' ', ''))
 
 
 class TestClient(unittest.TestCase):

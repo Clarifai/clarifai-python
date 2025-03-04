@@ -134,8 +134,8 @@ class ModelClient:
       input_annos = {var.name: var.data_type for var in method_signature.inputs}
       output_annos = {var.name: var.data_type for var in method_signature.outputs}
       # unflatten nested keys to match the user function args for docs
-      input_annos = unflatten_nested_keys(input_annos, method_signature.inputs, is_output=False)
-      output_annos = unflatten_nested_keys(output_annos, method_signature.outputs, is_output=True)
+      input_annos = unflatten_nested_keys(input_annos, method_signature.inputs)
+      output_annos = unflatten_nested_keys(output_annos, method_signature.outputs)
 
       # add Stream[] to the stream input annotations for docs
       input_stream_argname, _ = get_stream_from_signature(method_signature.inputs)
@@ -155,7 +155,7 @@ class ModelClient:
                                             for i in range(len(output_annos))) + ')'
       else:
         # named output
-        return_annotation = f'Output({", ".join(f"{k}={t}" for k, t in output_annos.items())})'
+        return_annotation = f'NamedFields({", ".join(f"{k}={t}" for k, t in output_annos.items())})'
       if method_signature.method_type in ['generate', 'stream']:
         return_annotation = f'Stream[{return_annotation}]'
 

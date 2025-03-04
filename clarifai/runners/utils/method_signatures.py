@@ -156,7 +156,7 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
   if proto is None:
     proto = resources_pb2.Data()
   if not is_output:  # TODO: use this consistently for return keys also
-    kwargs = flatten_nested_keys(kwargs, signatures, is_output)
+    kwargs = flatten_nested_keys(kwargs, signatures)
   unknown = set(kwargs.keys()) - set(sig.name for sig in signatures)
   if unknown:
     if unknown == {'return'} and len(signatures) > 1:
@@ -197,8 +197,8 @@ def deserialize(proto, signatures, is_output=False):
       return kwargs['return']
     if kwargs and 'return.0' in kwargs:  # case for tuple return values
       return tuple(kwargs[f'return.{i}'] for i in range(len(kwargs)))
-    return data_types.Output(kwargs)
-  kwargs = unflatten_nested_keys(kwargs, signatures, is_output)
+    return data_types.NamedFields(kwargs)
+  kwargs = unflatten_nested_keys(kwargs, signatures)
   return kwargs
 
 
@@ -212,7 +212,7 @@ def get_serializer(data_type: str) -> Serializer:
   raise ValueError(f'Unsupported type: "{data_type}"')
 
 
-def flatten_nested_keys(kwargs, signatures, is_output):
+def flatten_nested_keys(kwargs, signatures):
   '''
   Flatten nested keys into a single key with a dot, e.g. {'a': {'b': 1}} -> {'a.b': 1}
   in the kwargs, using the given signatures to determine which keys are nested.
@@ -226,11 +226,10 @@ def flatten_nested_keys(kwargs, signatures, is_output):
   return kwargs
 
 
-def unflatten_nested_keys(kwargs, signatures, is_output):
+def unflatten_nested_keys(kwargs, signatures):
   '''
   Unflatten nested keys in kwargs into a dict, e.g. {'a.b': 1} -> {'a': {'b': 1}}
   Uses the signatures to determine which keys are nested.
-  The dict subclass is Input or Output, depending on the is_output flag.
   Preserves the order of args from the signatures.
   '''
   unflattened = OrderedDict()
@@ -244,7 +243,7 @@ def unflatten_nested_keys(kwargs, signatures, is_output):
     parts = sig.name.split('.')
     assert len(parts) == 2, 'Only one level of nested keys is supported'
     if parts[0] not in unflattened:
-      unflattened[parts[0]] = data_types.Output() if is_output else data_types.Input()
+      unflattened[parts[0]] = data_types.NamedFields()
     unflattened[parts[0]][parts[1]] = kwargs[sig.name]
   return unflattened
 
@@ -325,20 +324,13 @@ def _normalize_types(param, is_output=False):
   if streaming:
     tp = get_args(tp)[0]
 
-  if is_output or streaming:  # named types can be used for outputs or streaming inputs
-    # output type used for named return values, each with their own data type
-    if isinstance(tp, (dict, data_types.Output, data_types.Input)):
-      return {param.name + '.' + name: _normalize_data_type(val)
-              for name, val in tp.items()}, streaming
-    if tp == data_types.Output:  # check for Output type without values
-      if not is_output:
-        raise TypeError('Output types can only be used for output values')
-      raise TypeError('Output types must be instantiated with inner type values for each key')
-    if tp == data_types.Input:  # check for Output type without values
-      if is_output:
-        raise TypeError('Input types can only be used for input values')
-      raise TypeError(
-          'Stream[Input(...)] types must be instantiated with inner type values for each key')
+  # flatten NamedFields into dot-separated names
+  # note: this only supports one level of nesting for now
+  if isinstance(tp, (dict, data_types.NamedFields)):
+    return {param.name + '.' + name: _normalize_data_type(val)
+            for name, val in tp.items()}, streaming
+  if tp == data_types.NamedFields:  # check for NamedFields type without values
+    raise TypeError('NamedFields types must be instantiated with inner type values for each key')
 
   return {param.name: _normalize_data_type(tp)}, streaming
 

@@ -27,18 +27,7 @@ class MessageData:
     raise TypeError(f'Incompatible type for {self.__class__.__name__}: {python_type}')
 
 
-class Output(dict):
-  __getattr__ = dict.__getitem__
-  __setattr__ = dict.__setitem__
-
-  def __origin__(self):
-    return self
-
-  def __args__(self):
-    return list(self.keys())
-
-
-class Input(dict):
+class NamedFields(dict):
   __getattr__ = dict.__getitem__
   __setattr__ = dict.__setitem__
 
