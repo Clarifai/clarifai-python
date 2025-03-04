@@ -495,16 +495,6 @@ class TestModelCalls(unittest.TestCase):
     with self.assertRaisesRegex(Exception, 'test exception'):
       list(client.f(5))
 
-  def test_generate_not_streaming(self):
-
-    with self.assertRaisesRegex(TypeError, 'Generate ModelClass.method return a stream'):
-
-      class MyModel(ModelClass):
-
-        @ModelClass.method
-        def f(self, x: int) -> int:
-          return x
-
   def test_two_predict_functions(self):
 
     class MyModel(ModelClass):

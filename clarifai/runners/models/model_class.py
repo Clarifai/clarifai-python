@@ -118,8 +118,9 @@ class ModelClass(ABC):
   def generate_wrapper(self, request: service_pb2.PostModelOutputsRequest
                       ) -> Iterator[service_pb2.MultiOutputResponse]:
     try:
-      call_params = dict(request.model.model_version.output_info.params)
-      method_name = call_params.get('_method_name', 'generate')
+      method_name = 'generate'
+      if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
+        method_name = request.inputs[0].data.metadata['_method_name']
       method = getattr(self, method_name)
       method_info = method._cf_method_info
       signature = method_info.signature
@@ -156,8 +157,9 @@ class ModelClass(ABC):
       request = next(request_iterator)  # get first request to determine method
       assert len(request.inputs) == 1, "Streaming requires exactly one input"
 
-      call_params = dict(request.model.model_version.output_info.params)
-      method_name = call_params.get('_method_name', 'stream')
+      method_name = 'generate'
+      if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
+        method_name = request.inputs[0].data.metadata['_method_name']
       method = getattr(self, method_name)
       method_info = method._cf_method_info
       signature = method_info.signature
