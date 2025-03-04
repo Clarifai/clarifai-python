@@ -76,7 +76,9 @@ class ModelClass(ABC):
     methods = self._get_method_info()
     signatures = {method.name: method.signature for method in methods.values()}
     resp = service_pb2.MultiOutputResponse(status=status_pb2.Status(code=status_code_pb2.SUCCESS))
-    resp.outputs.add().data.string_value = signatures_to_json(signatures)
+    output = resp.outputs.add()
+    output.data.string_value = signatures_to_json(signatures)
+    output.status.code = status_code_pb2.SUCCESS
     return resp
 
   def batch_predict(self, method, inputs: List[Dict[str, Any]]) -> List[Any]:
