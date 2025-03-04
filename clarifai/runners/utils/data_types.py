@@ -21,6 +21,12 @@ class MessageData:
   def from_proto(cls, proto):
     raise NotImplementedError
 
+  @classmethod
+  def from_value(cls, value):
+    if isinstance(value, cls):
+      return value
+    return cls(value)
+
   def cast(self, python_type):
     if python_type == self.__class__:
       return self
@@ -48,12 +54,32 @@ class Text(MessageData):
     self.text = text
     self.url = url
 
+  def __eq__(self, other):
+    if isinstance(other, Text):
+      return self.text == other.text and self.url == other.url
+    if isinstance(other, str):
+      return self.text == other
+    return False
+
+  def __bool__(self):
+    return bool(self.text) or bool(self.url)
+
   def to_proto(self) -> TextProto:
     return TextProto(raw=self.text or '', url=self.url or '')
 
   @classmethod
   def from_proto(cls, proto: TextProto) -> "Text":
     return cls(proto.raw, proto.url or None)
+
+  @classmethod
+  def from_value(cls, value):
+    if isinstance(value, str):
+      return cls(value)
+    if isinstance(value, Text):
+      return value
+    if isinstance(value, dict):
+      return cls(value.get('text'), value.get('url'))
+    raise TypeError(f'Incompatible type for Text: {type(value)}')
 
   def cast(self, python_type):
     if python_type == str:

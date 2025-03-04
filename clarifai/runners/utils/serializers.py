@@ -38,8 +38,7 @@ class MessageSerializer(Serializer):
     self.message_class = message_class
 
   def serialize(self, data_proto, field, value):
-    if isinstance(value, MessageData):
-      value = value.to_proto()
+    value = self.message_class.from_value(value).to_proto()
     dst = getattr(data_proto, field)
     try:
       if is_repeated(dst):

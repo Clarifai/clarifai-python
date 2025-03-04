@@ -5,12 +5,13 @@ import unittest
 from typing import List
 
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image as PILImage
+from PIL import ImageOps
 
 from clarifai.client.model_client import ModelClient
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.models.model_servicer import ModelServicer
-from clarifai.runners.utils.data_types import Concept, NamedFields, Stream
+from clarifai.runners.utils.data_types import Concept, NamedFields, Stream, Text
 
 _ENABLE_PPRINT = os.getenv("PRINT", "false").lower() in ("true", "1")
 _ENABLE_PDB = os.getenv("PDB", "false").lower() in ("true", "1")
@@ -223,7 +224,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, x: Image) -> str:
+      def f(self, x: PILImage) -> str:
         return str(x.size)
 
     sig = dict(MyModel._get_method_info('f').signature)
@@ -250,7 +251,7 @@ class TestModelCalls(unittest.TestCase):
 
     # test call
     client = _get_servicer_client(MyModel())
-    testimg = Image.fromarray(np.ones([50, 50, 3], dtype="uint8"))
+    testimg = PILImage.fromarray(np.ones([50, 50, 3], dtype="uint8"))
     result = client.f(testimg)
     self.assertEqual(result, '(50, 50)')
 
@@ -259,8 +260,8 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, x: str) -> Image:
-        return Image.fromarray(np.ones([10, 10, 3], dtype="uint8"))
+      def f(self, x: str) -> PILImage:
+        return PILImage.fromarray(np.ones([10, 10, 3], dtype="uint8"))
 
     sig = dict(MyModel._get_method_info('f').signature)
     del sig['docstring']
@@ -294,7 +295,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, x: Image) -> List[Concept]:
+      def f(self, x: PILImage) -> List[Concept]:
         return [Concept('a', 0.9), Concept('b', 0.1)]
 
     sig = dict(MyModel._get_method_info('f').signature)
@@ -321,7 +322,7 @@ class TestModelCalls(unittest.TestCase):
 
     # test call
     client = _get_servicer_client(MyModel())
-    testimg = Image.fromarray(np.ones([50, 50, 3], dtype="uint8"))
+    testimg = PILImage.fromarray(np.ones([50, 50, 3], dtype="uint8"))
     result = client.f(testimg)
     self.assertEqual(len(result), 2)
     self.assertEqual(result[0].name, 'a')
@@ -337,7 +338,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, prompt: str, images: List[Image]) -> (str, List[Image]):
+      def f(self, prompt: str, images: List[PILImage]) -> (str, List[PILImage]):
         return (prompt + ' result', [ImageOps.invert(img) for img in images])
 
     sig = dict(MyModel._get_method_info('f').signature)
@@ -375,8 +376,8 @@ class TestModelCalls(unittest.TestCase):
 
     # test call
     client = _get_servicer_client(MyModel())
-    testimg1 = Image.fromarray(np.ones([50, 50, 3], dtype="uint8"))
-    testimg2 = Image.fromarray(200 + np.zeros([50, 50, 3], dtype="uint8"))
+    testimg1 = PILImage.fromarray(np.ones([50, 50, 3], dtype="uint8"))
+    testimg2 = PILImage.fromarray(200 + np.zeros([50, 50, 3], dtype="uint8"))
     result = client.f('prompt', [testimg1, testimg2])
     assert len(result) == 2
     (result_prompt, result_images) = result
@@ -1383,6 +1384,43 @@ class TestModelCalls(unittest.TestCase):
     res = client.f(np.array([1, 2, 3], dtype=np.float32))
     self.assertTrue(np.all(res == np.array([2, 3, 4], dtype=np.float32)))
     self.assertTrue(res.dtype == np.float32)
+
+  def test_Text_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: Text) -> Text:
+        return Text(x.text + '1')
+
+    client = _get_servicer_client(MyModel())
+
+    # check value conversions for text
+    assert Text('abc') == 'abc'
+    assert Text('abc') == Text('abc')
+    assert 'abc' == Text('abc')
+    assert Text('abc') != 'xyz'
+    assert Text('abc') != Text('xyz')
+    assert 'abc' != Text('xyz')
+    assert Text('') == ''
+    assert '' == Text('')
+
+    self.assertEqual(client.f(Text('5')), Text('51'))
+    self.assertEqual(client.f(Text('')), Text('1'))
+    self.assertEqual(client.f('5'), Text('51'))
+    self.assertEqual(client.f(''), Text('1'))
+
+    with self.assertRaises(TypeError):
+      client.f(3)
+
+    with self.assertRaises(TypeError):
+      client.f(3.0)
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y='5')
 
 
 def _get_servicer_client(model):
