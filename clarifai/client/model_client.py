@@ -56,12 +56,13 @@ class ModelClient:
         self.logger.info(f"Retrying model info fetch with response {response.status!r}")
         time.sleep(next(backoff_iterator))
         continue
-
-      if response.status.code != status_code_pb2.SUCCESS:
-        raise Exception(f"Model failed with response {response.status!r}")
       break
+    if response.status.code == status_code_pb2.INPUT_UNSUPPORTED_FORMAT:
+      # return code from older models that don't support _GET_SIGNATURES
+      self._method_signatures = {}
+      return
     if response.status.code != status_code_pb2.SUCCESS:
-      raise Exception(response.status)
+      raise Exception(f"Model failed with response {response.status!r}")
     self._method_signatures = signatures_from_json(response.outputs[0].data.string_value)
 
   def _define_functions(self):
