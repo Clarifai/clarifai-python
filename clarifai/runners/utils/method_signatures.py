@@ -17,7 +17,7 @@ from clarifai.runners.utils.serializers import (AtomicFieldSerializer, ImageSeri
                                                 NDArraySerializer, NullValueSerializer, Serializer)
 
 
-def build_function_signature(func, method_type: str):
+def build_function_signature(func):
   '''
   Build a signature for the given function.
   '''
@@ -55,28 +55,20 @@ def build_function_signature(func, method_type: str):
     for var in output_vars:
       var.streaming = True
 
-  # check for streams
-  if method_type == 'predict':
-    for var in input_vars:
-      if var.streaming:
-        raise TypeError('Stream inputs are not supported for predict methods')
-    for var in output_vars:
-      if var.streaming:
-        raise TypeError('Stream outputs are not supported for predict methods')
-  elif method_type == 'generate':
-    for var in input_vars:
-      if var.streaming:
-        raise TypeError('Stream inputs are not supported for generate methods')
-    if not all(var.streaming for var in output_vars):
-      raise TypeError('Generate methods must return a stream')
-  elif method_type == 'stream':
-    input_stream_vars = [var for var in input_vars if var.streaming]
-    if len(input_stream_vars) == 0:
-      raise TypeError('Stream methods must include a Stream input')
-    if not all(var.streaming for var in output_vars):
-      raise TypeError('Stream methods must return a single Stream')
+  # check for streams and determine method type
+  input_streaming = any(var.streaming for var in input_vars)
+  output_streaming = any(var.streaming for var in output_vars)
+  if not (input_streaming or output_streaming):
+    method_type = 'predict'
+  elif not input_streaming and output_streaming:
+    method_type = 'generate'
+  elif input_streaming and output_streaming:
+    method_type = 'stream'
   else:
-    raise TypeError('Invalid method type: %s' % method_type)
+    raise TypeError('stream methods with streaming inputs must have streaming outputs')
+  if output_streaming:
+    if not all(var.streaming for var in output_vars):
+      raise TypeError('return type for streaming output functions must be a single Stream[] type')
 
   #method_signature = resources_pb2.MethodSignature()   # TODO
   method_signature = _NamedFields()  #for now

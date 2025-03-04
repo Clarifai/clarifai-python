@@ -19,27 +19,6 @@ _METHOD_INFO_ATTR = '_cf_method_info'
 _RAISE_EXCEPTIONS = os.getenv("RAISE_EXCEPTIONS", "false").lower() == "true"
 
 
-class methods:
-  '''
-  Decorators to mark methods as predict, generate, or stream methods.
-  '''
-
-  @staticmethod
-  def predict(method):
-    setattr(method, _METHOD_INFO_ATTR, _MethodInfo(method, 'predict'))
-    return method
-
-  @staticmethod
-  def generate(method):
-    setattr(method, _METHOD_INFO_ATTR, _MethodInfo(method, 'generate'))
-    return method
-
-  @staticmethod
-  def stream(method):
-    setattr(method, _METHOD_INFO_ATTR, _MethodInfo(method, 'stream'))
-    return method
-
-
 class ModelClass(ABC):
   '''
   Base class for model classes that can be run as a service.
@@ -67,6 +46,11 @@ class ModelClass(ABC):
         for item in input_stream:
           yield item.x + ' ' + str(item.y)
   '''
+
+  @staticmethod
+  def method(func):
+    setattr(func, _METHOD_INFO_ATTR, _MethodInfo(func))
+    return func
 
   def load_model(self):
     """Load the model."""
@@ -257,7 +241,7 @@ class ModelClass(ABC):
     #  if hasattr(cls, name):
     #    method = getattr(cls, name)
     #    if not hasattr(method, _METHOD_INFO_ATTR):  # not already put in registry
-    #      methods[name] = _MethodInfo(method, method_type=name)
+    #      methods[name] = _MethodInfo(method)
     # set method table for this class in the registry
     return methods
 
@@ -273,9 +257,9 @@ class ModelClass(ABC):
 
 class _MethodInfo:
 
-  def __init__(self, method, method_type):
+  def __init__(self, method):
     self.name = method.__name__
-    self.signature = build_function_signature(method, method_type)
+    self.signature = build_function_signature(method)
     self.python_param_types = {
         p.name: p.annotation
         for p in inspect.signature(method).parameters.values()
