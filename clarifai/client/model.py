@@ -432,14 +432,19 @@ class Model(Lister, BaseClient):
       self._model_client = ModelClient(self.STUB, request_template=request_template)
     return self._model_client
 
-  def predict(self, inputs=None, *args, **kwargs):
+  def predict(self, *args, **kwargs):
     """
-    Calls the model client's predict() method with the given arguments.
+    Calls the model's predict() method with the given arguments.
 
     If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
     protos directly for compatibility with previous versions of the SDK.
     """
 
+    inputs = None
+    if 'inputs' in kwargs:
+      inputs = kwargs['inputs']
+    elif args:
+      inputs = args[0]
     if inputs and isinstance(inputs, list) and isinstance(inputs[0], resources_pb2.Input):
       assert not args, "Cannot pass in raw protos and additional arguments at the same time."
       inference_params = kwargs.get('inference_params', {})
@@ -447,8 +452,6 @@ class Model(Lister, BaseClient):
       return self.model_client._predict_by_proto(
           inputs=inputs, inference_params=inference_params, output_config=output_config)
 
-    if inputs is not None:
-      return self.model_client.predict(inputs=inputs, *args, **kwargs)
     return self.model_client.predict(*args, **kwargs)
 
   def __getattr__(self, name):
@@ -650,14 +653,19 @@ class Model(Lister, BaseClient):
     return self.predict(
         inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
-  def generate(self, inputs=None, *args, **kwargs):
+  def generate(self, *args, **kwargs):
     """
-    Calls the model client's generate() method with the given arguments.
+    Calls the model's generate() method with the given arguments.
 
     If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
     protos directly for compatibility with previous versions of the SDK.
     """
 
+    inputs = None
+    if 'inputs' in kwargs:
+      inputs = kwargs['inputs']
+    elif args:
+      inputs = args[0]
     if inputs and isinstance(inputs, list) and isinstance(inputs[0], resources_pb2.Input):
       assert not args, "Cannot pass in raw protos and additional arguments at the same time."
       inference_params = kwargs.get('inference_params', {})
@@ -665,8 +673,6 @@ class Model(Lister, BaseClient):
       return self.model_client._generate_by_proto(
           inputs=inputs, inference_params=inference_params, output_config=output_config)
 
-    if inputs is not None:
-      return self.model_client.generate(inputs=inputs, *args, **kwargs)
     return self.model_client.generate(*args, **kwargs)
 
   def generate_by_filepath(self,
@@ -781,20 +787,36 @@ class Model(Lister, BaseClient):
     return self.generate(
         inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
-  def stream(self, inputs=None, *args, **kwargs):
+  def stream(self, *args, **kwargs):
     """
-    Calls the model client's stream() method with the given arguments.
+    Calls the model's stream() method with the given arguments.
 
     If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
     protos directly for compatibility with previous versions of the SDK.
     """
 
     use_proto_call = False
+    inputs = None
+    if 'inputs' in kwargs:
+      inputs = kwargs['inputs']
+    elif args:
+      inputs = args[0]
     if inputs and isinstance(inputs, Iterable):
-      peek = next(iter(inputs), None)
-      if isinstance(peek, resources_pb2.Input):
-        inputs = itertools.chain([inputs], inputs)
-        use_proto_call = True
+      inputs_iter = iter(inputs)
+      try:
+        peek = next(inputs_iter)
+      except StopIteration:
+        pass
+      else:
+        use_proto_call = isinstance(peek, resources_pb2.Input)
+        # put back the peeked value
+        if inputs_iter is inputs:
+          inputs = itertools.chain([peek], inputs_iter)
+          if 'inputs' in kwargs:
+            kwargs['inputs'] = inputs
+          else:
+            args = (inputs,) + args[1:]
+
     if use_proto_call:
       assert not args, "Cannot pass in raw protos and additional arguments at the same time."
       inference_params = kwargs.get('inference_params', {})
@@ -802,8 +824,6 @@ class Model(Lister, BaseClient):
       return self.model_client._stream_by_proto(
           inputs=inputs, inference_params=inference_params, output_config=output_config)
 
-    if inputs is not None:
-      return self.model_client.stream(inputs=inputs, *args, **kwargs)
     return self.model_client.stream(*args, **kwargs)
 
   def stream_by_filepath(self,
