@@ -1234,12 +1234,35 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, x: str) -> str:
+      def f_str(self, x: str) -> str:
+        return ''
+
+      @ModelClass.method
+      def f_bytes(self, x: bytes) -> bytes:
+        return b''
+
+      @ModelClass.method
+      def f_string_return_bytes(self, x: str) -> str:
+        return b''
+
+      @ModelClass.method
+      def f_bytes_return_string(self, x: bytes) -> bytes:
         return ''
 
     client = _get_servicer_client(MyModel())
 
-    self.assertEqual(client.f('5'), '')
+    self.assertEqual(client.f_str(''), '')
+    self.assertEqual(client.f_bytes(b''), b'')
+
+    self.assertEqual(client.f_str('5'), '')
+    self.assertEqual(client.f_bytes(b'5'), b'')
+
+    # apparently protobuf allows this and returns the empty string
+    #with self.assertRaises(TypeError):
+    #  client.f_string_return_bytes('5')
+
+    with self.assertRaises(Exception), self.assertLogs(level='ERROR'):
+      client.f_bytes_return_string(b'5')
 
   def test_bytes_type(self):
 
@@ -1252,6 +1275,7 @@ class TestModelCalls(unittest.TestCase):
     client = _get_servicer_client(MyModel())
 
     self.assertEqual(client.f(b'5'), b'51')
+    self.assertEqual(client.f(b''), b'1')
 
     with self.assertRaises(TypeError):
       client.f('abc')
