@@ -12,9 +12,9 @@ from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.message import Message as MessageProto
 
 from clarifai.runners.utils import data_types
-from clarifai.runners.utils.serializers import (AtomicFieldSerializer, ImageSerializer,
-                                                ListSerializer, MessageSerializer,
-                                                NDArraySerializer, NullValueSerializer, Serializer)
+from clarifai.runners.utils.serializers import (AtomicFieldSerializer, ListSerializer,
+                                                MessageSerializer, NDArraySerializer,
+                                                NullValueSerializer, Serializer)
 
 
 def build_function_signature(func):
@@ -390,7 +390,7 @@ _DATA_TYPES = {
     data_types.Text:
         _DataType('Text', 'text', MessageSerializer(data_types.Text)),
     data_types.Image:
-        _DataType('Image', 'image', ImageSerializer()),
+        _DataType('Image', 'image', MessageSerializer(data_types.Image)),
     data_types.Concept:
         _DataType('Concept', 'concepts', MessageSerializer(data_types.Concept)),
     data_types.Region:

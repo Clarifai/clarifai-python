@@ -1,10 +1,6 @@
 from typing import Iterable
 
 import numpy as np
-from clarifai_grpc.grpc.api import resources_pb2
-from PIL import Image as PILImage
-
-from clarifai.runners.utils.data_types import Image, MessageData
 
 
 class Serializer:
@@ -54,22 +50,6 @@ class MessageSerializer(Serializer):
       return [self.message_class.from_proto(item) for item in src]
     else:
       return self.message_class.from_proto(src)
-
-
-class ImageSerializer(Serializer):
-
-  def serialize(self, data_proto, field, value):
-    if not isinstance(value, (PILImage.Image, Image, resources_pb2.Image)):
-      raise TypeError(f"Expected Image, got {type(value)}")
-    if isinstance(value, PILImage.Image):
-      value = Image.from_pil(value)
-    if isinstance(value, MessageData):
-      value = value.to_proto()
-    getattr(data_proto, field).CopyFrom(value)
-
-  def deserialize(self, data_proto, field):
-    value = getattr(data_proto, field)
-    return Image.from_proto(value)
 
 
 class NDArraySerializer(Serializer):

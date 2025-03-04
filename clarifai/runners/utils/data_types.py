@@ -204,6 +204,14 @@ class Image(MessageData):
   def from_proto(cls, proto: ImageProto) -> "Image":
     return cls(proto)
 
+  @classmethod
+  def from_value(cls, value):
+    if isinstance(value, PILImage.Image):
+      return cls.from_pil(value)
+    if isinstance(value, Image):
+      return value
+    raise TypeError(f'Incompatible type for Image: {type(value)}')
+
   def cast(self, python_type):
     if python_type == Image:
       return self
