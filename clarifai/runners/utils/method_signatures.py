@@ -169,7 +169,7 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
         raise TypeError(f'Missing required argument: {sig.name}')
       continue  # skip missing fields, they can be set to default on the server
     data = kwargs[sig.name]
-    force_named_part = (_is_empty_proto_data(data) and not is_output and not sig.required)
+    force_named_part = (_is_empty_proto_data(data) and not is_output)
     data_proto, field = _get_data_part(
         proto, sig, is_output=is_output, serializing=True, force_named_part=force_named_part)
     serializer = get_serializer(sig.data_type)

@@ -12,7 +12,8 @@ from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.models.model_servicer import ModelServicer
 from clarifai.runners.utils.data_types import Concept, NamedFields, Stream
 
-_ENABLE_PPRINT = os.getenv("ENABLE_PPRINT", "false").lower() in ("true", "1")
+_ENABLE_PPRINT = os.getenv("PRINT", "false").lower() in ("true", "1")
+_ENABLE_PDB = os.getenv("PDB", "false").lower() in ("true", "1")
 
 if _ENABLE_PPRINT:
   from pprint import pprint
@@ -22,14 +23,16 @@ else:
     pass
 
 
-def fail_pdb(f):
+def pdb_on_exception(f, enabled=_ENABLE_PDB):
   import pdb
   import traceback
+  if not enabled:
+    return f
 
   if isinstance(f, type):
     for name, method in f.__dict__.items():
       if callable(method):
-        setattr(f, name, fail_pdb(method))
+        setattr(f, name, pdb_on_exception(method))
     return f
 
   @functools.wraps(f)
@@ -44,7 +47,7 @@ def fail_pdb(f):
   return decorated
 
 
-#@fail_pdb
+@pdb_on_exception
 class TestModelCalls(unittest.TestCase):
 
   def setUpClass():
@@ -428,7 +431,7 @@ class TestModelCalls(unittest.TestCase):
     client = _get_servicer_client(MyModel())
     # TODO this raises Exception, not ValueError, because of server-client
     # should this raise common exception types as raised by the server?
-    with self.assertRaisesRegex(Exception, 'test exception'):
+    with self.assertRaisesRegex(Exception, 'test exception'), self.assertLogs(level='ERROR'):
       client.f(5)
 
   def test_generate(self):
@@ -492,7 +495,7 @@ class TestModelCalls(unittest.TestCase):
           yield i
 
     client = _get_servicer_client(MyModel())
-    with self.assertRaisesRegex(Exception, 'test exception'):
+    with self.assertRaisesRegex(Exception, 'test exception'), self.assertLogs(level='ERROR'):
       list(client.f(5))
 
   def test_call_predict_with_generator(self):
@@ -1098,21 +1101,6 @@ class TestModelCalls(unittest.TestCase):
         '(stream: Stream[{x: str, y: str}], n: int) -> Stream[NamedFields(xout=str, yout=str)]'.
         replace(' ', ''))
 
-
-class TestClient(unittest.TestCase):
-
-  def test_client_simple(self):
-
-    class MyModel(ModelClass):
-
-      @ModelClass.method
-      def f(self, x: int) -> int:
-        return x + 1
-
-    client = _get_servicer_client(MyModel())
-    result = client.f(5)
-    self.assertEqual(result, 6)
-
   def test_nonexistent_function(self):
 
     class MyModel(ModelClass):
@@ -1122,6 +1110,7 @@ class TestClient(unittest.TestCase):
         return x + 1
 
     client = _get_servicer_client(MyModel())
+
     with self.assertRaises(AttributeError):
       client.g
 
@@ -1130,6 +1119,146 @@ class TestClient(unittest.TestCase):
 
     with self.assertRaises(AttributeError):
       client.g
+
+    result = client.f(10)
+    self.assertEqual(result, 11)
+
+  def test_nonexistent_function_with_docstring(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: int) -> int:
+        """This is a test function."""
+        return x + 1
+
+    client = _get_servicer_client(MyModel())
+
+    with self.assertRaises(AttributeError):
+      client.g
+
+    self.assertEqual(client.f.__doc__, MyModel.f.__doc__)
+
+    result = client.f(5)
+    self.assertEqual(result, 6)
+
+  def test_int_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: int) -> int:
+        return x + 1
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f(5), 6)
+
+    self.assertEqual(client.f(0), 1)
+
+    with self.assertRaises(TypeError):
+      client.f(float(5.0))
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(3, 4)
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=5)
+
+  def test_float_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: float) -> float:
+        return x + 1.0
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f(5), 6.0)
+    self.assertEqual(type(client.f(5)), float)
+
+    self.assertEqual(client.f(0.0), 1.0)
+    self.assertEqual(client.f(0), 1.0)
+
+    self.assertEqual(client.f(5.5), 6.5)
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(3.0, 4.0)
+
+    with self.assertRaises(TypeError):
+      client.f(3.0, x=4.0)
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=5.0)
+
+  def test_bytes_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: bytes) -> bytes:
+        return x + b'1'
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f(b'5'), b'51')
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(3)
+
+    with self.assertRaises(TypeError):
+      client.f(b'3', b'4')
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=b'5')
+
+  def test_bool_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: bool) -> bool:
+        return not x
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f(True), False)
+    self.assertEqual(client.f(False), True)
+    self.assertEqual(client.f(1), False)
+    self.assertEqual(client.f(0), True)
+    self.assertEqual(type(client.f(1)), bool)
+    self.assertEqual(type(client.f(0)), bool)
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(True, False)
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=True)
 
 
 def _get_servicer_client(model):
