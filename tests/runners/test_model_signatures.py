@@ -1204,6 +1204,43 @@ class TestModelCalls(unittest.TestCase):
     with self.assertRaises(TypeError):
       client.f(y=5.0)
 
+  def test_str_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: str) -> str:
+        return x + '1'
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f('5'), '51')
+    self.assertEqual(client.f(''), '1')
+
+    with self.assertRaises(TypeError):
+      client.f(3)
+
+    with self.assertRaises(TypeError):
+      client.f(3.0)
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y='5')
+
+  def test_return_empty_string(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: str) -> str:
+        return ''
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f('5'), '')
+
   def test_bytes_type(self):
 
     class MyModel(ModelClass):
