@@ -12,9 +12,9 @@ from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.message import Message as MessageProto
 
 from clarifai.runners.utils import data_types
-from clarifai.runners.utils.serializers import (AtomicFieldSerializer, ListSerializer,
-                                                MessageSerializer, NDArraySerializer,
-                                                NullValueSerializer, Serializer)
+from clarifai.runners.utils.serializers import (AtomicFieldSerializer, JSONSerializer,
+                                                ListSerializer, MessageSerializer,
+                                                NDArraySerializer, Serializer)
 
 
 def build_function_signature(func):
@@ -383,8 +383,6 @@ _DATA_TYPES = {
         _DataType('float', 'float_value', AtomicFieldSerializer()),
     bool:
         _DataType('bool', 'bool_value', AtomicFieldSerializer()),
-    None:
-        _DataType('None', '', NullValueSerializer()),
     np.ndarray:
         _DataType('ndarray', 'ndarray', NDArraySerializer()),
     data_types.Text:
@@ -403,12 +401,16 @@ _DATA_TYPES = {
         _DataType('Video', 'video', MessageSerializer(data_types.Video)),
 
     # lists handled specially, not as generic lists using parts
+    # these don't check the internal types when serializing, but more readable and
+    # better than putting in individual parts for each item for these types
     List[int]:
-        _DataType('ndarray', 'ndarray', NDArraySerializer()),
+        _DataType('List[int]', 'string_value', JSONSerializer()),
     List[float]:
-        _DataType('ndarray', 'ndarray', NDArraySerializer()),
+        _DataType('List[float]', 'string_value', JSONSerializer()),
     List[bool]:
-        _DataType('ndarray', 'ndarray', NDArraySerializer()),
+        _DataType('List[bool]', 'string_value', JSONSerializer()),
+    List[str]:
+        _DataType('List[str]', 'string_value', JSONSerializer()),
 }
 
 

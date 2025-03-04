@@ -1,3 +1,4 @@
+import json
 from typing import Iterable
 
 import numpy as np
@@ -54,7 +55,12 @@ class MessageSerializer(Serializer):
 
 class NDArraySerializer(Serializer):
 
+  def __init__(self, as_list=False):
+    self.as_list = as_list
+
   def serialize(self, data_proto, field, value):
+    if self.as_list and not isinstance(value, Iterable):
+      raise TypeError(f"Expected list, got {type(value)}")
     value = np.asarray(value)
     if not np.issubdtype(value.dtype, np.number):
       raise TypeError(f"Expected number array, got {value.dtype}")
@@ -66,16 +72,26 @@ class NDArraySerializer(Serializer):
   def deserialize(self, data_proto, field):
     proto = getattr(data_proto, field)
     array = np.frombuffer(proto.buffer, dtype=np.dtype(proto.dtype)).reshape(proto.shape)
+    if self.as_list:
+      return array.tolist()
     return array
 
 
-class NullValueSerializer(Serializer):
+class JSONSerializer(Serializer):
+
+  def __init__(self, type=None):
+    self.type = type
 
   def serialize(self, data_proto, field, value):
-    pass
+    if self.type is not None and not isinstance(value, self.type):
+      raise TypeError(f"Expected {self.type}, got {type(value)}")
+    try:
+      setattr(data_proto, field, json.dumps(value))
+    except TypeError as e:
+      raise TypeError(f"Incompatible type for {field}: {type(value)}") from e
 
   def deserialize(self, data_proto, field):
-    return None
+    return json.loads(getattr(data_proto, field))
 
 
 class ListSerializer(Serializer):

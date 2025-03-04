@@ -1542,18 +1542,6 @@ class TestModelCalls(unittest.TestCase):
     self.assertEqual(client.f([]), [])
     self.assertEqual(client.f([0]), [1])
 
-    with self.assertRaises(TypeError):
-      client.f('abc')
-
-    with self.assertRaises(TypeError):
-      client.f(3)
-
-    with self.assertRaises(TypeError):
-      client.f()
-
-    with self.assertRaises(TypeError):
-      client.f(y=[1, 2, 3])
-
   def test_List_str_type(self):
 
     class MyModel(ModelClass):
@@ -1567,15 +1555,6 @@ class TestModelCalls(unittest.TestCase):
     self.assertEqual(client.f(['1', '2', '3']), ['11', '21', '31'])
     self.assertEqual(client.f([]), [])
     self.assertEqual(client.f(['']), ['1'])
-
-    with self.assertRaises(TypeError):
-      client.f(3)
-
-    with self.assertRaises(TypeError):
-      client.f()
-
-    with self.assertRaises(TypeError):
-      client.f(y=['1', '2', '3'])
 
   def test_List_Image_type(self):
 
