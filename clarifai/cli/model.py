@@ -9,11 +9,7 @@ def model():
 
 
 @model.command()
-@click.option(
-    '--model_path',
-    type=click.Path(exists=True),
-    required=True,
-    help='Path to the model directory.')
+@click.argument("model_path", type=click.Path(exists=True), required=False, default=".")
 @click.option(
     '--stage',
     required=False,
@@ -36,11 +32,12 @@ def upload(model_path, stage, skip_dockerfile):
 
 
 @model.command()
-@click.option(
-    '--model_path',
+@click.argument(
+    "model_path",
     type=click.Path(exists=True),
-    required=True,
-    help='Path to the model directory.')
+    required=False,
+    default=".",
+)
 @click.option(
     '--out_path',
     type=click.Path(exists=False),
@@ -67,11 +64,12 @@ def download_checkpoints(model_path, out_path, stage):
 
 
 @model.command()
-@click.option(
-    '--model_path',
+@click.argument(
+    "model_path",
     type=click.Path(exists=True),
-    required=True,
-    help='Path to the model directory.')
+    required=False,
+    default=".",
+)
 @click.option(
     '--mode',
     type=click.Choice(['env', 'container'], case_sensitive=False),
@@ -114,11 +112,12 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
 
 
 @model.command()
-@click.option(
-    '--model_path',
+@click.argument(
+    "model_path",
     type=click.Path(exists=True),
-    required=True,
-    help='Path to the model directory.')
+    required=False,
+    default=".",
+)
 @click.option(
     '--port',
     '-p',
@@ -172,11 +171,12 @@ def run_locally(model_path, port, mode, keep_env, keep_image):
 
 
 @model.command()
-@click.option(
-    '--model_path',
+@click.argument(
+    "model_path",
     type=click.Path(exists=True),
-    required=True,
-    help='Path to the model directory.')
+    required=False,
+    default=".",
+)
 def local_dev(model_path):
   """Run the model as a local dev runner to help debug your model connected to the API. You must set several envvars such as CLARIFAI_PAT, CLARIFAI_RUNNER_ID, CLARIFAI_NODEPOOL_ID, CLARIFAI_COMPUTE_CLUSTER_ID. """
   from clarifai.runners.server import serve
