@@ -43,18 +43,6 @@ class ModelClass(ABC):
     """Load the model."""
     pass
 
-  def predict(self, **kwargs):
-    """Predict method for single or batched inputs."""
-    raise NotImplementedError("predict() not implemented")
-
-  def generate(self, **kwargs) -> Iterator:
-    """Generate method for streaming outputs."""
-    raise NotImplementedError("generate() not implemented")
-
-  def stream(self, **kwargs) -> Iterator:
-    """Stream method for streaming inputs and outputs."""
-    raise NotImplementedError("stream() not implemented")
-
   def _handle_get_signatures_request(self) -> service_pb2.MultiOutputResponse:
     methods = self._get_method_info()
     signatures = {method.name: method.signature for method in methods.values()}
