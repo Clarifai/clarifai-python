@@ -9,11 +9,7 @@ def model():
 
 
 @model.command()
-@click.option(
-    '--model_path',
-    type=click.Path(exists=True),
-    required=True,
-    help='Path to the model directory.')
+@click.argument("model_path", type=click.Path(exists=True), required=False, default=".")
 @click.option(
     '--stage',
     required=False,
@@ -30,17 +26,21 @@ def model():
     'Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile.',
 )
 def upload(model_path, stage, skip_dockerfile):
-  """Upload a model to Clarifai."""
+  """Upload a model to Clarifai.
+
+    MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
+  """
   from clarifai.runners.models.model_builder import upload_model
   upload_model(model_path, stage, skip_dockerfile)
 
 
 @model.command()
-@click.option(
-    '--model_path',
+@click.argument(
+    "model_path",
     type=click.Path(exists=True),
-    required=True,
-    help='Path to the model directory.')
+    required=False,
+    default=".",
+)
 @click.option(
     '--out_path',
     type=click.Path(exists=False),
@@ -59,7 +59,10 @@ def upload(model_path, stage, skip_dockerfile):
     'The stage we are calling download checkpoints from. Typically this would be in the build stage which is the default. Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.'
 )
 def download_checkpoints(model_path, out_path, stage):
-  """Download checkpoints from external source to local model_path"""
+  """Download checkpoints from external source to local model_path
+
+  MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
+  """
 
   from clarifai.runners.models.model_builder import ModelBuilder
   builder = ModelBuilder(model_path, download_validation_only=True)
@@ -67,11 +70,12 @@ def download_checkpoints(model_path, out_path, stage):
 
 
 @model.command()
-@click.option(
-    '--model_path',
+@click.argument(
+    "model_path",
     type=click.Path(exists=True),
-    required=True,
-    help='Path to the model directory.')
+    required=False,
+    default=".",
+)
 @click.option(
     '--mode',
     type=click.Choice(['env', 'container'], case_sensitive=False),
@@ -93,7 +97,10 @@ def download_checkpoints(model_path, out_path, stage):
     'Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.'
 )
 def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
-  """Test model locally."""
+  """Test model locally.
+
+  MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
+  """
   try:
     from clarifai.runners.models import model_run_locally
     if mode == 'env' and keep_image:
@@ -114,11 +121,12 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
 
 
 @model.command()
-@click.option(
-    '--model_path',
+@click.argument(
+    "model_path",
     type=click.Path(exists=True),
-    required=True,
-    help='Path to the model directory.')
+    required=False,
+    default=".",
+)
 @click.option(
     '--port',
     '-p',
@@ -147,7 +155,10 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
     'Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.'
 )
 def run_locally(model_path, port, mode, keep_env, keep_image):
-  """Run the model locally and start a gRPC server to serve the model."""
+  """Run the model locally and start a gRPC server to serve the model.
+
+  MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
+  """
   try:
     from clarifai.runners.models import model_run_locally
     if mode == 'env' and keep_image:
@@ -172,13 +183,17 @@ def run_locally(model_path, port, mode, keep_env, keep_image):
 
 
 @model.command()
-@click.option(
-    '--model_path',
+@click.argument(
+    "model_path",
     type=click.Path(exists=True),
-    required=True,
-    help='Path to the model directory.')
+    required=False,
+    default=".",
+)
 def local_dev(model_path):
-  """Run the model as a local dev runner to help debug your model connected to the API. You must set several envvars such as CLARIFAI_PAT, CLARIFAI_RUNNER_ID, CLARIFAI_NODEPOOL_ID, CLARIFAI_COMPUTE_CLUSTER_ID. """
+  """Run the model as a local dev runner to help debug your model connected to the API. You must set several envvars such as CLARIFAI_PAT, CLARIFAI_RUNNER_ID, CLARIFAI_NODEPOOL_ID, CLARIFAI_COMPUTE_CLUSTER_ID.
+
+  MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
+  """
   from clarifai.runners.server import serve
   serve(model_path)
 
