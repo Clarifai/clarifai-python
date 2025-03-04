@@ -78,7 +78,7 @@ class Model(Lister, BaseClient):
     self.logger = logger
     self.training_params = {}
     self.input_types = None
-    self._model_client = None
+    self._client = None
     self._added_methods = False
     self._set_runner_selector(
         compute_cluster_id=compute_cluster_id,
@@ -420,8 +420,8 @@ class Model(Lister, BaseClient):
           **dict(self.kwargs, model_version=model_version_info))
 
   @property
-  def model_client(self):
-    if self._model_client is None:
+  def client(self):
+    if self._client is None:
       request_template = service_pb2.PostModelOutputsRequest(
           user_app_id=self.user_app_id,
           model_id=self.id,
@@ -429,8 +429,8 @@ class Model(Lister, BaseClient):
           model=self.model_info,
           runner_selector=self._runner_selector,
       )
-      self._model_client = ModelClient(self.STUB, request_template=request_template)
-    return self._model_client
+      self._client = ModelClient(self.STUB, request_template=request_template)
+    return self._client
 
   def predict(self, *args, **kwargs):
     """
@@ -449,10 +449,10 @@ class Model(Lister, BaseClient):
       assert not args, "Cannot pass in raw protos and additional arguments at the same time."
       inference_params = kwargs.get('inference_params', {})
       output_config = kwargs.get('output_config', {})
-      return self.model_client._predict_by_proto(
+      return self.client._predict_by_proto(
           inputs=inputs, inference_params=inference_params, output_config=output_config)
 
-    return self.model_client.predict(*args, **kwargs)
+    return self.client.predict(*args, **kwargs)
 
   def __getattr__(self, name):
     try:
@@ -462,12 +462,12 @@ class Model(Lister, BaseClient):
     if not self._added_methods:
       # fetch and set all the model methods
       self._added_methods = True
-      self.model_client.fetch()
-      for method_name in self.model_client._method_signatures.keys():
+      self.client.fetch()
+      for method_name in self.client._method_signatures.keys():
         if not hasattr(self, method_name):
-          setattr(self, method_name, getattr(self.model_client, method_name))
-    if hasattr(self.model_client, name):
-      return getattr(self.model_client, name)
+          setattr(self, method_name, getattr(self.client, method_name))
+    if hasattr(self.client, name):
+      return getattr(self.client, name)
     raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
   def _check_predict_input_type(self, input_type: str) -> None:
@@ -670,10 +670,10 @@ class Model(Lister, BaseClient):
       assert not args, "Cannot pass in raw protos and additional arguments at the same time."
       inference_params = kwargs.get('inference_params', {})
       output_config = kwargs.get('output_config', {})
-      return self.model_client._generate_by_proto(
+      return self.client._generate_by_proto(
           inputs=inputs, inference_params=inference_params, output_config=output_config)
 
-    return self.model_client.generate(*args, **kwargs)
+    return self.client.generate(*args, **kwargs)
 
   def generate_by_filepath(self,
                            filepath: str,
@@ -821,10 +821,10 @@ class Model(Lister, BaseClient):
       assert not args, "Cannot pass in raw protos and additional arguments at the same time."
       inference_params = kwargs.get('inference_params', {})
       output_config = kwargs.get('output_config', {})
-      return self.model_client._stream_by_proto(
+      return self.client._stream_by_proto(
           inputs=inputs, inference_params=inference_params, output_config=output_config)
 
-    return self.model_client.stream(*args, **kwargs)
+    return self.client.stream(*args, **kwargs)
 
   def stream_by_filepath(self,
                          filepath: str,
