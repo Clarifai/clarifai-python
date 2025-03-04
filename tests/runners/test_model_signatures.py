@@ -47,6 +47,11 @@ def fail_pdb(f):
 #@fail_pdb
 class TestModelCalls(unittest.TestCase):
 
+  def setUpClass():
+    if sys.version_info < (3, 9):
+      raise unittest.SkipTest(
+          "python <= 3.8 typing support is too limited for model function signatures")
+
   def test_int__int(self):
 
     class MyModel(ModelClass):
