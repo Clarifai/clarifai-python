@@ -78,6 +78,7 @@ class Model(Lister, BaseClient):
     self.training_params = {}
     self.input_types = None
     self._model_client = None
+    self._added_methods = False
     self._set_runner_selector(
         compute_cluster_id=compute_cluster_id,
         nodepool_id=nodepool_id,
@@ -430,18 +431,40 @@ class Model(Lister, BaseClient):
       self._model_client = ModelClient(self.STUB, request_template=request_template)
     return self._model_client
 
-  def predict(self, inputs: List[Input], inference_params: Dict = {}, output_config: Dict = {}):
-    """Predicts the model based on the given inputs.
+  def predict(self, inputs=None, *args, **kwargs):
+    """
+    Calls the model client's predict() method with the given arguments.
 
-    Args:
-        inputs (list[Input]): The inputs to predict, must be less than 128.
+    If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+    protos directly for compatibility with previous versions of the SDK.
     """
 
-    return self.model_client._predict_by_proto(
-        inputs=inputs,
-        inference_params=inference_params,
-        output_config=output_config,
-    )
+    if inputs and isinstance(inputs, list) and isinstance(inputs[0], resources_pb2.Input):
+      assert not args, "Cannot pass in raw protos and additional arguments at the same time."
+      inference_params = kwargs.get('inference_params', {})
+      output_config = kwargs.get('output_config', {})
+      return self.model_client._predict_by_proto(
+          inputs=inputs, inference_params=inference_params, output_config=output_config)
+
+    if inputs is not None:
+      return self.model_client.predict(inputs=inputs, *args, **kwargs)
+    return self.model_client.predict(*args, **kwargs)
+
+  def __getattr__(self, name):
+    try:
+      return getattr(self.model_info, name)
+    except AttributeError:
+      pass
+    if not self._added_methods:
+      # fetch and set all the model methods
+      self._added_methods = True
+      self.model_client.fetch()
+      for method_name in self.model_client._method_signatures.keys():
+        if not hasattr(self, method_name):
+          setattr(self, method_name, getattr(self.model_client, method_name))
+    if hasattr(self.model_client, name):
+      return getattr(self.model_client, name)
+    raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
   def _check_predict_input_type(self, input_type: str) -> None:
     """Checks if the input type is valid for the model.
@@ -936,9 +959,6 @@ class Model(Lister, BaseClient):
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
     self.kwargs = self.process_response_keys(dict_response['model'])
     self.model_info = resources_pb2.Model(**self.kwargs)
-
-  def __getattr__(self, name):
-    return getattr(self.model_info, name)
 
   def __str__(self):
     if len(self.kwargs) < 10:

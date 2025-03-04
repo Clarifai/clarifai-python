@@ -36,6 +36,8 @@ class ModelClient:
     '''
     Fetch function signature definitions from the model and define the functions in the client
     '''
+    if self._defined:
+      return
     try:
       self._fetch_signatures()
       self._define_functions()

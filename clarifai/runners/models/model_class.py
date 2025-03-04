@@ -80,7 +80,7 @@ class ModelClass(ABC):
     output.data.text.raw = signatures_to_json(signatures)
     return resp
 
-  def batch_predict(self, method, inputs: List[Dict[str, Any]]) -> List[Any]:
+  def _batch_predict(self, method, inputs: List[Dict[str, Any]]) -> List[Any]:
     """Batch predict method for multiple inputs."""
     outputs = []
     for input in inputs:
@@ -88,7 +88,7 @@ class ModelClass(ABC):
       outputs.append(output)
     return outputs
 
-  def batch_generate(self, method, inputs: List[Dict[str, Any]]) -> Iterator[List[Any]]:
+  def _batch_generate(self, method, inputs: List[Dict[str, Any]]) -> Iterator[List[Any]]:
     """Batch generate method for multiple inputs."""
     generators = [method(**input) for input in inputs]
     for outputs in itertools.zip_longest(*generators):
@@ -117,7 +117,7 @@ class ModelClass(ABC):
         output = method(**inputs)
         outputs.append(self._convert_output_to_proto(output, signature.outputs))
       else:
-        outputs = self.batch_predict(method, inputs)
+        outputs = self._batch_predict(method, inputs)
         outputs = [self._convert_output_to_proto(output, signature.outputs) for output in outputs]
 
       return service_pb2.MultiOutputResponse(
@@ -151,7 +151,7 @@ class ModelClass(ABC):
           resp.status.code = status_code_pb2.SUCCESS
           yield resp
       else:
-        for outputs in self.batch_generate(method, inputs):
+        for outputs in self._batch_generate(method, inputs):
           resp = service_pb2.MultiOutputResponse()
           for output in outputs:
             self._convert_output_to_proto(output, signature.outputs, proto=resp.outputs.add())
