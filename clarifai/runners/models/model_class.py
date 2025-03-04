@@ -3,7 +3,6 @@ import itertools
 import logging
 import os
 import traceback
-import types
 from abc import ABC
 from typing import Any, Dict, Iterator, List
 
@@ -18,6 +17,24 @@ from clarifai.runners.utils.method_signatures import (build_function_signature, 
 _METHOD_INFO_ATTR = '_cf_method_info'
 
 _RAISE_EXCEPTIONS = os.getenv("RAISE_EXCEPTIONS", "false").lower() == "true"
+
+
+class methods:
+
+  @staticmethod
+  def predict(method):
+    setattr(method, _METHOD_INFO_ATTR, _MethodInfo(method, 'predict'))
+    return method
+
+  @staticmethod
+  def generate(method):
+    setattr(method, _METHOD_INFO_ATTR, _MethodInfo(method, 'generate'))
+    return method
+
+  @staticmethod
+  def stream(method):
+    setattr(method, _METHOD_INFO_ATTR, _MethodInfo(method, 'stream'))
+    return method
 
 
 class ModelClass(ABC):
@@ -246,21 +263,3 @@ class _MethodInfo:
         if p.annotation != inspect.Parameter.empty
     }
     self.python_param_types.pop('self', None)
-
-
-def predict(method):
-  setattr(method, _METHOD_INFO_ATTR, _MethodInfo(method, 'predict'))
-  return method
-
-
-def generate(method):
-  setattr(method, _METHOD_INFO_ATTR, _MethodInfo(method, 'generate'))
-  return method
-
-
-def stream(method):
-  setattr(method, _METHOD_INFO_ATTR, _MethodInfo(method, 'stream'))
-  return method
-
-
-methods = types.SimpleNamespace(predict=predict, generate=generate, stream=stream)
