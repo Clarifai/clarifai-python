@@ -8,7 +8,7 @@ import numpy as np
 from PIL import Image, ImageOps
 
 from clarifai.client.model_client import ModelClient
-from clarifai.runners.models.model_class import ModelClass, methods
+from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.models.model_servicer import ModelServicer
 from clarifai.runners.utils.data_types import Concept, Input, Output, Stream
 
@@ -56,7 +56,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, x: int) -> int:
         return 2 * x
 
@@ -90,7 +90,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, x: str, y: str) -> str:
         return x + y
 
@@ -143,7 +143,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, x: str, y: int) -> str:
         return x + str(y)
 
@@ -184,7 +184,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, x: np.ndarray) -> int:
         return int(np.sum(x))
 
@@ -219,7 +219,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, x: Image) -> str:
         return str(x.size)
 
@@ -255,7 +255,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, x: str) -> Image:
         return Image.fromarray(np.ones([10, 10, 3], dtype="uint8"))
 
@@ -290,7 +290,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, x: Image) -> List[Concept]:
         return [Concept('a', 0.9), Concept('b', 0.1)]
 
@@ -333,7 +333,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, prompt: str, images: List[Image]) -> (str, List[Image]):
         return (prompt + ' result', [ImageOps.invert(img) for img in images])
 
@@ -386,7 +386,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, x: np.ndarray[int]) -> np.ndarray[float]:
         return x / 2.0
 
@@ -421,7 +421,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, x: int) -> int:
         raise ValueError('test exception')
 
@@ -435,7 +435,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.generate
+      @ModelClass.method
       def f(self, x: int) -> Stream[int]:
         for i in range(x):
           yield i
@@ -471,7 +471,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.generate
+      @ModelClass.method
       def f(self, x: int) -> Stream[str]:
         for i in range(x):
           yield int(i)
@@ -484,7 +484,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.generate
+      @ModelClass.method
       def f(self, x: int) -> Stream[int]:
         for i in range(x):
           if i == 3:
@@ -497,11 +497,11 @@ class TestModelCalls(unittest.TestCase):
 
   def test_generate_not_streaming(self):
 
-    with self.assertRaisesRegex(TypeError, 'Generate methods must return a stream'):
+    with self.assertRaisesRegex(TypeError, 'Generate ModelClass.method return a stream'):
 
       class MyModel(ModelClass):
 
-        @methods.generate
+        @ModelClass.method
         def f(self, x: int) -> int:
           return x
 
@@ -509,11 +509,11 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, x: int) -> int:
         return x + 1
 
-      @methods.predict
+      @ModelClass.method
       def g(self, x: str) -> int:
         return len(x)
 
@@ -575,7 +575,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, input: str) -> Output(x=int, y=str):
         return Output(x=len(input), y=input + ' result')
 
@@ -616,7 +616,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.generate
+      @ModelClass.method
       def f(self, x: int) -> Stream[Output(x=int, y=str)]:
         for i in range(x):
           yield Output(x=i, y=str(i))
@@ -660,7 +660,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, x: int = 5) -> int:
         return x + 1
 
@@ -706,7 +706,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, x: str = 'abc') -> str:
         return x[::-1]
 
@@ -764,7 +764,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, x: str = 'abc', y: int = 5) -> str:
         return x + str(y)
 
@@ -837,7 +837,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, x: np.ndarray = np.array([1, 2, 3])) -> np.ndarray:
         return x * 2
 
@@ -868,7 +868,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.stream
+      @ModelClass.method
       def f(self, input: Stream[str]) -> Stream[str]:
         for i, x in enumerate(input):
           yield str(i) + x
@@ -904,7 +904,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.stream
+      @ModelClass.method
       def f(self, input_stream: Stream[str], y: int) -> Stream[str]:
         for i, x in enumerate(input_stream):
           yield str(i) + x + str(y)
@@ -946,7 +946,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.stream
+      @ModelClass.method
       def f(self, stream: Stream[Input(x=str, y=str)]) -> Stream[str]:
         for i, input in enumerate(stream):
           yield str(i) + input.x + input.y
@@ -988,7 +988,7 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.stream
+      @ModelClass.method
       def f(self, streamvar: Stream[Input(x=str, y=int)], x: str) -> Stream[str]:
         for i, val in enumerate(streamvar):
           yield str(i) + val.x + str(val.y) + x
@@ -1036,22 +1036,22 @@ class TestModelCalls(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, x: int) -> int:
         """This is a test function."""
         return x + 1
 
-      @methods.predict
+      @ModelClass.method
       def g(self, x: str) -> str:
         """This is another test function."""
         return x + 'a'
 
-      @methods.generate
+      @ModelClass.method
       def generate(self, x: str) -> Stream[int]:
         """This is a generate test function."""
         return range(len(x))
 
-      @methods.stream
+      @ModelClass.method
       def stream(self, stream: Stream[Input(x=str, y=str)],
                  n: int) -> Stream[Output(xout=str, yout=str)]:
         """This is a stream test function."""
@@ -1103,7 +1103,7 @@ class TestClient(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, x: int) -> int:
         return x + 1
 
@@ -1115,7 +1115,7 @@ class TestClient(unittest.TestCase):
 
     class MyModel(ModelClass):
 
-      @methods.predict
+      @ModelClass.method
       def f(self, x: int) -> int:
         return x + 1
 
