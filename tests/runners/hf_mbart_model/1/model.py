@@ -5,7 +5,7 @@ import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 from clarifai.runners.models.model_class import ModelClass
-from clarifai.runners.utils.data_handler import Output
+from clarifai.runners.utils.data_types import Output
 
 
 class MyModel(ModelClass):

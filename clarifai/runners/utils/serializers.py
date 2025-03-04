@@ -4,7 +4,7 @@ import numpy as np
 from clarifai_grpc.grpc.api import resources_pb2
 from PIL import Image as PILImage
 
-from clarifai.runners.utils.data_handler import Image, MessageData
+from clarifai.runners.utils.data_types import Image, MessageData
 
 
 class Serializer:

@@ -1,5 +1,5 @@
 from clarifai.runners.models.model_class import ModelClass, methods
-from clarifai.runners.utils.data_handler import Stream, Text
+from clarifai.runners.utils.data_types import Stream, Text
 
 
 class MyModel(ModelClass):

@@ -9,7 +9,7 @@ from PIL import Image, ImageOps
 from clarifai.client.model_client import ModelClient
 from clarifai.runners.models.model_class import ModelClass, methods
 from clarifai.runners.models.model_servicer import ModelServicer
-from clarifai.runners.utils.data_handler import Concept, Input, Output, Stream
+from clarifai.runners.utils.data_types import Concept, Input, Output, Stream
 
 _ENABLE_PPRINT = os.getenv("ENABLE_PPRINT", "false").lower() in ("true", "1")
 

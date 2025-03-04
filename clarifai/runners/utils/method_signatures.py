@@ -11,7 +11,7 @@ import yaml
 from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.message import Message as MessageProto
 
-from clarifai.runners.utils import data_handler
+from clarifai.runners.utils import data_types
 from clarifai.runners.utils.serializers import (AtomicFieldSerializer, ImageSerializer,
                                                 ListSerializer, MessageSerializer,
                                                 NDArraySerializer, NullValueSerializer, Serializer)
@@ -33,7 +33,7 @@ def build_function_signature(func, method_type: str):
     raise ValueError('Function must have a return annotation')
   # check for multiple return values and convert to dict for named values
   return_streaming = False
-  if get_origin(return_annotation) == data_handler.Stream:
+  if get_origin(return_annotation) == data_types.Stream:
     return_annotation = get_args(return_annotation)[0]
     return_streaming = True
   if get_origin(return_annotation) == tuple:
@@ -205,7 +205,7 @@ def deserialize(proto, signatures, is_output=False):
       return kwargs['return']
     if kwargs and 'return.0' in kwargs:  # case for tuple return values
       return tuple(kwargs[f'return.{i}'] for i in range(len(kwargs)))
-    return data_handler.Output(kwargs)
+    return data_types.Output(kwargs)
   kwargs = unflatten_nested_keys(kwargs, signatures, is_output)
   return kwargs
 
@@ -252,7 +252,7 @@ def unflatten_nested_keys(kwargs, signatures, is_output):
     parts = sig.name.split('.')
     assert len(parts) == 2, 'Only one level of nested keys is supported'
     if parts[0] not in unflattened:
-      unflattened[parts[0]] = data_handler.Output() if is_output else data_handler.Input()
+      unflattened[parts[0]] = data_types.Output() if is_output else data_types.Input()
     unflattened[parts[0]][parts[1]] = kwargs[sig.name]
   return unflattened
 
@@ -329,20 +329,20 @@ def _normalize_types(param, is_output=False):
   tp = param.annotation
 
   # stream type indicates streaming, not part of the data itself
-  streaming = (get_origin(tp) == data_handler.Stream)
+  streaming = (get_origin(tp) == data_types.Stream)
   if streaming:
     tp = get_args(tp)[0]
 
   if is_output or streaming:  # named types can be used for outputs or streaming inputs
     # output type used for named return values, each with their own data type
-    if isinstance(tp, (dict, data_handler.Output, data_handler.Input)):
+    if isinstance(tp, (dict, data_types.Output, data_types.Input)):
       return {param.name + '.' + name: _normalize_data_type(val)
               for name, val in tp.items()}, streaming
-    if tp == data_handler.Output:  # check for Output type without values
+    if tp == data_types.Output:  # check for Output type without values
       if not is_output:
         raise TypeError('Output types can only be used for output values')
       raise TypeError('Output types must be instantiated with inner type values for each key')
-    if tp == data_handler.Input:  # check for Output type without values
+    if tp == data_types.Input:  # check for Output type without values
       if is_output:
         raise TypeError('Input types can only be used for input values')
       raise TypeError(
@@ -364,7 +364,7 @@ def _normalize_data_type(tp):
   # check for PIL images (sometimes types use the module, sometimes the class)
   # set these to use the Image data handler
   if tp in (PIL.Image, PIL.Image.Image):
-    tp = data_handler.Image
+    tp = data_types.Image
 
   # put back list
   if is_list:
@@ -403,20 +403,20 @@ _DATA_TYPES = {
         _DataType('None', '', NullValueSerializer()),
     np.ndarray:
         _DataType('ndarray', 'ndarray', NDArraySerializer()),
-    data_handler.Text:
-        _DataType('Text', 'text', MessageSerializer(data_handler.Text)),
-    data_handler.Image:
+    data_types.Text:
+        _DataType('Text', 'text', MessageSerializer(data_types.Text)),
+    data_types.Image:
         _DataType('Image', 'image', ImageSerializer()),
-    data_handler.Concept:
-        _DataType('Concept', 'concepts', MessageSerializer(data_handler.Concept)),
-    data_handler.Region:
-        _DataType('Region', 'regions', MessageSerializer(data_handler.Region)),
-    data_handler.Frame:
-        _DataType('Frame', 'frames', MessageSerializer(data_handler.Frame)),
-    data_handler.Audio:
-        _DataType('Audio', 'audio', MessageSerializer(data_handler.Audio)),
-    data_handler.Video:
-        _DataType('Video', 'video', MessageSerializer(data_handler.Video)),
+    data_types.Concept:
+        _DataType('Concept', 'concepts', MessageSerializer(data_types.Concept)),
+    data_types.Region:
+        _DataType('Region', 'regions', MessageSerializer(data_types.Region)),
+    data_types.Frame:
+        _DataType('Frame', 'frames', MessageSerializer(data_types.Frame)),
+    data_types.Audio:
+        _DataType('Audio', 'audio', MessageSerializer(data_types.Audio)),
+    data_types.Video:
+        _DataType('Video', 'video', MessageSerializer(data_types.Video)),
 
     # lists handled specially, not as generic lists using parts
     List[int]:

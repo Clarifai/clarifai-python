@@ -10,7 +10,7 @@ from typing import Any, Dict, Iterator, List
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
-from clarifai.runners.utils import data_handler
+from clarifai.runners.utils import data_types
 from clarifai.runners.utils.method_signatures import (build_function_signature, deserialize,
                                                       get_stream_from_signature, serialize,
                                                       signatures_to_json)
@@ -190,7 +190,7 @@ class ModelClass(ABC):
       for k, v in kwargs.items():
         if k not in python_param_types:
           continue
-        kwargs[k] = data_handler.cast(v, python_param_types[k])
+        kwargs[k] = data_types.cast(v, python_param_types[k])
       result.append(kwargs)
     return result
 
