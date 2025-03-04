@@ -48,8 +48,10 @@ class ModelClient:
 
     request = service_pb2.PostModelOutputsRequest()
     request.CopyFrom(self.request_template)
-    request.model.model_version.output_info.params['_method_name'] = '_GET_SIGNATURES'
-    request.inputs.add()  # empty input for this method
+    # request.model.model_version.output_info.params['_method_name'] = '_GET_SIGNATURES'
+    inp = request.inputs.add()  # empty input for this method
+    inp.data.parts.add()  # empty part for this input
+    inp.data.metadata['_method_name'] = '_GET_SIGNATURES'
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
     while True:
@@ -65,8 +67,8 @@ class ModelClient:
       self._method_signatures = {}
       return
     if response.status.code != status_code_pb2.SUCCESS:
-      raise Exception(f"Model failed with response {response.status!r}")
-    self._method_signatures = signatures_from_json(response.outputs[0].data.string_value)
+      raise Exception(f"Model failed with response {response!r}")
+    self._method_signatures = signatures_from_json(response.outputs[0].data.text.raw)
 
   def _define_functions(self):
     '''
@@ -211,7 +213,8 @@ class ModelClient:
 
     if method_name:
       # TODO put in new proto field?
-      request.model.model_version.output_info.params['_method_name'] = method_name
+      for inp in request.inputs:
+        inp.data.metadata['_method_name'] = method_name
     if inference_params:
       request.model.model_version.output_info.params.update(inference_params)
     if output_config:
@@ -224,12 +227,12 @@ class ModelClient:
       response = self.STUB.PostModelOutputs(request)
       if status_is_retryable(
           response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
-        self.logger.info(f"Model predict failed with response {response.status!r}")
+        self.logger.info(f"Model predict failed with response {response!r}")
         time.sleep(next(backoff_iterator))
         continue
 
       if response.status.code != status_code_pb2.SUCCESS:
-        raise Exception(f"Model predict failed with response {response.status!r}")
+        raise Exception(f"Model predict failed with response {response!r}")
       break
 
     return response
@@ -292,7 +295,8 @@ class ModelClient:
 
     if method_name:
       # TODO put in new proto field?
-      request.model.model_version.output_info.params['_method_name'] = method_name
+      for inp in request.inputs:
+        inp.data.metadata['_method_name'] = method_name
     if inference_params:
       request.model.model_version.output_info.params.update(inference_params)
     if output_config:
@@ -375,7 +379,6 @@ class ModelClient:
                     output_config: Dict = {}):
     request = service_pb2.PostModelOutputsRequest()
     request.CopyFrom(self.request_template)
-    request.model.model_version.output_info.params['_method_name'] = method_name
     if inference_params:
       request.model.model_version.output_info.params.update(inference_params)
     if output_config:
@@ -387,6 +390,9 @@ class ModelClient:
         req.inputs.extend(inputs)
       else:
         req.inputs.append(inputs)
+      # TODO: put into new proto field?
+      for inp in req.inputs:
+        inp.data.metadata['_method_name'] = method_name
       yield req
 
   def _stream_by_proto(self,

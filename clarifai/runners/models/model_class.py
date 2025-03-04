@@ -70,13 +70,14 @@ class ModelClass(ABC):
 
   def load_model(self):
     """Load the model."""
-    pass
 
   def _handle_get_signatures_request(self) -> service_pb2.MultiOutputResponse:
     methods = self._get_method_info()
     signatures = {method.name: method.signature for method in methods.values()}
     resp = service_pb2.MultiOutputResponse(status=status_pb2.Status(code=status_code_pb2.SUCCESS))
-    resp.outputs.add().data.string_value = signatures_to_json(signatures)
+    output = resp.outputs.add()
+    output.status.code = status_code_pb2.SUCCESS
+    output.data.text.raw = signatures_to_json(signatures)
     return resp
 
   def batch_predict(self, method, inputs: List[Dict[str, Any]]) -> List[Any]:
@@ -98,8 +99,9 @@ class ModelClass(ABC):
     outputs = []
     try:
       # TODO add method name field to proto
-      call_params = dict(request.model.model_version.output_info.params)
-      method_name = call_params.get('_method_name', 'predict')
+      method_name = None
+      if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
+        method_name = request.inputs[0].data.metadata['_method_name']
       if method_name == '_GET_SIGNATURES':  # special case to fetch signatures, TODO add endpoint for this
         return self._handle_get_signatures_request()
       if method_name not in self._get_method_info():
