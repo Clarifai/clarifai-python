@@ -473,7 +473,8 @@ def main(model_path,
          inside_container=False,
          port=8080,
          keep_env=False,
-         keep_image=False):
+         keep_image=False,
+         skip_dockerfile: bool = False):
 
   if not os.environ.get("CLARIFAI_PAT", None):
     logger.error(
@@ -489,10 +490,13 @@ def main(model_path,
   if inside_container:
     if not manager.is_docker_installed():
       sys.exit(1)
-    manager.builder.create_dockerfile()
+    if not skip_dockerfile:
+      manager.builder.create_dockerfile()
     image_tag = manager._docker_hash()
-    image_name = f"{manager.config['model']['id']}:{image_tag}"
-    container_name = manager.config['model']['id']
+    model_id = manager.config['model']['id'].lower()
+    # must be in lowercase
+    image_name = f"{model_id}:{image_tag}"
+    container_name = model_id
     if not manager.docker_image_exists(image_name):
       manager.build_docker_image(image_name=image_name)
     try:
