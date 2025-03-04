@@ -495,6 +495,18 @@ class TestModelCalls(unittest.TestCase):
     with self.assertRaisesRegex(Exception, 'test exception'):
       list(client.f(5))
 
+  def test_call_predict_with_generator(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: int) -> int:
+        return x
+
+    client = _get_servicer_client(MyModel())
+    with self.assertRaises(TypeError):
+      client.f(range(5))
+
   def test_two_predict_functions(self):
 
     class MyModel(ModelClass):
