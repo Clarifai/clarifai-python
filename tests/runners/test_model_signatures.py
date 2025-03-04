@@ -1297,6 +1297,69 @@ class TestModelCalls(unittest.TestCase):
     with self.assertRaises(TypeError):
       client.f(y=True)
 
+  def test_ndarray_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: np.ndarray) -> np.ndarray:
+        return x + 1
+
+    client = _get_servicer_client(MyModel())
+
+    # 0d arrays
+    self.assertTrue(np.all(client.f(np.array(1)) == np.array(2)))
+    self.assertTrue(np.all(client.f(np.array(0)) == np.array(1)))
+    self.assertTrue(np.all(client.f(np.array(1.5)) == np.array(2.5)))
+    self.assertTrue(np.all(client.f(2.5) == np.array(3.5)))
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(np.array(1), np.array(2))
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=np.array(1))
+
+    # 1d arrays
+    self.assertTrue(np.all(client.f(np.array([1, 2, 3])) == np.array([2, 3, 4])))
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(np.array([1, 2, 3]), np.array([4, 5, 6]))
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=np.array([1, 2, 3]))
+
+    # 2d arrays
+    self.assertTrue(np.all(client.f(np.array([[1, 2], [3, 4]])) == np.array([[2, 3], [4, 5]])))
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(np.array([[1, 2], [3, 4]]), np.array([[5, 6], [7, 8]]))
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=np.array([[1, 2], [3, 4]]))
+
+    # 1d array, preserve dtype as float32
+    res = client.f(np.array([1, 2, 3], dtype=np.float32))
+    self.assertTrue(np.all(res == np.array([2, 3, 4], dtype=np.float32)))
+    self.assertTrue(res.dtype == np.float32)
+
 
 def _get_servicer_client(model):
   servicer = ModelServicer(model)
