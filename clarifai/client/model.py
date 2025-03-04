@@ -1,7 +1,8 @@
+import itertools
 import json
 import os
 import time
-from typing import Any, Dict, Generator, Iterator, List, Tuple, Union
+from typing import Any, Dict, Generator, Iterable, Iterator, List, Tuple, Union
 
 import numpy as np
 import requests
@@ -649,24 +650,24 @@ class Model(Lister, BaseClient):
     return self.predict(
         inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
-  def generate(
-      self,
-      inputs: List[Input],
-      inference_params: Dict = {},
-      output_config: Dict = {},
-  ):
-    """Generate the stream output on model based on the given inputs.
-
-    Args:
-        inputs (list[Input]): The inputs to generate, must be less than 128.
-        inference_params (dict): The inference params to override.
-        output_config (dict): The output config to override.
+  def generate(self, inputs=None, *args, **kwargs):
     """
-    return self.model_client._generate_by_proto(
-        inputs=inputs,
-        inference_params=inference_params,
-        output_config=output_config,
-    )
+    Calls the model client's generate() method with the given arguments.
+
+    If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+    protos directly for compatibility with previous versions of the SDK.
+    """
+
+    if inputs and isinstance(inputs, list) and isinstance(inputs[0], resources_pb2.Input):
+      assert not args, "Cannot pass in raw protos and additional arguments at the same time."
+      inference_params = kwargs.get('inference_params', {})
+      output_config = kwargs.get('output_config', {})
+      return self.model_client._generate_by_proto(
+          inputs=inputs, inference_params=inference_params, output_config=output_config)
+
+    if inputs is not None:
+      return self.model_client.generate(inputs=inputs, *args, **kwargs)
+    return self.model_client.generate(*args, **kwargs)
 
   def generate_by_filepath(self,
                            filepath: str,
@@ -780,28 +781,30 @@ class Model(Lister, BaseClient):
     return self.generate(
         inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
-  def stream(self,
-             inputs: Iterator[List[Input]],
-             inference_params: Dict = {},
-             output_config: Dict = {}):
-    """Generate the stream output on model based on the given stream of inputs.
-
-    Args:
-        inputs (Iterator[list[Input]]): stream of inputs to predict, must be less than 128.
-
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
-                    or
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> stream_response = model.stream(inputs=inputs, runner_selector=runner_selector)
-        >>> list_stream_response = [response for response in stream_response]
+  def stream(self, inputs=None, *args, **kwargs):
     """
-    return self.model_client._stream_by_proto(
-        inputs=inputs,
-        inference_params=inference_params,
-        output_config=output_config,
-    )
+    Calls the model client's stream() method with the given arguments.
+
+    If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+    protos directly for compatibility with previous versions of the SDK.
+    """
+
+    use_proto_call = False
+    if inputs and isinstance(inputs, Iterable):
+      peek = next(iter(inputs), None)
+      if isinstance(peek, resources_pb2.Input):
+        inputs = itertools.chain([inputs], inputs)
+        use_proto_call = True
+    if use_proto_call:
+      assert not args, "Cannot pass in raw protos and additional arguments at the same time."
+      inference_params = kwargs.get('inference_params', {})
+      output_config = kwargs.get('output_config', {})
+      return self.model_client._stream_by_proto(
+          inputs=inputs, inference_params=inference_params, output_config=output_config)
+
+    if inputs is not None:
+      return self.model_client.stream(inputs=inputs, *args, **kwargs)
+    return self.model_client.stream(*args, **kwargs)
 
   def stream_by_filepath(self,
                          filepath: str,
