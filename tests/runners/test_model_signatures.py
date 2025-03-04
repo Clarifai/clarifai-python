@@ -1501,6 +1501,133 @@ class TestModelCalls(unittest.TestCase):
       with self.assertRaises(TypeError):
         client.f(y=testimg1)
 
+    def test_Concept_type(self):
+
+      class MyModel(ModelClass):
+
+        @ModelClass.method
+        def f(self, x: Concept) -> Concept:
+          return x
+
+      client = _get_servicer_client(MyModel())
+
+      testconcept = Concept('testconcept', 0.9)
+
+      result = client.f(testconcept)
+      self.assertEqual(result, testconcept)
+
+      with self.assertRaises(TypeError):
+        client.f('abc')
+
+      with self.assertRaises(TypeError):
+        client.f(3)
+
+      with self.assertRaises(TypeError):
+        client.f()
+
+      with self.assertRaises(TypeError):
+        client.f(y=testconcept)
+
+  def test_List_int_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: List[int]) -> List[int]:
+        return [i + 1 for i in x]
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f([1, 2, 3]), [2, 3, 4])
+    self.assertEqual(client.f([]), [])
+    self.assertEqual(client.f([0]), [1])
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(3)
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=[1, 2, 3])
+
+  def test_List_str_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: List[str]) -> List[str]:
+        return [i + '1' for i in x]
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f(['1', '2', '3']), ['11', '21', '31'])
+    self.assertEqual(client.f([]), [])
+    self.assertEqual(client.f(['']), ['1'])
+
+    with self.assertRaises(TypeError):
+      client.f(3)
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=['1', '2', '3'])
+
+  def test_List_Image_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f_pil(self, x: List[PILImage]) -> List[PILImage]:
+        return [ImageOps.invert(i) for i in x]
+
+      @ModelClass.method
+      def f_datatype(self, x: List[Image]) -> List[Image]:
+        return [ImageOps.invert(i.to_pil()) for i in x]
+
+    client = _get_servicer_client(MyModel())
+
+    testimg1 = PILImage.fromarray(np.ones([50, 50, 3], dtype="uint8"))
+    testimg2 = PILImage.fromarray(200 + np.zeros([50, 50, 3], dtype="uint8"))
+
+    result = client.f_pil([testimg1, testimg2])
+    self.assertEqual(len(result), 2)
+    self.assertTrue(np.all(result[0].to_numpy() == np.asarray(ImageOps.invert(testimg1))))
+    self.assertTrue(np.all(result[1].to_numpy() == np.asarray(ImageOps.invert(testimg2))))
+
+    with self.assertRaises(TypeError):
+      client.f_pil('abc')
+
+    with self.assertRaises(TypeError):
+      client.f_pil(3)
+
+    with self.assertRaises(TypeError):
+      client.f_pil()
+
+    with self.assertRaises(TypeError):
+      client.f_pil(y=[testimg1, testimg2])
+
+    result = client.f_datatype([testimg1, testimg2])
+    self.assertEqual(len(result), 2)
+    self.assertTrue(np.all(result[0].to_numpy() == np.asarray(ImageOps.invert(testimg1))))
+    self.assertTrue(np.all(result[1].to_numpy() == np.asarray(ImageOps.invert(testimg2))))
+
+    with self.assertRaises(TypeError):
+      client.f_datatype('abc')
+
+    with self.assertRaises(TypeError):
+      client.f_datatype(3)
+
+    with self.assertRaises(TypeError):
+      client.f_datatype()
+
+    with self.assertRaises(TypeError):
+      client.f_datatype(y=[testimg1, testimg2])
+
 
 def _get_servicer_client(model):
   servicer = ModelServicer(model)
