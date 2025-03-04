@@ -1,5 +1,6 @@
 import functools
 import os
+import sys
 import unittest
 from typing import List
 
@@ -321,6 +322,9 @@ class TestModelCalls(unittest.TestCase):
     self.assertTrue(np.allclose(result[1].value, 0.1))
 
   def test_str_ListImage__str_ListImage(self):
+    # skip if python version is below 3.11: can't use List[Image] in signature for <=3.10
+    if sys.version_info < (3, 11):
+      self.skipTest("python < 3.11 does not support using regular classes in generics")
 
     class MyModel(ModelClass):
 
