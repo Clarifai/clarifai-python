@@ -12,7 +12,8 @@ from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
 from clarifai.runners.utils import data_handler
 from clarifai.runners.utils.method_signatures import (build_function_signature, deserialize,
-                                                      serialize, signatures_to_json)
+                                                      get_stream_from_signature, serialize,
+                                                      signatures_to_json)
 
 _METHOD_INFO_ATTR = '_cf_method_info'
 
@@ -143,11 +144,7 @@ class ModelClass(ABC):
       python_param_types = method_info.python_param_types
 
       # find the streaming vars in the signature
-      streaming_var_signatures = [var for var in signature.inputs if var.streaming]
-      stream_argname = set([var.name.split('.', 1)[0] for var in streaming_var_signatures])
-      assert len(
-          stream_argname) == 1, 'streaming methods must have exactly one streaming function arg'
-      stream_argname = stream_argname.pop()
+      stream_argname, streaming_var_signatures = get_stream_from_signature(signature.inputs)
 
       # convert all inputs for the first request, including the first stream value
       inputs = self._convert_input_protos_to_python(request.inputs, signature.inputs,

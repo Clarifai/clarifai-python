@@ -54,27 +54,27 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: int) -> int:
         return 2 * x
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'int_value',
-                'data_type': 'int',
-                'name': 'x',
-                'required': True,
-                'streaming': False
-            }],
-            'method_type':
-                'predict',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'int_value',
-                'data_type': 'int',
-                'name': 'return',
-                'streaming': False
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'int_value',
+            'data_type': 'int',
+            'name': 'x',
+            'required': True,
+            'streaming': False
+        }],
+        'method_type':
+            'predict',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'int_value',
+            'data_type': 'int',
+            'name': 'return',
+            'streaming': False
+        }]
+    })
     # test call
     client = _get_servicer_client(MyModel())
     result = client.f(5)
@@ -88,33 +88,33 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: str, y: str) -> str:
         return x + y
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'parts[x].string_value',
-                'data_type': 'str',
-                'name': 'x',
-                'required': True,
-                'streaming': False
-            }, {
-                'data_field': 'parts[y].string_value',
-                'data_type': 'str',
-                'name': 'y',
-                'required': True,
-                'streaming': False
-            }],
-            'method_type':
-                'predict',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'return',
-                'streaming': False
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'parts[x].string_value',
+            'data_type': 'str',
+            'name': 'x',
+            'required': True,
+            'streaming': False
+        }, {
+            'data_field': 'parts[y].string_value',
+            'data_type': 'str',
+            'name': 'y',
+            'required': True,
+            'streaming': False
+        }],
+        'method_type':
+            'predict',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'return',
+            'streaming': False
+        }]
+    })
 
     # test calls
     client = _get_servicer_client(MyModel())
@@ -141,33 +141,33 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: str, y: int) -> str:
         return x + str(y)
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'x',
-                'required': True,
-                'streaming': False
-            }, {
-                'data_field': 'int_value',
-                'data_type': 'int',
-                'name': 'y',
-                'required': True,
-                'streaming': False
-            }],
-            'method_type':
-                'predict',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'return',
-                'streaming': False
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'x',
+            'required': True,
+            'streaming': False
+        }, {
+            'data_field': 'int_value',
+            'data_type': 'int',
+            'name': 'y',
+            'required': True,
+            'streaming': False
+        }],
+        'method_type':
+            'predict',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'return',
+            'streaming': False
+        }]
+    })
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -182,27 +182,27 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: np.ndarray) -> int:
         return int(np.sum(x))
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'ndarray',
-                'data_type': 'ndarray',
-                'name': 'x',
-                'required': True,
-                'streaming': False
-            }],
-            'method_type':
-                'predict',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'int_value',
-                'data_type': 'int',
-                'name': 'return',
-                'streaming': False
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'ndarray',
+            'data_type': 'ndarray',
+            'name': 'x',
+            'required': True,
+            'streaming': False
+        }],
+        'method_type':
+            'predict',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'int_value',
+            'data_type': 'int',
+            'name': 'return',
+            'streaming': False
+        }]
+    })
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -217,27 +217,27 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: Image) -> str:
         return str(x.size)
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'image',
-                'data_type': 'Image',
-                'name': 'x',
-                'required': True,
-                'streaming': False
-            }],
-            'method_type':
-                'predict',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'return',
-                'streaming': False
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'image',
+            'data_type': 'Image',
+            'name': 'x',
+            'required': True,
+            'streaming': False
+        }],
+        'method_type':
+            'predict',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'return',
+            'streaming': False
+        }]
+    })
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -253,27 +253,27 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: str) -> Image:
         return Image.fromarray(np.ones([10, 10, 3], dtype="uint8"))
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'x',
-                'required': True,
-                'streaming': False
-            }],
-            'method_type':
-                'predict',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'image',
-                'data_type': 'Image',
-                'name': 'return',
-                'streaming': False
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'x',
+            'required': True,
+            'streaming': False
+        }],
+        'method_type':
+            'predict',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'image',
+            'data_type': 'Image',
+            'name': 'return',
+            'streaming': False
+        }]
+    })
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -288,27 +288,27 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: Image) -> List[Concept]:
         return [Concept('a', 0.9), Concept('b', 0.1)]
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'image',
-                'data_type': 'Image',
-                'name': 'x',
-                'required': True,
-                'streaming': False
-            }],
-            'method_type':
-                'predict',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'concepts',
-                'data_type': 'List[Concept]',
-                'name': 'return',
-                'streaming': False
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'image',
+            'data_type': 'Image',
+            'name': 'x',
+            'required': True,
+            'streaming': False
+        }],
+        'method_type':
+            'predict',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'concepts',
+            'data_type': 'List[Concept]',
+            'name': 'return',
+            'streaming': False
+        }]
+    })
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -328,38 +328,38 @@ class TestModelCalls(unittest.TestCase):
       def f(self, prompt: str, images: List[Image]) -> (str, List[Image]):
         return (prompt + ' result', [ImageOps.invert(img) for img in images])
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'prompt',
-                'required': True,
-                'streaming': False
-            }, {
-                'data_field': 'parts[].image',
-                'data_type': 'List[Image]',
-                'name': 'images',
-                'required': True,
-                'streaming': False
-            }],
-            'method_type':
-                'predict',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'return.0',
-                'streaming': False
-            }, {
-                'data_field': 'parts[].image',
-                'data_type': 'List[Image]',
-                'name': 'return.1',
-                'streaming': False
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'prompt',
+            'required': True,
+            'streaming': False
+        }, {
+            'data_field': 'parts[].image',
+            'data_type': 'List[Image]',
+            'name': 'images',
+            'required': True,
+            'streaming': False
+        }],
+        'method_type':
+            'predict',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'return.0',
+            'streaming': False
+        }, {
+            'data_field': 'parts[].image',
+            'data_type': 'List[Image]',
+            'name': 'return.1',
+            'streaming': False
+        }]
+    })
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -381,27 +381,27 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: np.ndarray[int]) -> np.ndarray[float]:
         return x / 2.0
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'ndarray',
-                'data_type': 'ndarray',
-                'name': 'x',
-                'required': True,
-                'streaming': False
-            }],
-            'method_type':
-                'predict',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'ndarray',
-                'data_type': 'ndarray',
-                'name': 'return',
-                'streaming': False
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'ndarray',
+            'data_type': 'ndarray',
+            'name': 'x',
+            'required': True,
+            'streaming': False
+        }],
+        'method_type':
+            'predict',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'ndarray',
+            'data_type': 'ndarray',
+            'name': 'return',
+            'streaming': False
+        }]
+    })
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -431,27 +431,27 @@ class TestModelCalls(unittest.TestCase):
         for i in range(x):
           yield i
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'int_value',
-                'data_type': 'int',
-                'name': 'x',
-                'required': True,
-                'streaming': False
-            }],
-            'method_type':
-                'generate',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'int_value',
-                'data_type': 'int',
-                'name': 'return',
-                'streaming': True
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'int_value',
+            'data_type': 'int',
+            'name': 'x',
+            'required': True,
+            'streaming': False
+        }],
+        'method_type':
+            'generate',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'int_value',
+            'data_type': 'int',
+            'name': 'return',
+            'streaming': True
+        }]
+    })
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -511,49 +511,49 @@ class TestModelCalls(unittest.TestCase):
     assert len(MyModel._get_method_info()) == 2
     assert MyModel._get_method_info().keys() == {'f', 'g'}
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'int_value',
-                'data_type': 'int',
-                'name': 'x',
-                'required': True,
-                'streaming': False
-            }],
-            'method_type':
-                'predict',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'int_value',
-                'data_type': 'int',
-                'name': 'return',
-                'streaming': False
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'int_value',
+            'data_type': 'int',
+            'name': 'x',
+            'required': True,
+            'streaming': False
+        }],
+        'method_type':
+            'predict',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'int_value',
+            'data_type': 'int',
+            'name': 'return',
+            'streaming': False
+        }]
+    })
 
-    pprint(MyModel._get_method_info('g').signature)
-    self.assertEqual(
-        MyModel._get_method_info('g').signature, {
-            'inputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'x',
-                'required': True,
-                'streaming': False
-            }],
-            'method_type':
-                'predict',
-            'name':
-                'g',
-            'outputs': [{
-                'data_field': 'int_value',
-                'data_type': 'int',
-                'name': 'return',
-                'streaming': False
-            }]
-        })
+    sig = dict(MyModel._get_method_info('g').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'x',
+            'required': True,
+            'streaming': False
+        }],
+        'method_type':
+            'predict',
+        'name':
+            'g',
+        'outputs': [{
+            'data_field': 'int_value',
+            'data_type': 'int',
+            'name': 'return',
+            'streaming': False
+        }]
+    })
 
     # test calls
     client = _get_servicer_client(MyModel())
@@ -570,32 +570,32 @@ class TestModelCalls(unittest.TestCase):
       def f(self, input: str) -> Output(x=int, y=str):
         return Output(x=len(input), y=input + ' result')
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'input',
-                'required': True,
-                'streaming': False
-            }],
-            'method_type':
-                'predict',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'int_value',
-                'data_type': 'int',
-                'name': 'x',
-                'streaming': False
-            }, {
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'y',
-                'streaming': False
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'input',
+            'required': True,
+            'streaming': False
+        }],
+        'method_type':
+            'predict',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'int_value',
+            'data_type': 'int',
+            'name': 'x',
+            'streaming': False
+        }, {
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'y',
+            'streaming': False
+        }]
+    })
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -612,32 +612,32 @@ class TestModelCalls(unittest.TestCase):
         for i in range(x):
           yield Output(x=i, y=str(i))
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'int_value',
-                'data_type': 'int',
-                'name': 'x',
-                'required': True,
-                'streaming': False
-            }],
-            'method_type':
-                'generate',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'int_value',
-                'data_type': 'int',
-                'name': 'x',
-                'streaming': True
-            }, {
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'y',
-                'streaming': True
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'int_value',
+            'data_type': 'int',
+            'name': 'x',
+            'required': True,
+            'streaming': False
+        }],
+        'method_type':
+            'generate',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'int_value',
+            'data_type': 'int',
+            'name': 'x',
+            'streaming': True
+        }, {
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'y',
+            'streaming': True
+        }]
+    })
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -655,28 +655,28 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: int = 5) -> int:
         return x + 1
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'int_value',
-                'data_type': 'int',
-                'name': 'x',
-                'default': 5,
-                'required': False,
-                'streaming': False
-            }],
-            'method_type':
-                'predict',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'int_value',
-                'data_type': 'int',
-                'name': 'return',
-                'streaming': False
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'int_value',
+            'data_type': 'int',
+            'name': 'x',
+            'default': 5,
+            'required': False,
+            'streaming': False
+        }],
+        'method_type':
+            'predict',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'int_value',
+            'data_type': 'int',
+            'name': 'return',
+            'streaming': False
+        }]
+    })
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -701,28 +701,28 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: str = 'abc') -> str:
         return x[::-1]
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'x',
-                'default': 'abc',
-                'required': False,
-                'streaming': False
-            }],
-            'method_type':
-                'predict',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'return',
-                'streaming': False
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'x',
+            'default': 'abc',
+            'required': False,
+            'streaming': False
+        }],
+        'method_type':
+            'predict',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'return',
+            'streaming': False
+        }]
+    })
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -759,35 +759,35 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: str = 'abc', y: int = 5) -> str:
         return x + str(y)
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'x',
-                'default': 'abc',
-                'required': False,
-                'streaming': False
-            }, {
-                'data_field': 'int_value',
-                'data_type': 'int',
-                'name': 'y',
-                'default': 5,
-                'required': False,
-                'streaming': False
-            }],
-            'method_type':
-                'predict',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'return',
-                'streaming': False
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'x',
+            'default': 'abc',
+            'required': False,
+            'streaming': False
+        }, {
+            'data_field': 'int_value',
+            'data_type': 'int',
+            'name': 'y',
+            'default': 5,
+            'required': False,
+            'streaming': False
+        }],
+        'method_type':
+            'predict',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'return',
+            'streaming': False
+        }]
+    })
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -864,27 +864,27 @@ class TestModelCalls(unittest.TestCase):
         for i, x in enumerate(input):
           yield str(i) + x
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'input',
-                'required': True,
-                'streaming': True
-            }],
-            'method_type':
-                'stream',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'return',
-                'streaming': True
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'input',
+            'required': True,
+            'streaming': True
+        }],
+        'method_type':
+            'stream',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'return',
+            'streaming': True
+        }]
+    })
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -900,33 +900,33 @@ class TestModelCalls(unittest.TestCase):
         for i, x in enumerate(input_stream):
           yield str(i) + x + str(y)
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'input_stream',
-                'required': True,
-                'streaming': True
-            }, {
-                'data_field': 'int_value',
-                'data_type': 'int',
-                'name': 'y',
-                'required': True,
-                'streaming': False
-            }],
-            'method_type':
-                'stream',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'return',
-                'streaming': True
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'input_stream',
+            'required': True,
+            'streaming': True
+        }, {
+            'data_field': 'int_value',
+            'data_type': 'int',
+            'name': 'y',
+            'required': True,
+            'streaming': False
+        }],
+        'method_type':
+            'stream',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'return',
+            'streaming': True
+        }]
+    })
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -942,33 +942,33 @@ class TestModelCalls(unittest.TestCase):
         for i, input in enumerate(stream):
           yield str(i) + input.x + input.y
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'parts[stream.x].string_value',
-                'data_type': 'str',
-                'name': 'stream.x',
-                'required': True,
-                'streaming': True
-            }, {
-                'data_field': 'parts[stream.y].string_value',
-                'data_type': 'str',
-                'name': 'stream.y',
-                'required': True,
-                'streaming': True
-            }],
-            'method_type':
-                'stream',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'return',
-                'streaming': True
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'parts[stream.x].string_value',
+            'data_type': 'str',
+            'name': 'stream.x',
+            'required': True,
+            'streaming': True
+        }, {
+            'data_field': 'parts[stream.y].string_value',
+            'data_type': 'str',
+            'name': 'stream.y',
+            'required': True,
+            'streaming': True
+        }],
+        'method_type':
+            'stream',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'return',
+            'streaming': True
+        }]
+    })
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -984,44 +984,108 @@ class TestModelCalls(unittest.TestCase):
         for i, val in enumerate(streamvar):
           yield str(i) + val.x + str(val.y) + x
 
-    pprint(MyModel._get_method_info('f').signature)
-    self.assertEqual(
-        MyModel._get_method_info('f').signature, {
-            'inputs': [{
-                'data_field': 'parts[streamvar.x].string_value',
-                'data_type': 'str',
-                'name': 'streamvar.x',
-                'required': True,
-                'streaming': True
-            }, {
-                'data_field': 'parts[streamvar.y].int_value',
-                'data_type': 'int',
-                'name': 'streamvar.y',
-                'required': True,
-                'streaming': True
-            }, {
-                'data_field': 'parts[x].string_value',
-                'data_type': 'str',
-                'name': 'x',
-                'required': True,
-                'streaming': False
-            }],
-            'method_type':
-                'stream',
-            'name':
-                'f',
-            'outputs': [{
-                'data_field': 'string_value',
-                'data_type': 'str',
-                'name': 'return',
-                'streaming': True
-            }]
-        })
+    sig = dict(MyModel._get_method_info('f').signature)
+    del sig['docstring']
+    self.assertEqual(sig, {
+        'inputs': [{
+            'data_field': 'parts[streamvar.x].string_value',
+            'data_type': 'str',
+            'name': 'streamvar.x',
+            'required': True,
+            'streaming': True
+        }, {
+            'data_field': 'parts[streamvar.y].int_value',
+            'data_type': 'int',
+            'name': 'streamvar.y',
+            'required': True,
+            'streaming': True
+        }, {
+            'data_field': 'parts[x].string_value',
+            'data_type': 'str',
+            'name': 'x',
+            'required': True,
+            'streaming': False
+        }],
+        'method_type':
+            'stream',
+        'name':
+            'f',
+        'outputs': [{
+            'data_field': 'string_value',
+            'data_type': 'str',
+            'name': 'return',
+            'streaming': True
+        }]
+    })
 
     # test call
     client = _get_servicer_client(MyModel())
     result = list(client.f(iter([Input(x='a', y=1), Input(x='x', y=2)]), 'z'))
     self.assertEqual(result, ['0a1z', '1x2z'])
+
+  def test_docstrings(self):
+
+    class MyModel(ModelClass):
+
+      @methods.predict
+      def f(self, x: int) -> int:
+        """This is a test function."""
+        return x + 1
+
+      @methods.predict
+      def g(self, x: str) -> str:
+        """This is another test function."""
+        return x + 'a'
+
+      @methods.generate
+      def generate(self, x: str) -> Stream[int]:
+        """This is a generate test function."""
+        return range(len(x))
+
+      @methods.stream
+      def stream(self, stream: Stream[Input(x=str, y=str)],
+                 n: int) -> Stream[Output(xout=str, yout=str)]:
+        """This is a stream test function."""
+        for i, input in enumerate(stream):
+          yield Output(xout=input.x + str(i), yout=input.y + str(n))
+
+    pprint(MyModel._get_method_info())
+
+    self.assertEqual(MyModel._get_method_info('f').signature.docstring, 'This is a test function.')
+    self.assertEqual(
+        MyModel._get_method_info('g').signature.docstring, 'This is another test function.')
+    self.assertEqual(
+        MyModel._get_method_info('generate').signature.docstring,
+        'This is a generate test function.')
+    self.assertEqual(
+        MyModel._get_method_info('stream').signature.docstring, 'This is a stream test function.')
+
+    client = _get_servicer_client(MyModel())
+    self.assertEqual(client.f.__doc__, 'This is a test function.')
+    self.assertEqual(client.g.__doc__, 'This is another test function.')
+    self.assertEqual(client.generate.__doc__, 'This is a generate test function.')
+    self.assertEqual(client.stream.__doc__, 'This is a stream test function.')
+
+    import inspect
+    sig = inspect.signature(client.f)
+    # strip out quotes, since the transfered annos are strings
+    sig = str(sig).replace("'", "").replace('"', '').replace(' ', '')
+    self.assertEqual(str(sig), '(x: int) -> int'.replace(' ', ''))
+
+    sig = inspect.signature(client.g)
+    sig = str(sig).replace("'", "").replace('"', '').replace(' ', '')
+    self.assertEqual(str(sig), '(x: str) -> str'.replace(' ', ''))
+
+    sig = inspect.signature(client.generate)
+    sig = str(sig).replace("'", "").replace('"', '').replace(' ', '')
+    self.assertEqual(str(sig), '(x: str) -> Stream[int]'.replace(' ', ''))
+
+    sig = inspect.signature(client.stream)
+    sig = str(sig).replace("'", "").replace('"', '').replace(' ', '')
+    self.assertEqual(
+        str(sig),
+        '(stream: Stream[{x: str, y: str}], n: int) -> Stream[Output(xout=str, yout=str)]'.replace(
+            ' ', ''))
 
 
 def _get_servicer_client(model):

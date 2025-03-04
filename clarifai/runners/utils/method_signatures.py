@@ -2,7 +2,7 @@ import inspect
 import json
 import re
 import types
-from collections import namedtuple
+from collections import OrderedDict, namedtuple
 from typing import List, get_args, get_origin
 
 import numpy as np
@@ -73,7 +73,7 @@ def build_function_signature(func, method_type: str):
     input_stream_vars = [var for var in input_vars if var.streaming]
     if len(input_stream_vars) == 0:
       raise TypeError('Stream methods must include a Stream input')
-    if len(output_vars) != 1 or not output_vars[0].streaming:
+    if not all(var.streaming for var in output_vars):
       raise TypeError('Stream methods must return a single Stream')
   else:
     raise TypeError('Invalid method type: %s' % method_type)
@@ -85,6 +85,7 @@ def build_function_signature(func, method_type: str):
   #method_signature.method_type = getattr(resources_pb2.RunnerMethodType, method_type)
   assert method_type in ('predict', 'generate', 'stream')
   method_signature.method_type = method_type
+  method_signature.docstring = func.__doc__
 
   #method_signature.inputs.extend(input_vars)
   #method_signature.outputs.extend(output_vars)
@@ -163,7 +164,7 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
   if proto is None:
     proto = resources_pb2.Data()
   if not is_output:  # TODO: use this consistently for return keys also
-    flatten_nested_keys(kwargs, signatures, is_output)
+    kwargs = flatten_nested_keys(kwargs, signatures, is_output)
   unknown = set(kwargs.keys()) - set(sig.name for sig in signatures)
   if unknown:
     if unknown == {'return'} and len(signatures) > 1:
@@ -205,7 +206,7 @@ def deserialize(proto, signatures, is_output=False):
     if kwargs and 'return.0' in kwargs:  # case for tuple return values
       return tuple(kwargs[f'return.{i}'] for i in range(len(kwargs)))
     return data_handler.Output(kwargs)
-  unflatten_nested_keys(kwargs, signatures, is_output)
+  kwargs = unflatten_nested_keys(kwargs, signatures, is_output)
   return kwargs
 
 
@@ -238,18 +239,32 @@ def unflatten_nested_keys(kwargs, signatures, is_output):
   Unflatten nested keys in kwargs into a dict, e.g. {'a.b': 1} -> {'a': {'b': 1}}
   Uses the signatures to determine which keys are nested.
   The dict subclass is Input or Output, depending on the is_output flag.
+  Preserves the order of args from the signatures.
   '''
+  unflattened = OrderedDict()
   for sig in signatures:
     if '.' not in sig.name:
+      if sig.name in kwargs:
+        unflattened[sig.name] = kwargs[sig.name]
       continue
     if sig.name not in kwargs:
       continue
     parts = sig.name.split('.')
     assert len(parts) == 2, 'Only one level of nested keys is supported'
-    if parts[0] not in kwargs:
-      kwargs[parts[0]] = data_handler.Output() if is_output else data_handler.Input()
-    kwargs[parts[0]][parts[1]] = kwargs.pop(sig.name)
-  return kwargs
+    if parts[0] not in unflattened:
+      unflattened[parts[0]] = data_handler.Output() if is_output else data_handler.Input()
+    unflattened[parts[0]][parts[1]] = kwargs[sig.name]
+  return unflattened
+
+
+def get_stream_from_signature(signatures):
+  streaming_signatures = [var for var in signatures if var.streaming]
+  if not streaming_signatures:
+    return None, []
+  stream_argname = set([var.name.split('.', 1)[0] for var in streaming_signatures])
+  assert len(stream_argname) == 1, 'streaming methods must have exactly one streaming function arg'
+  stream_argname = stream_argname.pop()
+  return stream_argname, streaming_signatures
 
 
 def _is_empty_proto_data(data):

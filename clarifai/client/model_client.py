@@ -1,3 +1,4 @@
+import inspect
 import time
 from typing import Any, Dict, Iterator, List
 
@@ -6,7 +7,9 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 
 from clarifai.constants.model import MAX_MODEL_PREDICT_INPUTS
 from clarifai.errors import UserError
-from clarifai.runners.utils.method_signatures import deserialize, serialize, signatures_from_json
+from clarifai.runners.utils.method_signatures import (deserialize, get_stream_from_signature,
+                                                      serialize, signatures_from_json,
+                                                      unflatten_nested_keys)
 from clarifai.utils.misc import BackoffIterator, status_is_retryable
 
 
@@ -106,26 +109,47 @@ class ModelClient:
       # need to bind method_name to the value, not the mutating loop variable
       f = bind_f(method_name, method_argnames, call_func)
 
-      # set names and docstrings
-      # note we could also have used exec with strings from the signature to define the
-      # function, but this is safer (no xss), and docstrings with the signature is ok enough
+      # set names, annotations and docstrings
       f.__name__ = method_name
       f.__qualname__ = f'{self.__class__.__name__}.{method_name}'
-      input_spec = ', '.join(
-          f'{var.name}: {var.data_type}{" = " + str(var.default) if not var.required else ""}'
-          for var in method_signature.inputs)
-      output_vars = method_signature.outputs
-      if len(output_vars) == 1 and output_vars[0].name == 'return':
+      input_annos = {var.name: var.data_type for var in method_signature.inputs}
+      output_annos = {var.name: var.data_type for var in method_signature.outputs}
+      # unflatten nested keys to match the user function args for docs
+      input_annos = unflatten_nested_keys(input_annos, method_signature.inputs, is_output=False)
+      output_annos = unflatten_nested_keys(output_annos, method_signature.outputs, is_output=True)
+
+      # add Stream[] to the stream input annotations for docs
+      input_stream_argname, _ = get_stream_from_signature(method_signature.inputs)
+      if input_stream_argname:
+        input_annos[input_stream_argname] = 'Stream[' + str(
+            input_annos[input_stream_argname]) + ']'
+
+      # handle multiple outputs in the return annotation
+      return_annotation = output_annos
+      name = next(iter(output_annos.keys()))
+      if len(output_annos) == 1 and name == 'return':
         # single output
-        output_spec = output_vars[0].data_type
-      elif output_vars[0].name == 'return.0':
+        return_annotation = output_annos[name]
+      elif name.startswith('return.') and name.split('.', 1)[1].isnumeric():
         # tuple output
-        output_spec = '(' + ', '.join(var.data_type for var in output_vars) + ')'
+        return_annotation = '(' + ", ".join(output_annos[f'return.{i}']
+                                            for i in range(len(output_annos))) + ')'
       else:
         # named output
-        output_spec = f'Output({", ".join(f"{var.name}={var.data_type}" for var in output_vars)})'
-      f.__doc__ = f'''{method_name}(self, {input_spec}) -> {output_spec}\n'''
-      #f.__doc__ += method_signature.description  # TODO
+        return_annotation = f'Output({", ".join(f"{k}={t}" for k, t in output_annos.items())})'
+      if method_signature.method_type in ['generate', 'stream']:
+        return_annotation = f'Stream[{return_annotation}]'
+
+      # set annotations and docstrings
+      sig = inspect.signature(f).replace(
+          parameters=[
+              inspect.Parameter(k, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=v)
+              for k, v in input_annos.items()
+          ],
+          return_annotation=return_annotation,
+      )
+      f.__signature__ = sig
+      f.__doc__ = method_signature.docstring
       setattr(self, method_name, f)
 
   def _predict(
@@ -314,11 +338,7 @@ class ModelClient:
     kwargs = inputs
 
     # find the streaming vars in the input signature, and the streaming input python param
-    streaming_var_signatures = [var for var in input_signature if var.streaming]
-    stream_argname = set([var.name.split('.', 1)[0] for var in streaming_var_signatures])
-    assert len(
-        stream_argname) == 1, 'streaming methods must have exactly one streaming function arg'
-    stream_argname = stream_argname.pop()
+    stream_argname, streaming_var_signatures = get_stream_from_signature(input_signature)
 
     # get the streaming input generator from the user-provided function arg values
     user_inputs_generator = kwargs.pop(stream_argname)
