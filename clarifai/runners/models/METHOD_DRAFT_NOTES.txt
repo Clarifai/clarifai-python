@@ -1,0 +1,92 @@
+Example signature using method_signatures.py:
+
+results of build_function_signature(f), for the functions below:
+
+
+
+------------------------------------------
+
+def f(x: str, y: str) -> str:
+
+
+SIGNATURE:
+{'input_variables': [{'data_field': 'parts[x].text',
+                      'name': 'x',
+                      'python_type': 'str'},
+                     {'data_field': 'parts[y].text',
+                      'name': 'y',
+                      'python_type': 'str'}],
+ 'method_type': 1,
+ 'name': 'f',
+ 'output_variables': [{'data_field': 'text',
+                       'name': 'return',
+                       'python_type': 'str'}]}
+
+
+
+
+------------------------------------------
+
+
+def f(input: Image) -> Output(image=Image, text=str):
+
+SIGNATURE:
+{'input_variables': [{'data_field': 'image',
+                      'name': 'input',
+                      'python_type': 'PIL.Image.Image'}],
+ 'method_type': 1,
+ 'name': 'f',
+ 'output_variables': [{'data_field': 'image',
+                       'name': 'image',
+                       'python_type': 'PIL.Image.Image'},
+                      {'data_field': 'text',
+                       'name': 'text',
+                       'python_type': 'str'}]}
+
+
+
+
+------------------------------------------
+
+
+
+def f(prompt: str, images: List[Image]) -> Output(output=str, images=List[Image]):
+
+SIGNATURE:
+{'input_variables': [{'data_field': 'text',
+                      'name': 'prompt',
+                      'python_type': 'str'},
+                     {'data_field': 'parts[].image',
+                      'name': 'images',
+                      'python_type': 'List[PIL.Image.Image]'}],
+ 'method_type': 1,
+ 'name': 'f',
+ 'output_variables': [{'data_field': 'text',
+                       'name': 'output',
+                       'python_type': 'str'},
+                      {'data_field': 'parts[].image',
+                       'name': 'images',
+                       'python_type': 'List[PIL.Image.Image]'}]}
+
+
+
+------------------------------------------
+
+
+def f(prompt: str, texts: List[str], images: List[Image]) -> Output(output=str):
+
+SIGNATURE:
+{'input_variables': [{'data_field': 'parts[prompt].text',
+                      'name': 'prompt',
+                      'python_type': 'str'},
+                     {'data_field': 'parts[texts].parts[].text',
+                      'name': 'texts',
+                      'python_type': 'List[str]'},
+                     {'data_field': 'parts[images].parts[].image',
+                      'name': 'images',
+                      'python_type': 'List[PIL.Image.Image]'}],
+ 'method_type': 1,
+ 'name': 'f',
+ 'output_variables': [{'data_field': 'text',
+                       'name': 'output',
+                       'python_type': 'str'}]}O
