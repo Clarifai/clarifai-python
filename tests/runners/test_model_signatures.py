@@ -1556,6 +1556,20 @@ class TestModelCalls(unittest.TestCase):
     self.assertEqual(client.f([]), [])
     self.assertEqual(client.f(['']), ['1'])
 
+  def test_List_str_type_with_str_param(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: List[str], y: str) -> List[str]:
+        return [xi + y for xi in x]
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f(['1', '2', '3'], 'a'), ['1a', '2a', '3a'])
+    self.assertEqual(client.f([], 'a'), [])
+    self.assertEqual(client.f([''], 'a'), ['a'])
+
   def test_List_Image_type(self):
 
     class MyModel(ModelClass):
