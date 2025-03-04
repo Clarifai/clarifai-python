@@ -11,7 +11,7 @@ from PIL import ImageOps
 from clarifai.client.model_client import ModelClient
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.models.model_servicer import ModelServicer
-from clarifai.runners.utils.data_types import Concept, NamedFields, Stream, Text
+from clarifai.runners.utils.data_types import Concept, Image, NamedFields, Stream, Text
 
 _ENABLE_PPRINT = os.getenv("PRINT", "false").lower() in ("true", "1")
 _ENABLE_PDB = os.getenv("PDB", "false").lower() in ("true", "1")
@@ -1421,6 +1421,85 @@ class TestModelCalls(unittest.TestCase):
 
     with self.assertRaises(TypeError):
       client.f(y='5')
+
+  def test_Image_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f_pil(self, x: PILImage) -> PILImage:
+        return ImageOps.invert(x)
+
+      @ModelClass.method
+      def f_datatype(self, x: Image) -> Image:
+        return ImageOps.invert(x.to_pil())
+
+    client = _get_servicer_client(MyModel())
+
+    testimg = PILImage.fromarray(np.ones([50, 50, 3], dtype="uint8"))
+
+    result = client.f_pil(testimg)
+    self.assertEqual(type(result), Image)  # always returns datatype Image to the client
+    self.assertTrue(np.all(result.to_numpy() == np.asarray(ImageOps.invert(testimg))))
+
+    with self.assertRaises(TypeError):
+      client.f_pil('abc')
+
+    with self.assertRaises(TypeError):
+      client.f_pil(3)
+
+    with self.assertRaises(TypeError):
+      client.f_pil()
+
+    with self.assertRaises(TypeError):
+      client.f_pil(y=testimg)
+
+    result = client.f_datatype(testimg)
+    self.assertEqual(type(result), Image)  # always returns datatype Image to the client
+    self.assertTrue(np.all(result.to_numpy() == np.asarray(ImageOps.invert(testimg))))
+
+    with self.assertRaises(TypeError):
+      client.f_datatype('abc')
+
+    with self.assertRaises(TypeError):
+      client.f_datatype(3)
+
+    with self.assertRaises(TypeError):
+      client.f_datatype()
+
+    with self.assertRaises(TypeError):
+      client.f_datatype(y=testimg)
+
+    def test_Image_type_stream(self):
+
+      class MyModel(ModelClass):
+
+        @ModelClass.method
+        def f(self, x: Stream[PILImage]) -> Stream[PILImage]:
+          for i, img in enumerate(x):
+            yield ImageOps.invert(img)
+
+      client = _get_servicer_client(MyModel())
+
+      testimg1 = PILImage.fromarray(np.ones([50, 50, 3], dtype="uint8"))
+      testimg2 = PILImage.fromarray(200 + np.zeros([50, 50, 3], dtype="uint8"))
+
+      result = list(client.f(iter([testimg1, testimg2])))
+      self.assertEqual(len(result), 2)
+      self.assertTrue(np.all(result[0].to_numpy() == np.asarray(ImageOps.invert(testimg1))))
+      self.assertTrue(np.all(result[1].to_numpy() == np.asarray(ImageOps.invert(testimg2))))
+
+      with self.assertRaises(TypeError):
+        client.f('abc')
+
+      with self.assertRaises(TypeError):
+        client.f(3)
+
+      with self.assertRaises(TypeError):
+        client.f()
+
+      with self.assertRaises(TypeError):
+        client.f(y=testimg1)
 
 
 def _get_servicer_client(model):
