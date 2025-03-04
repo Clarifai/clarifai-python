@@ -1,4 +1,4 @@
-from clarifai.runners.models.model_class import ModelClass, methods
+from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.data_types import Stream, Text
 
 
@@ -8,7 +8,7 @@ class MyModel(ModelClass):
   def load_model(self):
     """Load the model here."""
 
-  @methods.predict
+  @ModelClass.method
   def predict(self, text1: Text = "") -> Text:
     """This is the method that will be called when the runner is run. It takes in an input and
     returns an output.
@@ -18,7 +18,7 @@ class MyModel(ModelClass):
 
     return Text(output_text)
 
-  @methods.generate
+  @ModelClass.method
   def generate(self, text1: Text = Text("")) -> Stream[Text]:
     """Example yielding a whole batch of streamed stuff back."""
 
@@ -26,7 +26,7 @@ class MyModel(ModelClass):
       output_text = text1.text + f"Generate Hello World {i}"
       yield Text(output_text)
 
-  @methods.stream
+  @ModelClass.method
   def stream(self, input_iterator: Stream[Text]) -> Stream[Text]:
     """Example yielding a whole batch of streamed stuff back."""
 
