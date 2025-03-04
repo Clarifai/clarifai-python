@@ -99,7 +99,7 @@ class ModelClass(ABC):
     outputs = []
     try:
       # TODO add method name field to proto
-      method_name = None
+      method_name = 'predict'
       if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
         method_name = request.inputs[0].data.metadata['_method_name']
       if method_name == '_GET_SIGNATURES':  # special case to fetch signatures, TODO add endpoint for this
