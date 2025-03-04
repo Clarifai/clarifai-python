@@ -14,7 +14,7 @@ from google.protobuf import json_format
 from rich import print
 from rich.markup import escape
 
-from clarifai.client import BaseClient
+from clarifai.client.base import BaseClient
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.const import (
     AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES, CONCEPTS_REQUIRED_MODEL_TYPE,
