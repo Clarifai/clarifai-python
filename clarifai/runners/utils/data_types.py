@@ -1,4 +1,5 @@
 import io
+import json
 from typing import Iterable, List, get_args, get_origin
 
 import numpy as np
@@ -46,6 +47,34 @@ class NamedFields(dict):
 
 class Stream(Iterable):
   pass
+
+
+class JSON:
+
+  def __init__(self, value):
+    self.value = value
+
+  def __eq__(self, other):
+    return self.value == other
+
+  def __bool__(self):
+    return bool(self.value)
+
+  def to_json(self):
+    return json.dumps(self.value)
+
+  @classmethod
+  def from_json(cls, json_str):
+    return cls(json.loads(json_str))
+
+  @classmethod
+  def from_value(cls, value):
+    return cls(value)
+
+  def cast(self, python_type):
+    if not isinstance(self.value, python_type):
+      raise TypeError(f'Incompatible type {type(self.value)} for {python_type}')
+    return self.value
 
 
 class Text(MessageData):
