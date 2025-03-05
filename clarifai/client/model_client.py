@@ -10,6 +10,7 @@ from clarifai.errors import UserError
 from clarifai.runners.utils.method_signatures import (deserialize, get_stream_from_signature,
                                                       serialize, signatures_from_json,
                                                       unflatten_nested_keys)
+from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator, status_is_retryable
 
 
@@ -73,7 +74,7 @@ class ModelClient:
       response = self.STUB.PostModelOutputs(request)
       if status_is_retryable(
           response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
-        self.logger.info(f"Retrying model info fetch with response {response.status!r}")
+        logger.info(f"Retrying model info fetch with response {response.status!r}")
         time.sleep(next(backoff_iterator))
         continue
       break
@@ -242,7 +243,7 @@ class ModelClient:
       response = self.STUB.PostModelOutputs(request)
       if status_is_retryable(
           response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
-        self.logger.info(f"Model predict failed with response {response!r}")
+        logger.info(f"Model predict failed with response {response!r}")
         time.sleep(next(backoff_iterator))
         continue
 
@@ -328,7 +329,7 @@ class ModelClient:
         raise Exception("Model Generate failed with no response")
       if status_is_retryable(response.status.code) and \
               time.time() - start_time < 60 * 10:
-        self.logger.info("Model is still deploying, please wait...")
+        logger.info("Model is still deploying, please wait...")
         time.sleep(next(backoff_iterator))
         continue
       if response.status.code != status_code_pb2.SUCCESS:
@@ -432,7 +433,7 @@ class ModelClient:
       for response in stream_response:
         if status_is_retryable(response.status.code) and \
                 time.time() - start_time < 60 * 10:
-          self.logger.info("Model is still deploying, please wait...")
+          logger.info("Model is still deploying, please wait...")
           time.sleep(next(backoff_iterator))
           break
         if response.status.code != status_code_pb2.SUCCESS:
