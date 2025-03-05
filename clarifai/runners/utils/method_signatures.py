@@ -143,7 +143,7 @@ def serializer_from_signature(signature):
 def signatures_to_json(signatures):
   assert isinstance(
       signatures, dict), 'Expected dict of signatures {name: signature}, got %s' % type(signatures)
-  return json.dumps(signatures, default=lambda x: x.name if isinstance(x, DataType) else x)
+  return json.dumps(signatures, default=repr)
 
 
 def signatures_from_json(json_str):
@@ -193,6 +193,8 @@ def deserialize(proto, signatures, is_output=False):
   '''
   Deserialize the given proto into kwargs using the given signatures.
   '''
+  if isinstance(signatures, dict):
+    signatures = [signatures]  # TODO update return key level and make consistnet
   kwargs = {}
   parts_by_name = {part.id: part for part in proto.parts}
   for sig in signatures:
@@ -203,6 +205,8 @@ def deserialize(proto, signatures, is_output=False):
         raise ValueError(f'Missing required field: {sig.name}')
       continue
     kwargs[sig.name] = serializer.deserialize(part.data)
+  if len(kwargs) == 1 and 'return' in kwargs:
+    return kwargs['return']
   return kwargs
 
 
