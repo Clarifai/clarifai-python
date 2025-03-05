@@ -594,7 +594,6 @@ class TestModelCalls(unittest.TestCase):
     result = list(client.f(iter([NamedFields(x='a', y=1), NamedFields(x='x', y=2)]), 'z'))
     self.assertEqual(result, ['0a1z', '1x2z'])
 
-  @unittest.skip("skip until we support docstrings etc. again in new version")
   def test_docstrings(self):
 
     class MyModel(ModelClass):
@@ -656,7 +655,7 @@ class TestModelCalls(unittest.TestCase):
     sig = str(sig).replace("'", "").replace('"', '').replace(' ', '')
     self.assertEqual(
         str(sig),
-        '(stream: Stream[{x: str, y: str}], n: int) -> Stream[NamedFields(xout=str, yout=str)]'.
+        '(stream:Stream[NamedFields(x=str,y=str)],n:int)->Stream[NamedFields(xout=str,yout=str)]'.
         replace(' ', ''))
 
   def test_nonexistent_function(self):
@@ -681,7 +680,6 @@ class TestModelCalls(unittest.TestCase):
     result = client.f(10)
     self.assertEqual(result, 11)
 
-  @unittest.skip("skip until we support docstrings etc. again in new version")
   def test_nonexistent_function_with_docstring(self):
 
     class MyModel(ModelClass):

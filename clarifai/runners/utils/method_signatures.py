@@ -1,5 +1,7 @@
+import ast
 import inspect
 import json
+import textwrap
 from collections import namedtuple
 from typing import List, Tuple, get_args, get_origin
 
@@ -59,12 +61,32 @@ def build_function_signature(func):
   assert method_type in ('predict', 'generate', 'stream')
   method_signature.method_type = method_type
   method_signature.docstring = func.__doc__
+  method_signature.annotations_json = json.dumps(_get_annotations_source(func))
 
   #method_signature.inputs.extend(input_vars)
   #method_signature.outputs.extend(output_vars)
   method_signature.inputs = input_sigs
   method_signature.outputs = output_sig
   return method_signature
+
+
+def _get_annotations_source(func):
+  """Extracts raw annotation strings from the function source."""
+  source = inspect.getsource(func)  # Get function source code
+  source = textwrap.dedent(source)  # Dedent source code
+  tree = ast.parse(source)  # Parse into AST
+  func_node = next(node for node in tree.body
+                   if isinstance(node, ast.FunctionDef))  # Get function node
+
+  annotations = {}
+  for arg in func_node.args.args:  # Process arguments
+    if arg.annotation:
+      annotations[arg.arg] = ast.unparse(arg.annotation)  # Get raw annotation string
+
+  if func_node.returns:  # Process return type
+    annotations["return"] = ast.unparse(func_node.returns)
+
+  return annotations
 
 
 def build_variable_signature(name, annotation, default=inspect.Parameter.empty, is_output=False):

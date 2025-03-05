@@ -1,3 +1,5 @@
+import inspect
+import json
 import time
 from typing import Any, Dict, Iterator, List
 
@@ -130,18 +132,18 @@ class ModelClient:
       # set names, annotations and docstrings
       f.__name__ = method_name
       f.__qualname__ = f'{self.__class__.__name__}.{method_name}'
-      #input_annos = {} # TODO
-      #return_annotation = Any  # TODO
-      ## set annotations and docstrings
-      #sig = inspect.signature(f).replace(
-      #    parameters=[
-      #        inspect.Parameter(k, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=v)
-      #        for k, v in input_annos.items()
-      #    ],
-      #    return_annotation=return_annotation,
-      #)
-      #f.__signature__ = sig
-      #f.__doc__ = method_signature.docstring
+      f.__doc__ = method_signature.docstring
+      input_annotations = json.loads(method_signature.annotations_json)
+      return_annotation = input_annotations.pop('return', None)
+      sig = inspect.signature(f).replace(
+          parameters=[
+              inspect.Parameter(k, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=v)
+              for k, v in input_annotations.items()
+          ],
+          return_annotation=return_annotation,
+      )
+      f.__signature__ = sig
+      f.__doc__ = method_signature.docstring
       setattr(self, method_name, f)
 
   def _predict(
