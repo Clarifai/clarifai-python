@@ -1,4 +1,5 @@
 import io
+import json
 from typing import Iterable, List, get_args, get_origin
 
 import numpy as np
@@ -21,24 +22,19 @@ class MessageData:
   def from_proto(cls, proto):
     raise NotImplementedError
 
+  @classmethod
+  def from_value(cls, value):
+    if isinstance(value, cls):
+      return value
+    return cls(value)
+
   def cast(self, python_type):
     if python_type == self.__class__:
       return self
     raise TypeError(f'Incompatible type for {self.__class__.__name__}: {python_type}')
 
 
-class Output(dict):
-  __getattr__ = dict.__getitem__
-  __setattr__ = dict.__setitem__
-
-  def __origin__(self):
-    return self
-
-  def __args__(self):
-    return list(self.keys())
-
-
-class Input(dict):
+class NamedFields(dict):
   __getattr__ = dict.__getitem__
   __setattr__ = dict.__setitem__
 
@@ -53,11 +49,49 @@ class Stream(Iterable):
   pass
 
 
+class JSON:
+
+  def __init__(self, value):
+    self.value = value
+
+  def __eq__(self, other):
+    return self.value == other
+
+  def __bool__(self):
+    return bool(self.value)
+
+  def to_json(self):
+    return json.dumps(self.value)
+
+  @classmethod
+  def from_json(cls, json_str):
+    return cls(json.loads(json_str))
+
+  @classmethod
+  def from_value(cls, value):
+    return cls(value)
+
+  def cast(self, python_type):
+    if not isinstance(self.value, python_type):
+      raise TypeError(f'Incompatible type {type(self.value)} for {python_type}')
+    return self.value
+
+
 class Text(MessageData):
 
   def __init__(self, text: str, url: str = None):
     self.text = text
     self.url = url
+
+  def __eq__(self, other):
+    if isinstance(other, Text):
+      return self.text == other.text and self.url == other.url
+    if isinstance(other, str):
+      return self.text == other
+    return False
+
+  def __bool__(self):
+    return bool(self.text) or bool(self.url)
 
   def to_proto(self) -> TextProto:
     return TextProto(raw=self.text or '', url=self.url or '')
@@ -65,6 +99,16 @@ class Text(MessageData):
   @classmethod
   def from_proto(cls, proto: TextProto) -> "Text":
     return cls(proto.raw, proto.url or None)
+
+  @classmethod
+  def from_value(cls, value):
+    if isinstance(value, str):
+      return cls(value)
+    if isinstance(value, Text):
+      return value
+    if isinstance(value, dict):
+      return cls(value.get('text'), value.get('url'))
+    raise TypeError(f'Incompatible type for Text: {type(value)}')
 
   def cast(self, python_type):
     if python_type == str:
@@ -188,6 +232,14 @@ class Image(MessageData):
   @classmethod
   def from_proto(cls, proto: ImageProto) -> "Image":
     return cls(proto)
+
+  @classmethod
+  def from_value(cls, value):
+    if isinstance(value, PILImage.Image):
+      return cls.from_pil(value)
+    if isinstance(value, Image):
+      return value
+    raise TypeError(f'Incompatible type for Image: {type(value)}')
 
   def cast(self, python_type):
     if python_type == Image:

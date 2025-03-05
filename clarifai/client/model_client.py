@@ -1,4 +1,3 @@
-import inspect
 import time
 from typing import Any, Dict, Iterator, List
 
@@ -8,8 +7,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from clarifai.constants.model import MAX_MODEL_PREDICT_INPUTS
 from clarifai.errors import UserError
 from clarifai.runners.utils.method_signatures import (deserialize, get_stream_from_signature,
-                                                      serialize, signatures_from_json,
-                                                      unflatten_nested_keys)
+                                                      serialize, signatures_from_json)
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator, status_is_retryable
 
@@ -37,6 +35,8 @@ class ModelClient:
     '''
     Fetch function signature definitions from the model and define the functions in the client
     '''
+    if self._defined:
+      return
     try:
       self._fetch_signatures()
       self._define_functions()
@@ -130,44 +130,18 @@ class ModelClient:
       # set names, annotations and docstrings
       f.__name__ = method_name
       f.__qualname__ = f'{self.__class__.__name__}.{method_name}'
-      input_annos = {var.name: var.data_type for var in method_signature.inputs}
-      output_annos = {var.name: var.data_type for var in method_signature.outputs}
-      # unflatten nested keys to match the user function args for docs
-      input_annos = unflatten_nested_keys(input_annos, method_signature.inputs, is_output=False)
-      output_annos = unflatten_nested_keys(output_annos, method_signature.outputs, is_output=True)
-
-      # add Stream[] to the stream input annotations for docs
-      input_stream_argname, _ = get_stream_from_signature(method_signature.inputs)
-      if input_stream_argname:
-        input_annos[input_stream_argname] = 'Stream[' + str(
-            input_annos[input_stream_argname]) + ']'
-
-      # handle multiple outputs in the return annotation
-      return_annotation = output_annos
-      name = next(iter(output_annos.keys()))
-      if len(output_annos) == 1 and name == 'return':
-        # single output
-        return_annotation = output_annos[name]
-      elif name.startswith('return.') and name.split('.', 1)[1].isnumeric():
-        # tuple output
-        return_annotation = '(' + ", ".join(output_annos[f'return.{i}']
-                                            for i in range(len(output_annos))) + ')'
-      else:
-        # named output
-        return_annotation = f'Output({", ".join(f"{k}={t}" for k, t in output_annos.items())})'
-      if method_signature.method_type in ['generate', 'stream']:
-        return_annotation = f'Stream[{return_annotation}]'
-
-      # set annotations and docstrings
-      sig = inspect.signature(f).replace(
-          parameters=[
-              inspect.Parameter(k, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=v)
-              for k, v in input_annos.items()
-          ],
-          return_annotation=return_annotation,
-      )
-      f.__signature__ = sig
-      f.__doc__ = method_signature.docstring
+      #input_annos = {} # TODO
+      #return_annotation = Any  # TODO
+      ## set annotations and docstrings
+      #sig = inspect.signature(f).replace(
+      #    parameters=[
+      #        inspect.Parameter(k, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=v)
+      #        for k, v in input_annos.items()
+      #    ],
+      #    return_annotation=return_annotation,
+      #)
+      #f.__signature__ = sig
+      #f.__doc__ = method_signature.docstring
       setattr(self, method_name, f)
 
   def _predict(
@@ -194,7 +168,7 @@ class ModelClient:
 
     outputs = []
     for output in response.outputs:
-      outputs.append(deserialize(output.data, output_signature, is_output=True))
+      outputs.append(deserialize(output.data, [output_signature], is_output=True)['return'])
     if batch_input:
       return outputs
     return outputs[0]

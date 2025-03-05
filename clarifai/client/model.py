@@ -1,7 +1,8 @@
+import itertools
 import json
 import os
 import time
-from typing import Any, Dict, Generator, Iterator, List, Tuple, Union
+from typing import Any, Dict, Generator, Iterable, Iterator, List, Tuple, Union
 
 import numpy as np
 import requests
@@ -77,7 +78,8 @@ class Model(Lister, BaseClient):
     self.logger = logger
     self.training_params = {}
     self.input_types = None
-    self._model_client = None
+    self._client = None
+    self._added_methods = False
     self._set_runner_selector(
         compute_cluster_id=compute_cluster_id,
         nodepool_id=nodepool_id,
@@ -418,8 +420,8 @@ class Model(Lister, BaseClient):
           **dict(self.kwargs, model_version=model_version_info))
 
   @property
-  def model_client(self):
-    if self._model_client is None:
+  def client(self):
+    if self._client is None:
       request_template = service_pb2.PostModelOutputsRequest(
           user_app_id=self.user_app_id,
           model_id=self.id,
@@ -427,21 +429,46 @@ class Model(Lister, BaseClient):
           model=self.model_info,
           runner_selector=self._runner_selector,
       )
-      self._model_client = ModelClient(self.STUB, request_template=request_template)
-    return self._model_client
+      self._client = ModelClient(self.STUB, request_template=request_template)
+    return self._client
 
-  def predict(self, inputs: List[Input], inference_params: Dict = {}, output_config: Dict = {}):
-    """Predicts the model based on the given inputs.
+  def predict(self, *args, **kwargs):
+    """
+    Calls the model's predict() method with the given arguments.
 
-    Args:
-        inputs (list[Input]): The inputs to predict, must be less than 128.
+    If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+    protos directly for compatibility with previous versions of the SDK.
     """
 
-    return self.model_client._predict_by_proto(
-        inputs=inputs,
-        inference_params=inference_params,
-        output_config=output_config,
-    )
+    inputs = None
+    if 'inputs' in kwargs:
+      inputs = kwargs['inputs']
+    elif args:
+      inputs = args[0]
+    if inputs and isinstance(inputs, list) and isinstance(inputs[0], resources_pb2.Input):
+      assert not args, "Cannot pass in raw protos and additional arguments at the same time."
+      inference_params = kwargs.get('inference_params', {})
+      output_config = kwargs.get('output_config', {})
+      return self.client._predict_by_proto(
+          inputs=inputs, inference_params=inference_params, output_config=output_config)
+
+    return self.client.predict(*args, **kwargs)
+
+  def __getattr__(self, name):
+    try:
+      return getattr(self.model_info, name)
+    except AttributeError:
+      pass
+    if not self._added_methods:
+      # fetch and set all the model methods
+      self._added_methods = True
+      self.client.fetch()
+      for method_name in self.client._method_signatures.keys():
+        if not hasattr(self, method_name):
+          setattr(self, method_name, getattr(self.client, method_name))
+    if hasattr(self.client, name):
+      return getattr(self.client, name)
+    raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
   def _check_predict_input_type(self, input_type: str) -> None:
     """Checks if the input type is valid for the model.
@@ -626,24 +653,27 @@ class Model(Lister, BaseClient):
     return self.predict(
         inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
-  def generate(
-      self,
-      inputs: List[Input],
-      inference_params: Dict = {},
-      output_config: Dict = {},
-  ):
-    """Generate the stream output on model based on the given inputs.
-
-    Args:
-        inputs (list[Input]): The inputs to generate, must be less than 128.
-        inference_params (dict): The inference params to override.
-        output_config (dict): The output config to override.
+  def generate(self, *args, **kwargs):
     """
-    return self.model_client._generate_by_proto(
-        inputs=inputs,
-        inference_params=inference_params,
-        output_config=output_config,
-    )
+    Calls the model's generate() method with the given arguments.
+
+    If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+    protos directly for compatibility with previous versions of the SDK.
+    """
+
+    inputs = None
+    if 'inputs' in kwargs:
+      inputs = kwargs['inputs']
+    elif args:
+      inputs = args[0]
+    if inputs and isinstance(inputs, list) and isinstance(inputs[0], resources_pb2.Input):
+      assert not args, "Cannot pass in raw protos and additional arguments at the same time."
+      inference_params = kwargs.get('inference_params', {})
+      output_config = kwargs.get('output_config', {})
+      return self.client._generate_by_proto(
+          inputs=inputs, inference_params=inference_params, output_config=output_config)
+
+    return self.client.generate(*args, **kwargs)
 
   def generate_by_filepath(self,
                            filepath: str,
@@ -757,28 +787,44 @@ class Model(Lister, BaseClient):
     return self.generate(
         inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
-  def stream(self,
-             inputs: Iterator[List[Input]],
-             inference_params: Dict = {},
-             output_config: Dict = {}):
-    """Generate the stream output on model based on the given stream of inputs.
-
-    Args:
-        inputs (Iterator[list[Input]]): stream of inputs to predict, must be less than 128.
-
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
-                    or
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> stream_response = model.stream(inputs=inputs, runner_selector=runner_selector)
-        >>> list_stream_response = [response for response in stream_response]
+  def stream(self, *args, **kwargs):
     """
-    return self.model_client._stream_by_proto(
-        inputs=inputs,
-        inference_params=inference_params,
-        output_config=output_config,
-    )
+    Calls the model's stream() method with the given arguments.
+
+    If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+    protos directly for compatibility with previous versions of the SDK.
+    """
+
+    use_proto_call = False
+    inputs = None
+    if 'inputs' in kwargs:
+      inputs = kwargs['inputs']
+    elif args:
+      inputs = args[0]
+    if inputs and isinstance(inputs, Iterable):
+      inputs_iter = iter(inputs)
+      try:
+        peek = next(inputs_iter)
+      except StopIteration:
+        pass
+      else:
+        use_proto_call = isinstance(peek, resources_pb2.Input)
+        # put back the peeked value
+        if inputs_iter is inputs:
+          inputs = itertools.chain([peek], inputs_iter)
+          if 'inputs' in kwargs:
+            kwargs['inputs'] = inputs
+          else:
+            args = (inputs,) + args[1:]
+
+    if use_proto_call:
+      assert not args, "Cannot pass in raw protos and additional arguments at the same time."
+      inference_params = kwargs.get('inference_params', {})
+      output_config = kwargs.get('output_config', {})
+      return self.client._stream_by_proto(
+          inputs=inputs, inference_params=inference_params, output_config=output_config)
+
+    return self.client.stream(*args, **kwargs)
 
   def stream_by_filepath(self,
                          filepath: str,
@@ -936,9 +982,6 @@ class Model(Lister, BaseClient):
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
     self.kwargs = self.process_response_keys(dict_response['model'])
     self.model_info = resources_pb2.Model(**self.kwargs)
-
-  def __getattr__(self, name):
-    return getattr(self.model_info, name)
 
   def __str__(self):
     if len(self.kwargs) < 10:
