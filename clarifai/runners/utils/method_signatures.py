@@ -112,6 +112,14 @@ def _fill_signature_type(sig, tp):
       _fill_signature_type(inner_sig, inner_type)
     return
 
+  if get_origin(tp) == tuple:
+    sig.data_type = DataType.TUPLE
+    for inner_type in get_args(tp):
+      #inner_sig = sig.type_args.add()
+      sig.type_args.append(inner_sig := _VariableSignature())
+      _fill_signature_type(inner_sig, inner_type)
+    return
+
   if get_origin(tp) == list:
     sig.data_type = DataType.LIST
     inner_type = get_args(tp)[0]

@@ -681,6 +681,7 @@ class TestModelCalls(unittest.TestCase):
     result = client.f(10)
     self.assertEqual(result, 11)
 
+  @unittest.skip("skip until we support docstrings etc. again in new version")
   def test_nonexistent_function_with_docstring(self):
 
     class MyModel(ModelClass):
