@@ -220,7 +220,6 @@ class ModelClass(ABC):
                                proto=None) -> resources_pb2.Output:
     if proto is None:
       proto = resources_pb2.Output()
-    breakpoint()
     serialize({'return': output}, [variables_signature], proto.data, is_output=True)
     proto.status.code = status_code_pb2.SUCCESS
     return proto
