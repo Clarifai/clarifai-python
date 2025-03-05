@@ -166,7 +166,10 @@ class ModelClass(ABC):
       python_param_types = method_info.python_param_types
 
       # find the streaming vars in the signature
-      stream_argname, streaming_var_signatures = get_stream_from_signature(signature.inputs)
+      stream_sig = get_stream_from_signature(signature.inputs)
+      if stream_sig is None:
+        raise ValueError("Streaming method must have a Stream input")
+      stream_argname = stream_sig.name
 
       # convert all inputs for the first request, including the first stream value
       inputs = self._convert_input_protos_to_python(request.inputs, signature.inputs,
@@ -181,7 +184,7 @@ class ModelClass(ABC):
         yield first_item
         # subsequent streaming items contain only the streaming input
         for request in request_iterator:
-          item = self._convert_input_protos_to_python(request.inputs, streaming_var_signatures,
+          item = self._convert_input_protos_to_python(request.inputs, stream_sig,
                                                       python_param_types)
           item = item[0][stream_argname]
           yield item

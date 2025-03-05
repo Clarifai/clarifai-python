@@ -219,14 +219,13 @@ def deserialize(proto, signatures, is_output=False):
 
 
 def get_stream_from_signature(signatures):
-  raise NotImplementedError('TODO update')
-  streaming_signatures = [var for var in signatures if var.streaming]
-  if not streaming_signatures:
-    return None, []
-  stream_argname = set([var.name.split('.', 1)[0] for var in streaming_signatures])
-  assert len(stream_argname) == 1, 'streaming methods must have exactly one streaming function arg'
-  stream_argname = stream_argname.pop()
-  return stream_argname, streaming_signatures
+  '''
+    Get the stream signature from the given signatures.
+    '''
+  for sig in signatures:
+    if sig.streaming:
+      return sig
+  return None
 
 
 def _is_empty_proto_data(data):

@@ -332,7 +332,10 @@ class ModelClient:
     kwargs = inputs
 
     # find the streaming vars in the input signature, and the streaming input python param
-    stream_argname, streaming_var_signatures = get_stream_from_signature(input_signature)
+    stream_sig = get_stream_from_signature(input_signature)
+    if stream_sig is None:
+      raise ValueError("Streaming method must have a Stream input")
+    stream_argname = stream_sig.name
 
     # get the streaming input generator from the user-provided function arg values
     user_inputs_generator = kwargs.pop(stream_argname)
@@ -352,7 +355,7 @@ class ModelClient:
       # subsequent items are just the stream items
       for item in user_inputs_generator:
         proto = resources_pb2.Input()
-        serialize({stream_argname: item}, streaming_var_signatures, proto.data)
+        serialize({stream_argname: item}, [stream_sig], proto.data)
         yield proto
 
     response_stream = self._stream_by_proto(_input_proto_stream(), method_name)
