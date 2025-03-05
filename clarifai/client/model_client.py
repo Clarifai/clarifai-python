@@ -167,7 +167,7 @@ class ModelClient:
 
     outputs = []
     for output in response.outputs:
-      outputs.append(deserialize(output.data, output_signature, is_output=True))
+      outputs.append(deserialize(output.data, [output_signature], is_output=True)['return'])
     if batch_input:
       return outputs
     return outputs[0]

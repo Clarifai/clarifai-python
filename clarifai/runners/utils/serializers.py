@@ -132,7 +132,7 @@ class TupleSerializer(Serializer):
       raise ValueError(f"Expected tuple of length {len(self.inner_serializers)}, got {len(value)}")
     for i, (serializer, item) in enumerate(zip(self.inner_serializers, value)):
       part = data_proto.parts.add()
-      part.name = str(i)
+      part.id = str(i)
       serializer.serialize(part.data, item)
 
   def deserialize(self, data_proto):
@@ -163,11 +163,11 @@ class NamedFieldsSerializer(Serializer):
 
   def _get_part(self, data_proto, name, add=False):
     for part in data_proto.parts:
-      if part.name == name:
+      if part.id == name:
         return part
     if add:
       part = data_proto.parts.add()
-      part.name = name
+      part.id = name
       return part
     raise KeyError(f"Missing part with key {name}")
 

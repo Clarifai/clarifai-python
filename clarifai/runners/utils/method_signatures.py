@@ -1,7 +1,6 @@
 import inspect
 import json
 from collections import namedtuple
-from enum import Enum
 from typing import List, Tuple, get_args, get_origin
 
 import numpy as np
@@ -35,7 +34,7 @@ def build_function_signature(func):
       build_variable_signature(p.name, p.annotation, p.default) for p in sig.parameters.values()
   ]
   input_sigs, input_types, input_streaming = zip(*input_sigs)
-  output_sig, output_streaming = build_variable_signature(
+  output_sig, output_type, output_streaming = build_variable_signature(
       'return', return_annotation, is_output=True)
   # TODO: flatten out "return" layer if not needed
 
@@ -139,11 +138,12 @@ def serializer_from_signature(signature):
 def signatures_to_json(signatures):
   assert isinstance(
       signatures, dict), 'Expected dict of signatures {name: signature}, got %s' % type(signatures)
-  return json.dumps(signatures, default=repr)
+  return json.dumps(signatures, default=lambda x: x.name if isinstance(x, DataType) else x)
 
 
 def signatures_from_json(json_str):
-  return json.loads(json_str, object_pairs_hook=_SignatureDict)
+  d = json.loads(json_str, object_pairs_hook=_SignatureDict)
+  return d
 
 
 def signatures_to_yaml(signatures):
@@ -179,8 +179,8 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
     # TODO determine if any (esp the first) var can go in the proto without parts
     # and whether to put this in the signature or dynamically determine it
     part = proto.parts.add()
-    part.name = sig.name
-    serializer.serialize(part, data)
+    part.id = sig.name
+    serializer.serialize(part.data, data)
   return proto
 
 
@@ -189,7 +189,7 @@ def deserialize(proto, signatures, is_output=False):
   Deserialize the given proto into kwargs using the given signatures.
   '''
   kwargs = {}
-  parts_by_name = {part.name: part for part in proto.parts}
+  parts_by_name = {part.id: part for part in proto.parts}
   for sig in signatures:
     serializer = serializer_from_signature(sig)
     part = parts_by_name.get(sig.name)
@@ -220,13 +220,11 @@ def _is_empty_proto_data(data):
   return not data
 
 
-def _normalize_type(param):
+def _normalize_type(tp):
   '''
   Normalize the types for the given parameter.
   Returns the normalized type and whether the parameter is streaming.
   '''
-  tp = param.annotation
-
   # stream type indicates streaming, not part of the data itself
   # it can only be used at the top-level of the var type
   streaming = (get_origin(tp) == data_types.Stream)
@@ -293,28 +291,28 @@ _DataType = namedtuple('_DataType', ('data_type', 'serializer'))
 
 
 # this will come from the proto module, but for now, define it here
-class DataType(Enum):
-  NOT_SET = 0
+class DataType:
+  NOT_SET = 'NOT_SET'
 
-  STR = 1
-  BYTES = 2
-  INT = 3
-  FLOAT = 4
-  BOOL = 5
-  NDARRAY = 6
-  JSON = 7
+  STR = 'STR'
+  BYTES = 'BYTES'
+  INT = 'INT'
+  FLOAT = 'FLOAT'
+  BOOL = 'BOOL'
+  NDARRAY = 'NDARRAY'
+  JSON = 'JSON'
 
-  TEXT = 8
-  IMAGE = 9
-  CONCEPT = 10
-  REGION = 11
-  FRAME = 12
-  AUDIO = 13
-  VIDEO = 14
+  TEXT = 'TEXT'
+  IMAGE = 'IMAGE'
+  CONCEPT = 'CONCEPT'
+  REGION = 'REGION'
+  FRAME = 'FRAME'
+  AUDIO = 'AUDIO'
+  VIDEO = 'VIDEO'
 
-  NAMED_FIELDS = 20
-  TUPLE = 21
-  LIST = 22
+  NAMED_FIELDS = 'NAMED_FIELDS'
+  TUPLE = 'TUPLE'
+  LIST = 'LIST'
 
 
 # simple, non-container types that correspond directly to a data field
