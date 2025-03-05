@@ -96,9 +96,12 @@ def build_variable_signature(name, annotation, default=inspect.Parameter.empty, 
 
 
 def _fill_signature_type(sig, tp):
-  if tp in _DATA_TYPES:
-    sig.data_type = _DATA_TYPES[tp].data_type
-    return
+  try:
+    if tp in _DATA_TYPES:
+      sig.data_type = _DATA_TYPES[tp].data_type
+      return
+  except TypeError:
+    pass  # not hashable type
 
   if isinstance(tp, data_types.NamedFields):
     sig.data_type = DataType.NAMED_FIELDS
