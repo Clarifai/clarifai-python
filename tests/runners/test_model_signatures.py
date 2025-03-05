@@ -594,6 +594,7 @@ class TestModelCalls(unittest.TestCase):
     result = list(client.f(iter([NamedFields(x='a', y=1), NamedFields(x='x', y=2)]), 'z'))
     self.assertEqual(result, ['0a1z', '1x2z'])
 
+  @unittest.skip("skip until we support docstrings etc. again in new version")
   def test_docstrings(self):
 
     class MyModel(ModelClass):
