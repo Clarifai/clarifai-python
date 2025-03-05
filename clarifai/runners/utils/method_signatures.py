@@ -3,7 +3,7 @@ import json
 import re
 import types
 from collections import OrderedDict, namedtuple
-from typing import List, get_args, get_origin
+from typing import Dict, List, get_args, get_origin
 
 import numpy as np
 import PIL.Image
@@ -350,6 +350,12 @@ def _normalize_data_type(tp):
   if tp in (PIL.Image, PIL.Image.Image):
     tp = data_types.Image
 
+  # check for jsonable types
+  if tp == dict or (get_origin(tp) == dict and tp not in _DATA_TYPES and _is_jsonable(tp)):
+    tp = Dict
+  if tp == list or (get_origin(tp) == list and tp not in _DATA_TYPES and _is_jsonable(tp)):
+    tp = List
+
   # put back list
   if is_list:
     tp = List[tp]
@@ -359,6 +365,16 @@ def _normalize_data_type(tp):
     raise ValueError(f'Unsupported type: {tp}')
 
   return tp
+
+
+def _is_jsonable(tp):
+  if tp in (dict, list, tuple, str, int, float, bool, type(None)):
+    return True
+  if get_origin(tp) == list:
+    return _is_jsonable(get_args(tp)[0])
+  if get_origin(tp) == dict:
+    return all(_is_jsonable(val) for val in get_args(tp))
+  return False
 
 
 class _NamedFields(dict):
@@ -404,13 +420,17 @@ _DATA_TYPES = {
     # these don't check the internal types when serializing, but more readable and
     # better than putting in individual parts for each item for these types
     List[int]:
-        _DataType('List[int]', 'string_value', JSONSerializer()),
+        _DataType('List[int]', 'json_value', JSONSerializer()),
     List[float]:
-        _DataType('List[float]', 'string_value', JSONSerializer()),
+        _DataType('List[float]', 'json_value', JSONSerializer()),
     List[bool]:
-        _DataType('List[bool]', 'string_value', JSONSerializer()),
+        _DataType('List[bool]', 'json_value', JSONSerializer()),
     List[str]:
-        _DataType('List[str]', 'string_value', JSONSerializer()),
+        _DataType('List[str]', 'json_value', JSONSerializer()),
+    List:
+        _DataType('List', 'json_value', JSONSerializer()),
+    Dict:
+        _DataType('Dict', 'json_value', JSONSerializer()),
 }
 
 
