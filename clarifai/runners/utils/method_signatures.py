@@ -419,18 +419,20 @@ _DATA_TYPES = {
     # lists handled specially, not as generic lists using parts
     # these don't check the internal types when serializing, but more readable and
     # better than putting in individual parts for each item for these types
+    # TODO: for now this uses the string_value, but better to use a special json_value field
+    # for these types to avoid confusion, esp when writing other non-python client impls
     List[int]:
-        _DataType('List[int]', 'json_value', JSONSerializer()),
+        _DataType('List[int]', 'string_value', JSONSerializer()),
     List[float]:
-        _DataType('List[float]', 'json_value', JSONSerializer()),
+        _DataType('List[float]', 'string_value', JSONSerializer()),
     List[bool]:
-        _DataType('List[bool]', 'json_value', JSONSerializer()),
+        _DataType('List[bool]', 'string_value', JSONSerializer()),
     List[str]:
-        _DataType('List[str]', 'json_value', JSONSerializer()),
+        _DataType('List[str]', 'string_value', JSONSerializer()),
     List:
-        _DataType('List', 'json_value', JSONSerializer()),
+        _DataType('List', 'string_value', JSONSerializer()),
     Dict:
-        _DataType('Dict', 'json_value', JSONSerializer()),
+        _DataType('Dict', 'string_value', JSONSerializer()),
 }
 
 
