@@ -80,7 +80,7 @@ def build_variable_signature(name, annotation, default=inspect.Parameter.empty, 
   tp, streaming = _normalize_type(annotation)
 
   #var = resources_pb2.VariableSignature()   # TODO
-  sig = _SignatureDict()  #for now
+  sig = _VariableSignature()  #for now
   sig.name = name
 
   _fill_signature_type(sig, tp)
@@ -103,7 +103,8 @@ def _fill_signature_type(sig, tp):
   if isinstance(tp, data_types.NamedFields):
     sig.data_type = DataType.NAMED_FIELDS
     for name, inner_type in tp.items():
-      inner_sig = sig.type_args.add()
+      # inner_sig = sig.type_args.add()
+      sig.type_args.append(inner_sig := _VariableSignature())
       inner_sig.name = name
       _fill_signature_type(inner_sig, inner_type)
     return
@@ -111,7 +112,8 @@ def _fill_signature_type(sig, tp):
   if get_origin(tp) == list:
     sig.data_type = DataType.LIST
     inner_type = get_args(tp)[0]
-    inner_sig = sig.type_args.add()
+    #inner_sig = sig.type_args.add()
+    sig.type_args.append(inner_sig := _VariableSignature())
     _fill_signature_type(inner_sig, inner_type)
     return
 
@@ -279,9 +281,23 @@ def _is_jsonable(tp):
   return False
 
 
+# TODO --- tmp classes to stand-in for protos until they are defined and built into this package
 class _SignatureDict(dict):
   __getattr__ = dict.__getitem__
   __setattr__ = dict.__setitem__
+
+
+class _VariableSignature(_SignatureDict):
+
+  def __init__(self):
+    super().__init__()
+    self.name = ''
+    self.type = ''
+    self.type_args = []
+    self.streaming = False
+    self.required = False
+    self.default = ''
+    self.description = ''
 
 
 # data_type: name of the data type
