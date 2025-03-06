@@ -1177,6 +1177,65 @@ class TestModelCalls(unittest.TestCase):
     with self.assertRaises(TypeError):
       client.f_datatype(y=[testimg1, testimg2])
 
+  def test_ListListNamedFieldsImagestrint_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: List[List[NamedFields(x=str,
+                                           y=int)]]) -> List[List[NamedFields(x=str, y=int)]]:
+        return [[NamedFields(x=xi.x + '1', y=xi.y + 1) for xi in xj] for xj in x]
+
+      @ModelClass.method
+      def g(self, input: List[List[NamedFields(fld1=str, fld2=int)]]) -> str:
+        return ''.join([str(i.fld2) + i.fld1 for j in input for i in j])
+
+    client = _get_servicer_client(MyModel())
+
+    result = client.f([[
+        NamedFields(x='a', y=1),
+        NamedFields(x='b', y=2),
+    ], [
+        NamedFields(x='x', y=3),
+        NamedFields(x='y', y=4),
+    ]])
+    self.assertEqual(len(result), 2)
+    self.assertEqual(len(result[0]), 2)
+    self.assertEqual(len(result[1]), 2)
+    self.assertEqual(result[0][0].x, 'a1')
+    self.assertEqual(result[0][0].y, 2)
+    self.assertEqual(result[0][1].x, 'b1')
+    self.assertEqual(result[0][1].y, 3)
+    self.assertEqual(result[1][0].x, 'x1')
+    self.assertEqual(result[1][0].y, 4)
+    self.assertEqual(result[1][1].x, 'y1')
+    self.assertEqual(result[1][1].y, 5)
+
+    result = client.g([[NamedFields(fld1='a', fld2=1),
+                        NamedFields(fld1='b', fld2=2)],
+                       [NamedFields(fld1='x', fld2=3),
+                        NamedFields(fld1='y', fld2=4)]])
+    self.assertEqual(result, '1a2b3x4y')
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(3)
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=[[
+          NamedFields(x='a', y=1),
+      ]])
+
+    with self.assertRaises(TypeError):
+      client.f([[
+          NamedFields(x='a', y='stringvalue'),
+      ]])
+
 
 def _get_servicer_client(model):
   servicer = ModelServicer(model)
