@@ -5,6 +5,7 @@ import unittest
 from typing import Dict, List, Tuple
 
 import numpy as np
+from clarifai_grpc.grpc.api import resources_pb2
 from PIL import Image as PILImage
 from PIL import ImageOps
 
@@ -12,6 +13,7 @@ from clarifai.client.model_client import ModelClient
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.models.model_servicer import ModelServicer
 from clarifai.runners.utils.data_types import Concept, Image, NamedFields, Stream, Text
+from clarifai.runners.utils.method_signatures import deserialize, serialize
 
 _ENABLE_PPRINT = os.getenv("PRINT", "false").lower() in ("true", "1")
 _ENABLE_PDB = os.getenv("PDB", "false").lower() in ("true", "1")
@@ -1352,6 +1354,78 @@ class TestModelCalls(unittest.TestCase):
 
     with self.assertRaises(TypeError):
       client.g('abc')
+
+
+class TestSerialization(unittest.TestCase):
+
+  def test_basic_serialize_deserialize(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: int) -> int:
+        return x + 1
+
+    _get_servicer_client(MyModel())
+
+    signature = MyModel._get_method_info('f').signature
+
+    kwargs = {'x': 5}
+    proto = resources_pb2.Data()
+    serialize(kwargs, signature.inputs, proto)
+    deserialized_kwargs = deserialize(proto, signature.inputs)
+    self.assertEqual(kwargs, deserialized_kwargs)
+
+  def test_Image_one_input_not_in_parts(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: Image) -> Image:
+        return x
+
+    _get_servicer_client(MyModel())
+
+    signature = MyModel._get_method_info('f').signature
+
+    testimg = PILImage.fromarray(np.ones([50, 50, 3], dtype="uint8"))
+
+    kwargs = {'x': testimg}
+    proto = resources_pb2.Data()
+    serialize(kwargs, signature.inputs, proto)
+
+    self.assertTrue(len(proto.parts) == 0)
+    self.assertTrue(proto.HasField('image'))
+
+  def test_ListConcept_output_is_repeated_field(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: List[Concept]) -> List[Concept]:
+        return x
+
+    _get_servicer_client(MyModel())
+
+    signature = MyModel._get_method_info('f').signature
+
+    kwargs = {'x': [Concept('testconcept', 0.9), Concept('testconcept2', 0.8)]}
+
+    proto = resources_pb2.Data()
+    serialize(kwargs, signature.inputs, proto)
+
+    # input list uses parts[x], then repeated concepts
+    # also would be ok to put in data.concepts
+    self.assertTrue(len(proto.parts) == 1)
+    self.assertTrue(proto.parts[0].id == 'x')
+    self.assertTrue(len(proto.parts[0].data.concepts) == 2)
+
+    return_value = {'return': kwargs['x']}
+    proto = resources_pb2.Data()
+    serialize(return_value, signature.outputs, proto, is_output=True)
+
+    self.assertTrue(len(proto.parts) == 0)
+    self.assertTrue(len(proto.concepts) == 2)
 
 
 def _get_servicer_client(model):
