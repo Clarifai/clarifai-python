@@ -410,7 +410,7 @@ class CompatibilitySerializer(Serializer):
   '''
 
   def serialize(self, data_proto, value):
-    tp = type(value)
+    tp = _normalize_data_type(type(value))
 
     try:
       serializer = _DATA_TYPES[tp].serializer
