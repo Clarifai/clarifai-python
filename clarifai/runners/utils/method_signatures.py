@@ -66,7 +66,7 @@ def build_function_signature(func):
   #method_signature.inputs.extend(input_vars)
   #method_signature.outputs.extend(output_vars)
   method_signature.inputs = input_sigs
-  method_signature.outputs = output_sig
+  method_signature.outputs = [output_sig]
   return method_signature
 
 
@@ -204,7 +204,14 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
       raise TypeError('Got a single return value, but expected multiple outputs {%s}' %
                       ', '.join(sig.name for sig in signatures))
     raise TypeError('Got unexpected key: %s' % ', '.join(unknown))
-  for sig in signatures:
+  inline_first_value = False
+  if (is_output and len(signatures) == 1 and signatures[0].name == 'return' and
+      len(kwargs) == 1 and 'return' in kwargs):
+    # if there is only one output, flatten it and return directly
+    inline_first_value = True
+  if signatures and signatures[0].data_type not in _NON_INLINABLE_TYPES:
+    inline_first_value = True
+  for sig_i, sig in enumerate(signatures):
     if sig.name not in kwargs:
       if sig.required:
         raise TypeError(f'Missing required argument: {sig.name}')
@@ -213,9 +220,16 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
     serializer = serializer_from_signature(sig)
     # TODO determine if any (esp the first) var can go in the proto without parts
     # and whether to put this in the signature or dynamically determine it
-    part = proto.parts.add()
-    part.id = sig.name
-    serializer.serialize(part.data, data)
+    if inline_first_value and sig_i == 0 and id(data) not in _ZERO_VALUE_IDS:
+      # inlined first value; note data must not be empty or 0 to inline, since that
+      # will correspond to the missing value case (which uses function defaults).
+      # empty values are put explicitly in parts.
+      serializer.serialize(proto, data)
+    else:
+      # add the part to the proto
+      part = proto.parts.add()
+      part.id = sig.name
+      serializer.serialize(part.data, data)
   return proto
 
 
@@ -227,10 +241,18 @@ def deserialize(proto, signatures, is_output=False):
     signatures = [signatures]  # TODO update return key level and make consistnet
   kwargs = {}
   parts_by_name = {part.id: part for part in proto.parts}
-  for sig in signatures:
+  for sig_i, sig in enumerate(signatures):
     serializer = serializer_from_signature(sig)
     part = parts_by_name.get(sig.name)
     if part is None:
+      if sig_i == 0:
+        # possible inlined first value
+        value = serializer.deserialize(proto)
+        if id(value) not in _ZERO_VALUE_IDS:
+          # note missing values are not set to defaults, since they are not in parts
+          # an actual zero value passed in must be set in an explicit part
+          kwargs[sig.name] = value
+        continue
       if sig.required or is_output:  # TODO allow optional outputs?
         raise ValueError(f'Missing required field: {sig.name}')
       continue
@@ -369,6 +391,9 @@ class DataType:
   TUPLE = 'TUPLE'
   LIST = 'LIST'
 
+
+_NON_INLINABLE_TYPES = {DataType.NAMED_FIELDS, DataType.TUPLE, DataType.LIST}
+_ZERO_VALUE_IDS = {id(None), id(''), id(0), id(0.0), id(b'')}
 
 # simple, non-container types that correspond directly to a data field
 _DATA_TYPES = {

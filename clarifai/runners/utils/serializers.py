@@ -71,8 +71,10 @@ class MessageSerializer(Serializer):
       values = [self.message_class.from_proto(x) for x in src]
       if len(values) == 1:
         return values[0]
-      return values
+      return values if values else None
     else:
+      if not data_proto.HasField(self.field_name):
+        return None
       return self.message_class.from_proto(src)
 
   def deserialize_list(self, data_proto):
@@ -100,6 +102,8 @@ class NDArraySerializer(Serializer):
 
   def deserialize(self, data_proto):
     proto = getattr(data_proto, self.field_name)
+    if not proto.buffer:
+      return None
     array = np.frombuffer(proto.buffer, dtype=np.dtype(proto.dtype)).reshape(proto.shape)
     if self.as_list:
       return array.tolist()
@@ -121,7 +125,10 @@ class JSONSerializer(Serializer):
       raise TypeError(f"Incompatible type for {self.field_name}: {type(value)}") from e
 
   def deserialize(self, data_proto):
-    return json.loads(getattr(data_proto, self.field_name))
+    value = getattr(data_proto, self.field_name)
+    if not value:
+      return None
+    return json.loads(value)
 
 
 class ListSerializer(Serializer):
@@ -169,6 +176,11 @@ class TupleSerializer(Serializer):
       serializer.serialize(part.data, item)
 
   def deserialize(self, data_proto):
+    if not data_proto.parts and self.inner_serializers:
+      return None
+    if len(data_proto.parts) != len(self.inner_serializers):
+      raise ValueError(
+          f"Expected tuple of length {len(self.inner_serializers)}, got {len(data_proto.parts)}")
     return tuple(
         serializer.deserialize(part.data)
         for serializer, part in zip(self.inner_serializers, data_proto.parts))
@@ -188,6 +200,8 @@ class NamedFieldsSerializer(Serializer):
       serializer.serialize(part.data, value[name])
 
   def deserialize(self, data_proto):
+    if not data_proto.parts and self.named_field_serializers:
+      return None
     value = data_types.NamedFields()
     for name, serializer in self.named_field_serializers.items():
       part = self._get_part(data_proto, name)

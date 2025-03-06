@@ -16,7 +16,7 @@ from clarifai.runners.utils.method_signatures import (build_function_signature, 
 
 _METHOD_INFO_ATTR = '_cf_method_info'
 
-_RAISE_EXCEPTIONS = os.getenv("RAISE_EXCEPTIONS", "false").lower() == "true"
+_RAISE_EXCEPTIONS = os.getenv("RAISE_EXCEPTIONS", "false").lower() in ("true", "1")
 
 
 class ModelClass(ABC):
@@ -223,7 +223,7 @@ class ModelClass(ABC):
                                proto=None) -> resources_pb2.Output:
     if proto is None:
       proto = resources_pb2.Output()
-    serialize({'return': output}, [variables_signature], proto.data, is_output=True)
+    serialize({'return': output}, variables_signature, proto.data, is_output=True)
     proto.status.code = status_code_pb2.SUCCESS
     return proto
 
