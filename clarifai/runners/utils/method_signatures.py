@@ -112,7 +112,7 @@ def build_variable_signature(name, annotation, default=inspect.Parameter.empty, 
   if not is_output:
     sig.required = (default is inspect.Parameter.empty)
     if not sig.required:
-      sig.default = default
+      sig.default = str(default)
 
   return sig, type, streaming
 
@@ -120,13 +120,13 @@ def build_variable_signature(name, annotation, default=inspect.Parameter.empty, 
 def _fill_signature_type(sig, tp):
   try:
     if tp in _DATA_TYPES:
-      sig.data_type = _DATA_TYPES[tp].data_type
+      sig.type = _DATA_TYPES[tp].type
       return
   except TypeError:
     pass  # not hashable type
 
   if isinstance(tp, data_types.NamedFields):
-    sig.data_type = DataType.NAMED_FIELDS
+    sig.type = DataType.NAMED_FIELDS
     for name, inner_type in tp.items():
       # inner_sig = sig.type_args.add()
       sig.type_args.append(inner_sig := _VariableSignature())
@@ -135,7 +135,7 @@ def _fill_signature_type(sig, tp):
     return
 
   if get_origin(tp) == tuple:
-    sig.data_type = DataType.TUPLE
+    sig.type = DataType.TUPLE
     for inner_type in get_args(tp):
       #inner_sig = sig.type_args.add()
       sig.type_args.append(inner_sig := _VariableSignature())
@@ -143,7 +143,7 @@ def _fill_signature_type(sig, tp):
     return
 
   if get_origin(tp) == list:
-    sig.data_type = DataType.LIST
+    sig.type = DataType.LIST
     inner_type = get_args(tp)[0]
     #inner_sig = sig.type_args.add()
     sig.type_args.append(inner_sig := _VariableSignature())
@@ -157,23 +157,25 @@ def serializer_from_signature(signature):
   '''
     Get the serializer for the given signature.
     '''
-  if signature.data_type in _SERIALIZERS_BY_TYPE_ENUM:
-    return _SERIALIZERS_BY_TYPE_ENUM[signature.data_type]
-  if signature.data_type == DataType.LIST:
+  if signature.type in _SERIALIZERS_BY_TYPE_ENUM:
+    return _SERIALIZERS_BY_TYPE_ENUM[signature.type]
+  if signature.type == DataType.LIST:
     return ListSerializer(serializer_from_signature(signature.type_args[0]))
-  if signature.data_type == DataType.TUPLE:
+  if signature.type == DataType.TUPLE:
     return TupleSerializer([serializer_from_signature(sig) for sig in signature.type_args])
-  if signature.data_type == DataType.NAMED_FIELDS:
+  if signature.type == DataType.NAMED_FIELDS:
     return NamedFieldsSerializer(
         {sig.name: serializer_from_signature(sig)
          for sig in signature.type_args})
-  raise ValueError(f'Unsupported type: {signature.data_type}')
+  raise ValueError(f'Unsupported type: {signature.type}')
 
 
 def signatures_to_json(signatures):
   assert isinstance(
       signatures, dict), 'Expected dict of signatures {name: signature}, got %s' % type(signatures)
-  return json.dumps(signatures, default=repr)
+  # TODO change to proto when ready
+  #signatures = {name: MessageToDict(sig) for name, sig in signatures.items()}
+  return json.dumps(signatures)
 
 
 def signatures_from_json(json_str):
@@ -209,7 +211,7 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
       len(kwargs) == 1 and 'return' in kwargs):
     # if there is only one output, flatten it and return directly
     inline_first_value = True
-  if signatures and signatures[0].data_type not in _NON_INLINABLE_TYPES:
+  if signatures and signatures[0].type not in _NON_INLINABLE_TYPES:
     inline_first_value = True
   for sig_i, sig in enumerate(signatures):
     if sig.name not in kwargs:
@@ -364,10 +366,10 @@ class _VariableSignature(_SignatureDict):
     self.description = ''
 
 
-# data_type: name of the data type
+# type: name of the data type
 # data_field: name of the field in the data proto
 # serializer: serializer for the data type
-_DataType = namedtuple('_DataType', ('data_type', 'serializer'))
+_DataType = namedtuple('_DataType', ('type', 'serializer'))
 
 
 # this will come from the proto module, but for now, define it here
@@ -431,7 +433,7 @@ _DATA_TYPES = {
         _DataType(DataType.VIDEO, MessageSerializer('video', data_types.Video)),
 }
 
-_SERIALIZERS_BY_TYPE_ENUM = {dt.data_type: dt.serializer for dt in _DATA_TYPES.values()}
+_SERIALIZERS_BY_TYPE_ENUM = {dt.type: dt.serializer for dt in _DATA_TYPES.values()}
 
 
 class CompatibilitySerializer(Serializer):
