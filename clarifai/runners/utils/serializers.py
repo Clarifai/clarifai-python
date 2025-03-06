@@ -53,8 +53,10 @@ class MessageSerializer(Serializer):
   def deserialize(self, data_proto):
     src = getattr(data_proto, self.field_name)
     if self.is_repeated_field:
-      assert len(src) == 1
-      return self.message_class.from_proto(src[0])
+      values = [self.message_class.from_proto(x) for x in src]
+      if len(values) == 1:
+        return values[0]
+      return values
     else:
       return self.message_class.from_proto(src)
 

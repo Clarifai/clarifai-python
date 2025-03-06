@@ -8,8 +8,9 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 
 from clarifai.constants.model import MAX_MODEL_PREDICT_INPUTS
 from clarifai.errors import UserError
-from clarifai.runners.utils.method_signatures import (deserialize, get_stream_from_signature,
-                                                      serialize, signatures_from_json)
+from clarifai.runners.utils.method_signatures import (CompatibilitySerializer, deserialize,
+                                                      get_stream_from_signature, serialize,
+                                                      signatures_from_json)
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator, status_is_retryable
 
@@ -83,6 +84,7 @@ class ModelClient:
     if response.status.code == status_code_pb2.INPUT_UNSUPPORTED_FORMAT:
       # return code from older models that don't support _GET_SIGNATURES
       self._method_signatures = {}
+      self._define_compatability_functions()
       return
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(f"Model failed with response {response!r}")
@@ -145,6 +147,28 @@ class ModelClient:
       f.__signature__ = sig
       f.__doc__ = method_signature.docstring
       setattr(self, method_name, f)
+
+  def _define_compatability_functions(self):
+
+    serializer = CompatibilitySerializer()
+
+    def predict(input: Any) -> Any:
+      proto = resources_pb2.Input()
+      serializer.serialize(proto.data, input)
+      # always use text.raw for compat
+      if proto.data.string_value:
+        proto.data.text.raw = proto.data.string_value
+        proto.data.string_value = ''
+      response = self._predict_by_proto([proto])
+      if response.status.code != status_code_pb2.SUCCESS:
+        raise Exception(f"Model predict failed with response {response!r}")
+      response_data = response.outputs[0].data
+      if response_data.text.raw:
+        response_data.string_value = response_data.text.raw
+        response_data.text.raw = ''
+      return serializer.deserialize(response_data)
+
+    self.predict = predict
 
   def _predict(
       self,

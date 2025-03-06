@@ -14,7 +14,7 @@ from google.protobuf.message import Message as MessageProto
 from clarifai.runners.utils import data_types
 from clarifai.runners.utils.serializers import (AtomicFieldSerializer, ListSerializer,
                                                 MessageSerializer, NamedFieldsSerializer,
-                                                NDArraySerializer, TupleSerializer)
+                                                NDArraySerializer, Serializer, TupleSerializer)
 
 
 def build_function_signature(func):
@@ -300,11 +300,14 @@ def _normalize_data_type(tp):
   if tp == list or (get_origin(tp) == list and tp not in _DATA_TYPES and _is_jsonable(tp)):
     return data_types.JSON
 
-  # check if supported type
-  if tp not in _DATA_TYPES:
-    raise TypeError(f'Unsupported type: {tp}')
+  # check for known data types
+  try:
+    if tp in _DATA_TYPES:
+      return tp
+  except TypeError:
+    pass  # not hashable type
 
-  return tp
+  raise TypeError(f'Unsupported type: {tp}')
 
 
 def _is_jsonable(tp):
@@ -398,3 +401,35 @@ _DATA_TYPES = {
 }
 
 _SERIALIZERS_BY_TYPE_ENUM = {dt.data_type: dt.serializer for dt in _DATA_TYPES.values()}
+
+
+class CompatibilitySerializer(Serializer):
+  '''
+  Special serializer that can serialize any type, used mainly for backwards compatibility
+  with older models that don't have type signatures.
+  '''
+
+  def serialize(self, data_proto, value):
+    tp = type(value)
+
+    try:
+      serializer = _DATA_TYPES[tp].serializer
+    except (KeyError, TypeError):
+      raise TypeError(f'serializer currently only supports basic types, got {tp}')
+
+    serializer.serialize(data_proto, value)
+
+  def deserialize(self, data_proto):
+    fields = [k.name for k, _ in data_proto.ListFields()]
+    if 'parts' in fields:
+      raise ValueError('serializer does not support parts')
+    serializers = [
+        serializer for serializer in _SERIALIZERS_BY_TYPE_ENUM.values()
+        if serializer.field_name in fields
+    ]
+    if not serializers:
+      raise ValueError('Returned data not recognized')
+    if len(serializers) != 1:
+      raise ValueError('Only single output supported for serializer')
+    serializer = serializers[0]
+    return serializer.deserialize(data_proto)
