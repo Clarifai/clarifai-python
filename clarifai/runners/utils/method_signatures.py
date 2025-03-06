@@ -405,7 +405,7 @@ _SERIALIZERS_BY_TYPE_ENUM = {dt.data_type: dt.serializer for dt in _DATA_TYPES.v
 
 class CompatibilitySerializer(Serializer):
   '''
-  Special serializer that can serialize any type, used mainly for backwards compatibility
+  Serialization of basic value types, used for backwards compatibility
   with older models that don't have type signatures.
   '''
 
