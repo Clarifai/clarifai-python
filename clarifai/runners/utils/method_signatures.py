@@ -393,7 +393,7 @@ class DataType:
 
 
 _NON_INLINABLE_TYPES = {DataType.NAMED_FIELDS, DataType.TUPLE, DataType.LIST}
-_ZERO_VALUE_IDS = {id(None), id(''), id(0), id(0.0), id(b'')}
+_ZERO_VALUE_IDS = {id(None), id(''), id(b''), id(0), id(0.0), id(False)}
 
 # simple, non-container types that correspond directly to a data field
 _DATA_TYPES = {
