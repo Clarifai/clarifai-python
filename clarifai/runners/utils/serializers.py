@@ -16,10 +16,16 @@ class Serializer:
     pass
 
 
+def is_repeated_field(field_name):
+  descriptor = resources_pb2.Data.DESCRIPTOR.fields_by_name.get(field_name)
+  return descriptor and descriptor.label == descriptor.LABEL_REPEATED
+
+
 class AtomicFieldSerializer(Serializer):
 
   def __init__(self, field_name):
     self.field_name = field_name
+    self.is_repeated_field = is_repeated_field(field_name)
 
   def serialize(self, data_proto, value):
     try:
@@ -36,8 +42,7 @@ class MessageSerializer(Serializer):
   def __init__(self, field_name, message_class):
     self.field_name = field_name
     self.message_class = message_class
-    descriptor = resources_pb2.Data.DESCRIPTOR.fields_by_name.get(field_name)
-    self.is_repeated_field = descriptor and descriptor.label == descriptor.LABEL_REPEATED
+    self.is_repeated_field = is_repeated_field(field_name)
 
   def serialize(self, data_proto, value):
     value = self.message_class.from_value(value).to_proto()
@@ -66,6 +71,7 @@ class NDArraySerializer(Serializer):
   def __init__(self, field_name, as_list=False):
     self.field_name = field_name
     self.as_list = as_list
+    self.is_repeated_field = is_repeated_field(field_name)
 
   def serialize(self, data_proto, value):
     if self.as_list and not isinstance(value, Iterable):
@@ -91,6 +97,7 @@ class JSONSerializer(Serializer):
   def __init__(self, field_name, type=None):
     self.field_name = field_name
     self.type = type
+    self.is_repeated_field = is_repeated_field(field_name)
 
   def serialize(self, data_proto, value):
     #if self.type is not None and not isinstance(value, self.type):
@@ -109,15 +116,25 @@ class ListSerializer(Serializer):
   def __init__(self, inner_serializer):
     self.field_name = 'parts'
     self.inner_serializer = inner_serializer
+    self.is_repeated_field = False  # even parts is a repeated field, it's used to hold a single list value
 
   def serialize(self, data_proto, value):
     if not isinstance(value, Iterable):
       raise TypeError(f"Expected iterable, got {type(value)}")
-    for item in value:
-      part = data_proto.parts.add()
-      self.inner_serializer.serialize(part.data, item)
+    if self.inner_serializer.is_repeated_field:
+      for item in value:
+        self.inner_serializer.serialize(data_proto, item)  # adds to data_proto.field_name
+    else:
+      for item in value:
+        part = data_proto.parts.add()
+        self.inner_serializer.serialize(part.data, item)
 
   def deserialize(self, data_proto):
+    if self.inner_serializer.is_repeated_field:
+      value = self.inner_serializer.deserialize(data_proto)
+      if not isinstance(value, list):  # singleton case
+        value = [value]
+      return value
     return [self.inner_serializer.deserialize(part.data) for part in data_proto.parts]
 
 
@@ -126,6 +143,7 @@ class TupleSerializer(Serializer):
   def __init__(self, inner_serializers):
     self.field_name = 'parts'
     self.inner_serializers = inner_serializers
+    self.is_repeated_field = False
 
   def serialize(self, data_proto, value):
     if not isinstance(value, (tuple, list)):
@@ -148,6 +166,7 @@ class NamedFieldsSerializer(Serializer):
   def __init__(self, named_field_serializers: Dict[str, Serializer]):
     self.field_name = 'parts'
     self.named_field_serializers = named_field_serializers
+    self.is_repeated_field = False
 
   def serialize(self, data_proto, value):
     for name, serializer in self.named_field_serializers.items():

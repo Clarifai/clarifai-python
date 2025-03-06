@@ -242,8 +242,8 @@ def deserialize(proto, signatures, is_output=False):
 
 def get_stream_from_signature(signatures):
   '''
-    Get the stream signature from the given signatures.
-    '''
+  Get the stream signature from the given signatures.
+  '''
   for sig in signatures:
     if sig.streaming:
       return sig
