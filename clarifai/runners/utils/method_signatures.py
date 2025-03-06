@@ -186,7 +186,15 @@ def signatures_from_json(json_str):
 def signatures_to_yaml(signatures):
   # XXX go in/out of json to get the correct format and python dict types
   d = json.loads(signatures_to_json(signatures))
-  return yaml.dump(d, default_flow_style=False)
+
+  def _filter_empty(d):
+    if isinstance(d, (list, tuple)):
+      return [_filter_empty(v) for v in d if v]
+    if isinstance(d, dict):
+      return {k: _filter_empty(v) for k, v in d.items() if v}
+    return d
+
+  return yaml.dump(_filter_empty(d), default_flow_style=False)
 
 
 def signatures_from_yaml(yaml_str):
