@@ -12,9 +12,9 @@ from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.message import Message as MessageProto
 
 from clarifai.runners.utils import data_types
-from clarifai.runners.utils.serializers import (AtomicFieldSerializer, ListSerializer,
-                                                MessageSerializer, NamedFieldsSerializer,
-                                                NDArraySerializer, Serializer, TupleSerializer)
+from clarifai.runners.utils.serializers import (
+    AtomicFieldSerializer, JSONSerializer, ListSerializer, MessageSerializer,
+    NamedFieldsSerializer, NDArraySerializer, Serializer, TupleSerializer)
 
 
 def build_function_signature(func):
@@ -409,6 +409,9 @@ _DATA_TYPES = {
         _DataType(DataType.BOOL, AtomicFieldSerializer('bool_value')),
     np.ndarray:
         _DataType(DataType.NDARRAY, NDArraySerializer('ndarray')),
+    data_types.JSON:
+        _DataType(DataType.JSON, JSONSerializer('string_value')
+                 ),  # TODO change to json_value when new proto is ready
     data_types.Text:
         _DataType(DataType.TEXT, MessageSerializer('text', data_types.Text)),
     data_types.Image:

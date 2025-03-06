@@ -2,7 +2,7 @@ import functools
 import os
 import sys
 import unittest
-from typing import List
+from typing import Dict, List
 
 import numpy as np
 from PIL import Image as PILImage
@@ -1235,6 +1235,49 @@ class TestModelCalls(unittest.TestCase):
       client.f([[
           NamedFields(x='a', y='stringvalue'),
       ]])
+
+  def test_NamedFields_List_str_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: NamedFields(x=List[str], y=str)) -> NamedFields(x=List[str], y=str):
+        return NamedFields(x=[xi + '1' for xi in x.x], y=x.y + '1')
+
+    client = _get_servicer_client(MyModel())
+
+    result = client.f(NamedFields(x=['1', '2', '3'], y='a'))
+    self.assertEqual(result.x, ['11', '21', '31'])
+    self.assertEqual(result.y, 'a1')
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(3)
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=NamedFields(x=['1', '2', '3'], y='a'))
+
+    with self.assertRaises(TypeError):
+      client.f(NamedFields(x=['1', '2', '3'], y=3))
+
+  def test_Dict_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: Dict[str, int]) -> Dict[str, int]:
+        return {k: v + 1 for k, v in x.items()}
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f({'a': 1, 'b': 2, 'c': 3}), {'a': 2, 'b': 3, 'c': 4})
+    self.assertEqual(client.f({}), {})
+    self.assertEqual(client.f({'a': 0}), {'a': 1})
 
 
 def _get_servicer_client(model):
