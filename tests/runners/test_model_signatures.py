@@ -17,6 +17,7 @@ from clarifai.runners.utils.method_signatures import deserialize, serialize
 
 _ENABLE_PPRINT = os.getenv("PRINT", "false").lower() in ("true", "1")
 _ENABLE_PDB = os.getenv("PDB", "false").lower() in ("true", "1")
+_USE_SERVER = os.getenv("USE_SERVER", "false").lower() in ("true", "1")
 
 if _ENABLE_PPRINT:
   from pprint import pprint
@@ -1430,7 +1431,30 @@ class TestSerialization(unittest.TestCase):
 
 def _get_servicer_client(model):
   servicer = ModelServicer(model)
-  client = ModelClient(servicer)
+
+  if _USE_SERVER:
+    from concurrent import futures
+
+    import grpc
+    from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
+    from clarifai_grpc.grpc.api import service_pb2_grpc
+    port = 50051
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    service_pb2_grpc.add_V2Servicer_to_server(servicer, server)
+    server.add_insecure_port(f'[::]:{port}')
+    server.start()
+    channel = ClarifaiChannel.get_insecure_grpc_channel(base='localhost', port=port)
+    stub = service_pb2_grpc.V2Stub(channel)
+    client = ModelClient(stub)
+
+    def _stop():
+      server.stop(0)
+      channel.close()
+      server.wait_for_termination()
+
+    client.__del__ = _stop
+  else:
+    client = ModelClient(servicer)
   return client
 
 
