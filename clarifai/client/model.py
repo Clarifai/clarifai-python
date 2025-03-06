@@ -667,7 +667,7 @@ class Model(Lister, BaseClient):
     elif args:
       inputs = args[0]
     if inputs and isinstance(inputs, list) and isinstance(inputs[0], resources_pb2.Input):
-      assert not args, "Cannot pass in raw protos and additional arguments at the same time."
+      assert len(args) <= 1, "Cannot pass in raw protos and additional arguments at the same time."
       inference_params = kwargs.get('inference_params', {})
       output_config = kwargs.get('output_config', {})
       return self.client._generate_by_proto(
@@ -818,7 +818,7 @@ class Model(Lister, BaseClient):
             args = (inputs,) + args[1:]
 
     if use_proto_call:
-      assert not args, "Cannot pass in raw protos and additional arguments at the same time."
+      assert len(args) <= 1, "Cannot pass in raw protos and additional arguments at the same time."
       inference_params = kwargs.get('inference_params', {})
       output_config = kwargs.get('output_config', {})
       return self.client._stream_by_proto(
