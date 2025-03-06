@@ -2,7 +2,7 @@ import functools
 import os
 import sys
 import unittest
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import numpy as np
 from PIL import Image as PILImage
@@ -1278,6 +1278,80 @@ class TestModelCalls(unittest.TestCase):
     self.assertEqual(client.f({'a': 1, 'b': 2, 'c': 3}), {'a': 2, 'b': 3, 'c': 4})
     self.assertEqual(client.f({}), {})
     self.assertEqual(client.f({'a': 0}), {'a': 1})
+
+  def test_untyped_dict_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: Dict) -> Dict:
+        return {k: v + 1 for k, v in x.items()}
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f({'a': 1, 'b': 2, 'c': 3}), {'a': 2, 'b': 3, 'c': 4})
+    self.assertEqual(client.f({}), {})
+    self.assertEqual(client.f({'a': 0}), {'a': 1})
+
+  def test_complex_dict_values(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: Dict[str, List[int]]) -> Dict[str, List[int]]:
+        return {k: [v[0] + 1] for k, v in x.items()}
+
+      @ModelClass.method
+      def g(self, x: dict) -> dict:
+        return {k: [v[0] + 1] for k, v in x.items()}
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f({'a': [1, 2, 3], 'b': [4, 5, 6]}), {'a': [2], 'b': [5]})
+    self.assertEqual(client.f({}), {})
+    self.assertEqual(client.f({'a': [0]}), {'a': [1]})
+
+    self.assertEqual(client.g({'a': [1, 2, 3], 'b': [4, 5, 6]}), {'a': [2], 'b': [5]})
+    self.assertEqual(client.g({}), {})
+    self.assertEqual(client.g({'a': [0]}), {'a': [1]})
+
+  def test_tuple_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: Tuple[int, str]) -> Tuple[int, str]:
+        return x[0] + 1, x[1] + '1'
+
+      @ModelClass.method
+      def g(self, x: (int, str)) -> (int, str):
+        return x[0] + 1, x[1] + '1'
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f((1, 'a')), (2, 'a1'))
+    self.assertEqual(client.f((0, '')), (1, '1'))
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(3)
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=(1, 'a'))
+
+    with self.assertRaises(TypeError):
+      client.f((1, 2))
+
+    self.assertEqual(client.g((1, 'a')), (2, 'a1'))
+    self.assertEqual(client.g((0, '')), (1, '1'))
+
+    with self.assertRaises(TypeError):
+      client.g('abc')
 
 
 def _get_servicer_client(model):

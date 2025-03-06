@@ -300,6 +300,9 @@ def _normalize_data_type(tp):
     tp = get_args(tp)[0]
     return List[_normalize_data_type(tp)]
 
+  if get_origin(tp) == tuple:
+    return Tuple[tuple(_normalize_data_type(val) for val in get_args(tp))]
+
   if isinstance(tp, (tuple, list)):
     return Tuple[tuple(_normalize_data_type(val) for val in tp)]
 
