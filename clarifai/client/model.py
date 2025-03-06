@@ -84,6 +84,7 @@ class Model(Lister, BaseClient):
         compute_cluster_id=compute_cluster_id,
         nodepool_id=nodepool_id,
         deployment_id=deployment_id,
+        user_id=self.user_id,  # FIXME the deployment's user_id can be different than the model's.
     )
     BaseClient.__init__(
         self,
