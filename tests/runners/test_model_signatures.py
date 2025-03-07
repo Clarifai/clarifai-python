@@ -1454,7 +1454,9 @@ def _get_servicer_client(model):
 
     client.__del__ = _stop
   else:
+    # call the servicer directly
     client = ModelClient(servicer)
+
   return client
 
 
