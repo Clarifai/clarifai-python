@@ -1318,6 +1318,16 @@ class TestModelCalls(unittest.TestCase):
     self.assertEqual(client.f({}), {})
     self.assertEqual(client.f({'a': 0}), {'a': 1})
 
+  def test_untyped_NamedFields_type_error(self):
+
+    with self.assertRaisesRegex(TypeError, "NamedFields must have types specified"):
+
+      class MyModel(ModelClass):
+
+        @ModelClass.method
+        def f(self, x: NamedFields) -> NamedFields:
+          return NamedFields(x=x.x + 1, y=x.y + 1)
+
   def test_complex_dict_values(self):
 
     class MyModel(ModelClass):

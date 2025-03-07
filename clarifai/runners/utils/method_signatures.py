@@ -305,15 +305,22 @@ def _normalize_type(tp):
 
 
 def _normalize_data_type(tp):
-  # check if list, and if so, get inner type
+  # jsonable container types, these can be serialized as json
+  if tp in (tuple, list, dict) or (get_origin(tp) in (tuple, list, dict) and _is_jsonable(tp)):
+    return data_types.JSON
+
+  # container types that need to be serialized as parts
   if get_origin(tp) == list and get_args(tp):
     return List[_normalize_data_type(get_args(tp)[0])]
 
-  if get_origin(tp) == tuple:
+  if get_origin(tp) == tuple and get_args(tp):
     return Tuple[tuple(_normalize_data_type(val) for val in get_args(tp))]
 
   if isinstance(tp, (tuple, list)):
     return Tuple[tuple(_normalize_data_type(val) for val in tp)]
+
+  if tp == data_types.NamedFields:
+    raise TypeError('NamedFields must have types specified')
 
   if isinstance(tp, (dict, data_types.NamedFields)):
     return data_types.NamedFields(**{name: _normalize_data_type(val) for name, val in tp.items()})
@@ -326,13 +333,6 @@ def _normalize_data_type(tp):
   # set these to use the Image data handler
   if tp in (data_types.Image, PIL.Image, PIL.Image.Image):
     return data_types.Image
-
-  # check for jsonable types
-  # TODO should we include dict vs list in the data type somehow?
-  if tp == dict or (get_origin(tp) == dict and tp not in _DATA_TYPES and _is_jsonable(tp)):
-    return data_types.JSON
-  if tp == list or (get_origin(tp) == list and tp not in _DATA_TYPES and _is_jsonable(tp)):
-    return data_types.JSON
 
   # check for known data types
   try:
