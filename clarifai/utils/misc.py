@@ -1,3 +1,4 @@
+import importlib
 import os
 import re
 import uuid
@@ -16,6 +17,29 @@ RETRYABLE_CODES = [
 def status_is_retryable(status_code: int) -> bool:
   """Check if a status code is retryable."""
   return status_code in RETRYABLE_CODES
+
+
+def optional_import(module_name: str, pip_package: str = None):
+  """Import a module if it exists.
+     Otherwise, return an object that will raise an error when accessed.
+  """
+  try:
+    return importlib.import_module(module_name)
+  except ImportError:
+    return _MissingModule(module_name, pip_package=pip_package)
+
+
+class _MissingModule:
+  """Object that raises an error when accessed."""
+
+  def __init__(self, module_name, pip_package=None):
+    self.module_name = module_name
+    self.message = f"Module `{module_name}` is not installed."
+    if pip_package:
+      self.message += f" Please add `{pip_package}` to your requirements.txt file."
+
+  def __getattr__(self, name):
+    raise ImportError(self.message)
 
 
 class Chunker:

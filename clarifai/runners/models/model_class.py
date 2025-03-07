@@ -3,23 +3,41 @@ from typing import Iterator
 
 from clarifai_grpc.grpc.api import service_pb2
 
+from clarifai.runners.utils.url_fetcher import ensure_urls_downloaded
+from clarifai.utils.stream_utils import readahead
+
 
 class ModelClass(ABC):
+
+  download_request_urls = True
 
   def predict_wrapper(
       self, request: service_pb2.PostModelOutputsRequest) -> service_pb2.MultiOutputResponse:
     """This method is used for input/output proto data conversion"""
+    # Download any urls that are not already bytes.
+    if self.download_request_urls:
+      ensure_urls_downloaded(request)
+
     return self.predict(request)
 
   def generate_wrapper(self, request: service_pb2.PostModelOutputsRequest
                       ) -> Iterator[service_pb2.MultiOutputResponse]:
     """This method is used for input/output proto data conversion and yield outcome"""
+    # Download any urls that are not already bytes.
+    if self.download_request_urls:
+      ensure_urls_downloaded(request)
+
     return self.generate(request)
 
-  def stream_wrapper(self, request: service_pb2.PostModelOutputsRequest
+  def stream_wrapper(self, request_stream: Iterator[service_pb2.PostModelOutputsRequest]
                     ) -> Iterator[service_pb2.MultiOutputResponse]:
     """This method is used for input/output proto data conversion and yield outcome"""
-    return self.stream(request)
+
+    # Download any urls that are not already bytes.
+    if self.download_request_urls:
+      request_stream = readahead(map(ensure_urls_downloaded, request_stream))
+
+    return self.stream(request_stream)
 
   @abstractmethod
   def load_model(self):
