@@ -1470,6 +1470,24 @@ class TestSerialization(unittest.TestCase):
     self.assertTrue(len(proto.parts) == 0)
     self.assertTrue(len(proto.concepts) == 2)
 
+  def test_default_image_first_arg_not_set(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: Image = None) -> str:
+        return 'a' if x is None else 'b'
+
+    client = _get_servicer_client(MyModel())
+
+    testimg = PILImage.fromarray(np.ones([50, 50, 3], dtype="uint8"))
+
+    result = client.f()
+    self.assertEqual(result, 'a')
+
+    result = client.f(x=testimg)
+    self.assertEqual(result, 'b')
+
 
 def _get_servicer_client(model):
   servicer = ModelServicer(model)
