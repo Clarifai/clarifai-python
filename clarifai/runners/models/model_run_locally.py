@@ -7,14 +7,11 @@ import subprocess
 import sys
 import tempfile
 import time
-import traceback
 import venv
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
-from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
 from clarifai.runners.models.model_builder import ModelBuilder
-from clarifai.runners.utils.url_fetcher import ensure_urls_downloaded
 from clarifai.utils.logging import logger
 
 
@@ -111,85 +108,13 @@ class ModelRunLocally:
     for i in range(1):
       yield request
 
-  def _run_model_inference(self, model):
-    """Perform inference using the model."""
-    request = self._build_request()
-    stream_request = self._build_stream_request()
-
-    ensure_urls_downloaded(request)
-    predict_response = None
-    generate_response = None
-    stream_response = None
-    try:
-      predict_response = model.predict(request)
-    except NotImplementedError:
-      logger.info("Model does not implement predict() method.")
-    except Exception as e:
-      logger.error(f"Model Prediction failed: {e}")
-      traceback.print_exc()
-      predict_response = service_pb2.MultiOutputResponse(status=status_pb2.Status(
-          code=status_code_pb2.MODEL_PREDICTION_FAILED,
-          description="Prediction failed",
-          details="",
-          internal_details=str(e),
-      ))
-
-    if predict_response:
-      if predict_response.outputs[0].status.code != status_code_pb2.SUCCESS:
-        logger.error(f"Moddel Prediction failed: {predict_response}")
-      else:
-        logger.info(f"Model Prediction succeeded: {predict_response}")
-
-    try:
-      generate_response = model.generate(request)
-    except NotImplementedError:
-      logger.info("Model does not implement generate() method.")
-    except Exception as e:
-      logger.error(f"Model Generation failed: {e}")
-      traceback.print_exc()
-      generate_response = service_pb2.MultiOutputResponse(status=status_pb2.Status(
-          code=status_code_pb2.MODEL_GENERATION_FAILED,
-          description="Generation failed",
-          details="",
-          internal_details=str(e),
-      ))
-
-    if generate_response:
-      generate_first_res = next(generate_response)
-      if generate_first_res.outputs[0].status.code != status_code_pb2.SUCCESS:
-        logger.error(f"Moddel Prediction failed: {generate_first_res}")
-      else:
-        logger.info(
-            f"Model Prediction succeeded for generate and first response: {generate_first_res}")
-
-    try:
-      stream_response = model.stream(stream_request)
-    except NotImplementedError:
-      logger.info("Model does not implement stream() method.")
-    except Exception as e:
-      logger.error(f"Model Stream failed: {e}")
-      traceback.print_exc()
-      stream_response = service_pb2.MultiOutputResponse(status=status_pb2.Status(
-          code=status_code_pb2.MODEL_STREAM_FAILED,
-          description="Stream failed",
-          details="",
-          internal_details=str(e),
-      ))
-
-    if stream_response:
-      stream_first_res = next(stream_response)
-      if stream_first_res.outputs[0].status.code != status_code_pb2.SUCCESS:
-        logger.error(f"Moddel Prediction failed: {stream_first_res}")
-      else:
-        logger.info(
-            f"Model Prediction succeeded for stream and first response: {stream_first_res}")
-
   def _run_test(self):
     """Test the model locally by making a prediction."""
     # Create the model
     model = self.builder.create_model_instance()
-    # send an inference.
-    self._run_model_inference(model)
+    # call its test method, if it has one
+    if hasattr(model, "test"):
+      model.test()
 
   def test_model(self):
     """Test the model by running it locally in the virtual environment."""
