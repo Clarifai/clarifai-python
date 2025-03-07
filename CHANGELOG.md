@@ -1,3 +1,9 @@
+## [[11.1.6]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.6) - [PyPI](https://pypi.org/project/clarifai/11.1.6/) - 2025-03-06
+
+### Changed
+ - Removed the model_path argument to CLI [(#529)] (https://github.com/Clarifai/clarifai-python/pull/529)
+ - Added configuration for multi-threaded runners [(#524)] (https://github.com/Clarifai/clarifai-python/pull/524)
+
 ## [[11.1.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.5) - [PyPI](https://pypi.org/project/clarifai/11.1.5/) - 2025-02-21
 
 ### Changed
