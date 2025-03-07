@@ -1268,6 +1268,28 @@ class TestModelCalls(unittest.TestCase):
     with self.assertRaises(TypeError):
       client.f(NamedFields(x=['1', '2', '3'], y=3))
 
+  def test_untyped_list_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: List) -> List:
+        return [i + 1 for i in x]
+
+      @ModelClass.method
+      def g(self, x: list) -> list:
+        return [i + 1 for i in x]
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f([1, 2, 3]), [2, 3, 4])
+    self.assertEqual(client.f([]), [])
+    self.assertEqual(client.f([0]), [1])
+
+    self.assertEqual(client.g([1, 2, 3]), [2, 3, 4])
+    self.assertEqual(client.g([]), [])
+    self.assertEqual(client.g([0]), [1])
+
   def test_Dict_type(self):
 
     class MyModel(ModelClass):

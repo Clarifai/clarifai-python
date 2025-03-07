@@ -404,6 +404,9 @@ def cast(value, python_type):
   if list_type and isinstance(value, np.ndarray):
     return value.tolist()
   if list_type and isinstance(value, list):
-    inner_type = get_args(python_type)[0]
-    return [cast(item, inner_type) for item in value]
+    if get_args(python_type):
+      inner_type = get_args(python_type)[0]
+      return [cast(item, inner_type) for item in value]
+    if not isinstance(value, Iterable):
+      raise TypeError(f'Expected list, got {type(value)}')
   return value

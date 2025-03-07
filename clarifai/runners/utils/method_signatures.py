@@ -306,9 +306,8 @@ def _normalize_type(tp):
 
 def _normalize_data_type(tp):
   # check if list, and if so, get inner type
-  if get_origin(tp) == list:
-    tp = get_args(tp)[0]
-    return List[_normalize_data_type(tp)]
+  if get_origin(tp) == list and get_args(tp):
+    return List[_normalize_data_type(get_args(tp)[0])]
 
   if get_origin(tp) == tuple:
     return Tuple[tuple(_normalize_data_type(val) for val in get_args(tp))]
@@ -348,9 +347,7 @@ def _normalize_data_type(tp):
 def _is_jsonable(tp):
   if tp in (dict, list, tuple, str, int, float, bool, type(None)):
     return True
-  if get_origin(tp) == list:
-    return _is_jsonable(get_args(tp)[0])
-  if get_origin(tp) == dict:
+  if get_origin(tp) in (tuple, list, dict):
     return all(_is_jsonable(val) for val in get_args(tp))
   return False
 
