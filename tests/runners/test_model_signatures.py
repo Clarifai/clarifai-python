@@ -1328,6 +1328,16 @@ class TestModelCalls(unittest.TestCase):
         def f(self, x: NamedFields) -> NamedFields:
           return NamedFields(x=x.x + 1, y=x.y + 1)
 
+  def test_untyped_Tuple_type_error(self):
+
+    with self.assertRaisesRegex(TypeError, "Tuple must have types specified"):
+
+      class MyModel(ModelClass):
+
+        @ModelClass.method
+        def f(self, x: Tuple) -> Tuple:
+          return x[0] + 1, x[1] + 1
+
   def test_complex_dict_values(self):
 
     class MyModel(ModelClass):
