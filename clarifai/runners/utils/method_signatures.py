@@ -125,6 +125,17 @@ def _fill_signature_type(sig, tp):
   except TypeError:
     pass  # not hashable type
 
+  # Check for dynamically generated NamedFields subclasses (from type annotations)
+  if inspect.isclass(tp) and issubclass(tp, data_types.NamedFields) and hasattr(
+      tp, '__annotations__'):
+    sig.type = DataType.NAMED_FIELDS
+    for name, inner_type in tp.__annotations__.items():
+      inner_sig = _VariableSignature()
+      inner_sig.name = name
+      _fill_signature_type(inner_sig, inner_type)
+      sig.type_args.append(inner_sig)
+    return
+
   if isinstance(tp, data_types.NamedFields):
     sig.type = DataType.NAMED_FIELDS
     for name, inner_type in tp.items():
@@ -305,6 +316,7 @@ def _normalize_type(tp):
 
 
 def _normalize_data_type(tp):
+
   # jsonable list and dict, these can be serialized as json
   # (tuple we want to keep as a tuple for args and returns, so don't include here)
   if tp in (list, dict) or (get_origin(tp) in (list, dict) and _is_jsonable(tp)):
@@ -324,6 +336,13 @@ def _normalize_data_type(tp):
 
   if tp == data_types.NamedFields:
     raise TypeError('NamedFields must have types specified')
+
+  # Handle dynamically generated NamedFields subclasses with annotations
+  if isinstance(tp, type) and issubclass(tp, data_types.NamedFields) and hasattr(
+      tp, '__annotations__'):
+    return data_types.NamedFields(
+        **{k: _normalize_data_type(v)
+           for k, v in tp.__annotations__.items()})
 
   if isinstance(tp, (dict, data_types.NamedFields)):
     return data_types.NamedFields(**{name: _normalize_data_type(val) for name, val in tp.items()})
