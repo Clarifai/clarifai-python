@@ -1141,12 +1141,21 @@ class TestModelCalls(unittest.TestCase):
       def f_datatype(self, x: List[Image]) -> List[Image]:
         return [ImageOps.invert(i.to_pil()) for i in x]
 
+      @ModelClass.method
+      def f_pil_image(self, x: List[PILImage.Image]) -> List[PILImage.Image]:
+        return [ImageOps.invert(i) for i in x]
+
     client = _get_servicer_client(MyModel())
 
     testimg1 = PILImage.fromarray(np.ones([50, 50, 3], dtype="uint8"))
     testimg2 = PILImage.fromarray(200 + np.zeros([50, 50, 3], dtype="uint8"))
 
     result = client.f_pil([testimg1, testimg2])
+    self.assertEqual(len(result), 2)
+    self.assertTrue(np.all(result[0].to_numpy() == np.asarray(ImageOps.invert(testimg1))))
+    self.assertTrue(np.all(result[1].to_numpy() == np.asarray(ImageOps.invert(testimg2))))
+
+    result = client.f_pil_image([testimg1, testimg2])
     self.assertEqual(len(result), 2)
     self.assertTrue(np.all(result[0].to_numpy() == np.asarray(ImageOps.invert(testimg1))))
     self.assertTrue(np.all(result[1].to_numpy() == np.asarray(ImageOps.invert(testimg2))))
