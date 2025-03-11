@@ -232,7 +232,7 @@ class ModelBuilder:
           f"`num_threads` must be an integer greater than or equal to 1. Received type {type(num_threads)} with value {num_threads}."
       )
     else:
-      num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 1))
+      num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 16))
       self.config["num_threads"] = num_threads
 
   @staticmethod
