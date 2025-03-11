@@ -144,7 +144,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, x: PILImage) -> str:
+      def f(self, x: PILImage.Image) -> str:
         return str(x.size)
 
     sig = dict(MyModel._get_method_info('f').signature)
@@ -162,7 +162,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, x: str) -> PILImage:
+      def f(self, x: str) -> PILImage.Image:
         return PILImage.fromarray(np.ones([10, 10, 3], dtype="uint8"))
 
     sig = dict(MyModel._get_method_info('f').signature)
@@ -179,7 +179,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, x: PILImage) -> List[Concept]:
+      def f(self, x: PILImage.Image) -> List[Concept]:
         return [Concept('a', 0.9), Concept('b', 0.1)]
 
     sig = dict(MyModel._get_method_info('f').signature)
@@ -198,14 +198,18 @@ class TestModelCalls(unittest.TestCase):
 
   def test_str_ListImage__str_ListImage(self):
     # skip if python version is below 3.11: can't use List[Image] in signature for <=3.10
-    if sys.version_info < (3, 11):
-      self.skipTest("python < 3.11 does not support using regular classes in generics")
+    # if sys.version_info < (3, 11):
+    #   self.skipTest("python < 3.11 does not support using regular classes in generics")
 
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, prompt: str, images: List[PILImage]) -> (str, List[PILImage]):
+      def f(self, prompt: str, images: List[PILImage.Image]) -> (str, List[PILImage.Image]):
         return (prompt + ' result', [ImageOps.invert(img) for img in images])
+
+      @ModelClass.method
+      def g(self, prompt: str, images: List[Image]) -> (str, List[Image]):
+        return (prompt + ' result', [ImageOps.invert(img.to_pil()) for img in images])
 
     sig = dict(MyModel._get_method_info('f').signature)
     del sig['docstring']
@@ -216,6 +220,14 @@ class TestModelCalls(unittest.TestCase):
     testimg1 = PILImage.fromarray(np.ones([50, 50, 3], dtype="uint8"))
     testimg2 = PILImage.fromarray(200 + np.zeros([50, 50, 3], dtype="uint8"))
     result = client.f('prompt', [testimg1, testimg2])
+    assert len(result) == 2
+    (result_prompt, result_images) = result
+    self.assertEqual(result_prompt, 'prompt result')
+    self.assertEqual(len(result_images), 2)
+    self.assertTrue(np.all(result_images[0].to_numpy() == np.asarray(ImageOps.invert(testimg1))))
+    self.assertTrue(np.all(result_images[1].to_numpy() == np.asarray(ImageOps.invert(testimg2))))
+
+    result = client.g('prompt', [Image.from_pil(testimg1), Image.from_pil(testimg2)])
     assert len(result) == 2
     (result_prompt, result_images) = result
     self.assertEqual(result_prompt, 'prompt result')
@@ -986,7 +998,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f_pil(self, x: PILImage) -> PILImage:
+      def f_pil(self, x: PILImage.Image) -> PILImage.Image:
         return ImageOps.invert(x)
 
       @ModelClass.method
@@ -1034,7 +1046,7 @@ class TestModelCalls(unittest.TestCase):
       class MyModel(ModelClass):
 
         @ModelClass.method
-        def f(self, x: Stream[PILImage]) -> Stream[PILImage]:
+        def f(self, x: Stream[PILImage.Image]) -> Stream[PILImage.Image]:
           for i, img in enumerate(x):
             yield ImageOps.invert(img)
 
@@ -1134,7 +1146,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f_pil(self, x: List[PILImage]) -> List[PILImage]:
+      def f_pil(self, x: List[PILImage.Image]) -> List[PILImage.Image]:
         return [ImageOps.invert(i) for i in x]
 
       @ModelClass.method
@@ -1336,6 +1348,45 @@ class TestModelCalls(unittest.TestCase):
         @ModelClass.method
         def f(self, x: NamedFields) -> NamedFields:
           return NamedFields(x=x.x + 1, y=x.y + 1)
+
+  def test_pilimage_pilimageclass_type_error(self):
+
+    with self.assertRaisesRegex(
+        TypeError,
+        "Use the Image class from the PIL.Image module i.e. `PIL.Image.Image`, not the module itself"
+    ):
+
+      class MyModel(ModelClass):
+
+        @ModelClass.method
+        def f(self, x: PILImage) -> PILImage.Image:
+          return ImageOps.invert(x)
+
+  def test_pilimageclass_pilimage_type_error(self):
+
+    with self.assertRaisesRegex(
+        TypeError,
+        "Use the Image class from the PIL.Image module i.e. `PIL.Image.Image`, not the module itself"
+    ):
+
+      class MyModel(ModelClass):
+
+        @ModelClass.method
+        def f(self, x: PILImage.Image) -> PILImage:
+          return ImageOps.invert(x)
+
+  def test_pilimage_pilimage_type__error(self):
+
+    with self.assertRaisesRegex(
+        TypeError,
+        "Use the Image class from the PIL.Image module i.e. `PIL.Image.Image`, not the module itself"
+    ):
+
+      class MyModel(ModelClass):
+
+        @ModelClass.method
+        def f(self, x: PILImage) -> PILImage:
+          return ImageOps.invert(x)
 
   def test_untyped_Tuple_type_error(self):
 

@@ -353,8 +353,13 @@ def _normalize_data_type(tp):
 
   # check for PIL images (sometimes types use the module, sometimes the class)
   # set these to use the Image data handler
-  if tp in (data_types.Image, PIL.Image, PIL.Image.Image):
+  if tp in (data_types.Image, PIL.Image.Image):
     return data_types.Image
+
+  if tp == PIL.Image:
+    raise TypeError(
+        'Use the Image class from the PIL.Image module i.e. `PIL.Image.Image`, not the module itself'
+    )
 
   # check for known data types
   try:
