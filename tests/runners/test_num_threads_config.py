@@ -43,9 +43,9 @@ def test_num_threads(my_tmp_path, num_threads, monkeypatch):
 
   # no num_threads
   if num_threads is None:
-    # default is 1
+    # default is 16
     builder = ModelBuilder(target_folder, validate_api_ids=False)
-    assert builder.config.get("num_threads") == 1
+    assert builder.config.get("num_threads") == 16
     # set by env var if unset in config.yaml
     monkeypatch.setenv("CLARIFAI_NUM_THREADS", "4")
     builder = ModelBuilder(target_folder, validate_api_ids=False)
