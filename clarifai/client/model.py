@@ -832,8 +832,11 @@ class Model(Lister, BaseClient):
         raise UserError(
             "User ID is required for model prediction with deployment ID, please provide user_id in the method call."
         )
+      if not user_id:
+        user_id = os.environ.get('CLARIFAI_USER_ID')
       runner_selector = Deployment.get_runner_selector(
           user_id=user_id, deployment_id=deployment_id)
+
     elif compute_cluster_id and nodepool_id:
       if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
         raise UserError(

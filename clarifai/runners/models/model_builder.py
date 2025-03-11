@@ -622,9 +622,9 @@ class ModelBuilder:
         checkpoint_size = self.DEFAULT_CHECKPOINT_SIZE
       self.storage_request_size += checkpoint_size
 
-    self.maybe_create_model()
+    resp = self.maybe_create_model()
     if not self.check_model_exists():
-      logger.error(f"Failed to create model: {self.model_proto.id}")
+      logger.error(f"Failed to create model: {self.model_proto.id}. Details: {resp}")
       sys.exit(1)
 
     for response in self.client.STUB.PostModelVersionsUpload(
