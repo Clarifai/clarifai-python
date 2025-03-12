@@ -56,7 +56,6 @@ def cli(ctx):
       ctx.invoke(login)
 
 
-
 @cli.command()
 @click.option('--config', type=click.Path(), required=False, help='Path to the config file')
 @click.option(
@@ -115,7 +114,6 @@ def login(ctx, config, env, user_id):
     ctx.obj['base_url'] = set_base_url(ctx.obj['env'])
     os.environ["CLARIFAI_API_BASE"] = ctx.obj['base_url']
     click.echo("Base URL saved successfully.")
-
 
   dump_yaml(ctx.obj, f"{os.getenv('HOME')}/.clarifai/config.yaml")
 
