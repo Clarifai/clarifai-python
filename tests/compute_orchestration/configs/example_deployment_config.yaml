@@ -7,6 +7,7 @@ deployment:
     traffic_history_seconds: 100
     scale_down_delay_seconds: 30
     scale_up_delay_seconds: 30
+    scale_to_zero_delay_seconds: 50
     disable_packing: false
   worker:
     model:
