@@ -475,11 +475,6 @@ def main(model_path,
          keep_env=False,
          keep_image=False):
 
-  if not os.environ.get("CLARIFAI_PAT", None):
-    logger.error(
-        "CLARIFAI_PAT environment variable is not set! Please set your PAT in the 'CLARIFAI_PAT' environment variable."
-    )
-    sys.exit(1)
   manager = ModelRunLocally(model_path)
   # get whatever stage is in config.yaml to force download now
   # also always write to where upload/build wants to, not the /tmp folder that runtime stage uses
@@ -496,16 +491,11 @@ def main(model_path,
     if not manager.docker_image_exists(image_name):
       manager.build_docker_image(image_name=image_name)
     try:
-      envs = {
-          'CLARIFAI_PAT': os.environ['CLARIFAI_PAT'],
-          'CLARIFAI_API_BASE': os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
-      }
       if run_model_server:
         manager.run_docker_container(
-            image_name=image_name, container_name=container_name, port=port, env_vars=envs)
+            image_name=image_name, container_name=container_name, port=port)
       else:
-        manager.test_model_container(
-            image_name=image_name, container_name=container_name, env_vars=envs)
+        manager.test_model_container(image_name=image_name, container_name=container_name)
     finally:
       if manager.container_exists(container_name):
         manager.stop_docker_container(container_name)
