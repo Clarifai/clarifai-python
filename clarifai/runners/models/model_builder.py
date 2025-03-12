@@ -286,8 +286,9 @@ class ModelBuilder:
 
     assert "model_type_id" in model, "model_type_id not found in the config file"
     assert "id" in model, "model_id not found in the config file"
-    assert "user_id" in model, "user_id not found in the config file"
-    assert "app_id" in model, "app_id not found in the config file"
+    if not self.download_validation_only:
+      assert "user_id" in model, "user_id not found in the config file"
+      assert "app_id" in model, "app_id not found in the config file"
 
     model_proto = json_format.ParseDict(model, resources_pb2.Model())
 
