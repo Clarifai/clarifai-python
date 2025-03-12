@@ -2,7 +2,8 @@ import os
 
 import click
 
-from ..utils.cli import dump_yaml, from_yaml, load_command_modules, set_base_url
+from clarifai.utils.cli import dump_yaml, from_yaml, load_command_modules, set_base_url
+from clarifai.utils.logging import logger
 
 
 class CustomMultiGroup(click.Group):
@@ -41,11 +42,19 @@ class CustomMultiGroup(click.Group):
 def cli(ctx):
   """Clarifai CLI"""
   ctx.ensure_object(dict)
-  config_path = 'config.yaml'
+  config_path = f"{os.getenv('HOME')}/.clarifai/config.yaml"
+  config_dir = os.path.dirname(config_path)
   if os.path.exists(config_path):
     ctx.obj = from_yaml(config_path)
   else:
     ctx.obj = {}
+    if ctx.invoked_subcommand != 'login':
+      logger.error("Error getting config: CLI config file missing")
+      logger.info("Running `login` to set up the CLI configuration.")
+      if not os.path.exists(config_dir):
+        os.makedirs(config_dir)
+      ctx.invoke(login)
+
 
 
 @cli.command()
@@ -101,8 +110,14 @@ def login(ctx, config, env, user_id):
     os.environ["CLARIFAI_API_BASE"] = ctx.obj['base_url']
   elif 'CLARIFAI_API_BASE' in os.environ:
     ctx.obj['base_url'] = os.environ["CLARIFAI_API_BASE"]
+  else:
+    ctx.obj['env'] = 'prod'
+    ctx.obj['base_url'] = set_base_url(ctx.obj['env'])
+    os.environ["CLARIFAI_API_BASE"] = ctx.obj['base_url']
+    click.echo("Base URL saved successfully.")
 
-  dump_yaml(ctx.obj, 'config.yaml')
+
+  dump_yaml(ctx.obj, f"{os.getenv('HOME')}/.clarifai/config.yaml")
 
 
 # Import the CLI commands to register them
