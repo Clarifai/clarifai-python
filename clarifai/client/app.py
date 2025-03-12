@@ -629,7 +629,7 @@ class App(Lister, BaseClient):
 
     Args:
         model_id (str): The model ID for the model to interact with.
-        model_version_id (str): The model version ID for the model version to interact with.
+        model_version (Dict): The model version ID for the model version to interact with.
 
     Returns:
         Model: A Model object for the existing model ID.
