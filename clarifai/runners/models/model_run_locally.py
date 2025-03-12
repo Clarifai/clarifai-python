@@ -495,8 +495,7 @@ def main(model_path,
         manager.run_docker_container(
             image_name=image_name, container_name=container_name, port=port)
       else:
-        manager.test_model_container(
-            image_name=image_name, container_name=container_name)
+        manager.test_model_container(image_name=image_name, container_name=container_name)
     finally:
       if manager.container_exists(container_name):
         manager.stop_docker_container(container_name)

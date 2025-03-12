@@ -27,6 +27,7 @@ def dummy_models_path(tmp_path):
 
   return str(target_folder)
 
+
 @pytest.fixture
 def model_run_locally(dummy_models_path):
   """
@@ -89,8 +90,7 @@ def test_docker_build_and_test_container(model_run_locally):
   # Run tests inside the container
   try:
     model_run_locally.test_model_container(
-        image_name=image_name,
-        container_name="test_clarifai_model_container")
+        image_name=image_name, container_name="test_clarifai_model_container")
   except subprocess.CalledProcessError:
     pytest.fail("Failed to test the model inside the docker container.")
   finally:
@@ -135,8 +135,7 @@ def test_hf_docker_build_and_test_container(hf_model_run_locally):
   # Run tests inside the container
   try:
     hf_model_run_locally.test_model_container(
-        image_name=image_name,
-        container_name="test_clarifai_model_container")
+        image_name=image_name, container_name="test_clarifai_model_container")
   except subprocess.CalledProcessError:
     pytest.fail("Failed to test the model inside the docker container.")
   finally:
