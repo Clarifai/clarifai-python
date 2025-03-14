@@ -34,9 +34,47 @@ class MessageData:
     raise TypeError(f'Incompatible type for {self.__class__.__name__}: {python_type}')
 
 
-class NamedFields(dict):
-  __getattr__ = dict.__getitem__
-  __setattr__ = dict.__setitem__
+class NamedFieldsMeta(type):
+  """Metaclass to create NamedFields subclasses with __annotations__ when fields are specified."""
+
+  def __call__(cls, *args, **kwargs):
+    # Check if keyword arguments are types (used in type annotations)
+    if kwargs and all(isinstance(v, type) for v in kwargs.values()):
+      # Dynamically create a subclass with __annotations__
+      name = f"NamedFields({', '.join(f'{k}:{v.__name__}' for k, v in kwargs.items())})"
+      return type(name, (cls,), {'__annotations__': kwargs})
+    else:
+      # Create a normal instance for runtime data
+      return super().__call__(*args, **kwargs)
+
+
+class NamedFields(metaclass=NamedFieldsMeta):
+  """A class that can be used to store named fields with values."""
+
+  def __init__(self, **kwargs):
+    for key, value in kwargs.items():
+      setattr(self, key, value)
+
+  def items(self):
+    return self.__dict__.items()
+
+  def keys(self):
+    return self.__dict__.keys()
+
+  def values(self):
+    return self.__dict__.values()
+
+  def __contains__(self, key):
+    return key in self.__dict__
+
+  def __getitem__(self, key):
+    return getattr(self, key)
+
+  def __setitem__(self, key, value):
+    setattr(self, key, value)
+
+  def __repr__(self):
+    return f"{self.__class__.__name__}({', '.join(f'{key}={value!r}' for key, value in self.__dict__.items())})"
 
   def __origin__(self):
     return self
@@ -381,6 +419,9 @@ def cast(value, python_type):
   if list_type and isinstance(value, np.ndarray):
     return value.tolist()
   if list_type and isinstance(value, list):
-    inner_type = get_args(python_type)[0]
-    return [cast(item, inner_type) for item in value]
+    if get_args(python_type):
+      inner_type = get_args(python_type)[0]
+      return [cast(item, inner_type) for item in value]
+    if not isinstance(value, Iterable):
+      raise TypeError(f'Expected list, got {type(value)}')
   return value

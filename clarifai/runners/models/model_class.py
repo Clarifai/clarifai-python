@@ -27,8 +27,8 @@ class ModelClass(ABC):
 
   Example:
 
-    from clarifai.runners.model_class import ModelClass, methods
-    from clarifai.runners.utils.data_types import Input, Stream
+    from clarifai.runners.model_class import ModelClass
+    from clarifai.runners.utils.data_types import NamedFields, Stream
 
     class MyModel(ModelClass):
 
@@ -42,7 +42,7 @@ class ModelClass(ABC):
           yield x + str(i)
 
       @ModelClass.method
-      def stream(self, input_stream: Stream[Input(x=str, y=int)]) -> Stream[str]:
+      def stream(self, input_stream: Stream[NamedFields(x=str, y=int)]) -> Stream[str]:
         for item in input_stream:
           yield item.x + ' ' + str(item.y)
   '''

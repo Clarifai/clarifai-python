@@ -12,9 +12,9 @@ from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.message import Message as MessageProto
 
 from clarifai.runners.utils import data_types
-from clarifai.runners.utils.serializers import (AtomicFieldSerializer, ListSerializer,
-                                                MessageSerializer, NamedFieldsSerializer,
-                                                NDArraySerializer, Serializer, TupleSerializer)
+from clarifai.runners.utils.serializers import (
+    AtomicFieldSerializer, JSONSerializer, ListSerializer, MessageSerializer,
+    NamedFieldsSerializer, NDArraySerializer, Serializer, TupleSerializer)
 
 
 def build_function_signature(func):
@@ -112,7 +112,7 @@ def build_variable_signature(name, annotation, default=inspect.Parameter.empty, 
   if not is_output:
     sig.required = (default is inspect.Parameter.empty)
     if not sig.required:
-      sig.default = default
+      sig.default = str(default)
 
   return sig, type, streaming
 
@@ -120,13 +120,24 @@ def build_variable_signature(name, annotation, default=inspect.Parameter.empty, 
 def _fill_signature_type(sig, tp):
   try:
     if tp in _DATA_TYPES:
-      sig.data_type = _DATA_TYPES[tp].data_type
+      sig.type = _DATA_TYPES[tp].type
       return
   except TypeError:
     pass  # not hashable type
 
+  # Check for dynamically generated NamedFields subclasses (from type annotations)
+  if inspect.isclass(tp) and issubclass(tp, data_types.NamedFields) and hasattr(
+      tp, '__annotations__'):
+    sig.type = DataType.NAMED_FIELDS
+    for name, inner_type in tp.__annotations__.items():
+      inner_sig = _VariableSignature()
+      inner_sig.name = name
+      _fill_signature_type(inner_sig, inner_type)
+      sig.type_args.append(inner_sig)
+    return
+
   if isinstance(tp, data_types.NamedFields):
-    sig.data_type = DataType.NAMED_FIELDS
+    sig.type = DataType.NAMED_FIELDS
     for name, inner_type in tp.items():
       # inner_sig = sig.type_args.add()
       sig.type_args.append(inner_sig := _VariableSignature())
@@ -135,7 +146,7 @@ def _fill_signature_type(sig, tp):
     return
 
   if get_origin(tp) == tuple:
-    sig.data_type = DataType.TUPLE
+    sig.type = DataType.TUPLE
     for inner_type in get_args(tp):
       #inner_sig = sig.type_args.add()
       sig.type_args.append(inner_sig := _VariableSignature())
@@ -143,7 +154,7 @@ def _fill_signature_type(sig, tp):
     return
 
   if get_origin(tp) == list:
-    sig.data_type = DataType.LIST
+    sig.type = DataType.LIST
     inner_type = get_args(tp)[0]
     #inner_sig = sig.type_args.add()
     sig.type_args.append(inner_sig := _VariableSignature())
@@ -157,23 +168,25 @@ def serializer_from_signature(signature):
   '''
     Get the serializer for the given signature.
     '''
-  if signature.data_type in _SERIALIZERS_BY_TYPE_ENUM:
-    return _SERIALIZERS_BY_TYPE_ENUM[signature.data_type]
-  if signature.data_type == DataType.LIST:
+  if signature.type in _SERIALIZERS_BY_TYPE_ENUM:
+    return _SERIALIZERS_BY_TYPE_ENUM[signature.type]
+  if signature.type == DataType.LIST:
     return ListSerializer(serializer_from_signature(signature.type_args[0]))
-  if signature.data_type == DataType.TUPLE:
+  if signature.type == DataType.TUPLE:
     return TupleSerializer([serializer_from_signature(sig) for sig in signature.type_args])
-  if signature.data_type == DataType.NAMED_FIELDS:
+  if signature.type == DataType.NAMED_FIELDS:
     return NamedFieldsSerializer(
         {sig.name: serializer_from_signature(sig)
          for sig in signature.type_args})
-  raise ValueError(f'Unsupported type: {signature.data_type}')
+  raise ValueError(f'Unsupported type: {signature.type}')
 
 
 def signatures_to_json(signatures):
   assert isinstance(
       signatures, dict), 'Expected dict of signatures {name: signature}, got %s' % type(signatures)
-  return json.dumps(signatures, default=repr)
+  # TODO change to proto when ready
+  #signatures = {name: MessageToDict(sig) for name, sig in signatures.items()}
+  return json.dumps(signatures)
 
 
 def signatures_from_json(json_str):
@@ -184,7 +197,15 @@ def signatures_from_json(json_str):
 def signatures_to_yaml(signatures):
   # XXX go in/out of json to get the correct format and python dict types
   d = json.loads(signatures_to_json(signatures))
-  return yaml.dump(d, default_flow_style=False)
+
+  def _filter_empty(d):
+    if isinstance(d, (list, tuple)):
+      return [_filter_empty(v) for v in d if v]
+    if isinstance(d, dict):
+      return {k: _filter_empty(v) for k, v in d.items() if v}
+    return d
+
+  return yaml.dump(_filter_empty(d), default_flow_style=False)
 
 
 def signatures_from_yaml(yaml_str):
@@ -209,7 +230,7 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
       len(kwargs) == 1 and 'return' in kwargs):
     # if there is only one output, flatten it and return directly
     inline_first_value = True
-  if signatures and signatures[0].data_type not in _NON_INLINABLE_TYPES:
+  if signatures and signatures[0].type not in _NON_INLINABLE_TYPES:
     inline_first_value = True
   for sig_i, sig in enumerate(signatures):
     if sig.name not in kwargs:
@@ -295,13 +316,33 @@ def _normalize_type(tp):
 
 
 def _normalize_data_type(tp):
-  # check if list, and if so, get inner type
-  if get_origin(tp) == list:
-    tp = get_args(tp)[0]
-    return List[_normalize_data_type(tp)]
+
+  # jsonable list and dict, these can be serialized as json
+  # (tuple we want to keep as a tuple for args and returns, so don't include here)
+  if tp in (list, dict) or (get_origin(tp) in (list, dict) and _is_jsonable(tp)):
+    return data_types.JSON
+
+  # container types that need to be serialized as parts
+  if get_origin(tp) == list and get_args(tp):
+    return List[_normalize_data_type(get_args(tp)[0])]
+
+  if get_origin(tp) == tuple:
+    if not get_args(tp):
+      raise TypeError('Tuple must have types specified')
+    return Tuple[tuple(_normalize_data_type(val) for val in get_args(tp))]
 
   if isinstance(tp, (tuple, list)):
     return Tuple[tuple(_normalize_data_type(val) for val in tp)]
+
+  if tp == data_types.NamedFields:
+    raise TypeError('NamedFields must have types specified')
+
+  # Handle dynamically generated NamedFields subclasses with annotations
+  if isinstance(tp, type) and issubclass(tp, data_types.NamedFields) and hasattr(
+      tp, '__annotations__'):
+    return data_types.NamedFields(
+        **{k: _normalize_data_type(v)
+           for k, v in tp.__annotations__.items()})
 
   if isinstance(tp, (dict, data_types.NamedFields)):
     return data_types.NamedFields(**{name: _normalize_data_type(val) for name, val in tp.items()})
@@ -312,15 +353,13 @@ def _normalize_data_type(tp):
 
   # check for PIL images (sometimes types use the module, sometimes the class)
   # set these to use the Image data handler
-  if tp in (data_types.Image, PIL.Image, PIL.Image.Image):
+  if tp in (data_types.Image, PIL.Image.Image):
     return data_types.Image
 
-  # check for jsonable types
-  # TODO should we include dict vs list in the data type somehow?
-  if tp == dict or (get_origin(tp) == dict and tp not in _DATA_TYPES and _is_jsonable(tp)):
-    return data_types.JSON
-  if tp == list or (get_origin(tp) == list and tp not in _DATA_TYPES and _is_jsonable(tp)):
-    return data_types.JSON
+  if tp == PIL.Image:
+    raise TypeError(
+        'Use the Image class from the PIL.Image module i.e. `PIL.Image.Image`, not the module itself'
+    )
 
   # check for known data types
   try:
@@ -335,9 +374,7 @@ def _normalize_data_type(tp):
 def _is_jsonable(tp):
   if tp in (dict, list, tuple, str, int, float, bool, type(None)):
     return True
-  if get_origin(tp) == list:
-    return _is_jsonable(get_args(tp)[0])
-  if get_origin(tp) == dict:
+  if get_origin(tp) in (tuple, list, dict):
     return all(_is_jsonable(val) for val in get_args(tp))
   return False
 
@@ -361,10 +398,10 @@ class _VariableSignature(_SignatureDict):
     self.description = ''
 
 
-# data_type: name of the data type
+# type: name of the data type
 # data_field: name of the field in the data proto
 # serializer: serializer for the data type
-_DataType = namedtuple('_DataType', ('data_type', 'serializer'))
+_DataType = namedtuple('_DataType', ('type', 'serializer'))
 
 
 # this will come from the proto module, but for now, define it here
@@ -409,6 +446,9 @@ _DATA_TYPES = {
         _DataType(DataType.BOOL, AtomicFieldSerializer('bool_value')),
     np.ndarray:
         _DataType(DataType.NDARRAY, NDArraySerializer('ndarray')),
+    data_types.JSON:
+        _DataType(DataType.JSON, JSONSerializer('string_value')
+                 ),  # TODO change to json_value when new proto is ready
     data_types.Text:
         _DataType(DataType.TEXT, MessageSerializer('text', data_types.Text)),
     data_types.Image:
@@ -425,7 +465,7 @@ _DATA_TYPES = {
         _DataType(DataType.VIDEO, MessageSerializer('video', data_types.Video)),
 }
 
-_SERIALIZERS_BY_TYPE_ENUM = {dt.data_type: dt.serializer for dt in _DATA_TYPES.values()}
+_SERIALIZERS_BY_TYPE_ENUM = {dt.type: dt.serializer for dt in _DATA_TYPES.values()}
 
 
 class CompatibilitySerializer(Serializer):

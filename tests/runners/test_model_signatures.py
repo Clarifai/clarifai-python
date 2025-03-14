@@ -2,9 +2,10 @@ import functools
 import os
 import sys
 import unittest
-from typing import List
+from typing import Dict, List, Tuple
 
 import numpy as np
+from clarifai_grpc.grpc.api import resources_pb2
 from PIL import Image as PILImage
 from PIL import ImageOps
 
@@ -12,9 +13,11 @@ from clarifai.client.model_client import ModelClient
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.models.model_servicer import ModelServicer
 from clarifai.runners.utils.data_types import Concept, Image, NamedFields, Stream, Text
+from clarifai.runners.utils.method_signatures import deserialize, serialize
 
 _ENABLE_PPRINT = os.getenv("PRINT", "false").lower() in ("true", "1")
 _ENABLE_PDB = os.getenv("PDB", "false").lower() in ("true", "1")
+_USE_SERVER = os.getenv("USE_SERVER", "false").lower() in ("true", "1")
 
 if _ENABLE_PPRINT:
   from pprint import pprint
@@ -141,7 +144,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, x: PILImage) -> str:
+      def f(self, x: PILImage.Image) -> str:
         return str(x.size)
 
     sig = dict(MyModel._get_method_info('f').signature)
@@ -159,7 +162,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, x: str) -> PILImage:
+      def f(self, x: str) -> PILImage.Image:
         return PILImage.fromarray(np.ones([10, 10, 3], dtype="uint8"))
 
     sig = dict(MyModel._get_method_info('f').signature)
@@ -176,7 +179,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, x: PILImage) -> List[Concept]:
+      def f(self, x: PILImage.Image) -> List[Concept]:
         return [Concept('a', 0.9), Concept('b', 0.1)]
 
     sig = dict(MyModel._get_method_info('f').signature)
@@ -194,15 +197,16 @@ class TestModelCalls(unittest.TestCase):
     self.assertTrue(np.allclose(result[1].value, 0.1))
 
   def test_str_ListImage__str_ListImage(self):
-    # skip if python version is below 3.11: can't use List[Image] in signature for <=3.10
-    if sys.version_info < (3, 11):
-      self.skipTest("python < 3.11 does not support using regular classes in generics")
 
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, prompt: str, images: List[PILImage]) -> (str, List[PILImage]):
+      def f(self, prompt: str, images: List[PILImage.Image]) -> (str, List[PILImage.Image]):
         return (prompt + ' result', [ImageOps.invert(img) for img in images])
+
+      @ModelClass.method
+      def g(self, prompt: str, images: List[Image]) -> (str, List[Image]):
+        return (prompt + ' result', [ImageOps.invert(img.to_pil()) for img in images])
 
     sig = dict(MyModel._get_method_info('f').signature)
     del sig['docstring']
@@ -213,6 +217,14 @@ class TestModelCalls(unittest.TestCase):
     testimg1 = PILImage.fromarray(np.ones([50, 50, 3], dtype="uint8"))
     testimg2 = PILImage.fromarray(200 + np.zeros([50, 50, 3], dtype="uint8"))
     result = client.f('prompt', [testimg1, testimg2])
+    assert len(result) == 2
+    (result_prompt, result_images) = result
+    self.assertEqual(result_prompt, 'prompt result')
+    self.assertEqual(len(result_images), 2)
+    self.assertTrue(np.all(result_images[0].to_numpy() == np.asarray(ImageOps.invert(testimg1))))
+    self.assertTrue(np.all(result_images[1].to_numpy() == np.asarray(ImageOps.invert(testimg2))))
+
+    result = client.g('prompt', [Image.from_pil(testimg1), Image.from_pil(testimg2)])
     assert len(result) == 2
     (result_prompt, result_images) = result
     self.assertEqual(result_prompt, 'prompt result')
@@ -983,7 +995,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f_pil(self, x: PILImage) -> PILImage:
+      def f_pil(self, x: PILImage.Image) -> PILImage.Image:
         return ImageOps.invert(x)
 
       @ModelClass.method
@@ -1031,7 +1043,7 @@ class TestModelCalls(unittest.TestCase):
       class MyModel(ModelClass):
 
         @ModelClass.method
-        def f(self, x: Stream[PILImage]) -> Stream[PILImage]:
+        def f(self, x: Stream[PILImage.Image]) -> Stream[PILImage.Image]:
           for i, img in enumerate(x):
             yield ImageOps.invert(img)
 
@@ -1131,12 +1143,16 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f_pil(self, x: List[PILImage]) -> List[PILImage]:
+      def f_pil(self, x: List[PILImage.Image]) -> List[PILImage.Image]:
         return [ImageOps.invert(i) for i in x]
 
       @ModelClass.method
       def f_datatype(self, x: List[Image]) -> List[Image]:
         return [ImageOps.invert(i.to_pil()) for i in x]
+
+      @ModelClass.method
+      def f_pil_image(self, x: List[PILImage.Image]) -> List[PILImage.Image]:
+        return [ImageOps.invert(i) for i in x]
 
     client = _get_servicer_client(MyModel())
 
@@ -1144,6 +1160,11 @@ class TestModelCalls(unittest.TestCase):
     testimg2 = PILImage.fromarray(200 + np.zeros([50, 50, 3], dtype="uint8"))
 
     result = client.f_pil([testimg1, testimg2])
+    self.assertEqual(len(result), 2)
+    self.assertTrue(np.all(result[0].to_numpy() == np.asarray(ImageOps.invert(testimg1))))
+    self.assertTrue(np.all(result[1].to_numpy() == np.asarray(ImageOps.invert(testimg2))))
+
+    result = client.f_pil_image([testimg1, testimg2])
     self.assertEqual(len(result), 2)
     self.assertTrue(np.all(result[0].to_numpy() == np.asarray(ImageOps.invert(testimg1))))
     self.assertTrue(np.all(result[1].to_numpy() == np.asarray(ImageOps.invert(testimg2))))
@@ -1177,10 +1198,382 @@ class TestModelCalls(unittest.TestCase):
     with self.assertRaises(TypeError):
       client.f_datatype(y=[testimg1, testimg2])
 
+  def test_ListListNamedFieldsImagestrint_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: List[List[NamedFields(x=str,
+                                           y=int)]]) -> List[List[NamedFields(x=str, y=int)]]:
+        return [[NamedFields(x=xi.x + '1', y=xi.y + 1) for xi in xj] for xj in x]
+
+      @ModelClass.method
+      def g(self, input: List[List[NamedFields(fld1=str, fld2=int)]]) -> str:
+        return ''.join([str(i.fld2) + i.fld1 for j in input for i in j])
+
+    client = _get_servicer_client(MyModel())
+
+    result = client.f([[
+        NamedFields(x='a', y=1),
+        NamedFields(x='b', y=2),
+    ], [
+        NamedFields(x='x', y=3),
+        NamedFields(x='y', y=4),
+    ]])
+    self.assertEqual(len(result), 2)
+    self.assertEqual(len(result[0]), 2)
+    self.assertEqual(len(result[1]), 2)
+    self.assertEqual(result[0][0].x, 'a1')
+    self.assertEqual(result[0][0].y, 2)
+    self.assertEqual(result[0][1].x, 'b1')
+    self.assertEqual(result[0][1].y, 3)
+    self.assertEqual(result[1][0].x, 'x1')
+    self.assertEqual(result[1][0].y, 4)
+    self.assertEqual(result[1][1].x, 'y1')
+    self.assertEqual(result[1][1].y, 5)
+
+    result = client.g([[NamedFields(fld1='a', fld2=1),
+                        NamedFields(fld1='b', fld2=2)],
+                       [NamedFields(fld1='x', fld2=3),
+                        NamedFields(fld1='y', fld2=4)]])
+    self.assertEqual(result, '1a2b3x4y')
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(3)
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=[[
+          NamedFields(x='a', y=1),
+      ]])
+
+    with self.assertRaises(TypeError):
+      client.f([[
+          NamedFields(x='a', y='stringvalue'),
+      ]])
+
+  def test_NamedFields_List_str_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: NamedFields(x=List[str], y=str)) -> NamedFields(x=List[str], y=str):
+        return NamedFields(x=[xi + '1' for xi in x.x], y=x.y + '1')
+
+    client = _get_servicer_client(MyModel())
+
+    result = client.f(NamedFields(x=['1', '2', '3'], y='a'))
+    self.assertEqual(result.x, ['11', '21', '31'])
+    self.assertEqual(result.y, 'a1')
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(3)
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=NamedFields(x=['1', '2', '3'], y='a'))
+
+    with self.assertRaises(TypeError):
+      client.f(NamedFields(x=['1', '2', '3'], y=3))
+
+  def test_untyped_list_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: List) -> List:
+        return [i + 1 for i in x]
+
+      @ModelClass.method
+      def g(self, x: list) -> list:
+        return [i + 1 for i in x]
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f([1, 2, 3]), [2, 3, 4])
+    self.assertEqual(client.f([]), [])
+    self.assertEqual(client.f([0]), [1])
+
+    self.assertEqual(client.g([1, 2, 3]), [2, 3, 4])
+    self.assertEqual(client.g([]), [])
+    self.assertEqual(client.g([0]), [1])
+
+  def test_Dict_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: Dict[str, int]) -> Dict[str, int]:
+        return {k: v + 1 for k, v in x.items()}
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f({'a': 1, 'b': 2, 'c': 3}), {'a': 2, 'b': 3, 'c': 4})
+    self.assertEqual(client.f({}), {})
+    self.assertEqual(client.f({'a': 0}), {'a': 1})
+
+  def test_untyped_dict_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: Dict) -> Dict:
+        return {k: v + 1 for k, v in x.items()}
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f({'a': 1, 'b': 2, 'c': 3}), {'a': 2, 'b': 3, 'c': 4})
+    self.assertEqual(client.f({}), {})
+    self.assertEqual(client.f({'a': 0}), {'a': 1})
+
+  def test_untyped_NamedFields_type_error(self):
+
+    with self.assertRaisesRegex(TypeError, "NamedFields must have types specified"):
+
+      class MyModel(ModelClass):
+
+        @ModelClass.method
+        def f(self, x: NamedFields) -> NamedFields:
+          return NamedFields(x=x.x + 1, y=x.y + 1)
+
+  def test_pilimage_pilimageclass_type_error(self):
+
+    with self.assertRaisesRegex(
+        TypeError,
+        "Use the Image class from the PIL.Image module i.e. `PIL.Image.Image`, not the module itself"
+    ):
+
+      class MyModel(ModelClass):
+
+        @ModelClass.method
+        def f(self, x: PILImage) -> PILImage.Image:
+          return ImageOps.invert(x)
+
+  def test_pilimageclass_pilimage_type_error(self):
+
+    with self.assertRaisesRegex(
+        TypeError,
+        "Use the Image class from the PIL.Image module i.e. `PIL.Image.Image`, not the module itself"
+    ):
+
+      class MyModel(ModelClass):
+
+        @ModelClass.method
+        def f(self, x: PILImage.Image) -> PILImage:
+          return ImageOps.invert(x)
+
+  def test_pilimage_pilimage_type__error(self):
+
+    with self.assertRaisesRegex(
+        TypeError,
+        "Use the Image class from the PIL.Image module i.e. `PIL.Image.Image`, not the module itself"
+    ):
+
+      class MyModel(ModelClass):
+
+        @ModelClass.method
+        def f(self, x: PILImage) -> PILImage:
+          return ImageOps.invert(x)
+
+  def test_untyped_Tuple_type_error(self):
+
+    with self.assertRaisesRegex(TypeError, "Tuple must have types specified"):
+
+      class MyModel(ModelClass):
+
+        @ModelClass.method
+        def f(self, x: Tuple) -> Tuple:
+          return x[0] + 1, x[1] + 1
+
+  def test_complex_dict_values(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: Dict[str, List[int]]) -> Dict[str, List[int]]:
+        return {k: [v[0] + 1] for k, v in x.items()}
+
+      @ModelClass.method
+      def g(self, x: dict) -> dict:
+        return {k: [v[0] + 1] for k, v in x.items()}
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f({'a': [1, 2, 3], 'b': [4, 5, 6]}), {'a': [2], 'b': [5]})
+    self.assertEqual(client.f({}), {})
+    self.assertEqual(client.f({'a': [0]}), {'a': [1]})
+
+    self.assertEqual(client.g({'a': [1, 2, 3], 'b': [4, 5, 6]}), {'a': [2], 'b': [5]})
+    self.assertEqual(client.g({}), {})
+    self.assertEqual(client.g({'a': [0]}), {'a': [1]})
+
+  def test_tuple_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: Tuple[int, str]) -> Tuple[int, str]:
+        return x[0] + 1, x[1] + '1'
+
+      @ModelClass.method
+      def g(self, x: (int, str)) -> (int, str):
+        return x[0] + 1, x[1] + '1'
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f((1, 'a')), (2, 'a1'))
+    self.assertEqual(client.f((0, '')), (1, '1'))
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(3)
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=(1, 'a'))
+
+    with self.assertRaises(TypeError):
+      client.f((1, 2))
+
+    self.assertEqual(client.g((1, 'a')), (2, 'a1'))
+    self.assertEqual(client.g((0, '')), (1, '1'))
+
+    with self.assertRaises(TypeError):
+      client.g('abc')
+
+
+class TestSerialization(unittest.TestCase):
+
+  def test_basic_serialize_deserialize(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: int) -> int:
+        return x + 1
+
+    _get_servicer_client(MyModel())
+
+    signature = MyModel._get_method_info('f').signature
+
+    kwargs = {'x': 5}
+    proto = resources_pb2.Data()
+    serialize(kwargs, signature.inputs, proto)
+    deserialized_kwargs = deserialize(proto, signature.inputs)
+    self.assertEqual(kwargs, deserialized_kwargs)
+
+  def test_Image_one_input_not_in_parts(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: Image) -> Image:
+        return x
+
+    _get_servicer_client(MyModel())
+
+    signature = MyModel._get_method_info('f').signature
+
+    testimg = PILImage.fromarray(np.ones([50, 50, 3], dtype="uint8"))
+
+    kwargs = {'x': testimg}
+    proto = resources_pb2.Data()
+    serialize(kwargs, signature.inputs, proto)
+
+    self.assertTrue(len(proto.parts) == 0)
+    self.assertTrue(proto.HasField('image'))
+
+  def test_ListConcept_output_is_repeated_field(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: List[Concept]) -> List[Concept]:
+        return x
+
+    _get_servicer_client(MyModel())
+
+    signature = MyModel._get_method_info('f').signature
+
+    kwargs = {'x': [Concept('testconcept', 0.9), Concept('testconcept2', 0.8)]}
+
+    proto = resources_pb2.Data()
+    serialize(kwargs, signature.inputs, proto)
+
+    # input list uses parts[x], then repeated concepts
+    # also would be ok to put in data.concepts
+    self.assertTrue(len(proto.parts) == 1)
+    self.assertTrue(proto.parts[0].id == 'x')
+    self.assertTrue(len(proto.parts[0].data.concepts) == 2)
+
+    return_value = {'return': kwargs['x']}
+    proto = resources_pb2.Data()
+    serialize(return_value, signature.outputs, proto, is_output=True)
+
+    self.assertTrue(len(proto.parts) == 0)
+    self.assertTrue(len(proto.concepts) == 2)
+
+  def test_default_image_first_arg_not_set(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: Image = None) -> str:
+        return 'a' if x is None else 'b'
+
+    client = _get_servicer_client(MyModel())
+
+    testimg = PILImage.fromarray(np.ones([50, 50, 3], dtype="uint8"))
+
+    result = client.f()
+    self.assertEqual(result, 'a')
+
+    result = client.f(x=testimg)
+    self.assertEqual(result, 'b')
+
 
 def _get_servicer_client(model):
   servicer = ModelServicer(model)
-  client = ModelClient(servicer)
+
+  if _USE_SERVER:
+    from concurrent import futures
+
+    import grpc
+    from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
+    from clarifai_grpc.grpc.api import service_pb2_grpc
+    port = 50051
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    service_pb2_grpc.add_V2Servicer_to_server(servicer, server)
+    server.add_insecure_port(f'[::]:{port}')
+    server.start()
+    channel = ClarifaiChannel.get_insecure_grpc_channel(base='localhost', port=port)
+    stub = service_pb2_grpc.V2Stub(channel)
+    client = ModelClient(stub)
+
+    def _stop():
+      server.stop(0)
+      channel.close()
+      server.wait_for_termination()
+
+    client.__del__ = _stop
+  else:
+    # call the servicer directly
+    client = ModelClient(servicer)
+
   return client
 
 

@@ -1,11 +1,10 @@
 import os
-from typing import Iterator
 
 import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 from clarifai.runners.models.model_class import ModelClass
-from clarifai.runners.utils.data_types import Output
+from clarifai.runners.utils.data_types import Stream
 
 
 class MyModel(ModelClass):
@@ -22,19 +21,19 @@ class MyModel(ModelClass):
     self.model = AutoModelForSeq2SeqLM.from_pretrained(
         checkpoints, torch_dtype="auto", device_map=self.device)
 
-  def predict(self, prompt: str = "") -> Output:
+  def predict(self, prompt: str = "") -> str:
     """This is the method that will be called when the runner is run. It takes in an input and
     returns an output.
     """
     inputs = self.tokenizer.encode(prompt, return_tensors="pt").to(self.device)
     outputs = self.model.generate(inputs)
     output_text = self.tokenizer.decode(outputs[0])
-    return Output(text=output_text)
+    return output_text
 
-  def generate(self, prompt: str = "") -> Iterator[Output]:
+  def generate(self, prompt: str = "") -> Stream[str]:
     """Example yielding a whole batch of streamed stuff back."""
     raise NotImplementedError("This method is not implemented yet.")
 
-  def stream(self, input_iterator) -> Iterator[Output]:
+  def stream(self, input_iterator: Stream[str]) -> Stream[str]:
     """Example yielding a whole batch of streamed stuff back."""
     pass

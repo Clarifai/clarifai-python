@@ -81,8 +81,10 @@ class ModelClient:
         time.sleep(next(backoff_iterator))
         continue
       break
-    if response.status.code == status_code_pb2.INPUT_UNSUPPORTED_FORMAT:
-      # return code from older models that don't support _GET_SIGNATURES
+    if (response.status.code == status_code_pb2.INPUT_UNSUPPORTED_FORMAT or
+        (response.status.code == status_code_pb2.SUCCESS and
+         response.outputs[0].data.text.raw == '')):
+      # return codes/values from older models that don't support _GET_SIGNATURES
       self._method_signatures = {}
       self._define_compatability_functions()
       return

@@ -195,7 +195,7 @@ class NamedFieldsSerializer(Serializer):
   def serialize(self, data_proto, value):
     for name, serializer in self.named_field_serializers.items():
       if name not in value:
-        raise KeyError(f"Missing field {name}")
+        raise TypeError(f"Missing field {name}")
       part = self._get_part(data_proto, name, add=True)
       serializer.serialize(part.data, value[name])
 
@@ -216,7 +216,7 @@ class NamedFieldsSerializer(Serializer):
       part = data_proto.parts.add()
       part.id = name
       return part
-    raise KeyError(f"Missing part with key {name}")
+    raise TypeError(f"Missing part with key {name}")
 
 
 # TODO dict serializer, maybe json only?
