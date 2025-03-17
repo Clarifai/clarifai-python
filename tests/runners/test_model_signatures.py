@@ -1115,6 +1115,20 @@ class TestModelCalls(unittest.TestCase):
     self.assertEqual(client.f([]), [])
     self.assertEqual(client.f([0]), [1])
 
+  def test_List_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: List) -> List:
+        return [i + 1 for i in x]
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f([1, 2, 3]), [2, 3, 4])
+    self.assertEqual(client.f([]), [])
+    self.assertEqual(client.f([0]), [1])
+
   def test_List_str_type(self):
 
     class MyModel(ModelClass):
@@ -1128,6 +1142,19 @@ class TestModelCalls(unittest.TestCase):
     self.assertEqual(client.f(['1', '2', '3']), ['11', '21', '31'])
     self.assertEqual(client.f([]), [])
     self.assertEqual(client.f(['']), ['1'])
+
+  def test_str_List_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: str) -> List:
+        return [i + '1' for i in x]
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f('123'), ['11', '21', '31'])
+    self.assertEqual(client.f(''), [])
 
   def test_List_str_type_with_str_param(self):
 
