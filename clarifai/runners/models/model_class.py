@@ -94,15 +94,17 @@ class ModelClass(ABC):
       method_info = method._cf_method_info
       signature = method_info.signature
       python_param_types = method_info.python_param_types
-      inputs = self._convert_input_protos_to_python(request.inputs, signature.inputs,
+      inputs = self._convert_input_protos_to_python(request.inputs, signature.input_fields,
                                                     python_param_types)
       if len(inputs) == 1:
         inputs = inputs[0]
         output = method(**inputs)
-        outputs.append(self._convert_output_to_proto(output, signature.outputs))
+        outputs.append(self._convert_output_to_proto(output, signature.output_fields))
       else:
         outputs = self._batch_predict(method, inputs)
-        outputs = [self._convert_output_to_proto(output, signature.outputs) for output in outputs]
+        outputs = [
+            self._convert_output_to_proto(output, signature.output_fields) for output in outputs
+        ]
 
       return service_pb2.MultiOutputResponse(
           outputs=outputs, status=status_pb2.Status(code=status_code_pb2.SUCCESS))
@@ -126,20 +128,21 @@ class ModelClass(ABC):
       signature = method_info.signature
       python_param_types = method_info.python_param_types
 
-      inputs = self._convert_input_protos_to_python(request.inputs, signature.inputs,
+      inputs = self._convert_input_protos_to_python(request.inputs, signature.input_fields,
                                                     python_param_types)
       if len(inputs) == 1:
         inputs = inputs[0]
         for output in method(**inputs):
           resp = service_pb2.MultiOutputResponse()
-          self._convert_output_to_proto(output, signature.outputs, proto=resp.outputs.add())
+          self._convert_output_to_proto(output, signature.output_fields, proto=resp.outputs.add())
           resp.status.code = status_code_pb2.SUCCESS
           yield resp
       else:
         for outputs in self._batch_generate(method, inputs):
           resp = service_pb2.MultiOutputResponse()
           for output in outputs:
-            self._convert_output_to_proto(output, signature.outputs, proto=resp.outputs.add())
+            self._convert_output_to_proto(
+                output, signature.output_fields, proto=resp.outputs.add())
           resp.status.code = status_code_pb2.SUCCESS
           yield resp
     except Exception as e:
@@ -166,13 +169,13 @@ class ModelClass(ABC):
       python_param_types = method_info.python_param_types
 
       # find the streaming vars in the signature
-      stream_sig = get_stream_from_signature(signature.inputs)
+      stream_sig = get_stream_from_signature(signature.input_fields)
       if stream_sig is None:
         raise ValueError("Streaming method must have a Stream input")
       stream_argname = stream_sig.name
 
       # convert all inputs for the first request, including the first stream value
-      inputs = self._convert_input_protos_to_python(request.inputs, signature.inputs,
+      inputs = self._convert_input_protos_to_python(request.inputs, signature.input_fields,
                                                     python_param_types)
       kwargs = inputs[0]
 
@@ -184,7 +187,7 @@ class ModelClass(ABC):
         yield first_item
         # subsequent streaming items contain only the streaming input
         for request in request_iterator:
-          item = self._convert_input_protos_to_python(request.inputs, stream_sig,
+          item = self._convert_input_protos_to_python(request.inputs, [stream_sig],
                                                       python_param_types)
           item = item[0][stream_argname]
           yield item
@@ -194,7 +197,7 @@ class ModelClass(ABC):
 
       for output in method(**kwargs):
         resp = service_pb2.MultiOutputResponse()
-        self._convert_output_to_proto(output, signature.outputs, proto=resp.outputs.add())
+        self._convert_output_to_proto(output, signature.output_fields, proto=resp.outputs.add())
         resp.status.code = status_code_pb2.SUCCESS
         yield resp
     except Exception as e:
@@ -206,7 +209,8 @@ class ModelClass(ABC):
           details=str(e),
           stack_trace=traceback.format_exc().split('\n')))
 
-  def _convert_input_protos_to_python(self, inputs: List[resources_pb2.Input], variables_signature,
+  def _convert_input_protos_to_python(self, inputs: List[resources_pb2.Input],
+                                      variables_signature: List[resources_pb2.ModelTypeField],
                                       python_param_types) -> List[Dict[str, Any]]:
     result = []
     for input in inputs:
@@ -219,7 +223,9 @@ class ModelClass(ABC):
       result.append(kwargs)
     return result
 
-  def _convert_output_to_proto(self, output: Any, variables_signature,
+  def _convert_output_to_proto(self,
+                               output: Any,
+                               variables_signature: List[resources_pb2.ModelTypeField],
                                proto=None) -> resources_pb2.Output:
     if proto is None:
       proto = resources_pb2.Output()

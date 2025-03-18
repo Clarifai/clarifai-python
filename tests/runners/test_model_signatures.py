@@ -72,10 +72,6 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: int) -> int:
         return 2 * x
 
-    #sig = dict(MyModel._get_method_info('f').signature)
-    #del sig['docstring']
-    ##self.assertEqual(sig)
-
     # test call
     client = _get_servicer_client(MyModel())
     result = client.f(5)
@@ -88,10 +84,6 @@ class TestModelCalls(unittest.TestCase):
       @ModelClass.method
       def f(self, x: str, y: str) -> str:
         return x + y
-
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
 
     # test calls
     client = _get_servicer_client(MyModel())
@@ -118,10 +110,6 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: str, y: int) -> str:
         return x + str(y)
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
-
     # test call
     client = _get_servicer_client(MyModel())
     result = client.f('a', 5)
@@ -135,10 +123,6 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: np.ndarray) -> int:
         return int(np.sum(x))
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
-
     # test call
     client = _get_servicer_client(MyModel())
     result = client.f(np.array([1, 2, 3]))
@@ -151,10 +135,6 @@ class TestModelCalls(unittest.TestCase):
       @ModelClass.method
       def f(self, x: PILImage.Image) -> str:
         return str(x.size)
-
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -170,10 +150,6 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: str) -> PILImage.Image:
         return PILImage.fromarray(np.ones([10, 10, 3], dtype="uint8"))
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
-
     # test call
     client = _get_servicer_client(MyModel())
     result = client.f('a').to_pil()
@@ -186,10 +162,6 @@ class TestModelCalls(unittest.TestCase):
       @ModelClass.method
       def f(self, x: PILImage.Image) -> List[Concept]:
         return [Concept('a', 0.9), Concept('b', 0.1)]
-
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -212,10 +184,6 @@ class TestModelCalls(unittest.TestCase):
       @ModelClass.method
       def g(self, prompt: str, images: List[Image]) -> (str, List[Image]):
         return (prompt + ' result', [ImageOps.invert(img.to_pil()) for img in images])
-
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -245,10 +213,6 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: np.ndarray[int]) -> np.ndarray[float]:
         return x / 2.0
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
-
     # test call
     client = _get_servicer_client(MyModel())
     result = client.f(np.array([1, 2, 3]))
@@ -276,10 +240,6 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: int) -> Stream[int]:
         for i in range(x):
           yield i
-
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -341,14 +301,6 @@ class TestModelCalls(unittest.TestCase):
     assert len(MyModel._get_method_info()) == 2
     assert MyModel._get_method_info().keys() == {'f', 'g'}
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
-
-    sig = dict(MyModel._get_method_info('g').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
-
     # test calls
     client = _get_servicer_client(MyModel())
     result = client.f(5)
@@ -363,10 +315,6 @@ class TestModelCalls(unittest.TestCase):
       @ModelClass.method
       def f(self, input: str) -> NamedFields(x=int, y=str):
         return NamedFields(x=len(input), y=input + ' result')
-
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -383,8 +331,6 @@ class TestModelCalls(unittest.TestCase):
         for i in range(x):
           yield NamedFields(x=i, y=str(i))
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
     #self.assertEqual(sig)
 
     # test call
@@ -403,9 +349,7 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: int = 5) -> int:
         return x + 1
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
+    MyModel._get_method_info('f').signature
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -430,9 +374,7 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: str = 'abc') -> str:
         return x[::-1]
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
+    MyModel._get_method_info('f').signature
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -469,8 +411,7 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: str = 'abc', y: int = 5) -> str:
         return x + str(y)
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
+    MyModel._get_method_info('f').signature
     #self.assertEqual(sig)
 
     # test call
@@ -548,10 +489,6 @@ class TestModelCalls(unittest.TestCase):
         for i, x in enumerate(input):
           yield str(i) + x
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
-
     # test call
     client = _get_servicer_client(MyModel())
     result = list(client.f(iter(['abc', 'xyz'])))
@@ -565,10 +502,6 @@ class TestModelCalls(unittest.TestCase):
       def f(self, input_stream: Stream[str], y: int) -> Stream[str]:
         for i, x in enumerate(input_stream):
           yield str(i) + x + str(y)
-
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -584,10 +517,6 @@ class TestModelCalls(unittest.TestCase):
         for i, input in enumerate(stream):
           yield str(i) + input.x + input.y
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
-
     # test call
     client = _get_servicer_client(MyModel())
     result = list(client.f(stream=iter([NamedFields(x='a', y='b'), NamedFields(x='x', y='y')])))
@@ -601,10 +530,6 @@ class TestModelCalls(unittest.TestCase):
       def f(self, streamvar: Stream[NamedFields(x=str, y=int)], x: str) -> Stream[str]:
         for i, val in enumerate(streamvar):
           yield str(i) + val.x + str(val.y) + x
-
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -639,14 +564,16 @@ class TestModelCalls(unittest.TestCase):
 
     pprint(MyModel._get_method_info())
 
-    self.assertEqual(MyModel._get_method_info('f').signature.docstring, 'This is a test function.')
     self.assertEqual(
-        MyModel._get_method_info('g').signature.docstring, 'This is another test function.')
+        MyModel._get_method_info('f').signature.description, 'This is a test function.')
     self.assertEqual(
-        MyModel._get_method_info('generate').signature.docstring,
+        MyModel._get_method_info('g').signature.description, 'This is another test function.')
+    self.assertEqual(
+        MyModel._get_method_info('generate').signature.description,
         'This is a generate test function.')
     self.assertEqual(
-        MyModel._get_method_info('stream').signature.docstring, 'This is a stream test function.')
+        MyModel._get_method_info('stream').signature.description,
+        'This is a stream test function.')
 
     client = _get_servicer_client(MyModel())
     self.assertEqual(client.f.__doc__, 'This is a test function.')
@@ -1380,10 +1307,7 @@ class TestModelCalls(unittest.TestCase):
 
   def test_pilimage_pilimageclass_type_error(self):
 
-    with self.assertRaisesRegex(
-        TypeError,
-        "Use the Image class from the PIL.Image module i.e. `PIL.Image.Image`, not the module itself"
-    ):
+    with self.assertRaisesRegex(TypeError, "Use PIL.Image.Image instead of PIL.Image module"):
 
       class MyModel(ModelClass):
 
@@ -1393,10 +1317,7 @@ class TestModelCalls(unittest.TestCase):
 
   def test_pilimageclass_pilimage_type_error(self):
 
-    with self.assertRaisesRegex(
-        TypeError,
-        "Use the Image class from the PIL.Image module i.e. `PIL.Image.Image`, not the module itself"
-    ):
+    with self.assertRaisesRegex(TypeError, "Use PIL.Image.Image instead of PIL.Image module"):
 
       class MyModel(ModelClass):
 
@@ -1406,10 +1327,7 @@ class TestModelCalls(unittest.TestCase):
 
   def test_pilimage_pilimage_type__error(self):
 
-    with self.assertRaisesRegex(
-        TypeError,
-        "Use the Image class from the PIL.Image module i.e. `PIL.Image.Image`, not the module itself"
-    ):
+    with self.assertRaisesRegex(TypeError, "Use PIL.Image.Image instead of PIL.Image module"):
 
       class MyModel(ModelClass):
 
@@ -1784,8 +1702,8 @@ class TestSerialization(unittest.TestCase):
 
     kwargs = {'x': 5}
     proto = resources_pb2.Data()
-    serialize(kwargs, signature.inputs, proto)
-    deserialized_kwargs = deserialize(proto, signature.inputs)
+    serialize(kwargs, signature.input_fields, proto)
+    deserialized_kwargs = deserialize(proto, signature.input_fields)
     self.assertEqual(kwargs, deserialized_kwargs)
 
   def test_Image_one_input_not_in_parts(self):
@@ -1804,7 +1722,7 @@ class TestSerialization(unittest.TestCase):
 
     kwargs = {'x': testimg}
     proto = resources_pb2.Data()
-    serialize(kwargs, signature.inputs, proto)
+    serialize(kwargs, signature.input_fields, proto)
 
     self.assertTrue(len(proto.parts) == 0)
     self.assertTrue(proto.HasField('image'))
@@ -1824,7 +1742,7 @@ class TestSerialization(unittest.TestCase):
     kwargs = {'x': [Concept('testconcept', 0.9), Concept('testconcept2', 0.8)]}
 
     proto = resources_pb2.Data()
-    serialize(kwargs, signature.inputs, proto)
+    serialize(kwargs, signature.input_fields, proto)
 
     # input list uses parts[x], then repeated concepts
     # also would be ok to put in data.concepts
@@ -1834,7 +1752,7 @@ class TestSerialization(unittest.TestCase):
 
     return_value = {'return': kwargs['x']}
     proto = resources_pb2.Data()
-    serialize(return_value, signature.outputs, proto, is_output=True)
+    serialize(return_value, signature.output_fields, proto, is_output=True)
 
     self.assertTrue(len(proto.parts) == 0)
     self.assertTrue(len(proto.concepts) == 2)

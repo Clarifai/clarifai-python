@@ -1,7 +1,5 @@
-import ast
 import inspect
 import json
-import textwrap
 from collections import namedtuple
 from typing import List, Tuple, get_args, get_origin
 
@@ -9,6 +7,7 @@ import numpy as np
 import PIL.Image
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2
+from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.message import Message as MessageProto
 
 from clarifai.runners.utils import data_types
@@ -32,10 +31,13 @@ def build_function_signature(func):
   if return_annotation == inspect.Parameter.empty:
     raise TypeError('Function must have a return annotation')
 
-  input_sigs = [
-      build_variable_signature(p.name, p.annotation, p.default) for p in sig.parameters.values()
-  ]
-  input_sigs, input_types, input_streaming = zip(*input_sigs)
+  input_sigs = []
+  input_streaming = []
+  for p in sig.parameters.values():
+    model_type_field, _, streaming = build_variable_signature(p.name, p.annotation, p.default)
+    input_sigs.append(model_type_field)
+    input_streaming.append(streaming)
+
   output_sig, output_type, output_streaming = build_variable_signature(
       'return', return_annotation, is_output=True)
   # TODO: flatten out "return" layer if not needed
@@ -45,48 +47,45 @@ def build_function_signature(func):
     raise TypeError('streaming methods must have at most one streaming input')
   input_streaming = any(input_streaming)
   if not (input_streaming or output_streaming):
-    method_type = 'predict'
+    method_type = 'UNARY_UNARY'
   elif not input_streaming and output_streaming:
-    method_type = 'generate'
+    method_type = 'UNARY_STREAMING'
   elif input_streaming and output_streaming:
-    method_type = 'stream'
+    method_type = 'STREAMING_STREAMING'
   else:
     raise TypeError('stream methods with streaming inputs must have streaming outputs')
 
-  #method_signature = resources_pb2.MethodSignature()   # TODO
-  method_signature = _SignatureDict()  #for now
+  method_signature = resources_pb2.MethodSignature()
 
   method_signature.name = func.__name__
-  #method_signature.method_type = getattr(resources_pb2.RunnerMethodType, method_type)
-  assert method_type in ('predict', 'generate', 'stream')
-  method_signature.method_type = method_type
-  method_signature.docstring = func.__doc__
-  method_signature.annotations_json = json.dumps(_get_annotations_source(func))
+  method_signature.method_type = getattr(resources_pb2.RunnerMethodType, method_type)
+  assert method_type in ('UNARY_UNARY', 'UNARY_STREAMING', 'STREAMING_STREAMING')
+  # method_signature.method_type = method_type
+  method_signature.description = inspect.cleandoc(func.__doc__ or '')
+  # method_signature.annotations_json = json.dumps(_get_annotations_source(func))
 
-  #method_signature.inputs.extend(input_vars)
-  #method_signature.outputs.extend(output_vars)
-  method_signature.inputs = input_sigs
-  method_signature.outputs = [output_sig]
+  method_signature.input_fields.extend(input_sigs)
+  method_signature.output_fields.append(output_sig)
   return method_signature
 
 
-def _get_annotations_source(func):
-  """Extracts raw annotation strings from the function source."""
-  source = inspect.getsource(func)  # Get function source code
-  source = textwrap.dedent(source)  # Dedent source code
-  tree = ast.parse(source)  # Parse into AST
-  func_node = next(node for node in tree.body
-                   if isinstance(node, ast.FunctionDef))  # Get function node
+# def _get_annotations_source(func):
+#   """Extracts raw annotation strings from the function source."""
+#   source = inspect.getsource(func)  # Get function source code
+#   source = textwrap.dedent(source)  # Dedent source code
+#   tree = ast.parse(source)  # Parse into AST
+#   func_node = next(node for node in tree.body
+#                    if isinstance(node, ast.FunctionDef))  # Get function node
 
-  annotations = {}
-  for arg in func_node.args.args:  # Process arguments
-    if arg.annotation:
-      annotations[arg.arg] = ast.unparse(arg.annotation)  # Get raw annotation string
+#   annotations = {}
+#   for arg in func_node.args.args:  # Process arguments
+#     if arg.annotation:
+#       annotations[arg.arg] = ast.unparse(arg.annotation)  # Get raw annotation string
 
-  if func_node.returns:  # Process return type
-    annotations["return"] = ast.unparse(func_node.returns)
+#   if func_node.returns:  # Process return type
+#     annotations["return"] = ast.unparse(func_node.returns)
 
-  return annotations
+#   return annotations
 
 
 def build_variable_signature(name, annotation, default=inspect.Parameter.empty, is_output=False):
@@ -101,18 +100,16 @@ def build_variable_signature(name, annotation, default=inspect.Parameter.empty, 
   # get fields for each variable based on type
   tp, streaming = _normalize_type(annotation)
 
-  #var = resources_pb2.VariableSignature()   # TODO
-  sig = _VariableSignature()  #for now
+  sig = resources_pb2.ModelTypeField()
   sig.name = name
-
-  _fill_signature_type(sig, tp)
-
-  sig.streaming = streaming
+  sig.iterator = streaming
 
   if not is_output:
     sig.required = (default is inspect.Parameter.empty)
     if not sig.required:
       sig.default = str(default)
+
+  _fill_signature_type(sig, tp)
 
   return sig, type, streaming
 
@@ -125,40 +122,42 @@ def _fill_signature_type(sig, tp):
   except TypeError:
     pass  # not hashable type
 
+  # Handle NamedFields with annotations
   # Check for dynamically generated NamedFields subclasses (from type annotations)
   if inspect.isclass(tp) and issubclass(tp, data_types.NamedFields) and hasattr(
       tp, '__annotations__'):
-    sig.type = DataType.NAMED_FIELDS
+    sig.type = resources_pb2.ModelTypeField.DataType.NAMED_FIELDS
     for name, inner_type in tp.__annotations__.items():
-      inner_sig = _VariableSignature()
+      inner_sig = sig.type_args.add()
       inner_sig.name = name
       _fill_signature_type(inner_sig, inner_type)
-      sig.type_args.append(inner_sig)
     return
 
+  # Handle NamedFields instances (dict-like)
   if isinstance(tp, data_types.NamedFields):
-    sig.type = DataType.NAMED_FIELDS
+    sig.type = resources_pb2.ModelTypeField.DataType.NAMED_FIELDS
     for name, inner_type in tp.items():
-      # inner_sig = sig.type_args.add()
-      sig.type_args.append(inner_sig := _VariableSignature())
+      inner_sig = sig.type_args.add()
       inner_sig.name = name
       _fill_signature_type(inner_sig, inner_type)
     return
 
-  if get_origin(tp) == tuple:
-    sig.type = DataType.TUPLE
-    for inner_type in get_args(tp):
-      #inner_sig = sig.type_args.add()
-      sig.type_args.append(inner_sig := _VariableSignature())
+  origin = get_origin(tp)
+  args = get_args(tp)
+
+  # Handle Tuple type
+  if origin == tuple:
+    sig.type = resources_pb2.ModelTypeField.DataType.TUPLE
+    for inner_type in args:
+      inner_sig = sig.type_args.add()
       _fill_signature_type(inner_sig, inner_type)
     return
 
-  if get_origin(tp) == list:
-    sig.type = DataType.LIST
-    inner_type = get_args(tp)[0]
-    #inner_sig = sig.type_args.add()
-    sig.type_args.append(inner_sig := _VariableSignature())
-    _fill_signature_type(inner_sig, inner_type)
+  # Handle List type
+  if origin == list:
+    sig.type = resources_pb2.ModelTypeField.DataType.LIST
+    inner_sig = sig.type_args.add()
+    _fill_signature_type(inner_sig, args[0])
     return
 
   raise TypeError(f'Unsupported type: {tp}')
@@ -170,11 +169,11 @@ def serializer_from_signature(signature):
     '''
   if signature.type in _SERIALIZERS_BY_TYPE_ENUM:
     return _SERIALIZERS_BY_TYPE_ENUM[signature.type]
-  if signature.type == DataType.LIST:
+  if signature.type == resources_pb2.ModelTypeField.DataType.LIST:
     return ListSerializer(serializer_from_signature(signature.type_args[0]))
-  if signature.type == DataType.TUPLE:
+  if signature.type == resources_pb2.ModelTypeField.DataType.TUPLE:
     return TupleSerializer([serializer_from_signature(sig) for sig in signature.type_args])
-  if signature.type == DataType.NAMED_FIELDS:
+  if signature.type == resources_pb2.ModelTypeField.DataType.NAMED_FIELDS:
     return NamedFieldsSerializer(
         {sig.name: serializer_from_signature(sig)
          for sig in signature.type_args})
@@ -185,13 +184,20 @@ def signatures_to_json(signatures):
   assert isinstance(
       signatures, dict), 'Expected dict of signatures {name: signature}, got %s' % type(signatures)
   # TODO change to proto when ready
-  #signatures = {name: MessageToDict(sig) for name, sig in signatures.items()}
+  signatures = {name: MessageToDict(sig) for name, sig in signatures.items()}
   return json.dumps(signatures)
 
 
 def signatures_from_json(json_str):
-  d = json.loads(json_str, object_pairs_hook=_SignatureDict)
-  return d
+  signatures_dict = json.loads(json_str)
+  assert isinstance(signatures_dict, dict), "Expected JSON to decode into a dictionary"
+
+  return {
+      name: ParseDict(sig_dict, resources_pb2.MethodSignature())
+      for name, sig_dict in signatures_dict.items()
+  }
+  # d = json.loads(json_str, object_pairs_hook=_SignatureDict)
+  # return d
 
 
 def signatures_to_yaml(signatures):
@@ -288,7 +294,7 @@ def get_stream_from_signature(signatures):
   Get the stream signature from the given signatures.
   '''
   for sig in signatures:
-    if sig.streaming:
+    if sig.iterator:
       return sig
   return None
 
@@ -357,9 +363,7 @@ def _normalize_data_type(tp):
     return data_types.Image
 
   if tp == PIL.Image:
-    raise TypeError(
-        'Use the Image class from the PIL.Image module i.e. `PIL.Image.Image`, not the module itself'
-    )
+    raise TypeError('Use PIL.Image.Image instead of PIL.Image module')
 
   # check for known data types
   try:
@@ -379,90 +383,58 @@ def _is_jsonable(tp):
   return False
 
 
-# TODO --- tmp classes to stand-in for protos until they are defined and built into this package
-class _SignatureDict(dict):
-  __getattr__ = dict.__getitem__
-  __setattr__ = dict.__setitem__
-
-
-class _VariableSignature(_SignatureDict):
-
-  def __init__(self):
-    super().__init__()
-    self.name = ''
-    self.type = ''
-    self.type_args = []
-    self.streaming = False
-    self.required = False
-    self.default = ''
-    self.description = ''
-
-
 # type: name of the data type
 # data_field: name of the field in the data proto
 # serializer: serializer for the data type
 _DataType = namedtuple('_DataType', ('type', 'serializer'))
 
-
-# this will come from the proto module, but for now, define it here
-class DataType:
-  NOT_SET = 'NOT_SET'
-
-  STR = 'STR'
-  BYTES = 'BYTES'
-  INT = 'INT'
-  FLOAT = 'FLOAT'
-  BOOL = 'BOOL'
-  NDARRAY = 'NDARRAY'
-  JSON = 'JSON'
-
-  TEXT = 'TEXT'
-  IMAGE = 'IMAGE'
-  CONCEPT = 'CONCEPT'
-  REGION = 'REGION'
-  FRAME = 'FRAME'
-  AUDIO = 'AUDIO'
-  VIDEO = 'VIDEO'
-
-  NAMED_FIELDS = 'NAMED_FIELDS'
-  TUPLE = 'TUPLE'
-  LIST = 'LIST'
-
-
-_NON_INLINABLE_TYPES = {DataType.NAMED_FIELDS, DataType.TUPLE, DataType.LIST}
+_NON_INLINABLE_TYPES = {
+    resources_pb2.ModelTypeField.DataType.NAMED_FIELDS,
+    resources_pb2.ModelTypeField.DataType.TUPLE, resources_pb2.ModelTypeField.DataType.LIST
+}
 _ZERO_VALUE_IDS = {id(None), id(''), id(b''), id(0), id(0.0), id(False)}
 
 # simple, non-container types that correspond directly to a data field
 _DATA_TYPES = {
     str:
-        _DataType(DataType.STR, AtomicFieldSerializer('string_value')),
+        _DataType(resources_pb2.ModelTypeField.DataType.STR,
+                  AtomicFieldSerializer('string_value')),
     bytes:
-        _DataType(DataType.BYTES, AtomicFieldSerializer('bytes_value')),
+        _DataType(resources_pb2.ModelTypeField.DataType.BYTES,
+                  AtomicFieldSerializer('bytes_value')),
     int:
-        _DataType(DataType.INT, AtomicFieldSerializer('int_value')),
+        _DataType(resources_pb2.ModelTypeField.DataType.INT, AtomicFieldSerializer('int_value')),
     float:
-        _DataType(DataType.FLOAT, AtomicFieldSerializer('float_value')),
+        _DataType(resources_pb2.ModelTypeField.DataType.FLOAT,
+                  AtomicFieldSerializer('float_value')),
     bool:
-        _DataType(DataType.BOOL, AtomicFieldSerializer('bool_value')),
+        _DataType(resources_pb2.ModelTypeField.DataType.BOOL, AtomicFieldSerializer('bool_value')),
     np.ndarray:
-        _DataType(DataType.NDARRAY, NDArraySerializer('ndarray')),
+        _DataType(resources_pb2.ModelTypeField.DataType.NDARRAY, NDArraySerializer('ndarray')),
     data_types.JSON:
-        _DataType(DataType.JSON, JSONSerializer('string_value')
+        _DataType(resources_pb2.ModelTypeField.DataType.JSON_DATA, JSONSerializer('string_value')
                  ),  # TODO change to json_value when new proto is ready
     data_types.Text:
-        _DataType(DataType.TEXT, MessageSerializer('text', data_types.Text)),
+        _DataType(resources_pb2.ModelTypeField.DataType.TEXT,
+                  MessageSerializer('text', data_types.Text)),
     data_types.Image:
-        _DataType(DataType.IMAGE, MessageSerializer('image', data_types.Image)),
+        _DataType(resources_pb2.ModelTypeField.DataType.IMAGE,
+                  MessageSerializer('image', data_types.Image)),
     data_types.Concept:
-        _DataType(DataType.CONCEPT, MessageSerializer('concepts', data_types.Concept)),
+        _DataType(resources_pb2.ModelTypeField.DataType.CONCEPT,
+                  MessageSerializer('concepts', data_types.Concept)),
     data_types.Region:
-        _DataType(DataType.REGION, MessageSerializer('regions', data_types.Region)),
+        _DataType(resources_pb2.ModelTypeField.DataType.REGION,
+                  MessageSerializer('regions', data_types.Region)),
     data_types.Frame:
-        _DataType(DataType.FRAME, MessageSerializer('frames', data_types.Frame)),
+        _DataType(resources_pb2.ModelTypeField.DataType.FRAME,
+                  MessageSerializer('frames', data_types.Frame)),
     data_types.Audio:
-        _DataType(DataType.AUDIO, MessageSerializer('audio', data_types.Audio)),
+        _DataType(resources_pb2.ModelTypeField.DataType.AUDIO,
+                  MessageSerializer('audio', data_types.Audio)),
     data_types.Video:
-        _DataType(DataType.VIDEO, MessageSerializer('video', data_types.Video)),
+        _DataType(resources_pb2.ModelTypeField.DataType.VIDEO,
+                  MessageSerializer('video', data_types.Video)),
 }
 
 _SERIALIZERS_BY_TYPE_ENUM = {dt.type: dt.serializer for dt in _DATA_TYPES.values()}
