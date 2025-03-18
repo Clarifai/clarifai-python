@@ -267,8 +267,17 @@ class ModelBuilder:
     """
     model_class = self.load_model_class()
     method_info = model_class._get_method_info()
-    signatures = {name: m.signature for name, m in method_info.items()}
+    signatures = {name: m.signature for name, m in method_info.values()}
     return signatures_to_yaml(signatures)
+
+  def get_method_signatures(self):
+    """
+    Returns the method signatures for the model class.
+    """
+    model_class = self.load_model_class()
+    method_info = model_class._get_method_info()
+    signatures = [method.signature for method in method_info.values()]
+    return signatures
 
   @property
   def client(self):
@@ -553,6 +562,7 @@ class ModelBuilder:
         pretrained_model_config=resources_pb2.PretrainedModelConfig(),
         inference_compute_info=self.inference_compute_info,
     )
+    model_version_proto.model_signature.extend(self.get_method_signatures())
 
     model_type_id = self.config.get('model').get('model_type_id')
     if model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE:
