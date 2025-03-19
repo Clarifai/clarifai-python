@@ -599,17 +599,7 @@ class ModelBuilder:
 
   def get_model_version_proto(self):
     signatures = self.get_method_signatures()
-    print(f'self.get_method_signatures(): {signatures}')
-    print(f'type(self.get_method_signatures()): {type(signatures)}')
-    print(f'type(self.get_method_signatures()[0]): {type(signatures[0])}')
-    print(f'len(self.get_method_signatures()): {len(signatures)}')
 
-    print(f'self.get_method_signatures(): {signatures}')
-    print(f'self.get_method_signatures([]0]: {signatures}')
-
-    for signature in signatures:
-      print(f'signature: {signature}')
-      print(f'signature.name: {signature.name}')
     model_version_proto = resources_pb2.ModelVersion(
         pretrained_model_config=resources_pb2.PretrainedModelConfig(),
         inference_compute_info=self.inference_compute_info,
@@ -819,7 +809,6 @@ class ModelBuilder:
         logger.info("Model build complete!")
         logger.info(f"Build time elapsed {time.time() - st:.1f}s)")
         logger.info(f"Check out the model at {self.model_url} version: {self.model_version_id}")
-        print(f'resp: {resp}')
         return True
       else:
         logger.info(
