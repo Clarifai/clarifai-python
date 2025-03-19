@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterator, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
+from google.protobuf import json_format
 
 from clarifai.runners.utils import data_types
 from clarifai.runners.utils.method_signatures import (build_function_signature, deserialize,
@@ -84,6 +85,7 @@ class ModelClass(ABC):
     try:
       # TODO add method name field to proto
       method_name = 'predict'
+      inference_params = get_inference_params(request)
       if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
         method_name = request.inputs[0].data.metadata['_method_name']
       if method_name == '_GET_SIGNATURES':  # special case to fetch signatures, TODO add endpoint for this
@@ -94,8 +96,8 @@ class ModelClass(ABC):
       method_info = method._cf_method_info
       signature = method_info.signature
       python_param_types = method_info.python_param_types
-      inputs = self._convert_input_protos_to_python(request.inputs, signature.input_fields,
-                                                    python_param_types)
+      inputs = self._convert_input_protos_to_python(request.inputs, inference_params,
+                                                    signature.input_fields, python_param_types)
       if len(inputs) == 1:
         inputs = inputs[0]
         output = method(**inputs)
@@ -121,6 +123,7 @@ class ModelClass(ABC):
                       ) -> Iterator[service_pb2.MultiOutputResponse]:
     try:
       method_name = 'generate'
+      inference_params = get_inference_params(request)
       if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
         method_name = request.inputs[0].data.metadata['_method_name']
       method = getattr(self, method_name)
@@ -128,8 +131,8 @@ class ModelClass(ABC):
       signature = method_info.signature
       python_param_types = method_info.python_param_types
 
-      inputs = self._convert_input_protos_to_python(request.inputs, signature.input_fields,
-                                                    python_param_types)
+      inputs = self._convert_input_protos_to_python(request.inputs, inference_params,
+                                                    signature.input_fields, python_param_types)
       if len(inputs) == 1:
         inputs = inputs[0]
         for output in method(**inputs):
@@ -161,6 +164,7 @@ class ModelClass(ABC):
       assert len(request.inputs) == 1, "Streaming requires exactly one input"
 
       method_name = 'generate'
+      inference_params = get_inference_params(request)
       if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
         method_name = request.inputs[0].data.metadata['_method_name']
       method = getattr(self, method_name)
@@ -175,8 +179,8 @@ class ModelClass(ABC):
       stream_argname = stream_sig.name
 
       # convert all inputs for the first request, including the first stream value
-      inputs = self._convert_input_protos_to_python(request.inputs, signature.input_fields,
-                                                    python_param_types)
+      inputs = self._convert_input_protos_to_python(request.inputs, inference_params,
+                                                    signature.input_fields, python_param_types)
       kwargs = inputs[0]
 
       # first streaming item
@@ -187,8 +191,8 @@ class ModelClass(ABC):
         yield first_item
         # subsequent streaming items contain only the streaming input
         for request in request_iterator:
-          item = self._convert_input_protos_to_python(request.inputs, [stream_sig],
-                                                      python_param_types)
+          item = self._convert_input_protos_to_python(request.inputs, inference_params,
+                                                      [stream_sig], python_param_types)
           item = item[0][stream_argname]
           yield item
 
@@ -210,11 +214,12 @@ class ModelClass(ABC):
           stack_trace=traceback.format_exc().split('\n')))
 
   def _convert_input_protos_to_python(self, inputs: List[resources_pb2.Input],
+                                      inference_params: dict,
                                       variables_signature: List[resources_pb2.ModelTypeField],
                                       python_param_types) -> List[Dict[str, Any]]:
     result = []
     for input in inputs:
-      kwargs = deserialize(input.data, variables_signature)
+      kwargs = deserialize(input.data, variables_signature, inference_params)
       # dynamic cast to annotated types
       for k, v in kwargs.items():
         if k not in python_param_types:
@@ -260,6 +265,18 @@ class ModelClass(ABC):
     if func_name:
       return method_info[func_name]
     return method_info
+
+
+# Helper function to get the inference params
+def get_inference_params(request) -> dict:
+  """Get the inference params from the request."""
+  inference_params = {}
+  if request.model.model_version.id != "":
+    output_info = request.model.model_version.output_info
+    output_info = json_format.MessageToDict(output_info, preserving_proto_field_name=True)
+    if "params" in output_info:
+      inference_params = output_info["params"]
+  return inference_params
 
 
 class _MethodInfo:

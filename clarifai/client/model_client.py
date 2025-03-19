@@ -135,6 +135,7 @@ class ModelClient:
       # set names, annotations and docstrings
       f.__name__ = method_name
       f.__qualname__ = f'{self.__class__.__name__}.{method_name}'
+      # TODO: set signature from annotations to the function, currently  MethodSignature don't have `annotations_json` field
       # input_annotations = json.loads(method_signature.annotations_json)
       # return_annotation = input_annotations.pop('return', None)
       # sig = inspect.signature(f).replace(

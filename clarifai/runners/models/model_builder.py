@@ -599,14 +599,12 @@ class ModelBuilder:
 
   def get_model_version_proto(self):
     signatures = self.get_method_signatures()
-
+    # TODO: update this to `method_signatures` field when it's available in the API
     model_version_proto = resources_pb2.ModelVersion(
         pretrained_model_config=resources_pb2.PretrainedModelConfig(),
         inference_compute_info=self.inference_compute_info,
         method_signature=signatures,
     )
-    # TODO: update this to `method_signatures` field when it's available in the API
-    # model_version_proto.method_signature.extend(self.get_method_signatures())
 
     model_type_id = self.config.get('model').get('model_type_id')
     if model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE:
