@@ -44,9 +44,6 @@ ENV PYTHONPATH=${PYTHONPATH}:/home/nonroot/main \
     CLARIFAI_COMPUTE_CLUSTER_ID=${CLARIFAI_COMPUTE_CLUSTER_ID} \
     CLARIFAI_API_BASE=${CLARIFAI_API_BASE:-https://api.clarifai.com}
 
-# # Write out the model function signatures
-# RUN ["python", "-m", "clarifai.cli", "model", "signatures", "--model_path", "/home/nonroot/main", "--out_path", "/home/nonroot/main/signatures.yaml"]
-
 # Finally run the clarifai entrypoint to start the runner loop and local dev server.
 # Note(zeiler): we may want to make this a clarifai CLI call.
 ENTRYPOINT ["python", "-m", "clarifai.runners.server"]
