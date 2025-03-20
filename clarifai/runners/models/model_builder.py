@@ -308,7 +308,7 @@ class ModelBuilder:
     """
     model_class = self.load_model_class()
     method_info = model_class._get_method_info()
-    signatures = {name: m.signature for name, m in method_info.values()}
+    signatures = {method.name: method.signature for method in method_info.values()}
     return signatures_to_yaml(signatures)
 
   def get_method_signatures(self):
