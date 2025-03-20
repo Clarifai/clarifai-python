@@ -96,11 +96,14 @@ def download_checkpoints(model_path, out_path, stage):
     help=
     'Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.'
 )
-def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
-  """Test model locally.
-
-  MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
-  """
+@click.option(
+    '--skip_dockerfile',
+    is_flag=True,
+    help=
+    'Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. Apply for `--mode conatainer`.',
+)
+def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_dockerfile=False):
+  """Test model locally."""
   try:
     from clarifai.runners.models import model_run_locally
     if mode == 'env' and keep_image:
@@ -114,7 +117,11 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
     elif mode == "container":
       click.echo("Testing model locally inside a container...")
       model_run_locally.main(
-          model_path, inside_container=True, run_model_server=False, keep_image=keep_image)
+          model_path,
+          inside_container=True,
+          run_model_server=False,
+          keep_image=keep_image,
+          skip_dockerfile=skip_dockerfile)
     click.echo("Model tested successfully.")
   except Exception as e:
     click.echo(f"Failed to test model locally: {e}", err=True)
@@ -154,11 +161,14 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
     help=
     'Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.'
 )
-def run_locally(model_path, port, mode, keep_env, keep_image):
-  """Run the model locally and start a gRPC server to serve the model.
-
-  MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
-  """
+@click.option(
+    '--skip_dockerfile',
+    is_flag=True,
+    help=
+    'Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. Apply for `--mode conatainer`.',
+)
+def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=False):
+  """Run the model locally and start a gRPC server to serve the model."""
   try:
     from clarifai.runners.models import model_run_locally
     if mode == 'env' and keep_image:
@@ -176,7 +186,8 @@ def run_locally(model_path, port, mode, keep_env, keep_image):
           inside_container=True,
           run_model_server=True,
           port=port,
-          keep_image=keep_image)
+          keep_image=keep_image,
+          skip_dockerfile=skip_dockerfile)
     click.echo(f"Model server started locally from {model_path} in {mode} mode.")
   except Exception as e:
     click.echo(f"Failed to starts model server locally: {e}", err=True)
