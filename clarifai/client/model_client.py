@@ -1,5 +1,3 @@
-import inspect
-import json
 import time
 from typing import Any, Dict, Iterator, List
 
@@ -98,18 +96,19 @@ class ModelClient:
     '''
     for method_name, method_signature in self._method_signatures.items():
       # define the function in this client instance
-      if method_signature.method_type == 'predict':
+      if resources_pb2.RunnerMethodType.Name(method_signature.method_type) == 'UNARY_UNARY':
         call_func = self._predict
-      elif method_signature.method_type == 'generate':
+      elif resources_pb2.RunnerMethodType.Name(method_signature.method_type) == 'UNARY_STREAMING':
         call_func = self._generate
-      elif method_signature.method_type == 'stream':
+      elif resources_pb2.RunnerMethodType.Name(
+          method_signature.method_type) == 'STREAMING_STREAMING':
         call_func = self._stream
       else:
         raise ValueError(f"Unknown method type {method_signature.method_type}")
 
       # method argnames, in order, collapsing nested keys to corresponding user function args
       method_argnames = []
-      for var in method_signature.inputs:
+      for var in method_signature.input_fields:
         outer = var.name.split('.', 1)[0]
         if outer in method_argnames:
           continue
@@ -136,18 +135,18 @@ class ModelClient:
       # set names, annotations and docstrings
       f.__name__ = method_name
       f.__qualname__ = f'{self.__class__.__name__}.{method_name}'
-      f.__doc__ = method_signature.docstring
-      input_annotations = json.loads(method_signature.annotations_json)
-      return_annotation = input_annotations.pop('return', None)
-      sig = inspect.signature(f).replace(
-          parameters=[
-              inspect.Parameter(k, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=v)
-              for k, v in input_annotations.items()
-          ],
-          return_annotation=return_annotation,
-      )
-      f.__signature__ = sig
-      f.__doc__ = method_signature.docstring
+      # TODO: set signature from annotations to the function, currently  MethodSignature don't have `annotations_json` field
+      # input_annotations = json.loads(method_signature.annotations_json)
+      # return_annotation = input_annotations.pop('return', None)
+      # sig = inspect.signature(f).replace(
+      #     parameters=[
+      #         inspect.Parameter(k, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=v)
+      #         for k, v in input_annotations.items()
+      #     ],
+      #     return_annotation=return_annotation,
+      # )
+      # f.__signature__ = sig
+      f.__doc__ = method_signature.description
       setattr(self, method_name, f)
 
   def _define_compatability_functions(self):
@@ -177,8 +176,8 @@ class ModelClient:
       inputs,  # TODO set up functions according to fetched signatures?
       method_name: str = 'predict',
   ) -> Any:
-    input_signature = self._method_signatures[method_name].inputs
-    output_signature = self._method_signatures[method_name].outputs
+    input_signature = self._method_signatures[method_name].input_fields
+    output_signature = self._method_signatures[method_name].output_fields
 
     batch_input = True
     if isinstance(inputs, dict):
@@ -260,8 +259,8 @@ class ModelClient:
       inputs,  # TODO set up functions according to fetched signatures?
       method_name: str = 'generate',
   ) -> Any:
-    input_signature = self._method_signatures[method_name].inputs
-    output_signature = self._method_signatures[method_name].outputs
+    input_signature = self._method_signatures[method_name].input_fields
+    output_signature = self._method_signatures[method_name].output_fields
 
     batch_input = True
     if isinstance(inputs, dict):
@@ -350,8 +349,8 @@ class ModelClient:
       inputs,
       method_name: str = 'stream',
   ) -> Any:
-    input_signature = self._method_signatures[method_name].inputs
-    output_signature = self._method_signatures[method_name].outputs
+    input_signature = self._method_signatures[method_name].input_fields
+    output_signature = self._method_signatures[method_name].output_fields
 
     if isinstance(inputs, list):
       assert len(inputs) == 1, 'streaming methods do not support batched calls'

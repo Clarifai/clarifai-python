@@ -6,13 +6,18 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 from clarifai_grpc.grpc.api import resources_pb2
+from clarifai_grpc.grpc.api.resources_pb2 import Audio as AudioProto
+from clarifai_grpc.grpc.api.resources_pb2 import Frame as FrameProto
+from clarifai_grpc.grpc.api.resources_pb2 import Region as RegionProto
+from clarifai_grpc.grpc.api.resources_pb2 import Video as VideoProto
 from PIL import Image as PILImage
 from PIL import ImageOps
 
 from clarifai.client.model_client import ModelClient
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.models.model_servicer import ModelServicer
-from clarifai.runners.utils.data_types import Concept, Image, NamedFields, Stream, Text
+from clarifai.runners.utils.data_types import (Audio, Concept, Frame, Image, NamedFields, Region,
+                                               Stream, Text, Video)
 from clarifai.runners.utils.method_signatures import deserialize, serialize
 
 _ENABLE_PPRINT = os.getenv("PRINT", "false").lower() in ("true", "1")
@@ -67,10 +72,6 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: int) -> int:
         return 2 * x
 
-    #sig = dict(MyModel._get_method_info('f').signature)
-    #del sig['docstring']
-    ##self.assertEqual(sig)
-
     # test call
     client = _get_servicer_client(MyModel())
     result = client.f(5)
@@ -83,10 +84,6 @@ class TestModelCalls(unittest.TestCase):
       @ModelClass.method
       def f(self, x: str, y: str) -> str:
         return x + y
-
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
 
     # test calls
     client = _get_servicer_client(MyModel())
@@ -113,10 +110,6 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: str, y: int) -> str:
         return x + str(y)
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
-
     # test call
     client = _get_servicer_client(MyModel())
     result = client.f('a', 5)
@@ -130,10 +123,6 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: np.ndarray) -> int:
         return int(np.sum(x))
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
-
     # test call
     client = _get_servicer_client(MyModel())
     result = client.f(np.array([1, 2, 3]))
@@ -146,10 +135,6 @@ class TestModelCalls(unittest.TestCase):
       @ModelClass.method
       def f(self, x: PILImage.Image) -> str:
         return str(x.size)
-
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -165,10 +150,6 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: str) -> PILImage.Image:
         return PILImage.fromarray(np.ones([10, 10, 3], dtype="uint8"))
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
-
     # test call
     client = _get_servicer_client(MyModel())
     result = client.f('a').to_pil()
@@ -181,10 +162,6 @@ class TestModelCalls(unittest.TestCase):
       @ModelClass.method
       def f(self, x: PILImage.Image) -> List[Concept]:
         return [Concept('a', 0.9), Concept('b', 0.1)]
-
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -207,10 +184,6 @@ class TestModelCalls(unittest.TestCase):
       @ModelClass.method
       def g(self, prompt: str, images: List[Image]) -> (str, List[Image]):
         return (prompt + ' result', [ImageOps.invert(img.to_pil()) for img in images])
-
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -240,10 +213,6 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: np.ndarray[int]) -> np.ndarray[float]:
         return x / 2.0
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
-
     # test call
     client = _get_servicer_client(MyModel())
     result = client.f(np.array([1, 2, 3]))
@@ -271,10 +240,6 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: int) -> Stream[int]:
         for i in range(x):
           yield i
-
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -336,14 +301,6 @@ class TestModelCalls(unittest.TestCase):
     assert len(MyModel._get_method_info()) == 2
     assert MyModel._get_method_info().keys() == {'f', 'g'}
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
-
-    sig = dict(MyModel._get_method_info('g').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
-
     # test calls
     client = _get_servicer_client(MyModel())
     result = client.f(5)
@@ -358,10 +315,6 @@ class TestModelCalls(unittest.TestCase):
       @ModelClass.method
       def f(self, input: str) -> NamedFields(x=int, y=str):
         return NamedFields(x=len(input), y=input + ' result')
-
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -378,8 +331,6 @@ class TestModelCalls(unittest.TestCase):
         for i in range(x):
           yield NamedFields(x=i, y=str(i))
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
     #self.assertEqual(sig)
 
     # test call
@@ -398,9 +349,7 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: int = 5) -> int:
         return x + 1
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
+    MyModel._get_method_info('f').signature
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -425,9 +374,7 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: str = 'abc') -> str:
         return x[::-1]
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
+    MyModel._get_method_info('f').signature
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -464,8 +411,7 @@ class TestModelCalls(unittest.TestCase):
       def f(self, x: str = 'abc', y: int = 5) -> str:
         return x + str(y)
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
+    MyModel._get_method_info('f').signature
     #self.assertEqual(sig)
 
     # test call
@@ -543,10 +489,6 @@ class TestModelCalls(unittest.TestCase):
         for i, x in enumerate(input):
           yield str(i) + x
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
-
     # test call
     client = _get_servicer_client(MyModel())
     result = list(client.f(iter(['abc', 'xyz'])))
@@ -560,10 +502,6 @@ class TestModelCalls(unittest.TestCase):
       def f(self, input_stream: Stream[str], y: int) -> Stream[str]:
         for i, x in enumerate(input_stream):
           yield str(i) + x + str(y)
-
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -579,10 +517,6 @@ class TestModelCalls(unittest.TestCase):
         for i, input in enumerate(stream):
           yield str(i) + input.x + input.y
 
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
-
     # test call
     client = _get_servicer_client(MyModel())
     result = list(client.f(stream=iter([NamedFields(x='a', y='b'), NamedFields(x='x', y='y')])))
@@ -596,10 +530,6 @@ class TestModelCalls(unittest.TestCase):
       def f(self, streamvar: Stream[NamedFields(x=str, y=int)], x: str) -> Stream[str]:
         for i, val in enumerate(streamvar):
           yield str(i) + val.x + str(val.y) + x
-
-    sig = dict(MyModel._get_method_info('f').signature)
-    del sig['docstring']
-    #self.assertEqual(sig)
 
     # test call
     client = _get_servicer_client(MyModel())
@@ -634,14 +564,16 @@ class TestModelCalls(unittest.TestCase):
 
     pprint(MyModel._get_method_info())
 
-    self.assertEqual(MyModel._get_method_info('f').signature.docstring, 'This is a test function.')
     self.assertEqual(
-        MyModel._get_method_info('g').signature.docstring, 'This is another test function.')
+        MyModel._get_method_info('f').signature.description, 'This is a test function.')
     self.assertEqual(
-        MyModel._get_method_info('generate').signature.docstring,
+        MyModel._get_method_info('g').signature.description, 'This is another test function.')
+    self.assertEqual(
+        MyModel._get_method_info('generate').signature.description,
         'This is a generate test function.')
     self.assertEqual(
-        MyModel._get_method_info('stream').signature.docstring, 'This is a stream test function.')
+        MyModel._get_method_info('stream').signature.description,
+        'This is a stream test function.')
 
     client = _get_servicer_client(MyModel())
     self.assertEqual(client.f.__doc__, 'This is a test function.')
@@ -649,26 +581,27 @@ class TestModelCalls(unittest.TestCase):
     self.assertEqual(client.generate.__doc__, 'This is a generate test function.')
     self.assertEqual(client.stream.__doc__, 'This is a stream test function.')
 
-    import inspect
-    sig = inspect.signature(client.f)
-    # strip out quotes, since the transfered annos are strings
-    sig = str(sig).replace("'", "").replace('"', '').replace(' ', '')
-    self.assertEqual(str(sig), '(x: int) -> int'.replace(' ', ''))
+    # TODO: Uncomment this once we have a way to get the signature from the client
+    # import inspect
+    # sig = inspect.signature(client.f)
+    # # strip out quotes, since the transfered annos are strings
+    # sig = str(sig).replace("'", "").replace('"', '').replace(' ', '')
+    # self.assertEqual(str(sig), '(x: int) -> int'.replace(' ', ''))
 
-    sig = inspect.signature(client.g)
-    sig = str(sig).replace("'", "").replace('"', '').replace(' ', '')
-    self.assertEqual(str(sig), '(x: str) -> str'.replace(' ', ''))
+    # sig = inspect.signature(client.g)
+    # sig = str(sig).replace("'", "").replace('"', '').replace(' ', '')
+    # self.assertEqual(str(sig), '(x: str) -> str'.replace(' ', ''))
 
-    sig = inspect.signature(client.generate)
-    sig = str(sig).replace("'", "").replace('"', '').replace(' ', '')
-    self.assertEqual(str(sig), '(x: str) -> Stream[int]'.replace(' ', ''))
+    # sig = inspect.signature(client.generate)
+    # sig = str(sig).replace("'", "").replace('"', '').replace(' ', '')
+    # self.assertEqual(str(sig), '(x: str) -> Stream[int]'.replace(' ', ''))
 
-    sig = inspect.signature(client.stream)
-    sig = str(sig).replace("'", "").replace('"', '').replace(' ', '')
-    self.assertEqual(
-        str(sig),
-        '(stream:Stream[NamedFields(x=str,y=str)],n:int)->Stream[NamedFields(xout=str,yout=str)]'.
-        replace(' ', ''))
+    # sig = inspect.signature(client.stream)
+    # sig = str(sig).replace("'", "").replace('"', '').replace(' ', '')
+    # self.assertEqual(
+    #     str(sig),
+    #     '(stream:Stream[NamedFields(x=str,y=str)],n:int)->Stream[NamedFields(xout=str,yout=str)]'.
+    #     replace(' ', ''))
 
   def test_nonexistent_function(self):
 
@@ -1110,6 +1043,20 @@ class TestModelCalls(unittest.TestCase):
     self.assertEqual(client.f([]), [])
     self.assertEqual(client.f([0]), [1])
 
+  def test_List_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: List) -> List:
+        return [i + 1 for i in x]
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f([1, 2, 3]), [2, 3, 4])
+    self.assertEqual(client.f([]), [])
+    self.assertEqual(client.f([0]), [1])
+
   def test_List_str_type(self):
 
     class MyModel(ModelClass):
@@ -1123,6 +1070,19 @@ class TestModelCalls(unittest.TestCase):
     self.assertEqual(client.f(['1', '2', '3']), ['11', '21', '31'])
     self.assertEqual(client.f([]), [])
     self.assertEqual(client.f(['']), ['1'])
+
+  def test_str_List_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: str) -> List:
+        return [i + '1' for i in x]
+
+    client = _get_servicer_client(MyModel())
+
+    self.assertEqual(client.f('123'), ['11', '21', '31'])
+    self.assertEqual(client.f(''), [])
 
   def test_List_str_type_with_str_param(self):
 
@@ -1348,10 +1308,7 @@ class TestModelCalls(unittest.TestCase):
 
   def test_pilimage_pilimageclass_type_error(self):
 
-    with self.assertRaisesRegex(
-        TypeError,
-        "Use the Image class from the PIL.Image module i.e. `PIL.Image.Image`, not the module itself"
-    ):
+    with self.assertRaisesRegex(TypeError, "Use PIL.Image.Image instead of PIL.Image module"):
 
       class MyModel(ModelClass):
 
@@ -1361,10 +1318,7 @@ class TestModelCalls(unittest.TestCase):
 
   def test_pilimageclass_pilimage_type_error(self):
 
-    with self.assertRaisesRegex(
-        TypeError,
-        "Use the Image class from the PIL.Image module i.e. `PIL.Image.Image`, not the module itself"
-    ):
+    with self.assertRaisesRegex(TypeError, "Use PIL.Image.Image instead of PIL.Image module"):
 
       class MyModel(ModelClass):
 
@@ -1374,10 +1328,7 @@ class TestModelCalls(unittest.TestCase):
 
   def test_pilimage_pilimage_type__error(self):
 
-    with self.assertRaisesRegex(
-        TypeError,
-        "Use the Image class from the PIL.Image module i.e. `PIL.Image.Image`, not the module itself"
-    ):
+    with self.assertRaisesRegex(TypeError, "Use PIL.Image.Image instead of PIL.Image module"):
 
       class MyModel(ModelClass):
 
@@ -1455,6 +1406,286 @@ class TestModelCalls(unittest.TestCase):
     with self.assertRaises(TypeError):
       client.g('abc')
 
+  def test_Region_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: Region) -> Region:
+        return x
+
+    client = _get_servicer_client(MyModel())
+
+    region_proto = RegionProto()
+    region_proto.region_info.bounding_box.top_row = 0.1
+    region_proto.region_info.bounding_box.left_col = 0.2
+    region_proto.region_info.bounding_box.bottom_row = 0.3
+    region_proto.region_info.bounding_box.right_col = 0.4
+
+    test_region = Region(region_proto)
+
+    result = client.f(test_region)
+    expected_boxes = [0.2, 0.1, 0.4, 0.3]
+    for i in range(4):
+      self.assertAlmostEqual(result.box[i], expected_boxes[i], places=5)
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(3)
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=test_region)
+
+  def test_Audio_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: Audio) -> Audio:
+        return x
+
+    client = _get_servicer_client(MyModel())
+
+    test_audio = Audio(AudioProto(url='https://samples.clarifai.com/GoodMorning.wav'))
+
+    result = client.f(test_audio)
+    self.assertEqual(result.url, 'https://samples.clarifai.com/GoodMorning.wav')
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(3)
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=test_audio)
+
+  def test_Frame_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: Frame) -> Frame:
+        return x
+
+    client = _get_servicer_client(MyModel())
+
+    frame_proto = FrameProto()
+    frame_proto.frame_info.time = 1000
+    frame_proto.data.image.url = 'https://samples.clarifai.com/metro-north.jpg'
+
+    test_frame = Frame(frame_proto)
+
+    result = client.f(test_frame)
+    self.assertEqual(result.time, 1.0)
+    self.assertEqual(result.image.url, 'https://samples.clarifai.com/metro-north.jpg')
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(3)
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=test_frame)
+
+  def test_Video_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: Video) -> Video:
+        return x
+
+    client = _get_servicer_client(MyModel())
+
+    test_video = Video(VideoProto(url='https://samples.clarifai.com/beer.mp4'))
+
+    result = client.f(test_video)
+    self.assertEqual(result.url, 'https://samples.clarifai.com/beer.mp4')
+
+    with self.assertRaises(TypeError):
+      client.f('abc')
+
+    with self.assertRaises(TypeError):
+      client.f(3)
+
+    with self.assertRaises(TypeError):
+      client.f()
+
+    with self.assertRaises(TypeError):
+      client.f(y=test_video)
+
+  def test_Region_output(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: int) -> Region:
+        region = Region(RegionProto())
+        region.box = [0.2, 0.1, 0.4, 0.3]
+        return region
+
+    client = _get_servicer_client(MyModel())
+
+    result = client.f(5)
+    expected_boxes = [0.2, 0.1, 0.4, 0.3]
+    for i in range(4):
+      self.assertAlmostEqual(result.box[i], expected_boxes[i], places=5)
+
+  def test_Audio_output(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: int) -> Audio:
+        return Audio(AudioProto(url='https://samples.clarifai.com/GoodMorning.wav'))
+
+    client = _get_servicer_client(MyModel())
+
+    result = client.f(5)
+    self.assertEqual(result.url, 'https://samples.clarifai.com/GoodMorning.wav')
+
+  def test_Frame_output(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: int) -> Frame:
+        frame_proto = FrameProto()
+        frame_proto.frame_info.time = 1000
+        frame_proto.data.image.url = 'https://samples.clarifai.com/metro-north.jpg'
+        frame = Frame(frame_proto)
+        return frame
+
+    client = _get_servicer_client(MyModel())
+
+    result = client.f(5)
+    self.assertEqual(result.time, 1.0)
+    self.assertEqual(result.image.url, 'https://samples.clarifai.com/metro-north.jpg')
+
+  def test_Video_output(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: int) -> Video:
+        return Video(VideoProto(url='https://samples.clarifai.com/beer.mp4'))
+
+    client = _get_servicer_client(MyModel())
+
+    result = client.f(5)
+    self.assertEqual(result.url, 'https://samples.clarifai.com/beer.mp4')
+
+  def test_List_Region_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: List[Region]) -> List[Region]:
+        return x
+
+    client = _get_servicer_client(MyModel())
+
+    region_proto1 = RegionProto()
+    region_proto1.region_info.bounding_box.top_row = 0.1
+    region_proto1.region_info.bounding_box.left_col = 0.2
+    region_proto1.region_info.bounding_box.bottom_row = 0.3
+    region_proto1.region_info.bounding_box.right_col = 0.4
+
+    test_region1 = Region(region_proto1)
+
+    region_proto2 = RegionProto()
+    region_proto2.region_info.bounding_box.top_row = 0.5
+    region_proto2.region_info.bounding_box.left_col = 0.6
+    region_proto2.region_info.bounding_box.bottom_row = 0.7
+    region_proto2.region_info.bounding_box.right_col = 0.8
+
+    test_region2 = Region(region_proto2)
+
+    result = client.f([test_region1, test_region2])
+    self.assertEqual(len(result), 2)
+    expected_boxes = [[0.2, 0.1, 0.4, 0.3], [0.6, 0.5, 0.8, 0.7]]
+    for i in range(2):
+      for j in range(4):
+        self.assertAlmostEqual(result[i].box[j], expected_boxes[i][j], places=5)
+
+  def test_List_Audio_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: List[Audio]) -> List[Audio]:
+        return x
+
+    client = _get_servicer_client(MyModel())
+
+    test_audio1 = Audio(AudioProto(url='https://samples.clarifai.com/GoodMorning.wav'))
+    test_audio2 = Audio(AudioProto(url='https://samples.clarifai.com/GoodMorning.wav'))
+
+    result = client.f([test_audio1, test_audio2])
+    self.assertEqual(len(result), 2)
+    self.assertEqual(result[0].url, 'https://samples.clarifai.com/GoodMorning.wav')
+    self.assertEqual(result[1].url, 'https://samples.clarifai.com/GoodMorning.wav')
+
+  def test_List_Frame_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: List[Frame]) -> List[Frame]:
+        return x
+
+    client = _get_servicer_client(MyModel())
+
+    frame_proto1 = FrameProto()
+    frame_proto1.frame_info.time = 1000
+    frame_proto1.data.image.url = 'https://samples.clarifai.com/metro-north.jpg'
+
+    test_frame1 = Frame(frame_proto1)
+
+    frame_proto2 = FrameProto()
+    frame_proto2.frame_info.time = 2000
+    frame_proto2.data.image.url = 'https://samples.clarifai.com/metro-north.jpg'
+
+    test_frame2 = Frame(frame_proto2)
+
+    result = client.f([test_frame1, test_frame2])
+    self.assertEqual(len(result), 2)
+    self.assertEqual(result[0].time, 1.0)
+    self.assertEqual(result[0].image.url, 'https://samples.clarifai.com/metro-north.jpg')
+    self.assertEqual(result[1].time, 2.0)
+    self.assertEqual(result[1].image.url, 'https://samples.clarifai.com/metro-north.jpg')
+
+  def test_List_Video_type(self):
+
+    class MyModel(ModelClass):
+
+      @ModelClass.method
+      def f(self, x: List[Video]) -> List[Video]:
+        return x
+
+    client = _get_servicer_client(MyModel())
+
+    test_video1 = Video(VideoProto(url='https://samples.clarifai.com/beer.mp4'))
+    test_video2 = Video(VideoProto(url='https://samples.clarifai.com/beer.mp4'))
+
+    result = client.f([test_video1, test_video2])
+    self.assertEqual(len(result), 2)
+    self.assertEqual(result[0].url, 'https://samples.clarifai.com/beer.mp4')
+    self.assertEqual(result[1].url, 'https://samples.clarifai.com/beer.mp4')
+
 
 class TestSerialization(unittest.TestCase):
 
@@ -1472,8 +1703,8 @@ class TestSerialization(unittest.TestCase):
 
     kwargs = {'x': 5}
     proto = resources_pb2.Data()
-    serialize(kwargs, signature.inputs, proto)
-    deserialized_kwargs = deserialize(proto, signature.inputs)
+    serialize(kwargs, signature.input_fields, proto)
+    deserialized_kwargs = deserialize(proto, signature.input_fields)
     self.assertEqual(kwargs, deserialized_kwargs)
 
   def test_Image_one_input_not_in_parts(self):
@@ -1492,7 +1723,7 @@ class TestSerialization(unittest.TestCase):
 
     kwargs = {'x': testimg}
     proto = resources_pb2.Data()
-    serialize(kwargs, signature.inputs, proto)
+    serialize(kwargs, signature.input_fields, proto)
 
     self.assertTrue(len(proto.parts) == 0)
     self.assertTrue(proto.HasField('image'))
@@ -1512,7 +1743,7 @@ class TestSerialization(unittest.TestCase):
     kwargs = {'x': [Concept('testconcept', 0.9), Concept('testconcept2', 0.8)]}
 
     proto = resources_pb2.Data()
-    serialize(kwargs, signature.inputs, proto)
+    serialize(kwargs, signature.input_fields, proto)
 
     # input list uses parts[x], then repeated concepts
     # also would be ok to put in data.concepts
@@ -1522,7 +1753,7 @@ class TestSerialization(unittest.TestCase):
 
     return_value = {'return': kwargs['x']}
     proto = resources_pb2.Data()
-    serialize(return_value, signature.outputs, proto, is_output=True)
+    serialize(return_value, signature.output_fields, proto, is_output=True)
 
     self.assertTrue(len(proto.parts) == 0)
     self.assertTrue(len(proto.concepts) == 2)
