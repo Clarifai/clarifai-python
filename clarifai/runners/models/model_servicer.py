@@ -1,3 +1,4 @@
+import os
 from itertools import tee
 from typing import Iterator
 
@@ -5,6 +6,8 @@ from clarifai_grpc.grpc.api import service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
 from ..utils.url_fetcher import ensure_urls_downloaded
+
+_RAISE_EXCEPTIONS = os.getenv("RAISE_EXCEPTIONS", "false").lower() in ("true", "1")
 
 
 class ModelServicer(service_pb2_grpc.V2Servicer):
@@ -33,6 +36,8 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
     try:
       return self.model.predict_wrapper(request)
     except Exception as e:
+      if _RAISE_EXCEPTIONS:
+        raise
       return service_pb2.MultiOutputResponse(status=status_pb2.Status(
           code=status_code_pb2.MODEL_PREDICTION_FAILED,
           description="Failed",
@@ -50,8 +55,10 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
     ensure_urls_downloaded(request)
 
     try:
-      return self.model.generate_wrapper(request)
+      yield from self.model.generate_wrapper(request)
     except Exception as e:
+      if _RAISE_EXCEPTIONS:
+        raise
       yield service_pb2.MultiOutputResponse(status=status_pb2.Status(
           code=status_code_pb2.MODEL_PREDICTION_FAILED,
           description="Failed",
@@ -74,8 +81,10 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
       ensure_urls_downloaded(req)
 
     try:
-      return self.model.stream_wrapper(request_copy)
+      yield from self.model.stream_wrapper(request_copy)
     except Exception as e:
+      if _RAISE_EXCEPTIONS:
+        raise
       yield service_pb2.MultiOutputResponse(status=status_pb2.Status(
           code=status_code_pb2.MODEL_PREDICTION_FAILED,
           description="Failed",

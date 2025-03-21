@@ -82,6 +82,8 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
     ensure_urls_downloaded(request)
 
     resp = self.model.predict_wrapper(request)
+    if resp.status.code != status_code_pb2.SUCCESS:
+      return service_pb2.RunnerItemOutput(multi_output_response=resp)
     successes = [o.status.code == status_code_pb2.SUCCESS for o in resp.outputs]
     if all(successes):
       status = status_pb2.Status(
