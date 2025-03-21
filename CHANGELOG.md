@@ -1,3 +1,16 @@
+## [[11.2.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.0) - [PyPI](https://pypi.org/project/clarifai/11.2.0/) - 2025-03-20
+
+### Changed
+ - Improved CLI login module [(#535)] (https://github.com/Clarifai/clarifai-python/pull/535)
+ - Updated the CLI to test out model locally independent of remote access [(#534)] (https://github.com/Clarifai/clarifai-python/pull/534)
+ - Modified the default value of `num_threads` field [(#533)] (https://github.com/Clarifai/clarifai-python/pull/533)
+
+## [[11.1.7]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.7) - [PyPI](https://pypi.org/project/clarifai/11.1.7/) - 2025-03-08
+
+### Changed
+ - Dropped testing of python 3.8, 3.9, 3.10 [(#532)] (https://github.com/Clarifai/clarifai-python/pull/532)
+ - Updated the deployment testing config [(#531)] (https://github.com/Clarifai/clarifai-python/pull/531)
+
 ## [[11.1.6]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.6) - [PyPI](https://pypi.org/project/clarifai/11.1.6/) - 2025-03-06
 
 ### Changed
