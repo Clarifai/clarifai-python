@@ -1,13 +1,31 @@
-import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
+
 from clarifai.runners.models.model_run_locally import ModelRunLocally
 
-CLARIFAI_USER_ID = os.environ["CLARIFAI_USER_ID"]
-CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
+
+@pytest.fixture
+def dummy_models_path(tmp_path):
+  """
+  Copy the dummy_runner_models folder to a temp directory and update app_id in config.yaml
+  so that your e2e tests use a newly created ephemeral app on your Clarifai account.
+  """
+  tests_dir = Path(__file__).parent.resolve()
+  original_dummy_path = tests_dir / "dummy_runner_models"
+  if not original_dummy_path.exists():
+    # Adjust or raise an error if you cannot locate the dummy_runner_models folder
+    raise FileNotFoundError(f"Could not find dummy_runner_models at {original_dummy_path}. "
+                            "Adjust path or ensure it exists.")
+
+  # Copy the entire folder to tmp_path
+  target_folder = tmp_path / "dummy_runner_models"
+  shutil.copytree(original_dummy_path, target_folder)
+
+  return str(target_folder)
 
 
 @pytest.fixture
@@ -17,6 +35,26 @@ def model_run_locally(dummy_models_path):
   with the dummy model_path that already exists.
   """
   return ModelRunLocally(dummy_models_path)
+
+
+@pytest.fixture
+def dummy_hf_models_path(tmp_path):
+  """
+  Copy the hf_mbart_model folder to a temp directory and update app_id in config.yaml
+  so that your e2e tests use a newly created ephemeral app on your Clarifai account.
+  """
+  tests_dir = Path(__file__).parent.resolve()
+  original_dummy_path = tests_dir / "hf_mbart_model"
+  if not original_dummy_path.exists():
+    # Adjust or raise an error if you cannot locate the hf_mbart_model folder
+    raise FileNotFoundError(f"Could not find hf_mbart_model at {original_dummy_path}. "
+                            "Adjust path or ensure it exists.")
+
+  # Copy the entire folder to tmp_path
+  target_folder = tmp_path / "hf_mbart_model"
+  shutil.copytree(original_dummy_path, target_folder)
+
+  return str(target_folder)
 
 
 @pytest.fixture
@@ -52,12 +90,7 @@ def test_docker_build_and_test_container(model_run_locally):
   # Run tests inside the container
   try:
     model_run_locally.test_model_container(
-        image_name=image_name,
-        container_name="test_clarifai_model_container",
-        env_vars={
-            'CLARIFAI_PAT': CLARIFAI_PAT,
-            'CLARIFAI_API_BASE': os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
-        })
+        image_name=image_name, container_name="test_clarifai_model_container")
   except subprocess.CalledProcessError:
     pytest.fail("Failed to test the model inside the docker container.")
   finally:
@@ -102,12 +135,7 @@ def test_hf_docker_build_and_test_container(hf_model_run_locally):
   # Run tests inside the container
   try:
     hf_model_run_locally.test_model_container(
-        image_name=image_name,
-        container_name="test_clarifai_model_container",
-        env_vars={
-            'CLARIFAI_PAT': CLARIFAI_PAT,
-            'CLARIFAI_API_BASE': os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
-        })
+        image_name=image_name, container_name="test_clarifai_model_container")
   except subprocess.CalledProcessError:
     pytest.fail("Failed to test the model inside the docker container.")
   finally:

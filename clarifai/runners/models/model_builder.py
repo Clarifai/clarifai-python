@@ -232,7 +232,7 @@ class ModelBuilder:
           f"`num_threads` must be an integer greater than or equal to 1. Received type {type(num_threads)} with value {num_threads}."
       )
     else:
-      num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 1))
+      num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 16))
       self.config["num_threads"] = num_threads
 
   @staticmethod
@@ -286,8 +286,9 @@ class ModelBuilder:
 
     assert "model_type_id" in model, "model_type_id not found in the config file"
     assert "id" in model, "model_id not found in the config file"
-    assert "user_id" in model, "user_id not found in the config file"
-    assert "app_id" in model, "app_id not found in the config file"
+    if not self.download_validation_only:
+      assert "user_id" in model, "user_id not found in the config file"
+      assert "app_id" in model, "app_id not found in the config file"
 
     model_proto = json_format.ParseDict(model, resources_pb2.Model())
 
