@@ -121,6 +121,17 @@ class ModelClient:
             raise TypeError(
                 f"{method_name}() takes {len(method_argnames)} positional arguments but {len(args)} were given"
             )
+
+          if len(args) + len(kwargs) > len(method_argnames):
+            raise TypeError(
+                f"{method_name}() got an unexpected keyword argument {next(iter(kwargs))}")
+          if len(args) == 1 and (not kwargs) and isinstance(args[0], list):
+            batch_inputs = args[0]
+            # Validate each input is a dictionary
+            for input in batch_inputs:
+              if not isinstance(input, dict):
+                raise TypeError("Each input in batch_inputs must be a dictionary")
+            return call_func(batch_inputs, method_name)
           for name, arg in zip(method_argnames, args):  # handle positional with zip shortest
             if name in kwargs:
               raise TypeError(f"Multiple values for argument {name}")
@@ -176,10 +187,15 @@ class ModelClient:
       inputs,  # TODO set up functions according to fetched signatures?
       method_name: str = 'predict',
   ) -> Any:
+
+    print(f'method_name: {method_name}')
+    print(f'inputs: {inputs}')
     input_signature = self._method_signatures[method_name].input_fields
     output_signature = self._method_signatures[method_name].output_fields
 
     batch_input = True
+    print(f'isinstance(inputs, dict): {isinstance(inputs, dict)}')
+    print(f'type(inputs): {type(inputs)}')
     if isinstance(inputs, dict):
       inputs = [inputs]
       batch_input = False
@@ -187,6 +203,8 @@ class ModelClient:
     proto_inputs = []
     for input in inputs:
       proto = resources_pb2.Input()
+      print(f'input type: {type(input)}')
+
       serialize(input, input_signature, proto.data)
       proto_inputs.append(proto)
 

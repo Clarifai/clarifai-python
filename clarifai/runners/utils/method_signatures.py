@@ -330,7 +330,8 @@ def _normalize_data_type(tp):
 
   # jsonable list and dict, these can be serialized as json
   # (tuple we want to keep as a tuple for args and returns, so don't include here)
-  if tp in (list, dict) or (get_origin(tp) in (list, dict) and _is_jsonable(tp)):
+  if tp in (list, dict) or (get_origin(tp) in (list, dict) and _is_jsonable(tp) and
+                            get_args(tp) is None):
     return data_types.JSON
 
   # container types that need to be serialized as parts
