@@ -1,7 +1,8 @@
 import click
+
 from clarifai.cli.base import cli
 from clarifai.client.user import User
-from clarifai.utils.cli import display_co_resources
+from clarifai.utils.cli import display_co_resources, validate_context
 
 
 @cli.group(['computecluster', 'cc'])
@@ -24,6 +25,8 @@ def computecluster():
 @click.pass_context
 def create(ctx, config, compute_cluster_id):
   """Create a new Compute Cluster with the given config file."""
+
+  validate_context(ctx)
   user = User(user_id=ctx.obj['user_id'], pat=ctx.obj['pat'], base_url=ctx.obj['base_url'])
   if compute_cluster_id:
     user.create_compute_cluster(config, compute_cluster_id=compute_cluster_id)
@@ -37,6 +40,8 @@ def create(ctx, config, compute_cluster_id):
 @click.pass_context
 def list(ctx, page_no, per_page):
   """List all compute clusters for the user."""
+
+  validate_context(ctx)
   user = User(user_id=ctx.obj['user_id'], pat=ctx.obj['pat'], base_url=ctx.obj['base_url'])
   response = user.list_compute_clusters(page_no, per_page)
   display_co_resources(response, "Compute Cluster")
@@ -47,5 +52,7 @@ def list(ctx, page_no, per_page):
 @click.pass_context
 def delete(ctx, compute_cluster_id):
   """Deletes a compute cluster for the user."""
+
+  validate_context(ctx)
   user = User(user_id=ctx.obj['user_id'], pat=ctx.obj['pat'], base_url=ctx.obj['base_url'])
   user.delete_compute_clusters([compute_cluster_id])

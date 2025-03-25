@@ -43,17 +43,10 @@ def cli(ctx):
   """Clarifai CLI"""
   ctx.ensure_object(dict)
   config_path = f"{os.getenv('HOME')}/.clarifai/config.yaml"
-  config_dir = os.path.dirname(config_path)
   if os.path.exists(config_path):
     ctx.obj = from_yaml(config_path)
   else:
     ctx.obj = {}
-    if ctx.invoked_subcommand != 'login':
-      logger.error("Error getting config: CLI config file missing")
-      logger.info("Running `login` to set up the CLI configuration.")
-      if not os.path.exists(config_dir):
-        os.makedirs(config_dir)
-      ctx.invoke(login)
 
 
 @cli.command()
@@ -74,16 +67,16 @@ def login(ctx, config, env, user_id):
 
   if 'pat' in ctx.obj:
     os.environ["CLARIFAI_PAT"] = ctx.obj['pat']
-    click.echo("Loaded PAT from config file.")
+    logger.info("Loaded PAT from config file.")
   elif 'CLARIFAI_PAT' in os.environ:
     ctx.obj['pat'] = os.environ["CLARIFAI_PAT"]
-    click.echo("Loaded PAT from environment variable.")
+    logger.info("Loaded PAT from environment variable.")
   else:
     _pat = click.prompt(
         "Get your PAT from https://clarifai.com/settings/security and pass it here", type=str)
     os.environ["CLARIFAI_PAT"] = _pat
     ctx.obj['pat'] = _pat
-    click.echo("PAT saved successfully.")
+    logger.info("PAT saved successfully.")
 
   if user_id:
     ctx.obj['user_id'] = user_id
@@ -97,7 +90,7 @@ def login(ctx, config, env, user_id):
     user_id = click.prompt("Pass the User ID here", type=str)
     os.environ["CLARIFAI_USER_ID"] = user_id
     ctx.obj['user_id'] = user_id
-    click.echo("User ID saved successfully.")
+    logger.info("User ID saved successfully.")
 
   if env:
     ctx.obj['env'] = env
@@ -113,9 +106,14 @@ def login(ctx, config, env, user_id):
     ctx.obj['env'] = 'prod'
     ctx.obj['base_url'] = set_base_url(ctx.obj['env'])
     os.environ["CLARIFAI_API_BASE"] = ctx.obj['base_url']
-    click.echo("Base URL saved successfully.")
+    logger.info("Base URL saved successfully.")
 
-  dump_yaml(ctx.obj, f"{os.getenv('HOME')}/.clarifai/config.yaml")
+  config_path = f"{os.getenv('HOME')}/.clarifai/config.yaml"
+  config_dir = os.path.dirname(config_path)
+  if not os.path.exists(config_dir):
+    os.makedirs(config_dir)
+
+  dump_yaml(ctx.obj, config_path)
 
 
 # Import the CLI commands to register them
