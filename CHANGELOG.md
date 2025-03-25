@@ -1,4 +1,4 @@
-## [[11.2.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.0) - [PyPI](https://pypi.org/project/clarifai/11.2.0/) - 2025-03-20
+## [[11.2.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.0) - [PyPI](https://pypi.org/project/clarifai/11.2.0/) - 2025-03-24
 
 ### Changed
  - Improved CLI login module [(#535)] (https://github.com/Clarifai/clarifai-python/pull/535)
