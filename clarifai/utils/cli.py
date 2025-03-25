@@ -1,6 +1,7 @@
 import importlib
 import os
 import pkgutil
+import sys
 
 import click
 import yaml
@@ -9,6 +10,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.style import Style
 from rich.text import Text
+
+from clarifai.utils.logging import logger
 
 
 def from_yaml(filename: str):
@@ -68,3 +71,9 @@ def display_co_resources(response, resource_type):
         border_style="green",
         width=60)
     console.print(panel)
+
+
+def validate_context(ctx):
+  if ctx.obj == {}:
+    logger.error("CLI config file missing. Run `clarifai login` to set up the CLI config.")
+    sys.exit(1)

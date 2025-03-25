@@ -241,7 +241,8 @@ def predict(ctx, config, model_id, user_id, app_id, model_url, file_path, url, b
   import json
 
   from clarifai.client.model import Model
-  from clarifai.utils.cli import from_yaml
+  from clarifai.utils.cli import from_yaml, validate_context
+  validate_context(ctx)
   if config:
     config = from_yaml(config)
     model_id, user_id, app_id, model_url, file_path, url, bytes, input_type, compute_cluster_id, nodepool_id, deployment_id, inference_params, output_config = (

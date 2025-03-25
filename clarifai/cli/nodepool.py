@@ -1,7 +1,7 @@
 import click
 from clarifai.cli.base import cli
 from clarifai.client.compute_cluster import ComputeCluster
-from clarifai.utils.cli import display_co_resources, dump_yaml, from_yaml
+from clarifai.utils.cli import display_co_resources, dump_yaml, from_yaml, validate_context
 
 
 @cli.group(['nodepool', 'np'])
@@ -27,6 +27,7 @@ def nodepool():
 def create(ctx, compute_cluster_id, config, nodepool_id):
   """Create a new Nodepool with the given config file."""
 
+  validate_context(ctx)
   nodepool_config = from_yaml(config)
   if not compute_cluster_id:
     if 'compute_cluster' not in nodepool_config['nodepool']:
@@ -63,6 +64,7 @@ def create(ctx, compute_cluster_id, config, nodepool_id):
 def list(ctx, compute_cluster_id, page_no, per_page):
   """List all nodepools for the user."""
 
+  validate_context(ctx)
   compute_cluster = ComputeCluster(
       compute_cluster_id=compute_cluster_id,
       user_id=ctx.obj['user_id'],
@@ -83,6 +85,7 @@ def list(ctx, compute_cluster_id, page_no, per_page):
 def delete(ctx, compute_cluster_id, nodepool_id):
   """Deletes a nodepool for the user."""
 
+  validate_context(ctx)
   compute_cluster = ComputeCluster(
       compute_cluster_id=compute_cluster_id,
       user_id=ctx.obj['user_id'],
