@@ -128,10 +128,10 @@ class ModelClient:
           if len(args) == 1 and (not kwargs) and isinstance(args[0], list):
             batch_inputs = args[0]
             # Validate each input is a dictionary
-            for input in batch_inputs:
-              if not isinstance(input, dict):
-                raise TypeError("Each input in batch_inputs must be a dictionary")
-            return call_func(batch_inputs, method_name)
+            is_batch_input_valid = all(isinstance(input, dict) for input in batch_inputs)
+            if is_batch_input_valid:
+              return call_func(batch_inputs, method_name)
+
           for name, arg in zip(method_argnames, args):  # handle positional with zip shortest
             if name in kwargs:
               raise TypeError(f"Multiple values for argument {name}")

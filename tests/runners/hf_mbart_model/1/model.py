@@ -21,6 +21,7 @@ class MyModel(ModelClass):
     self.model = AutoModelForSeq2SeqLM.from_pretrained(
         checkpoints, torch_dtype="auto", device_map=self.device)
 
+  @ModelClass.method
   def predict(self, prompt: str = "") -> str:
     """This is the method that will be called when the runner is run. It takes in an input and
     returns an output.
@@ -36,4 +37,4 @@ class MyModel(ModelClass):
 
   def stream(self, input_iterator: Stream[str]) -> Stream[str]:
     """Example yielding a whole batch of streamed stuff back."""
-    pass
+    raise NotImplementedError("This method is not implemented yet.")
