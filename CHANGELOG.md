@@ -1,3 +1,9 @@
+## [[11.2.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.1) - [PyPI](https://pypi.org/project/clarifai/11.2.1/) - 2025-03-25
+
+### Changed
+ - Added validation for CLI config [(#540)] (https://github.com/Clarifai/clarifai-python/pull/540)
+ - Fixed docker image name and added `skip_dockerfile` option to `test-locally` subcommand od model CLI [(#526)] (https://github.com/Clarifai/clarifai-python/pull/526)
+
 ## [[11.2.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.0) - [PyPI](https://pypi.org/project/clarifai/11.2.0/) - 2025-03-24
 
 ### Changed
