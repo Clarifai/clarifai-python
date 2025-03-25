@@ -188,14 +188,10 @@ class ModelClient:
       method_name: str = 'predict',
   ) -> Any:
 
-    print(f'method_name: {method_name}')
-    print(f'inputs: {inputs}')
     input_signature = self._method_signatures[method_name].input_fields
     output_signature = self._method_signatures[method_name].output_fields
 
     batch_input = True
-    print(f'isinstance(inputs, dict): {isinstance(inputs, dict)}')
-    print(f'type(inputs): {type(inputs)}')
     if isinstance(inputs, dict):
       inputs = [inputs]
       batch_input = False
@@ -203,13 +199,11 @@ class ModelClient:
     proto_inputs = []
     for input in inputs:
       proto = resources_pb2.Input()
-      print(f'input type: {type(input)}')
 
       serialize(input, input_signature, proto.data)
       proto_inputs.append(proto)
 
     response = self._predict_by_proto(proto_inputs, method_name)
-    #print(response)
 
     outputs = []
     for output in response.outputs:
@@ -292,7 +286,6 @@ class ModelClient:
       proto_inputs.append(proto)
 
     response_stream = self._generate_by_proto(proto_inputs, method_name)
-    #print(response)
 
     for response in response_stream:
       outputs = []
@@ -404,7 +397,6 @@ class ModelClient:
         yield proto
 
     response_stream = self._stream_by_proto(_input_proto_stream(), method_name)
-    #print(response)
 
     for response in response_stream:
       assert len(response.outputs) == 1, 'streaming methods must have exactly one output'
