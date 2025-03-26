@@ -6,6 +6,7 @@ import shutil
 
 import requests
 
+from clarifai.runners.utils.const import CONCEPTS_REQUIRED_MODEL_TYPE
 from clarifai.utils.logging import logger
 
 
@@ -13,9 +14,10 @@ class HuggingFaceLoader:
 
   HF_DOWNLOAD_TEXT = "The 'huggingface_hub' package is not installed. Please install it using 'pip install huggingface_hub'."
 
-  def __init__(self, repo_id=None, token=None):
+  def __init__(self, repo_id=None, token=None, model_type_id=None):
     self.repo_id = repo_id
     self.token = token
+    self.clarifai_model_type_id = model_type_id
     if token:
       if self.validate_hftoken(token):
         try:
@@ -109,7 +111,10 @@ class HuggingFaceLoader:
       from huggingface_hub import file_exists, repo_exists
     except ImportError:
       raise ImportError(self.HF_DOWNLOAD_TEXT)
-    return repo_exists(self.repo_id) and file_exists(self.repo_id, 'config.json')
+    if self.clarifai_model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE:
+      return repo_exists(self.repo_id) and file_exists(self.repo_id, 'config.json')
+    else:
+      return repo_exists(self.repo_id)
 
   def validate_download(self, checkpoint_path: str):
     # check if model exists on HF
