@@ -43,13 +43,17 @@ class HuggingFaceLoader:
           f"Error setting up Hugging Face token, please make sure you have the correct token: {e}")
       return False
 
-  def download_checkpoints(self, checkpoint_path: str, allowed_file_patterns=None, ignore_file_patterns=None):
+  def download_checkpoints(self,
+                           checkpoint_path: str,
+                           allowed_file_patterns=None,
+                           ignore_file_patterns=None):
     # throw error if huggingface_hub wasn't installed
     try:
       from huggingface_hub import snapshot_download
     except ImportError:
       raise ImportError(self.HF_DOWNLOAD_TEXT)
-    if os.path.exists(checkpoint_path) and self.validate_download(checkpoint_path, allowed_file_patterns, ignore_file_patterns):
+    if os.path.exists(checkpoint_path) and self.validate_download(
+        checkpoint_path, allowed_file_patterns, ignore_file_patterns):
       logger.info("Checkpoints already exist")
       return True
     else:
@@ -78,7 +82,8 @@ class HuggingFaceLoader:
         logger.error(f"Error downloading model checkpoints {e}")
         return False
       finally:
-        is_downloaded = self.validate_download(checkpoint_path, allowed_file_patterns, ignore_file_patterns)
+        is_downloaded = self.validate_download(checkpoint_path, allowed_file_patterns,
+                                               ignore_file_patterns)
         if not is_downloaded:
           logger.error("Error validating downloaded model checkpoints")
           return False
@@ -114,7 +119,8 @@ class HuggingFaceLoader:
       raise ImportError(self.HF_DOWNLOAD_TEXT)
     return repo_exists(self.repo_id) and file_exists(self.repo_id, 'config.json')
 
-  def validate_download(self, checkpoint_path: str, allowed_file_patterns: list, ignore_file_patterns: list):
+  def validate_download(self, checkpoint_path: str, allowed_file_patterns: list,
+                        ignore_file_patterns: list):
     # check if model exists on HF
     try:
       from huggingface_hub import list_repo_files
@@ -129,6 +135,7 @@ class HuggingFaceLoader:
     # Get the list of files on the repo that are allowed and not ignored
     if getattr(self, "ignore_patterns", None):
       if allowed_file_patterns:
+
         def should_allow(file_path):
           return any(fnmatch.fnmatch(file_path, pattern) for pattern in allowed_file_patterns)
 

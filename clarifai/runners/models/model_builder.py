@@ -484,7 +484,8 @@ class ModelBuilder:
       logger.info("No checkpoints specified in the config file")
       return path
 
-    loader_type, repo_id, hf_token, when, allowed_file_patterns, ignore_file_patterns = self._validate_config_checkpoints()
+    loader_type, repo_id, hf_token, when, allowed_file_patterns, ignore_file_patterns = self._validate_config_checkpoints(
+    )
     if stage not in ["build", "upload", "runtime"]:
       raise Exception("Invalid stage provided, must be one of ['build', 'upload', 'runtime']")
     if when != stage:
@@ -500,7 +501,10 @@ class ModelBuilder:
       if stage == "runtime" and checkpoint_path_override is None:
         checkpoint_path_override = self.default_runtime_checkpoint_path()
       path = checkpoint_path_override if checkpoint_path_override else self.checkpoint_path
-      success = loader.download_checkpoints(path, allowed_file_patterns=allowed_file_patterns, ignore_file_patterns=ignore_file_patterns)
+      success = loader.download_checkpoints(
+          path,
+          allowed_file_patterns=allowed_file_patterns,
+          ignore_file_patterns=ignore_file_patterns)
 
     if loader_type:
       if not success:
