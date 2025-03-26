@@ -173,7 +173,11 @@ class ModelBuilder:
       hf_token = self.config.get("checkpoints").get("hf_token", os.environ.get("HF_TOKEN", None))
 
       allowed_file_patterns = self.config.get("checkpoints").get('allowed_file_patterns', None)
+      if isinstance(allowed_file_patterns, str):
+        allowed_file_patterns = [allowed_file_patterns]
       ignore_file_patterns = self.config.get("checkpoints").get('ignore_file_patterns', None)
+      if isinstance(ignore_file_patterns, str):
+        ignore_file_patterns = [ignore_file_patterns]
       return loader_type, repo_id, hf_token, when, allowed_file_patterns, ignore_file_patterns
 
   def _check_app_exists(self):
