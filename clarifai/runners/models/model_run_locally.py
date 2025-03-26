@@ -93,29 +93,99 @@ class ModelRunLocally:
 
     model_version_proto = self.builder.get_model_version_proto()
     model_version_proto.id = "model_version"
+    image_url = "https://samples.clarifai.com/metro-north.jpg"
+    image_path = "../../static/metro-north.jpg"
 
-    return service_pb2.PostModelOutputsRequest(
+    default_request = service_pb2.PostModelOutputsRequest(
         model=resources_pb2.Model(model_version=model_version_proto),
         inputs=[
             resources_pb2.Input(data=resources_pb2.Data(
-                text=resources_pb2.Text(raw="How many people live in new york?"),
+                text=resources_pb2.Text(raw="Describe the image"),
                 image=resources_pb2.Image(url="https://samples.clarifai.com/metro-north.jpg"),
-                audio=resources_pb2.Audio(url="https://samples.clarifai.com/GoodMorning.wav"),
-                video=resources_pb2.Video(url="https://samples.clarifai.com/beer.mp4"),
             ))
         ],
     )
 
+    def image_to_base64(image_path):
+      with open(image_path, "rb") as image_file:
+          base64_img = base64.b64encode(image_file.read())
+      return base64_img
+
+    def _build_text_to_text_request():
+      requests = [
+          service_pb2.PostModelOutputsRequest(
+              model=resources_pb2.Model(model_version=model_version_proto),
+              inputs=[
+                  resources_pb2.Input(data=resources_pb2.Data(
+                      text=resources_pb2.Text(raw="How many people live in new york?"),
+                  ))
+              ],
+          ),
+      ]
+      return requests
+
+    def _build_multimodal_to_text_request():
+      requests = [
+        service_pb2.PostModelOutputsRequest(
+          model=resources_pb2.Model(model_version=model_version_proto),
+          inputs=[
+              resources_pb2.Input(data=resources_pb2.Data(
+                  text=resources_pb2.Text(raw="Describe the image"),
+                  image=resources_pb2.Image(url=image_url),
+              ))
+          ],
+        ),
+        service_pb2.PostModelOutputsRequest(
+          model=resources_pb2.Model(model_version=model_version_proto),
+          inputs=[
+              resources_pb2.Input(data=resources_pb2.Data(
+                  text=resources_pb2.Text(raw="Describe the image"),
+                  image=resources_pb2.Image(base64=image_to_base64(image_path)),
+              ))
+          ],
+        ),
+        service_pb2.PostModelOutputsRequest(
+              model=resources_pb2.Model(model_version=model_version_proto),
+              inputs=[
+                  resources_pb2.Input(data=resources_pb2.Data(
+                      text=resources_pb2.Text(raw="How many people live in new york?"),
+                  ))
+              ],
+          ),
+      ]
+      return requests
+
+    def _build_text_to_image_request():
+      requests = [
+        service_pb2.PostModelOutputsRequest(
+          model=resources_pb2.Model(model_version=model_version_proto),
+          inputs=[
+              resources_pb2.Input(data=resources_pb2.Data(
+                  text=resources_pb2.Text(raw="Generate an image of a dog playing in the park"),
+              ))
+          ],
+        ),
+      ]
+      return requests
+
+    requests = [default_request]
+    if self.config.get("multimodal_to_text"):
+      requests.extend(_build_multimodal_to_text_request())
+    if self.config.get("text_to_text"):
+      requests.extend(_build_text_to_text_request())
+    if self.config.get("text_to_image"):
+      requests.extend(_build_text_to_image_request())
+    
+    return requests
+
+
   def _build_stream_request(self):
-    request = self._build_request()
-    for i in range(1):
+    requests = self._build_request()
+    for i in range(len(requests)):
       yield request
 
-  def _run_model_inference(self, model):
-    """Perform inference using the model."""
-    request = self._build_request()
-    stream_request = self._build_stream_request()
-
+  def _run_model_on_single_request(self, model, request):
+    """Perform inference using the model on a single request."""
     ensure_urls_downloaded(request)
     predict_response = None
     generate_response = None
@@ -136,7 +206,7 @@ class ModelRunLocally:
 
     if predict_response:
       if predict_response.outputs[0].status.code != status_code_pb2.SUCCESS:
-        logger.error(f"Moddel Prediction failed: {predict_response}")
+        logger.error(f"Model Prediction failed: {predict_response}")
       else:
         logger.info(f"Model Prediction succeeded: {predict_response}")
 
@@ -157,7 +227,7 @@ class ModelRunLocally:
     if generate_response:
       generate_first_res = next(generate_response)
       if generate_first_res.outputs[0].status.code != status_code_pb2.SUCCESS:
-        logger.error(f"Moddel Prediction failed: {generate_first_res}")
+        logger.error(f"Model Prediction failed: {generate_first_res}")
       else:
         logger.info(
             f"Model Prediction succeeded for generate and first response: {generate_first_res}")
@@ -179,10 +249,20 @@ class ModelRunLocally:
     if stream_response:
       stream_first_res = next(stream_response)
       if stream_first_res.outputs[0].status.code != status_code_pb2.SUCCESS:
-        logger.error(f"Moddel Prediction failed: {stream_first_res}")
+        logger.error(f"Model Prediction failed: {stream_first_res}")
       else:
         logger.info(
             f"Model Prediction succeeded for stream and first response: {stream_first_res}")
+
+
+  def _run_model_inference(self, model):
+    """Perform inference using the model."""
+    requests = self._build_request()
+    stream_requests = self._build_stream_request()
+
+    for req_index in range(len(requests)):
+      self._run_model_on_single_request(model, requests[req_index])
+
 
   def _run_test(self):
     """Test the model locally by making a prediction."""
