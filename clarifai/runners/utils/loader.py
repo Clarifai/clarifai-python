@@ -43,13 +43,13 @@ class HuggingFaceLoader:
           f"Error setting up Hugging Face token, please make sure you have the correct token: {e}")
       return False
 
-  def download_checkpoints(self, checkpoint_path: str):
+  def download_checkpoints(self, checkpoint_path: str, allowed_file_patterns=None, ignore_file_patterns=None):
     # throw error if huggingface_hub wasn't installed
     try:
       from huggingface_hub import snapshot_download
     except ImportError:
       raise ImportError(self.HF_DOWNLOAD_TEXT)
-    if os.path.exists(checkpoint_path) and self.validate_download(checkpoint_path):
+    if os.path.exists(checkpoint_path) and self.validate_download(checkpoint_path, allowed_file_patterns, ignore_file_patterns):
       logger.info("Checkpoints already exist")
       return True
     else:
@@ -61,10 +61,13 @@ class HuggingFaceLoader:
           return False
 
         self.ignore_patterns = self._get_ignore_patterns()
+        if ignore_file_patterns:
+          self.ignore_patterns.extend(ignore_file_patterns)
         snapshot_download(
             repo_id=self.repo_id,
             local_dir=checkpoint_path,
             local_dir_use_symlinks=False,
+            allow_patterns=allowed_file_patterns,
             ignore_patterns=self.ignore_patterns)
         # Remove the `.cache` folder if it exists
         cache_path = os.path.join(checkpoint_path, ".cache")
@@ -75,7 +78,7 @@ class HuggingFaceLoader:
         logger.error(f"Error downloading model checkpoints {e}")
         return False
       finally:
-        is_downloaded = self.validate_download(checkpoint_path)
+        is_downloaded = self.validate_download(checkpoint_path, allowed_file_patterns, ignore_file_patterns)
         if not is_downloaded:
           logger.error("Error validating downloaded model checkpoints")
           return False
@@ -111,7 +114,7 @@ class HuggingFaceLoader:
       raise ImportError(self.HF_DOWNLOAD_TEXT)
     return repo_exists(self.repo_id) and file_exists(self.repo_id, 'config.json')
 
-  def validate_download(self, checkpoint_path: str):
+  def validate_download(self, checkpoint_path: str, allowed_file_patterns: list, ignore_file_patterns: list):
     # check if model exists on HF
     try:
       from huggingface_hub import list_repo_files
@@ -121,8 +124,16 @@ class HuggingFaceLoader:
     repo_files = list_repo_files(self.repo_id, token=self.token)
 
     self.ignore_patterns = self._get_ignore_patterns()
-    # Get the list of files on the repo that are not ignored
+    if ignore_file_patterns:
+      self.ignore_patterns.extend(ignore_file_patterns)
+    # Get the list of files on the repo that are allowed and not ignored
     if getattr(self, "ignore_patterns", None):
+      if allowed_file_patterns:
+        def should_allow(file_path):
+          return any(fnmatch.fnmatch(file_path, pattern) for pattern in allowed_file_patterns)
+
+        repo_files = [f for f in repo_files if should_allow(f)]
+
       patterns = self.ignore_patterns
 
       def should_ignore(file_path):
