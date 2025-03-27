@@ -66,7 +66,10 @@ class HuggingFaceLoader:
 
         self.ignore_patterns = self._get_ignore_patterns()
         if ignore_file_patterns:
-          self.ignore_patterns.extend(ignore_file_patterns)
+          if self.ignore_patterns:
+            self.ignore_patterns.extend(ignore_file_patterns)
+          else:
+            self.ignore_patterns = ignore_file_patterns
         snapshot_download(
             repo_id=self.repo_id,
             local_dir=checkpoint_path,
@@ -131,7 +134,10 @@ class HuggingFaceLoader:
 
     self.ignore_patterns = self._get_ignore_patterns()
     if ignore_file_patterns:
-      self.ignore_patterns.extend(ignore_file_patterns)
+      if self.ignore_patterns:
+        self.ignore_patterns.extend(ignore_file_patterns)
+      else:
+        self.ignore_patterns = ignore_file_patterns
     # Get the list of files on the repo that are allowed and not ignored
     if getattr(self, "ignore_patterns", None):
       if allowed_file_patterns:
