@@ -480,6 +480,7 @@ class ModelBuilder:
     if not self.config.get("checkpoints"):
       logger.info("No checkpoints specified in the config file")
       return path
+    clarifai_model_type_id = self.config.get('model').get('model_type_id')
 
     loader_type, repo_id, hf_token, when = self._validate_config_checkpoints()
     if stage not in ["build", "upload", "runtime"]:
@@ -492,7 +493,8 @@ class ModelBuilder:
 
     success = True
     if loader_type == "huggingface":
-      loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
+      loader = HuggingFaceLoader(
+          repo_id=repo_id, token=hf_token, model_type_id=clarifai_model_type_id)
       # for runtime default to /tmp path
       if stage == "runtime" and checkpoint_path_override is None:
         checkpoint_path_override = self.default_runtime_checkpoint_path()
