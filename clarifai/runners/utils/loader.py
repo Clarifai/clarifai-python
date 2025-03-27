@@ -137,21 +137,22 @@ class HuggingFaceLoader:
     # Get the list of files on the repo
     repo_files = list_repo_files(self.repo_id, token=self.token)
 
+    # Get the list of files on the repo that are allowed
+    if allowed_file_patterns:
+
+      def should_allow(file_path):
+        return any(fnmatch.fnmatch(file_path, pattern) for pattern in allowed_file_patterns)
+
+      repo_files = [f for f in repo_files if should_allow(f)]
+
     self.ignore_patterns = self._get_ignore_patterns()
     if ignore_file_patterns:
       if self.ignore_patterns:
         self.ignore_patterns.extend(ignore_file_patterns)
       else:
         self.ignore_patterns = ignore_file_patterns
-    # Get the list of files on the repo that are allowed and not ignored
+    # Get the list of files on the repo that are not ignored
     if getattr(self, "ignore_patterns", None):
-      if allowed_file_patterns:
-
-        def should_allow(file_path):
-          return any(fnmatch.fnmatch(file_path, pattern) for pattern in allowed_file_patterns)
-
-        repo_files = [f for f in repo_files if should_allow(f)]
-
       patterns = self.ignore_patterns
 
       def should_ignore(file_path):
