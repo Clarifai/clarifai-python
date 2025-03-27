@@ -10,6 +10,7 @@ import time
 import traceback
 import venv
 import base64
+import itertools
 
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -288,12 +289,12 @@ class ModelRunLocally:
             )
 
         if stream_response:
-            stream_first_res = next(stream_response)
-            if stream_first_res.outputs[0].status.code != status_code_pb2.SUCCESS:
-                logger.error(f"Model Prediction failed: {stream_first_res}")
+            stream_last_res = next(itertools.islice(stream_response, len(list(stream_response))-1, None))
+            if stream_last_res.outputs[0].status.code != status_code_pb2.SUCCESS:
+                logger.error(f"Model Prediction failed: {stream_last_res}")
             else:
                 logger.info(
-                    f"Model Prediction succeeded for stream and first response: {stream_first_res}"
+                    f"Model Prediction succeeded for stream and last response: {stream_last_res}"
                 )
 
     def _run_model_inference(self, model):
