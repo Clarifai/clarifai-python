@@ -68,11 +68,11 @@ class ModelBuilder:
     self.inference_compute_info = self._get_inference_compute_info()
     self.is_v3 = True  # Do model build for v3
 
-  def create_model_instance(self, load_model=True):
+  def create_model_instance(self, load_model=True, mocking=False):
     """
     Create an instance of the model class, as specified in the config file.
     """
-    model_class = self.load_model_class()
+    model_class = self.load_model_class(mocking=mocking)
 
     # initialize the model
     model = model_class()
@@ -80,7 +80,7 @@ class ModelBuilder:
       model.load_model()
     return model
 
-  def load_model_class(self):
+  def load_model_class(self, mocking=False):
     """
     Import the model class from the model.py file, dynamically handling missing dependencies
     """
@@ -109,8 +109,9 @@ class ModelBuilder:
       # Mock all third-party imports to avoid ImportErrors or other issues
       return MagicMock()
 
-    # Replace the built-in __import__ function with our custom one
-    builtins.__import__ = custom_import
+    if mocking:
+      # Replace the built-in __import__ function with our custom one
+      builtins.__import__ = custom_import
 
     try:
       spec.loader.exec_module(module)
@@ -306,16 +307,16 @@ class ModelBuilder:
     """
     Returns the method signatures for the model class in YAML format.
     """
-    model_class = self.load_model_class()
+    model_class = self.load_model_class(mocking=True)
     method_info = model_class._get_method_info()
-    signatures = {name: m.signature for name, m in method_info.values()}
+    signatures = {method.name: method.signature for method in method_info.values()}
     return signatures_to_yaml(signatures)
 
   def get_method_signatures(self):
     """
     Returns the method signatures for the model class.
     """
-    model_class = self.load_model_class()
+    model_class = self.load_model_class(mocking=True)
     method_info = model_class._get_method_info()
     signatures = [method.signature for method in method_info.values()]
     return signatures
@@ -599,11 +600,10 @@ class ModelBuilder:
 
   def get_model_version_proto(self):
     signatures = self.get_method_signatures()
-    # TODO: update this to `method_signatures` field when it's available in the API
     model_version_proto = resources_pb2.ModelVersion(
         pretrained_model_config=resources_pb2.PretrainedModelConfig(),
         inference_compute_info=self.inference_compute_info,
-        method_signature=signatures,
+        method_signatures=signatures,
     )
 
     model_type_id = self.config.get('model').get('model_type_id')

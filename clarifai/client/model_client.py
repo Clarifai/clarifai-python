@@ -121,6 +121,17 @@ class ModelClient:
             raise TypeError(
                 f"{method_name}() takes {len(method_argnames)} positional arguments but {len(args)} were given"
             )
+
+          if len(args) + len(kwargs) > len(method_argnames):
+            raise TypeError(
+                f"{method_name}() got an unexpected keyword argument {next(iter(kwargs))}")
+          if len(args) == 1 and (not kwargs) and isinstance(args[0], list):
+            batch_inputs = args[0]
+            # Validate each input is a dictionary
+            is_batch_input_valid = all(isinstance(input, dict) for input in batch_inputs)
+            if is_batch_input_valid:
+              return call_func(batch_inputs, method_name)
+
           for name, arg in zip(method_argnames, args):  # handle positional with zip shortest
             if name in kwargs:
               raise TypeError(f"Multiple values for argument {name}")
@@ -176,6 +187,7 @@ class ModelClient:
       inputs,  # TODO set up functions according to fetched signatures?
       method_name: str = 'predict',
   ) -> Any:
+
     input_signature = self._method_signatures[method_name].input_fields
     output_signature = self._method_signatures[method_name].output_fields
 
@@ -187,11 +199,11 @@ class ModelClient:
     proto_inputs = []
     for input in inputs:
       proto = resources_pb2.Input()
+
       serialize(input, input_signature, proto.data)
       proto_inputs.append(proto)
 
     response = self._predict_by_proto(proto_inputs, method_name)
-    #print(response)
 
     outputs = []
     for output in response.outputs:
@@ -274,7 +286,6 @@ class ModelClient:
       proto_inputs.append(proto)
 
     response_stream = self._generate_by_proto(proto_inputs, method_name)
-    #print(response)
 
     for response in response_stream:
       outputs = []
@@ -386,7 +397,6 @@ class ModelClient:
         yield proto
 
     response_stream = self._stream_by_proto(_input_proto_stream(), method_name)
-    #print(response)
 
     for response in response_stream:
       assert len(response.outputs) == 1, 'streaming methods must have exactly one output'

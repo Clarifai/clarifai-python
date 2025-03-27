@@ -175,8 +175,20 @@ class Concept(MessageData):
 
 class Region(MessageData):
 
-  def __init__(self, proto_region: RegionProto):
+  def __init__(self,
+               proto_region: RegionProto = None,
+               box: List[float] = None,
+               concepts: List[Concept] = None):
+    if proto_region is None:
+      proto_region = RegionProto()
     self.proto = proto_region
+    # use setters for init vals
+    if box and isinstance(
+        box, list) and len(box) == 4 and all(isinstance(val, (int, float)) for val in box):
+      self.box = box
+    if concepts and isinstance(concepts,
+                               list) and all(isinstance(concept, Concept) for concept in concepts):
+      self.concepts = concepts
 
   @property
   def box(self) -> List[float]:
@@ -291,8 +303,15 @@ class Image(MessageData):
 
 class Audio(MessageData):
 
-  def __init__(self, proto_audio: AudioProto):
+  def __init__(self, proto_audio: AudioProto = None, url: str = None, bytes: bytes = None):
+    if proto_audio is None:
+      proto_audio = AudioProto()
     self.proto = proto_audio
+
+    if url:
+      self.url = url
+    if bytes:
+      self.bytes = bytes
 
   @property
   def url(self) -> str:
@@ -333,8 +352,21 @@ class Audio(MessageData):
 
 class Frame(MessageData):
 
-  def __init__(self, proto_frame: FrameProto):
+  def __init__(self,
+               proto_frame: FrameProto = None,
+               image: Image = None,
+               regions: List[Region] = None,
+               time: float = None):
+    if proto_frame is None:
+      proto_frame = FrameProto()
     self.proto = proto_frame
+    # use setters for init vals
+    if image:
+      self.image = image
+    if regions:
+      self.regions = regions
+    if time:
+      self.time = time
 
   @property
   def time(self) -> float:
@@ -372,8 +404,15 @@ class Frame(MessageData):
 
 class Video(MessageData):
 
-  def __init__(self, proto_video: VideoProto):
+  def __init__(self, proto_video: VideoProto = None, url: str = None, bytes: bytes = None):
+    if proto_video is None:
+      proto_video = VideoProto()
     self.proto = proto_video
+
+    if url:
+      self.url = url
+    if bytes:
+      self.bytes = bytes
 
   @property
   def url(self) -> str:

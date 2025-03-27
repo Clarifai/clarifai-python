@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import traceback
 import venv
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -114,7 +115,12 @@ class ModelRunLocally:
     model = self.builder.create_model_instance()
     # call its test method, if it has one
     if hasattr(model, "test"):
-      model.test()
+      try:
+        model.test()
+        logger.info("Model tested successfully!")
+      except Exception as e:
+        logger.error(f"Error occurred while testing the model: {e}")
+        traceback.print_exc()
 
   def test_model(self):
     """Test the model by running it locally in the virtual environment."""
