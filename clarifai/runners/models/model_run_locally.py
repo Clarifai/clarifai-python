@@ -100,8 +100,10 @@ class ModelRunLocally:
         model=resources_pb2.Model(model_version=model_version_proto),
         inputs=[
             resources_pb2.Input(data=resources_pb2.Data(
-                text=resources_pb2.Text(raw="Describe the image"),
+                text=resources_pb2.Text(raw="How many people live in new york?"),
                 image=resources_pb2.Image(url="https://samples.clarifai.com/metro-north.jpg"),
+                audio=resources_pb2.Audio(url="https://samples.clarifai.com/GoodMorning.wav"),
+                video=resources_pb2.Video(url="https://samples.clarifai.com/beer.mp4"),
             ))
         ],
     )
@@ -111,7 +113,7 @@ class ModelRunLocally:
           base64_img = base64.b64encode(image_file.read())
       return base64_img
 
-    def _build_text_to_text_request():
+    def _build_text_to_text_requests():
       requests = [
           service_pb2.PostModelOutputsRequest(
               model=resources_pb2.Model(model_version=model_version_proto),
@@ -124,7 +126,7 @@ class ModelRunLocally:
       ]
       return requests
 
-    def _build_multimodal_to_text_request():
+    def _build_multimodal_to_text_requests():
       requests = [
         service_pb2.PostModelOutputsRequest(
           model=resources_pb2.Model(model_version=model_version_proto),
@@ -155,7 +157,7 @@ class ModelRunLocally:
       ]
       return requests
 
-    def _build_text_to_image_request():
+    def _build_text_to_image_requests():
       requests = [
         service_pb2.PostModelOutputsRequest(
           model=resources_pb2.Model(model_version=model_version_proto),
@@ -168,13 +170,15 @@ class ModelRunLocally:
       ]
       return requests
 
-    requests = [default_request]
+    requests = []
     if self.config.get("multimodal_to_text"):
-      requests.extend(_build_multimodal_to_text_request())
-    if self.config.get("text_to_text"):
-      requests.extend(_build_text_to_text_request())
-    if self.config.get("text_to_image"):
-      requests.extend(_build_text_to_image_request())
+      requests.extend(_build_multimodal_to_text_requests())
+    elif self.config.get("text_to_text"):
+      requests.extend(_build_text_to_text_requests())
+    elif self.config.get("text_to_image"):
+      requests.extend(_build_text_to_image_requests())
+    else:
+      requests.append(default_request)
     
     return requests
 
