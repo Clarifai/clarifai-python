@@ -142,17 +142,21 @@ class ModelBuilder:
   def _validate_config_checkpoints(self):
     """
     Validates the checkpoints section in the config file.
+      return loader_type, repo_id, hf_token, when, allowed_file_patterns, ignore_file_patterns
     :return: loader_type the type of loader or None if no checkpoints.
     :return: repo_id location of checkpoint.
     :return: hf_token token to access checkpoint.
+    :return: when one of ['upload', 'build', 'runtime'] to download checkpoint
+    :return: allowed_file_patterns patterns to allow in downloaded checkpoint
+    :return: ignore_file_patterns patterns to ignore in downloaded checkpoint
     """
     if "checkpoints" not in self.config:
-      return None, None, None, DEFAULT_DOWNLOAD_CHECKPOINT_WHEN
+      return None, None, None, DEFAULT_DOWNLOAD_CHECKPOINT_WHEN, None, None
     assert "type" in self.config.get("checkpoints"), "No loader type specified in the config file"
     loader_type = self.config.get("checkpoints").get("type")
     if not loader_type:
       logger.info("No loader type specified in the config file for checkpoints")
-      return None, None, None
+      return None, None, None, DEFAULT_DOWNLOAD_CHECKPOINT_WHEN, None, None
     checkpoints = self.config.get("checkpoints")
     if 'when' not in checkpoints:
       logger.warn(
