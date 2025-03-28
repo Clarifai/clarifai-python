@@ -1,3 +1,9 @@
+## [[11.2.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.2) - [PyPI](https://pypi.org/project/clarifai/11.2.2/) - 2025-03-28
+
+### Changed
+ - Removed HF loader `config.json` validation for all clarifai Model type ids [(#543)] (https://github.com/Clarifai/clarifai-python/pull/543)
+ - Added Regex Patterns to Filter Checkpoint Files to Download [(#542)] (https://github.com/Clarifai/clarifai-python/pull/542)
+
 ## [[11.2.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.1) - [PyPI](https://pypi.org/project/clarifai/11.2.1/) - 2025-03-25
 
 ### Changed
