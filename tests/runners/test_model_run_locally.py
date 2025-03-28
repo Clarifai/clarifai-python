@@ -143,7 +143,7 @@ def test_hf_test_model_success(hf_model_run_locally):
   """
   # get whatever stage is in config.yaml to force download now
   # also always write to where upload/build wants to, not the /tmp folder that runtime stage uses
-  _, _, _, when = hf_model_run_locally.builder._validate_config_checkpoints()
+  _, _, _, when, _, _ = hf_model_run_locally.builder._validate_config_checkpoints()
   hf_model_run_locally.builder.download_checkpoints(
       stage=when, checkpoint_path_override=hf_model_run_locally.builder.checkpoint_path)
   hf_model_run_locally.create_temp_venv()

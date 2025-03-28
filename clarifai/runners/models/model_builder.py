@@ -171,7 +171,14 @@ class ModelBuilder:
 
       # get from config.yaml otherwise fall back to HF_TOKEN env var.
       hf_token = self.config.get("checkpoints").get("hf_token", os.environ.get("HF_TOKEN", None))
-      return loader_type, repo_id, hf_token, when
+
+      allowed_file_patterns = self.config.get("checkpoints").get('allowed_file_patterns', None)
+      if isinstance(allowed_file_patterns, str):
+        allowed_file_patterns = [allowed_file_patterns]
+      ignore_file_patterns = self.config.get("checkpoints").get('ignore_file_patterns', None)
+      if isinstance(ignore_file_patterns, str):
+        ignore_file_patterns = [ignore_file_patterns]
+      return loader_type, repo_id, hf_token, when, allowed_file_patterns, ignore_file_patterns
 
   def _check_app_exists(self):
     resp = self.client.STUB.GetApp(service_pb2.GetAppRequest(user_app_id=self.client.user_app_id))
@@ -216,7 +223,7 @@ class ModelBuilder:
         assert model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
 
     if self.config.get("checkpoints"):
-      loader_type, _, hf_token, _ = self._validate_config_checkpoints()
+      loader_type, _, hf_token, _, _, _ = self._validate_config_checkpoints()
 
       if loader_type == "huggingface" and hf_token:
         is_valid_token = HuggingFaceLoader.validate_hftoken(hf_token)
@@ -482,7 +489,8 @@ class ModelBuilder:
       return path
     clarifai_model_type_id = self.config.get('model').get('model_type_id')
 
-    loader_type, repo_id, hf_token, when = self._validate_config_checkpoints()
+    loader_type, repo_id, hf_token, when, allowed_file_patterns, ignore_file_patterns = self._validate_config_checkpoints(
+    )
     if stage not in ["build", "upload", "runtime"]:
       raise Exception("Invalid stage provided, must be one of ['build', 'upload', 'runtime']")
     if when != stage:
@@ -491,7 +499,7 @@ class ModelBuilder:
       )
       return path
 
-    success = True
+    success = False
     if loader_type == "huggingface":
       loader = HuggingFaceLoader(
           repo_id=repo_id, token=hf_token, model_type_id=clarifai_model_type_id)
@@ -499,7 +507,10 @@ class ModelBuilder:
       if stage == "runtime" and checkpoint_path_override is None:
         checkpoint_path_override = self.default_runtime_checkpoint_path()
       path = checkpoint_path_override if checkpoint_path_override else self.checkpoint_path
-      success = loader.download_checkpoints(path)
+      success = loader.download_checkpoints(
+          path,
+          allowed_file_patterns=allowed_file_patterns,
+          ignore_file_patterns=ignore_file_patterns)
 
     if loader_type:
       if not success:
@@ -571,7 +582,7 @@ class ModelBuilder:
     logger.debug(f"Will tar it into file: {file_path}")
 
     model_type_id = self.config.get('model').get('model_type_id')
-    loader_type, repo_id, hf_token, when = self._validate_config_checkpoints()
+    loader_type, repo_id, hf_token, when, _, _ = self._validate_config_checkpoints()
 
     if (model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE) and 'concepts' not in self.config:
       logger.info(
@@ -619,7 +630,7 @@ class ModelBuilder:
       # First check for the env variable, then try querying huggingface. If all else fails, use the default.
       checkpoint_size = os.environ.get('CHECKPOINT_SIZE_BYTES', 0)
       if not checkpoint_size:
-        _, repo_id, _, _ = self._validate_config_checkpoints()
+        _, repo_id, _, _, _, _ = self._validate_config_checkpoints()
         checkpoint_size = HuggingFaceLoader.get_huggingface_checkpoint_total_size(repo_id)
       if not checkpoint_size:
         checkpoint_size = self.DEFAULT_CHECKPOINT_SIZE
