@@ -186,14 +186,14 @@ class ModelBuilder:
       return True
     if resp.status.code == status_code_pb2.CONN_KEY_INVALID:
       logger.error(
-          f"Invalid PAT provided for user {self.client.user_app_id.user_id} and app {self.client.user_app_id.app_id}"
+          f"Invalid PAT provided for user {self.client.user_app_id.user_id}. Please check your PAT and try again."
       )
       return False
     logger.error(
         f"Error checking API {self._base_api} for user app {self.client.user_app_id.user_id}/{self.client.user_app_id.app_id}. Error code: {resp.status.code}"
     )
     logger.error(
-        f"App {self.client.user_app_id.app_id} not found for user {self.client.user_app_id.user_id}"
+        f"App {self.client.user_app_id.app_id} not found for user {self.client.user_app_id.user_id}. Please create the app first and try again."
     )
     return False
 
