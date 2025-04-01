@@ -6,6 +6,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 
 from clarifai.constants.model import MAX_MODEL_PREDICT_INPUTS
 from clarifai.errors import UserError
+from clarifai.runners.utils.data_utils import is_openai_chat_format
 from clarifai.runners.utils.method_signatures import (CompatibilitySerializer, deserialize,
                                                       get_stream_from_signature, serialize,
                                                       signatures_from_json)
@@ -129,7 +130,8 @@ class ModelClient:
             batch_inputs = args[0]
             # Validate each input is a dictionary
             is_batch_input_valid = all(isinstance(input, dict) for input in batch_inputs)
-            if is_batch_input_valid:
+            if is_batch_input_valid and (not is_openai_chat_format(batch_inputs)):
+              # If the batch input is valid, call the function with the batch inputs and the method name
               return call_func(batch_inputs, method_name)
 
           for name, arg in zip(method_argnames, args):  # handle positional with zip shortest
@@ -293,7 +295,8 @@ class ModelClient:
         outputs.append(deserialize(output.data, output_signature, is_output=True))
       if batch_input:
         yield outputs
-      yield outputs[0]
+      else:
+        yield outputs[0]
 
   def _generate_by_proto(
       self,
@@ -421,8 +424,9 @@ class ModelClient:
       else:
         req.inputs.append(inputs)
       # TODO: put into new proto field?
-      for inp in req.inputs:
-        inp.data.metadata['_method_name'] = method_name
+      if method_name:
+        for inp in req.inputs:
+          inp.data.metadata['_method_name'] = method_name
       yield req
 
   def _stream_by_proto(self,
