@@ -163,7 +163,7 @@ class ModelClass(ABC):
       request = next(request_iterator)  # get first request to determine method
       assert len(request.inputs) == 1, "Streaming requires exactly one input"
 
-      method_name = 'generate'
+      method_name = 'stream'
       inference_params = get_inference_params(request)
       if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
         method_name = request.inputs[0].data.metadata['_method_name']
@@ -224,7 +224,15 @@ class ModelClass(ABC):
       for k, v in kwargs.items():
         if k not in python_param_types:
           continue
-        kwargs[k] = data_types.cast(v, python_param_types[k])
+
+        if hasattr(python_param_types[k], "__args__") and getattr(
+            python_param_types[k], "__origin__", None) == data_types.Stream:
+          # get the type of the items in the stream
+          stream_type = python_param_types[k].__args__[0]
+
+          kwargs[k] = data_types.cast(v, stream_type)
+        else:
+          kwargs[k] = data_types.cast(v, python_param_types[k])
       result.append(kwargs)
     return result
 
