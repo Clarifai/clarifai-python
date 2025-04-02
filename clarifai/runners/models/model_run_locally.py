@@ -707,15 +707,15 @@ def main(model_path,
       if not keep_image:
         manager.remove_docker_image(image_name)
 
-    else:
-        try:
-            use_existing_env = manager.create_temp_venv()
-            if not use_existing_env:
-                manager.install_requirements()
-            if run_model_server:
-                manager.run_model_server(port)
-            else:
-                manager.test_model()
-        finally:
-            if not keep_env:
-                manager.clean_up()
+  else:
+    try:
+      use_existing_env = manager.create_temp_venv()
+      if not use_existing_env:
+        manager.install_requirements()
+      if run_model_server:
+        manager.run_model_server(port)
+      else:
+        manager.test_model()
+    finally:
+      if not keep_env:
+        manager.clean_up()
