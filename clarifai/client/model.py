@@ -803,13 +803,14 @@ class Model(Lister, BaseClient):
     elif args:
       inputs = args[0]
     if inputs and isinstance(inputs, Iterable):
-      inputs_iter = iter(inputs)
+      inputs_iter = inputs
       try:
         peek = next(inputs_iter)
       except StopIteration:
         pass
       else:
-        use_proto_call = isinstance(peek, resources_pb2.Input)
+        use_proto_call = (peek and isinstance(peek, list) and
+                          isinstance(peek[0], resources_pb2.Input))
         # put back the peeked value
         if inputs_iter is inputs:
           inputs = itertools.chain([peek], inputs_iter)

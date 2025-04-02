@@ -3,6 +3,7 @@
 #
 import importlib
 import os
+# test_runners.py (at the very top)
 import sys
 import threading
 import uuid
@@ -222,7 +223,7 @@ class TestRunnerServer:
     assert expected == out
 
   def _validate_client_response(self, res, expected):
-    out = res.parts["text"]
+    out = res.text
     out = out.replace("\r\n", "\n")
     assert expected == out
 
@@ -260,7 +261,7 @@ class TestRunnerServer:
     for i, res in enumerate(stub.GenerateModelOutputs(req)):
       self._validate_response(res, text + out.format(i=i))
 
-  @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
+  # @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
   def test_stream(self):
     text = "This is a long text for testing stream"
     out = "Stream Hello World {i}"
@@ -273,81 +274,66 @@ class TestRunnerServer:
     for i, res in enumerate(stub.StreamModelOutputs(create_iterator())):
       self._validate_response(res, text + out.format(i=i))
 
-  @pytest.mark.skip(reason="added after the bug is fixed")
   def test_client_predict(self):
     text = "Test"
     expected = f"{text}Hello World"
 
     # Test predict
-    res = self.model.predict(inputs={'text1': text},)
+    res = self.model.predict(text1=text)
     self._validate_client_response(res, expected)
 
-  @pytest.mark.skip(reason="added after the bug is fixed")
-  def test_client_predict_inference_params(self):
+  def test_client_batch_predict(self):
     text = "Test"
+    expected = f"{text}Hello World"
 
     # Test predict
-    inputs, runner_selector = self._format_client_request(text)
-    inference_params = {"hello": "world"}
-    res = self.model.predict(
-        inputs=inputs, runner_selector=runner_selector, inference_params=inference_params)
-    expected = f"{text}Hello World" + inference_params["hello"]
-    self._validate_response(res, expected)
+    res = self.model.predict([{'text1': text}, {'text1': text}],)
+    for i, res in enumerate(res):
+      self._validate_client_response(res, expected)
 
-  @pytest.mark.skip(reason="added after the bug is fixed")
   def test_client_predict_by_bytes(self):
     text = "Test"
     expected = f"{text}Hello World"
     res = self.model.predict_by_bytes(
         text.encode("utf-8"),
         "text",
-        compute_cluster_id=self.COMPUTE_CLUSTER_ID,
-        nodepool_id=self.NODEPOOL_ID)
+    )
     self._validate_response(res, expected)
 
-  @pytest.mark.skip(reason="added after the bug is fixed")
   def test_client_predict_by_url(self):
-    res = self.model.predict_by_url(
-        TEXT_URL, "text", compute_cluster_id=self.COMPUTE_CLUSTER_ID, nodepool_id=self.NODEPOOL_ID)
+    res = self.model.predict_by_url(TEXT_URL, "text")
     expected = "He doesn't have to commute to work.Hello World"
     self._validate_response(res, expected)
 
-  @pytest.mark.skip(reason="added after the bug is fixed")
   def test_client_predict_by_filepath(self):
     res = self.model.predict_by_filepath(
         TEXT_FILE_PATH,
         "text",
-        compute_cluster_id=self.COMPUTE_CLUSTER_ID,
-        nodepool_id=self.NODEPOOL_ID)
+    )
 
     with open(TEXT_FILE_PATH, "r") as f:
       expected = f"{f.read()}Hello World"
 
     self._validate_response(res, expected)
 
-  @pytest.mark.skip(reason="added after the bug is fixed")
   def test_client_generate(self):
     text = "This is a long text for testing generate"
     out = "Generate Hello World {i}"
-    res = self.model.generate(inputs={'text1': text},)
+    res = self.model.generate(text1=text)
     for i, res in enumerate(res):
       expected = text + out.format(i=i)
       self._validate_client_response(res, expected)
 
-  @pytest.mark.skip(reason="added after the bug is fixed")
-  def test_client_generate_inference_params(self):
+  def test_client_batch_generate(self):
     text = "This is a long text for testing generate"
     out = "Generate Hello World {i}"
-    inputs, runner_selector = self._format_client_request(text)
-    inference_params = {"hello": "world"}
+    results = self.model.generate([{'text1': text}, {'text1': text}])
+    for i, res in enumerate(results):
+      for j in range(len(res)):
+        print(f"Response: {i}, {j}: {res[j].text}")
+        expected = text + out.format(i=i)
+        self._validate_client_response(res[j], expected)
 
-    model_response = self.model.generate(
-        inputs=inputs, runner_selector=runner_selector, inference_params=inference_params)
-    for i, res in enumerate(model_response):
-      expected = text + out.format(i=i) + inference_params["hello"]
-      self._validate_response(res, expected)
-
-  @pytest.mark.skip(reason="added after the bug is fixed")
   def test_client_generate_by_bytes(self):
     text = "This is a long text for testing generate"
     out = "Generate Hello World {i}"
@@ -355,22 +341,21 @@ class TestRunnerServer:
     model_response = self.model.generate_by_bytes(
         text.encode("utf-8"),
         "text",
-        compute_cluster_id=self.COMPUTE_CLUSTER_ID,
-        nodepool_id=self.NODEPOOL_ID)
+    )
     for i, res in enumerate(model_response):
       self._validate_response(res, text + out.format(i=i))
 
-  @pytest.mark.skip(reason="added after the bug is fixed")
   def test_client_generate_by_url(self):
     text = "He doesn't have to commute to work."
     out = "Generate Hello World {i}"
     model_response = self.model.generate_by_url(
-        TEXT_URL, "text", compute_cluster_id=self.COMPUTE_CLUSTER_ID, nodepool_id=self.NODEPOOL_ID)
+        TEXT_URL,
+        "text",
+    )
     for i, res in enumerate(model_response):
       logger.info(f"Response: {res}")
       self._validate_response(res, text + out.format(i=i))
 
-  @pytest.mark.skip(reason="added after the bug is fixed")
   def test_client_generate_by_filepath(self):
     with open(TEXT_FILE_PATH, "r") as f:
       text = f.read()
@@ -379,44 +364,26 @@ class TestRunnerServer:
       model_response = self.model.generate_by_filepath(
           TEXT_FILE_PATH,
           "text",
-          compute_cluster_id=self.COMPUTE_CLUSTER_ID,
-          nodepool_id=self.NODEPOOL_ID)
+      )
       for i, res in enumerate(model_response):
         self._validate_response(res, text + out.format(i=i))
 
-  @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
+  # @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
   def test_client_stream(self):
     text = "This is a long text for testing stream"
     out = "Stream Hello World {i}"
-    inputs, runner_selector = self._format_client_request(text)
 
     def create_iterator():
-      yield inputs
+      yield text
 
-    model_response = self.model.stream(inputs=create_iterator(), runner_selector=runner_selector)
+    model_response = self.model.stream(create_iterator())
     for i, res in enumerate(model_response):
       expected = text + out.format(i=i)
-      self._validate_response(res, expected)
+      print(f'expected: {expected}')
+      print(f'res.text: {res.text}')
+      self._validate_client_response(res, expected)
 
-  @pytest.mark.skip(reason="added after the bug is fixed")
-  def test_client_stream_inference_params(self):
-    text = "This is a long text for testing stream"
-    out = "Stream Hello World {i}"
-    inputs, runner_selector = self._format_client_request(text)
-    inference_params = {"hello": "world"}
-
-    def create_iterator():
-      yield inputs
-
-    model_response = self.model.stream(
-        inputs=create_iterator(),
-        runner_selector=runner_selector,
-        inference_params=inference_params)
-    for i, res in enumerate(model_response):
-      expected = text + out.format(i=i) + inference_params["hello"]
-      self._validate_response(res, expected)
-
-  @pytest.mark.skip(reason="added after the bug is fixed")
+  # @pytest.mark.skip(reason="added after the bug is fixed")
   def test_client_stream_by_bytes(self):
     text = "This is a long text for testing stream"
     out = "Stream Hello World {i}"
@@ -427,13 +394,12 @@ class TestRunnerServer:
     model_response = self.model.stream_by_bytes(
         create_iterator(),
         "text",
-        compute_cluster_id=self.COMPUTE_CLUSTER_ID,
-        nodepool_id=self.NODEPOOL_ID)
+    )
 
     for i, res in enumerate(model_response):
       self._validate_response(res, text + out.format(i=i))
 
-  @pytest.mark.skip(reason="added after the bug is fixed")
+  # @pytest.mark.skip(reason="added after the bug is fixed")
   def test_client_stream_by_url(self):
     text = "He doesn't have to commute to work."
     out = "Stream Hello World {i}"
@@ -444,13 +410,12 @@ class TestRunnerServer:
     model_response = self.model.stream_by_url(
         create_iterator(),
         "text",
-        compute_cluster_id=self.COMPUTE_CLUSTER_ID,
-        nodepool_id=self.NODEPOOL_ID)
+    )
 
     for i, res in enumerate(model_response):
       self._validate_response(res, text + out.format(i=i))
 
-  @pytest.mark.skip(reason="added after the bug is fixed")
+  # @pytest.mark.skip(reason="added after the bug is fixed")
   def test_client_stream_by_filepath(self):
     with open(TEXT_FILE_PATH, "r") as f:
       text = f.read()
@@ -459,8 +424,7 @@ class TestRunnerServer:
       model_response = self.model.stream_by_filepath(
           TEXT_FILE_PATH,
           "text",
-          compute_cluster_id=self.COMPUTE_CLUSTER_ID,
-          nodepool_id=self.NODEPOOL_ID)
+      )
 
       for i, res in enumerate(model_response):
         self._validate_response(res, text + out.format(i=i))
