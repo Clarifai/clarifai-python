@@ -108,6 +108,7 @@ class ModelRunLocally:
 
   def _build_stream_request(self):
     request = self._build_request()
+    ensure_urls_downloaded(request)
     for i in range(1):
       yield request
 
