@@ -410,11 +410,12 @@ class ModelBuilder:
       # Sort in reverse so that newer cuda versions come first and are preferred.
       for image in sorted(AVAILABLE_TORCH_IMAGES, reverse=True):
         if torch_version in image and f'py{python_version}' in image:
-          cuda_version = image.split('-')[-1].replace('cuda', '')
+          # like cu124, rocm6.3, etc.
+          gpu_version = image.split('-')[-1]
           final_image = TORCH_BASE_IMAGE.format(
               torch_version=torch_version,
               python_version=python_version,
-              cuda_version=cuda_version,
+              gpu_version=gpu_version,
           )
           logger.info(f"Using Torch version {torch_version} base image to build the Docker image")
           break
