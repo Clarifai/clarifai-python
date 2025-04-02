@@ -6,6 +6,7 @@ import shutil
 
 import requests
 
+from clarifai.runners.utils.const import CONCEPTS_REQUIRED_MODEL_TYPE
 from clarifai.utils.logging import logger
 
 
@@ -13,9 +14,10 @@ class HuggingFaceLoader:
 
   HF_DOWNLOAD_TEXT = "The 'huggingface_hub' package is not installed. Please install it using 'pip install huggingface_hub'."
 
-  def __init__(self, repo_id=None, token=None):
+  def __init__(self, repo_id=None, token=None, model_type_id=None):
     self.repo_id = repo_id
     self.token = token
+    self.clarifai_model_type_id = model_type_id
     if token:
       if self.validate_hftoken(token):
         try:
@@ -43,13 +45,17 @@ class HuggingFaceLoader:
           f"Error setting up Hugging Face token, please make sure you have the correct token: {e}")
       return False
 
-  def download_checkpoints(self, checkpoint_path: str):
+  def download_checkpoints(self,
+                           checkpoint_path: str,
+                           allowed_file_patterns=None,
+                           ignore_file_patterns=None):
     # throw error if huggingface_hub wasn't installed
     try:
       from huggingface_hub import snapshot_download
     except ImportError:
       raise ImportError(self.HF_DOWNLOAD_TEXT)
-    if os.path.exists(checkpoint_path) and self.validate_download(checkpoint_path):
+    if os.path.exists(checkpoint_path) and self.validate_download(
+        checkpoint_path, allowed_file_patterns, ignore_file_patterns):
       logger.info("Checkpoints already exist")
       return True
     else:
@@ -61,10 +67,16 @@ class HuggingFaceLoader:
           return False
 
         self.ignore_patterns = self._get_ignore_patterns()
+        if ignore_file_patterns:
+          if self.ignore_patterns:
+            self.ignore_patterns.extend(ignore_file_patterns)
+          else:
+            self.ignore_patterns = ignore_file_patterns
         snapshot_download(
             repo_id=self.repo_id,
             local_dir=checkpoint_path,
             local_dir_use_symlinks=False,
+            allow_patterns=allowed_file_patterns,
             ignore_patterns=self.ignore_patterns)
         # Remove the `.cache` folder if it exists
         cache_path = os.path.join(checkpoint_path, ".cache")
@@ -75,7 +87,8 @@ class HuggingFaceLoader:
         logger.error(f"Error downloading model checkpoints {e}")
         return False
       finally:
-        is_downloaded = self.validate_download(checkpoint_path)
+        is_downloaded = self.validate_download(checkpoint_path, allowed_file_patterns,
+                                               ignore_file_patterns)
         if not is_downloaded:
           logger.error("Error validating downloaded model checkpoints")
           return False
@@ -109,9 +122,13 @@ class HuggingFaceLoader:
       from huggingface_hub import file_exists, repo_exists
     except ImportError:
       raise ImportError(self.HF_DOWNLOAD_TEXT)
-    return repo_exists(self.repo_id) and file_exists(self.repo_id, 'config.json')
+    if self.clarifai_model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE:
+      return repo_exists(self.repo_id) and file_exists(self.repo_id, 'config.json')
+    else:
+      return repo_exists(self.repo_id)
 
-  def validate_download(self, checkpoint_path: str):
+  def validate_download(self, checkpoint_path: str, allowed_file_patterns: list,
+                        ignore_file_patterns: list):
     # check if model exists on HF
     try:
       from huggingface_hub import list_repo_files
@@ -120,7 +137,20 @@ class HuggingFaceLoader:
     # Get the list of files on the repo
     repo_files = list_repo_files(self.repo_id, token=self.token)
 
+    # Get the list of files on the repo that are allowed
+    if allowed_file_patterns:
+
+      def should_allow(file_path):
+        return any(fnmatch.fnmatch(file_path, pattern) for pattern in allowed_file_patterns)
+
+      repo_files = [f for f in repo_files if should_allow(f)]
+
     self.ignore_patterns = self._get_ignore_patterns()
+    if ignore_file_patterns:
+      if self.ignore_patterns:
+        self.ignore_patterns.extend(ignore_file_patterns)
+      else:
+        self.ignore_patterns = ignore_file_patterns
     # Get the list of files on the repo that are not ignored
     if getattr(self, "ignore_patterns", None):
       patterns = self.ignore_patterns

@@ -668,49 +668,44 @@ class ModelRunLocally:
             shutil.rmtree(self.temp_dir)
 
 
-def main(
-    model_path,
-    run_model_server=False,
-    inside_container=False,
-    port=8080,
-    keep_env=False,
-    keep_image=False,
-    skip_dockerfile: bool = False,
-):
-    manager = ModelRunLocally(model_path)
-    # get whatever stage is in config.yaml to force download now
-    # also always write to where upload/build wants to, not the /tmp folder that runtime stage uses
-    _, _, _, when = manager.builder._validate_config_checkpoints()
-    manager.builder.download_checkpoints(
-        stage=when, checkpoint_path_override=manager.builder.checkpoint_path
-    )
-    if inside_container:
-        if not manager.is_docker_installed():
-            sys.exit(1)
-        if not skip_dockerfile:
-            manager.builder.create_dockerfile()
-        image_tag = manager._docker_hash()
-        model_id = manager.config["model"]["id"].lower()
-        # must be in lowercase
-        image_name = f"{model_id}:{image_tag}"
-        container_name = model_id
-        if not manager.docker_image_exists(image_name):
-            manager.build_docker_image(image_name=image_name)
-        try:
-            if run_model_server:
-                manager.run_docker_container(
-                    image_name=image_name, container_name=container_name, port=port
-                )
-            else:
-                manager.test_model_container(
-                    image_name=image_name, container_name=container_name
-                )
-        finally:
-            if manager.container_exists(container_name):
-                manager.stop_docker_container(container_name)
-                manager.remove_docker_container(container_name=container_name)
-            if not keep_image:
-                manager.remove_docker_image(image_name)
+def main(model_path,
+         run_model_server=False,
+         inside_container=False,
+         port=8080,
+         keep_env=False,
+         keep_image=False,
+         skip_dockerfile: bool = False):
+
+  manager = ModelRunLocally(model_path)
+  # get whatever stage is in config.yaml to force download now
+  # also always write to where upload/build wants to, not the /tmp folder that runtime stage uses
+  _, _, _, when, _, _ = manager.builder._validate_config_checkpoints()
+  manager.builder.download_checkpoints(
+      stage=when, checkpoint_path_override=manager.builder.checkpoint_path)
+  if inside_container:
+    if not manager.is_docker_installed():
+      sys.exit(1)
+    if not skip_dockerfile:
+      manager.builder.create_dockerfile()
+    image_tag = manager._docker_hash()
+    model_id = manager.config['model']['id'].lower()
+    # must be in lowercase
+    image_name = f"{model_id}:{image_tag}"
+    container_name = model_id
+    if not manager.docker_image_exists(image_name):
+      manager.build_docker_image(image_name=image_name)
+    try:
+      if run_model_server:
+        manager.run_docker_container(
+            image_name=image_name, container_name=container_name, port=port)
+      else:
+        manager.test_model_container(image_name=image_name, container_name=container_name)
+    finally:
+      if manager.container_exists(container_name):
+        manager.stop_docker_container(container_name)
+        manager.remove_docker_container(container_name=container_name)
+      if not keep_image:
+        manager.remove_docker_image(image_name)
 
     else:
         try:
