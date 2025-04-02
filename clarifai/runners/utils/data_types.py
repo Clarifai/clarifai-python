@@ -158,19 +158,20 @@ class Text(MessageData):
 
 class Concept(MessageData):
 
-  def __init__(self, name: str, value: float = 0):
+  def __init__(self, id: str, name: str, value: float = 1):
+    self.id = id
     self.name = name
     self.value = value
 
   def __repr__(self) -> str:
-    return f"Concept(name={self.name!r}, value={self.value})"
+    return f"Concept(id={self.id!r}, name={self.name!r}, value={self.value})"
 
   def to_proto(self):
-    return ConceptProto(name=self.name, value=self.value)
+    return ConceptProto(id=self.id, name=self.name, value=self.value)
 
   @classmethod
   def from_proto(cls, proto: ConceptProto) -> "Concept":
-    return cls(proto.name, proto.value)
+    return cls(proto.id, proto.name, proto.value)
 
 
 class Region(MessageData):
