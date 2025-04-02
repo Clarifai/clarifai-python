@@ -79,9 +79,14 @@ def test_build_request(model_run_locally):
   """
   Test that _build_request returns a well-formed PostModelOutputsRequest
   """
-  request = model_run_locally._build_request()
-  assert request is not None
-  assert len(request.inputs) == 1, "Expected exactly one input in constructed request."
+  requests = model_run_locally._build_request()
+  assert requests is not None
+  assert requests is not []
+  assert isinstance(requests, list), "Expected a list of requests."
+  assert len(requests) >=1, "Expected at least one request to be built."
+  # Check that each request has the expected attributes
+  for req in requests:  
+    assert len(req.inputs) == 1, "Expected exactly one input in constructed request."
 
 
 def test_create_temp_venv(model_run_locally):

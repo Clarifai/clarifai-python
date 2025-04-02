@@ -289,6 +289,9 @@ class ModelRunLocally:
             )
 
         if stream_response:
+          stream_output = ""
+          for i, token in enumerate(stream_response):
+            stream_output += token
             stream_last_res = next(itertools.islice(stream_response, len(list(stream_response))-1, None))
             if stream_last_res.outputs[0].status.code != status_code_pb2.SUCCESS:
                 logger.error(f"Model Prediction failed: {stream_last_res}")
