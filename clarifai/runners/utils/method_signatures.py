@@ -150,6 +150,7 @@ def _fill_signature_type(sig, tp):
     sig.type = resources_pb2.ModelTypeField.DataType.TUPLE
     for inner_type in args:
       inner_sig = sig.type_args.add()
+      inner_sig.name = sig.name + '_item'
       _fill_signature_type(inner_sig, inner_type)
     return
 
@@ -157,6 +158,7 @@ def _fill_signature_type(sig, tp):
   if origin == list:
     sig.type = resources_pb2.ModelTypeField.DataType.LIST
     inner_sig = sig.type_args.add()
+    inner_sig.name = sig.name + '_item'
     _fill_signature_type(inner_sig, args[0])
     return
 
