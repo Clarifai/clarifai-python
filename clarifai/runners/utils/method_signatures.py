@@ -107,7 +107,10 @@ def build_variable_signature(name, annotation, default=inspect.Parameter.empty, 
   if not is_output:
     sig.required = (default is inspect.Parameter.empty)
     if not sig.required:
-      sig.default = str(default)
+      if isinstance(default, data_types.InputField):
+        sig = default.to_proto(sig)
+      else:
+        sig.default = str(default)
 
   _fill_signature_type(sig, tp)
 
