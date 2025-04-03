@@ -188,8 +188,16 @@ class ModelBuilder:
     resp = self.client.STUB.GetApp(service_pb2.GetAppRequest(user_app_id=self.client.user_app_id))
     if resp.status.code == status_code_pb2.SUCCESS:
       return True
+    if resp.status.code == status_code_pb2.CONN_KEY_INVALID:
+      logger.error(
+          f"Invalid PAT provided for user {self.client.user_app_id.user_id}. Please check your PAT and try again."
+      )
+      return False
     logger.error(
         f"Error checking API {self._base_api} for user app {self.client.user_app_id.user_id}/{self.client.user_app_id.app_id}. Error code: {resp.status.code}"
+    )
+    logger.error(
+        f"App {self.client.user_app_id.app_id} not found for user {self.client.user_app_id.user_id}. Please create the app first and try again."
     )
     return False
 
@@ -211,9 +219,6 @@ class ModelBuilder:
     assert model.get('id') != "", "model_id cannot be empty in the config file"
 
     if not self._check_app_exists():
-      logger.error(
-          f"App {self.client.user_app_id.app_id} not found for user {self.client.user_app_id.user_id}"
-      )
       sys.exit(1)
 
   def _validate_config(self):
@@ -410,11 +415,12 @@ class ModelBuilder:
       # Sort in reverse so that newer cuda versions come first and are preferred.
       for image in sorted(AVAILABLE_TORCH_IMAGES, reverse=True):
         if torch_version in image and f'py{python_version}' in image:
-          cuda_version = image.split('-')[-1].replace('cuda', '')
+          # like cu124, rocm6.3, etc.
+          gpu_version = image.split('-')[-1]
           final_image = TORCH_BASE_IMAGE.format(
               torch_version=torch_version,
               python_version=python_version,
-              cuda_version=cuda_version,
+              gpu_version=gpu_version,
           )
           logger.info(f"Using Torch version {torch_version} base image to build the Docker image")
           break
