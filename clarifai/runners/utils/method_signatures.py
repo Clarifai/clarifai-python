@@ -10,7 +10,7 @@ from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.message import Message as MessageProto
 
-from clarifai.runners.utils import data_types
+from clarifai.runners.utils import data_types, data_utils
 from clarifai.runners.utils.serializers import (
     AtomicFieldSerializer, JSONSerializer, ListSerializer, MessageSerializer,
     NamedFieldsSerializer, NDArraySerializer, Serializer, TupleSerializer)
@@ -107,10 +107,10 @@ def build_variable_signature(name, annotation, default=inspect.Parameter.empty, 
   if not is_output:
     sig.required = (default is inspect.Parameter.empty)
     if not sig.required:
-      if isinstance(default, data_types.InputField):
+      if isinstance(default, data_utils.InputField):
         sig = default.to_proto(sig)
       else:
-        sig.default = str(default)
+        sig = data_utils.InputField.set_default(sig, default)
 
   _fill_signature_type(sig, tp)
 

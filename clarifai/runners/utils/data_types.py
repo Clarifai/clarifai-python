@@ -7,13 +7,9 @@ from clarifai_grpc.grpc.api.resources_pb2 import Audio as AudioProto
 from clarifai_grpc.grpc.api.resources_pb2 import Concept as ConceptProto
 from clarifai_grpc.grpc.api.resources_pb2 import Frame as FrameProto
 from clarifai_grpc.grpc.api.resources_pb2 import Image as ImageProto
-from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeEnumOption
-from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeField as InputFieldProto
-from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeRangeInfo
 from clarifai_grpc.grpc.api.resources_pb2 import Region as RegionProto
 from clarifai_grpc.grpc.api.resources_pb2 import Text as TextProto
 from clarifai_grpc.grpc.api.resources_pb2 import Video as VideoProto
-from google.protobuf import struct_pb2
 from PIL import Image as PILImage
 
 
@@ -469,121 +465,3 @@ def cast(value, python_type):
     if not isinstance(value, Iterable):
       raise TypeError(f'Expected list, got {type(value)}')
   return value
-
-
-class InputField(MessageData):
-  """A field that can be used to store input data."""
-
-  def __init__(self,
-               default=None,
-               description=None,
-               min_value=None,
-               max_value=None,
-               choices=None,
-               visibility=True,
-               is_param=False):
-    self.default = default
-    self.description = description
-    self.min_value = min_value
-    self.max_value = max_value
-    self.choices = choices
-    self.visibility = visibility
-    self.is_param = is_param
-
-  def __repr__(self) -> str:
-    attrs = []
-    if self.default is not None:
-      attrs.append(f"default={self.default!r}")
-    if self.description is not None:
-      attrs.append(f"description={self.description!r}")
-    if self.min_value is not None:
-      attrs.append(f"min_value={self.min_value!r}")
-    if self.max_value is not None:
-      attrs.append(f"max_value={self.max_value!r}")
-    if self.choices is not None:
-      attrs.append(f"choices={self.choices!r}")
-    attrs.append(f"visibility={self.visibility!r}")
-    attrs.append(f"is_param={self.is_param!r}")
-    return f"InputField({', '.join(attrs)})"
-
-  def to_proto(self, proto=None) -> InputFieldProto:
-    if proto is None:
-      proto = InputFieldProto()
-    if self.description is not None:
-      proto.description = self.description
-
-    if self.choices is not None:
-      for choice in self.choices:
-        option = ModelTypeEnumOption(id=str(choice))
-        proto.model_type_enum_options.append(option)
-
-    proto.required = self.default is None
-
-    if self.min_value is not None or self.max_value is not None:
-      range_info = ModelTypeRangeInfo()
-      if self.min_value is not None:
-        range_info.min = float(self.min_value)
-      if self.max_value is not None:
-        range_info.max = float(self.max_value)
-      proto.model_type_range_info.CopyFrom(range_info)
-
-    proto.visibility = self.visibility
-    proto.is_param = self.is_param
-
-    if self.default is not None:
-      value = struct_pb2.Value()
-      if isinstance(self.default, str):
-        value.string_value = self.default
-      elif isinstance(self.default, bool):
-        value.bool_value = self.default
-      elif isinstance(self.default, (int, float)):
-        value.number_value = float(self.default)
-      else:
-        import json
-        value.string_value = json.dumps(self.default)
-      proto.default.CopyFrom(value)
-
-    return proto
-
-  @classmethod
-  def from_proto(cls, proto):
-    default = None
-    if proto.HasField('default'):
-      pb_value = proto.default
-      if pb_value.HasField('string_value'):
-        default = pb_value.string_value
-        try:
-          import json
-          default = json.loads(default)
-        except json.JSONDecodeError:
-          pass
-      elif pb_value.HasField('number_value'):
-        default = pb_value.number_value
-        if default.is_integer():
-          default = int(default)
-        else:
-          default = float(default)
-      elif pb_value.HasField('bool_value'):
-        default = pb_value.bool_value
-
-    choices = [option.id for option in proto.model_type_enum_options
-              ] if proto.model_type_enum_options else None
-
-    min_value = None
-    max_value = None
-    if proto.HasField('model_type_range_info'):
-      min_value = proto.model_type_range_info.min
-      max_value = proto.model_type_range_info.max
-      if min_value.is_integer():
-        min_value = int(min_value)
-      if max_value.is_integer():
-        max_value = int(max_value)
-
-    return cls(
-        default=default,
-        description=proto.description if proto.description else None,
-        min_value=min_value,
-        max_value=max_value,
-        choices=choices,
-        visibility=proto.visibility,
-        is_param=proto.is_param)
