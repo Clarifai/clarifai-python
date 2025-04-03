@@ -1,0 +1,20 @@
+torch==2.5.1
+tokenizers==0.21.0
+accelerate==1.2.0
+optimum==1.23.3
+xformers
+einops==0.8.0
+packaging
+ninja
+
+qwen-vl-utils==0.0.8
+timm
+openai
+clarifai==11.1.7rc7
+clarifai-protocol>=0.0.20
+psutil
+--extra-index-url https://flashinfer.ai/whl/cu124/torch2.4/
+flashinfer
+sglang[all]==0.3.6
+transformers==4.48.3
+
