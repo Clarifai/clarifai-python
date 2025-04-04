@@ -13,6 +13,11 @@ RETRYABLE_CODES = [
 ]
 
 
+DEFAULT_CONFIG = f'{os.environ["HOME"]}/.config/clarifai/config'
+
+
+
+
 def status_is_retryable(status_code: int) -> bool:
   """Check if a status code is retryable."""
   return status_code in RETRYABLE_CODES
