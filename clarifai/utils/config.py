@@ -1,10 +1,9 @@
-import click
-import sys
 import os
 import typing as t
+from dataclasses import dataclass, field
+
 import yaml
 
-from dataclasses import dataclass, field
 from clarifai.utils.constants import DEFAULT_CONFIG
 
 

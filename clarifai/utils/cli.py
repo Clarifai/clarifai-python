@@ -2,20 +2,16 @@ import importlib
 import os
 import pkgutil
 import sys
+import typing as t
+from collections import defaultdict
+from typing import OrderedDict
 
 import click
 import yaml
-
-from rich.console import Console
-from rich.panel import Panel
-from rich.style import Style
-from rich.text import Text
-
-import typing as t
-from typing import OrderedDict
 from tabulate import tabulate
-from collections import defaultdict
+
 from clarifai.utils.logging import logger
+
 
 def from_yaml(filename: str):
   try:
@@ -43,11 +39,12 @@ def load_command_modules():
       importlib.import_module(f'clarifai.cli.{module_name}')
 
 
-def display_co_resources(response, custom_columns={
-        'ID': lambda c: c.id,
-        'USER_ID': lambda c: c.user_id,
-        'DESCRIPTION': lambda c: c.description,
-  }):
+def display_co_resources(response,
+                         custom_columns={
+                             'ID': lambda c: c.id,
+                             'USER_ID': lambda c: c.user_id,
+                             'DESCRIPTION': lambda c: c.description,
+                         }):
   """Display compute orchestration resources listing results using rich."""
 
   formatter = TableFormatter(custom_columns)
@@ -82,12 +79,13 @@ class TableFormatter:
     table = tabulate(rows, headers=self.custom_columns.keys(), tablefmt=fmt)
     return table
 
+
 class AliasedGroup(click.Group):
 
   def __init__(self,
                name: t.Optional[str] = None,
-               commands: t.Optional[t.Union[t.MutableMapping[str, click.Command],
-                                            t.Sequence[click.Command]]] = None,
+               commands: t.Optional[t.Union[t.MutableMapping[str, click.Command], t.Sequence[
+                   click.Command]]] = None,
                **attrs: t.Any) -> None:
     super().__init__(name, commands, **attrs)
     self.alias_map = {}
@@ -98,9 +96,7 @@ class AliasedGroup(click.Group):
     if alias != cmd.name:
       self.command_to_aliases[cmd].append(alias)
 
-  def command(self,
-              aliases=None,
-              *args,
+  def command(self, aliases=None, *args,
               **kwargs) -> t.Callable[[t.Callable[..., t.Any]], click.Command]:
     cmd_decorator = super().command(*args, **kwargs)
     if aliases is None:
@@ -121,7 +117,8 @@ class AliasedGroup(click.Group):
       return aliased_decorator(f)
     return aliased_decorator
 
-  def group(self, aliases=None, *args, **kwargs) -> t.Callable[[t.Callable[..., t.Any]], click.Group]:
+  def group(self, aliases=None, *args,
+            **kwargs) -> t.Callable[[t.Callable[..., t.Any]], click.Group]:
     cmd_decorator = super().group(*args, **kwargs)
     if aliases is None:
       aliases = []
@@ -164,6 +161,7 @@ class AliasedGroup(click.Group):
     if rows:
       with formatter.section("Commands"):
         formatter.write_dl(rows)
+
 
 def validate_context(ctx):
   if ctx.obj == {}:

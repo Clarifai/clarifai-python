@@ -1,10 +1,11 @@
-import click
-import sys
+import json
 import os
+import sys
 
+import click
 import yaml
 
-from clarifai.utils.cli import AliasedGroup, TableFormatter, load_command_modules, load_command_modules
+from clarifai.utils.cli import AliasedGroup, TableFormatter, load_command_modules
 from clarifai.utils.config import Config, Context
 from clarifai.utils.constants import DEFAULT_CONFIG
 
@@ -215,28 +216,6 @@ def create(
       access_token=dict(type=access_token_type, value=access_token_value))
   ctx.obj.contexts[context.name] = context
   ctx.obj.to_yaml()
-
-
-@context.command(['e'])
-@click.argument('name')
-@click.pass_context
-def edit(ctx, name):
-  """Edit a config"""
-  context = ctx.obj.contexts.get(name, None)
-  if context is None:
-    print(f'{name} is not a valid context')
-    exit(1)
-
-  import tempfile
-
-  with tempfile.NamedTemporaryFile(mode='w', delete=True) as f:
-    yaml.dump(context.to_serializable_dict(), f)
-    os.system(f'{os.environ.get("EDITOR", "vi")} {f.name}')
-    with open(f.name, 'r') as f:
-      ctx.obj.contexts.pop(name)
-      new_context = Context(**yaml.safe_load(f))
-      ctx.obj.contexts[new_context.name] = new_context
-      ctx.obj.to_yaml()
 
 
 # write a click command to delete a context

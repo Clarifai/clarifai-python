@@ -1,8 +1,10 @@
 import click
+
 from clarifai.cli.base import cli
-from clarifai.client.user import User
 from clarifai.client.compute_cluster import ComputeCluster
-from clarifai.utils.cli import display_co_resources, dump_yaml, from_yaml, validate_context, AliasedGroup
+from clarifai.client.user import User
+from clarifai.utils.cli import (AliasedGroup, display_co_resources, dump_yaml, from_yaml,
+                                validate_context)
 
 
 @cli.group(['nodepool', 'np'], cls=AliasedGroup)

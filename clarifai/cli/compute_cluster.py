@@ -2,7 +2,7 @@ import click
 
 from clarifai.cli.base import cli
 from clarifai.client.user import User
-from clarifai.utils.cli import display_co_resources, AliasedGroup, validate_context
+from clarifai.utils.cli import AliasedGroup, display_co_resources, validate_context
 
 
 @cli.group(['computecluster', 'cc'], cls=AliasedGroup)

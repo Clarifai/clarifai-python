@@ -1,9 +1,10 @@
 import click
+
 from clarifai.cli.base import cli
-from clarifai.client.user import User
 from clarifai.client.compute_cluster import ComputeCluster
 from clarifai.client.nodepool import Nodepool
-from clarifai.utils.cli import display_co_resources, from_yaml, AliasedGroup, validate_context
+from clarifai.client.user import User
+from clarifai.utils.cli import AliasedGroup, display_co_resources, from_yaml, validate_context
 
 
 @cli.group(['deployment', 'dp'], cls=AliasedGroup)
