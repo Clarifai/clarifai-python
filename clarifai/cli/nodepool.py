@@ -42,7 +42,7 @@ def create(ctx, compute_cluster_id, nodepool_id, config):
       compute_cluster_id=compute_cluster_id,
       user_id=ctx.obj.current.user_id,
       pat=ctx.obj.current.pat,
-      base_url=ctx.obj.current.base_url)
+      base_url=ctx.obj.current.api_base)
   if nodepool_id:
     compute_cluster.create_nodepool(config, nodepool_id=nodepool_id)
   else:
@@ -67,13 +67,13 @@ def list(ctx, compute_cluster_id, page_no, per_page):
         compute_cluster_id=cc_id,
         user_id=ctx.obj.current.user_id,
         pat=ctx.obj.current.pat,
-        base_url=ctx.obj.current.base_url)
+        base_url=ctx.obj.current.api_base)
     response = compute_cluster.list_nodepools(page_no, per_page)
   else:
     user = User(
         user_id=ctx.obj.current.user_id,
         pat=ctx.obj.current.pat,
-        base_url=ctx.obj.current.base_url)
+        base_url=ctx.obj.current.api_base)
     ccs = user.list_compute_clusters(page_no, per_page)
     response = []
     for cc in ccs:
@@ -81,7 +81,7 @@ def list(ctx, compute_cluster_id, page_no, per_page):
           compute_cluster_id=cc.id,
           user_id=ctx.obj.current.user_id,
           pat=ctx.obj.current.pat,
-          base_url=ctx.obj.current.base_url)
+          base_url=ctx.obj.current.api_base)
       response.extend([i for i in compute_cluster.list_nodepools(page_no, per_page)])
 
   display_co_resources(
@@ -106,5 +106,5 @@ def delete(ctx, compute_cluster_id, nodepool_id):
       compute_cluster_id=compute_cluster_id,
       user_id=ctx.obj.current.user_id,
       pat=ctx.obj.current.pat,
-      base_url=ctx.obj.current.base_url)
+      base_url=ctx.obj.current.api_base)
   compute_cluster.delete_nodepools([nodepool_id])

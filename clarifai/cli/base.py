@@ -25,10 +25,13 @@ def cli(ctx, config):
         filename=config,
         current_context='default',
         contexts={
-            'default': {
-                'user_id': os.environ.get('CLARIFAI_USER_ID', ''),
-                'base_url': os.environ.get('CLARIFAI_API_BASE', 'api.clarifai.com'),
-            },
+            'default':
+                Context(
+                    'default',
+                    CLARIFAI_PAT=os.environ.get('CLARIFAI_PAT', ''),
+                    CLARIFAI_USER_ID=os.environ.get('CLARIFAI_USER_ID', ''),
+                    CLARIFAI_API_BASE=os.environ.get('CLARIFAI_API_BASE', 'api.clarifai.com'),
+                )
         })
     cfg.to_yaml(config)
     ctx.obj = cfg
@@ -78,8 +81,8 @@ def get_contexts(ctx, output_format):
         '': lambda c: '*' if c.name == ctx.obj.current_context else '',
         'NAME': lambda c: c.name,
         'USER_ID': lambda c: c.user_id,
-        'BASE_URL': lambda c: c.base_url,
-        'PAT_CONF': lambda c: c.access_token.type,
+        'API_BASE': lambda c: c.api_base,
+        'PAT': lambda c: pat_display(c.pat),
     })
     print(formatter.format(ctx.obj.contexts.values(), fmt="plain"))
   elif output_format == 'name':
@@ -117,47 +120,13 @@ def dump(ctx_obj, output_format):
     json.dump(ctx_obj.to_dict(), sys.stdout, indent=2)
 
 
-@cli.command()
-@click.argument('api_url', default="https://api.clarifai.com")
-@click.option('--user_id', required=False, help='User ID')
-@click.pass_context
-def login(ctx, api_url, user_id):
-  """Login command to set PAT and other configurations."""
-
-  name = input('context name (default: "default"): ')
-  user_id = user_id if user_id is not None else input('user id: ')
-  access_token_type = input('access token type (env or raw, default: "env"): ')
-  access_token_value = input('access token value (default: "CLARIFAI_PAT"): ')
-
-  if access_token_type != '':
-    access_token = dict(type=access_token_type, value=access_token_value)
-    context = Context(
-        name=name,
-        base_url=api_url,
-        user_id=user_id,
-        access_token=access_token,
-    )
-  else:
-    context = Context(
-        name=name,
-        base_url=api_url,
-        user_id=user_id,
-    )
-    if access_token_value != '':
-      context.access_token['value'] = access_token_value
-
-  if context.name == '':
-    context.name = 'default'
-
-  ctx.obj.contexts[context.name] = context
-  ctx.obj.current_context = context.name
-
-  ctx.obj.to_yaml()
-
-
 @cli.group(cls=AliasedGroup)
 def context():
   """Manage contexts"""
+
+
+def pat_display(pat):
+  return pat[:5] + "****"
 
 
 @context.command(['ls'])
@@ -168,8 +137,8 @@ def list(ctx):
       '': lambda c: '*' if c.name == ctx.obj.current_context else '',
       'NAME': lambda c: c.name,
       'USER_ID': lambda c: c.user_id,
-      'BASE_URL': lambda c: c.base_url,
-      'PAT_CONF': lambda c: str(c.access_token)
+      'API_BASE': lambda c: c.api_base,
+      'PAT': lambda c: pat_display(c.pat)
   })
   print(formatter.format(ctx.obj.contexts.values(), fmt="plain"))
 
@@ -183,16 +152,14 @@ def input_or_default(prompt, default):
 @click.argument('name')
 @click.option('--user-id', required=False, help='User ID')
 @click.option('--base-url', required=False, help='Base URL')
-@click.option('--access-token-type', required=False, help='Access token type')
-@click.option('--access-token-value', required=False, help='Access token value')
+@click.option('--pat', required=False, help='Personal access token')
 @click.pass_context
 def create(
     ctx,
     name,
     user_id=None,
     base_url=None,
-    access_token_type=None,
-    access_token_value=None,
+    pat=None,
 ):
   """Create a new context"""
   if name in ctx.obj.contexts:
@@ -203,17 +170,12 @@ def create(
   if not base_url:
     base_url = input_or_default('base url (default: https://api.clarifai.com): ',
                                 'https://api.clarifai.com')
-  if not access_token_type:
-    access_token_type = input_or_default('access token type (env or raw, default: "env"): ', 'env')
-  if not access_token_value:
-    access_token_value = input_or_default('access token value (default: "CLARIFAI_PAT"): ',
-                                          'CLARIFAI_PAT')
+  if not pat:
+    input_or_default(
+        'access token value (default: "ENVVAR" to get our of env var rather than config): ',
+        'ENVVAR')
 
-  context = Context(
-      name=name,
-      user_id=user_id,
-      base_url=base_url,
-      access_token=dict(type=access_token_type, value=access_token_value))
+  context = Context(name, CLARIFAI_USER_ID=user_id, CLARIFAI_API_BASE=base_url, CLARIFAI_PAT=pat)
   ctx.obj.contexts[context.name] = context
   ctx.obj.to_yaml()
 

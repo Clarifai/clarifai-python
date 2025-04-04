@@ -5,7 +5,7 @@ from clarifai.cli.base import cli
 
 @cli.group(['model'])
 def model():
-  """Manage models: upload, test locally, run locally, predict, and more"""
+  """Manage models: upload, test, local dev, predict, etc"""
 
 
 @model.command()

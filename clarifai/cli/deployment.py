@@ -33,7 +33,7 @@ def create(ctx, nodepool_id, deployment_id, config):
       nodepool_id=nodepool_id,
       user_id=ctx.obj.current.user_id,
       pat=ctx.obj.current.pat,
-      base_url=ctx.obj.current.base_url)
+      base_url=ctx.obj.current.api_base)
   if deployment_id:
     nodepool.create_deployment(config, deployment_id=deployment_id)
   else:
@@ -54,13 +54,13 @@ def list(ctx, nodepool_id, page_no, per_page):
         nodepool_id=nodepool_id,
         user_id=ctx.obj.current.user_id,
         pat=ctx.obj.current.pat,
-        base_url=ctx.obj.current.base_url)
+        base_url=ctx.obj.current.api_base)
     response = nodepool.list_deployments(page_no=page_no, per_page=per_page)
   else:
     user = User(
         user_id=ctx.obj.current.user_id,
         pat=ctx.obj.current.pat,
-        base_url=ctx.obj.current.base_url)
+        base_url=ctx.obj.current.api_base)
     ccs = user.list_compute_clusters(page_no, per_page)
     nps = []
     for cc in ccs:
@@ -68,7 +68,7 @@ def list(ctx, nodepool_id, page_no, per_page):
           compute_cluster_id=cc.id,
           user_id=ctx.obj.current.user_id,
           pat=ctx.obj.current.pat,
-          base_url=ctx.obj.current.base_url)
+          base_url=ctx.obj.current.api_base)
       nps.extend([i for i in compute_cluster.list_nodepools(page_no, per_page)])
     response = []
     for np in nps:
@@ -76,7 +76,7 @@ def list(ctx, nodepool_id, page_no, per_page):
           nodepool_id=np.id,
           user_id=ctx.obj.current.user_id,
           pat=ctx.obj.current.pat,
-          base_url=ctx.obj.current.base_url)
+          base_url=ctx.obj.current.api_base)
       response.extend([i for i in nodepool.list_deployments(page_no=page_no, per_page=per_page)])
 
   display_co_resources(
@@ -106,5 +106,5 @@ def delete(ctx, nodepool_id, deployment_id):
       nodepool_id=nodepool_id,
       user_id=ctx.obj.current.user_id,
       pat=ctx.obj.current.pat,
-      base_url=ctx.obj.current.base_url)
+      base_url=ctx.obj.current.api_base)
   nodepool.delete_deployments([deployment_id])

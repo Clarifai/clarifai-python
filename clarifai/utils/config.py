@@ -1,5 +1,5 @@
 import os
-import typing as t
+from collections import OrderedDict
 from dataclasses import dataclass, field
 
 import yaml
@@ -7,59 +7,66 @@ import yaml
 from clarifai.utils.constants import DEFAULT_CONFIG
 
 
-@dataclass
-class AccessToken():
-  type: str
-  value: str
+class Context(OrderedDict):
+  """
+    A context which has a name and a set of key-values as a dict under env.
 
-  def __str__(self):
-    return f'{self.type}:{self.value}' if self.type == 'env' else '********'
+    You can access the keys directly.
+    """
 
-  def to_serializable_dict(self):
-    return self.__dict__
+  def __init__(self, name, **kwargs):
+    self['name'] = name
+    # when loading from config we may have the env: section in yaml already so we get it here.
+    if 'env' in kwargs:
+      self['env'] = kwargs['env']
+    else:  # when consructing as Context(name, key=value) we set it here.
+      self['env'] = kwargs
 
+  def __getattr__(self, key):
+    try:
+      if key == 'name':
+        return self[key]
+      if key == 'env':
+        raise AttributeError("Don't access .env directly")
 
-@dataclass
-class Context():
-  name: str
-  user_id: str
-  base_url: str
-  access_token: AccessToken = field(default_factory=lambda: AccessToken('env', 'CLARIFAI_PAT'))
-  env: t.Dict[str, str] = field(default_factory=dict)
+      # Allow accessing CLARIFAI_PAT type env var names from config as .pat
+      envvar_name = 'CLARIFAI_' + key.upper()
+      env = self['env']
+      if envvar_name in env:
+        value = env[envvar_name]
+        if value == "ENVVAR":
+          return os.environ[envvar_name]
+      else:
+        value = env[key]
 
-  pat: str = None
+      if isinstance(value, dict):
+        return Context(value)
 
-  def _resolve_pat(self) -> str:
-    if self.access_token['type'].lower() == 'env':
-      if self.access_token['value'] not in os.environ:
-        raise Exception("Env variable '%s' not found" % self.access_token['value'])
-      return os.getenv(self.access_token['value'], '')
-    elif self.access_token['type'].lower() == 'raw':
-      return self.access_token['value']
+      return value
+    except KeyError as e:
+      raise AttributeError(f"'{type(self).__name__}' object has no attribute '{key}'") from e
+
+  def __setattr__(self, key, value):
+    if key == "name":
+      self['name'] = value
     else:
-      raise Exception('Only "env" and "raw" methods are supported')
+      self['env'][key] = value
 
-  def __post_init__(self):
-    self.pat = self._resolve_pat()
-    self.access_token = AccessToken(**self.access_token)
+  def __delattr__(self, key):
+    try:
+      del self['env'][key]
+    except KeyError as e:
+      raise AttributeError(f"'{type(self).__name__}' object has no attribute '{key}'") from e
 
   def to_serializable_dict(self):
-    result = {
-        'name': self.name,
-        'user_id': self.user_id,
-        'base_url': self.base_url,
-        'access_token': self.access_token.to_serializable_dict(),
-    }
-    if self.env:
-      result['env'] = self.env
-    return result
+    return dict(self['env'])
 
 
 @dataclass
 class Config():
   current_context: str
   filename: str
-  contexts: dict[str, Context] = field(default_factory=dict)
+  contexts: OrderedDict[str, Context] = field(default_factory=OrderedDict)
 
   def __post_init__(self):
     for k, v in self.contexts.items():

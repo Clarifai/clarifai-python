@@ -22,7 +22,7 @@ def create(ctx, compute_cluster_id, config):
   """Create a new Compute Cluster with the given config file."""
   validate_context(ctx)
   user = User(
-      user_id=ctx.obj.current.user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.base_url)
+      user_id=ctx.obj.current.user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
   if compute_cluster_id:
     user.create_compute_cluster(config, compute_cluster_id=compute_cluster_id)
   else:
@@ -37,7 +37,7 @@ def list(ctx, page_no, per_page):
   """List all compute clusters for the user."""
   validate_context(ctx)
   user = User(
-      user_id=ctx.obj.current.user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.base_url)
+      user_id=ctx.obj.current.user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
   response = user.list_compute_clusters(page_no, per_page)
   display_co_resources(
       response,
@@ -55,5 +55,5 @@ def delete(ctx, compute_cluster_id):
   """Deletes a compute cluster for the user."""
   validate_context(ctx)
   user = User(
-      user_id=ctx.obj.current.user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.base_url)
+      user_id=ctx.obj.current.user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
   user.delete_compute_clusters([compute_cluster_id])
