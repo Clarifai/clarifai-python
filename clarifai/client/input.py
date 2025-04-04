@@ -22,7 +22,7 @@ from clarifai.constants.dataset import MAX_RETRIES
 from clarifai.constants.input import MAX_UPLOAD_BATCH_SIZE
 from clarifai.errors import UserError
 from clarifai.utils.logging import logger
-from clarifai.utils.misc import BackoffIterator, Chunker
+from clarifai.utils.misc import BackoffIterator, Chunker, clean_input_id
 
 
 class Inputs(Lister, BaseClient):
@@ -282,7 +282,7 @@ class Inputs(Lister, BaseClient):
     for filename in os.listdir(folder_path):
       if filename.split('.')[-1] not in ['jpg', 'jpeg', 'png', 'tiff', 'webp']:
         continue
-      input_id = filename.split('.')[0]
+      input_id = clean_input_id(filename.split('.')[0])
       image_pb = resources_pb2.Image(base64=open(os.path.join(folder_path, filename), 'rb').read())
       input_protos.append(
           Inputs._get_proto(
@@ -473,7 +473,7 @@ class Inputs(Lister, BaseClient):
     for filename in os.listdir(folder_path):
       if filename.split('.')[-1] != 'txt':
         continue
-      input_id = filename.split('.')[0]
+      input_id = clean_input_id(filename.split('.')[0])
       text_pb = resources_pb2.Text(raw=open(os.path.join(folder_path, filename), 'rb').read())
       input_protos.append(
           Inputs._get_proto(
@@ -571,6 +571,24 @@ class Inputs(Lister, BaseClient):
       input_mask_proto = resources_pb2.Annotation(input_id=input_id, data=annot_data)
 
     return input_mask_proto
+
+  def get_input(self, input_id: str) -> Input:
+    """Get Input object of input with input_id provided from the app.
+
+    Args:
+        input_id (str): The input ID for the annotation to get.
+
+    Returns:
+        Input: An Input object for the specified input ID.
+
+    Example:
+        >>> from clarifai.client.input import Inputs
+        >>> input_obj = Inputs(user_id = 'user_id', app_id = 'demo_app')
+        >>> input_obj.get_input(input_id='demo')
+    """
+    request = service_pb2.GetInputRequest(user_app_id=self.user_app_id, input_id=input_id)
+    response = self._grpc_request(self.STUB.GetInput, request)
+    return response.input
 
   def upload_from_url(self,
                       input_id: str,

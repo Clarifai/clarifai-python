@@ -1,8 +1,21 @@
 import os
+import re
 import uuid
 from typing import Any, Dict, List
 
+from clarifai_grpc.grpc.api.status import status_code_pb2
+
 from clarifai.errors import UserError
+
+RETRYABLE_CODES = [
+    status_code_pb2.MODEL_DEPLOYING, status_code_pb2.MODEL_LOADING,
+    status_code_pb2.MODEL_BUSY_PLEASE_RETRY
+]
+
+
+def status_is_retryable(status_code: int) -> bool:
+  """Check if a status code is retryable."""
+  return status_code in RETRYABLE_CODES
 
 
 class Chunker:
@@ -75,3 +88,13 @@ def concept_relations_accumulation(relations_dict: Dict[str, Any], subject_conce
 def get_uuid(val: int) -> str:
   """Generates a UUID."""
   return uuid.uuid4().hex[:val]
+
+
+def clean_input_id(input_id: str) -> str:
+  """Clean input_id string into a valid input ID"""
+  input_id = re.sub('[., /]+', '_', input_id)
+  input_id = re.sub('[_]+', '_', input_id)
+  input_id = re.sub('[-]+', '-', input_id)
+  input_id = input_id.lower().strip('_-')
+  input_id = re.sub('[^a-z0-9-_]+', '', input_id)
+  return input_id

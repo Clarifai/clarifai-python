@@ -142,9 +142,13 @@ def _configure_logger(name: str, logger_level: Union[int, str] = logging.NOTSET)
     logger.addHandler(handler)
   else:
     # Add the new rich handler and formatter
+    try:
+      width, _ = os.get_terminal_size()
+    except OSError:
+      width = 255
     handler = RichHandler(
-        rich_tracebacks=True, log_time_format="%Y-%m-%d %H:%M:%S", console=Console(width=255))
-    formatter = logging.Formatter('%(name)s:  %(message)s')
+        rich_tracebacks=True, log_time_format="%Y-%m-%d %H:%M:%S.%f", console=Console(width=width))
+    formatter = logging.Formatter('%(message)s')
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
@@ -282,6 +286,11 @@ class JsonFormatter(logging.Formatter):
       except Exception:
         self.source_host = ""
 
+    self.extra_blacklist_fields = []
+    extra_blacklist_fields = os.getenv('EXTRA_JSON_LOGGER_BLACKLIST_FIELDS', None)
+    if extra_blacklist_fields:
+      self.extra_blacklist_fields = extra_blacklist_fields.split(",")
+
   def _build_fields(self, defaults, fields):
     """Return provided fields including any in defaults
     """
@@ -301,6 +310,8 @@ class JsonFormatter(logging.Formatter):
         fields.update(record.args)
       msg = record.getMessage()
     for k in FIELD_BLACKLIST:
+      fields.pop(k, None)
+    for k in self.extra_blacklist_fields:
       fields.pop(k, None)
     # Rename 'levelname' to 'level' and make the value lowercase to match Go logs
     level = fields.pop('levelname', None)

@@ -1,13 +1,12 @@
 import click
 from clarifai.cli.base import cli
 from clarifai.client.nodepool import Nodepool
-from clarifai.utils.cli import display_co_resources, from_yaml, AliasedGroup
+from clarifai.utils.cli import display_co_resources, from_yaml, AliasedGroup, validate_context
 
 
 @cli.group(['deployment', 'dpl'], cls=AliasedGroup)
 def deployment():
   """Manage Deployments: create, delete, list"""
-  pass
 
 
 @deployment.command(['c'])
@@ -29,6 +28,8 @@ def deployment():
 @click.pass_context
 def create(ctx, nodepool_id, config, deployment_id):
   """Create a new Deployment with the given config file."""
+
+  validate_context(ctx)
   if not nodepool_id:
     deployment_config = from_yaml(config)
     nodepool_id = deployment_config['deployment']['nodepools'][0]['id']
@@ -56,6 +57,7 @@ def create(ctx, nodepool_id, config, deployment_id):
 def list(ctx, nodepool_id, page_no, per_page):
   """List all deployments for the nodepool."""
 
+  validate_context(ctx)
   nodepool = Nodepool(
       nodepool_id=nodepool_id,
       user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,
@@ -76,6 +78,7 @@ def list(ctx, nodepool_id, page_no, per_page):
 def delete(ctx, nodepool_id, deployment_id):
   """Deletes a deployment for the nodepool."""
 
+  validate_context(ctx)
   nodepool = Nodepool(
       nodepool_id=nodepool_id,
       user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,

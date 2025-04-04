@@ -6,7 +6,9 @@ import yaml
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from ..utils.cli import dump_yaml, from_yaml, load_command_modules, TableFormatter, AliasedGroup
+from ..utils.cli import
+from clarifai.utils.cli import dump_yaml, from_yaml, load_command_modules, set_base_url, dump_yaml, from_yaml, load_command_modules, TableFormatter, AliasedGroup
+from clarifai.utils.logging import logger
 
 @dataclass
 class AccessToken():
@@ -128,7 +130,6 @@ def shell_completion(shell):
 @cli.group(['cfg'], cls=AliasedGroup)
 def config():
   """Manage CLI configuration"""
-  pass
 
 @config.command(['e'])
 @click.pass_context
@@ -245,7 +246,6 @@ def login(ctx, api_url, user_id):
 @cli.group(cls=AliasedGroup)
 def context():
   """Manage contexts"""
-  pass
 
 @context.command(['ls'])
 @click.pass_context
@@ -365,5 +365,6 @@ def run(ctx, script, context=None):
 # Import the CLI commands to register them
 load_command_modules()
 
-if __name__ == '__main__':
+
+def main():
   cli()

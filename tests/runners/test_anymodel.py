@@ -28,7 +28,7 @@ EXPECTED_AUDIO = b"111"
 class _AnyModel(AnyAnyModel):
 
   def load_model(self):
-    pass
+    self.output_text = "any-anymodel"
 
   def predict(self, input_data: List[Dict],
               inference_parameters: Dict[str, Any]) -> List[OutputDataHandler]:
@@ -40,7 +40,7 @@ class _AnyModel(AnyAnyModel):
       if isinstance(image, np.ndarray):
         image = EXPECTED_IMAGE
       if text:
-        text = self.runner_id
+        text = self.output_text
       if audio:
         audio = EXPECTED_AUDIO
 
@@ -62,11 +62,8 @@ class _AnyModel(AnyAnyModel):
 class TestAnyAnyModel(unittest.TestCase):
 
   def setUp(self):
-    self.model = _AnyModel(
-        runner_id="any-anymodel",
-        nodepool_id="fake-nodepool",
-        compute_cluster_id="fake-compute_cluster_id",
-    )
+    self.model = _AnyModel()
+    self.model.load_model()
 
   def _test_predict(self):
     input_data = dict(image=IMAGE, text=TEXT, audio=AUDIO)
@@ -75,7 +72,7 @@ class TestAnyAnyModel(unittest.TestCase):
     for output in outputs:
       self.assertEqual(output.image.all(), EXPECTED_IMAGE.all())
       self.assertEqual(output.audio, EXPECTED_AUDIO)
-      self.assertEqual(output.text, self.model.runner_id)
+      self.assertEqual(output.text, self.model.output_text)
 
   def test_parse_input_request(self):
     python_params = dict(a=1, b=True, c="abc")
@@ -114,7 +111,7 @@ class TestAnyAnyModel(unittest.TestCase):
       count += 1
       self.assertEqual(output.data.image.base64, image_to_bytes(Image.fromarray(EXPECTED_IMAGE)))
       self.assertEqual(output.data.audio.base64, EXPECTED_AUDIO)
-      self.assertEqual(output.data.text.raw, self.model.runner_id)
+      self.assertEqual(output.data.text.raw, self.model.output_text)
 
     self.assertEqual(count, 2)
 
@@ -131,6 +128,6 @@ class TestAnyAnyModel(unittest.TestCase):
         count += 1
         self.assertEqual(output.data.image.base64, image_to_bytes(Image.fromarray(EXPECTED_IMAGE)))
         self.assertEqual(output.data.audio.base64, EXPECTED_AUDIO)
-        self.assertEqual(output.data.text.raw, self.model.runner_id)
+        self.assertEqual(output.data.text.raw, self.model.output_text)
 
     self.assertEqual(count, 2)

@@ -6,7 +6,7 @@ from clarifai.runners.models.base_typed_model import TextInputModel
 from clarifai.runners.utils.data_handler import OutputDataHandler
 
 
-class MyRunner(TextInputModel):
+class MyModel(TextInputModel):
   """A custom runner that adds "Hello World" to the end of the text"""
 
   def load_model(self):

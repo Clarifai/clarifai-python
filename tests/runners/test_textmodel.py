@@ -28,13 +28,13 @@ EXPECTED_AUDIO = b"111"
 class _TextGenerationModel(TextInputModel):
 
   def load_model(self):
-    pass
+    self.output_text = "any-anymodel"
 
   def predict(self, input_data: List[str],
               inference_parameters: Dict[str, Any]) -> List[OutputDataHandler]:
     outputs = []
     for text in input_data:
-      text = self.runner_id
+      text = self.output_text
       output = OutputDataHandler.from_data(
           status_code=status_code_pb2.SUCCESS,
           text=text,
@@ -55,11 +55,8 @@ class _TextGenerationModel(TextInputModel):
 class TestTextInputModel(unittest.TestCase):
 
   def setUp(self):
-    self.model = _TextGenerationModel(
-        runner_id="any-anymodel",
-        nodepool_id="fake-nodepool",
-        compute_cluster_id="fake-compute_cluster_id",
-    )
+    self.model = _TextGenerationModel()
+    self.model.load_model()
 
   def _test_predict(self):
     input_data = [TEXT]
@@ -68,7 +65,7 @@ class TestTextInputModel(unittest.TestCase):
     for output in outputs:
       self.assertEqual(output.image, None)
       self.assertEqual(output.audio, None)
-      self.assertEqual(output.text, self.model.runner_id)
+      self.assertEqual(output.text, self.model.output_text)
 
   def test_parse_input_request(self):
     python_params = dict(a=1, b=True, c="abc")
@@ -105,7 +102,7 @@ class TestTextInputModel(unittest.TestCase):
       count += 1
       self.assertFalse(output.data.image.base64)
       self.assertFalse(output.data.audio.base64)
-      self.assertEqual(output.data.text.raw, self.model.runner_id)
+      self.assertEqual(output.data.text.raw, self.model.output_text)
 
     self.assertEqual(count, 2)
 
@@ -122,6 +119,6 @@ class TestTextInputModel(unittest.TestCase):
         count += 1
         self.assertFalse(output.data.image.base64)
         self.assertFalse(output.data.audio.base64)
-        self.assertEqual(output.data.text.raw, self.model.runner_id)
+        self.assertEqual(output.data.text.raw, self.model.output_text)
 
     self.assertEqual(count, 4)

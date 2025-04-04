@@ -1,3 +1,132 @@
+## [[11.2.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.2) - [PyPI](https://pypi.org/project/clarifai/11.2.2/) - 2025-03-28
+
+### Changed
+ - Removed HF loader `config.json` validation for all clarifai Model type ids [(#543)] (https://github.com/Clarifai/clarifai-python/pull/543)
+ - Added Regex Patterns to Filter Checkpoint Files to Download [(#542)] (https://github.com/Clarifai/clarifai-python/pull/542)
+
+## [[11.2.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.1) - [PyPI](https://pypi.org/project/clarifai/11.2.1/) - 2025-03-25
+
+### Changed
+ - Added validation for CLI config [(#540)] (https://github.com/Clarifai/clarifai-python/pull/540)
+ - Fixed docker image name and added `skip_dockerfile` option to `test-locally` subcommand od model CLI [(#526)] (https://github.com/Clarifai/clarifai-python/pull/526)
+
+## [[11.2.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.0) - [PyPI](https://pypi.org/project/clarifai/11.2.0/) - 2025-03-24
+
+### Changed
+ - Improved CLI login module [(#535)] (https://github.com/Clarifai/clarifai-python/pull/535)
+ - Updated the CLI to test out model locally independent of remote access [(#534)] (https://github.com/Clarifai/clarifai-python/pull/534)
+ - Modified the default value of `num_threads` field [(#533)] (https://github.com/Clarifai/clarifai-python/pull/533)
+
+## [[11.1.7]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.7) - [PyPI](https://pypi.org/project/clarifai/11.1.7/) - 2025-03-08
+
+### Changed
+ - Dropped testing of python 3.8, 3.9, 3.10 [(#532)] (https://github.com/Clarifai/clarifai-python/pull/532)
+ - Updated the deployment testing config [(#531)] (https://github.com/Clarifai/clarifai-python/pull/531)
+
+## [[11.1.6]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.6) - [PyPI](https://pypi.org/project/clarifai/11.1.6/) - 2025-03-06
+
+### Changed
+ - Removed the model_path argument to CLI [(#529)] (https://github.com/Clarifai/clarifai-python/pull/529)
+ - Added configuration for multi-threaded runners [(#524)] (https://github.com/Clarifai/clarifai-python/pull/524)
+
+## [[11.1.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.5) - [PyPI](https://pypi.org/project/clarifai/11.1.5/) - 2025-02-21
+
+### Changed
+ - Adds support for local dev runners from CLI  [(#521)] (https://github.com/Clarifai/clarifai-python/pull/521)
+ - Use the non-runtime path for tests [(#520)] (https://github.com/Clarifai/clarifai-python/pull/520)
+ - Fix local tests [(#518)] (https://github.com/Clarifai/clarifai-python/pull/518)
+ - Catch additional codes that models have at startup [(#517)] (https://github.com/Clarifai/clarifai-python/pull/517)
+
+## [[11.1.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.4) - [PyPI](https://pypi.org/project/clarifai/11.1.4/) - 2025-02-12
+
+### Changed
+
+ - Introduce 3 times when you can download checkpoints [(#515)] (https://github.com/Clarifai/clarifai-python/pull/515)
+
+## [[11.1.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.3) - [PyPI](https://pypi.org/project/clarifai/11.1.3/) - 2025-02-11
+
+### Changed
+
+ - Fix dependency parsing [(#514)] (https://github.com/Clarifai/clarifai-python/pull/514)
+
+## [[11.1.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.2) - [PyPI](https://pypi.org/project/clarifai/11.1.2/) - 2025-02-10
+
+### Changed
+
+ - User new base images and fix clarifai version [(#513)] (https://github.com/Clarifai/clarifai-python/pull/513)
+
+## [[11.1.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.1) - [PyPI](https://pypi.org/project/clarifai/11.1.1/) - 2025-02-06
+
+### Changed
+
+ - Don't validate API in server.py [(#509)] (https://github.com/Clarifai/clarifai-python/pull/509)
+
+## [[11.1.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.0) - [PyPI](https://pypi.org/project/clarifai/11.1.0/) - 2025-02-05
+
+### Changed
+
+ - Fixed Docker test locally [(#505)] (https://github.com/Clarifai/clarifai-python/pull/505)
+ - Fixed HF checkpoints error [(#504)] (https://github.com/Clarifai/clarifai-python/pull/504)
+ - Fixed Deployment Tests [(#502)] (https://github.com/Clarifai/clarifai-python/pull/502)
+ - Fixed Issue with Filename as Invalid Input ID [(#501)] (https://github.com/Clarifai/clarifai-python/pull/501)
+ - Update Model Predict CLI [(#500)] (https://github.com/Clarifai/clarifai-python/pull/500)
+ - Tests Health Port to None [(#499)] (https://github.com/Clarifai/clarifai-python/pull/499)
+ - Refactor model class and runners to be more independent [(#494)] (https://github.com/Clarifai/clarifai-python/pull/494)
+ - Add storage request inferred from tar and checkpoint size [(#479)] (https://github.com/Clarifai/clarifai-python/pull/479)
+
+## [[11.0.7]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.7) - [PyPI](https://pypi.org/project/clarifai/11.0.7/) - 2025-01-24
+
+### Changed
+
+ - Updated model upload experience [(#498)] (https://github.com/Clarifai/clarifai-python/pull/498)
+
+## [[11.0.6]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.6) - [PyPI](https://pypi.org/project/clarifai/11.0.6/) - 2025-01-24
+
+### Changed
+
+ - Added Model Upload Tests [(#495)] (https://github.com/Clarifai/clarifai-python/pull/495)
+ - Updated Torch version Images and Delete tar file for every upload [(#493)] (https://github.com/Clarifai/clarifai-python/pull/493)
+ - Added Tests for Model run locally [(#492)] (https://github.com/Clarifai/clarifai-python/pull/492)
+ - Added CLARIFAI_API_BASE in the test container [(#491)] (https://github.com/Clarifai/clarifai-python/pull/491)
+ - remove triton requirements [(#490)] (https://github.com/Clarifai/clarifai-python/pull/490)
+
+## [[11.0.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.5) - [PyPI](https://pypi.org/project/clarifai/11.0.5/) - 2025-01-17
+
+### Changed
+
+ - Added tests for downloads and various improvements [(#489)] (https://github.com/Clarifai/clarifai-python/pull/489)
+
+## [[11.0.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.4) - [PyPI](https://pypi.org/project/clarifai/11.0.4/) - 2025-01-17
+
+### Changed
+
+ - Added tests for downloads and various improvements [(#488)] (https://github.com/Clarifai/clarifai-python/pull/488)
+
+## [[11.0.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.3) - [PyPI](https://pypi.org/project/clarifai/11.0.3/) - 2025-01-14
+
+### Changed
+
+ - Make API validation optional [(#483)] (https://github.com/Clarifai/clarifai-python/pull/483)
+ - Env var to control logging [(#482)] (https://github.com/Clarifai/clarifai-python/pull/482)
+
+
+## [[11.0.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.2) - [PyPI](https://pypi.org/project/clarifai/11.0.2/) - 2025-01-14
+
+### Changed
+
+ - Update base images [(#481)] (https://github.com/Clarifai/clarifai-python/pull/481)
+ - Optimize downloads from HF [(#480)] (https://github.com/Clarifai/clarifai-python/pull/480)
+
+## [[11.0.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.1) - [PyPI](https://pypi.org/project/clarifai/11.0.1/) - 2025-01-14
+
+### Changed
+
+ - Take user_id from Env variable [(#477)] (https://github.com/Clarifai/clarifai-python/pull/477)
+ - Added HF token Validation [(#476)] (https://github.com/Clarifai/clarifai-python/pull/476)
+ - Fix Model prediction methods when configured with a dedicated compute_cluster_id and nodepool_id [(#475)] (https://github.com/Clarifai/clarifai-python/pull/475)
+ - Fix model upload issues [(#474)] (https://github.com/Clarifai/clarifai-python/pull/474)
+ - Improved error logging [(#473)] (https://github.com/Clarifai/clarifai-python/pull/473)
+
 ## [[11.0.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.0.0) - [PyPI](https://pypi.org/project/clarifai/11.0.0/) - 2025-01-07
 
 ### Changed

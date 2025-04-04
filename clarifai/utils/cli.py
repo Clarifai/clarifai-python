@@ -1,6 +1,7 @@
 import importlib
 import os
 import pkgutil
+import sys
 
 import click
 import yaml
@@ -14,6 +15,7 @@ import typing as t
 from typing import OrderedDict
 from tabulate import tabulate
 from collections import defaultdict
+from clarifai.utils.logging import logger
 
 def from_yaml(filename: str):
   try:
@@ -37,7 +39,7 @@ def load_command_modules():
   package_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'cli')
 
   for _, module_name, _ in pkgutil.iter_modules([package_dir]):
-    if module_name != 'base':  # Skip the base.py file itself
+    if module_name not in ['base', '__main__']:  # Skip the base.py and __main__ file itself
       importlib.import_module(f'clarifai.cli.{module_name}')
 
 
@@ -170,3 +172,8 @@ class AliasedGroup(click.Group):
     if rows:
       with formatter.section("Commands"):
         formatter.write_dl(rows)
+
+def validate_context(ctx):
+  if ctx.obj == {}:
+    logger.error("CLI config file missing. Run `clarifai login` to set up the CLI config.")
+    sys.exit(1)

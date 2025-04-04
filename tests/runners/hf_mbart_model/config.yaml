@@ -1,0 +1,20 @@
+# Config file for the VLLM runner
+
+model:
+  id: "hf-mbart-model"
+  user_id: "user_id"
+  app_id: "app_id"
+  model_type_id: "text-to-text"
+
+build_info:
+  python_version: "3.12"
+
+inference_compute_info:
+  cpu_limit: "500m"
+  cpu_memory: "500Mi"
+  num_accelerators: 0
+
+checkpoints:
+  type: "huggingface"
+  repo_id: "sshleifer/tiny-mbart"
+  when: "build"

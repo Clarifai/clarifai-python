@@ -24,7 +24,6 @@ on:
 
 jobs:
   build:
-
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -34,9 +33,6 @@ jobs:
         python-version:
           - '3.12'
           - '3.11'
-          - '3.10'
-          - '3.9'
-          - '3.8'
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
@@ -51,6 +47,18 @@ jobs:
         pip install genbadge[coverage]
     - name: Run static analysis lint
       uses: pre-commit/action@v3.0.0
+    - name: Check if Dockerfile.template changed
+      id: check_dockerfile_change
+      shell: bash
+      run: |
+        # We compare the files changed between the previous commit SHA (github.event.before)
+        # and the current commit SHA (github.event.after).
+        # If Dockerfile.template is in that list, we set changed=true
+        if git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | grep -q 'clarifai/runners/dockerfile_template/Dockerfile.template'; then
+          echo "changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "changed=false" >> $GITHUB_OUTPUT
+        fi
     - name: Prepare the API keys & Run pytest
       env:
         CLARIFAI_USER_EMAIL_SECURE_HOSTING: ${{ secrets.CLARIFAI_USER_EMAIL_SECURE_HOSTING }}
@@ -71,11 +79,25 @@ jobs:
         export CLARIFAI_USER_ID="$(python scripts/key_for_tests.py --get-userid)"
         export CLARIFAI_PAT="$(python scripts/key_for_tests.py --create-pat)"
         if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
-          pytest --cov=. --cov-report=xml:coverage/coverage.cobertura.xml
+          # Run coverage for all but the container test
+          pytest --cov=. --cov-report=xml:coverage/coverage.cobertura.xml --ignore=tests/runners/test_model_run_locally-container.py
+
+          # Conditionally run the container test
+          if [ "${{ steps.check_dockerfile_change.outputs.changed }}" = "true" ]; then
+            pytest --cov=. --cov-append --cov-report=xml:coverage/coverage.cobertura.xml tests/runners/test_model_run_locally-container.py
+          fi
         elif [ "${{ inputs.PERIODIC_CHECKS }}" = "true" ]; then
-          pytest -m "not coverage_only" --cov=. --cov-report=xml:coverage/coverage.cobertura.xml
+          pytest -m "not coverage_only" --cov=. --cov-report=xml:coverage/coverage.cobertura.xml --ignore=tests/runners/test_model_run_locally-container.py
+
+          if [ "${{ steps.check_dockerfile_change.outputs.changed }}" = "true" ]; then
+            pytest -m "not coverage_only" --cov=. --cov-append --cov-report=xml:coverage/coverage.cobertura.xml tests/runners/test_model_run_locally-container.py
+          fi
         else
-          pytest -m "not requires_secrets" --cov=. --cov-report=xml:coverage/coverage.cobertura.xml
+          pytest -m "not requires_secrets" --cov=. --cov-report=xml:coverage/coverage.cobertura.xml --ignore=tests/runners/test_model_run_locally-container.py
+
+          if [ "${{ steps.check_dockerfile_change.outputs.changed }}" = "true" ]; then
+            pytest -m "not requires_secrets" --cov=. --cov-append --cov-report=xml:coverage/coverage.cobertura.xml tests/runners/test_model_run_locally-container.py
+          fi
         fi
     - name: Code Coverage Report
       if: runner.os == 'Linux' && matrix.python-version == '3.11'

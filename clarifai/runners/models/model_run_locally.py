@@ -1,7 +1,6 @@
 import hashlib
-import importlib.util
-import inspect
 import os
+import platform
 import shutil
 import signal
 import subprocess
@@ -13,9 +12,8 @@ import venv
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
-from clarifai_protocol import BaseRunner
 
-from clarifai.runners.models.model_upload import ModelUploader
+from clarifai.runners.models.model_builder import ModelBuilder
 from clarifai.runners.utils.url_fetcher import ensure_urls_downloaded
 from clarifai.utils.logging import logger
 
@@ -26,14 +24,31 @@ class ModelRunLocally:
     self.model_path = model_path
     self.requirements_file = os.path.join(self.model_path, "requirements.txt")
 
-    # ModelUploader contains multiple useful methods to interact with the model
-    self.uploader = ModelUploader(self.model_path)
-    self.config = self.uploader.config
+    # ModelBuilder contains multiple useful methods to interact with the model
+    self.builder = ModelBuilder(self.model_path, download_validation_only=True)
+    self.config = self.builder.config
 
   def _requirements_hash(self):
     """Generate a hash of the requirements file."""
     with open(self.requirements_file, "r") as f:
       return hashlib.md5(f.read().encode('utf-8')).hexdigest()
+
+  def _get_env_executable(self):
+    """Get the python executable from the virtual environment."""
+    # Depending on the platform, venv scripts are placed in either "Scripts" (Windows) or "bin" (Linux/Mac)
+    if platform.system().lower().startswith("win"):
+      scripts_folder = "Scripts"
+      python_exe = "python.exe"
+      pip_exe = "pip.exe"
+    else:
+      scripts_folder = "bin"
+      python_exe = "python"
+      pip_exe = "pip"
+
+    self.python_executable = os.path.join(self.venv_dir, scripts_folder, python_exe)
+    self.pip_executable = os.path.join(self.venv_dir, scripts_folder, pip_exe)
+
+    return self.python_executable, self.pip_executable
 
   def create_temp_venv(self):
     """Create a temporary virtual environment."""
@@ -53,13 +68,13 @@ class ModelRunLocally:
 
     self.venv_dir = venv_dir
     self.temp_dir = temp_dir
-    self.python_executable = os.path.join(venv_dir, "bin", "python")
+    self.python_executable, self.pip_executable = self._get_env_executable()
 
     return use_existing_venv
 
   def install_requirements(self):
     """Install the dependencies from requirements.txt and Clarifai."""
-    pip_executable = os.path.join(self.venv_dir, "bin", "pip")
+    _, pip_executable = self._get_env_executable()
     try:
       logger.info(
           f"Installing requirements from {self.requirements_file}... in the virtual environment {self.venv_dir}"
@@ -73,39 +88,10 @@ class ModelRunLocally:
       self.clean_up()
       sys.exit(1)
 
-  def _get_model_runner(self):
-    """Dynamically import the runner class from the model file."""
-
-    # import the runner class that to be implement by the user
-    runner_path = os.path.join(self.model_path, "1", "model.py")
-
-    # arbitrary name given to the module to be imported
-    module = "runner_module"
-
-    spec = importlib.util.spec_from_file_location(module, runner_path)
-    runner_module = importlib.util.module_from_spec(spec)
-    sys.modules[module] = runner_module
-    spec.loader.exec_module(runner_module)
-
-    # Find all classes in the model.py file that are subclasses of BaseRunner
-    classes = [
-        cls for _, cls in inspect.getmembers(runner_module, inspect.isclass)
-        if issubclass(cls, BaseRunner) and cls.__module__ == runner_module.__name__
-    ]
-
-    #  Ensure there is exactly one subclass of BaseRunner in the model.py file
-    if len(classes) != 1:
-      raise Exception("Expected exactly one subclass of BaseRunner, found: {}".format(
-          len(classes)))
-
-    MyRunner = classes[0]
-    return MyRunner
-
   def _build_request(self):
     """Create a mock inference request for testing the model."""
 
-    uploader = ModelUploader(self.model_path)
-    model_version_proto = uploader.get_model_version_proto()
+    model_version_proto = self.builder.get_model_version_proto()
     model_version_proto.id = "model_version"
 
     return service_pb2.PostModelOutputsRequest(
@@ -122,11 +108,12 @@ class ModelRunLocally:
 
   def _build_stream_request(self):
     request = self._build_request()
+    ensure_urls_downloaded(request)
     for i in range(1):
       yield request
 
-  def _run_model_inference(self, runner):
-    """Perform inference using the runner."""
+  def _run_model_inference(self, model):
+    """Perform inference using the model."""
     request = self._build_request()
     stream_request = self._build_stream_request()
 
@@ -135,7 +122,7 @@ class ModelRunLocally:
     generate_response = None
     stream_response = None
     try:
-      predict_response = runner.predict(request)
+      predict_response = model.predict(request)
     except NotImplementedError:
       logger.info("Model does not implement predict() method.")
     except Exception as e:
@@ -155,7 +142,7 @@ class ModelRunLocally:
         logger.info(f"Model Prediction succeeded: {predict_response}")
 
     try:
-      generate_response = runner.generate(request)
+      generate_response = model.generate(request)
     except NotImplementedError:
       logger.info("Model does not implement generate() method.")
     except Exception as e:
@@ -177,7 +164,7 @@ class ModelRunLocally:
             f"Model Prediction succeeded for generate and first response: {generate_first_res}")
 
     try:
-      stream_response = runner.stream(stream_request)
+      stream_response = model.stream(stream_request)
     except NotImplementedError:
       logger.info("Model does not implement stream() method.")
     except Exception as e:
@@ -200,25 +187,23 @@ class ModelRunLocally:
 
   def _run_test(self):
     """Test the model locally by making a prediction."""
-    # construct MyRunner which will call load_model()
-    MyRunner = self._get_model_runner()
-    runner = MyRunner(
-        runner_id="n/a",
-        nodepool_id="n/a",
-        compute_cluster_id="n/a",
-        user_id="n/a",
-    )
+    # Create the model
+    model = self.builder.create_model_instance()
     # send an inference.
-    self._run_model_inference(runner)
+    self._run_model_inference(model)
 
   def test_model(self):
     """Test the model by running it locally in the virtual environment."""
-    command = [
-        self.python_executable,
-        "-c",
-        f"import sys; sys.path.append('{os.path.dirname(os.path.abspath(__file__))}'); "
-        f"from model_run_locally import ModelRunLocally; ModelRunLocally('{self.model_path}')._run_test()",
-    ]
+
+    import_path = repr(os.path.dirname(os.path.abspath(__file__)))
+    model_path = repr(self.model_path)
+
+    command_string = (f"import sys; "
+                      f"sys.path.append({import_path}); "
+                      f"from model_run_locally import ModelRunLocally; "
+                      f"ModelRunLocally({model_path})._run_test()")
+
+    command = [self.python_executable, "-c", command_string]
     process = None
     try:
       logger.info("Testing the model locally...")
@@ -253,7 +238,7 @@ class ModelRunLocally:
 
     command = [
         self.python_executable, "-m", "clarifai.runners.server", "--model_path", self.model_path,
-        "--start_dev_server", "--port",
+        "--grpc", "--port",
         str(port)
     ]
     try:
@@ -303,7 +288,9 @@ class ModelRunLocally:
       # Comment out the COPY instruction that copies the current folder
       modified_lines = []
       for line in lines:
-        if 'COPY .' in line and '/app/model_dir/main' in line:
+        if 'COPY' in line and '/home/nonroot/main' in line:
+          modified_lines.append(f'# {line}')
+        elif 'download-checkpoints' in line and '/home/nonroot/main' in line:
           modified_lines.append(f'# {line}')
         else:
           modified_lines.append(line)
@@ -335,6 +322,12 @@ class ModelRunLocally:
       logger.info(f"Docker image '{image_name}' does not exist!")
       return False
 
+  def _gpu_is_available(self):
+    """
+    Checks if nvidia-smi is available, indicating a GPU is likely accessible.
+    """
+    return shutil.which("nvidia-smi") is not None
+
   def run_docker_container(self,
                            image_name,
                            container_name="clarifai-model-container",
@@ -344,11 +337,11 @@ class ModelRunLocally:
     try:
       logger.info(f"Running Docker container '{container_name}' from image '{image_name}'...")
       # Base docker run command
-      cmd = [
-          "docker", "run", "--name", container_name, '--rm', "--gpus", "all", "--network", "host"
-      ]
+      cmd = ["docker", "run", "--name", container_name, '--rm', "--network", "host"]
+      if self._gpu_is_available():
+        cmd.extend(["--gpus", "all"])
       # Add volume mappings
-      cmd.extend(["-v", f"{self.model_path}:/app/model_dir/main"])
+      cmd.extend(["-v", f"{self.model_path}:/home/nonroot/main"])
       # Add environment variables
       if env_vars:
         for key, value in env_vars.items():
@@ -356,9 +349,7 @@ class ModelRunLocally:
       # Add the image name
       cmd.append(image_name)
       # update the CMD to run the server
-      cmd.extend(
-          ["--model_path", "/app/model_dir/main", "--start_dev_server", "--port",
-           str(port)])
+      cmd.extend(["--model_path", "/home/nonroot/main", "--grpc", "--port", str(port)])
       # Run the container
       process = subprocess.Popen(cmd,)
       logger.info(
@@ -393,13 +384,13 @@ class ModelRunLocally:
     try:
       logger.info("Testing the model inside the Docker container...")
       # Base docker run command
-      cmd = [
-          "docker", "run", "--name", container_name, '--rm', "--gpus", "all", "--network", "host"
-      ]
+      cmd = ["docker", "run", "--name", container_name, '--rm', "--network", "host"]
+      if self._gpu_is_available():
+        cmd.extend(["--gpus", "all"])
       # update the entrypoint for testing the model
       cmd.extend(["--entrypoint", "python"])
       # Add volume mappings
-      cmd.extend(["-v", f"{self.model_path}:/app/model_dir/main"])
+      cmd.extend(["-v", f"{self.model_path}:/home/nonroot/main"])
       # Add environment variables
       if env_vars:
         for key, value in env_vars.items():
@@ -409,7 +400,7 @@ class ModelRunLocally:
       # update the CMD to test the model inside the container
       cmd.extend([
           "-c",
-          "from clarifai.runners.models.model_run_locally import ModelRunLocally; ModelRunLocally('/app/model_dir/main')._run_test()"
+          "from clarifai.runners.models.model_run_locally import ModelRunLocally; ModelRunLocally('/home/nonroot/main')._run_test()"
       ])
       # Run the container
       subprocess.check_call(cmd)
@@ -483,32 +474,33 @@ def main(model_path,
          inside_container=False,
          port=8080,
          keep_env=False,
-         keep_image=False):
+         keep_image=False,
+         skip_dockerfile: bool = False):
 
-  if not os.environ['CLARIFAI_PAT']:
-    logger.error(
-        "CLARIFAI_PAT environment variable is not set! Please set your PAT in the 'CLARIFAI_PAT' environment variable."
-    )
-    sys.exit(1)
   manager = ModelRunLocally(model_path)
-  manager.uploader.download_checkpoints()
+  # get whatever stage is in config.yaml to force download now
+  # also always write to where upload/build wants to, not the /tmp folder that runtime stage uses
+  _, _, _, when, _, _ = manager.builder._validate_config_checkpoints()
+  manager.builder.download_checkpoints(
+      stage=when, checkpoint_path_override=manager.builder.checkpoint_path)
   if inside_container:
     if not manager.is_docker_installed():
       sys.exit(1)
-    manager.uploader.create_dockerfile()
+    if not skip_dockerfile:
+      manager.builder.create_dockerfile()
     image_tag = manager._docker_hash()
-    image_name = f"{manager.config['model']['id']}:{image_tag}"
-    container_name = manager.config['model']['id']
+    model_id = manager.config['model']['id'].lower()
+    # must be in lowercase
+    image_name = f"{model_id}:{image_tag}"
+    container_name = model_id
     if not manager.docker_image_exists(image_name):
       manager.build_docker_image(image_name=image_name)
     try:
-      envs = {'CLARIFAI_PAT': os.environ['CLARIFAI_PAT'], 'CLARIFAI_USER_ID': 'n/a'}
       if run_model_server:
         manager.run_docker_container(
-            image_name=image_name, container_name=container_name, port=port, env_vars=envs)
+            image_name=image_name, container_name=container_name, port=port)
       else:
-        manager.test_model_container(
-            image_name=image_name, container_name=container_name, env_vars=envs)
+        manager.test_model_container(image_name=image_name, container_name=container_name)
     finally:
       if manager.container_exists(container_name):
         manager.stop_docker_container(container_name)

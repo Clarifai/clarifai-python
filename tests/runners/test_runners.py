@@ -1,6 +1,7 @@
 # This test will create dummy runner and start the runner at first
 # Testing outputs received by client and programmed outputs of runner server
 #
+import importlib
 import os
 import threading
 import uuid
@@ -9,17 +10,28 @@ import pytest
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from clarifai_protocol.utils.logging import logger
-from dummy_runner_models.model import MyRunner
-from dummy_runner_models.model_wrapper import MyRunner as MyWrapperRunner
 from google.protobuf import json_format
 
 from clarifai.client import BaseClient, Model, User
 from clarifai.client.auth.helper import ClarifaiAuthHelper
+from clarifai.runners.models.model_runner import ModelRunner
+
+MY_MODEL_PATH = os.path.join(os.path.dirname(__file__), "dummy_runner_models", "1", "model.py")
+MY_WRAPPER_MODEL_PATH = os.path.join(
+    os.path.dirname(__file__), "dummy_runner_models", "1", "model_wrapper.py")
 
 # logger.disabled = True
 
 TEXT_FILE_PATH = os.path.dirname(os.path.dirname(__file__)) + "/assets/sample.txt"
 TEXT_URL = "https://samples.clarifai.com/negative_sentence_12.txt"
+
+
+def _get_model_instance(model_path, model_name="MyModel"):
+  spec = importlib.util.spec_from_file_location(model_name, model_path)
+  module = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(module)
+  cls = getattr(module, model_name)
+  return cls()
 
 
 def init_components(
@@ -40,7 +52,8 @@ def init_components(
   # except Exception as _:
   #   model = Model.from_auth_helper(auth=auth, model_id=model_id)
 
-  new_model = model.create_version(resources_pb2.PretrainedModelConfig(local_dev=True,))
+  new_model = model.create_version(
+      pretrained_model_config=resources_pb2.PretrainedModelConfig(local_dev=True,))
 
   new_model_version = new_model.model_version.id
   compute_cluster = resources_pb2.ComputeCluster(
@@ -111,9 +124,9 @@ def init_components(
   return new_model_version, res.runners[0].id
 
 
-@pytest.mark.skip(reason="Skipping Runners tests for now.")
 @pytest.mark.requires_secrets
 class TestRunnerServer:
+  MODEL_PATH = MY_MODEL_PATH
 
   @classmethod
   def setup_class(cls):
@@ -145,13 +158,18 @@ class TestRunnerServer:
         base_url=cls.AUTH.base,
         pat=cls.AUTH.pat,
     )
-    cls.runner = MyRunner(
+
+    cls.runner_model = _get_model_instance(cls.MODEL_PATH)
+
+    cls.runner = ModelRunner(
+        model=cls.runner_model,
         runner_id=cls.RUNNER_ID,
         nodepool_id=cls.NODEPOOL_ID,
         compute_cluster_id=cls.COMPUTE_CLUSTER_ID,
         num_parallel_polls=1,
         base_url=cls.AUTH.base,
         user_id=cls.AUTH.user_id,
+        health_check_port=None,
     )
     cls.thread = threading.Thread(target=cls.runner.start)
     cls.thread.daemon = True  # close when python closes
@@ -244,7 +262,7 @@ class TestRunnerServer:
     for i, res in enumerate(stub.GenerateModelOutputs(req)):
       self._validate_response(res, text + out.format(i=i))
 
-  # @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
+  @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
   def test_stream(self):
     text = "This is a long text for testing stream"
     out = "Stream Hello World {i}"
@@ -361,7 +379,7 @@ class TestRunnerServer:
       for i, res in enumerate(model_response):
         self._validate_response(res, text + out.format(i=i))
 
-  # @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
+  @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
   def test_client_stream(self):
     text = "This is a long text for testing stream"
     out = "Stream Hello World {i}"
@@ -375,6 +393,7 @@ class TestRunnerServer:
       expected = text + out.format(i=i)
       self._validate_response(res, expected)
 
+  @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
   def test_client_stream_inference_params(self):
     text = "This is a long text for testing stream"
     out = "Stream Hello World {i}"
@@ -392,6 +411,7 @@ class TestRunnerServer:
       expected = text + out.format(i=i) + inference_params["hello"]
       self._validate_response(res, expected)
 
+  @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
   def test_client_stream_by_bytes(self):
     text = "This is a long text for testing stream"
     out = "Stream Hello World {i}"
@@ -408,6 +428,7 @@ class TestRunnerServer:
     for i, res in enumerate(model_response):
       self._validate_response(res, text + out.format(i=i))
 
+  @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
   def test_client_stream_by_url(self):
     text = "He doesn't have to commute to work."
     out = "Stream Hello World {i}"
@@ -424,6 +445,7 @@ class TestRunnerServer:
     for i, res in enumerate(model_response):
       self._validate_response(res, text + out.format(i=i))
 
+  @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
   def test_client_stream_by_filepath(self):
     with open(TEXT_FILE_PATH, "r") as f:
       text = f.read()
@@ -439,45 +461,6 @@ class TestRunnerServer:
         self._validate_response(res, text + out.format(i=i))
 
 
-@pytest.mark.skip(reason="Skipping Runners tests for now.")
 @pytest.mark.requires_secrets
 class TestWrapperRunnerServer(TestRunnerServer):
-
-  @classmethod
-  def setup_class(cls):
-    NOW = uuid.uuid4().hex[:10]
-    cls.MODEL_ID = f"test-runner-model-{NOW}"
-    cls.NODEPOOL_ID = f"test-nodepool-{NOW}"
-    cls.COMPUTE_CLUSTER_ID = f"test-compute_cluster-{NOW}"
-    cls.APP_ID = f"ci-test-runner-app-{NOW}"
-    cls.CLIENT = BaseClient.from_env()
-    cls.AUTH = cls.CLIENT.auth_helper
-    cls.AUTH.app_id = cls.APP_ID
-
-    cls.MODEL_VERSION_ID, cls.RUNNER_ID = init_components(
-        cls.AUTH,
-        cls.CLIENT,
-        cls.APP_ID,
-        cls.MODEL_ID,
-        cls.NODEPOOL_ID,
-        cls.COMPUTE_CLUSTER_ID,
-    )
-    cls.runner = MyWrapperRunner(
-        runner_id=cls.RUNNER_ID,
-        nodepool_id=cls.NODEPOOL_ID,
-        compute_cluster_id=cls.COMPUTE_CLUSTER_ID,
-        num_parallel_polls=1,
-        base_url=cls.AUTH.base,
-        user_id=cls.AUTH.user_id,
-    )
-    cls.model = Model(
-        user_id=cls.AUTH.user_id,
-        app_id=cls.AUTH.app_id,
-        model_id=cls.MODEL_ID,
-        model_version={'id': cls.MODEL_VERSION_ID},
-        base_url=cls.AUTH.base,
-        pat=cls.AUTH.pat,
-    )
-    cls.thread = threading.Thread(target=cls.runner.start)
-    cls.thread.daemon = True  # close when python closes
-    cls.thread.start()
+  MODEL_PATH = MY_WRAPPER_MODEL_PATH

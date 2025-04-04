@@ -5,21 +5,19 @@ from clarifai.cli.base import cli
 
 @cli.group(['model'])
 def model():
-  """Manage models: upload, test locally, run_locally, predict"""
-  pass
+  """Manage models: upload, test locally, run locally, predict, and more"""
 
 
 @model.command()
+@click.argument("model_path", type=click.Path(exists=True), required=False, default=".")
 @click.option(
-    '--model_path',
-    type=click.Path(exists=True),
-    required=True,
-    help='Path to the model directory.')
-@click.option(
-    '--download_checkpoints',
-    is_flag=True,
+    '--stage',
+    required=False,
+    type=click.Choice(['runtime', 'build', 'upload'], case_sensitive=True),
+    default="upload",
+    show_default=True,
     help=
-    'Flag to download checkpoints before uploading and including them in the tar file that is uploaded. Defaults to False, which will attempt to download them at docker build time.',
+    'The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.'
 )
 @click.option(
     '--skip_dockerfile',
@@ -27,19 +25,57 @@ def model():
     help=
     'Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile.',
 )
-def upload(model_path, download_checkpoints, skip_dockerfile):
-  """Upload a model to Clarifai."""
-  from clarifai.runners.models import model_upload
+def upload(model_path, stage, skip_dockerfile):
+  """Upload a model to Clarifai.
 
-  model_upload.main(model_path, download_checkpoints, skip_dockerfile)
+    MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
+  """
+  from clarifai.runners.models.model_builder import upload_model
+  upload_model(model_path, stage, skip_dockerfile)
 
 
 @model.command()
-@click.option(
-    '--model_path',
+@click.argument(
+    "model_path",
     type=click.Path(exists=True),
-    required=True,
-    help='Path to the model directory.')
+    required=False,
+    default=".",
+)
+@click.option(
+    '--out_path',
+    type=click.Path(exists=False),
+    required=False,
+    default=None,
+    help=
+    'Option path to write the checkpoints to. This will place them in {out_path}/1/checkpoints If not provided it will default to {model_path}/1/checkpoints where the config.yaml is read.'
+)
+@click.option(
+    '--stage',
+    required=False,
+    type=click.Choice(['runtime', 'build', 'upload'], case_sensitive=True),
+    default="build",
+    show_default=True,
+    help=
+    'The stage we are calling download checkpoints from. Typically this would be in the build stage which is the default. Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.'
+)
+def download_checkpoints(model_path, out_path, stage):
+  """Download checkpoints from external source to local model_path
+
+  MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
+  """
+
+  from clarifai.runners.models.model_builder import ModelBuilder
+  builder = ModelBuilder(model_path, download_validation_only=True)
+  builder.download_checkpoints(stage=stage, checkpoint_path_override=out_path)
+
+
+@model.command()
+@click.argument(
+    "model_path",
+    type=click.Path(exists=True),
+    required=False,
+    default=".",
+)
 @click.option(
     '--mode',
     type=click.Choice(['env', 'container'], case_sensitive=False),
@@ -60,7 +96,13 @@ def upload(model_path, download_checkpoints, skip_dockerfile):
     help=
     'Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.'
 )
-def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
+@click.option(
+    '--skip_dockerfile',
+    is_flag=True,
+    help=
+    'Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. Apply for `--mode conatainer`.',
+)
+def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_dockerfile=False):
   """Test model locally."""
   try:
     from clarifai.runners.models import model_run_locally
@@ -75,18 +117,23 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
     elif mode == "container":
       click.echo("Testing model locally inside a container...")
       model_run_locally.main(
-          model_path, inside_container=True, run_model_server=False, keep_image=keep_image)
+          model_path,
+          inside_container=True,
+          run_model_server=False,
+          keep_image=keep_image,
+          skip_dockerfile=skip_dockerfile)
     click.echo("Model tested successfully.")
   except Exception as e:
     click.echo(f"Failed to test model locally: {e}", err=True)
 
 
 @model.command()
-@click.option(
-    '--model_path',
+@click.argument(
+    "model_path",
     type=click.Path(exists=True),
-    required=True,
-    help='Path to the model directory.')
+    required=False,
+    default=".",
+)
 @click.option(
     '--port',
     '-p',
@@ -114,7 +161,13 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
     help=
     'Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.'
 )
-def run_locally(model_path, port, mode, keep_env, keep_image):
+@click.option(
+    '--skip_dockerfile',
+    is_flag=True,
+    help=
+    'Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. Apply for `--mode conatainer`.',
+)
+def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=False):
   """Run the model locally and start a gRPC server to serve the model."""
   try:
     from clarifai.runners.models import model_run_locally
@@ -133,10 +186,27 @@ def run_locally(model_path, port, mode, keep_env, keep_image):
           inside_container=True,
           run_model_server=True,
           port=port,
-          keep_image=keep_image)
+          keep_image=keep_image,
+          skip_dockerfile=skip_dockerfile)
     click.echo(f"Model server started locally from {model_path} in {mode} mode.")
   except Exception as e:
     click.echo(f"Failed to starts model server locally: {e}", err=True)
+
+
+@model.command()
+@click.argument(
+    "model_path",
+    type=click.Path(exists=True),
+    required=False,
+    default=".",
+)
+def local_dev(model_path):
+  """Run the model as a local dev runner to help debug your model connected to the API. You must set several envvars such as CLARIFAI_PAT, CLARIFAI_RUNNER_ID, CLARIFAI_NODEPOOL_ID, CLARIFAI_COMPUTE_CLUSTER_ID.
+
+  MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
+  """
+  from clarifai.runners.server import serve
+  serve(model_path)
 
 
 @model.command()
@@ -152,8 +222,6 @@ def run_locally(model_path, port, mode, keep_env, keep_image):
 @click.option('--file_path', required=False, help='File path of file for the model to predict')
 @click.option('--url', required=False, help='URL to the file for the model to predict')
 @click.option('--bytes', required=False, help='Bytes to the file for the model to predict')
-@click.option(
-    '--input_id', required=False, help='Existing input id in the app for the model to predict')
 @click.option('--input_type', required=False, help='Type of input')
 @click.option(
     '-cc_id',
@@ -167,36 +235,29 @@ def run_locally(model_path, port, mode, keep_env, keep_image):
     '--inference_params', required=False, default='{}', help='Inference parameters to override')
 @click.option('--output_config', required=False, default='{}', help='Output config to override')
 @click.pass_context
-def predict(ctx, config, model_id, user_id, app_id, model_url, file_path, url, bytes, input_id,
-            input_type, compute_cluster_id, nodepool_id, deployment_id, inference_params,
-            output_config):
+def predict(ctx, config, model_id, user_id, app_id, model_url, file_path, url, bytes, input_type,
+            compute_cluster_id, nodepool_id, deployment_id, inference_params, output_config):
   """Predict using the given model"""
   import json
 
-  from clarifai.client.deployment import Deployment
-  from clarifai.client.input import Input
   from clarifai.client.model import Model
-  from clarifai.client.nodepool import Nodepool
-  from clarifai.utils.cli import from_yaml
+  from clarifai.utils.cli import from_yaml, validate_context
+  validate_context(ctx)
   if config:
     config = from_yaml(config)
-    model_id, user_id, app_id, model_url, file_path, url, bytes, input_id, input_type, compute_cluster_id, nodepool_id, deployment_id, inference_params, output_config = (
+    model_id, user_id, app_id, model_url, file_path, url, bytes, input_type, compute_cluster_id, nodepool_id, deployment_id, inference_params, output_config = (
         config.get(k, v)
         for k, v in [('model_id', model_id), ('user_id', user_id), ('app_id', app_id), (
             'model_url', model_url), ('file_path', file_path), ('url', url), ('bytes', bytes), (
-                'input_id',
-                input_id), ('input_type',
-                            input_type), ('compute_cluster_id',
-                                          compute_cluster_id), ('nodepool_id', nodepool_id), (
-                                              'deployment_id',
-                                              deployment_id), ('inference_params',
-                                                               inference_params), ('output_config',
-                                                                                   output_config)])
+                'input_type', input_type), ('compute_cluster_id', compute_cluster_id), (
+                    'nodepool_id',
+                    nodepool_id), ('deployment_id',
+                                   deployment_id), ('inference_params',
+                                                    inference_params), ('output_config',
+                                                                        output_config)])
   if sum([opt[1] for opt in [(model_id, 1), (user_id, 1), (app_id, 1), (model_url, 3)]
           if opt[0]]) != 3:
     raise ValueError("Either --model_id & --user_id & --app_id or --model_url must be provided.")
-  if sum([1 for opt in [file_path, url, bytes, input_id] if opt]) != 1:
-    raise ValueError("Exactly one of --file_path, --url, --bytes or --input_id must be provided.")
   if compute_cluster_id or nodepool_id or deployment_id:
     if sum([
         opt[1] for opt in [(compute_cluster_id, 0.5), (nodepool_id, 0.5), (deployment_id, 1)]
@@ -246,21 +307,5 @@ def predict(ctx, config, model_id, user_id, app_id, model_url, file_path, url, b
         nodepool_id=nodepool_id,
         deployment_id=deployment_id,
         inference_params=inference_params,
-        output_config=output_config)
-  elif input_id:
-    inputs = [Input.get_input(input_id)]
-    runner_selector = None
-    if deployment_id:
-      runner_selector = Deployment.get_runner_selector(
-          user_id=ctx.obj['user_id'], deployment_id=deployment_id)
-    elif compute_cluster_id and nodepool_id:
-      runner_selector = Nodepool.get_runner_selector(
-          user_id=ctx.obj['user_id'],
-          compute_cluster_id=compute_cluster_id,
-          nodepool_id=nodepool_id)
-    model_prediction = model.predict(
-        inputs=inputs,
-        runner_selector=runner_selector,
-        inference_params=inference_params,
-        output_config=output_config)
+        output_config=output_config)  ## TO DO: Add support for input_id
   click.echo(model_prediction)
