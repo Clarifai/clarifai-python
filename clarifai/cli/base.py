@@ -78,7 +78,7 @@ def get_contexts(ctx, output_format):
         'NAME': lambda c: c.name,
         'USER_ID': lambda c: c.user_id,
         'BASE_URL': lambda c: c.base_url,
-        'PAT_CONF': lambda c: c.access_token.get('type', 'default')
+        'PAT_CONF': lambda c: c.access_token.type,
     })
     print(formatter.format(ctx.obj.contexts.values(), fmt="plain"))
   elif output_format == 'name':

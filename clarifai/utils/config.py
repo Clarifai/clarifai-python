@@ -19,55 +19,6 @@ class AccessToken():
   def to_serializable_dict(self):
     return self.__dict__
 
-  @classmethod
-  def from_serializable_dict(cls, _dict):
-    return cls(**_dict)
-
-  # Dictionary protocol methods:
-
-  def __getitem__(self, key: str) -> t.Any:
-    if key == 'type':
-      return self.type
-    elif key == 'value':
-      return self.value
-    else:
-      raise KeyError(key)
-
-  def __setitem__(self, key: str, value: t.Any) -> None:
-    if key == 'type':
-      self.type = value
-    elif key == 'value':
-      self.value = value
-    else:
-      raise KeyError(key)
-
-  def __delitem__(self, key: str) -> None:
-    raise TypeError("Cannot delete attributes from AccessToken")
-
-  def __iter__(self):
-    return iter(['type', 'value'])
-
-  def __len__(self) -> int:
-    return 2
-
-  def __contains__(self, key: str) -> bool:
-    return key in ['type', 'value']
-
-  def keys(self):
-    return ['type', 'value']
-
-  def values(self):
-    return [self.type, self.value]
-
-  def items(self):
-    return [('type', self.type), ('value', self.value)]
-
-  def get(self, key: str, default: t.Any = None) -> t.Any:
-    try:
-      return self[key]
-    except KeyError:
-      return default
-
 
 @dataclass
 class Context():
