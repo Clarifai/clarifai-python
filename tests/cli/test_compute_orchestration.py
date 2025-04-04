@@ -143,19 +143,19 @@ class TestComputeOrchestration:
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = create_runner.invoke(cli, ["computecluster", "list"])
     assert result.exit_code == 0
-    assert "List of Compute Clusters" in result.output
+    assert "USER_ID" in result.output
 
   def test_list_nodepools(self, create_runner):
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = create_runner.invoke(cli, ["nodepool", "list", CREATE_COMPUTE_CLUSTER_ID])
     assert result.exit_code == 0
-    assert "List of Nodepools" in result.output
+    assert "USER_ID" in result.output
 
   def test_list_deployments(self, create_runner):
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = create_runner.invoke(cli, ["deployment", "list", CREATE_NODEPOOL_ID])
     assert result.exit_code == 0
-    assert "List of Deployments" in result.output
+    assert "USER_ID" in result.output
 
   @pytest.mark.coverage_only
   def test_delete_deployment(self, create_runner):

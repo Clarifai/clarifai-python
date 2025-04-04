@@ -8,6 +8,7 @@ import yaml
 from clarifai.utils.cli import AliasedGroup, TableFormatter, load_command_modules
 from clarifai.utils.config import Config, Context
 from clarifai.utils.constants import DEFAULT_CONFIG
+from clarifai.utils.logging import logger
 
 
 #@click.group(cls=CustomMultiGroup)
@@ -33,8 +34,11 @@ def cli(ctx, config):
                     CLARIFAI_API_BASE=os.environ.get('CLARIFAI_API_BASE', 'api.clarifai.com'),
                 )
         })
-    cfg.to_yaml(config)
-    ctx.obj = cfg
+    try:
+      cfg.to_yaml(config)
+    except Exception:
+      logger.warning("Could not write configuration to disk. Could be a read only file system.")
+    ctx.obj = cfg  # still have the default config even if couldn't write.
 
 
 @cli.command()
