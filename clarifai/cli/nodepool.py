@@ -13,20 +13,15 @@ def nodepool():
 
 
 @nodepool.command(['c'])
-@click.option(
-    '-cc_id',
-    '--compute_cluster_id',
-    required=False,
-    help='Compute Cluster ID for the compute cluster to interact with.')
+@click.argument('compute_cluster_id')
+@click.argument('nodepool_id')
 @click.option(
     '--config',
     type=click.Path(exists=True),
     required=True,
     help='Path to the nodepool config file.')
-@click.option(
-    '-np_id', '--nodepool_id', required=False, help='New Nodepool ID for the nodepool to create.')
 @click.pass_context
-def create(ctx, compute_cluster_id, config, nodepool_id):
+def create(ctx, compute_cluster_id, nodepool_id, config):
   """Create a new Nodepool with the given config file."""
 
   validate_context(ctx)
@@ -100,12 +95,8 @@ def list(ctx, compute_cluster_id, page_no, per_page):
 
 
 @nodepool.command(['rm'])
-@click.option(
-    '-cc_id',
-    '--compute_cluster_id',
-    required=True,
-    help='Compute Cluster ID for the compute cluster to interact with.')
-@click.option('-np_id', '--nodepool_id', help='Nodepool ID of the user to delete.')
+@click.argument('compute_cluster_id')
+@click.argument('nodepool_id')
 @click.pass_context
 def delete(ctx, compute_cluster_id, nodepool_id):
   """Deletes a nodepool for the user."""

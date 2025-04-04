@@ -13,23 +13,15 @@ def deployment():
 
 
 @deployment.command(['c'])
-@click.option(
-    '-np_id',
-    '--nodepool_id',
-    required=False,
-    help='Nodepool ID for the Nodepool to interact with.')
+@click.argument('nodepool_id')
+@click.argument('deployment_id')
 @click.option(
     '--config',
     type=click.Path(exists=True),
     required=True,
     help='Path to the deployment config file.')
-@click.option(
-    '-dpl_id',
-    '--deployment_id',
-    required=False,
-    help='New deployment ID for the deployment to create.')
 @click.pass_context
-def create(ctx, nodepool_id, config, deployment_id):
+def create(ctx, nodepool_id, deployment_id, config):
   """Create a new Deployment with the given config file."""
 
   validate_context(ctx)
@@ -103,12 +95,8 @@ def list(ctx, nodepool_id, page_no, per_page):
 
 
 @deployment.command(['rm'])
-@click.option(
-    '-np_id',
-    '--nodepool_id',
-    required=True,
-    help='Nodepool ID for the Nodepool to interact with.')
-@click.option('-dpl_id', '--deployment_id', help='Deployment ID of the nodepool to delete.')
+@click.argument('nodepool_id')
+@click.argument('deployment_id')
 @click.pass_context
 def delete(ctx, nodepool_id, deployment_id):
   """Deletes a deployment for the nodepool."""

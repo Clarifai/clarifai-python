@@ -11,18 +11,14 @@ def computecluster():
 
 
 @computecluster.command(['c'])
+@click.argument('compute_cluster_id')
 @click.option(
     '--config',
     type=click.Path(exists=True),
     required=True,
     help='Path to the compute cluster config file.')
-@click.option(
-    '-cc_id',
-    '--compute_cluster_id',
-    required=False,
-    help='New Compute Cluster ID for the compute cluster to create.')
 @click.pass_context
-def create(ctx, config, compute_cluster_id):
+def create(ctx, compute_cluster_id, config):
   """Create a new Compute Cluster with the given config file."""
   validate_context(ctx)
   user = User(
@@ -53,7 +49,7 @@ def list(ctx, page_no, per_page):
 
 
 @computecluster.command(['rm'])
-@click.option('-cc_id', '--compute_cluster_id', help='Compute Cluster ID of the user to delete.')
+@click.argument('compute_cluster_id')
 @click.pass_context
 def delete(ctx, compute_cluster_id):
   """Deletes a compute cluster for the user."""
