@@ -66,7 +66,7 @@ def current_context(ctx, output_format):
       print(yaml.safe_dump(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
 
 
-@config.command(['list'])
+@config.command(['list', 'ls'])
 @click.option(
     '-o', '--output-format', default='wide', type=click.Choice(['wide', 'name', 'json', 'yaml']))
 @click.pass_context
@@ -271,7 +271,7 @@ def use(ctx, name):
 @click.pass_context
 def run(ctx, script, context=None):
   """Execute a script with the current context's environment"""
-  context = ctx.obj.contexts[ctx.obj.current_context if not context else context]
+  context = ctx.obj.current if not context else context
   cmd = f'CLARIFAI_USER_ID={context.user_id} CLARIFAI_API_BASE={context.base_url} CLARIFAI_PAT={context.pat} '
   cmd += ' '.join([f'{k}={v}' for k, v in context.env.items()])
   cmd += f' {script}'

@@ -43,9 +43,9 @@ def create(ctx, compute_cluster_id, config, nodepool_id):
 
   compute_cluster = ComputeCluster(
       compute_cluster_id=compute_cluster_id,
-      user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,
-      pat=ctx.obj.contexts[ctx.obj.current_context].pat,
-      base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
+      user_id=ctx.obj.current.user_id,
+      pat=ctx.obj.current.pat,
+      base_url=ctx.obj.current.base_url)
   if nodepool_id:
     compute_cluster.create_nodepool(config, nodepool_id=nodepool_id)
   else:
@@ -53,16 +53,13 @@ def create(ctx, compute_cluster_id, config, nodepool_id):
 
 
 @nodepool.command(['ls'])
-@click.option(
-    '-cc_id',
-    '--compute_cluster_id',
-    required=False,
-    help='Compute Cluster ID for the compute cluster to interact with.')
+@click.argument('compute_cluster_id', default="")
 @click.option('--page_no', required=False, help='Page number to list.', default=1)
 @click.option('--per_page', required=False, help='Number of items per page.', default=128)
 @click.pass_context
 def list(ctx, compute_cluster_id, page_no, per_page):
-  """List all nodepools for the user."""
+  """List all nodepools for the user across all compute clusters. If compute_cluster_id is provided
+  it will list only within that compute cluster. """
 
   validate_context(ctx)
 
@@ -71,23 +68,23 @@ def list(ctx, compute_cluster_id, page_no, per_page):
   if cc_id:
     compute_cluster = ComputeCluster(
         compute_cluster_id=cc_id,
-        user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,
-        pat=ctx.obj.contexts[ctx.obj.current_context].pat,
-        base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
+        user_id=ctx.obj.current.user_id,
+        pat=ctx.obj.current.pat,
+        base_url=ctx.obj.current.base_url)
     response = compute_cluster.list_nodepools(page_no, per_page)
   else:
     user = User(
-        user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,
-        pat=ctx.obj.contexts[ctx.obj.current_context].pat,
-        base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
+        user_id=ctx.obj.current.user_id,
+        pat=ctx.obj.current.pat,
+        base_url=ctx.obj.current.base_url)
     ccs = user.list_compute_clusters(page_no, per_page)
     response = []
     for cc in ccs:
       compute_cluster = ComputeCluster(
           compute_cluster_id=cc.id,
-          user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,
-          pat=ctx.obj.contexts[ctx.obj.current_context].pat,
-          base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
+          user_id=ctx.obj.current.user_id,
+          pat=ctx.obj.current.pat,
+          base_url=ctx.obj.current.base_url)
       response.extend([i for i in compute_cluster.list_nodepools(page_no, per_page)])
 
   display_co_resources(
@@ -114,7 +111,7 @@ def delete(ctx, compute_cluster_id, nodepool_id):
   validate_context(ctx)
   compute_cluster = ComputeCluster(
       compute_cluster_id=compute_cluster_id,
-      user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,
-      pat=ctx.obj.contexts[ctx.obj.current_context].pat,
-      base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
+      user_id=ctx.obj.current.user_id,
+      pat=ctx.obj.current.pat,
+      base_url=ctx.obj.current.base_url)
   compute_cluster.delete_nodepools([nodepool_id])

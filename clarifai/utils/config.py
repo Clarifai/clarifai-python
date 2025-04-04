@@ -32,6 +32,8 @@ class Context():
 
   def _resolve_pat(self) -> str:
     if self.access_token['type'].lower() == 'env':
+      if self.access_token['value'] not in os.environ:
+        raise Exception("Env variable '%s' not found" % self.access_token['value'])
       return os.getenv(self.access_token['value'], '')
     elif self.access_token['type'].lower() == 'raw':
       return self.access_token['value']
@@ -91,5 +93,7 @@ class Config():
     with open(filename, 'w') as f:
       yaml.safe_dump(_dict, f)
 
+  @property
   def current(self) -> Context:
+    """ get the current Context """
     return self.contexts[self.current_context]
