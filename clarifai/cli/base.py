@@ -4,11 +4,9 @@ import os
 import typing as t
 import yaml
 
-from collections import defaultdict
 from dataclasses import dataclass, field
-from ..utils.cli import
-from clarifai.utils.cli import dump_yaml, from_yaml, load_command_modules, set_base_url, dump_yaml, from_yaml, load_command_modules, TableFormatter, AliasedGroup
-from clarifai.utils.logging import logger
+from clarifai.utils.cli import AliasedGroup, TableFormatter, load_command_modules, load_command_modules
+
 
 @dataclass
 class AccessToken():
@@ -24,6 +22,52 @@ class AccessToken():
   @classmethod
   def from_serializable_dict(cls, _dict):
     return cls(**_dict)
+
+  # Dictionary protocol methods:
+
+  def __getitem__(self, key: str) -> t.Any:
+    if key == 'type':
+      return self.type
+    elif key == 'value':
+      return self.value
+    else:
+      raise KeyError(key)
+
+  def __setitem__(self, key: str, value: t.Any) -> None:
+    if key == 'type':
+      self.type = value
+    elif key == 'value':
+      self.value = value
+    else:
+      raise KeyError(key)
+
+  def __delitem__(self, key: str) -> None:
+    raise TypeError("Cannot delete attributes from AccessToken")
+
+  def __iter__(self):
+    return iter(['type', 'value'])
+
+  def __len__(self) -> int:
+    return 2
+
+  def __contains__(self, key: str) -> bool:
+    return key in ['type', 'value']
+
+  def keys(self):
+    return ['type', 'value']
+
+  def values(self):
+    return [self.type, self.value]
+
+  def items(self):
+    return [('type', self.type), ('value', self.value)]
+
+  def get(self, key: str, default: t.Any = None) -> t.Any:
+    try:
+      return self[key]
+    except KeyError:
+      return default
+
 
 @dataclass
 class Context():
@@ -49,10 +93,10 @@ class Context():
 
   def to_serializable_dict(self):
     result = {
-      'name': self.name,
-      'user_id': self.user_id,
-      'base_url': self.base_url,
-      'access_token': self.access_token.to_serializable_dict(),
+        'name': self.name,
+        'user_id': self.user_id,
+        'base_url': self.base_url,
+        'access_token': self.access_token.to_serializable_dict(),
     }
     if self.env:
       result['env'] = self.env
@@ -79,12 +123,10 @@ class Config():
 
   def to_dict(self):
     return {
-              'current_context': self.current_context,
-              'contexts': {
-                  k: v.to_serializable_dict()
-                  for k, v in self.contexts.items()
-              }
-          }
+        'current_context': self.current_context,
+        'contexts': {k: v.to_serializable_dict()
+                     for k, v in self.contexts.items()}
+    }
 
   def to_yaml(self, filename: str = None):
     if filename is None:
@@ -98,6 +140,7 @@ class Config():
     with open(filename, 'w') as f:
       yaml.safe_dump(_dict, f)
 
+
 #@click.group(cls=CustomMultiGroup)
 @click.group(cls=AliasedGroup)
 @click.option('--config', default=f'{os.environ["HOME"]}/.config/clarifai/config')
@@ -109,27 +152,30 @@ def cli(ctx, config):
     cfg = Config.from_yaml(filename=config)
     ctx.obj = cfg
   else:
-    cfg = Config(filename=config,
-                 current_context='default',
-                 contexts={
-                     'default': {
-                         'user_id': os.environ.get('CLARIFAI_USER_ID', ''),
-                         'base_url': os.environ.get('CLARIFAI_API_BASE', 'api.clarifai.com'),
-                     },
-                 })
+    cfg = Config(
+        filename=config,
+        current_context='default',
+        contexts={
+            'default': {
+                'user_id': os.environ.get('CLARIFAI_USER_ID', ''),
+                'base_url': os.environ.get('CLARIFAI_API_BASE', 'api.clarifai.com'),
+            },
+        })
     cfg.to_yaml(config)
     ctx.obj = cfg
 
 
 @cli.command()
-@click.argument('shell', type=click.Choice(['bash','zsh']))
+@click.argument('shell', type=click.Choice(['bash', 'zsh']))
 def shell_completion(shell):
   """Shell completion script"""
   os.system(f"_CLARIFAI_COMPLETE={shell}_source clarifai")
 
+
 @cli.group(['cfg'], cls=AliasedGroup)
 def config():
   """Manage CLI configuration"""
+
 
 @config.command(['e'])
 @click.pass_context
@@ -137,8 +183,9 @@ def edit(ctx):
   """Edit the configuration file"""
   os.system(f'{os.environ.get("EDITOR", "vi")} {ctx.obj.filename}')
 
-@config.command()
-@click.option('-o', '--output-format', default='name', type=click.Choice(['name','json', 'yaml']))
+
+@config.command(['current'])
+@click.option('-o', '--output-format', default='name', type=click.Choice(['name', 'json', 'yaml']))
 @click.pass_context
 def current_context(ctx, output_format):
   """Get the current context"""
@@ -146,28 +193,25 @@ def current_context(ctx, output_format):
     print(ctx.obj.current_context)
   else:
     if output_format == 'json':
-        print(json.dumps(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
+      print(json.dumps(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
     else:
-        print(yaml.safe_dump(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
+      print(yaml.safe_dump(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
 
 
-@config.command()
-@click.option('-o',
-              '--output-format',
-              default='wide',
-              type=click.Choice(['wide', 'name', 'json', 'yaml']))
+@config.command(['list'])
+@click.option(
+    '-o', '--output-format', default='wide', type=click.Choice(['wide', 'name', 'json', 'yaml']))
 @click.pass_context
 def get_contexts(ctx, output_format):
   """Get all contexts"""
   if output_format == 'wide':
-    formatter = TableFormatter(
-        custom_columns={
-            '': lambda c: '*' if c.name == ctx.obj.current_context else '',
-            'NAME': lambda c: c.name,
-            'USER_ID': lambda c: c.user_id,
-            'BASE_URL': lambda c: c.base_url,
-            'PAT_CONF': lambda c: c.access_token.get('type', 'default')
-        })
+    formatter = TableFormatter(custom_columns={
+        '': lambda c: '*' if c.name == ctx.obj.current_context else '',
+        'NAME': lambda c: c.name,
+        'USER_ID': lambda c: c.user_id,
+        'BASE_URL': lambda c: c.base_url,
+        'PAT_CONF': lambda c: c.access_token.get('type', 'default')
+    })
     print(formatter.format(ctx.obj.contexts.values(), fmt="plain"))
   elif output_format == 'name':
     print('\n'.join(ctx.obj.contexts))
@@ -192,8 +236,9 @@ def use_context(ctx, context_name):
   ctx.obj.to_yaml()
   print(f'Set {context_name} as the current context')
 
+
 @config.command(['cat'])
-@click.option('-o', '--output-format', default='yaml', type=click.Choice(['yaml','json']))
+@click.option('-o', '--output-format', default='yaml', type=click.Choice(['yaml', 'json']))
 @click.pass_obj
 def dump(ctx_obj, output_format):
   """Dump the configuration to stdout"""
@@ -202,6 +247,7 @@ def dump(ctx_obj, output_format):
   else:
     json.dump(ctx_obj.to_dict(), sys.stdout, indent=2)
 
+
 @cli.command()
 @click.argument('api_url', default="https://api.clarifai.com")
 @click.option('--user_id', required=False, help='User ID')
@@ -209,31 +255,27 @@ def dump(ctx_obj, output_format):
 def login(ctx, api_url, user_id):
   """Login command to set PAT and other configurations."""
 
-  name=input('context name (default: "default"): ')
-  user_id=user_id if user_id is not None else input('user id: ')
-  access_token_type=input('access token type (env or raw, default: "env"): ')
-  access_token_value=input('access token value (default: "CLARIFAI_PAT"): ')
+  name = input('context name (default: "default"): ')
+  user_id = user_id if user_id is not None else input('user id: ')
+  access_token_type = input('access token type (env or raw, default: "env"): ')
+  access_token_value = input('access token value (default: "CLARIFAI_PAT"): ')
 
   if access_token_type != '':
-    access_token = dict(
-      type=access_token_type,
-      value=access_token_value
-    )
+    access_token = dict(type=access_token_type, value=access_token_value)
     context = Context(
-      name=name,
-      base_url=api_url,
-      user_id=user_id,
-      access_token=access_token,
+        name=name,
+        base_url=api_url,
+        user_id=user_id,
+        access_token=access_token,
     )
   else:
     context = Context(
-      name=name,
-      base_url=api_url,
-      user_id=user_id,
+        name=name,
+        base_url=api_url,
+        user_id=user_id,
     )
     if access_token_value != '':
       context.access_token['value'] = access_token_value
-
 
   if context.name == '':
     context.name = 'default'
@@ -243,27 +285,30 @@ def login(ctx, api_url, user_id):
 
   ctx.obj.to_yaml()
 
+
 @cli.group(cls=AliasedGroup)
 def context():
   """Manage contexts"""
+
 
 @context.command(['ls'])
 @click.pass_context
 def list(ctx):
   """List available contexts"""
-  formatter = TableFormatter(
-      custom_columns={
-          '': lambda c: '*' if c.name == ctx.obj.current_context else '',
-          'NAME': lambda c: c.name,
-          'USER_ID': lambda c: c.user_id,
-          'BASE_URL': lambda c: c.base_url,
-          'PAT_CONF': lambda c: str(c.access_token)
-      })
+  formatter = TableFormatter(custom_columns={
+      '': lambda c: '*' if c.name == ctx.obj.current_context else '',
+      'NAME': lambda c: c.name,
+      'USER_ID': lambda c: c.user_id,
+      'BASE_URL': lambda c: c.base_url,
+      'PAT_CONF': lambda c: str(c.access_token)
+  })
   print(formatter.format(ctx.obj.contexts.values(), fmt="plain"))
+
 
 def input_or_default(prompt, default):
   value = input(prompt)
   return value if value else default
+
 
 @context.command()
 @click.argument('name')
@@ -287,23 +332,22 @@ def create(
   if not user_id:
     user_id = input('user id: ')
   if not base_url:
-    base_url = input_or_default('base url (default: https://api.clarifai.com): ', 'https://api.clarifai.com')
+    base_url = input_or_default('base url (default: https://api.clarifai.com): ',
+                                'https://api.clarifai.com')
   if not access_token_type:
     access_token_type = input_or_default('access token type (env or raw, default: "env"): ', 'env')
   if not access_token_value:
-    access_token_value = input_or_default('access token value (default: "CLARIFAI_PAT"): ', 'CLARIFAI_PAT')
+    access_token_value = input_or_default('access token value (default: "CLARIFAI_PAT"): ',
+                                          'CLARIFAI_PAT')
 
   context = Context(
-    name=name,
-    user_id=user_id,
-    base_url=base_url,
-    access_token=dict(
-      type=access_token_type,
-      value=access_token_value
-    )
-  )
+      name=name,
+      user_id=user_id,
+      base_url=base_url,
+      access_token=dict(type=access_token_type, value=access_token_value))
   ctx.obj.contexts[context.name] = context
   ctx.obj.to_yaml()
+
 
 @context.command(['e'])
 @click.argument('name')
@@ -326,6 +370,7 @@ def edit(ctx, name):
       ctx.obj.contexts[new_context.name] = new_context
       ctx.obj.to_yaml()
 
+
 # write a click command to delete a context
 @context.command(['rm'])
 @click.argument('name')
@@ -339,6 +384,7 @@ def delete(ctx, name):
   ctx.obj.to_yaml()
   print(f'{name} deleted')
 
+
 @context.command()
 @click.argument('name', type=str)
 @click.pass_context
@@ -349,6 +395,7 @@ def use(ctx, name):
   ctx.obj.current_context = name
   ctx.obj.to_yaml()
   print(f'Set {name} as the current context')
+
 
 @cli.command()
 @click.argument('script', type=str)
@@ -361,6 +408,7 @@ def run(ctx, script, context=None):
   cmd += ' '.join([f'{k}={v}' for k, v in context.env.items()])
   cmd += f' {script}'
   os.system(cmd)
+
 
 # Import the CLI commands to register them
 load_command_modules()

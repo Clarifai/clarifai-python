@@ -47,7 +47,13 @@ def list(ctx, page_no, per_page):
       pat=ctx.obj.contexts[ctx.obj.current_context].pat,
       base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
   response = user.list_compute_clusters(page_no, per_page)
-  display_co_resources(response, "Compute Cluster")
+  display_co_resources(
+      response,
+      custom_columns={
+          'ID': lambda c: c.id,
+          'USER_ID': lambda c: c.user_id,
+          'DESCRIPTION': lambda c: c.description,
+      })
 
 
 @computecluster.command(['rm'])

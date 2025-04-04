@@ -1,7 +1,8 @@
 import click
 from clarifai.cli.base import cli
+from clarifai.client.user import User
 from clarifai.client.compute_cluster import ComputeCluster
-from clarifai.utils.cli import display_co_resources, dump_yaml, from_yaml, validate_context
+from clarifai.utils.cli import display_co_resources, dump_yaml, from_yaml, validate_context, AliasedGroup
 
 
 @cli.group(['nodepool', 'np'], cls=AliasedGroup)
@@ -55,22 +56,48 @@ def create(ctx, compute_cluster_id, config, nodepool_id):
 @click.option(
     '-cc_id',
     '--compute_cluster_id',
-    required=True,
+    required=False,
     help='Compute Cluster ID for the compute cluster to interact with.')
 @click.option('--page_no', required=False, help='Page number to list.', default=1)
-@click.option('--per_page', required=False, help='Number of items per page.', default=16)
+@click.option('--per_page', required=False, help='Number of items per page.', default=128)
 @click.pass_context
 def list(ctx, compute_cluster_id, page_no, per_page):
   """List all nodepools for the user."""
 
   validate_context(ctx)
-  compute_cluster = ComputeCluster(
-      compute_cluster_id=compute_cluster_id,
-      user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,
-      pat=ctx.obj.contexts[ctx.obj.current_context].pat,
-      base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
-  response = compute_cluster.list_nodepools(page_no, per_page)
-  display_co_resources(response, "Nodepool")
+
+  cc_id = compute_cluster_id
+
+  if cc_id:
+    compute_cluster = ComputeCluster(
+        compute_cluster_id=cc_id,
+        user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,
+        pat=ctx.obj.contexts[ctx.obj.current_context].pat,
+        base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
+    response = compute_cluster.list_nodepools(page_no, per_page)
+  else:
+    user = User(
+        user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,
+        pat=ctx.obj.contexts[ctx.obj.current_context].pat,
+        base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
+    ccs = user.list_compute_clusters(page_no, per_page)
+    response = []
+    for cc in ccs:
+      compute_cluster = ComputeCluster(
+          compute_cluster_id=cc.id,
+          user_id=ctx.obj.contexts[ctx.obj.current_context].user_id,
+          pat=ctx.obj.contexts[ctx.obj.current_context].pat,
+          base_url=ctx.obj.contexts[ctx.obj.current_context].base_url)
+      response.extend([i for i in compute_cluster.list_nodepools(page_no, per_page)])
+
+  display_co_resources(
+      response,
+      custom_columns={
+          'ID': lambda c: c.id,
+          'USER_ID': lambda c: c.compute_cluster.user_id,
+          'COMPUTE_CLUSTER_ID': lambda c: c.compute_cluster.id,
+          'DESCRIPTION': lambda c: c.description,
+      })
 
 
 @nodepool.command(['rm'])

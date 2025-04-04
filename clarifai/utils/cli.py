@@ -43,24 +43,16 @@ def load_command_modules():
       importlib.import_module(f'clarifai.cli.{module_name}')
 
 
-def display_co_resources(response, resource_type):
+def display_co_resources(response, custom_columns={
+        'ID': lambda c: c.id,
+        'USER_ID': lambda c: c.user_id,
+        'DESCRIPTION': lambda c: c.description,
+  }):
   """Display compute orchestration resources listing results using rich."""
 
-  console = Console()
-  panel = Panel(
-      Text(f"List of {resource_type}s", justify="center"),
-      title="",
-      style=Style(color="blue", bold=True),
-      border_style="green",
-      width=60)
-  console.print(panel)
-  for indx, item in enumerate(list(response)):
-    panel = Panel(
-        "\n".join([f"{'ID'}: {item.id}", f"{'Description'}: {item.description}"]),
-        title=f"{resource_type} {(indx + 1)}",
-        border_style="green",
-        width=60)
-    console.print(panel)
+  formatter = TableFormatter(custom_columns)
+  print(formatter.format(list(response), fmt="plain"))
+
 
 class TableFormatter:
 
