@@ -120,6 +120,35 @@ def dump(ctx_obj, output_format):
     json.dump(ctx_obj.to_dict(), sys.stdout, indent=2)
 
 
+@cli.command()
+@click.argument('api_url', default="https://api.clarifai.com")
+@click.option('--user_id', required=False, help='User ID')
+@click.pass_context
+def login(ctx, api_url, user_id):
+  """Login command to set PAT and other configurations."""
+
+  name = input('context name (default: "default"): ')
+  user_id = user_id if user_id is not None else input('user id: ')
+  pat = input_or_default(
+      'personal access token value (default: "ENVVAR" to get our of env var rather than config): ',
+      'ENVVAR')
+
+  context = Context(
+      name,
+      CLARIFAI_API_BASE=api_url,
+      CLARIFAI_USER_ID=user_id,
+      CLARIFAI_PAT=pat,
+  )
+
+  if context.name == '':
+    context.name = 'default'
+
+  ctx.obj.contexts[context.name] = context
+  ctx.obj.current_context = context.name
+
+  ctx.obj.to_yaml()
+
+
 @cli.group(cls=AliasedGroup)
 def context():
   """Manage contexts"""
@@ -171,8 +200,8 @@ def create(
     base_url = input_or_default('base url (default: https://api.clarifai.com): ',
                                 'https://api.clarifai.com')
   if not pat:
-    input_or_default(
-        'access token value (default: "ENVVAR" to get our of env var rather than config): ',
+    pat = input_or_default(
+        'personal access token value (default: "ENVVAR" to get our of env var rather than config): ',
         'ENVVAR')
 
   context = Context(name, CLARIFAI_USER_ID=user_id, CLARIFAI_API_BASE=base_url, CLARIFAI_PAT=pat)
