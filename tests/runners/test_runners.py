@@ -9,12 +9,12 @@ import uuid
 import pytest
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
-from clarifai_protocol.utils.logging import logger
 from google.protobuf import json_format
 
 from clarifai.client import BaseClient, Model, User
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.runners.models.model_runner import ModelRunner
+from clarifai.utils.logs import logger
 
 MY_MODEL_PATH = os.path.join(os.path.dirname(__file__), "dummy_runner_models", "1", "model.py")
 MY_WRAPPER_MODEL_PATH = os.path.join(
