@@ -241,8 +241,6 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
       len(kwargs) == 1 and 'return' in kwargs):
     # if there is only one output, flatten it and return directly
     inline_first_value = True
-  if signatures and signatures[0].type not in _NON_INLINABLE_TYPES:
-    inline_first_value = True
   for sig_i, sig in enumerate(signatures):
     if sig.name not in kwargs:
       if sig.required:
@@ -397,10 +395,6 @@ def _is_jsonable(tp):
 # serializer: serializer for the data type
 _DataType = namedtuple('_DataType', ('type', 'serializer'))
 
-_NON_INLINABLE_TYPES = {
-    resources_pb2.ModelTypeField.DataType.NAMED_FIELDS,
-    resources_pb2.ModelTypeField.DataType.TUPLE, resources_pb2.ModelTypeField.DataType.LIST
-}
 _ZERO_VALUE_IDS = {id(None), id(''), id(b''), id(0), id(0.0), id(False)}
 
 # simple, non-container types that correspond directly to a data field
