@@ -4,7 +4,7 @@ import logging
 
 from rich.logging import RichHandler
 
-from clarifai.utils.logging import JsonFormatter, _get_library_name, get_logger, set_logger_context
+from clarifai.utils.logs import JsonFormatter, _get_library_name, get_logger, set_logger_context
 
 
 def test_get_logger():
