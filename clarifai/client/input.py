@@ -21,7 +21,7 @@ from clarifai.client.lister import Lister
 from clarifai.constants.dataset import MAX_RETRIES
 from clarifai.constants.input import MAX_UPLOAD_BATCH_SIZE
 from clarifai.errors import UserError
-from clarifai.utils.logging import logger
+from clarifai.utils.logs import logger
 from clarifai.utils.misc import BackoffIterator, Chunker, clean_input_id
 
 

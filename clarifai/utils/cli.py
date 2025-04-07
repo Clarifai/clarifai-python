@@ -10,7 +10,7 @@ import click
 import yaml
 from tabulate import tabulate
 
-from clarifai.utils.logging import logger
+from clarifai.utils.logs import logger
 
 
 def from_yaml(filename: str):

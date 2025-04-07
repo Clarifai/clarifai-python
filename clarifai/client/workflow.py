@@ -14,7 +14,7 @@ from clarifai.client.model import Model
 from clarifai.constants.workflow import MAX_WORKFLOW_PREDICT_INPUTS
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
-from clarifai.utils.logging import logger
+from clarifai.utils.logs import logger
 from clarifai.utils.misc import BackoffIterator, status_is_retryable
 from clarifai.workflows.export import Exporter
 

@@ -20,7 +20,7 @@ except ImportError:
 try:
   from loguru import logger
 except ImportError:
-  from ..logging import logger
+  from ..logs import logger
 
 MACRO_AVG = "macro_avg"
 

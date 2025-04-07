@@ -12,7 +12,7 @@ from clarifai.client.base import BaseClient
 from clarifai.client.compute_cluster import ComputeCluster
 from clarifai.client.lister import Lister
 from clarifai.errors import UserError
-from clarifai.utils.logging import logger
+from clarifai.utils.logs import logger
 
 
 class User(Lister, BaseClient):

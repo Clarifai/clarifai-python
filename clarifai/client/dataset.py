@@ -1,4 +1,3 @@
-import logging
 import os
 import time
 import uuid
@@ -31,7 +30,7 @@ from clarifai.datasets.upload.text import TextClassificationDataset
 from clarifai.datasets.upload.utils import DisplayUploadStatus
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
-from clarifai.utils.logging import add_file_handler, logger, process_log_files
+from clarifai.utils.logs import add_file_handler, logger, process_log_files
 from clarifai.utils.misc import BackoffIterator, Chunker
 
 ClarifaiDatasetType = TypeVar('ClarifaiDatasetType', VisualClassificationDataset,
@@ -354,7 +353,7 @@ class Dataset(Lister, BaseClient):
         break
       if failed_input_ids:
         retry_input_ids = [dataset_obj.all_input_ids[id] for id in failed_input_ids]
-        logging.warning(
+        logger.warning(
             f"Retrying upload for {len(failed_input_ids)} inputs in current batch: {retry_input_ids}\n"
         )
         failed_retrying_inputs, _, retry_response = self._upload_inputs_annotations(
@@ -494,7 +493,7 @@ class Dataset(Lister, BaseClient):
       add_file_handler(self.logger, f"Dataset_Upload{str(int(datetime.now().timestamp()))}.log")
 
     if retry_duplicates and duplicate_input_ids:
-      logging.warning(f"Retrying upload for {len(duplicate_input_ids)} duplicate inputs...\n")
+      logger.warning(f"Retrying upload for {len(duplicate_input_ids)} duplicate inputs...\n")
       duplicate_inputs_indexes = [input["Index"] for input in duplicate_input_ids]
       self.upload_dataset(
           dataloader=dataloader,
@@ -505,7 +504,7 @@ class Dataset(Lister, BaseClient):
 
     if failed_input_ids:
       #failed_inputs= ([input["Input_ID"] for input in failed_input_ids])
-      logging.warning(f"Retrying upload for {len(failed_input_ids)} failed inputs...\n")
+      logger.warning(f"Retrying upload for {len(failed_input_ids)} failed inputs...\n")
       failed_input_indexes = [input["Index"] for input in failed_input_ids]
       self.upload_dataset(
           dataloader=dataloader, log_retry_ids=failed_input_indexes, is_log_retry=True, **kwargs)

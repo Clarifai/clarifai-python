@@ -15,7 +15,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
 from clarifai.runners.models.model_builder import ModelBuilder
 from clarifai.runners.utils.url_fetcher import ensure_urls_downloaded
-from clarifai.utils.logging import logger
+from clarifai.utils.logs import logger
 
 
 class ModelRunLocally:

@@ -205,7 +205,7 @@ class DisplayUploadStatus:
     from rich.console import Group
     from rich.panel import Panel
 
-    from clarifai.utils.logging import table_from_dict
+    from clarifai.utils.logs import table_from_dict
 
     local_dataset_table = table_from_dict(
         [local_dataset_dict],

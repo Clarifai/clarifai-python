@@ -22,7 +22,7 @@ from clarifai.runners.utils.const import (
     PYTHON_BASE_IMAGE, TORCH_BASE_IMAGE)
 from clarifai.runners.utils.loader import HuggingFaceLoader
 from clarifai.urls.helper import ClarifaiUrlHelper
-from clarifai.utils.logging import logger
+from clarifai.utils.logs import logger
 from clarifai.versions import CLIENT_VERSION
 
 # parse the user's requirements.txt to determine the proper base image to build on top of, based on the torch and other large dependencies and it's versions

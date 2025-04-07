@@ -26,7 +26,7 @@ except ImportError:
 try:
   from loguru import logger
 except ImportError:
-  from ..logging import logger
+  from ..logs import logger
 
 __all__ = ['EvalResultCompare']
 

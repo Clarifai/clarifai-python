@@ -8,7 +8,7 @@ import yaml
 from clarifai.utils.cli import AliasedGroup, TableFormatter, load_command_modules
 from clarifai.utils.config import Config, Context
 from clarifai.utils.constants import DEFAULT_CONFIG
-from clarifai.utils.logging import logger
+from clarifai.utils.logs import logger
 
 
 #@click.group(cls=CustomMultiGroup)

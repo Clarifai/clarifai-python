@@ -7,7 +7,7 @@ import shutil
 import requests
 
 from clarifai.runners.utils.const import CONCEPTS_REQUIRED_MODEL_TYPE
-from clarifai.utils.logging import logger
+from clarifai.utils.logs import logger
 
 
 class HuggingFaceLoader:

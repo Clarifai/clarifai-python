@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from clarifai.constants.dataset import CONTENT_TYPE
 from clarifai.errors import UserError
-from clarifai.utils.logging import logger
+from clarifai.utils.logs import logger
 
 
 class DatasetExportReader:
