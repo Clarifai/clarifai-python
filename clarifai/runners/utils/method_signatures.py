@@ -10,7 +10,7 @@ from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.message import Message as MessageProto
 
-from clarifai.runners.utils import data_types
+from clarifai.runners.utils import data_types, data_utils
 from clarifai.runners.utils.serializers import (
     AtomicFieldSerializer, JSONSerializer, ListSerializer, MessageSerializer,
     NamedFieldsSerializer, NDArraySerializer, Serializer, TupleSerializer)
@@ -107,10 +107,10 @@ def build_variable_signature(name, annotation, default=inspect.Parameter.empty, 
   if not is_output:
     sig.required = (default is inspect.Parameter.empty)
     if not sig.required:
-      if isinstance(default, data_types.InputField):
+      if isinstance(default, data_utils.InputField):
         sig = default.to_proto(sig)
       else:
-        sig.default = str(default)
+        sig = data_utils.InputField.set_default(sig, default)
 
   _fill_signature_type(sig, tp)
 
@@ -236,13 +236,6 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
       raise TypeError('Got a single return value, but expected multiple outputs {%s}' %
                       ', '.join(sig.name for sig in signatures))
     raise TypeError('Got unexpected key: %s' % ', '.join(unknown))
-  inline_first_value = False
-  if (is_output and len(signatures) == 1 and signatures[0].name == 'return' and
-      len(kwargs) == 1 and 'return' in kwargs):
-    # if there is only one output, flatten it and return directly
-    inline_first_value = True
-  if signatures and signatures[0].type not in _NON_INLINABLE_TYPES:
-    inline_first_value = True
   for sig_i, sig in enumerate(signatures):
     if sig.name not in kwargs:
       if sig.required:
@@ -250,18 +243,10 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
       continue  # skip missing fields, they can be set to default on the server
     data = kwargs[sig.name]
     serializer = serializer_from_signature(sig)
-    # TODO determine if any (esp the first) var can go in the proto without parts
-    # and whether to put this in the signature or dynamically determine it
-    if inline_first_value and sig_i == 0 and id(data) not in _ZERO_VALUE_IDS:
-      # inlined first value; note data must not be empty or 0 to inline, since that
-      # will correspond to the missing value case (which uses function defaults).
-      # empty values are put explicitly in parts.
-      serializer.serialize(proto, data)
-    else:
-      # add the part to the proto
-      part = proto.parts.add()
-      part.id = sig.name
-      serializer.serialize(part.data, data)
+    # add the part to the proto
+    part = proto.parts.add()
+    part.id = sig.name
+    serializer.serialize(part.data, data)
   return proto
 
 
@@ -397,10 +382,6 @@ def _is_jsonable(tp):
 # serializer: serializer for the data type
 _DataType = namedtuple('_DataType', ('type', 'serializer'))
 
-_NON_INLINABLE_TYPES = {
-    resources_pb2.ModelTypeField.DataType.NAMED_FIELDS,
-    resources_pb2.ModelTypeField.DataType.TUPLE, resources_pb2.ModelTypeField.DataType.LIST
-}
 _ZERO_VALUE_IDS = {id(None), id(''), id(b''), id(0), id(0.0), id(False)}
 
 # simple, non-container types that correspond directly to a data field
