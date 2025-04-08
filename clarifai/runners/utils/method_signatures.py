@@ -236,11 +236,6 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
       raise TypeError('Got a single return value, but expected multiple outputs {%s}' %
                       ', '.join(sig.name for sig in signatures))
     raise TypeError('Got unexpected key: %s' % ', '.join(unknown))
-  inline_first_value = False
-  if (is_output and len(signatures) == 1 and signatures[0].name == 'return' and
-      len(kwargs) == 1 and 'return' in kwargs):
-    # if there is only one output, flatten it and return directly
-    inline_first_value = True
   for sig_i, sig in enumerate(signatures):
     if sig.name not in kwargs:
       if sig.required:
@@ -248,18 +243,10 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
       continue  # skip missing fields, they can be set to default on the server
     data = kwargs[sig.name]
     serializer = serializer_from_signature(sig)
-    # TODO determine if any (esp the first) var can go in the proto without parts
-    # and whether to put this in the signature or dynamically determine it
-    if inline_first_value and sig_i == 0 and id(data) not in _ZERO_VALUE_IDS:
-      # inlined first value; note data must not be empty or 0 to inline, since that
-      # will correspond to the missing value case (which uses function defaults).
-      # empty values are put explicitly in parts.
-      serializer.serialize(proto, data)
-    else:
-      # add the part to the proto
-      part = proto.parts.add()
-      part.id = sig.name
-      serializer.serialize(part.data, data)
+    # add the part to the proto
+    part = proto.parts.add()
+    part.id = sig.name
+    serializer.serialize(part.data, data)
   return proto
 
 
