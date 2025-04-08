@@ -144,20 +144,18 @@ def _configure_logger(name: str, logger_level: Union[int, str] = logging.NOTSET)
   # If ENABLE_JSON_LOGGER is not set, then use json logger if in k8s.
   enabled_json = os.getenv('ENABLE_JSON_LOGGER', None)
   in_k8s = 'KUBERNETES_SERVICE_HOST' in os.environ
+  handler = logging.StreamHandler()
+  handler.setLevel(logger_level)
   if enabled_json == 'true' or (in_k8s and enabled_json != 'false'):
     # Add the json handler and formatter
-    handler = logging.StreamHandler()
     formatter = JsonFormatter()
     handler.setFormatter(formatter)
-    logger.addHandler(handler)
   else:
-    ch = logging.StreamHandler()
-    ch.setLevel(logger_level)
     # create formatter and add it to the handlers
-    formatter = OurFormatter(LOG_FORMAT)
-    ch.setFormatter(formatter)
-    # add the handlers to the logger
-    logger.addHandler(ch)
+    formatter = TerminalFormatter(LOG_FORMAT)
+    handler.setFormatter(formatter)
+  # add the handlers to the logger
+  logger.addHandler(handler)
 
 
 def get_logger(logger_level: Union[int, str] = logging.NOTSET,
@@ -381,7 +379,7 @@ class JsonFormatter(logging.Formatter):
       )
 
 
-class OurFormatter(logging.Formatter):
+class TerminalFormatter(logging.Formatter):
   """ If you have fields in your Formatter (see setup_logger where we setup the format strings) then
   you can set them on the record using a filter. We do that for req_id here which is a request
   specific field. This allows us to find requests easily between services.
@@ -409,7 +407,7 @@ class OurFormatter(logging.Formatter):
     record.levelname = f"{color_code}{record.levelname}{COLORS.get('RESET')}"
     record.msg = f"{color_code}{str(record.msg)}{COLORS.get('RESET')}"
 
-    return super(OurFormatter, self).format(record)
+    return super(TerminalFormatter, self).format(record)
 
   def formatTime(self, record, datefmt=None):
     # Note we didn't go with UTC here as it's easier to understand time in your time zone.
