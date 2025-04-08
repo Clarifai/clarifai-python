@@ -274,6 +274,14 @@ class Image(MessageData):
       raise ValueError("Image has no bytes")
     return PILImage.open(io.BytesIO(self.proto.base64))
 
+  def to_base64_str(self) -> str:
+    if isinstance(self.proto.base64, bytes):
+      return self.proto.base64.decode('utf-8')
+    elif isinstance(self.proto.base64, str):
+      return self.proto.base64
+    elif not self.proto.base64:
+      raise ValueError("Image has no bytes")
+
   def to_numpy(self) -> np.ndarray:
     return np.asarray(self.to_pil())
 
@@ -345,6 +353,14 @@ class Audio(MessageData):
 
   def to_proto(self) -> AudioProto:
     return self.proto
+
+  def to_base64_str(self) -> str:
+    if isinstance(self.proto.base64, bytes):
+      return self.proto.base64.decode('utf-8')
+    elif isinstance(self.proto.base64, str):
+      return self.proto.base64
+    elif not self.proto.base64:
+      raise ValueError("Audio has no bytes")
 
   @classmethod
   def from_proto(cls, proto: AudioProto) -> "Audio":
@@ -446,6 +462,14 @@ class Video(MessageData):
 
   def to_proto(self) -> VideoProto:
     return self.proto
+
+  def to_base64_str(self) -> str:
+    if isinstance(self.proto.base64, bytes):
+      return self.proto.base64.decode('utf-8')
+    elif isinstance(self.proto.base64, str):
+      return self.proto.base64
+    elif not self.proto.base64:
+      raise ValueError("Video has no bytes")
 
   @classmethod
   def from_proto(cls, proto: VideoProto) -> "Video":
