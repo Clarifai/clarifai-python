@@ -1,14 +1,12 @@
 from io import BytesIO
 from typing import Dict, List
 
-from PIL import Image as PILImage
-
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeEnumOption
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeField as InputFieldProto
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeRangeInfo
+from PIL import Image as PILImage
 
-from clarifai.runners.utils.data_types import MessageData, Audio, Image, Video
-
+from clarifai.runners.utils.data_types import Audio, Image, MessageData, Video
 
 
 def image_to_bytes(img: PILImage.Image, format="JPEG") -> bytes:
@@ -58,13 +56,9 @@ def is_openai_chat_format(messages):
           return False
   return True
 
-def build_openai_chat_format(prompt: str,
-                             image: Image,
-                             images: List[Image],
-                             audio: Audio,
-                             audios: List[Audio],
-                             video: Video,
-                             videos: List[Video],
+
+def build_openai_chat_format(prompt: str, image: Image, images: List[Image], audio: Audio,
+                             audios: List[Audio], video: Video, videos: List[Video],
                              messages: List[Dict]) -> List[Dict]:
   """
   Construct OpenAI-compatible messages from input components.
@@ -80,7 +74,7 @@ def build_openai_chat_format(prompt: str,
     Returns:
         List[Dict]: Formatted chat messages.
   """
-  
+
   openai_messages = []
   # Add previous conversation history
   if messages:
@@ -117,10 +111,11 @@ def build_openai_chat_format(prompt: str,
     openai_messages.append({'role': 'user', 'content': content})
 
   return openai_messages
-  
+
+
 def _process_image(image: Image) -> Dict:
   """Convert Clarifai Image object to OpenAI image format."""
-  
+
   if image.bytes:
     b64_img = image.to_base64_str()
     return {'type': 'image_url', 'image_url': {'url': f"data:image/jpeg;base64,{b64_img}"}}
@@ -129,9 +124,10 @@ def _process_image(image: Image) -> Dict:
   else:
     raise ValueError("Image must contain either bytes or URL")
 
+
 def _process_audio(audio: Audio) -> Dict:
   """Convert Clarifai Audio object to OpenAI audio format."""
-  
+
   if audio.bytes:
     audio = audio.to_base64_str()
     audio = {
@@ -154,9 +150,10 @@ def _process_audio(audio: Audio) -> Dict:
 
   return audio
 
+
 def _process_video(video: Video) -> Dict:
   """Convert Clarifai Video object to OpenAI video format."""
-  
+
   if video.bytes:
     video = "data:video/mp4;base64," + \
         video.to_base64_str()
@@ -178,6 +175,7 @@ def _process_video(video: Video) -> Dict:
     raise ValueError("Video must contain either bytes or URL")
 
   return video
+
 
 class InputField(MessageData):
   """A field that can be used to store input data."""
