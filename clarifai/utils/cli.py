@@ -10,8 +10,6 @@ import click
 import yaml
 from tabulate import tabulate
 
-from clarifai.utils.logging import logger
-
 
 def from_yaml(filename: str):
   try:
@@ -164,6 +162,7 @@ class AliasedGroup(click.Group):
 
 
 def validate_context(ctx):
+  from clarifai.utils.logging import logger
   if ctx.obj == {}:
     logger.error("CLI config file missing. Run `clarifai login` to set up the CLI config.")
     sys.exit(1)

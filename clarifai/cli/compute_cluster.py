@@ -1,7 +1,6 @@
 import click
 
 from clarifai.cli.base import cli
-from clarifai.client.user import User
 from clarifai.utils.cli import AliasedGroup, display_co_resources, validate_context
 
 
@@ -20,6 +19,7 @@ def computecluster():
 @click.pass_context
 def create(ctx, compute_cluster_id, config):
   """Create a new Compute Cluster with the given config file."""
+  from clarifai.client.user import User
   validate_context(ctx)
   user = User(
       user_id=ctx.obj.current.user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
@@ -35,6 +35,7 @@ def create(ctx, compute_cluster_id, config):
 @click.pass_context
 def list(ctx, page_no, per_page):
   """List all compute clusters for the user."""
+  from clarifai.client.user import User
   validate_context(ctx)
   user = User(
       user_id=ctx.obj.current.user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
@@ -53,6 +54,7 @@ def list(ctx, page_no, per_page):
 @click.pass_context
 def delete(ctx, compute_cluster_id):
   """Deletes a compute cluster for the user."""
+  from clarifai.client.user import User
   validate_context(ctx)
   user = User(
       user_id=ctx.obj.current.user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
