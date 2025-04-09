@@ -1,3 +1,11 @@
+## [[11.2.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.3) - [PyPI](https://pypi.org/project/clarifai/11.2.3/) - 2025-04-08
+
+### Changed
+ - CLI is now abougt 20x faster for most operations [(#555)](https://github.com/Clarifai/clarifai-python/pull/555)
+ - CLI now has config contexts, more to come there... [(#552)](https://github.com/Clarifai/clarifai-python/pull/552)
+ - Improve error messages with missing PAT [(#548)](https://github.com/Clarifai/clarifai-python/pull/548)
+ - Fix model builder return args [(#547)](https://github.com/Clarifai/clarifai-python/pull/547)
+
 ## [[11.2.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.2) - [PyPI](https://pypi.org/project/clarifai/11.2.2/) - 2025-03-28
 
 ### Changed

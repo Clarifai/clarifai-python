@@ -1,8 +1,6 @@
 import click
 
 from clarifai.cli.base import cli
-from clarifai.client.compute_cluster import ComputeCluster
-from clarifai.client.user import User
 from clarifai.utils.cli import (AliasedGroup, display_co_resources, dump_yaml, from_yaml,
                                 validate_context)
 
@@ -23,6 +21,7 @@ def nodepool():
 @click.pass_context
 def create(ctx, compute_cluster_id, nodepool_id, config):
   """Create a new Nodepool with the given config file."""
+  from clarifai.client.compute_cluster import ComputeCluster
 
   validate_context(ctx)
   nodepool_config = from_yaml(config)
@@ -57,6 +56,8 @@ def create(ctx, compute_cluster_id, nodepool_id, config):
 def list(ctx, compute_cluster_id, page_no, per_page):
   """List all nodepools for the user across all compute clusters. If compute_cluster_id is provided
   it will list only within that compute cluster. """
+  from clarifai.client.compute_cluster import ComputeCluster
+  from clarifai.client.user import User
 
   validate_context(ctx)
 
@@ -100,6 +101,7 @@ def list(ctx, compute_cluster_id, page_no, per_page):
 @click.pass_context
 def delete(ctx, compute_cluster_id, nodepool_id):
   """Deletes a nodepool for the user."""
+  from clarifai.client.compute_cluster import ComputeCluster
 
   validate_context(ctx)
   compute_cluster = ComputeCluster(

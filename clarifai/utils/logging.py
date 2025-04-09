@@ -4,21 +4,11 @@ import logging
 import os
 import socket
 import sys
-
 import threading
 import time
 import traceback
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Union
-
-from rich import print as rprint
-from rich.console import Console
-from rich.logging import RichHandler
-from rich.table import Table
-from rich.traceback import install
-from rich.tree import Tree
-
-install()
 
 # The default logger to use throughout the SDK is defined at bottom of this file.
 
@@ -30,6 +20,20 @@ FIELD_BLACKLIST = [
     'msg', 'message', 'account', 'levelno', 'created', 'threadName', 'name', 'processName',
     'module', 'funcName', 'msecs', 'relativeCreated', 'pathname', 'args', 'thread', 'process'
 ]
+COLORS = {
+    'ARGUMENTS': '\033[90m',  # Gray
+    'DEBUG': '\033[90m',  # Gray
+    'INFO': '\033[32m',  # Green
+    'WARNING': '\033[33m',  # Yellow
+    'ERROR': '\033[31m',  # Red
+    'CRITICAL': '\033[31m',  # Red
+    'TIME': '\033[34m',
+    'RESET': '\033[0m'
+}
+LOG_FORMAT = f"[%(levelname)s] {COLORS.get('TIME')}%(asctime)s{COLORS.get('RESET')} %(message)s |" \
+             f"{COLORS.get('ARGUMENTS')} " \
+             f"%(optional_args)s " \
+             f"thread=%(thread)d {COLORS.get('RESET')}"
 
 # Create thread local storage that the format() call below uses.
 # This is only used by the json_logger in the appropriate CLARIFAI_DEPLOY levels.
@@ -60,6 +64,9 @@ def get_req_id_from_context():
 
 def display_workflow_tree(nodes_data: List[Dict]) -> None:
   """Displays a tree of the workflow nodes."""
+  from rich import print as rprint
+  from rich.tree import Tree
+
   # Create a mapping of node_id to the list of node_ids that are connected to it.
   node_adj_mapping = defaultdict(list)
   # Create a mapping of node_id to the node data info.
@@ -105,8 +112,10 @@ def display_workflow_tree(nodes_data: List[Dict]) -> None:
   rprint(tree)
 
 
-def table_from_dict(data: List[Dict], column_names: List[str], title: str = "") -> Table:
+def table_from_dict(data: List[Dict], column_names: List[str],
+                    title: str = "") -> 'rich.Table':  #noqa F821
   """Use this function for printing tables from a list of dicts."""
+  from rich.table import Table
   table = Table(title=title, show_lines=False, show_header=True, header_style="blue")
   for column_name in column_names:
     table.add_column(column_name)
@@ -135,23 +144,18 @@ def _configure_logger(name: str, logger_level: Union[int, str] = logging.NOTSET)
   # If ENABLE_JSON_LOGGER is not set, then use json logger if in k8s.
   enabled_json = os.getenv('ENABLE_JSON_LOGGER', None)
   in_k8s = 'KUBERNETES_SERVICE_HOST' in os.environ
+  handler = logging.StreamHandler()
+  handler.setLevel(logger_level)
   if enabled_json == 'true' or (in_k8s and enabled_json != 'false'):
     # Add the json handler and formatter
-    handler = logging.StreamHandler()
     formatter = JsonFormatter()
     handler.setFormatter(formatter)
-    logger.addHandler(handler)
   else:
-    # Add the new rich handler and formatter
-    try:
-      width, _ = os.get_terminal_size()
-    except OSError:
-      width = 255
-    handler = RichHandler(
-        rich_tracebacks=True, log_time_format="%Y-%m-%d %H:%M:%S.%f", console=Console(width=width))
-    formatter = logging.Formatter('%(message)s')
+    # create formatter and add it to the handlers
+    formatter = TerminalFormatter(LOG_FORMAT)
     handler.setFormatter(formatter)
-    logger.addHandler(handler)
+  # add the handlers to the logger
+  logger.addHandler(handler)
 
 
 def get_logger(logger_level: Union[int, str] = logging.NOTSET,
@@ -208,6 +212,8 @@ def display_concept_relations_tree(relations_dict: Dict[str, Any]) -> None:
     Args:
         relations_dict (dict): A dict of concept relations info.
     """
+  from rich import print as rprint
+  from rich.tree import Tree
   for parent, children in relations_dict.items():
     tree = Tree(parent)
     for child in children:
@@ -371,6 +377,42 @@ class JsonFormatter(logging.Formatter):
           default=self.json_default,
           cls=self.json_cls,
       )
+
+
+class TerminalFormatter(logging.Formatter):
+  """ If you have fields in your Formatter (see setup_logger where we setup the format strings) then
+  you can set them on the record using a filter. We do that for req_id here which is a request
+  specific field. This allows us to find requests easily between services.
+  """
+
+  def format(self, record):
+    record.optional_args = []
+
+    user_id = getattr(thread_log_info, 'user_id', None)
+    if user_id is not None:
+      record.optional_args.append("user_id=" + user_id)
+
+    app_id = getattr(thread_log_info, 'app_id', None)
+    if app_id is not None:
+      record.optional_args.append("app_id=" + app_id)
+
+    req_id = getattr(thread_log_info, 'req_id', None)
+    if req_id is not None:
+      record.optional_args.append("req_id=" + req_id)
+
+    record.optional_args = " ".join(record.optional_args)
+
+    color_code = COLORS.get(record.levelname, '')
+
+    record.levelname = f"{color_code}{record.levelname}{COLORS.get('RESET')}"
+    record.msg = f"{color_code}{str(record.msg)}{COLORS.get('RESET')}"
+
+    return super(TerminalFormatter, self).format(record)
+
+  def formatTime(self, record, datefmt=None):
+    # Note we didn't go with UTC here as it's easier to understand time in your time zone.
+    # The json logger leverages UTC though.
+    return datetime.datetime.fromtimestamp(record.created).strftime('%H:%M:%S.%f')
 
 
 # the default logger for the SDK.

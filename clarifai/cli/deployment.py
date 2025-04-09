@@ -1,9 +1,6 @@
 import click
 
 from clarifai.cli.base import cli
-from clarifai.client.compute_cluster import ComputeCluster
-from clarifai.client.nodepool import Nodepool
-from clarifai.client.user import User
 from clarifai.utils.cli import AliasedGroup, display_co_resources, from_yaml, validate_context
 
 
@@ -24,6 +21,7 @@ def deployment():
 def create(ctx, nodepool_id, deployment_id, config):
   """Create a new Deployment with the given config file."""
 
+  from clarifai.client.nodepool import Nodepool
   validate_context(ctx)
   if not nodepool_id:
     deployment_config = from_yaml(config)
@@ -47,6 +45,9 @@ def create(ctx, nodepool_id, deployment_id, config):
 @click.pass_context
 def list(ctx, nodepool_id, page_no, per_page):
   """List all deployments for the nodepool."""
+  from clarifai.client.compute_cluster import ComputeCluster
+  from clarifai.client.nodepool import Nodepool
+  from clarifai.client.user import User
 
   validate_context(ctx)
   if nodepool_id:
@@ -100,6 +101,7 @@ def list(ctx, nodepool_id, page_no, per_page):
 @click.pass_context
 def delete(ctx, nodepool_id, deployment_id):
   """Deletes a deployment for the nodepool."""
+  from clarifai.client.nodepool import Nodepool
 
   validate_context(ctx)
   nodepool = Nodepool(
