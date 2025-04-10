@@ -350,7 +350,12 @@ class Inputs(Lister, BaseClient):
     audio_pb = resources_pb2.Audio(base64=audio_bytes) if audio_bytes else resources_pb2.Audio(
         url=audio_url) if audio_url else None
     return Inputs._get_proto(
-        input_id=input_id, dataset_id=dataset_id, imagepb=image_pb, text_pb=text_pb,audio_pb=audio_pb, **kwargs)
+        input_id=input_id,
+        dataset_id=dataset_id,
+        imagepb=image_pb,
+        text_pb=text_pb,
+        audio_pb=audio_pb,
+        **kwargs)
 
   @staticmethod
   def get_inputs_from_csv(csv_path: str,
