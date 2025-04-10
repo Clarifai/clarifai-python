@@ -316,6 +316,8 @@ class Inputs(Lister, BaseClient):
                            text_bytes: bytes = None,
                            image_url: str = None,
                            image_bytes: bytes = None,
+                           audio_url: str = None,
+                           audio_bytes: bytes = None,
                            dataset_id: str = None,
                            **kwargs) -> Text:
     """Create input proto for text and image from bytes or url.
@@ -336,17 +338,19 @@ class Inputs(Lister, BaseClient):
         >>> from clarifai.client.input import Inputs
         >>> input_protos = Inputs.get_multimodal_input(input_id = 'demo', raw_text = 'What time of day is it?', image_url='https://samples.clarifai.com/metro-north.jpg')
     """
-    if (image_bytes and image_url) or (not image_bytes and not image_url):
-      return UserError("Please supply only one of image_bytes or image_url, and not both.")
-    if (text_bytes and raw_text) or (not text_bytes and not raw_text):
-      return UserError("Please supply only one of text_bytes or raw_text, and not both.")
+    # if (image_bytes and image_url) or (not image_bytes and not image_url):
+    #   return UserError("Please supply only one of image_bytes or image_url, and not both.")
+    # if (text_bytes and raw_text) or (not text_bytes and not raw_text):
+    #   return UserError("Please supply only one of text_bytes or raw_text, and not both.")
 
     image_pb = resources_pb2.Image(base64=image_bytes) if image_bytes else resources_pb2.Image(
         url=image_url) if image_url else None
     text_pb = resources_pb2.Text(raw=text_bytes) if text_bytes else resources_pb2.Text(
         raw=raw_text) if raw_text else None
+    audio_pb = resources_pb2.Audio(base64=audio_bytes) if audio_bytes else resources_pb2.Audio(
+        url=audio_url) if audio_url else None
     return Inputs._get_proto(
-        input_id=input_id, dataset_id=dataset_id, imagepb=image_pb, text_pb=text_pb, **kwargs)
+        input_id=input_id, dataset_id=dataset_id, imagepb=image_pb, text_pb=text_pb,audio_pb=audio_pb, **kwargs)
 
   @staticmethod
   def get_inputs_from_csv(csv_path: str,
