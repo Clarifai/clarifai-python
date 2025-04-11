@@ -53,6 +53,11 @@ class ModelClass(ABC):
     setattr(func, _METHOD_INFO_ATTR, _MethodInfo(func))
     return func
 
+  def set_output_context(self, prompt_tokens=None, completion_tokens=None):
+    """This is used to set the prompt and completion tokens in the Output proto"""
+    self._prompt_tokens = prompt_tokens
+    self._completion_tokens = completion_tokens
+
   def load_model(self):
     """Load the model."""
 
@@ -244,6 +249,12 @@ class ModelClass(ABC):
       proto = resources_pb2.Output()
     serialize({'return': output}, variables_signature, proto.data, is_output=True)
     proto.status.code = status_code_pb2.SUCCESS
+    if self._prompt_tokens is not None:
+      proto.prompt_tokens = self._prompt_tokens
+    if self._completion_tokens is not None:
+      proto.completion_tokens = self._completion_tokens
+    self._prompt_tokens = None
+    self._completion_tokens = None
     return proto
 
   @classmethod
