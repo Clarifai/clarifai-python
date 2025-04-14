@@ -1,5 +1,6 @@
 import inspect
 import itertools
+import json
 import logging
 import os
 import traceback
@@ -70,6 +71,130 @@ class ModelClass(ABC):
     output.data.text.raw = signatures_to_json(signatures)
     return resp
 
+  def _convert_input_data_to_new_format(
+      self, data: resources_pb2.Data,
+      input_fields: List[resources_pb2.ModelTypeField]) -> resources_pb2.Data:
+    """Convert input data to new format."""
+    new_data = resources_pb2.Data()
+    for field in input_fields:
+      part_data = self._convert_field(data, field)
+      part = new_data.parts.add()
+      part.id = field.name
+      part.data.CopyFrom(part_data)
+    return new_data
+
+  def _convert_field(self, old_data: resources_pb2.Data,
+                     field: resources_pb2.ModelTypeField) -> resources_pb2.Data:
+    data_type = field.type
+    if data_type == resources_pb2.ModelTypeField.DataType.STR:
+      new_data = resources_pb2.Data()
+      new_data.string_value = old_data.text.raw
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.IMAGE:
+      new_data = resources_pb2.Data()
+      new_data.image.CopyFrom(old_data.image)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.VIDEO:
+      new_data = resources_pb2.Data()
+      new_data.video.CopyFrom(old_data.video)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.BOOL:
+      new_data = resources_pb2.Data()
+      new_data.bool_value = old_data.bool_value
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.INT:
+      new_data = resources_pb2.Data()
+      new_data.int_value = old_data.int_value
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.FLOAT:
+      new_data = resources_pb2.Data()
+      new_data.float_value = old_data.float_value
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.BYTES:
+      new_data = resources_pb2.Data()
+      new_data.bytes_value = old_data.bytes_value
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.NDARRAY:
+      new_data = resources_pb2.Data()
+      new_data.ndarray.CopyFrom(old_data.ndarray)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.JSON_DATA:
+      new_data = resources_pb2.Data()
+      struct_dict = old_data.text.raw
+      new_data.string_value = json.dumps(struct_dict)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.TEXT:
+      new_data = resources_pb2.Data()
+      new_data.text.CopyFrom(old_data.text)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.CONCEPT:
+      new_data = resources_pb2.Data()
+      new_data.concepts.extend(old_data.concepts)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.REGION:
+      new_data = resources_pb2.Data()
+      new_data.regions.extend(old_data.regions)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.FRAME:
+      new_data = resources_pb2.Data()
+      new_data.frames.extend(old_data.frames)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.AUDIO:
+      new_data = resources_pb2.Data()
+      new_data.audio.CopyFrom(old_data.audio)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.LIST:
+      new_data = resources_pb2.Data()
+      if not field.type_args:
+        raise ValueError("LIST type requires type_args")
+      element_field = field.type_args[0]
+      element_data = self._convert_field(old_data, element_field)
+      part = new_data.parts.add()
+      part.data.CopyFrom(element_data)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.TUPLE:
+      new_data = resources_pb2.Data()
+      for element_field in field.type_args:
+        element_data = self._convert_field(old_data, element_field)
+        part = new_data.parts.add()
+        part.data.CopyFrom(element_data)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.NAMED_FIELDS:
+      new_data = resources_pb2.Data()
+      for named_field in field.type_args:
+        part_data = self._convert_field(old_data, named_field)
+        part = new_data.parts.add()
+        part.id = named_field.name
+        part.data.CopyFrom(part_data)
+      return new_data
+    else:
+      raise ValueError(f"Unsupported data type: {data_type}")
+
+  def is_old_format(self, data: resources_pb2.Data) -> bool:
+    """Check if the Data proto is in the old format (without parts)."""
+    if len(data.parts) > 0:
+      return False  # New format uses parts
+
+    # Check if any singular field is set
+    singular_fields = [
+        'image', 'video', 'metadata', 'geo', 'text', 'audio', 'ndarray', 'int_value',
+        'float_value', 'bytes_value', 'bool_value', 'string_value'
+    ]
+    for field in singular_fields:
+      if data.HasField(field):
+        return True
+
+    # Check if any repeated field has elements
+    repeated_fields = [
+        'concepts', 'colors', 'clusters', 'embeddings', 'regions', 'frames', 'tracks',
+        'time_segments', 'hits', 'heatmaps'
+    ]
+    for field in repeated_fields:
+      if getattr(data, field):
+        return True
+
+    return False
+
   def _batch_predict(self, method, inputs: List[Dict[str, Any]]) -> List[Any]:
     """Batch predict method for multiple inputs."""
     outputs = []
@@ -101,6 +226,13 @@ class ModelClass(ABC):
       method_info = method._cf_method_info
       signature = method_info.signature
       python_param_types = method_info.python_param_types
+      for input in request.inputs:
+        # check if input is in old format
+        if self.is_old_format(input.data):
+          # convert to new format
+          new_data = self._convert_input_data_to_new_format(input.data, signature.input_fields)
+          input.data.CopyFrom(new_data)
+      # convert inputs to python types
       inputs = self._convert_input_protos_to_python(request.inputs, inference_params,
                                                     signature.input_fields, python_param_types)
       if len(inputs) == 1:
@@ -135,7 +267,12 @@ class ModelClass(ABC):
       method_info = method._cf_method_info
       signature = method_info.signature
       python_param_types = method_info.python_param_types
-
+      for input in request.inputs:
+        # check if input is in old format
+        if self.is_old_format(input.data):
+          # convert to new format
+          new_data = self._convert_input_data_to_new_format(input.data, signature.input_fields)
+          input.data.CopyFrom(new_data)
       inputs = self._convert_input_protos_to_python(request.inputs, inference_params,
                                                     signature.input_fields, python_param_types)
       if len(inputs) == 1:
@@ -183,6 +320,12 @@ class ModelClass(ABC):
         raise ValueError("Streaming method must have a Stream input")
       stream_argname = stream_sig.name
 
+      for input in request.inputs:
+        # check if input is in old format
+        if self.is_old_format(input.data):
+          # convert to new format
+          new_data = self._convert_input_data_to_new_format(input.data, signature.input_fields)
+          input.data.CopyFrom(new_data)
       # convert all inputs for the first request, including the first stream value
       inputs = self._convert_input_protos_to_python(request.inputs, inference_params,
                                                     signature.input_fields, python_param_types)
