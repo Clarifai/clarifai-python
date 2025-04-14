@@ -221,19 +221,19 @@ class DataConverter:
         new_data.video.CopyFrom(old_data.video)
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.BOOL:
-      if old_data.HasField('bool_value'):
+      if old_data.bool_value is not False:
         new_data.bool_value = old_data.bool_value
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.INT:
-      if old_data.HasField('int_value'):
+      if old_data.int_value != 0:
         new_data.int_value = old_data.int_value
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.FLOAT:
-      if old_data.HasField('float_value'):
+      if old_data.float_value != 0.0:
         new_data.float_value = old_data.float_value
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.BYTES:
-      if old_data.HasField('bytes_value'):
+      if old_data.bytes_value != b"":
         new_data.bytes_value = old_data.bytes_value
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.NDARRAY:
