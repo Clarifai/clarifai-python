@@ -392,9 +392,9 @@ class ModelClass(ABC):
       proto = resources_pb2.Output()
     serialize({'return': output}, variables_signature, proto.data, is_output=True)
     proto.status.code = status_code_pb2.SUCCESS
-    if self._prompt_tokens is not None:
+    if hasattr(self, "_prompt_tokens") and self._prompt_tokens is not None:
       proto.prompt_tokens = self._prompt_tokens
-    if self._completion_tokens is not None:
+    if hasattr(self, "_completion_tokens") and self._completion_tokens is not None:
       proto.completion_tokens = self._completion_tokens
     self._prompt_tokens = None
     self._completion_tokens = None
