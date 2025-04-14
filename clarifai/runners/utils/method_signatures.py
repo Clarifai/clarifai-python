@@ -11,6 +11,7 @@ from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.message import Message as MessageProto
 
 from clarifai.runners.utils import data_types, data_utils
+from clarifai.runners.utils.code_script import _get_base_type, _parse_default_value
 from clarifai.runners.utils.serializers import (
     AtomicFieldSerializer, JSONSerializer, ListSerializer, MessageSerializer,
     NamedFieldsSerializer, NDArraySerializer, Serializer, TupleSerializer)
@@ -86,6 +87,48 @@ def build_function_signature(func):
 #     annotations["return"] = ast.unparse(func_node.returns)
 
 #   return annotations
+
+
+def _process_input_field(field: resources_pb2.ModelTypeField) -> str:
+  base_type = _get_base_type(field)
+  if field.iterator:
+    type_str = f"Iterator[{base_type}]"
+  else:
+    type_str = base_type
+  default = _parse_default_value(field)
+  param = f"{field.name}: {type_str}"
+  if default is not None:
+    param += f" = {default}"
+  return param
+
+
+def _process_output_field(field: resources_pb2.ModelTypeField) -> str:
+  base_type = _get_base_type(field)
+  if field.iterator:
+    return f"Iterator[{base_type}]"
+  else:
+    return base_type
+
+
+def get_method_signature(method_signature: resources_pb2.MethodSignature) -> str:
+  """
+    Get the method signature of a method in a model.
+    """
+  # Process input fields
+  input_params = []
+  for input_field in method_signature.input_fields:
+    param_str = _process_input_field(input_field)
+    input_params.append(param_str)
+
+  # Process output field
+  if not method_signature.output_fields:
+    raise ValueError("MethodSignature must have at least one output field")
+  output_field = method_signature.output_fields[0]
+  return_type = _process_output_field(output_field)
+
+  # Generate function signature
+  function_def = f"def {method_signature.name}({', '.join(input_params)}) -> {return_type}:"
+  return function_def
 
 
 def build_variable_signature(name, annotation, default=inspect.Parameter.empty, is_output=False):
@@ -236,6 +279,11 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
       raise TypeError('Got a single return value, but expected multiple outputs {%s}' %
                       ', '.join(sig.name for sig in signatures))
     raise TypeError('Got unexpected key: %s' % ', '.join(unknown))
+  inline_first_value = False
+  if (is_output and len(signatures) == 1 and signatures[0].name == 'return' and
+      len(kwargs) == 1 and 'return' in kwargs):
+    # if there is only one output, flatten it and return directly
+    inline_first_value = True
   for sig_i, sig in enumerate(signatures):
     if sig.name not in kwargs:
       if sig.required:
@@ -243,10 +291,18 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
       continue  # skip missing fields, they can be set to default on the server
     data = kwargs[sig.name]
     serializer = serializer_from_signature(sig)
-    # add the part to the proto
-    part = proto.parts.add()
-    part.id = sig.name
-    serializer.serialize(part.data, data)
+    # TODO determine if any (esp the first) var can go in the proto without parts
+    # and whether to put this in the signature or dynamically determine it
+    if inline_first_value and sig_i == 0 and id(data) not in _ZERO_VALUE_IDS:
+      # inlined first value; note data must not be empty or 0 to inline, since that
+      # will correspond to the missing value case (which uses function defaults).
+      # empty values are put explicitly in parts.
+      serializer.serialize(proto, data)
+    else:
+      # add the part to the proto
+      part = proto.parts.add()
+      part.id = sig.name
+      serializer.serialize(part.data, data)
   return proto
 
 
