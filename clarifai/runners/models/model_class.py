@@ -30,7 +30,8 @@ class ModelClass(ABC):
   Example:
 
     from clarifai.runners.model_class import ModelClass
-    from clarifai.runners.utils.data_types import NamedFields, Stream
+    from clarifai.runners.utils.data_types import NamedFields
+    from typing import List, Iterator
 
     class MyModel(ModelClass):
 
@@ -39,12 +40,12 @@ class ModelClass(ABC):
         return [x] * y
 
       @ModelClass.method
-      def generate(self, x: str, y: int) -> Stream[str]:
+      def generate(self, x: str, y: int) -> Iterator[str]:
         for i in range(y):
           yield x + str(i)
 
       @ModelClass.method
-      def stream(self, input_stream: Stream[NamedFields(x=str, y=int)]) -> Stream[str]:
+      def stream(self, input_stream: Iterator[NamedFields(x=str, y=int)]) -> Iterator[str]:
         for item in input_stream:
           yield item.x + ' ' + str(item.y)
   '''
@@ -270,8 +271,8 @@ class ModelClass(ABC):
         if k not in python_param_types:
           continue
 
-        if hasattr(python_param_types[k], "__args__") and getattr(
-            python_param_types[k], "__origin__", None) == data_types.Stream:
+        if hasattr(python_param_types[k], "__args__") and getattr(python_param_types[k],
+                                                                  "__origin__", None) == Iterator:
           # get the type of the items in the stream
           stream_type = python_param_types[k].__args__[0]
 

@@ -83,10 +83,6 @@ class NamedFields(metaclass=NamedFieldsMeta):
     return list(self.keys())
 
 
-class Stream(Iterable):
-  pass
-
-
 class JSON:
 
   def __init__(self, value):

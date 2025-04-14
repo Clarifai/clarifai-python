@@ -1,3 +1,4 @@
+import collections.abc as abc
 import inspect
 import json
 from collections import namedtuple
@@ -354,7 +355,7 @@ def _normalize_type(tp):
   '''
   # stream type indicates streaming, not part of the data itself
   # it can only be used at the top-level of the var type
-  streaming = (get_origin(tp) == data_types.Stream)
+  streaming = (get_origin(tp) in [abc.Iterator, abc.Generator, abc.Iterable])
   if streaming:
     tp = get_args(tp)[0]
 
