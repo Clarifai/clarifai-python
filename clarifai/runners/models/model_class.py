@@ -1,6 +1,5 @@
 import inspect
 import itertools
-import json
 import logging
 import os
 import traceback
@@ -71,6 +70,29 @@ class ModelClass(ABC):
     output.data.text.raw = signatures_to_json(signatures)
     return resp
 
+  def _is_data_set(self, data_msg):
+    # Singular message fields
+    singular_fields = ["image", "video", "metadata", "geo", "text", "audio", "ndarray"]
+    for field in singular_fields:
+      if data_msg.HasField(field):
+        return True
+
+    # Repeated fields
+    repeated_fields = [
+        "concepts", "colors", "clusters", "embeddings", "regions", "frames", "tracks",
+        "time_segments", "hits", "heatmaps", "parts"
+    ]
+    for field in repeated_fields:
+      if getattr(data_msg, field):  # checks if the list is not empty
+        return True
+
+    # Scalar fields (proto3 default: 0 for numbers, empty for strings/bytes, False for bool)
+    if (data_msg.int_value != 0 or data_msg.float_value != 0.0 or data_msg.bytes_value != b"" or
+        data_msg.bool_value is True or data_msg.string_value != ""):
+      return True
+
+    return False
+
   def _convert_input_data_to_new_format(
       self, data: resources_pb2.Data,
       input_fields: List[resources_pb2.ModelTypeField]) -> resources_pb2.Data:
@@ -78,97 +100,88 @@ class ModelClass(ABC):
     new_data = resources_pb2.Data()
     for field in input_fields:
       part_data = self._convert_field(data, field)
-      part = new_data.parts.add()
-      part.id = field.name
-      part.data.CopyFrom(part_data)
+      if self._is_data_set(part_data):
+        # if the field is set, add it to the new data part
+        part = new_data.parts.add()
+        part.id = field.name
+        part.data.CopyFrom(part_data)
+      else:
+        if field.required:
+          raise ValueError(f"Field {field.name} is required but not set")
     return new_data
 
   def _convert_field(self, old_data: resources_pb2.Data,
                      field: resources_pb2.ModelTypeField) -> resources_pb2.Data:
     data_type = field.type
+    new_data = resources_pb2.Data()
     if data_type == resources_pb2.ModelTypeField.DataType.STR:
-      new_data = resources_pb2.Data()
-      new_data.string_value = old_data.text.raw
+      if old_data.HasField('text'):
+        new_data.string_value = old_data.text.raw
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.IMAGE:
-      new_data = resources_pb2.Data()
-      new_data.image.CopyFrom(old_data.image)
+      if old_data.HasField('image'):
+        new_data.image.CopyFrom(old_data.image)
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.VIDEO:
-      new_data = resources_pb2.Data()
-      new_data.video.CopyFrom(old_data.video)
+      if old_data.HasField('video'):
+        new_data.video.CopyFrom(old_data.video)
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.BOOL:
-      new_data = resources_pb2.Data()
-      new_data.bool_value = old_data.bool_value
+      if old_data.HasField('bool_value'):
+        new_data.bool_value = old_data.bool_value
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.INT:
-      new_data = resources_pb2.Data()
-      new_data.int_value = old_data.int_value
+      if old_data.HasField('int_value'):
+        new_data.int_value = old_data.int_value
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.FLOAT:
-      new_data = resources_pb2.Data()
-      new_data.float_value = old_data.float_value
+      if old_data.HasField('float_value'):
+        new_data.float_value = old_data.float_value
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.BYTES:
-      new_data = resources_pb2.Data()
-      new_data.bytes_value = old_data.bytes_value
+      if old_data.HasField('bytes_value'):
+        new_data.bytes_value = old_data.bytes_value
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.NDARRAY:
-      new_data = resources_pb2.Data()
-      new_data.ndarray.CopyFrom(old_data.ndarray)
-      return new_data
-    elif data_type == resources_pb2.ModelTypeField.DataType.JSON_DATA:
-      new_data = resources_pb2.Data()
-      struct_dict = old_data.text.raw
-      new_data.string_value = json.dumps(struct_dict)
+      if old_data.HasField('ndarray'):
+        new_data.ndarray.CopyFrom(old_data.ndarray)
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.TEXT:
-      new_data = resources_pb2.Data()
-      new_data.text.CopyFrom(old_data.text)
-      return new_data
-    elif data_type == resources_pb2.ModelTypeField.DataType.CONCEPT:
-      new_data = resources_pb2.Data()
-      new_data.concepts.extend(old_data.concepts)
-      return new_data
-    elif data_type == resources_pb2.ModelTypeField.DataType.REGION:
-      new_data = resources_pb2.Data()
-      new_data.regions.extend(old_data.regions)
-      return new_data
-    elif data_type == resources_pb2.ModelTypeField.DataType.FRAME:
-      new_data = resources_pb2.Data()
-      new_data.frames.extend(old_data.frames)
+      if old_data.HasField('text'):
+        new_data.text.CopyFrom(old_data.text)
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.AUDIO:
-      new_data = resources_pb2.Data()
-      new_data.audio.CopyFrom(old_data.audio)
+      if old_data.HasField('audio'):
+        new_data.audio.CopyFrom(old_data.audio)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.CONCEPT:
+      if old_data.concepts:
+        new_data.concepts.extend(old_data.concepts)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.REGION:
+      if old_data.regions:
+        new_data.regions.extend(old_data.regions)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.FRAME:
+      if old_data.frames:
+        new_data.frames.extend(old_data.frames)
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.LIST:
       new_data = resources_pb2.Data()
       if not field.type_args:
         raise ValueError("LIST type requires type_args")
       element_field = field.type_args[0]
-      element_data = self._convert_field(old_data, element_field)
-      part = new_data.parts.add()
-      part.data.CopyFrom(element_data)
-      return new_data
-    elif data_type == resources_pb2.ModelTypeField.DataType.TUPLE:
-      new_data = resources_pb2.Data()
-      for element_field in field.type_args:
+      if element_field in (resources_pb2.ModelTypeField.DataType.CONCEPT,
+                           resources_pb2.ModelTypeField.DataType.REGION,
+                           resources_pb2.ModelTypeField.DataType.FRAME):
+        # convert to new format
         element_data = self._convert_field(old_data, element_field)
-        part = new_data.parts.add()
-        part.data.CopyFrom(element_data)
-      return new_data
-    elif data_type == resources_pb2.ModelTypeField.DataType.NAMED_FIELDS:
-      new_data = resources_pb2.Data()
-      for named_field in field.type_args:
-        part_data = self._convert_field(old_data, named_field)
-        part = new_data.parts.add()
-        part.id = named_field.name
-        part.data.CopyFrom(part_data)
-      return new_data
+        # part = new_data.parts.add()
+        # part.data.CopyFrom(element_data)
+      return element_data
     else:
-      raise ValueError(f"Unsupported data type: {data_type}")
+      return new_data
+      # raise ValueError(f"Unsupported data type: {data_type}")
 
   def is_old_format(self, data: resources_pb2.Data) -> bool:
     """Check if the Data proto is in the old format (without parts)."""
