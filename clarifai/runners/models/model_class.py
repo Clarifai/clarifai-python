@@ -195,6 +195,17 @@ class ModelClass(ABC):
 
     return False
 
+  def _convert_output_data_to_old_format(self, data: resources_pb2.Data) -> resources_pb2.Data:
+    """Convert output data to old format."""
+    old_data = resources_pb2.Data()
+    part_data = data.parts[0].data
+    # Handle text.raw specially (common case for text outputs)
+    old_data = part_data
+    if old_data.string_value:
+      old_data.text.raw = old_data.string_value
+
+    return old_data
+
   def _batch_predict(self, method, inputs: List[Dict[str, Any]]) -> List[Any]:
     """Batch predict method for multiple inputs."""
     outputs = []
@@ -228,7 +239,8 @@ class ModelClass(ABC):
       python_param_types = method_info.python_param_types
       for input in request.inputs:
         # check if input is in old format
-        if self.is_old_format(input.data):
+        is_convert = self.is_old_format(input.data)
+        if is_convert:
           # convert to new format
           new_data = self._convert_input_data_to_new_format(input.data, signature.input_fields)
           input.data.CopyFrom(new_data)
@@ -238,11 +250,15 @@ class ModelClass(ABC):
       if len(inputs) == 1:
         inputs = inputs[0]
         output = method(**inputs)
-        outputs.append(self._convert_output_to_proto(output, signature.output_fields))
+        outputs.append(
+            self._convert_output_to_proto(
+                output, signature.output_fields, convert_old_format=is_convert))
       else:
         outputs = self._batch_predict(method, inputs)
         outputs = [
-            self._convert_output_to_proto(output, signature.output_fields) for output in outputs
+            self._convert_output_to_proto(
+                output, signature.output_fields, convert_old_format=is_convert)
+            for output in outputs
         ]
 
       return service_pb2.MultiOutputResponse(
@@ -269,7 +285,8 @@ class ModelClass(ABC):
       python_param_types = method_info.python_param_types
       for input in request.inputs:
         # check if input is in old format
-        if self.is_old_format(input.data):
+        is_convert = self.is_old_format(input.data)
+        if is_convert:
           # convert to new format
           new_data = self._convert_input_data_to_new_format(input.data, signature.input_fields)
           input.data.CopyFrom(new_data)
@@ -279,7 +296,11 @@ class ModelClass(ABC):
         inputs = inputs[0]
         for output in method(**inputs):
           resp = service_pb2.MultiOutputResponse()
-          self._convert_output_to_proto(output, signature.output_fields, proto=resp.outputs.add())
+          self._convert_output_to_proto(
+              output,
+              signature.output_fields,
+              proto=resp.outputs.add(),
+              convert_old_format=is_convert)
           resp.status.code = status_code_pb2.SUCCESS
           yield resp
       else:
@@ -287,7 +308,10 @@ class ModelClass(ABC):
           resp = service_pb2.MultiOutputResponse()
           for output in outputs:
             self._convert_output_to_proto(
-                output, signature.output_fields, proto=resp.outputs.add())
+                output,
+                signature.output_fields,
+                proto=resp.outputs.add(),
+                convert_old_format=is_convert)
           resp.status.code = status_code_pb2.SUCCESS
           yield resp
     except Exception as e:
@@ -322,7 +346,8 @@ class ModelClass(ABC):
 
       for input in request.inputs:
         # check if input is in old format
-        if self.is_old_format(input.data):
+        is_convert = self.is_old_format(input.data)
+        if is_convert:
           # convert to new format
           new_data = self._convert_input_data_to_new_format(input.data, signature.input_fields)
           input.data.CopyFrom(new_data)
@@ -349,7 +374,11 @@ class ModelClass(ABC):
 
       for output in method(**kwargs):
         resp = service_pb2.MultiOutputResponse()
-        self._convert_output_to_proto(output, signature.output_fields, proto=resp.outputs.add())
+        self._convert_output_to_proto(
+            output,
+            signature.output_fields,
+            proto=resp.outputs.add(),
+            convert_old_format=is_convert)
         resp.status.code = status_code_pb2.SUCCESS
         yield resp
     except Exception as e:
@@ -387,10 +416,15 @@ class ModelClass(ABC):
   def _convert_output_to_proto(self,
                                output: Any,
                                variables_signature: List[resources_pb2.ModelTypeField],
-                               proto=None) -> resources_pb2.Output:
+                               proto=None,
+                               convert_old_format=False) -> resources_pb2.Output:
     if proto is None:
       proto = resources_pb2.Output()
     serialize({'return': output}, variables_signature, proto.data, is_output=True)
+    if convert_old_format:
+      # convert to old format
+      data = self._convert_output_data_to_old_format(proto.data)
+      proto.data.CopyFrom(data)
     proto.status.code = status_code_pb2.SUCCESS
     if hasattr(self, "_prompt_tokens") and self._prompt_tokens is not None:
       proto.prompt_tokens = self._prompt_tokens
