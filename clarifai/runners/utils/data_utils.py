@@ -59,21 +59,21 @@ def is_openai_chat_format(messages):
 class InputField(MessageData):
   """A field that can be used to store input data."""
 
-  def __init__(self,
-               default=None,
-               description=None,
-               min_value=None,
-               max_value=None,
-               choices=None,
-               visibility=True,
-               is_param=False):
+  def __init__(
+      self,
+      default=None,
+      description=None,
+      min_value=None,
+      max_value=None,
+      choices=None,
+      #  is_param=True
+  ):
     self.default = default
     self.description = description
     self.min_value = min_value
     self.max_value = max_value
     self.choices = choices
-    self.visibility = visibility
-    self.is_param = is_param
+    # self.is_param = is_param
 
   def __repr__(self) -> str:
     attrs = []
@@ -87,8 +87,7 @@ class InputField(MessageData):
       attrs.append(f"max_value={self.max_value!r}")
     if self.choices is not None:
       attrs.append(f"choices={self.choices!r}")
-    attrs.append(f"visibility={self.visibility!r}")
-    attrs.append(f"is_param={self.is_param!r}")
+    # attrs.append(f"is_param={self.is_param!r}")
     return f"InputField({', '.join(attrs)})"
 
   def to_proto(self, proto=None) -> InputFieldProto:
@@ -111,9 +110,7 @@ class InputField(MessageData):
       if self.max_value is not None:
         range_info.max = float(self.max_value)
       proto.model_type_range_info.CopyFrom(range_info)
-
-    proto.visibility = self.visibility
-    proto.is_param = self.is_param
+    # proto.is_param = self.is_param
 
     if self.default is not None:
       if isinstance(self.default, str) or isinstance(self.default, bool) or isinstance(
@@ -165,8 +162,8 @@ class InputField(MessageData):
         min_value=min_value,
         max_value=max_value,
         choices=choices,
-        visibility=proto.visibility,
-        is_param=proto.is_param)
+        # is_param=proto.is_param
+    )
 
   @classmethod
   def set_default(cls, proto=None, default=None):
