@@ -59,12 +59,41 @@ class ModelClient:
       Returns:
           Dict: The method signatures.
       '''
-    #request = resources_pb2.GetModelSignaturesRequest()
-    #response = self.stub.GetModelSignatures(request)
-    #self._method_signatures = json.loads(response.signatures)  # or define protos
-    # TODO this could use a new endpoint to get the signatures
-    # for local grpc models, we'll also have to add the endpoint to the model servicer
-    # for now we'll just use the predict endpoint with a special method name
+    try:
+      response = self.STUB.GetModelVersion(
+          service_pb2.GetModelVersionRequest(
+              user_app_id=self.request_template.user_app_id,
+              model_id=self.request_template.model_id,
+              version_id=self.request_template.version_id,
+          ))
+
+      method_signatures = None
+      if response.status.code == status_code_pb2.SUCCESS:
+        method_signatures = response.model_version.method_signatures
+      if response.status.code != status_code_pb2.SUCCESS:
+        raise Exception(f"Model failed with response {response!r}")
+      self._method_signatures = {}
+      for method_signature in method_signatures:
+        method_name = method_signature.name
+        # check for duplicate method names
+        if method_name in self._method_signatures:
+          raise ValueError(f"Duplicate method name {method_name}")
+        self._method_signatures[method_name] = method_signature
+      if not self._method_signatures:  # if no method signatures, try to fetch from the model
+        self._fetch_signatures_backup()
+    except Exception:
+      # try to fetch from the model
+      self._fetch_signatures_backup()
+      if not self._method_signatures:
+        raise ValueError("Failed to fetch method signatures from model and backup method")
+
+  def _fetch_signatures_backup(self):
+    '''
+      This is a temporary method of fetching the method signatures from the model.
+
+      Returns:
+          Dict: The method signatures.
+      '''
 
     request = service_pb2.PostModelOutputsRequest()
     request.CopyFrom(self.request_template)
