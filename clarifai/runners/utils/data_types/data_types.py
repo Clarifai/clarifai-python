@@ -48,7 +48,7 @@ class NamedFieldsMeta(type):
     # Check if keyword arguments are types (used in type annotations)
     if kwargs and all(isinstance(v, type) for v in kwargs.values()):
       # Dynamically create a subclass with __annotations__
-      name = f"NamedFields({', '.join(f'{k}:{v.__name__}' for k, v in kwargs.items())})"
+      name = f"NamedFields({', '.join(f'{k}:{v.__name__}' for k,v in kwargs.items())})"
       return type(name, (cls,), {'__annotations__': kwargs})
     else:
       # Create a normal instance for runtime data
@@ -311,7 +311,8 @@ class Region(MessageData):
   @property
   def box(self) -> List[float]:
     bbox = self.proto.region_info.bounding_box
-    return [bbox.left_col, bbox.top_row, bbox.right_col, bbox.bottom_row]  # x1, y1, x2, y2
+    # x1, y1, x2, y2
+    return [bbox.left_col, bbox.top_row, bbox.right_col, bbox.bottom_row]
 
   @box.setter
   def box(self, value: List[float]):
