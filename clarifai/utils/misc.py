@@ -12,6 +12,8 @@ RETRYABLE_CODES = [
     status_code_pb2.MODEL_BUSY_PLEASE_RETRY
 ]
 
+DEFAULT_CONFIG = f'{os.environ["HOME"]}/.config/clarifai/config'
+
 
 def status_is_retryable(status_code: int) -> bool:
   """Check if a status code is retryable."""

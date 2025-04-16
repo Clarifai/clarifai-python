@@ -1,5 +1,7 @@
+from typing import Iterator
+
 from clarifai.runners.models.model_class import ModelClass
-from clarifai.runners.utils.data_types import Stream, Text
+from clarifai.runners.utils.data_types import Text
 
 
 class MyModel(ModelClass):
@@ -19,7 +21,7 @@ class MyModel(ModelClass):
     return Text(output_text)
 
   @ModelClass.method
-  def generate(self, text1: Text = Text("")) -> Stream[Text]:
+  def generate(self, text1: Text = Text("")) -> Iterator[Text]:
     """Example yielding a whole batch of streamed stuff back."""
 
     for i in range(10):  # fake something iterating generating 10 times.
@@ -27,7 +29,7 @@ class MyModel(ModelClass):
       yield Text(output_text)
 
   @ModelClass.method
-  def stream(self, input_iterator: Stream[Text]) -> Stream[Text]:
+  def stream(self, input_iterator: Iterator[Text]) -> Iterator[Text]:
     """Example yielding a whole batch of streamed stuff back."""
 
     for i, input in enumerate(input_iterator):

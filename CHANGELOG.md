@@ -1,3 +1,36 @@
+## [[11.2.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.3) - [PyPI](https://pypi.org/project/clarifai/11.2.3/) - 2025-04-08
+
+### Changed
+ - CLI is now abougt 20x faster for most operations [(#555)](https://github.com/Clarifai/clarifai-python/pull/555)
+ - CLI now has config contexts, more to come there... [(#552)](https://github.com/Clarifai/clarifai-python/pull/552)
+ - Improve error messages with missing PAT [(#548)](https://github.com/Clarifai/clarifai-python/pull/548)
+ - Fix model builder return args [(#547)](https://github.com/Clarifai/clarifai-python/pull/547)
+
+## [[11.2.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.2) - [PyPI](https://pypi.org/project/clarifai/11.2.2/) - 2025-03-28
+
+### Changed
+ - Removed HF loader `config.json` validation for all clarifai Model type ids [(#543)] (https://github.com/Clarifai/clarifai-python/pull/543)
+ - Added Regex Patterns to Filter Checkpoint Files to Download [(#542)] (https://github.com/Clarifai/clarifai-python/pull/542)
+
+## [[11.2.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.1) - [PyPI](https://pypi.org/project/clarifai/11.2.1/) - 2025-03-25
+
+### Changed
+ - Added validation for CLI config [(#540)] (https://github.com/Clarifai/clarifai-python/pull/540)
+ - Fixed docker image name and added `skip_dockerfile` option to `test-locally` subcommand od model CLI [(#526)] (https://github.com/Clarifai/clarifai-python/pull/526)
+
+## [[11.2.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.0) - [PyPI](https://pypi.org/project/clarifai/11.2.0/) - 2025-03-24
+
+### Changed
+ - Improved CLI login module [(#535)] (https://github.com/Clarifai/clarifai-python/pull/535)
+ - Updated the CLI to test out model locally independent of remote access [(#534)] (https://github.com/Clarifai/clarifai-python/pull/534)
+ - Modified the default value of `num_threads` field [(#533)] (https://github.com/Clarifai/clarifai-python/pull/533)
+
+## [[11.1.7]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.7) - [PyPI](https://pypi.org/project/clarifai/11.1.7/) - 2025-03-08
+
+### Changed
+ - Dropped testing of python 3.8, 3.9, 3.10 [(#532)] (https://github.com/Clarifai/clarifai-python/pull/532)
+ - Updated the deployment testing config [(#531)] (https://github.com/Clarifai/clarifai-python/pull/531)
+
 ## [[11.1.6]](https://github.com/Clarifai/clarifai-python/releases/tag/11.1.6) - [PyPI](https://pypi.org/project/clarifai/11.1.6/) - 2025-03-06
 
 ### Changed

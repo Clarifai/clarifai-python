@@ -1,16 +1,11 @@
-import os
 import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
-import yaml
 
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.models.model_run_locally import ModelRunLocally
-
-CLARIFAI_USER_ID = os.environ["CLARIFAI_USER_ID"]
-CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
 
 
 @pytest.fixture
@@ -29,18 +24,6 @@ def dummy_models_path(tmp_path):
   # Copy the entire folder to tmp_path
   target_folder = tmp_path / "dummy_runner_models"
   shutil.copytree(original_dummy_path, target_folder)
-
-  # Update the config.yaml to override the app_id with the ephemeral one
-  config_yaml_path = target_folder / "config.yaml"
-  with config_yaml_path.open("r") as f:
-    config = yaml.safe_load(f)
-
-  # Overwrite the app_id with the newly created clarifai_app
-  config["model"]["user_id"] = CLARIFAI_USER_ID
-
-  # Rewrite config.yaml
-  with config_yaml_path.open("w") as f:
-    yaml.dump(config, f, sort_keys=False)
 
   return str(target_folder)
 
@@ -70,18 +53,6 @@ def dummy_hf_models_path(tmp_path):
   # Copy the entire folder to tmp_path
   target_folder = tmp_path / "hf_mbart_model"
   shutil.copytree(original_dummy_path, target_folder)
-
-  # Update the config.yaml to override the app_id with the ephemeral one
-  config_yaml_path = target_folder / "config.yaml"
-  with config_yaml_path.open("r") as f:
-    config = yaml.safe_load(f)
-
-  # Overwrite the app_id with the newly created clarifai_app
-  config["model"]["user_id"] = CLARIFAI_USER_ID
-
-  # Rewrite config.yaml
-  with config_yaml_path.open("w") as f:
-    yaml.dump(config, f, sort_keys=False)
 
   return str(target_folder)
 
@@ -172,7 +143,7 @@ def test_hf_test_model_success(hf_model_run_locally):
   """
   # get whatever stage is in config.yaml to force download now
   # also always write to where upload/build wants to, not the /tmp folder that runtime stage uses
-  _, _, _, when = hf_model_run_locally.builder._validate_config_checkpoints()
+  _, _, _, when, _, _ = hf_model_run_locally.builder._validate_config_checkpoints()
   hf_model_run_locally.builder.download_checkpoints(
       stage=when, checkpoint_path_override=hf_model_run_locally.builder.checkpoint_path)
   hf_model_run_locally.create_temp_venv()

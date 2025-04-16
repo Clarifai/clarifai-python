@@ -2,23 +2,35 @@ import datetime
 import json
 import logging
 
-from rich.logging import RichHandler
-
-from clarifai.utils.logging import JsonFormatter, _get_library_name, get_logger, set_logger_context
+from clarifai.utils.logging import (JsonFormatter, TerminalFormatter, _get_library_name,
+                                    get_logger, set_logger_context)
 
 
 def test_get_logger():
   logger = get_logger("DEBUG", "test_logger")
   assert logger.level == logging.DEBUG
   assert logger.name == "test_logger"
-  assert isinstance(logger.handlers[0], RichHandler)
+  assert isinstance(logger.handlers[0], logging.StreamHandler)
+  assert isinstance(logger.handlers[0].formatter, TerminalFormatter)
 
 
 def test_get_logger_defaults():
   logger = get_logger()
   assert logger.level == logging.NOTSET
   assert logger.name == _get_library_name()
-  assert isinstance(logger.handlers[0], RichHandler)
+  assert isinstance(logger.handlers[0], logging.StreamHandler)
+  assert isinstance(logger.handlers[0].formatter, TerminalFormatter)
+
+
+def test_get_json_logger_defaults(monkeypatch):
+  # with env setting of ENABLE_JSON_LOGGER to true
+  # we should get a json logger.
+  monkeypatch.setenv("ENABLE_JSON_LOGGER", "true")
+  logger = get_logger()
+  assert logger.level == logging.NOTSET
+  assert logger.name == _get_library_name()
+  assert isinstance(logger.handlers[0], logging.StreamHandler)
+  assert isinstance(logger.handlers[0].formatter, JsonFormatter)
 
 
 def test_json_logger():

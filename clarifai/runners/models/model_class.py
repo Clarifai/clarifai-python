@@ -11,6 +11,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from google.protobuf import json_format
 
 from clarifai.runners.utils import data_types
+from clarifai.runners.utils.data_utils import DataConverter
 from clarifai.runners.utils.method_signatures import (build_function_signature, deserialize,
                                                       get_stream_from_signature, serialize,
                                                       signatures_to_json)
@@ -29,7 +30,8 @@ class ModelClass(ABC):
   Example:
 
     from clarifai.runners.model_class import ModelClass
-    from clarifai.runners.utils.data_types import NamedFields, Stream
+    from clarifai.runners.utils.data_types import NamedFields
+    from typing import List, Iterator
 
     class MyModel(ModelClass):
 
@@ -38,12 +40,12 @@ class ModelClass(ABC):
         return [x] * y
 
       @ModelClass.method
-      def generate(self, x: str, y: int) -> Stream[str]:
+      def generate(self, x: str, y: int) -> Iterator[str]:
         for i in range(y):
           yield x + str(i)
 
       @ModelClass.method
-      def stream(self, input_stream: Stream[NamedFields(x=str, y=int)]) -> Stream[str]:
+      def stream(self, input_stream: Iterator[NamedFields(x=str, y=int)]) -> Iterator[str]:
         for item in input_stream:
           yield item.x + ' ' + str(item.y)
   '''
@@ -52,6 +54,11 @@ class ModelClass(ABC):
   def method(func):
     setattr(func, _METHOD_INFO_ATTR, _MethodInfo(func))
     return func
+
+  def set_output_context(self, prompt_tokens=None, completion_tokens=None):
+    """This is used to set the prompt and completion tokens in the Output proto"""
+    self._prompt_tokens = prompt_tokens
+    self._completion_tokens = completion_tokens
 
   def load_model(self):
     """Load the model."""
@@ -96,16 +103,29 @@ class ModelClass(ABC):
       method_info = method._cf_method_info
       signature = method_info.signature
       python_param_types = method_info.python_param_types
+      for input in request.inputs:
+        # check if input is in old format
+        is_convert = DataConverter.is_old_format(input.data)
+        if is_convert:
+          # convert to new format
+          new_data = DataConverter.convert_input_data_to_new_format(input.data,
+                                                                    signature.input_fields)
+          input.data.CopyFrom(new_data)
+      # convert inputs to python types
       inputs = self._convert_input_protos_to_python(request.inputs, inference_params,
                                                     signature.input_fields, python_param_types)
       if len(inputs) == 1:
         inputs = inputs[0]
         output = method(**inputs)
-        outputs.append(self._convert_output_to_proto(output, signature.output_fields))
+        outputs.append(
+            self._convert_output_to_proto(
+                output, signature.output_fields, convert_old_format=is_convert))
       else:
         outputs = self._batch_predict(method, inputs)
         outputs = [
-            self._convert_output_to_proto(output, signature.output_fields) for output in outputs
+            self._convert_output_to_proto(
+                output, signature.output_fields, convert_old_format=is_convert)
+            for output in outputs
         ]
 
       return service_pb2.MultiOutputResponse(
@@ -130,14 +150,25 @@ class ModelClass(ABC):
       method_info = method._cf_method_info
       signature = method_info.signature
       python_param_types = method_info.python_param_types
-
+      for input in request.inputs:
+        # check if input is in old format
+        is_convert = DataConverter.is_old_format(input.data)
+        if is_convert:
+          # convert to new format
+          new_data = DataConverter.convert_input_data_to_new_format(input.data,
+                                                                    signature.input_fields)
+          input.data.CopyFrom(new_data)
       inputs = self._convert_input_protos_to_python(request.inputs, inference_params,
                                                     signature.input_fields, python_param_types)
       if len(inputs) == 1:
         inputs = inputs[0]
         for output in method(**inputs):
           resp = service_pb2.MultiOutputResponse()
-          self._convert_output_to_proto(output, signature.output_fields, proto=resp.outputs.add())
+          self._convert_output_to_proto(
+              output,
+              signature.output_fields,
+              proto=resp.outputs.add(),
+              convert_old_format=is_convert)
           resp.status.code = status_code_pb2.SUCCESS
           yield resp
       else:
@@ -145,7 +176,10 @@ class ModelClass(ABC):
           resp = service_pb2.MultiOutputResponse()
           for output in outputs:
             self._convert_output_to_proto(
-                output, signature.output_fields, proto=resp.outputs.add())
+                output,
+                signature.output_fields,
+                proto=resp.outputs.add(),
+                convert_old_format=is_convert)
           resp.status.code = status_code_pb2.SUCCESS
           yield resp
     except Exception as e:
@@ -178,6 +212,14 @@ class ModelClass(ABC):
         raise ValueError("Streaming method must have a Stream input")
       stream_argname = stream_sig.name
 
+      for input in request.inputs:
+        # check if input is in old format
+        is_convert = DataConverter.is_old_format(input.data)
+        if is_convert:
+          # convert to new format
+          new_data = DataConverter.convert_input_data_to_new_format(input.data,
+                                                                    signature.input_fields)
+          input.data.CopyFrom(new_data)
       # convert all inputs for the first request, including the first stream value
       inputs = self._convert_input_protos_to_python(request.inputs, inference_params,
                                                     signature.input_fields, python_param_types)
@@ -201,7 +243,11 @@ class ModelClass(ABC):
 
       for output in method(**kwargs):
         resp = service_pb2.MultiOutputResponse()
-        self._convert_output_to_proto(output, signature.output_fields, proto=resp.outputs.add())
+        self._convert_output_to_proto(
+            output,
+            signature.output_fields,
+            proto=resp.outputs.add(),
+            convert_old_format=is_convert)
         resp.status.code = status_code_pb2.SUCCESS
         yield resp
     except Exception as e:
@@ -225,8 +271,8 @@ class ModelClass(ABC):
         if k not in python_param_types:
           continue
 
-        if hasattr(python_param_types[k], "__args__") and getattr(
-            python_param_types[k], "__origin__", None) == data_types.Stream:
+        if hasattr(python_param_types[k], "__args__") and getattr(python_param_types[k],
+                                                                  "__origin__", None) == Iterator:
           # get the type of the items in the stream
           stream_type = python_param_types[k].__args__[0]
 
@@ -239,11 +285,22 @@ class ModelClass(ABC):
   def _convert_output_to_proto(self,
                                output: Any,
                                variables_signature: List[resources_pb2.ModelTypeField],
-                               proto=None) -> resources_pb2.Output:
+                               proto=None,
+                               convert_old_format=False) -> resources_pb2.Output:
     if proto is None:
       proto = resources_pb2.Output()
     serialize({'return': output}, variables_signature, proto.data, is_output=True)
+    if convert_old_format:
+      # convert to old format
+      data = DataConverter.convert_output_data_to_old_format(proto.data)
+      proto.data.CopyFrom(data)
     proto.status.code = status_code_pb2.SUCCESS
+    if hasattr(self, "_prompt_tokens") and self._prompt_tokens is not None:
+      proto.prompt_tokens = self._prompt_tokens
+    if hasattr(self, "_completion_tokens") and self._completion_tokens is not None:
+      proto.completion_tokens = self._completion_tokens
+    self._prompt_tokens = None
+    self._completion_tokens = None
     return proto
 
   @classmethod

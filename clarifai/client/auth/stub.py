@@ -1,5 +1,4 @@
 import itertools
-import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -8,7 +7,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.client.auth.register import RpcCallable, V2Stub
-
+from clarifai.utils.logging import logger
 throttle_status_codes = {
     status_code_pb2.CONN_THROTTLED,
     status_code_pb2.CONN_EXCEED_HOURLY_LIMIT,
@@ -26,7 +25,7 @@ def validate_response(response, attempt, max_attempts):
   def handle_simple_response(response):
     if hasattr(response, 'status') and hasattr(response.status, 'code'):
       if (response.status.code in throttle_status_codes) and attempt < max_attempts:
-        logging.debug('Retrying with status %s' % str(response.status))
+        logger.debug('Retrying with status %s' % str(response.status))
         return None  # Indicates a retry is needed
       else:
         return response
@@ -42,7 +41,7 @@ def validate_response(response, attempt, max_attempts):
         return itertools.chain([validated_response], response)
       return None  # Indicates a retry is needed
     except grpc.RpcError as e:
-      logging.error('Error processing streaming response: %s' % str(e))
+      logger.error('Error processing streaming response: %s' % str(e))
       return None  # Indicates an error
   else:
     # Handle simple response validation
@@ -143,7 +142,7 @@ class _RetryRpcCallable(RpcCallable):
           return v
       except grpc.RpcError as e:
         if (e.code() in retry_codes_grpc) and attempt < self.max_attempts:
-          logging.debug('Retrying with status %s' % e.code())
+          logger.debug('Retrying with status %s' % e.code())
         else:
           raise
 

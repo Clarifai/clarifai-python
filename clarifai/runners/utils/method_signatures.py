@@ -1,3 +1,4 @@
+import collections.abc as abc
 import inspect
 import json
 from collections import namedtuple
@@ -11,6 +12,7 @@ from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.message import Message as MessageProto
 
 from clarifai.runners.utils import data_types, data_utils
+from clarifai.runners.utils.code_script import _get_base_type, _parse_default_value
 from clarifai.runners.utils.serializers import (
     AtomicFieldSerializer, JSONSerializer, ListSerializer, MessageSerializer,
     NamedFieldsSerializer, NDArraySerializer, Serializer, TupleSerializer)
@@ -86,6 +88,48 @@ def build_function_signature(func):
 #     annotations["return"] = ast.unparse(func_node.returns)
 
 #   return annotations
+
+
+def _process_input_field(field: resources_pb2.ModelTypeField) -> str:
+  base_type = _get_base_type(field)
+  if field.iterator:
+    type_str = f"Iterator[{base_type}]"
+  else:
+    type_str = base_type
+  default = _parse_default_value(field)
+  param = f"{field.name}: {type_str}"
+  if default is not None:
+    param += f" = {default}"
+  return param
+
+
+def _process_output_field(field: resources_pb2.ModelTypeField) -> str:
+  base_type = _get_base_type(field)
+  if field.iterator:
+    return f"Iterator[{base_type}]"
+  else:
+    return base_type
+
+
+def get_method_signature(method_signature: resources_pb2.MethodSignature) -> str:
+  """
+    Get the method signature of a method in a model.
+    """
+  # Process input fields
+  input_params = []
+  for input_field in method_signature.input_fields:
+    param_str = _process_input_field(input_field)
+    input_params.append(param_str)
+
+  # Process output field
+  if not method_signature.output_fields:
+    raise ValueError("MethodSignature must have at least one output field")
+  output_field = method_signature.output_fields[0]
+  return_type = _process_output_field(output_field)
+
+  # Generate function signature
+  function_def = f"def {method_signature.name}({', '.join(input_params)}) -> {return_type}:"
+  return function_def
 
 
 def build_variable_signature(name, annotation, default=inspect.Parameter.empty, is_output=False):
@@ -243,6 +287,8 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
       continue  # skip missing fields, they can be set to default on the server
     data = kwargs[sig.name]
     serializer = serializer_from_signature(sig)
+    # TODO determine if any (esp the first) var can go in the proto without parts
+    # and whether to put this in the signature or dynamically determine it
     # add the part to the proto
     part = proto.parts.add()
     part.id = sig.name
@@ -309,7 +355,7 @@ def _normalize_type(tp):
   '''
   # stream type indicates streaming, not part of the data itself
   # it can only be used at the top-level of the var type
-  streaming = (get_origin(tp) == data_types.Stream)
+  streaming = (get_origin(tp) in [abc.Iterator, abc.Generator, abc.Iterable])
   if streaming:
     tp = get_args(tp)[0]
 

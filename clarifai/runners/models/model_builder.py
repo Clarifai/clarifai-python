@@ -192,17 +192,21 @@ class ModelBuilder:
   def _validate_config_checkpoints(self):
     """
     Validates the checkpoints section in the config file.
+      return loader_type, repo_id, hf_token, when, allowed_file_patterns, ignore_file_patterns
     :return: loader_type the type of loader or None if no checkpoints.
     :return: repo_id location of checkpoint.
     :return: hf_token token to access checkpoint.
+    :return: when one of ['upload', 'build', 'runtime'] to download checkpoint
+    :return: allowed_file_patterns patterns to allow in downloaded checkpoint
+    :return: ignore_file_patterns patterns to ignore in downloaded checkpoint
     """
     if "checkpoints" not in self.config:
-      return None, None, None, DEFAULT_DOWNLOAD_CHECKPOINT_WHEN
+      return None, None, None, DEFAULT_DOWNLOAD_CHECKPOINT_WHEN, None, None
     assert "type" in self.config.get("checkpoints"), "No loader type specified in the config file"
     loader_type = self.config.get("checkpoints").get("type")
     if not loader_type:
       logger.info("No loader type specified in the config file for checkpoints")
-      return None, None, None
+      return None, None, None, DEFAULT_DOWNLOAD_CHECKPOINT_WHEN, None, None
     checkpoints = self.config.get("checkpoints")
     if 'when' not in checkpoints:
       logger.warn(
@@ -221,14 +225,29 @@ class ModelBuilder:
 
       # get from config.yaml otherwise fall back to HF_TOKEN env var.
       hf_token = self.config.get("checkpoints").get("hf_token", os.environ.get("HF_TOKEN", None))
-      return loader_type, repo_id, hf_token, when
+
+      allowed_file_patterns = self.config.get("checkpoints").get('allowed_file_patterns', None)
+      if isinstance(allowed_file_patterns, str):
+        allowed_file_patterns = [allowed_file_patterns]
+      ignore_file_patterns = self.config.get("checkpoints").get('ignore_file_patterns', None)
+      if isinstance(ignore_file_patterns, str):
+        ignore_file_patterns = [ignore_file_patterns]
+      return loader_type, repo_id, hf_token, when, allowed_file_patterns, ignore_file_patterns
 
   def _check_app_exists(self):
     resp = self.client.STUB.GetApp(service_pb2.GetAppRequest(user_app_id=self.client.user_app_id))
     if resp.status.code == status_code_pb2.SUCCESS:
       return True
+    if resp.status.code == status_code_pb2.CONN_KEY_INVALID:
+      logger.error(
+          f"Invalid PAT provided for user {self.client.user_app_id.user_id}. Please check your PAT and try again."
+      )
+      return False
     logger.error(
         f"Error checking API {self._base_api} for user app {self.client.user_app_id.user_id}/{self.client.user_app_id.app_id}. Error code: {resp.status.code}"
+    )
+    logger.error(
+        f"App {self.client.user_app_id.app_id} not found for user {self.client.user_app_id.user_id}. Please create the app first and try again."
     )
     return False
 
@@ -250,9 +269,6 @@ class ModelBuilder:
     assert model.get('id') != "", "model_id cannot be empty in the config file"
 
     if not self._check_app_exists():
-      logger.error(
-          f"App {self.client.user_app_id.app_id} not found for user {self.client.user_app_id.user_id}"
-      )
       sys.exit(1)
 
   def _validate_config(self):
@@ -266,7 +282,7 @@ class ModelBuilder:
         assert model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
 
     if self.config.get("checkpoints"):
-      loader_type, _, hf_token, _ = self._validate_config_checkpoints()
+      loader_type, _, hf_token, _, _, _ = self._validate_config_checkpoints()
 
       if loader_type == "huggingface" and hf_token:
         is_valid_token = HuggingFaceLoader.validate_hftoken(hf_token)
@@ -282,7 +298,7 @@ class ModelBuilder:
           f"`num_threads` must be an integer greater than or equal to 1. Received type {type(num_threads)} with value {num_threads}."
       )
     else:
-      num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 1))
+      num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 16))
       self.config["num_threads"] = num_threads
 
   @staticmethod
@@ -354,8 +370,9 @@ class ModelBuilder:
 
     assert "model_type_id" in model, "model_type_id not found in the config file"
     assert "id" in model, "model_id not found in the config file"
-    assert "user_id" in model, "user_id not found in the config file"
-    assert "app_id" in model, "app_id not found in the config file"
+    if not self.download_validation_only:
+      assert "user_id" in model, "user_id not found in the config file"
+      assert "app_id" in model, "app_id not found in the config file"
 
     model_proto = json_format.ParseDict(model, resources_pb2.Model())
 
@@ -466,11 +483,12 @@ class ModelBuilder:
       # Sort in reverse so that newer cuda versions come first and are preferred.
       for image in sorted(AVAILABLE_TORCH_IMAGES, reverse=True):
         if torch_version in image and f'py{python_version}' in image:
-          cuda_version = image.split('-')[-1].replace('cuda', '')
+          # like cu124, rocm6.3, etc.
+          gpu_version = image.split('-')[-1]
           final_image = TORCH_BASE_IMAGE.format(
               torch_version=torch_version,
               python_version=python_version,
-              cuda_version=cuda_version,
+              gpu_version=gpu_version,
           )
           logger.info(f"Using Torch version {torch_version} base image to build the Docker image")
           break
@@ -547,8 +565,10 @@ class ModelBuilder:
     if not self.config.get("checkpoints"):
       logger.info("No checkpoints specified in the config file")
       return path
+    clarifai_model_type_id = self.config.get('model').get('model_type_id')
 
-    loader_type, repo_id, hf_token, when = self._validate_config_checkpoints()
+    loader_type, repo_id, hf_token, when, allowed_file_patterns, ignore_file_patterns = self._validate_config_checkpoints(
+    )
     if stage not in ["build", "upload", "runtime"]:
       raise Exception("Invalid stage provided, must be one of ['build', 'upload', 'runtime']")
     if when != stage:
@@ -557,14 +577,18 @@ class ModelBuilder:
       )
       return path
 
-    success = True
+    success = False
     if loader_type == "huggingface":
-      loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
+      loader = HuggingFaceLoader(
+          repo_id=repo_id, token=hf_token, model_type_id=clarifai_model_type_id)
       # for runtime default to /tmp path
       if stage == "runtime" and checkpoint_path_override is None:
         checkpoint_path_override = self.default_runtime_checkpoint_path()
       path = checkpoint_path_override if checkpoint_path_override else self.checkpoint_path
-      success = loader.download_checkpoints(path)
+      success = loader.download_checkpoints(
+          path,
+          allowed_file_patterns=allowed_file_patterns,
+          ignore_file_patterns=ignore_file_patterns)
 
     if loader_type:
       if not success:
@@ -637,7 +661,7 @@ class ModelBuilder:
     logger.debug(f"Will tar it into file: {file_path}")
 
     model_type_id = self.config.get('model').get('model_type_id')
-    loader_type, repo_id, hf_token, when = self._validate_config_checkpoints()
+    loader_type, repo_id, hf_token, when, _, _ = self._validate_config_checkpoints()
 
     if (model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE) and 'concepts' not in self.config:
       logger.info(
@@ -685,7 +709,7 @@ class ModelBuilder:
       # First check for the env variable, then try querying huggingface. If all else fails, use the default.
       checkpoint_size = os.environ.get('CHECKPOINT_SIZE_BYTES', 0)
       if not checkpoint_size:
-        _, repo_id, _, _ = self._validate_config_checkpoints()
+        _, repo_id, _, _, _, _ = self._validate_config_checkpoints()
         checkpoint_size = HuggingFaceLoader.get_huggingface_checkpoint_total_size(repo_id)
       if not checkpoint_size:
         checkpoint_size = self.DEFAULT_CHECKPOINT_SIZE

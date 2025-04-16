@@ -11,7 +11,6 @@ import traceback
 import venv
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
-
 from clarifai.runners.models.model_builder import ModelBuilder
 from clarifai.utils.logging import logger
 
@@ -103,11 +102,6 @@ class ModelRunLocally:
             ))
         ],
     )
-
-  def _build_stream_request(self):
-    request = self._build_request()
-    for i in range(1):
-      yield request
 
   def _run_test(self):
     """Test the model locally by making a prediction."""
@@ -404,39 +398,33 @@ def main(model_path,
          inside_container=False,
          port=8080,
          keep_env=False,
-         keep_image=False):
+         keep_image=False,
+         skip_dockerfile: bool = False):
 
-  if not os.environ.get("CLARIFAI_PAT", None):
-    logger.error(
-        "CLARIFAI_PAT environment variable is not set! Please set your PAT in the 'CLARIFAI_PAT' environment variable."
-    )
-    sys.exit(1)
   manager = ModelRunLocally(model_path)
   # get whatever stage is in config.yaml to force download now
   # also always write to where upload/build wants to, not the /tmp folder that runtime stage uses
-  _, _, _, when = manager.builder._validate_config_checkpoints()
+  _, _, _, when, _, _ = manager.builder._validate_config_checkpoints()
   manager.builder.download_checkpoints(
       stage=when, checkpoint_path_override=manager.builder.checkpoint_path)
   if inside_container:
     if not manager.is_docker_installed():
       sys.exit(1)
-    manager.builder.create_dockerfile()
+    if not skip_dockerfile:
+      manager.builder.create_dockerfile()
     image_tag = manager._docker_hash()
-    image_name = f"{manager.config['model']['id']}:{image_tag}"
-    container_name = manager.config['model']['id']
+    model_id = manager.config['model']['id'].lower()
+    # must be in lowercase
+    image_name = f"{model_id}:{image_tag}"
+    container_name = model_id
     if not manager.docker_image_exists(image_name):
       manager.build_docker_image(image_name=image_name)
     try:
-      envs = {
-          'CLARIFAI_PAT': os.environ['CLARIFAI_PAT'],
-          'CLARIFAI_API_BASE': os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
-      }
       if run_model_server:
         manager.run_docker_container(
-            image_name=image_name, container_name=container_name, port=port, env_vars=envs)
+            image_name=image_name, container_name=container_name, port=port)
       else:
-        manager.test_model_container(
-            image_name=image_name, container_name=container_name, env_vars=envs)
+        manager.test_model_container(image_name=image_name, container_name=container_name)
     finally:
       if manager.container_exists(container_name):
         manager.stop_docker_container(container_name)

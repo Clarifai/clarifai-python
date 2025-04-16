@@ -83,10 +83,6 @@ class NamedFields(metaclass=NamedFieldsMeta):
     return list(self.keys())
 
 
-class Stream(Iterable):
-  pass
-
-
 class JSON:
 
   def __init__(self, value):
@@ -97,6 +93,9 @@ class JSON:
 
   def __bool__(self):
     return bool(self.value)
+
+  def __repr__(self):
+    return f"JSON({self.value})"
 
   def to_json(self):
     return json.dumps(self.value)
@@ -130,6 +129,9 @@ class Text(MessageData):
 
   def __bool__(self):
     return bool(self.text) or bool(self.url)
+
+  def __repr__(self) -> str:
+    return f"Text(text={self.text!r}, url={self.url!r})"
 
   def to_proto(self) -> TextProto:
     return TextProto(raw=self.text or '', url=self.url or '')

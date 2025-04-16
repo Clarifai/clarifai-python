@@ -11,12 +11,12 @@ import uuid
 import pytest
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
-from clarifai_protocol.utils.logging import logger
 from google.protobuf import json_format
 
 from clarifai.client import BaseClient, Model, User
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.runners.models.model_runner import ModelRunner
+from clarifai.utils.logging import logger
 
 MY_MODEL_PATH = os.path.join(os.path.dirname(__file__), "dummy_runner_models", "1", "model.py")
 
@@ -261,7 +261,7 @@ class TestRunnerServer:
     for i, res in enumerate(stub.GenerateModelOutputs(req)):
       self._validate_response(res, text + out.format(i=i))
 
-  # @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
+  @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
   def test_stream(self):
     text = "This is a long text for testing stream"
     out = "Stream Hello World {i}"
@@ -368,7 +368,7 @@ class TestRunnerServer:
       for i, res in enumerate(model_response):
         self._validate_response(res, text + out.format(i=i))
 
-  # @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
+  @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
   def test_client_stream(self):
     text = "This is a long text for testing stream"
     out = "Stream Hello World {i}"

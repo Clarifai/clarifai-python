@@ -1,3 +1,4 @@
+import inspect
 import time
 from typing import Any, Dict, Iterator, List
 
@@ -6,6 +7,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 
 from clarifai.constants.model import MAX_MODEL_PREDICT_INPUTS
 from clarifai.errors import UserError
+from clarifai.runners.utils import code_script, method_signatures
 from clarifai.runners.utils.data_utils import is_openai_chat_format
 from clarifai.runners.utils.method_signatures import (CompatibilitySerializer, deserialize,
                                                       get_stream_from_signature, serialize,
@@ -57,12 +59,41 @@ class ModelClient:
       Returns:
           Dict: The method signatures.
       '''
-    #request = resources_pb2.GetModelSignaturesRequest()
-    #response = self.stub.GetModelSignatures(request)
-    #self._method_signatures = json.loads(response.signatures)  # or define protos
-    # TODO this could use a new endpoint to get the signatures
-    # for local grpc models, we'll also have to add the endpoint to the model servicer
-    # for now we'll just use the predict endpoint with a special method name
+    try:
+      response = self.STUB.GetModelVersion(
+          service_pb2.GetModelVersionRequest(
+              user_app_id=self.request_template.user_app_id,
+              model_id=self.request_template.model_id,
+              version_id=self.request_template.version_id,
+          ))
+
+      method_signatures = None
+      if response.status.code == status_code_pb2.SUCCESS:
+        method_signatures = response.model_version.method_signatures
+      if response.status.code != status_code_pb2.SUCCESS:
+        raise Exception(f"Model failed with response {response!r}")
+      self._method_signatures = {}
+      for method_signature in method_signatures:
+        method_name = method_signature.name
+        # check for duplicate method names
+        if method_name in self._method_signatures:
+          raise ValueError(f"Duplicate method name {method_name}")
+        self._method_signatures[method_name] = method_signature
+      if not self._method_signatures:  # if no method signatures, try to fetch from the model
+        self._fetch_signatures_backup()
+    except Exception:
+      # try to fetch from the model
+      self._fetch_signatures_backup()
+      if not self._method_signatures:
+        raise ValueError("Failed to fetch method signatures from model and backup method")
+
+  def _fetch_signatures_backup(self):
+    '''
+      This is a temporary method of fetching the method signatures from the model.
+
+      Returns:
+          Dict: The method signatures.
+      '''
 
     request = service_pb2.PostModelOutputsRequest()
     request.CopyFrom(self.request_template)
@@ -148,19 +179,58 @@ class ModelClient:
       # set names, annotations and docstrings
       f.__name__ = method_name
       f.__qualname__ = f'{self.__class__.__name__}.{method_name}'
-      # TODO: set signature from annotations to the function, currently  MethodSignature don't have `annotations_json` field
-      # input_annotations = json.loads(method_signature.annotations_json)
-      # return_annotation = input_annotations.pop('return', None)
-      # sig = inspect.signature(f).replace(
-      #     parameters=[
-      #         inspect.Parameter(k, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=v)
-      #         for k, v in input_annotations.items()
-      #     ],
-      #     return_annotation=return_annotation,
-      # )
-      # f.__signature__ = sig
+      input_annotations = code_script._get_annotations_source(method_signature)
+      return_annotation = input_annotations.pop('return', (None, None))[0]
+      sig = inspect.signature(f).replace(
+          parameters=[
+              inspect.Parameter(k, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=v[0])
+              for k, v in input_annotations.items()
+          ],
+          return_annotation=return_annotation,
+      )
+      f.__signature__ = sig
       f.__doc__ = method_signature.description
       setattr(self, method_name, f)
+
+  def available_methods(self) -> List[str]:
+    """Get the available methods for this model.
+
+    Returns:
+        List[str]: The available methods.
+    """
+    if not self._defined:
+      self.fetch()
+    return self._method_signatures.keys()
+
+  def method_signature(self, method_name: str) -> str:
+    """Get the method signature for a method.
+
+    Args:
+        method_name (str): The name of the method.
+
+    Returns:
+        str: The method signature.
+    """
+    if not self._defined:
+      self.fetch()
+    return method_signatures.get_method_signature(self._method_signatures[method_name])
+
+  def generate_client_script(self) -> str:
+    """Generate a client script for this model.
+
+    Returns:
+        str: The client script.
+    """
+    if not self._defined:
+      self.fetch()
+    method_signatures = []
+    for _, method_signature in self._method_signatures.items():
+      method_signatures.append(method_signature)
+    return code_script.generate_client_script(
+        method_signatures,
+        user_id=self.request_template.user_app_id.user_id,
+        app_id=self.request_template.user_app_id.app_id,
+        model_id=self.request_template.model_id)
 
   def _define_compatability_functions(self):
 
@@ -265,7 +335,6 @@ class ModelClient:
       if response.status.code != status_code_pb2.SUCCESS:
         raise Exception(f"Model predict failed with response {response!r}")
       break
-
     return response
 
   def _generate(

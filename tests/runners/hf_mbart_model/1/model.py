@@ -1,10 +1,10 @@
 import os
+from typing import Iterator
 
 import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 from clarifai.runners.models.model_class import ModelClass
-from clarifai.runners.utils.data_types import Stream
 
 
 class MyModel(ModelClass):
@@ -31,10 +31,10 @@ class MyModel(ModelClass):
     output_text = self.tokenizer.decode(outputs[0])
     return output_text
 
-  def generate(self, prompt: str = "") -> Stream[str]:
+  def generate(self, prompt: str = "") -> Iterator[str]:
     """Example yielding a whole batch of streamed stuff back."""
     raise NotImplementedError("This method is not implemented yet.")
 
-  def stream(self, input_iterator: Stream[str]) -> Stream[str]:
+  def stream(self, input_iterator: Iterator[str]) -> Iterator[str]:
     """Example yielding a whole batch of streamed stuff back."""
     raise NotImplementedError("This method is not implemented yet.")

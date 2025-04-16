@@ -1,6 +1,8 @@
 from io import BytesIO
+
 from typing import Dict, List
 
+from clarifai_grpc.grpc.api import resources_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeEnumOption
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeField as InputFieldProto
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeRangeInfo
@@ -180,21 +182,21 @@ def _process_video(video: Video) -> Dict:
 class InputField(MessageData):
   """A field that can be used to store input data."""
 
-  def __init__(self,
-               default=None,
-               description=None,
-               min_value=None,
-               max_value=None,
-               choices=None,
-               visibility=True,
-               is_param=False):
+  def __init__(
+      self,
+      default=None,
+      description=None,
+      min_value=None,
+      max_value=None,
+      choices=None,
+      #  is_param=True
+  ):
     self.default = default
     self.description = description
     self.min_value = min_value
     self.max_value = max_value
     self.choices = choices
-    self.visibility = visibility
-    self.is_param = is_param
+    # self.is_param = is_param
 
   def __repr__(self) -> str:
     attrs = []
@@ -208,8 +210,7 @@ class InputField(MessageData):
       attrs.append(f"max_value={self.max_value!r}")
     if self.choices is not None:
       attrs.append(f"choices={self.choices!r}")
-    attrs.append(f"visibility={self.visibility!r}")
-    attrs.append(f"is_param={self.is_param!r}")
+    # attrs.append(f"is_param={self.is_param!r}")
     return f"InputField({', '.join(attrs)})"
 
   def to_proto(self, proto=None) -> InputFieldProto:
@@ -232,9 +233,7 @@ class InputField(MessageData):
       if self.max_value is not None:
         range_info.max = float(self.max_value)
       proto.model_type_range_info.CopyFrom(range_info)
-
-    proto.visibility = self.visibility
-    proto.is_param = self.is_param
+    # proto.is_param = self.is_param
 
     if self.default is not None:
       if isinstance(self.default, str) or isinstance(self.default, bool) or isinstance(
@@ -286,8 +285,8 @@ class InputField(MessageData):
         min_value=min_value,
         max_value=max_value,
         choices=choices,
-        visibility=proto.visibility,
-        is_param=proto.is_param)
+        # is_param=proto.is_param
+    )
 
   @classmethod
   def set_default(cls, proto=None, default=None):
@@ -302,3 +301,158 @@ class InputField(MessageData):
         import json
         proto.default = json.dumps(default)
     return proto
+
+
+class DataConverter:
+  """A class that can be used to convert data to and from a specific format."""
+
+  @classmethod
+  def convert_input_data_to_new_format(
+      cls, data: resources_pb2.Data,
+      input_fields: List[resources_pb2.ModelTypeField]) -> resources_pb2.Data:
+    """Convert input data to new format."""
+    new_data = resources_pb2.Data()
+    for field in input_fields:
+      part_data = cls._convert_field(data, field)
+      if cls._is_data_set(part_data):
+        # if the field is set, add it to the new data part
+        part = new_data.parts.add()
+        part.id = field.name
+        part.data.CopyFrom(part_data)
+      else:
+        if field.required:
+          raise ValueError(f"Field {field.name} is required but not set")
+    return new_data
+
+  @classmethod
+  def _convert_field(cls, old_data: resources_pb2.Data,
+                     field: resources_pb2.ModelTypeField) -> resources_pb2.Data:
+    data_type = field.type
+    new_data = resources_pb2.Data()
+    if data_type == resources_pb2.ModelTypeField.DataType.STR:
+      if old_data.HasField('text'):
+        new_data.string_value = old_data.text.raw
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.IMAGE:
+      if old_data.HasField('image'):
+        new_data.image.CopyFrom(old_data.image)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.VIDEO:
+      if old_data.HasField('video'):
+        new_data.video.CopyFrom(old_data.video)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.BOOL:
+      if old_data.bool_value is not False:
+        new_data.bool_value = old_data.bool_value
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.INT:
+      if old_data.int_value != 0:
+        new_data.int_value = old_data.int_value
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.FLOAT:
+      if old_data.float_value != 0.0:
+        new_data.float_value = old_data.float_value
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.BYTES:
+      if old_data.bytes_value != b"":
+        new_data.bytes_value = old_data.bytes_value
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.NDARRAY:
+      if old_data.HasField('ndarray'):
+        new_data.ndarray.CopyFrom(old_data.ndarray)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.TEXT:
+      if old_data.HasField('text'):
+        new_data.text.CopyFrom(old_data.text)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.AUDIO:
+      if old_data.HasField('audio'):
+        new_data.audio.CopyFrom(old_data.audio)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.CONCEPT:
+      if old_data.concepts:
+        new_data.concepts.extend(old_data.concepts)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.REGION:
+      if old_data.regions:
+        new_data.regions.extend(old_data.regions)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.FRAME:
+      if old_data.frames:
+        new_data.frames.extend(old_data.frames)
+      return new_data
+    elif data_type == resources_pb2.ModelTypeField.DataType.LIST:
+      if not field.type_args:
+        raise ValueError("LIST type requires type_args")
+      element_field = field.type_args[0]
+      if element_field in (resources_pb2.ModelTypeField.DataType.CONCEPT,
+                           resources_pb2.ModelTypeField.DataType.REGION,
+                           resources_pb2.ModelTypeField.DataType.FRAME):
+        # convert to new format
+        new_data = cls._convert_field(old_data, element_field)
+      return new_data
+    else:
+      return new_data
+      # raise ValueError(f"Unsupported data type: {data_type}")
+
+  @classmethod
+  def is_old_format(cls, data: resources_pb2.Data) -> bool:
+    """Check if the Data proto is in the old format (without parts)."""
+    if len(data.parts) > 0:
+      return False  # New format uses parts
+
+    # Check if any singular field is set
+    singular_fields = [
+        'image', 'video', 'metadata', 'geo', 'text', 'audio', 'ndarray', 'int_value',
+        'float_value', 'bytes_value', 'bool_value', 'string_value'
+    ]
+    for field in singular_fields:
+      if data.HasField(field):
+        return True
+
+    # Check if any repeated field has elements
+    repeated_fields = [
+        'concepts', 'colors', 'clusters', 'embeddings', 'regions', 'frames', 'tracks',
+        'time_segments', 'hits', 'heatmaps'
+    ]
+    for field in repeated_fields:
+      if getattr(data, field):
+        return True
+
+    return False
+
+  @classmethod
+  def convert_output_data_to_old_format(cls, data: resources_pb2.Data) -> resources_pb2.Data:
+    """Convert output data to old format."""
+    old_data = resources_pb2.Data()
+    part_data = data.parts[0].data
+    # Handle text.raw specially (common case for text outputs)
+    old_data = part_data
+    if old_data.string_value:
+      old_data.text.raw = old_data.string_value
+
+    return old_data
+
+  @classmethod
+  def _is_data_set(cls, data_msg):
+    # Singular message fields
+    singular_fields = ["image", "video", "metadata", "geo", "text", "audio", "ndarray"]
+    for field in singular_fields:
+      if data_msg.HasField(field):
+        return True
+
+    # Repeated fields
+    repeated_fields = [
+        "concepts", "colors", "clusters", "embeddings", "regions", "frames", "tracks",
+        "time_segments", "hits", "heatmaps", "parts"
+    ]
+    for field in repeated_fields:
+      if getattr(data_msg, field):  # checks if the list is not empty
+        return True
+
+    # Scalar fields (proto3 default: 0 for numbers, empty for strings/bytes, False for bool)
+    if (data_msg.int_value != 0 or data_msg.float_value != 0.0 or data_msg.bytes_value != b"" or
+        data_msg.bool_value is True or data_msg.string_value != ""):
+      return True
+
+    return False

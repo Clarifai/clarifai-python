@@ -2,7 +2,7 @@ import functools
 import os
 import sys
 import unittest
-from typing import Dict, List, Tuple
+from typing import Dict, Iterator, List, Tuple
 
 import numpy as np
 from clarifai_grpc.grpc.api import resources_pb2
@@ -17,7 +17,7 @@ from clarifai.client.model_client import ModelClient
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.models.model_servicer import ModelServicer
 from clarifai.runners.utils.data_types import (Audio, Concept, Frame, Image, NamedFields, Region,
-                                               Stream, Text, Video)
+                                               Text, Video)
 from clarifai.runners.utils.method_signatures import deserialize, serialize
 
 _ENABLE_PPRINT = os.getenv("PRINT", "false").lower() in ("true", "1")
@@ -237,7 +237,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, x: int) -> Stream[int]:
+      def f(self, x: int) -> Iterator[int]:
         for i in range(x):
           yield i
 
@@ -251,7 +251,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, x: int) -> Stream[str]:
+      def f(self, x: int) -> Iterator[str]:
         for i in range(x):
           yield int(i)
 
@@ -264,7 +264,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, x: int) -> Stream[int]:
+      def f(self, x: int) -> Iterator[int]:
         for i in range(x):
           if i == 3:
             raise ValueError('test exception')
@@ -327,7 +327,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, x: int) -> Stream[NamedFields(x=int, y=str)]:
+      def f(self, x: int) -> Iterator[NamedFields(x=int, y=str)]:
         for i in range(x):
           yield NamedFields(x=i, y=str(i))
 
@@ -485,7 +485,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, input: Stream[str]) -> Stream[str]:
+      def f(self, input: Iterator[str]) -> Iterator[str]:
         for i, x in enumerate(input):
           yield str(i) + x
 
@@ -499,7 +499,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, input_stream: Stream[str], y: int) -> Stream[str]:
+      def f(self, input_stream: Iterator[str], y: int) -> Iterator[str]:
         for i, x in enumerate(input_stream):
           yield str(i) + x + str(y)
 
@@ -513,7 +513,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, stream: Stream[NamedFields(x=str, y=str)]) -> Stream[str]:
+      def f(self, stream: Iterator[NamedFields(x=str, y=str)]) -> Iterator[str]:
         for i, input in enumerate(stream):
           yield str(i) + input.x + input.y
 
@@ -527,7 +527,7 @@ class TestModelCalls(unittest.TestCase):
     class MyModel(ModelClass):
 
       @ModelClass.method
-      def f(self, streamvar: Stream[NamedFields(x=str, y=int)], x: str) -> Stream[str]:
+      def f(self, streamvar: Iterator[NamedFields(x=str, y=int)], x: str) -> Iterator[str]:
         for i, val in enumerate(streamvar):
           yield str(i) + val.x + str(val.y) + x
 
@@ -551,13 +551,13 @@ class TestModelCalls(unittest.TestCase):
         return x + 'a'
 
       @ModelClass.method
-      def generate(self, x: str) -> Stream[int]:
+      def generate(self, x: str) -> Iterator[int]:
         """This is a generate test function."""
         return range(len(x))
 
       @ModelClass.method
-      def stream(self, stream: Stream[NamedFields(x=str, y=str)],
-                 n: int) -> Stream[NamedFields(xout=str, yout=str)]:
+      def stream(self, stream: Iterator[NamedFields(x=str, y=str)],
+                 n: int) -> Iterator[NamedFields(xout=str, yout=str)]:
         """This is a stream test function."""
         for i, input in enumerate(stream):
           yield NamedFields(xout=input.x + str(i), yout=input.y + str(n))
@@ -594,13 +594,13 @@ class TestModelCalls(unittest.TestCase):
 
     # sig = inspect.signature(client.generate)
     # sig = str(sig).replace("'", "").replace('"', '').replace(' ', '')
-    # self.assertEqual(str(sig), '(x: str) -> Stream[int]'.replace(' ', ''))
+    # self.assertEqual(str(sig), '(x: str) -> Iterator[int]'.replace(' ', ''))
 
     # sig = inspect.signature(client.stream)
     # sig = str(sig).replace("'", "").replace('"', '').replace(' ', '')
     # self.assertEqual(
     #     str(sig),
-    #     '(stream:Stream[NamedFields(x=str,y=str)],n:int)->Stream[NamedFields(xout=str,yout=str)]'.
+    #     '(stream:Iterator[NamedFields(x=str,y=str)],n:int)->Iterator[NamedFields(xout=str,yout=str)]'.
     #     replace(' ', ''))
 
   def test_nonexistent_function(self):
@@ -976,7 +976,7 @@ class TestModelCalls(unittest.TestCase):
       class MyModel(ModelClass):
 
         @ModelClass.method
-        def f(self, x: Stream[PILImage.Image]) -> Stream[PILImage.Image]:
+        def f(self, x: Iterator[PILImage.Image]) -> Iterator[PILImage.Image]:
           for i, img in enumerate(x):
             yield ImageOps.invert(img)
 

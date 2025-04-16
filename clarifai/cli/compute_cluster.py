@@ -1,51 +1,61 @@
 import click
+
 from clarifai.cli.base import cli
-from clarifai.client.user import User
-from clarifai.utils.cli import display_co_resources
+from clarifai.utils.cli import AliasedGroup, display_co_resources, validate_context
 
 
-@cli.group(['computecluster', 'cc'])
+@cli.group(['computecluster', 'cc'], cls=AliasedGroup)
 def computecluster():
   """Manage Compute Clusters: create, delete, list"""
-  pass
 
 
-@computecluster.command()
+@computecluster.command(['c'])
+@click.argument('compute_cluster_id')
 @click.option(
     '--config',
     type=click.Path(exists=True),
     required=True,
     help='Path to the compute cluster config file.')
-@click.option(
-    '-cc_id',
-    '--compute_cluster_id',
-    required=False,
-    help='New Compute Cluster ID for the compute cluster to create.')
 @click.pass_context
-def create(ctx, config, compute_cluster_id):
+def create(ctx, compute_cluster_id, config):
   """Create a new Compute Cluster with the given config file."""
-  user = User(user_id=ctx.obj['user_id'], pat=ctx.obj['pat'], base_url=ctx.obj['base_url'])
+  from clarifai.client.user import User
+  validate_context(ctx)
+  user = User(
+      user_id=ctx.obj.current.user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
   if compute_cluster_id:
     user.create_compute_cluster(config, compute_cluster_id=compute_cluster_id)
   else:
     user.create_compute_cluster(config)
 
 
-@computecluster.command()
+@computecluster.command(['ls'])
 @click.option('--page_no', required=False, help='Page number to list.', default=1)
 @click.option('--per_page', required=False, help='Number of items per page.', default=16)
 @click.pass_context
 def list(ctx, page_no, per_page):
   """List all compute clusters for the user."""
-  user = User(user_id=ctx.obj['user_id'], pat=ctx.obj['pat'], base_url=ctx.obj['base_url'])
+  from clarifai.client.user import User
+  validate_context(ctx)
+  user = User(
+      user_id=ctx.obj.current.user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
   response = user.list_compute_clusters(page_no, per_page)
-  display_co_resources(response, "Compute Cluster")
+  display_co_resources(
+      response,
+      custom_columns={
+          'ID': lambda c: c.id,
+          'USER_ID': lambda c: c.user_id,
+          'DESCRIPTION': lambda c: c.description,
+      })
 
 
-@computecluster.command()
-@click.option('-cc_id', '--compute_cluster_id', help='Compute Cluster ID of the user to delete.')
+@computecluster.command(['rm'])
+@click.argument('compute_cluster_id')
 @click.pass_context
 def delete(ctx, compute_cluster_id):
   """Deletes a compute cluster for the user."""
-  user = User(user_id=ctx.obj['user_id'], pat=ctx.obj['pat'], base_url=ctx.obj['base_url'])
+  from clarifai.client.user import User
+  validate_context(ctx)
+  user = User(
+      user_id=ctx.obj.current.user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
   user.delete_compute_clusters([compute_cluster_id])
