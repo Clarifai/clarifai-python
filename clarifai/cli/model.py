@@ -266,9 +266,13 @@ def predict(ctx, config, model_id, user_id, app_id, model_url, file_path, url, b
       raise ValueError(
           "Either --compute_cluster_id & --nodepool_id or --deployment_id must be provided.")
   if model_url:
-    model = Model(url=model_url, pat=ctx.obj['pat'], base_url=ctx.obj['base_url'],
-                  compute_cluster_id=compute_cluster_id,
-                  nodepool_id=nodepool_id, deployment_id=deployment_id)
+    model = Model(
+        url=model_url,
+        pat=ctx.obj['pat'],
+        base_url=ctx.obj['base_url'],
+        compute_cluster_id=compute_cluster_id,
+        nodepool_id=nodepool_id,
+        deployment_id=deployment_id)
   else:
     model = Model(
         model_id=model_id,

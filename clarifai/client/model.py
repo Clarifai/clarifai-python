@@ -85,13 +85,11 @@ class Model(Lister, BaseClient):
         token=token,
         root_certificates_path=root_certificates_path)
     Lister.__init__(self)
-    self.runner_selector = (
-        self._get_runner_selector(
-            deployment_id=deployment_id,
-            nodepool_id=nodepool_id,
-            compute_cluster_id=compute_cluster_id
-        ) if any([deployment_id, nodepool_id, compute_cluster_id]) else None
-    )
+    self.runner_selector = (self._get_runner_selector(
+        deployment_id=deployment_id,
+        nodepool_id=nodepool_id,
+        compute_cluster_id=compute_cluster_id)
+                            if any([deployment_id, nodepool_id, compute_cluster_id]) else None)
 
   def list_training_templates(self) -> List[str]:
     """Lists all the training templates for the model type.
@@ -417,10 +415,7 @@ class Model(Lister, BaseClient):
           model_id=self.id,
           **dict(self.kwargs, model_version=model_version_info))
 
-  def predict(self,
-              inputs: List[Input],
-              inference_params: Dict = {},
-              output_config: Dict = {}):
+  def predict(self, inputs: List[Input], inference_params: Dict = {}, output_config: Dict = {}):
     """Predicts the model based on the given inputs.
 
     Args:
@@ -572,9 +567,7 @@ class Model(Lister, BaseClient):
       input_proto = Inputs.get_input_from_bytes("", audio_bytes=input_bytes)
 
     return self.predict(
-        inputs=[input_proto],
-        inference_params=inference_params,
-        output_config=output_config)
+        inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
   def predict_by_url(self,
                      url: str,
@@ -611,14 +604,9 @@ class Model(Lister, BaseClient):
       input_proto = Inputs.get_input_from_url("", audio_url=url)
 
     return self.predict(
-        inputs=[input_proto],
-        inference_params=inference_params,
-        output_config=output_config)
+        inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
-  def generate(self,
-               inputs: List[Input],
-               inference_params: Dict = {},
-               output_config: Dict = {}):
+  def generate(self, inputs: List[Input], inference_params: Dict = {}, output_config: Dict = {}):
     """Generate the stream output on model based on the given inputs.
 
     Args:
@@ -739,9 +727,7 @@ class Model(Lister, BaseClient):
       input_proto = Inputs.get_input_from_bytes("", audio_bytes=input_bytes)
 
     return self.generate(
-        inputs=[input_proto],
-        inference_params=inference_params,
-        output_config=output_config)
+        inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
   def generate_by_url(self,
                       url: str,
@@ -779,9 +765,7 @@ class Model(Lister, BaseClient):
       input_proto = Inputs.get_input_from_url("", audio_url=url)
 
     return self.generate(
-        inputs=[input_proto],
-        inference_params=inference_params,
-        output_config=output_config)
+        inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
   def _req_iterator(self, input_iterator: Iterator[List[Input]], runner_selector: RunnerSelector):
     for inputs in input_iterator:
@@ -907,9 +891,7 @@ class Model(Lister, BaseClient):
           yield [Inputs.get_input_from_bytes("", audio_bytes=input_bytes)]
 
     return self.stream(
-        inputs=input_generator(),
-        inference_params=inference_params,
-        output_config=output_config)
+        inputs=input_generator(), inference_params=inference_params, output_config=output_config)
 
   def stream_by_url(self,
                     url_iterator: Iterator[str],
@@ -947,9 +929,7 @@ class Model(Lister, BaseClient):
           yield [Inputs.get_input_from_url("", audio_url=url)]
 
     return self.stream(
-        inputs=input_generator(),
-        inference_params=inference_params,
-        output_config=output_config)
+        inputs=input_generator(), inference_params=inference_params, output_config=output_config)
 
   def _override_model_version(self, inference_params: Dict = {}, output_config: Dict = {}) -> None:
     """Overrides the model version.
@@ -981,9 +961,10 @@ class Model(Lister, BaseClient):
                                                    service_pb2.ListConceptsRequest, request_data)
     return [concept_info['concept_id'] for concept_info in all_concepts_infos]
 
-  def _get_runner_selector(self, deployment_id: str = None,
+  def _get_runner_selector(self,
+                           deployment_id: str = None,
                            compute_cluster_id: str = None,
-                           nodepool_id:str = None) -> RunnerSelector:
+                           nodepool_id: str = None) -> RunnerSelector:
     """Gets the runner selector for the model.
     Args:
         deployment_id (str): The deployment ID to use for the model.
@@ -994,8 +975,7 @@ class Model(Lister, BaseClient):
         runner_selector (RunnerSelector): The runner selector for the model.
     """
     # Get UserID
-    request = service_pb2.GetUserRequest(
-        user_app_id=resources_pb2.UserAppIDSet(user_id='me'))
+    request = service_pb2.GetUserRequest(user_app_id=resources_pb2.UserAppIDSet(user_id='me'))
     response = self._grpc_request(self.STUB.GetUser, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(f"Get User failed with response {response.status!r}")
