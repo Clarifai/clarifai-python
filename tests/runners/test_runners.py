@@ -157,6 +157,8 @@ class TestRunnerServer:
         model_version={'id': cls.MODEL_VERSION_ID},
         base_url=cls.AUTH.base,
         pat=cls.AUTH.pat,
+        compute_cluster_id=cls.COMPUTE_CLUSTER_ID,
+        nodepool_id=cls.NODEPOOL_ID,
     )
 
     cls.runner_model = _get_model_instance(cls.MODEL_PATH)
@@ -235,15 +237,10 @@ class TestRunnerServer:
     )
 
   def _format_client_request(self, text):
-    runner_selector = resources_pb2.RunnerSelector(nodepool=resources_pb2.Nodepool(
-        id=self.NODEPOOL_ID,
-        compute_cluster=resources_pb2.ComputeCluster(
-            id=self.COMPUTE_CLUSTER_ID, user_id=self.AUTH.user_id),
-    ))
     inputs = [
         resources_pb2.Input(data=resources_pb2.Data(text=resources_pb2.Text(raw=text))),
     ]
-    return inputs, runner_selector
+    return inputs
 
   def test_unary(self):
     # self.logger.info("Testing unary")
@@ -280,43 +277,33 @@ class TestRunnerServer:
     expected = f"{text}Hello World"
 
     # Test predict
-    inputs, runner_selector = self._format_client_request(text)
-    res = self.model.predict(inputs=inputs, runner_selector=runner_selector)
+    inputs = self._format_client_request(text)
+    res = self.model.predict(inputs=inputs)
     self._validate_response(res, expected)
 
   def test_client_predict_inference_params(self):
     text = "Test"
 
     # Test predict
-    inputs, runner_selector = self._format_client_request(text)
+    inputs = self._format_client_request(text)
     inference_params = {"hello": "world"}
-    res = self.model.predict(
-        inputs=inputs, runner_selector=runner_selector, inference_params=inference_params)
+    res = self.model.predict(inputs=inputs, inference_params=inference_params)
     expected = f"{text}Hello World" + inference_params["hello"]
     self._validate_response(res, expected)
 
   def test_client_predict_by_bytes(self):
     text = "Test"
     expected = f"{text}Hello World"
-    res = self.model.predict_by_bytes(
-        text.encode("utf-8"),
-        "text",
-        compute_cluster_id=self.COMPUTE_CLUSTER_ID,
-        nodepool_id=self.NODEPOOL_ID)
+    res = self.model.predict_by_bytes(text.encode("utf-8"), "text")
     self._validate_response(res, expected)
 
   def test_client_predict_by_url(self):
-    res = self.model.predict_by_url(
-        TEXT_URL, "text", compute_cluster_id=self.COMPUTE_CLUSTER_ID, nodepool_id=self.NODEPOOL_ID)
+    res = self.model.predict_by_url(TEXT_URL, "text")
     expected = "He doesn't have to commute to work.Hello World"
     self._validate_response(res, expected)
 
   def test_client_predict_by_filepath(self):
-    res = self.model.predict_by_filepath(
-        TEXT_FILE_PATH,
-        "text",
-        compute_cluster_id=self.COMPUTE_CLUSTER_ID,
-        nodepool_id=self.NODEPOOL_ID)
+    res = self.model.predict_by_filepath(TEXT_FILE_PATH, "text")
 
     with open(TEXT_FILE_PATH, "r") as f:
       expected = f"{f.read()}Hello World"
@@ -326,9 +313,9 @@ class TestRunnerServer:
   def test_client_generate(self):
     text = "This is a long text for testing generate"
     out = "Generate Hello World {i}"
-    inputs, runner_selector = self._format_client_request(text)
+    inputs = self._format_client_request(text)
 
-    model_response = self.model.generate(inputs=inputs, runner_selector=runner_selector)
+    model_response = self.model.generate(inputs=inputs)
     for i, res in enumerate(model_response):
       expected = text + out.format(i=i)
       self._validate_response(res, expected)
@@ -336,11 +323,10 @@ class TestRunnerServer:
   def test_client_generate_inference_params(self):
     text = "This is a long text for testing generate"
     out = "Generate Hello World {i}"
-    inputs, runner_selector = self._format_client_request(text)
+    inputs = self._format_client_request(text)
     inference_params = {"hello": "world"}
 
-    model_response = self.model.generate(
-        inputs=inputs, runner_selector=runner_selector, inference_params=inference_params)
+    model_response = self.model.generate(inputs=inputs, inference_params=inference_params)
     for i, res in enumerate(model_response):
       expected = text + out.format(i=i) + inference_params["hello"]
       self._validate_response(res, expected)
@@ -349,19 +335,14 @@ class TestRunnerServer:
     text = "This is a long text for testing generate"
     out = "Generate Hello World {i}"
 
-    model_response = self.model.generate_by_bytes(
-        text.encode("utf-8"),
-        "text",
-        compute_cluster_id=self.COMPUTE_CLUSTER_ID,
-        nodepool_id=self.NODEPOOL_ID)
+    model_response = self.model.generate_by_bytes(text.encode("utf-8"), "text")
     for i, res in enumerate(model_response):
       self._validate_response(res, text + out.format(i=i))
 
   def test_client_generate_by_url(self):
     text = "He doesn't have to commute to work."
     out = "Generate Hello World {i}"
-    model_response = self.model.generate_by_url(
-        TEXT_URL, "text", compute_cluster_id=self.COMPUTE_CLUSTER_ID, nodepool_id=self.NODEPOOL_ID)
+    model_response = self.model.generate_by_url(TEXT_URL, "text")
     for i, res in enumerate(model_response):
       logger.info(f"Response: {res}")
       self._validate_response(res, text + out.format(i=i))
@@ -371,11 +352,7 @@ class TestRunnerServer:
       text = f.read()
       out = "Generate Hello World {i}"
 
-      model_response = self.model.generate_by_filepath(
-          TEXT_FILE_PATH,
-          "text",
-          compute_cluster_id=self.COMPUTE_CLUSTER_ID,
-          nodepool_id=self.NODEPOOL_ID)
+      model_response = self.model.generate_by_filepath(TEXT_FILE_PATH, "text")
       for i, res in enumerate(model_response):
         self._validate_response(res, text + out.format(i=i))
 
@@ -383,12 +360,12 @@ class TestRunnerServer:
   def test_client_stream(self):
     text = "This is a long text for testing stream"
     out = "Stream Hello World {i}"
-    inputs, runner_selector = self._format_client_request(text)
+    inputs = self._format_client_request(text)
 
     def create_iterator():
       yield inputs
 
-    model_response = self.model.stream(inputs=create_iterator(), runner_selector=runner_selector)
+    model_response = self.model.stream(inputs=create_iterator())
     for i, res in enumerate(model_response):
       expected = text + out.format(i=i)
       self._validate_response(res, expected)
@@ -397,16 +374,13 @@ class TestRunnerServer:
   def test_client_stream_inference_params(self):
     text = "This is a long text for testing stream"
     out = "Stream Hello World {i}"
-    inputs, runner_selector = self._format_client_request(text)
+    inputs = self._format_client_request(text)
     inference_params = {"hello": "world"}
 
     def create_iterator():
       yield inputs
 
-    model_response = self.model.stream(
-        inputs=create_iterator(),
-        runner_selector=runner_selector,
-        inference_params=inference_params)
+    model_response = self.model.stream(inputs=create_iterator(), inference_params=inference_params)
     for i, res in enumerate(model_response):
       expected = text + out.format(i=i) + inference_params["hello"]
       self._validate_response(res, expected)
@@ -419,11 +393,7 @@ class TestRunnerServer:
     def create_iterator():
       yield text.encode("utf-8")
 
-    model_response = self.model.stream_by_bytes(
-        create_iterator(),
-        "text",
-        compute_cluster_id=self.COMPUTE_CLUSTER_ID,
-        nodepool_id=self.NODEPOOL_ID)
+    model_response = self.model.stream_by_bytes(create_iterator(), "text")
 
     for i, res in enumerate(model_response):
       self._validate_response(res, text + out.format(i=i))
@@ -436,11 +406,7 @@ class TestRunnerServer:
     def create_iterator():
       yield TEXT_URL
 
-    model_response = self.model.stream_by_url(
-        create_iterator(),
-        "text",
-        compute_cluster_id=self.COMPUTE_CLUSTER_ID,
-        nodepool_id=self.NODEPOOL_ID)
+    model_response = self.model.stream_by_url(create_iterator(), "text")
 
     for i, res in enumerate(model_response):
       self._validate_response(res, text + out.format(i=i))
@@ -451,11 +417,7 @@ class TestRunnerServer:
       text = f.read()
       out = "Stream Hello World {i}"
 
-      model_response = self.model.stream_by_filepath(
-          TEXT_FILE_PATH,
-          "text",
-          compute_cluster_id=self.COMPUTE_CLUSTER_ID,
-          nodepool_id=self.NODEPOOL_ID)
+      model_response = self.model.stream_by_filepath(TEXT_FILE_PATH, "text")
 
       for i, res in enumerate(model_response):
         self._validate_response(res, text + out.format(i=i))
