@@ -11,3 +11,4 @@ from .data_types import Point  # noqa
 from .data_types import Region  # noqa
 from .data_types import Text  # noqa
 from .data_types import Video  # noqa
+from .data_types import cast  # noqa
