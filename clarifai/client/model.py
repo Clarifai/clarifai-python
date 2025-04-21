@@ -1235,7 +1235,8 @@ class Model(Lister, BaseClient):
         elif isinstance(value, dict):
           self.model_info.model_version.CopyFrom(resources_pb2.ModelVersion(**value))
       else:
-        setattr(self, key, value)
+        if isinstance(value, str):
+          setattr(self.model_info, key, value)
 
   def __getattr__(self, name):
     return getattr(self.model_info, name)
