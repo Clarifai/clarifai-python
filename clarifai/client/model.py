@@ -81,7 +81,7 @@ class Model(Lister, BaseClient):
           self.model_info.model_version.CopyFrom(resources_pb2.ModelVersion(**value))
       else:
         if isinstance(value, str):
-          self.model_info.key = value
+          setattr(self.model_info, key, value)
 
     self.logger = logger
     self.training_params = {}
