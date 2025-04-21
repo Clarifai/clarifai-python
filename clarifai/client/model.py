@@ -1223,7 +1223,15 @@ class Model(Lister, BaseClient):
 
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
     self.kwargs = self.process_response_keys(dict_response['model'])
-    self.model_info = resources_pb2.Model(**self.kwargs)
+    self.model_info = resources_pb2.Model()
+    for key, value in self.kwargs.items():
+      if key == 'model_version':
+        if isinstance(value, str):
+          self.model_info.model_version.id = value
+        elif isinstance(value, dict):
+          self.model_info.model_version.CopyFrom(resources_pb2.ModelVersion(**value))
+      else:
+        setattr(self, key, value)
 
   def __getattr__(self, name):
     return getattr(self.model_info, name)
