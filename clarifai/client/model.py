@@ -72,10 +72,7 @@ class Model(Lister, BaseClient):
     self.kwargs = {**kwargs, 'id': model_id, 'model_version': model_version, }
     self.model_info = resources_pb2.Model()
     self.model_info.id = model_id
-    if isinstance(model_version, str):
-      self.model_info.model_version.id = model_version
-    elif isinstance(model_version, dict):
-      self.model_info.model_version.id = model_version.get('id', "")
+
     for key, value in self.kwargs.items():
       if key == 'model_version':
         if isinstance(value, str):
