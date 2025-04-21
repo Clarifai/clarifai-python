@@ -1,10 +1,5 @@
-import base64
-import io
 import time
 import uuid
-from typing import Dict, List, Union
-
-from PIL import Image
 
 
 def generate_id():
@@ -119,53 +114,7 @@ def openai_response(
                                           completion_tokens, finish_reason)
 
 
-def hf_messages_convertor(messages: List[Dict[str, str]],) -> List[Dict[str, Union[str, Dict]]]:
-  """
-    Converts OpenAI-style chat messages into Hugging Face chat template format.
-
-    Args:
-        messages: List of OpenAI-style messages (e.g., [{"role": "user", "content": "Hello"}]).
-
-    Returns:
-        List of messages in Hugging Face chat format.
-    """
-  hf_messages = []
-
-  for msg in messages:
-    role = msg["role"]
-    content = msg["content"]
-
-    # Handle multimodal content (e.g., images in OpenAI format)
-    if isinstance(content, list):
-      # OpenAI-style multimodal: [{"type": "text", "text": "..."}, {"type": "image_url", "image_url": "..."}]
-      new_content = []
-      for item in content:
-        if item["type"] == "text":
-          new_content.append(item["text"])
-        elif item["type"] == "image_url":
-          # Handle image (extract base64 or URL)
-          image_url = item["image_url"]["url"]
-          if image_url.startswith("data:image"):
-            # Base64-encoded image
-            image_data = image_url.split(",")[1]
-            image_bytes = base64.b64decode(image_data)
-            image = Image.open(io.BytesIO(image_bytes))
-            new_content.append({"image": image})
-          else:
-            # URL (model must handle downloads)
-            new_content.append({"url": image_url})
-      content = " ".join(new_content) if all(
-          isinstance(c, str) for c in new_content) else new_content
-    elif not isinstance(content, str):
-      raise ValueError(f"Unsupported content type: {type(content)}")
-
-    # Add to HF messages
-    hf_messages.append({"role": role, "content": content})
-
-  return hf_messages
-
-
-def convert_openai_to_hf_messages(openai_messages):
+def openai_to_hf_messages(openai_messages):
   """
     Converts OpenAI-style chat messages into a format compatible with Hugging Face's
     `tokenizer.apply_chat_template()` function, supporting all modalities (text, images, etc.).
