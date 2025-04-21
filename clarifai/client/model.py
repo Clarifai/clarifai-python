@@ -80,8 +80,7 @@ class Model(Lister, BaseClient):
         elif isinstance(value, resources_pb2.ModelVersion):
           self.model_info.model_version.CopyFrom(value)
       else:
-        if isinstance(value, str) or isinstance(value, int) or isinstance(
-            value, bool) or isinstance(value, float) or isinstance(value, bytes):
+        if isinstance(value, str):
           setattr(self.model_info, key, value)
         elif isinstance(value, dict):
           if key == 'output_info':
@@ -1244,8 +1243,7 @@ class Model(Lister, BaseClient):
     self.model_info = resources_pb2.Model()
     for key, value in self.kwargs.items():
       if key == 'model_version':
-        if isinstance(value, str) or isinstance(value, int) or isinstance(
-            value, bool) or isinstance(value, float) or isinstance(value, bytes):
+        if isinstance(value, str):
           self.model_info.model_version.id = value
         elif isinstance(value, dict):
           self.model_info.model_version.CopyFrom(resources_pb2.ModelVersion(**value))
