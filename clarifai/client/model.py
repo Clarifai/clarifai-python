@@ -70,7 +70,7 @@ class Model(Lister, BaseClient):
       kwargs = {'user_id': user_id, 'app_id': app_id}
 
     self.kwargs = {**kwargs, 'id': model_id, 'model_version': model_version, }
-    self.model_info = self._get_model_info(self.kwargs)
+    self.model_info = self.get_model_info(self.kwargs)
 
     self.logger = logger
     self.training_params = {}
@@ -109,7 +109,8 @@ class Model(Lister, BaseClient):
 
     return templates
 
-  def _get_model_info(self, kwargs) -> resources_pb2.Model:
+  @classmethod
+  def get_model_info(cls, kwargs) -> resources_pb2.Model:
     model_info = resources_pb2.Model()
     for key, value in kwargs.items():
       if isinstance(value, str):
@@ -1241,7 +1242,7 @@ class Model(Lister, BaseClient):
 
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
     self.kwargs = self.process_response_keys(dict_response['model'])
-    self.model_info = self._get_model_info(self.kwargs)
+    self.model_info = self.get_model_info(self.kwargs)
 
   def __getattr__(self, name):
     return getattr(self.model_info, name)

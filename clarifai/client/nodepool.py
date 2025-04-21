@@ -4,11 +4,12 @@ from typing import Any, Dict, Generator, List
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
-from google.protobuf.json_format import MessageToDict, ParseDict
+from google.protobuf.json_format import MessageToDict
 
 from clarifai.client.base import BaseClient
 from clarifai.client.deployment import Deployment
 from clarifai.client.lister import Lister
+from clarifai.client.model import Model
 from clarifai.errors import UserError
 from clarifai.utils.logging import logger
 
@@ -106,8 +107,7 @@ class Nodepool(Lister, BaseClient):
     if 'user' in deployment['worker']:
       deployment['worker']['user'] = resources_pb2.User(**deployment['worker']['user'])
     elif 'model' in deployment['worker']:
-      deployment['worker']['model'] = ParseDict(deployment['worker']['model'],
-                                                resources_pb2.Model())
+      deployment['worker']['model'] = Model.get_model_info(**deployment['worker']['model'])
     elif 'workflow' in deployment['worker']:
       deployment['worker']['workflow'] = resources_pb2.Workflow(**deployment['worker']['workflow'])
     deployment['worker'] = resources_pb2.Worker(**deployment['worker'])
