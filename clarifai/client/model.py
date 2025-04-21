@@ -77,8 +77,25 @@ class Model(Lister, BaseClient):
           self.model_info.model_version.id = value
         elif isinstance(value, dict):
           self.model_info.model_version.CopyFrom(resources_pb2.ModelVersion(**value))
+        elif isinstance(value, resources_pb2.ModelVersion):
+          self.model_info.model_version.CopyFrom(value)
       else:
-        setattr(self.model_info, key, value)
+        if isinstance(value, str) or isinstance(value, int) or isinstance(
+            value, bool) or isinstance(value, float) or isinstance(value, bytes):
+          setattr(self.model_info, key, value)
+        elif isinstance(value, dict):
+          if key == 'output_info':
+            self.model_info.output_info.CopyFrom(resources_pb2.OutputInfo(**value))
+          elif key == 'default_eval_info':
+            self.model_info.default_eval_info.CopyFrom(resources_pb2.EvalInfo(**value))
+          elif key == "visibility":
+            self.model_info.visibility.CopyFrom(resources_pb2.Visibility(**value))
+        elif isinstance(value, resources_pb2.OutputInfo):
+          self.model_info.output_info.CopyFrom(value)
+        elif isinstance(value, resources_pb2.EvalInfo):
+          self.model_info.default_eval_info.CopyFrom(value)
+        elif isinstance(value, resources_pb2.Visibility):
+          self.model_info.visibility.CopyFrom(value)
 
     self.logger = logger
     self.training_params = {}
@@ -1227,13 +1244,29 @@ class Model(Lister, BaseClient):
     self.model_info = resources_pb2.Model()
     for key, value in self.kwargs.items():
       if key == 'model_version':
-        if isinstance(value, str):
+        if isinstance(value, str) or isinstance(value, int) or isinstance(
+            value, bool) or isinstance(value, float) or isinstance(value, bytes):
           self.model_info.model_version.id = value
         elif isinstance(value, dict):
           self.model_info.model_version.CopyFrom(resources_pb2.ModelVersion(**value))
+        elif isinstance(value, resources_pb2.ModelVersion):
+          self.model_info.model_version.CopyFrom(value)
       else:
         if isinstance(value, str):
           setattr(self.model_info, key, value)
+        elif isinstance(value, dict):
+          if key == 'output_info':
+            self.model_info.output_info.CopyFrom(resources_pb2.OutputInfo(**value))
+          elif key == 'default_eval_info':
+            self.model_info.default_eval_info.CopyFrom(resources_pb2.EvalInfo(**value))
+          elif key == "visibility":
+            self.model_info.visibility.CopyFrom(resources_pb2.Visibility(**value))
+        elif isinstance(value, resources_pb2.OutputInfo):
+          self.model_info.output_info.CopyFrom(value)
+        elif isinstance(value, resources_pb2.EvalInfo):
+          self.model_info.default_eval_info.CopyFrom(value)
+        elif isinstance(value, resources_pb2.Visibility):
+          self.model_info.visibility.CopyFrom(value)
 
   def __getattr__(self, name):
     return getattr(self.model_info, name)
