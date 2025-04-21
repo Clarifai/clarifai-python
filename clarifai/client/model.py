@@ -71,8 +71,6 @@ class Model(Lister, BaseClient):
 
     self.kwargs = {**kwargs, 'id': model_id, 'model_version': model_version, }
     self.model_info = resources_pb2.Model()
-    self.model_info.id = model_id
-
     for key, value in self.kwargs.items():
       if key == 'model_version':
         if isinstance(value, str):
@@ -80,8 +78,7 @@ class Model(Lister, BaseClient):
         elif isinstance(value, dict):
           self.model_info.model_version.CopyFrom(resources_pb2.ModelVersion(**value))
       else:
-        if isinstance(value, str):
-          setattr(self.model_info, key, value)
+        setattr(self.model_info, key, value)
 
     self.logger = logger
     self.training_params = {}
