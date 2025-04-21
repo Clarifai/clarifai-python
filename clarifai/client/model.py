@@ -68,8 +68,17 @@ class Model(Lister, BaseClient):
       user_id, app_id, _, model_id, model_version_id = ClarifaiUrlHelper.split_clarifai_url(url)
       model_version = {'id': model_version_id}
       kwargs = {'user_id': user_id, 'app_id': app_id}
+
     self.kwargs = {**kwargs, 'id': model_id, 'model_version': model_version, }
-    self.model_info = resources_pb2.Model(**self.kwargs)
+    self.model_info = resources_pb2.Model()
+    for key, value in self.kwargs.items():
+      if key == 'model_version':
+        if isinstance(value, str):
+          self.model_info.model_version.id = value
+        elif isinstance(value, dict):
+          self.model_info.model_version.CopyFrom(resources_pb2.ModelVersion(**value))
+      else:
+        setattr(self, key, value)
     self.logger = logger
     self.training_params = {}
     self.input_types = None
