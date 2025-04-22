@@ -160,8 +160,8 @@ class Text(MessageData):
 
 class Concept(MessageData):
 
-  def __init__(self, id: str, name: str, value: float = 1):
-    self.id = id
+  def __init__(self, name: str, value: float = 1):
+    self.id = name
     self.name = name
     self.value = value
 

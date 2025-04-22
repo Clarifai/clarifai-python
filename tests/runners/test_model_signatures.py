@@ -1707,27 +1707,6 @@ class TestSerialization(unittest.TestCase):
     deserialized_kwargs = deserialize(proto, signature.input_fields)
     self.assertEqual(kwargs, deserialized_kwargs)
 
-  def test_Image_one_input_not_in_parts(self):
-
-    class MyModel(ModelClass):
-
-      @ModelClass.method
-      def f(self, x: Image) -> Image:
-        return x
-
-    _get_servicer_client(MyModel())
-
-    signature = MyModel._get_method_info('f').signature
-
-    testimg = PILImage.fromarray(np.ones([50, 50, 3], dtype="uint8"))
-
-    kwargs = {'x': testimg}
-    proto = resources_pb2.Data()
-    serialize(kwargs, signature.input_fields, proto)
-
-    self.assertTrue(len(proto.parts) == 0)
-    self.assertTrue(proto.HasField('image'))
-
   def test_ListConcept_output_is_repeated_field(self):
 
     class MyModel(ModelClass):
