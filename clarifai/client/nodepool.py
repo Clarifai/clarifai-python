@@ -106,12 +106,7 @@ class Nodepool(Lister, BaseClient):
     if 'user' in deployment['worker']:
       deployment['worker']['user'] = resources_pb2.User(**deployment['worker']['user'])
     elif 'model' in deployment['worker']:
-      print(f"deployment['worker']['model']: {deployment['worker']['model']}")
-      print(
-          f"self._get_model_info(deployment['worker']['model']): {self._get_model_info(deployment['worker']['model'])}"
-      )
-      deployment['worker']['model'] = resources_pb2.Model(
-          **self._get_model_info(deployment['worker']['model']))
+      deployment['worker']['model'] = resources_pb2.Model(**deployment['worker']['model'])
     elif 'workflow' in deployment['worker']:
       deployment['worker']['workflow'] = resources_pb2.Workflow(**deployment['worker']['workflow'])
     deployment['worker'] = resources_pb2.Worker(**deployment['worker'])
