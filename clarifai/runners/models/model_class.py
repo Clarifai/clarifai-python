@@ -1,3 +1,4 @@
+import collections.abc as abc
 import inspect
 import itertools
 import logging
@@ -271,8 +272,9 @@ class ModelClass(ABC):
         if k not in python_param_types:
           continue
 
-        if hasattr(python_param_types[k], "__args__") and getattr(python_param_types[k],
-                                                                  "__origin__", None) == Iterator:
+        if hasattr(python_param_types[k],
+                   "__args__") and (getattr(python_param_types[k], "__origin__",
+                                            None) in [abc.Iterator, abc.Generator, abc.Iterable]):
           # get the type of the items in the stream
           stream_type = python_param_types[k].__args__[0]
 

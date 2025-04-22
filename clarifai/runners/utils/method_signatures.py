@@ -1,7 +1,6 @@
 import collections.abc as abc
 import inspect
 import json
-import logging
 from collections import namedtuple
 from typing import Dict, List, Tuple, get_args, get_origin
 
@@ -313,13 +312,6 @@ def deserialize(proto, signatures, inference_params={}, is_output=False):
       kwargs[sig.name] = serializer.deserialize(part.data)
     elif inference_params_value is not None:
       kwargs[sig.name] = inference_params_value
-    elif sig.default and (sig.required is False) and (not is_output):
-      try:
-        kwargs[sig.name] = data_utils.InputField.get_default(sig)
-      except Exception as e:
-        # default is not set, so ignore
-        logging.exception('Default value not set for %s: %s', sig.name, e)
-        pass
     else:
       if sig_i == 0:
         # possible inlined first value

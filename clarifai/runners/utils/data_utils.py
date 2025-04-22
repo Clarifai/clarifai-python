@@ -171,12 +171,13 @@ class InputField(MessageData):
       if default is not None:
         proto.default = json.dumps(default)
       return proto
-    except json.JSONDecodeError:
+    except Exception:
       if default is not None:
         proto.default = str(default)
       return proto
     except Exception as e:
-      raise ValueError(f"Error setting default value: {e}")
+      raise ValueError(
+          f"Error setting default value of type, {type(default)} and value: {default}: {e}")
 
   @classmethod
   def get_default(cls, proto):
