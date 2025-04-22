@@ -9,6 +9,8 @@ import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import Input, RunnerSelector
 from clarifai_grpc.grpc.api.status import status_code_pb2
+from google.protobuf import message as _message
+from google.protobuf import struct_pb2, timestamp_pb2, wrappers_pb2
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.struct_pb2 import Struct, Value
 from requests.adapters import HTTPAdapter, Retry
@@ -113,25 +115,60 @@ class Model(Lister, BaseClient):
     model_info = resources_pb2.Model()
     for key, value in kwargs.items():
       if isinstance(value, str):
-        setattr(model_info, key, value)
+        field = model_info.DESCRIPTOR.fields_by_name.get(key)
+        if field and field.type != field.TYPE_MESSAGE:
+          setattr(model_info, key, value)
       elif isinstance(value, dict):
         if key == 'model_version':
           model_info.model_version.CopyFrom(resources_pb2.ModelVersion(**value))
-        if key == 'output_info':
+        elif key == 'output_info':
           model_info.output_info.CopyFrom(resources_pb2.OutputInfo(**value))
         elif key == 'default_eval_info':
           model_info.default_eval_info.CopyFrom(resources_pb2.EvalInfo(**value))
-        elif key == "visibility":
+        elif key == 'visibility':
           model_info.visibility.CopyFrom(resources_pb2.Visibility(**value))
-      elif isinstance(value, resources_pb2.ModelVersion):
-        model_info.model_version.CopyFrom(value)
-      elif isinstance(value, resources_pb2.OutputInfo):
-        model_info.output_info.CopyFrom(value)
-      elif isinstance(value, resources_pb2.EvalInfo):
-        model_info.default_eval_info.CopyFrom(value)
-      elif isinstance(value, resources_pb2.Visibility):
-        model_info.visibility.CopyFrom(value)
-
+        elif key == 'metadata':
+          struct = struct_pb2.Struct()
+          struct.update(value)
+          model_info.metadata.CopyFrom(struct)
+        elif key == 'presets':
+          struct = struct_pb2.Struct()
+          struct.update(value)
+          model_info.presets.CopyFrom(struct)
+        elif key == 'created_at':
+          ts = timestamp_pb2.Timestamp()
+          if 'seconds' in value and 'nanos' in value:
+            ts.FromNanoseconds(value['seconds'] * 10**9 + value['nanos'])
+          model_info.created_at.CopyFrom(ts)
+        elif key == 'modified_at':
+          ts = timestamp_pb2.Timestamp()
+          if 'seconds' in value and 'nanos' in value:
+            ts.FromNanoseconds(value['seconds'] * 10**9 + value['nanos'])
+          model_info.modified_at.CopyFrom(ts)
+        elif key == 'image':
+          model_info.image.CopyFrom(resources_pb2.Image(**value))
+        elif key == 'bookmark_origin':
+          model_info.bookmark_origin.CopyFrom(resources_pb2.BookmarkOrigin(**value))
+        elif key == 'featured_order':
+          model_info.featured_order.CopyFrom(wrappers_pb2.Int32Value(value=value.get('value', 0)))
+        elif key == 'languages_full':
+          for item in value:
+            model_info.languages_full.append(resources_pb2.FullTag(**item))
+      elif isinstance(value, list):
+        field = model_info.DESCRIPTOR.fields_by_name.get(key)
+        if field and field.label == field.LABEL_REPEATED:
+          if field.type == field.TYPE_MESSAGE:
+            for item in value:
+              if isinstance(item, dict):
+                msg_cls = getattr(resources_pb2, field.message_type.name)
+                msg = msg_cls(**item)
+                getattr(model_info, key).append(msg)
+              elif isinstance(item, _message.Message):
+                getattr(model_info, key).append(item)
+          else:
+            getattr(model_info, key).extend(value)
+      elif isinstance(value, _message.Message):
+        getattr(model_info, key).CopyFrom(value)
     return model_info
 
   def get_params(self, template: str = None, save_to: str = 'params.yaml') -> Dict[str, Any]:
