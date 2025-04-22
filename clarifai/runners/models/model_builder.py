@@ -11,8 +11,6 @@ import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf import json_format
-from rich import print
-from rich.markup import escape
 
 from clarifai.client import BaseClient
 from clarifai.runners.models.model_class import ModelClass
@@ -31,13 +29,6 @@ dependencies = [
     'torch',
     'clarifai',
 ]
-
-
-def _clear_line(n: int = 1) -> None:
-  LINE_UP = '\033[1A'  # Move cursor up one line
-  LINE_CLEAR = '\x1b[2K'  # Clear the entire line
-  for _ in range(n):
-    print(LINE_UP, end=LINE_CLEAR, flush=True)
 
 
 class ModelBuilder:
@@ -658,7 +649,6 @@ class ModelBuilder:
         percent_completed = response.status.percent_completed
       details = response.status.details
 
-      _clear_line()
       print(
           f"Status: {response.status.description}, "
           f"Progress: {percent_completed}% - {details} ",
@@ -751,7 +741,11 @@ class ModelBuilder:
       for log_entry in logs.log_entries:
         if log_entry.url not in seen_logs:
           seen_logs.add(log_entry.url)
-          logger.info(f"{escape(log_entry.message.strip())}")
+          # Escapes text so it will not be interpreted as markup
+          log_entry_msg = re.sub(r"(\\*)(\[[a-z#/@][^[]*?])",
+                                 lambda m: f"{m.group(1)}{m.group(1)}\\{m.group(2)}",
+                                 log_entry.message.strip())
+          logger.info(log_entry_msg)
       if status_code == status_code_pb2.MODEL_BUILDING:
         print(f"Model is building... (elapsed {time.time() - st:.1f}s)", end='\r', flush=True)
 
