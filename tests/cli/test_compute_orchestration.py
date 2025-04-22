@@ -1,5 +1,4 @@
 import os
-import traceback
 import uuid
 
 import pytest
@@ -138,7 +137,7 @@ class TestComputeOrchestration:
         "deployment", "create", CREATE_NODEPOOL_ID, CREATE_DEPLOYMENT_ID, "--config",
         DEPLOYMENT_CONFIG_FILE
     ])
-    assert result.exit_code == 0, f"Error: {result} with traceback: {traceback.format_exc()}"
+    assert result.exit_code == 0
 
   def test_list_compute_clusters(self, create_runner):
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
@@ -156,7 +155,7 @@ class TestComputeOrchestration:
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = create_runner.invoke(cli, ["deployment", "list", CREATE_NODEPOOL_ID])
 
-    assert result.exit_code == 0, f"Error: {result} with traceback: {traceback.format_exc()}"
+    assert result.exit_code == 0
     assert "USER_ID" in result.output
 
   @pytest.mark.coverage_only
@@ -164,7 +163,7 @@ class TestComputeOrchestration:
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = create_runner.invoke(
         cli, ["deployment", "delete", CREATE_NODEPOOL_ID, CREATE_DEPLOYMENT_ID])
-    assert result.exit_code == 0, f"Error: {result} with traceback: {traceback.format_exc()}"
+    assert result.exit_code == 0
 
   def test_delete_nodepool(self, create_runner):
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
