@@ -1,4 +1,5 @@
 import os
+import traceback
 import uuid
 
 import pytest
@@ -154,7 +155,8 @@ class TestComputeOrchestration:
   def test_list_deployments(self, create_runner):
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = create_runner.invoke(cli, ["deployment", "list", CREATE_NODEPOOL_ID])
-    assert result.exit_code == 0
+
+    assert result.exit_code == 0, f"Error: {result} with traceback: {traceback.format_exc()}"
     assert "USER_ID" in result.output
 
   @pytest.mark.coverage_only

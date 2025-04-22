@@ -4,8 +4,6 @@ from typing import Any, Dict, Generator, List
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
-from google.protobuf import message as _message
-from google.protobuf import struct_pb2, timestamp_pb2, wrappers_pb2
 from google.protobuf.json_format import MessageToDict
 
 from clarifai.client.base import BaseClient
@@ -112,73 +110,14 @@ class Nodepool(Lister, BaseClient):
       print(
           f"self._get_model_info(deployment['worker']['model']): {self._get_model_info(deployment['worker']['model'])}"
       )
-      deployment['worker']['model'] = self._get_model_info(deployment['worker']['model'])
+      deployment['worker']['model'] = resources_pb2.Model(
+          **self._get_model_info(deployment['worker']['model']))
     elif 'workflow' in deployment['worker']:
       deployment['worker']['workflow'] = resources_pb2.Workflow(**deployment['worker']['workflow'])
     deployment['worker'] = resources_pb2.Worker(**deployment['worker'])
     if "visibility" in deployment:
       deployment["visibility"] = resources_pb2.Visibility(**deployment["visibility"])
     return deployment
-
-  def _get_model_info(self, kwargs) -> resources_pb2.Model:
-    model_info = resources_pb2.Model()
-    for key, value in kwargs.items():
-      if isinstance(value, str):
-        field = model_info.DESCRIPTOR.fields_by_name.get(key)
-        if field and field.type != field.TYPE_MESSAGE:
-          setattr(model_info, key, value)
-      elif isinstance(value, dict):
-        if key == 'model_version':
-          model_info.model_version.CopyFrom(resources_pb2.ModelVersion(**value))
-        elif key == 'output_info':
-          model_info.output_info.CopyFrom(resources_pb2.OutputInfo(**value))
-        elif key == 'default_eval_info':
-          model_info.default_eval_info.CopyFrom(resources_pb2.EvalInfo(**value))
-        elif key == 'visibility':
-          model_info.visibility.CopyFrom(resources_pb2.Visibility(**value))
-        elif key == 'metadata':
-          struct = struct_pb2.Struct()
-          struct.update(value)
-          model_info.metadata.CopyFrom(struct)
-        elif key == 'presets':
-          struct = struct_pb2.Struct()
-          struct.update(value)
-          model_info.presets.CopyFrom(struct)
-        elif key == 'created_at':
-          ts = timestamp_pb2.Timestamp()
-          if 'seconds' in value and 'nanos' in value:
-            ts.FromNanoseconds(value['seconds'] * 10**9 + value['nanos'])
-          model_info.created_at.CopyFrom(ts)
-        elif key == 'modified_at':
-          ts = timestamp_pb2.Timestamp()
-          if 'seconds' in value and 'nanos' in value:
-            ts.FromNanoseconds(value['seconds'] * 10**9 + value['nanos'])
-          model_info.modified_at.CopyFrom(ts)
-        elif key == 'image':
-          model_info.image.CopyFrom(resources_pb2.Image(**value))
-        elif key == 'bookmark_origin':
-          model_info.bookmark_origin.CopyFrom(resources_pb2.BookmarkOrigin(**value))
-        elif key == 'featured_order':
-          model_info.featured_order.CopyFrom(wrappers_pb2.Int32Value(value=value.get('value', 0)))
-        elif key == 'languages_full':
-          for item in value:
-            model_info.languages_full.append(resources_pb2.FullTag(**item))
-      elif isinstance(value, list):
-        field = model_info.DESCRIPTOR.fields_by_name.get(key)
-        if field and field.label == field.LABEL_REPEATED:
-          if field.type == field.TYPE_MESSAGE:
-            for item in value:
-              if isinstance(item, dict):
-                msg_cls = getattr(resources_pb2, field.message_type.name)
-                msg = msg_cls(**item)
-                getattr(model_info, key).append(msg)
-              elif isinstance(item, _message.Message):
-                getattr(model_info, key).append(item)
-          else:
-            getattr(model_info, key).extend(value)
-      elif isinstance(value, _message.Message):
-        getattr(model_info, key).CopyFrom(value)
-    return model_info
 
   @staticmethod
   def get_runner_selector(user_id: str, compute_cluster_id: str,
