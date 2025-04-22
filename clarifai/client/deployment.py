@@ -3,6 +3,7 @@ from clarifai_grpc.grpc.api import resources_pb2
 from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
 from clarifai.utils.logging import logger
+from clarifai.utils.protobuf import dict_to_protobuf
 
 
 class Deployment(Lister, BaseClient):
@@ -28,7 +29,9 @@ class Deployment(Lister, BaseClient):
         **kwargs: Additional keyword arguments to be passed to the deployment.
     """
     self.kwargs = {**kwargs, 'id': deployment_id, 'user_id': user_id}
-    self.deployment_info = resources_pb2.Deployment(**self.kwargs)
+    print(f"Deployment kwargs: {self.kwargs}")
+    self.deployment_info = resources_pb2.Deployment()
+    dict_to_protobuf(self.deployment_info, self.kwargs)
     self.logger = logger
     BaseClient.__init__(
         self,
