@@ -4,7 +4,7 @@ from typing import Any, Dict, Generator, List
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
-from google.protobuf.json_format import MessageToDict, ParseDict
+from google.protobuf.json_format import MessageToDict
 
 from clarifai.client.base import BaseClient
 from clarifai.client.deployment import Deployment
@@ -106,14 +106,38 @@ class Nodepool(Lister, BaseClient):
     if 'user' in deployment['worker']:
       deployment['worker']['user'] = resources_pb2.User(**deployment['worker']['user'])
     elif 'model' in deployment['worker']:
-      deployment['worker']['model'] = ParseDict(deployment['worker']['model'],
-                                                resources_pb2.Model())
+      deployment['worker']['model'] = self._get_model_info(deployment['worker']['model'])
     elif 'workflow' in deployment['worker']:
       deployment['worker']['workflow'] = resources_pb2.Workflow(**deployment['worker']['workflow'])
     deployment['worker'] = resources_pb2.Worker(**deployment['worker'])
     if "visibility" in deployment:
       deployment["visibility"] = resources_pb2.Visibility(**deployment["visibility"])
     return deployment
+
+  def _get_model_info(self, kwargs) -> resources_pb2.Model:
+    model_info = resources_pb2.Model()
+    for key, value in kwargs.items():
+      if isinstance(value, str):
+        setattr(model_info, key, value)
+      elif isinstance(value, dict):
+        if key == 'model_version':
+          model_info.model_version.CopyFrom(resources_pb2.ModelVersion(**value))
+        if key == 'output_info':
+          model_info.output_info.CopyFrom(resources_pb2.OutputInfo(**value))
+        elif key == 'default_eval_info':
+          model_info.default_eval_info.CopyFrom(resources_pb2.EvalInfo(**value))
+        elif key == "visibility":
+          model_info.visibility.CopyFrom(resources_pb2.Visibility(**value))
+      elif isinstance(value, resources_pb2.ModelVersion):
+        model_info.model_version.CopyFrom(value)
+      elif isinstance(value, resources_pb2.OutputInfo):
+        model_info.output_info.CopyFrom(value)
+      elif isinstance(value, resources_pb2.EvalInfo):
+        model_info.default_eval_info.CopyFrom(value)
+      elif isinstance(value, resources_pb2.Visibility):
+        model_info.visibility.CopyFrom(value)
+
+    return model_info
 
   @staticmethod
   def get_runner_selector(user_id: str, compute_cluster_id: str,
