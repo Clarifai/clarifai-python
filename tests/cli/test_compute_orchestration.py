@@ -138,7 +138,7 @@ class TestComputeOrchestration:
         "deployment", "create", CREATE_NODEPOOL_ID, CREATE_DEPLOYMENT_ID, "--config",
         DEPLOYMENT_CONFIG_FILE
     ])
-    assert result.exit_code == 0
+    assert result.exit_code == 0, f"Error: {result} with traceback: {traceback.format_exc()}"
 
   def test_list_compute_clusters(self, create_runner):
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
@@ -164,7 +164,7 @@ class TestComputeOrchestration:
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = create_runner.invoke(
         cli, ["deployment", "delete", CREATE_NODEPOOL_ID, CREATE_DEPLOYMENT_ID])
-    assert result.exit_code == 0
+    assert result.exit_code == 0, f"Error: {result} with traceback: {traceback.format_exc()}"
 
   def test_delete_nodepool(self, create_runner):
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
