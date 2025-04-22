@@ -605,6 +605,11 @@ class Dataset(Lister, BaseClient):
     Note:
         This is a beta feature and is subject to change.
     """
+    try:
+      import rich  # noqa: F401
+    except ImportError:
+      raise UserError(
+          "Rich library is not installed. Please install it using pip install rich>=13.4.2")
     self.logger.info("Getting dataset upload status...")
     dataset_version_id = uuid.uuid4().hex
     _ = self.create_version(id=dataset_version_id, description="SDK Upload Status")

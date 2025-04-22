@@ -2,7 +2,6 @@ clarifai-grpc>=11.2.6
 clarifai-protocol>=0.0.21
 numpy>=1.22.0
 tqdm>=4.65.0
-rich>=13.4.2
 PyYAML>=6.0.1
 schema==0.7.5
 Pillow>=9.5.0
