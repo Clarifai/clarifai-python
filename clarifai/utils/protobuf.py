@@ -43,7 +43,8 @@ def dict_to_protobuf(pb_obj: Message, data: dict) -> None:
 
       # Handle scalar fields
       else:
-        setattr(pb_obj, field, value)
+        if value:
+          setattr(pb_obj, field, value)
 
     except Exception as e:
       logger.error(f"Error processing field '{field}': {str(e)}")
