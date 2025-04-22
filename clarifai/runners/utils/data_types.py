@@ -173,7 +173,7 @@ class Concept(MessageData):
 
   @classmethod
   def from_proto(cls, proto: ConceptProto) -> "Concept":
-    return cls(proto.id, proto.name, proto.value)
+    return cls(proto.name, proto.value)
 
 
 class Region(MessageData):

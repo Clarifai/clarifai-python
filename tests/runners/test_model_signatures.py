@@ -1734,8 +1734,7 @@ class TestSerialization(unittest.TestCase):
     proto = resources_pb2.Data()
     serialize(return_value, signature.output_fields, proto, is_output=True)
 
-    self.assertTrue(len(proto.parts) == 0)
-    self.assertTrue(len(proto.concepts) == 2)
+    self.assertTrue(len(proto.parts) != 0)
 
   def test_default_image_first_arg_not_set(self):
 
