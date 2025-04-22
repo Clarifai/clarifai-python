@@ -29,7 +29,6 @@ class Deployment(Lister, BaseClient):
         **kwargs: Additional keyword arguments to be passed to the deployment.
     """
     self.kwargs = {**kwargs, 'id': deployment_id, 'user_id': user_id}
-    print(f"Deployment kwargs: {self.kwargs}")
     self.deployment_info = resources_pb2.Deployment()
     dict_to_protobuf(self.deployment_info, self.kwargs)
     self.logger = logger

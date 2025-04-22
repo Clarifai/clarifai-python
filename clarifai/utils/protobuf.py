@@ -83,9 +83,6 @@ def _handle_message_field(pb_obj: Message, field_descriptor: FieldDescriptor, fi
                           value: object) -> None:
   """Process message-type fields including special types."""
   msg_class = db.GetSymbol(field_descriptor.message_type.full_name)
-  print(
-      f"Processing message field '{field}' of type '{msg_class.__name__} and msg_class: {msg_class}'"
-  )
   target_field = getattr(pb_obj, field)
 
   # Handle special message types
