@@ -1,13 +1,14 @@
+import itertools
 import json
 import os
 import time
-from typing import Any, Dict, Generator, Iterator, List, Tuple, Union
+from typing import Any, Dict, Generator, Iterable, Iterator, List, Tuple, Union
 
 import numpy as np
 import requests
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
-from clarifai_grpc.grpc.api.resources_pb2 import Input, RunnerSelector
+from clarifai_grpc.grpc.api.resources_pb2 import Input
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf.json_format import MessageToDict
 from google.protobuf.struct_pb2 import Struct, Value
@@ -19,14 +20,15 @@ from clarifai.client.dataset import Dataset
 from clarifai.client.deployment import Deployment
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
+from clarifai.client.model_client import ModelClient
 from clarifai.client.nodepool import Nodepool
-from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_MODEL_PREDICT_INPUTS,
-                                      MAX_RANGE_SIZE, MIN_CHUNK_SIZE, MIN_RANGE_SIZE,
-                                      MODEL_EXPORT_TIMEOUT, RANGE_SIZE, TRAINABLE_MODEL_TYPES)
+from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_RANGE_SIZE, MIN_CHUNK_SIZE,
+                                      MIN_RANGE_SIZE, MODEL_EXPORT_TIMEOUT, RANGE_SIZE,
+                                      TRAINABLE_MODEL_TYPES)
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
-from clarifai.utils.misc import BackoffIterator, status_is_retryable
+from clarifai.utils.misc import BackoffIterator
 from clarifai.utils.model_train import (find_and_replace_key, params_parser,
                                         response_to_model_params, response_to_param_info,
                                         response_to_templates)
@@ -47,6 +49,9 @@ class Model(Lister, BaseClient):
                pat: str = None,
                token: str = None,
                root_certificates_path: str = None,
+               compute_cluster_id: str = None,
+               nodepool_id: str = None,
+               deployment_id: str = None,
                **kwargs):
     """Initializes a Model object.
 
@@ -76,6 +81,14 @@ class Model(Lister, BaseClient):
     self.logger = logger
     self.training_params = {}
     self.input_types = None
+    self._client = None
+    self._added_methods = False
+    self._set_runner_selector(
+        compute_cluster_id=compute_cluster_id,
+        nodepool_id=nodepool_id,
+        deployment_id=deployment_id,
+        user_id=self.user_id,  # FIXME the deployment's user_id can be different than the model's.
+    )
     BaseClient.__init__(
         self,
         user_id=self.user_id,
@@ -410,49 +423,56 @@ class Model(Lister, BaseClient):
           model_id=self.id,
           **dict(self.kwargs, model_version=model_version_info))
 
-  def predict(self,
-              inputs: List[Input],
-              runner_selector: RunnerSelector = None,
-              inference_params: Dict = {},
-              output_config: Dict = {}):
-    """Predicts the model based on the given inputs.
+  @property
+  def client(self):
+    if self._client is None:
+      request_template = service_pb2.PostModelOutputsRequest(
+          user_app_id=self.user_app_id,
+          model_id=self.id,
+          version_id=self.model_version.id,
+          model=self.model_info,
+          runner_selector=self._runner_selector,
+      )
+      self._client = ModelClient(self.STUB, request_template=request_template)
+    return self._client
 
-    Args:
-        inputs (list[Input]): The inputs to predict, must be less than 128.
-        runner_selector (RunnerSelector): The runner selector to use for the model.
+  def predict(self, *args, **kwargs):
     """
-    if not isinstance(inputs, list):
-      raise UserError('Invalid inputs, inputs must be a list of Input objects.')
-    if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
-      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}."
-                     )  # TODO Use Chunker for inputs len > 128
+    Calls the model's predict() method with the given arguments.
 
-    self._override_model_version(inference_params, output_config)
-    request = service_pb2.PostModelOutputsRequest(
-        user_app_id=self.user_app_id,
-        model_id=self.id,
-        version_id=self.model_version.id,
-        inputs=inputs,
-        runner_selector=runner_selector,
-        model=self.model_info)
+    If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+    protos directly for compatibility with previous versions of the SDK.
+    """
 
-    start_time = time.time()
-    backoff_iterator = BackoffIterator(10)
-    while True:
-      response = self._grpc_request(self.STUB.PostModelOutputs, request)
+    inputs = None
+    if 'inputs' in kwargs:
+      inputs = kwargs['inputs']
+    elif args:
+      inputs = args[0]
+    if inputs and isinstance(inputs, list) and isinstance(inputs[0], resources_pb2.Input):
+      assert len(args) <= 1, "Cannot pass in raw protos and additional arguments at the same time."
+      inference_params = kwargs.get('inference_params', {})
+      output_config = kwargs.get('output_config', {})
+      return self.client._predict_by_proto(
+          inputs=inputs, inference_params=inference_params, output_config=output_config)
 
-      if status_is_retryable(response.status.code) and \
-              time.time() - start_time < 60 * 10:  # 10 minutes
-        self.logger.info(f"{self.id} model is still deploying, please wait...")
-        time.sleep(next(backoff_iterator))
-        continue
+    return self.client.predict(*args, **kwargs)
 
-      if response.status.code != status_code_pb2.SUCCESS:
-        raise Exception(f"Model Predict failed with response {response.status!r}")
-      else:
-        break
-
-    return response
+  def __getattr__(self, name):
+    try:
+      return getattr(self.model_info, name)
+    except AttributeError:
+      pass
+    if not self._added_methods:
+      # fetch and set all the model methods
+      self._added_methods = True
+      self.client.fetch()
+      for method_name in self.client._method_signatures.keys():
+        if not hasattr(self, method_name):
+          setattr(self, method_name, getattr(self.client, method_name))
+    if hasattr(self.client, name):
+      return getattr(self.client, name)
+    raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
   def _check_predict_input_type(self, input_type: str) -> None:
     """Checks if the input type is valid for the model.
@@ -500,13 +520,41 @@ class Model(Lister, BaseClient):
       raise Exception(response.status)
     self.input_types = response.model_type.input_fields
 
+  def _set_runner_selector(self,
+                           compute_cluster_id: str = None,
+                           nodepool_id: str = None,
+                           deployment_id: str = None,
+                           user_id: str = None):
+    runner_selector = None
+    if deployment_id and (compute_cluster_id or nodepool_id):
+      raise UserError(
+          "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
+
+    if deployment_id:
+      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
+        raise UserError(
+            "User ID is required for model prediction with deployment ID, please provide user_id in the method call."
+        )
+      if not user_id:
+        user_id = os.environ.get('CLARIFAI_USER_ID')
+      runner_selector = Deployment.get_runner_selector(
+          user_id=user_id, deployment_id=deployment_id)
+    elif compute_cluster_id and nodepool_id:
+      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
+        raise UserError(
+            "User ID is required for model prediction with compute cluster ID and nodepool ID, please provide user_id in the method call."
+        )
+      if not user_id:
+        user_id = os.environ.get('CLARIFAI_USER_ID')
+      runner_selector = Nodepool.get_runner_selector(
+          user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id)
+
+    # set the runner selector
+    self._runner_selector = runner_selector
+
   def predict_by_filepath(self,
                           filepath: str,
                           input_type: str = None,
-                          compute_cluster_id: str = None,
-                          nodepool_id: str = None,
-                          deployment_id: str = None,
-                          user_id: str = None,
                           inference_params: Dict = {},
                           output_config: Dict = {}):
     """Predicts the model based on the given filepath.
@@ -514,9 +562,6 @@ class Model(Lister, BaseClient):
     Args:
         filepath (str): The filepath to predict.
         input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
-        compute_cluster_id (str): The compute cluster ID to use for the model.
-        nodepool_id (str): The nodepool ID to use for the model.
-        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -537,16 +582,11 @@ class Model(Lister, BaseClient):
     with open(filepath, "rb") as f:
       file_bytes = f.read()
 
-    return self.predict_by_bytes(file_bytes, input_type, compute_cluster_id, nodepool_id,
-                                 deployment_id, user_id, inference_params, output_config)
+    return self.predict_by_bytes(file_bytes, input_type, inference_params, output_config)
 
   def predict_by_bytes(self,
                        input_bytes: bytes,
                        input_type: str = None,
-                       compute_cluster_id: str = None,
-                       nodepool_id: str = None,
-                       deployment_id: str = None,
-                       user_id: str = None,
                        inference_params: Dict = {},
                        output_config: Dict = {}):
     """Predicts the model based on the given bytes.
@@ -554,9 +594,6 @@ class Model(Lister, BaseClient):
     Args:
         input_bytes (bytes): File Bytes to predict on.
         input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
-        compute_cluster_id (str): The compute cluster ID to use for the model.
-        nodepool_id (str): The nodepool ID to use for the model.
-        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -580,43 +617,12 @@ class Model(Lister, BaseClient):
     elif self.input_types[0] == "audio":
       input_proto = Inputs.get_input_from_bytes("", audio_bytes=input_bytes)
 
-    if deployment_id and (compute_cluster_id or nodepool_id):
-      raise UserError(
-          "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
-
-    runner_selector = None
-    if deployment_id:
-      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
-        raise UserError(
-            "User ID is required for model prediction with deployment ID, please provide user_id in the method call."
-        )
-      if not user_id:
-        user_id = os.environ.get('CLARIFAI_USER_ID')
-      runner_selector = Deployment.get_runner_selector(
-          user_id=user_id, deployment_id=deployment_id)
-    elif compute_cluster_id and nodepool_id:
-      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
-        raise UserError(
-            "User ID is required for model prediction with compute cluster ID and nodepool ID, please provide user_id in the method call."
-        )
-      if not user_id:
-        user_id = os.environ.get('CLARIFAI_USER_ID')
-      runner_selector = Nodepool.get_runner_selector(
-          user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id)
-
     return self.predict(
-        inputs=[input_proto],
-        runner_selector=runner_selector,
-        inference_params=inference_params,
-        output_config=output_config)
+        inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
   def predict_by_url(self,
                      url: str,
                      input_type: str = None,
-                     compute_cluster_id: str = None,
-                     nodepool_id: str = None,
-                     deployment_id: str = None,
-                     user_id: str = None,
                      inference_params: Dict = {},
                      output_config: Dict = {}):
     """Predicts the model based on the given URL.
@@ -624,9 +630,6 @@ class Model(Lister, BaseClient):
     Args:
         url (str): The URL to predict.
         input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio'.
-        compute_cluster_id (str): The compute cluster ID to use for the model.
-        nodepool_id (str): The nodepool ID to use for the model.
-        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -651,98 +654,34 @@ class Model(Lister, BaseClient):
     elif self.input_types[0] == "audio":
       input_proto = Inputs.get_input_from_url("", audio_url=url)
 
-    if deployment_id and (compute_cluster_id or nodepool_id):
-      raise UserError(
-          "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
-
-    runner_selector = None
-    if deployment_id:
-      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
-        raise UserError(
-            "User ID is required for model prediction with deployment ID, please provide user_id in the method call."
-        )
-      if not user_id:
-        user_id = os.environ.get('CLARIFAI_USER_ID')
-      runner_selector = Deployment.get_runner_selector(
-          user_id=user_id, deployment_id=deployment_id)
-    elif compute_cluster_id and nodepool_id:
-      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
-        raise UserError(
-            "User ID is required for model prediction with compute cluster ID and nodepool ID, please provide user_id in the method call."
-        )
-      if not user_id:
-        user_id = os.environ.get('CLARIFAI_USER_ID')
-      runner_selector = Nodepool.get_runner_selector(
-          user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id)
-
     return self.predict(
-        inputs=[input_proto],
-        runner_selector=runner_selector,
-        inference_params=inference_params,
-        output_config=output_config)
+        inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
-  def generate(self,
-               inputs: List[Input],
-               runner_selector: RunnerSelector = None,
-               inference_params: Dict = {},
-               output_config: Dict = {}):
-    """Generate the stream output on model based on the given inputs.
-
-    Args:
-        inputs (list[Input]): The inputs to generate, must be less than 128.
-        runner_selector (RunnerSelector): The runner selector to use for the model.
-        inference_params (dict): The inference params to override.
-
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
-                    or
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> stream_response = model.generate(inputs=[input1, input2], runner_selector=runner_selector)
-        >>> list_stream_response = [response for response in stream_response]
+  def generate(self, *args, **kwargs):
     """
-    if not isinstance(inputs, list):
-      raise UserError('Invalid inputs, inputs must be a list of Input objects.')
-    if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
-      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}."
-                     )  # TODO Use Chunker for inputs len > 128
+    Calls the model's generate() method with the given arguments.
 
-    self._override_model_version(inference_params, output_config)
-    request = service_pb2.PostModelOutputsRequest(
-        user_app_id=self.user_app_id,
-        model_id=self.id,
-        version_id=self.model_version.id,
-        inputs=inputs,
-        runner_selector=runner_selector,
-        model=self.model_info)
+    If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+    protos directly for compatibility with previous versions of the SDK.
+    """
 
-    start_time = time.time()
-    backoff_iterator = BackoffIterator(10)
-    generation_started = False
-    while True:
-      if generation_started:
-        break
-      stream_response = self._grpc_request(self.STUB.GenerateModelOutputs, request)
-      for response in stream_response:
-        if status_is_retryable(response.status.code) and \
-                time.time() - start_time < 60 * 10:
-          self.logger.info(f"{self.id} model is still deploying, please wait...")
-          time.sleep(next(backoff_iterator))
-          break
-        if response.status.code != status_code_pb2.SUCCESS:
-          raise Exception(f"Model Predict failed with response {response.status!r}")
-        else:
-          if not generation_started:
-            generation_started = True
-          yield response
+    inputs = None
+    if 'inputs' in kwargs:
+      inputs = kwargs['inputs']
+    elif args:
+      inputs = args[0]
+    if inputs and isinstance(inputs, list) and isinstance(inputs[0], resources_pb2.Input):
+      assert len(args) <= 1, "Cannot pass in raw protos and additional arguments at the same time."
+      inference_params = kwargs.get('inference_params', {})
+      output_config = kwargs.get('output_config', {})
+      return self.client._generate_by_proto(
+          inputs=inputs, inference_params=inference_params, output_config=output_config)
+
+    return self.client.generate(*args, **kwargs)
 
   def generate_by_filepath(self,
                            filepath: str,
                            input_type: str = None,
-                           compute_cluster_id: str = None,
-                           nodepool_id: str = None,
-                           deployment_id: str = None,
-                           user_id: str = None,
                            inference_params: Dict = {},
                            output_config: Dict = {}):
     """Generate the stream output on model based on the given filepath.
@@ -750,9 +689,6 @@ class Model(Lister, BaseClient):
     Args:
         filepath (str): The filepath to predict.
         input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
-        compute_cluster_id (str): The compute cluster ID to use for the model.
-        nodepool_id (str): The nodepool ID to use for the model.
-        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -776,20 +712,12 @@ class Model(Lister, BaseClient):
     return self.generate_by_bytes(
         input_bytes=file_bytes,
         input_type=input_type,
-        compute_cluster_id=compute_cluster_id,
-        nodepool_id=nodepool_id,
-        deployment_id=deployment_id,
-        user_id=user_id,
         inference_params=inference_params,
         output_config=output_config)
 
   def generate_by_bytes(self,
                         input_bytes: bytes,
                         input_type: str = None,
-                        compute_cluster_id: str = None,
-                        nodepool_id: str = None,
-                        deployment_id: str = None,
-                        user_id: str = None,
                         inference_params: Dict = {},
                         output_config: Dict = {}):
     """Generate the stream output on model based on the given bytes.
@@ -797,9 +725,6 @@ class Model(Lister, BaseClient):
     Args:
         input_bytes (bytes): File Bytes to predict on.
         input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
-        compute_cluster_id (str): The compute cluster ID to use for the model.
-        nodepool_id (str): The nodepool ID to use for the model.
-        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -825,44 +750,12 @@ class Model(Lister, BaseClient):
     elif self.input_types[0] == "audio":
       input_proto = Inputs.get_input_from_bytes("", audio_bytes=input_bytes)
 
-    if deployment_id and (compute_cluster_id or nodepool_id):
-      raise UserError(
-          "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
-
-    runner_selector = None
-    if deployment_id:
-      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
-        raise UserError(
-            "User ID is required for model prediction with deployment ID, please provide user_id in the method call."
-        )
-      if not user_id:
-        user_id = os.environ.get('CLARIFAI_USER_ID')
-      runner_selector = Deployment.get_runner_selector(
-          user_id=user_id, deployment_id=deployment_id)
-
-    elif compute_cluster_id and nodepool_id:
-      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
-        raise UserError(
-            "User ID is required for model prediction with compute cluster ID and nodepool ID, please provide user_id in the method call."
-        )
-      if not user_id:
-        user_id = os.environ.get('CLARIFAI_USER_ID')
-      runner_selector = Nodepool.get_runner_selector(
-          user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id)
-
     return self.generate(
-        inputs=[input_proto],
-        runner_selector=runner_selector,
-        inference_params=inference_params,
-        output_config=output_config)
+        inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
   def generate_by_url(self,
                       url: str,
                       input_type: str = None,
-                      compute_cluster_id: str = None,
-                      nodepool_id: str = None,
-                      deployment_id: str = None,
-                      user_id: str = None,
                       inference_params: Dict = {},
                       output_config: Dict = {}):
     """Generate the stream output on model based on the given URL.
@@ -870,9 +763,6 @@ class Model(Lister, BaseClient):
     Args:
         url (str): The URL to predict.
         input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
-        compute_cluster_id (str): The compute cluster ID to use for the model.
-        nodepool_id (str): The nodepool ID to use for the model.
-        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -898,98 +788,52 @@ class Model(Lister, BaseClient):
     elif self.input_types[0] == "audio":
       input_proto = Inputs.get_input_from_url("", audio_url=url)
 
-    if deployment_id and (compute_cluster_id or nodepool_id):
-      raise UserError(
-          "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
-
-    runner_selector = None
-    if deployment_id:
-      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
-        raise UserError(
-            "User ID is required for model prediction with deployment ID, please provide user_id in the method call."
-        )
-      if not user_id:
-        user_id = os.environ.get('CLARIFAI_USER_ID')
-      runner_selector = Deployment.get_runner_selector(
-          user_id=user_id, deployment_id=deployment_id)
-    elif compute_cluster_id and nodepool_id:
-      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
-        raise UserError(
-            "User ID is required for model prediction with compute cluster ID and nodepool ID, please provide user_id in the method call."
-        )
-      if not user_id:
-        user_id = os.environ.get('CLARIFAI_USER_ID')
-      runner_selector = Nodepool.get_runner_selector(
-          user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id)
-
     return self.generate(
-        inputs=[input_proto],
-        runner_selector=runner_selector,
-        inference_params=inference_params,
-        output_config=output_config)
+        inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
-  def _req_iterator(self, input_iterator: Iterator[List[Input]], runner_selector: RunnerSelector):
-    for inputs in input_iterator:
-      yield service_pb2.PostModelOutputsRequest(
-          user_app_id=self.user_app_id,
-          model_id=self.id,
-          version_id=self.model_version.id,
-          inputs=inputs,
-          runner_selector=runner_selector,
-          model=self.model_info)
-
-  def stream(self,
-             inputs: Iterator[List[Input]],
-             runner_selector: RunnerSelector = None,
-             inference_params: Dict = {},
-             output_config: Dict = {}):
-    """Generate the stream output on model based on the given stream of inputs.
-
-    Args:
-        inputs (Iterator[list[Input]]): stream of inputs to predict, must be less than 128.
-        runner_selector (RunnerSelector): The runner selector to use for the model.
-
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
-                    or
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> stream_response = model.stream(inputs=inputs, runner_selector=runner_selector)
-        >>> list_stream_response = [response for response in stream_response]
+  def stream(self, *args, **kwargs):
     """
-    # if not isinstance(inputs, Iterator[List[Input]]):
-    #   raise UserError('Invalid inputs, inputs must be a iterator of list of Input objects.')
+    Calls the model's stream() method with the given arguments.
 
-    self._override_model_version(inference_params, output_config)
-    request = self._req_iterator(inputs, runner_selector)
+    If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+    protos directly for compatibility with previous versions of the SDK.
+    """
 
-    start_time = time.time()
-    backoff_iterator = BackoffIterator(10)
-    generation_started = False
-    while True:
-      if generation_started:
-        break
-      stream_response = self._grpc_request(self.STUB.StreamModelOutputs, request)
-      for response in stream_response:
-        if status_is_retryable(response.status.code) and \
-                time.time() - start_time < 60 * 10:
-          self.logger.info(f"{self.id} model is still deploying, please wait...")
-          time.sleep(next(backoff_iterator))
-          break
-        if response.status.code != status_code_pb2.SUCCESS:
-          raise Exception(f"Model Predict failed with response {response.status!r}")
-        else:
-          if not generation_started:
-            generation_started = True
-          yield response
+    use_proto_call = False
+    inputs = None
+    if 'inputs' in kwargs:
+      inputs = kwargs['inputs']
+    elif args:
+      inputs = args[0]
+    if inputs and isinstance(inputs, Iterable):
+      inputs_iter = inputs
+      try:
+        peek = next(inputs_iter)
+      except StopIteration:
+        pass
+      else:
+        use_proto_call = (peek and isinstance(peek, list) and
+                          isinstance(peek[0], resources_pb2.Input))
+        # put back the peeked value
+        if inputs_iter is inputs:
+          inputs = itertools.chain([peek], inputs_iter)
+          if 'inputs' in kwargs:
+            kwargs['inputs'] = inputs
+          else:
+            args = (inputs,) + args[1:]
+
+    if use_proto_call:
+      assert len(args) <= 1, "Cannot pass in raw protos and additional arguments at the same time."
+      inference_params = kwargs.get('inference_params', {})
+      output_config = kwargs.get('output_config', {})
+      return self.client._stream_by_proto(
+          inputs=inputs, inference_params=inference_params, output_config=output_config)
+
+    return self.client.stream(*args, **kwargs)
 
   def stream_by_filepath(self,
                          filepath: str,
                          input_type: str = None,
-                         compute_cluster_id: str = None,
-                         nodepool_id: str = None,
-                         deployment_id: str = None,
-                         user_id: str = None,
                          inference_params: Dict = {},
                          output_config: Dict = {}):
     """Stream the model output based on the given filepath.
@@ -997,9 +841,6 @@ class Model(Lister, BaseClient):
     Args:
         filepath (str): The filepath to predict.
         input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
-        compute_cluster_id (str): The compute cluster ID to use for the model.
-        nodepool_id (str): The nodepool ID to use for the model.
-        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -1021,20 +862,12 @@ class Model(Lister, BaseClient):
     return self.stream_by_bytes(
         input_bytes_iterator=iter([file_bytes]),
         input_type=input_type,
-        compute_cluster_id=compute_cluster_id,
-        nodepool_id=nodepool_id,
-        deployment_id=deployment_id,
-        user_id=user_id,
         inference_params=inference_params,
         output_config=output_config)
 
   def stream_by_bytes(self,
                       input_bytes_iterator: Iterator[bytes],
                       input_type: str = None,
-                      compute_cluster_id: str = None,
-                      nodepool_id: str = None,
-                      deployment_id: str = None,
-                      user_id: str = None,
                       inference_params: Dict = {},
                       output_config: Dict = {}):
     """Stream the model output based on the given bytes.
@@ -1042,9 +875,6 @@ class Model(Lister, BaseClient):
     Args:
         input_bytes_iterator (Iterator[bytes]): Iterator of file bytes to predict on.
         input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
-        compute_cluster_id (str): The compute cluster ID to use for the model.
-        nodepool_id (str): The nodepool ID to use for the model.
-        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -1072,43 +902,12 @@ class Model(Lister, BaseClient):
         elif self.input_types[0] == "audio":
           yield [Inputs.get_input_from_bytes("", audio_bytes=input_bytes)]
 
-    if deployment_id and (compute_cluster_id or nodepool_id):
-      raise UserError(
-          "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
-
-    runner_selector = None
-    if deployment_id:
-      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
-        raise UserError(
-            "User ID is required for model prediction with deployment ID, please provide user_id in the method call."
-        )
-      if not user_id:
-        user_id = os.environ.get('CLARIFAI_USER_ID')
-      runner_selector = Deployment.get_runner_selector(
-          user_id=user_id, deployment_id=deployment_id)
-    elif compute_cluster_id and nodepool_id:
-      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
-        raise UserError(
-            "User ID is required for model prediction with compute cluster ID and nodepool ID, please provide user_id in the method call."
-        )
-      if not user_id:
-        user_id = os.environ.get('CLARIFAI_USER_ID')
-      runner_selector = Nodepool.get_runner_selector(
-          user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id)
-
     return self.stream(
-        inputs=input_generator(),
-        runner_selector=runner_selector,
-        inference_params=inference_params,
-        output_config=output_config)
+        inputs=input_generator(), inference_params=inference_params, output_config=output_config)
 
   def stream_by_url(self,
                     url_iterator: Iterator[str],
                     input_type: str = None,
-                    compute_cluster_id: str = None,
-                    nodepool_id: str = None,
-                    deployment_id: str = None,
-                    user_id: str = None,
                     inference_params: Dict = {},
                     output_config: Dict = {}):
     """Stream the model output based on the given URL.
@@ -1116,9 +915,6 @@ class Model(Lister, BaseClient):
     Args:
         url_iterator (Iterator[str]): Iterator of URLs to predict.
         input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
-        compute_cluster_id (str): The compute cluster ID to use for the model.
-        nodepool_id (str): The nodepool ID to use for the model.
-        deployment_id (str): The deployment ID to use for the model.
         inference_params (dict): The inference params to override.
         output_config (dict): The output config to override.
           min_value (float): The minimum value of the prediction confidence to filter.
@@ -1144,35 +940,8 @@ class Model(Lister, BaseClient):
         elif self.input_types[0] == "audio":
           yield [Inputs.get_input_from_url("", audio_url=url)]
 
-    if deployment_id and (compute_cluster_id or nodepool_id):
-      raise UserError(
-          "You can only specify one of deployment_id or compute_cluster_id and nodepool_id.")
-
-    runner_selector = None
-    if deployment_id:
-      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
-        raise UserError(
-            "User ID is required for model prediction with deployment ID, please provide user_id in the method call."
-        )
-      if not user_id:
-        user_id = os.environ.get('CLARIFAI_USER_ID')
-      runner_selector = Deployment.get_runner_selector(
-          user_id=user_id, deployment_id=deployment_id)
-    elif compute_cluster_id and nodepool_id:
-      if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
-        raise UserError(
-            "User ID is required for model prediction with compute cluster ID and nodepool ID, please provide user_id in the method call."
-        )
-      if not user_id:
-        user_id = os.environ.get('CLARIFAI_USER_ID')
-      runner_selector = Nodepool.get_runner_selector(
-          user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id)
-
     return self.stream(
-        inputs=input_generator(),
-        runner_selector=runner_selector,
-        inference_params=inference_params,
-        output_config=output_config)
+        inputs=input_generator(), inference_params=inference_params, output_config=output_config)
 
   def _override_model_version(self, inference_params: Dict = {}, output_config: Dict = {}) -> None:
     """Overrides the model version.
@@ -1219,9 +988,6 @@ class Model(Lister, BaseClient):
     self.kwargs = self.process_response_keys(dict_response['model'])
     self.model_info = resources_pb2.Model()
     dict_to_protobuf(self.model_info, self.kwargs)
-
-  def __getattr__(self, name):
-    return getattr(self.model_info, name)
 
   def __str__(self):
     if len(self.kwargs) < 10:

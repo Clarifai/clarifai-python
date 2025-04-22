@@ -1,3 +1,4 @@
+import builtins
 import importlib
 import inspect
 import os
@@ -6,6 +7,7 @@ import sys
 import tarfile
 import time
 from string import Template
+from unittest.mock import MagicMock
 
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -14,13 +16,14 @@ from google.protobuf import json_format
 from rich import print
 from rich.markup import escape
 
-from clarifai.client import BaseClient
+from clarifai.client.base import BaseClient
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.const import (
     AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES, CONCEPTS_REQUIRED_MODEL_TYPE,
     DEFAULT_DOWNLOAD_CHECKPOINT_WHEN, DEFAULT_PYTHON_VERSION, DEFAULT_RUNTIME_DOWNLOAD_PATH,
     PYTHON_BASE_IMAGE, TORCH_BASE_IMAGE)
 from clarifai.runners.utils.loader import HuggingFaceLoader
+from clarifai.runners.utils.method_signatures import signatures_to_yaml
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
 from clarifai.versions import CLIENT_VERSION
@@ -65,9 +68,21 @@ class ModelBuilder:
     self.inference_compute_info = self._get_inference_compute_info()
     self.is_v3 = True  # Do model build for v3
 
-  def create_model_instance(self, load_model=True):
+  def create_model_instance(self, load_model=True, mocking=False):
     """
     Create an instance of the model class, as specified in the config file.
+    """
+    model_class = self.load_model_class(mocking=mocking)
+
+    # initialize the model
+    model = model_class()
+    if load_model:
+      model.load_model()
+    return model
+
+  def load_model_class(self, mocking=False):
+    """
+    Import the model class from the model.py file, dynamically handling missing dependencies
     """
     # look for default model.py file location
     for loc in ["model.py", "1/model.py"]:
@@ -82,7 +97,30 @@ class ModelBuilder:
     spec = importlib.util.spec_from_file_location(module_name, model_file)
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
-    spec.loader.exec_module(module)
+
+    original_import = builtins.__import__
+
+    def custom_import(name, globals=None, locals=None, fromlist=(), level=0):
+
+      # Allow standard libraries and clarifai
+      if self._is_standard_or_clarifai(name):
+        return original_import(name, globals, locals, fromlist, level)
+
+      # Mock all third-party imports to avoid ImportErrors or other issues
+      return MagicMock()
+
+    if mocking:
+      # Replace the built-in __import__ function with our custom one
+      builtins.__import__ = custom_import
+
+    try:
+      spec.loader.exec_module(module)
+    except Exception as e:
+      logger.error(f"Error loading model.py: {e}")
+      raise
+    finally:
+      # Restore the original __import__ function
+      builtins.__import__ = original_import
 
     # Find all classes in the model.py file that are subclasses of ModelClass
     classes = [
@@ -107,12 +145,24 @@ class ModelBuilder:
           "Could not determine model class. There should be exactly one model inheriting from ModelClass defined in the model.py"
       )
     model_class = classes[0]
+    return model_class
 
-    # initialize the model
-    model = model_class()
-    if load_model:
-      model.load_model()
-    return model
+  def _is_standard_or_clarifai(self, name):
+    """Check if import is from standard library or clarifai"""
+    if name.startswith("clarifai"):
+      return True
+
+    # Handle Python <3.10 compatibility
+    stdlib_names = getattr(sys, "stdlib_module_names", sys.builtin_module_names)
+    if name in stdlib_names:
+      return True
+
+    # Handle submodules (e.g., os.path)
+    parts = name.split(".")
+    for i in range(1, len(parts)):
+      if ".".join(parts[:i]) in stdlib_names:
+        return True
+    return False
 
   def _validate_folder(self, folder):
     if folder == ".":
@@ -268,6 +318,24 @@ class ModelBuilder:
         if member.isfile():
           total_size += member.size
     return total_size
+
+  def method_signatures_yaml(self):
+    """
+    Returns the method signatures for the model class in YAML format.
+    """
+    model_class = self.load_model_class(mocking=True)
+    method_info = model_class._get_method_info()
+    signatures = {method.name: method.signature for method in method_info.values()}
+    return signatures_to_yaml(signatures)
+
+  def get_method_signatures(self):
+    """
+    Returns the method signatures for the model class.
+    """
+    model_class = self.load_model_class(mocking=True)
+    method_info = model_class._get_method_info()
+    signatures = [method.signature for method in method_info.values()]
+    return signatures
 
   @property
   def client(self):
@@ -555,10 +623,11 @@ class ModelBuilder:
     logger.info(f"Updated config.yaml with {len(concepts)} concepts.")
 
   def get_model_version_proto(self):
-
+    signatures = self.get_method_signatures()
     model_version_proto = resources_pb2.ModelVersion(
         pretrained_model_config=resources_pb2.PretrainedModelConfig(),
         inference_compute_info=self.inference_compute_info,
+        method_signatures=signatures,
     )
 
     model_type_id = self.config.get('model').get('model_type_id')
@@ -746,6 +815,7 @@ class ModelBuilder:
               model_id=self.model_proto.id,
               version_id=self.model_version_id,
           ))
+
       status_code = resp.model_version.status.code
       logs = self.get_model_build_logs()
       for log_entry in logs.log_entries:
