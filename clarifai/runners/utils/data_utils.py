@@ -5,7 +5,7 @@ from clarifai_grpc.grpc.api import resources_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeEnumOption
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeField as InputFieldProto
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeRangeInfo
-from PIL import PILImage
+from PIL import Image as PILImage
 
 from clarifai.runners.utils.data_types import Audio, Image, MessageData, Video
 
