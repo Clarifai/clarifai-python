@@ -42,7 +42,8 @@ class HuggingFaceLoader:
       return True
     except Exception as e:
       logger.error(
-          f"Error setting up Hugging Face token, please make sure you have the correct token: {e}")
+          f"Invalid Hugging Face token provided in the config file, this might cause issues with downloading the restricted model checkpoints. Failed reason: {e}"
+      )
       return False
 
   def download_checkpoints(self,
@@ -63,7 +64,6 @@ class HuggingFaceLoader:
       try:
         is_hf_model_exists = self.validate_hf_model()
         if not is_hf_model_exists:
-          logger.error("Model %s not found on Hugging Face" % (self.repo_id))
           return False
 
         self.ignore_patterns = self._get_ignore_patterns()
@@ -185,6 +185,26 @@ class HuggingFaceLoader:
           "**/original/*", "**/*.pth", "**/*.bin", "*.pth", "*.bin", "**/.cache/*"
       ]
     return self.ignore_patterns
+
+  @classmethod
+  def validate_hf_repo_access(cls, repo_id: str, token: str = None) -> bool:
+    # check if model exists on HF
+    try:
+      from huggingface_hub import auth_check
+      from huggingface_hub.utils import GatedRepoError, RepositoryNotFoundError
+    except ImportError:
+      raise ImportError(cls.HF_DOWNLOAD_TEXT)
+
+    try:
+      auth_check(repo_id, token=token)
+      logger.info("Hugging Face repo access validated")
+      return True
+    except GatedRepoError:
+      logger.error("Hugging Face repo is gated. Please make sure you have access to the repo.")
+      return False
+    except RepositoryNotFoundError:
+      logger.error("Hugging Face repo not found. Please make sure the repo exists.")
+      return False
 
   @staticmethod
   def validate_config(checkpoint_path: str):
