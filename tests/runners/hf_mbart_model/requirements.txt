@@ -1,4 +1,5 @@
 clarifai
 requests
+tokenizers==0.21.1
 torch==2.6.0
 transformers==4.51.3
