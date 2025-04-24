@@ -102,7 +102,7 @@ class VisualDetectorClass(ModelClass):
                     detections.append(
                         Region(
                             box=box.tolist(),
-                            concepts=[Concept(id=label, name=label, value=score.item())]
+                            concepts=[Concept(name=label, value=score.item())]
                         )
                     )
             outputs.append(detections)
