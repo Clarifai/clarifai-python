@@ -1,3 +1,9 @@
+## [[11.3.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.3.0) - [PyPI](https://pypi.org/project/clarifai/11.3.0/) - 2025-04-22
+
+### Changed
+- We support pythonic models now. See [runners-examples](https://github.com/clarifai/runners-examples) [(#525)](https://github.com/Clarifai/clarifai-python/pull/525)
+- Fixed failing tests. [(#559)](https://github.com/Clarifai/clarifai-python/pull/559)
+
 ## [[11.2.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.3) - [PyPI](https://pypi.org/project/clarifai/11.2.3/) - 2025-04-08
 
 ### Changed
