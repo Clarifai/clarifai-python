@@ -32,7 +32,7 @@ from clarifai.utils.misc import BackoffIterator
 from clarifai.utils.model_train import (find_and_replace_key, params_parser,
                                         response_to_model_params, response_to_param_info,
                                         response_to_templates)
-
+from clarifai.utils.protobuf import dict_to_protobuf
 MAX_SIZE_PER_STREAM = int(89_128_960)  # 85GiB
 MIN_CHUNK_FOR_UPLOAD_FILE = int(5_242_880)  # 5MiB
 MAX_CHUNK_FOR_UPLOAD_FILE = int(5_242_880_000)  # 5GiB
@@ -73,8 +73,11 @@ class Model(Lister, BaseClient):
       user_id, app_id, _, model_id, model_version_id = ClarifaiUrlHelper.split_clarifai_url(url)
       model_version = {'id': model_version_id}
       kwargs = {'user_id': user_id, 'app_id': app_id}
+
     self.kwargs = {**kwargs, 'id': model_id, 'model_version': model_version, }
-    self.model_info = resources_pb2.Model(**self.kwargs)
+    self.model_info = resources_pb2.Model()
+    dict_to_protobuf(self.model_info, self.kwargs)
+
     self.logger = logger
     self.training_params = {}
     self.input_types = None
@@ -983,7 +986,8 @@ class Model(Lister, BaseClient):
 
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
     self.kwargs = self.process_response_keys(dict_response['model'])
-    self.model_info = resources_pb2.Model(**self.kwargs)
+    self.model_info = resources_pb2.Model()
+    dict_to_protobuf(self.model_info, self.kwargs)
 
   def __str__(self):
     if len(self.kwargs) < 10:

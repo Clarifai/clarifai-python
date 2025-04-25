@@ -115,12 +115,7 @@ class InputField(MessageData):
     # proto.is_param = self.is_param
 
     if self.default is not None:
-      if isinstance(self.default, str) or isinstance(self.default, bool) or isinstance(
-          self.default, (int, float)):
-        proto.default = str(self.default)
-      else:
-        import json
-        proto.default = json.dumps(self.default)
+      proto = self.set_default(proto, self.default)
 
     return proto
 
@@ -169,17 +164,57 @@ class InputField(MessageData):
 
   @classmethod
   def set_default(cls, proto=None, default=None):
-
-    if proto is None:
-      proto = InputFieldProto()
-    if default is not None:
-      if isinstance(default, str) or isinstance(default, bool) or isinstance(
-          default, (int, float)):
-        proto.default = str(default)
-      else:
-        import json
+    try:
+      import json
+      if proto is None:
+        proto = InputFieldProto()
+      if default is not None:
         proto.default = json.dumps(default)
-    return proto
+      return proto
+    except Exception:
+      if default is not None:
+        proto.default = str(default)
+      return proto
+    except Exception as e:
+      raise ValueError(
+          f"Error setting default value of type, {type(default)} and value: {default}: {e}")
+
+  @classmethod
+  def get_default(cls, proto):
+    default_str = proto.default
+    default = None
+    import json
+    try:
+      # Attempt to parse as JSON first (for complex types)
+      return json.loads(default_str)
+    except json.JSONDecodeError:
+      pass
+    # Check for boolean values stored as "True" or "False"
+    if proto.type == resources_pb2.ModelTypeField.DataType.BOOL:
+      try:
+        default = bool(default_str)
+      except ValueError:
+        pass
+    # Try to parse as integer
+    elif proto.type == resources_pb2.ModelTypeField.DataType.INT:
+      try:
+        default = int(default_str)
+      except ValueError:
+        pass
+
+    # Try to parse as float
+    elif proto.type == resources_pb2.ModelTypeField.DataType.FLOAT:
+      try:
+        default = float(default_str)
+      except ValueError:
+        pass
+    elif proto.type == resources_pb2.ModelTypeField.DataType.STR:
+      default = default_str
+
+    if default is None:
+      # If all parsing fails, return the string value
+      default = default_str
+    return default
 
 
 class DataConverter:
@@ -211,54 +246,68 @@ class DataConverter:
     if data_type == resources_pb2.ModelTypeField.DataType.STR:
       if old_data.HasField('text'):
         new_data.string_value = old_data.text.raw
+        old_data.ClearField('text')
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.IMAGE:
       if old_data.HasField('image'):
         new_data.image.CopyFrom(old_data.image)
+        # Clear the old field to avoid duplication
+        old_data.ClearField('image')
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.VIDEO:
       if old_data.HasField('video'):
         new_data.video.CopyFrom(old_data.video)
+        old_data.ClearField('video')
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.BOOL:
       if old_data.bool_value is not False:
         new_data.bool_value = old_data.bool_value
+        old_data.bool_value = False
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.INT:
       if old_data.int_value != 0:
         new_data.int_value = old_data.int_value
+        old_data.int_value = 0
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.FLOAT:
       if old_data.float_value != 0.0:
         new_data.float_value = old_data.float_value
+        old_data.float_value = 0.0
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.BYTES:
       if old_data.bytes_value != b"":
         new_data.bytes_value = old_data.bytes_value
+        old_data.bytes_value = b""
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.NDARRAY:
       if old_data.HasField('ndarray'):
         new_data.ndarray.CopyFrom(old_data.ndarray)
+        old_data.ClearField('ndarray')
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.TEXT:
       if old_data.HasField('text'):
         new_data.text.CopyFrom(old_data.text)
+        old_data.ClearField('text')
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.AUDIO:
       if old_data.HasField('audio'):
         new_data.audio.CopyFrom(old_data.audio)
+        old_data.ClearField('audio')
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.CONCEPT:
       if old_data.concepts:
         new_data.concepts.extend(old_data.concepts)
+        old_data.ClearField('concepts')
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.REGION:
       if old_data.regions:
         new_data.regions.extend(old_data.regions)
+        old_data.ClearField('regions')
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.FRAME:
       if old_data.frames:
         new_data.frames.extend(old_data.frames)
+        old_data.ClearField('frames')
       return new_data
     elif data_type == resources_pb2.ModelTypeField.DataType.LIST:
       if not field.type_args:

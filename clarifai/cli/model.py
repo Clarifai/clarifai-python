@@ -77,6 +77,32 @@ def download_checkpoints(model_path, out_path, stage):
     default=".",
 )
 @click.option(
+    '--out_path',
+    type=click.Path(exists=False),
+    required=False,
+    default=None,
+    help='Path to write the method signature defitions to. If not provided, use stdout.')
+def signatures(model_path, out_path):
+  """Generate method signatures for the model."""
+
+  from clarifai.runners.models.model_builder import ModelBuilder
+  builder = ModelBuilder(model_path, download_validation_only=True)
+  signatures = builder.method_signatures_yaml()
+  if out_path:
+    with open(out_path, 'w') as f:
+      f.write(signatures)
+  else:
+    click.echo(signatures)
+
+
+@model.command()
+@click.argument(
+    "model_path",
+    type=click.Path(exists=True),
+    required=False,
+    default=".",
+)
+@click.option(
     '--mode',
     type=click.Choice(['env', 'container'], case_sensitive=False),
     default='env',

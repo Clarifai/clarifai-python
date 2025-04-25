@@ -261,7 +261,7 @@ class TestRunnerServer:
     for i, res in enumerate(stub.GenerateModelOutputs(req)):
       self._validate_response(res, text + out.format(i=i))
 
-  @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
+  # @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
   def test_stream(self):
     text = "This is a long text for testing stream"
     out = "Stream Hello World {i}"
@@ -368,7 +368,7 @@ class TestRunnerServer:
       for i, res in enumerate(model_response):
         self._validate_response(res, text + out.format(i=i))
 
-  @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
+  # @pytest.mark.skip(reason="Bug in the Backend API. Add after it is fixed.")
   def test_client_stream(self):
     text = "This is a long text for testing stream"
     out = "Stream Hello World {i}"

@@ -259,7 +259,6 @@ class ModelClient:
       inputs,  # TODO set up functions according to fetched signatures?
       method_name: str = 'predict',
   ) -> Any:
-
     input_signature = self._method_signatures[method_name].input_fields
     output_signature = self._method_signatures[method_name].output_fields
 
@@ -328,7 +327,7 @@ class ModelClient:
       response = self.STUB.PostModelOutputs(request)
       if status_is_retryable(
           response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
-        logger.info(f"Model predict failed with response {response!r}")
+        logger.info("Model is still deploying, please wait...")
         time.sleep(next(backoff_iterator))
         continue
 
