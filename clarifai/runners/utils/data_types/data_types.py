@@ -1,5 +1,6 @@
 import io
 import json
+import re
 from typing import Iterable, List, Tuple, Union, get_args, get_origin
 
 import numpy as np
@@ -167,10 +168,16 @@ class Text(MessageData):
 
 class Concept(MessageData):
 
-  def __init__(self, id: str, name: str, value: float = 1):
-    self.id = id
+  def __init__(self, name: str, id: str = None, value: float = 1):
     self.name = name
     self.value = value
+    self.id = id or Concept._concept_name_to_id(name)
+
+  @staticmethod
+  def _concept_name_to_id(name: str):
+    name = re.sub(r'[^a-zA-Z0-9\s]', '', name)
+    name = name.replace(' ', '-')
+    return "id-" + name
 
   def __repr__(self) -> str:
     return f"Concept(id={self.id!r}, name={self.name!r}, value={self.value})"
