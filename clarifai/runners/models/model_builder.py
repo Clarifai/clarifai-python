@@ -42,17 +42,18 @@ def _clear_line(n: int = 1) -> None:
   for _ in range(n):
     print(LINE_UP, end=LINE_CLEAR, flush=True)
 
-def is_related(object_class, main_class):
-    # Check if the object_class is a subclass of main_class
-    if issubclass(object_class, main_class):
-      return True
 
-    # Check if the object_class is a subclass of any of the parent classes of main_class
-    parent_classes = object_class.__bases__
-    for parent in parent_classes:
-        if main_class in parent.__bases__:
-            return True
-    return False
+def is_related(object_class, main_class):
+  # Check if the object_class is a subclass of main_class
+  if issubclass(object_class, main_class):
+    return True
+
+  # Check if the object_class is a subclass of any of the parent classes of main_class
+  parent_classes = object_class.__bases__
+  for parent in parent_classes:
+    if main_class in parent.__bases__:
+      return True
+  return False
 
 
 class ModelBuilder:
