@@ -3,11 +3,9 @@ from .data_types import Audio  # noqa
 from .data_types import Concept  # noqa
 from .data_types import Frame  # noqa
 from .data_types import Image  # noqa
-from .data_types import Mask  # noqa
 from .data_types import MessageData  # noqa
 from .data_types import NamedFields  # noqa
 from .data_types import NamedFieldsMeta  # noqa
-from .data_types import Point  # noqa
 from .data_types import Region  # noqa
 from .data_types import Text  # noqa
 from .data_types import Video  # noqa

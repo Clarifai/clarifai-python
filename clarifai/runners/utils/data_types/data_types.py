@@ -284,15 +284,14 @@ class Point(MessageData):
 
 class Region(MessageData):
 
-  def __init__(
-      self,
-      proto_region: RegionProto = None,
-      box: List[float] = None,
-      concepts: List[Concept] = None,
-      mask: Union[Mask, 'Image', PILImage.Image, np.ndarray] = None,
-      point: Union[Point, Tuple[float, float, float]] = None,
-      track_id: str = None,
-  ):
+  def __init__(self,
+               proto_region: RegionProto = None,
+               box: List[float] = None,
+               concepts: List[Concept] = None,
+               mask: Union[Mask, 'Image', PILImage.Image, np.ndarray] = None,
+               point: Union[Point, Tuple[float, float, float]] = None,
+               track_id: str = None,
+               text: str = None):
     if proto_region is None:
       proto_region = RegionProto()
     self.proto = proto_region
@@ -306,7 +305,17 @@ class Region(MessageData):
     if point:
       self.point = point
     if track_id:
-      self.track_id
+      self.track_id = track_id
+    if text:
+      self.text = text
+
+  @property
+  def text(self):
+    return self.proto.data.text.raw
+
+  @text.setter
+  def text(self, value: str):
+    self.proto.data.text.raw = value
 
   @property
   def box(self) -> List[float]:
