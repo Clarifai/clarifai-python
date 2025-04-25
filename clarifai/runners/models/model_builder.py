@@ -42,6 +42,18 @@ def _clear_line(n: int = 1) -> None:
   for _ in range(n):
     print(LINE_UP, end=LINE_CLEAR, flush=True)
 
+def is_related(object_class, main_class):
+    # Check if the object_class is a subclass of main_class
+    if issubclass(object_class, main_class):
+      return True
+
+    # Check if the object_class is a subclass of any of the parent classes of main_class
+    parent_classes = object_class.__bases__
+    for parent in parent_classes:
+        if main_class in parent.__bases__:
+            return True
+    return False
+
 
 class ModelBuilder:
   DEFAULT_CHECKPOINT_SIZE = 50 * 1024**3  # 50 GiB
@@ -125,7 +137,7 @@ class ModelBuilder:
     # Find all classes in the model.py file that are subclasses of ModelClass
     classes = [
         cls for _, cls in inspect.getmembers(module, inspect.isclass)
-        if issubclass(cls, ModelClass) and cls.__module__ == module.__name__
+        if is_related(cls, ModelClass) and cls.__module__ == module.__name__
     ]
     #  Ensure there is exactly one subclass of BaseRunner in the model.py file
     if len(classes) != 1:
