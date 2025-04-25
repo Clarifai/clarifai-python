@@ -326,6 +326,7 @@ class Region(MessageData):
 
   @property
   def box(self) -> List[float]:
+    """[xmin, ymin, xmax, ymax]"""
     bbox = self.proto.region_info.bounding_box
     # x1, y1, x2, y2
     return [bbox.left_col, bbox.top_row, bbox.right_col, bbox.bottom_row]
