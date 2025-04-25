@@ -443,6 +443,15 @@ class Image(MessageData):
     proto_image = ImageProto(base64=image_bytes)
     return cls(proto_image)
 
+  @classmethod
+  def from_numpy(cls, numpy_image: np.ndarray, img_format="PNG") -> "Image":
+    pil_image = PILImage.fromarray(numpy_image)
+    with io.BytesIO() as output:
+      pil_image.save(output, format=img_format)
+      image_bytes = output.getvalue()
+    proto_image = ImageProto(base64=image_bytes)
+    return cls(proto_image)
+
   def to_pil(self) -> PILImage.Image:
     if not self.proto.base64:
       raise ValueError("Image has no bytes")
