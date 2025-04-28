@@ -175,9 +175,9 @@ class Concept(MessageData):
 
   @staticmethod
   def _concept_name_to_id(name: str):
-    name = re.sub(r'[^a-zA-Z0-9\s]', '', name)
-    name = name.replace(' ', '-')
-    return "id-" + name
+    _name = re.sub(r'[^a-zA-Z0-9\s]', '', name)
+    _name = _name.replace(' ', '-')
+    return _name
 
   def __repr__(self) -> str:
     return f"Concept(id={self.id!r}, name={self.name!r}, value={self.value})"
