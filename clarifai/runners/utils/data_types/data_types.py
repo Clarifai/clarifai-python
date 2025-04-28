@@ -168,7 +168,7 @@ class Text(MessageData):
 
 class Concept(MessageData):
 
-  def __init__(self, name: str, id: str = None, value: float = 1):
+  def __init__(self, name: str, value: float = 1., id: str = None):
     self.name = name
     self.value = value
     self.id = id or Concept._concept_name_to_id(name)

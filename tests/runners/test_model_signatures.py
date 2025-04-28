@@ -1719,7 +1719,7 @@ class TestSerialization(unittest.TestCase):
 
     signature = MyModel._get_method_info('f').signature
 
-    kwargs = {'x': [Concept('testconcept', 0.9), Concept('testconcept2', 0.8)]}
+    kwargs = {'x': [Concept('testconcept', value=0.9), Concept('testconcept2', value=0.8)]}
 
     proto = resources_pb2.Data()
     serialize(kwargs, signature.input_fields, proto)
