@@ -16,8 +16,8 @@ from clarifai_grpc.grpc.api.resources_pb2 import Video as VideoProto
 from PIL import Image as PILImage
 
 __all__ = [
-    "Audio", "Concept", "Frame", "Image", "Region", "Text", "Video", "Mask", "Point",
-    "MessageData", "NamedFieldsMeta", "NamedFields", "JSON"
+    "Audio", "Concept", "Frame", "Image", "Region", "Text", "Video", "MessageData",
+    "NamedFieldsMeta", "NamedFields", "JSON"
 ]
 
 
@@ -190,113 +190,14 @@ class Concept(MessageData):
     return cls(id=proto.id, name=proto.name, value=proto.value)
 
 
-class Mask(MessageData):
-
-  def __init__(self,
-               proto_mask: MaskProto = None,
-               image: Union['Image', PILImage.Image, np.ndarray] = None):
-    if proto_mask is None:
-      proto_mask = MaskProto()
-    self.proto = proto_mask
-    if image is not None:
-      self.image = image
-
-  @property
-  def image(self) -> 'Image':
-    return Image.from_proto(self.proto.image)
-
-  @image.setter
-  def image(self, value: Union['Image', PILImage.Image, np.ndarray]):
-    if value is None:
-      self.proto.image.Clear()
-    else:
-      if isinstance(value, PILImage.Image):
-        value = Image.from_pil(value)
-      elif isinstance(value, np.ndarray):
-        value = Image.from_pil(PILImage.fromarray(value))
-      elif not isinstance(value, Image):
-        raise ValueError(
-            f"Expected one of types ['Image', PIL.Image.Image, numpy.ndarray] got '{type(value)}'")
-      self.proto.image.CopyFrom(value.to_proto())
-
-  def __repr__(self) -> str:
-    attrs = []
-
-    if self.image.url:
-      attrs.append(f"url={self.image.url!r}")
-    if self.image.bytes:
-      attrs.append(f"bytes=<{len(self.image.bytes)} bytes>")
-    return f"Mask({', '.join(attrs)})"
-
-  def to_proto(self) -> MaskProto:
-    return self.proto
-
-  @classmethod
-  def from_proto(cls, proto: MaskProto) -> "Mask":
-    return cls(proto)
-
-
-class Point(MessageData):
-
-  def __init__(self,
-               proto_point: PointProto = None,
-               x: float = None,
-               y: float = None,
-               z: float = None):
-
-    if proto_point is None:
-      proto_point = PointProto()
-    self.proto = proto_point
-    self.x = x
-    self.y = y
-    self.z = z
-
-  @property
-  def x(self) -> float:
-    return self.proto.col
-
-  @x.setter
-  def x(self, value: float):
-    if value and isinstance(value, float):
-      self.proto.col = value
-
-  @property
-  def y(self) -> float:
-    return self.proto.row
-
-  @y.setter
-  def y(self, value: float):
-    if value and isinstance(value, float):
-      self.proto.row = value
-
-  @property
-  def z(self) -> float:
-    return self.proto.z
-
-  @z.setter
-  def z(self, value: float):
-    if value and isinstance(value, float):
-      self.proto.z = value
-
-  def __repr__(self) -> str:
-    return f"Point(x={self.x}, y={self.y}, z={self.z})"
-
-  def to_proto(self) -> PointProto:
-    return self.proto
-
-  @classmethod
-  def from_proto(cls, proto: PointProto) -> "Point":
-    return cls(proto)
-
-
 class Region(MessageData):
 
   def __init__(self,
                proto_region: RegionProto = None,
                box: List[float] = None,
                concepts: List[Concept] = None,
-               mask: Union[Mask, 'Image', PILImage.Image, np.ndarray] = None,
-               point: Union[Point, Tuple[float, float, float]] = None,
+               mask: Union['Image', PILImage.Image, np.ndarray] = None,
+               point: Tuple[float, float, float] = None,
                track_id: str = None,
                text: str = None):
     if proto_region is None:
@@ -348,17 +249,20 @@ class Region(MessageData):
       self.proto.data.concepts.extend([concept.to_proto() for concept in value])
 
   @property
-  def mask(self) -> Mask:
-    return Mask.from_proto(self.proto.region_info.mask)
+  def mask(self) -> 'Image':
+    return Image.from_proto(self.proto.region_info.mask.image)
 
   @mask.setter
-  def mask(self, value: Union[Mask, 'Image', PILImage.Image, np.ndarray]):
-    if not isinstance(value, Mask):
-      value = Mask(image=value)
-    assert isinstance(value, Mask), ValueError(
-        f"Expected type in one of ['Mask', 'Image', PIL.Image.Image, np.ndarray], got {type(value)}"
-    )
-    self.proto.region_info.mask.CopyFrom(value.to_proto())
+  def mask(self, value: Union['Image', PILImage.Image, np.ndarray]):
+    if isinstance(value, PILImage.Image):
+      value = Image.from_pil(value)
+    elif isinstance(value, np.ndarray):
+      value = Image.from_numpy(value)
+    elif not isinstance(value, Image):
+      raise TypeError(
+          f"Expected one of types ['Image', PIL.Image.Image, numpy.ndarray] got '{type(value).__name__}'"
+      )
+    self.proto.region_info.mask.CopyFrom(MaskProto(image=value.to_proto()))
 
   @property
   def track_id(self) -> str:
@@ -366,22 +270,28 @@ class Region(MessageData):
 
   @track_id.setter
   def track_id(self, value: str):
+    if not isinstance(value, str):
+      raise TypeError(f"Expected str for track_id, got {type(value).__name__}")
     self.proto.track_id = value
 
   @property
-  def point(self) -> Point:
-    return Point.from_proto(self.proto.region_info.point)
+  def point(self) -> Tuple[float, float, float]:
+    """[x,y,z]"""
+    point = self.proto.region_info.point
+    return point.col, point.row, point.z
 
   @point.setter
-  def point(self, value: Union[Point, Tuple[float, float, float]]):
-    if isinstance(value, Iterable):
-      assert len(value) == 3, ValueError(
-          f"Expected value is Tuple[float, float, float], got type {type(value)}")
-      x, y, z = value
-      value = Point(x=x, y=y, z=z)
-    assert isinstance(value, Point), ValueError(
-        f"Expected type in one of ['Point', Tuple[float, float, float]], got type {type(value)}")
-    self.proto.region_info.point.CopyFrom(value.to_proto())
+  def point(self, value: Tuple[float, float, float]):
+    if not isinstance(value, Iterable):
+      raise TypeError(f"Expected a tuple of floats, got {type(value).__name__}")
+    value = tuple(value)
+    if len(value) != 3:
+      raise ValueError(f"Expected 3 elements, got {len(value)}")
+    if not all(isinstance(v, float) for v in value):
+      raise TypeError("All elements must be floats")
+    x, y, z = value
+    point_proto = PointProto(col=x, row=y, z=z)
+    self.proto.region_info.point.CopyFrom(point_proto)
 
   def __repr__(self) -> str:
     return f"Region(box={self.box or []}, concepts={self.concepts or None}, point={self.point or None}, mask={self.mask or None}, track_id={self.track_id or None})"
