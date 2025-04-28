@@ -187,7 +187,7 @@ class Concept(MessageData):
 
   @classmethod
   def from_proto(cls, proto: ConceptProto) -> "Concept":
-    return cls(proto.id, proto.name, proto.value)
+    return cls(id=proto.id, name=proto.name, value=proto.value)
 
 
 class Mask(MessageData):
