@@ -1,3 +1,4 @@
+import asyncio
 import itertools
 import json
 import os
@@ -33,6 +34,7 @@ from clarifai.utils.model_train import (find_and_replace_key, params_parser,
                                         response_to_model_params, response_to_param_info,
                                         response_to_templates)
 from clarifai.utils.protobuf import dict_to_protobuf
+
 MAX_SIZE_PER_STREAM = int(89_128_960)  # 85GiB
 MIN_CHUNK_FOR_UPLOAD_FILE = int(5_242_880)  # 5MiB
 MAX_CHUNK_FOR_UPLOAD_FILE = int(5_242_880_000)  # 5GiB
@@ -657,6 +659,14 @@ class Model(Lister, BaseClient):
     return self.predict(
         inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
+  async def async_predict(self, *args, **kwargs):
+    """
+    Calls the model's async predict() method with the given arguments.
+
+    Wrapper around the sync predict method of the ModelClient.
+    """
+    return await asyncio.to_thread(self.predict, *args, **kwargs)
+
   def generate(self, *args, **kwargs):
     """
     Calls the model's generate() method with the given arguments.
@@ -790,6 +800,14 @@ class Model(Lister, BaseClient):
 
     return self.generate(
         inputs=[input_proto], inference_params=inference_params, output_config=output_config)
+
+  async def async_generate(self, *args, **kwargs):
+    """
+    Calls the model's async generate() method with the given arguments.
+
+    Wrapper around the sync generate method of the ModelClient.
+    """
+    return await asyncio.to_thread(self.generate, *args, **kwargs)
 
   def stream(self, *args, **kwargs):
     """
@@ -942,6 +960,14 @@ class Model(Lister, BaseClient):
 
     return self.stream(
         inputs=input_generator(), inference_params=inference_params, output_config=output_config)
+
+  async def async_stream(self, *args, **kwargs):
+    """
+    Calls the model's async stream() method with the given arguments.
+
+    Wrapper around the sync stream method of the ModelClient.
+    """
+    return await asyncio.to_thread(self.stream, *args, **kwargs)
 
   def _override_model_version(self, inference_params: Dict = {}, output_config: Dict = {}) -> None:
     """Overrides the model version.
