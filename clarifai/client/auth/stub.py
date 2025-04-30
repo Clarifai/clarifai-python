@@ -70,6 +70,7 @@ class AuthorizedStub(V2Stub):
     if auth_helper is None:
       auth_helper = ClarifaiAuthHelper.from_env()
     self.stub = auth_helper.get_stub()
+    self.async_stub = auth_helper.get_async_stub()
     self.metadata = auth_helper.metadata
 
   def __getattr__(self, name):

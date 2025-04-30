@@ -1,4 +1,3 @@
-import asyncio
 import itertools
 import json
 import os
@@ -438,6 +437,19 @@ class Model(Lister, BaseClient):
       self._client = ModelClient(self.STUB, request_template=request_template)
     return self._client
 
+  @property
+  def async_client(self):
+    if not hasattr(self, "_aclient") or self._aclient is None:
+      request_template = service_pb2.PostModelOutputsRequest(
+          user_app_id=self.user_app_id,
+          model_id=self.id,
+          version_id=self.model_version.id,
+          model=self.model_info,
+          runner_selector=self._runner_selector,
+      )
+      self._aclient = ModelClient(self.async_stub, request_template=request_template)
+    return self._aclient
+
   def predict(self, *args, **kwargs):
     """
     Calls the model's predict() method with the given arguments.
@@ -459,6 +471,16 @@ class Model(Lister, BaseClient):
           inputs=inputs, inference_params=inference_params, output_config=output_config)
 
     return self.client.predict(*args, **kwargs)
+
+  async def async_predict(self, *args, **kwargs):
+    """
+        Calls the model's async predict() method with the given arguments.
+
+        If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+        protos directly for compatibility with previous versions of the SDK.
+        """
+
+    return await self.async_client.predict(*args, **kwargs)
 
   def __getattr__(self, name):
     try:
@@ -659,14 +681,6 @@ class Model(Lister, BaseClient):
     return self.predict(
         inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
-  async def async_predict(self, *args, **kwargs):
-    """
-    Calls the model's async predict() method with the given arguments.
-
-    Wrapper around the sync predict method of the ModelClient.
-    """
-    return await asyncio.to_thread(self.predict, *args, **kwargs)
-
   def generate(self, *args, **kwargs):
     """
     Calls the model's generate() method with the given arguments.
@@ -800,14 +814,6 @@ class Model(Lister, BaseClient):
 
     return self.generate(
         inputs=[input_proto], inference_params=inference_params, output_config=output_config)
-
-  async def async_generate(self, *args, **kwargs):
-    """
-    Calls the model's async generate() method with the given arguments.
-
-    Wrapper around the sync generate method of the ModelClient.
-    """
-    return await asyncio.to_thread(self.generate, *args, **kwargs)
 
   def stream(self, *args, **kwargs):
     """
@@ -960,14 +966,6 @@ class Model(Lister, BaseClient):
 
     return self.stream(
         inputs=input_generator(), inference_params=inference_params, output_config=output_config)
-
-  async def async_stream(self, *args, **kwargs):
-    """
-    Calls the model's async stream() method with the given arguments.
-
-    Wrapper around the sync stream method of the ModelClient.
-    """
-    return await asyncio.to_thread(self.stream, *args, **kwargs)
 
   def _override_model_version(self, inference_params: Dict = {}, output_config: Dict = {}) -> None:
     """Overrides the model version.
