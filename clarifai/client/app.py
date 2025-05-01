@@ -28,15 +28,17 @@ from clarifai.workflows.validate import validate
 class App(Lister, BaseClient):
   """App is a class that provides access to Clarifai API endpoints related to App information."""
 
-  def __init__(self,
-               url: str = None,
-               app_id: str = None,
-               user_id: str = None,
-               base_url: str = "https://api.clarifai.com",
-               pat: str = None,
-               token: str = None,
-               root_certificates_path: str = None,
-               **kwargs):
+  def __init__(
+      self,
+      url: str = None,
+      app_id: str = None,
+      user_id: str = None,
+      base_url: str = "https://api.clarifai.com",
+      pat: str = None,
+      token: str = None,
+      root_certificates_path: str = None,
+      **kwargs,
+  ):
     """Initializes an App object.
 
     Args:
@@ -68,7 +70,8 @@ class App(Lister, BaseClient):
         base=base_url,
         pat=pat,
         token=token,
-        root_certificates_path=root_certificates_path)
+        root_certificates_path=root_certificates_path,
+    )
     Lister.__init__(self)
 
   def list_datasets(self, page_no: int = None,
@@ -97,18 +100,21 @@ class App(Lister, BaseClient):
         service_pb2.ListDatasetsRequest,
         request_data,
         per_page=per_page,
-        page_no=page_no)
+        page_no=page_no,
+    )
     for dataset_info in all_datasets_info:
       if 'version' in dataset_info:
         dataset_info['version'].pop('metrics', None)
         dataset_info['version'].pop('export_info', None)
       yield Dataset.from_auth_helper(auth=self.auth_helper, **dataset_info)
 
-  def list_models(self,
-                  filter_by: Dict[str, Any] = {},
-                  only_in_app: bool = True,
-                  page_no: int = None,
-                  per_page: int = None) -> Generator[Model, None, None]:
+  def list_models(
+      self,
+      filter_by: Dict[str, Any] = {},
+      only_in_app: bool = True,
+      page_no: int = None,
+      per_page: int = None,
+  ) -> Generator[Model, None, None]:
     """Lists all the available models for the user.
 
     Args:
@@ -135,7 +141,8 @@ class App(Lister, BaseClient):
         service_pb2.ListModelsRequest,
         request_data,
         per_page=per_page,
-        page_no=page_no)
+        page_no=page_no,
+    )
 
     for model_info in all_models_info:
       if 'model_version' not in list(model_info.keys()):
@@ -145,11 +152,13 @@ class App(Lister, BaseClient):
           continue
       yield Model.from_auth_helper(auth=self.auth_helper, **model_info)
 
-  def list_workflows(self,
-                     filter_by: Dict[str, Any] = {},
-                     only_in_app: bool = True,
-                     page_no: int = None,
-                     per_page: int = None) -> Generator[Workflow, None, None]:
+  def list_workflows(
+      self,
+      filter_by: Dict[str, Any] = {},
+      only_in_app: bool = True,
+      page_no: int = None,
+      per_page: int = None,
+  ) -> Generator[Workflow, None, None]:
     """Lists all the available workflows for the user.
 
     Args:
@@ -176,7 +185,8 @@ class App(Lister, BaseClient):
         service_pb2.ListWorkflowsRequest,
         request_data,
         per_page=per_page,
-        page_no=page_no)
+        page_no=page_no,
+    )
 
     for workflow_info in all_workflows_info:
       if only_in_app:
@@ -184,11 +194,13 @@ class App(Lister, BaseClient):
           continue
       yield Workflow.from_auth_helper(auth=self.auth_helper, **workflow_info)
 
-  def list_modules(self,
-                   filter_by: Dict[str, Any] = {},
-                   only_in_app: bool = True,
-                   page_no: int = None,
-                   per_page: int = None) -> Generator[Module, None, None]:
+  def list_modules(
+      self,
+      filter_by: Dict[str, Any] = {},
+      only_in_app: bool = True,
+      page_no: int = None,
+      per_page: int = None,
+  ) -> Generator[Module, None, None]:
     """Lists all the available modules for the user.
 
     Args:
@@ -215,7 +227,8 @@ class App(Lister, BaseClient):
         service_pb2.ListModulesRequest,
         request_data,
         per_page=per_page,
-        page_no=page_no)
+        page_no=page_no,
+    )
 
     for module_info in all_modules_info:
       if only_in_app:
@@ -252,7 +265,8 @@ class App(Lister, BaseClient):
         service_pb2.ListInstalledModuleVersionsRequest,
         request_data,
         per_page=per_page,
-        page_no=page_no)
+        page_no=page_no,
+    )
     for imv_info in all_imv_infos:
       del imv_info['deploy_url']
       del imv_info['installed_module_version_id']  # TODO: remove this after the backend fix
@@ -304,17 +318,20 @@ class App(Lister, BaseClient):
         service_pb2.ListConceptsRequest,
         request_data,
         per_page=per_page,
-        page_no=page_no)
+        page_no=page_no,
+    )
     for concept_info in all_concepts_infos:
       concept_info['id'] = concept_info.pop('concept_id')
       yield Concept(**concept_info)
 
-  def search_concept_relations(self,
-                               concept_id: str = None,
-                               predicate: str = None,
-                               page_no: int = None,
-                               per_page: int = None,
-                               show_tree: bool = False) -> Generator[ConceptRelation, None, None]:
+  def search_concept_relations(
+      self,
+      concept_id: str = None,
+      predicate: str = None,
+      page_no: int = None,
+      per_page: int = None,
+      show_tree: bool = False,
+  ) -> Generator[ConceptRelation, None, None]:
     """List all the concept relations of the app.
 
     Args:
@@ -342,7 +359,8 @@ class App(Lister, BaseClient):
         service_pb2.ListConceptRelationsRequest,
         request_data,
         per_page=per_page,
-        page_no=page_no)
+        page_no=page_no,
+    )
     relations_dict = {}
     for concept_relation_info in all_concept_relations_infos:
       if show_tree:
@@ -436,7 +454,8 @@ class App(Lister, BaseClient):
             model_id=node['model']['model_id'],
             model_version={"id": node['model'].get('model_version_id', "")},
             user_id=node['model'].get('user_id', ""),
-            app_id=node['model'].get('app_id', ""))
+            app_id=node['model'].get('app_id', ""),
+        )
       except Exception as e:
         if "Model does not exist" in str(e):
           model = self.create_model(
@@ -534,7 +553,8 @@ class App(Lister, BaseClient):
     """
     request = service_pb2.PostModulesRequest(
         user_app_id=self.user_app_id,
-        modules=[resources_pb2.Module(id=module_id, description=description, **kwargs)])
+        modules=[resources_pb2.Module(id=module_id, description=description, **kwargs)],
+    )
     response = self._grpc_request(self.STUB.PostModules, request)
 
     if response.status.code != status_code_pb2.SUCCESS:
@@ -591,7 +611,8 @@ class App(Lister, BaseClient):
     request = service_pb2.PostConceptRelationsRequest(
         user_app_id=self.user_app_id,
         concept_id=subject_concept_id,
-        concept_relations=subject_relations)
+        concept_relations=subject_relations,
+    )
     response = self._grpc_request(self.STUB.PostConceptRelations, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
@@ -645,7 +666,8 @@ class App(Lister, BaseClient):
           user_app_id=self.auth_helper.get_user_app_id_proto(
               kwargs.get("user_id"), kwargs.get("app_id")),
           model_id=model_id,
-          version_id=model_version["id"])
+          version_id=model_version["id"],
+      )
     else:
       request = service_pb2.GetModelRequest(
           user_app_id=self.user_app_id, model_id=model_id, version_id=model_version["id"])
@@ -654,11 +676,13 @@ class App(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
-    kwargs = self.process_response_keys(dict_response['model'], 'model')
-    kwargs[
-        'model_version'] = response.model.model_version if response.model.model_version else None
 
-    return Model.from_auth_helper(self.auth_helper, **kwargs)
+    kwargs = self.process_response_keys(dict_response['model'], 'model')
+    kwargs['model_version'] = (response.model.model_version
+                               if response.model.model_version else None)
+
+    m = Model.from_auth_helper(self.auth_helper, **kwargs)
+    return m
 
   def workflow(self, workflow_id: str, **kwargs) -> Workflow:
     """Returns a workflow object for the existing workflow ID.
@@ -736,7 +760,8 @@ class App(Lister, BaseClient):
     request = service_pb2.PatchDatasetsRequest(
         user_app_id=self.user_app_id,
         datasets=[resources_pb2.Dataset(id=dataset_id, **kwargs)],
-        action=action)
+        action=action,
+    )
     response = self._grpc_request(self.STUB.PatchDatasets, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
@@ -762,7 +787,8 @@ class App(Lister, BaseClient):
     request = service_pb2.PatchModelsRequest(
         user_app_id=self.user_app_id,
         models=[resources_pb2.Model(id=model_id, **kwargs)],
-        action=action)
+        action=action,
+    )
     response = self._grpc_request(self.STUB.PatchModels, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
@@ -801,7 +827,8 @@ class App(Lister, BaseClient):
     request = service_pb2.PatchWorkflowsRequest(
         user_app_id=self.user_app_id,
         workflows=[resources_pb2.Workflow(id=workflow_id, **kwargs)],
-        action=action)
+        action=action,
+    )
     response = self._grpc_request(self.STUB.PatchWorkflows, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)

@@ -18,13 +18,15 @@ from clarifai.utils.logging import logger
 class User(Lister, BaseClient):
   """User is a class that provides access to Clarifai API endpoints related to user information."""
 
-  def __init__(self,
-               user_id: str = None,
-               base_url: str = "https://api.clarifai.com",
-               pat: str = None,
-               token: str = None,
-               root_certificates_path: str = None,
-               **kwargs):
+  def __init__(
+      self,
+      user_id: str = None,
+      base_url: str = "https://api.clarifai.com",
+      pat: str = None,
+      token: str = None,
+      root_certificates_path: str = None,
+      **kwargs,
+  ):
     """Initializes an User object.
 
     Args:
@@ -45,7 +47,8 @@ class User(Lister, BaseClient):
         base=base_url,
         pat=pat,
         token=token,
-        root_certificates_path=root_certificates_path)
+        root_certificates_path=root_certificates_path,
+    )
     Lister.__init__(self)
 
   def list_apps(self, filter_by: Dict[str, Any] = {}, page_no: int = None,
@@ -74,11 +77,12 @@ class User(Lister, BaseClient):
         service_pb2.ListAppsRequest,
         request_data,
         per_page=per_page,
-        page_no=page_no)
+        page_no=page_no,
+    )
     for app_info in all_apps_info:
       yield App.from_auth_helper(
           self.auth_helper,
-          **app_info)  #(base_url=self.base, pat=self.pat, token=self.token, **app_info)
+          **app_info)  # (base_url=self.base, pat=self.pat, token=self.token, **app_info)
 
   def list_runners(self, filter_by: Dict[str, Any] = {}, page_no: int = None,
                    per_page: int = None) -> Generator[dict, None, None]:
@@ -107,7 +111,8 @@ class User(Lister, BaseClient):
         service_pb2.ListRunnersRequest,
         request_data,
         per_page=per_page,
-        page_no=page_no)
+        page_no=page_no,
+    )
 
     for runner_info in all_runners_info:
       yield dict(auth=self.auth_helper, check_runner_exists=False, **runner_info)
@@ -138,7 +143,8 @@ class User(Lister, BaseClient):
         service_pb2.ListComputeClustersRequest,
         request_data,
         per_page=per_page,
-        page_no=page_no)
+        page_no=page_no,
+    )
 
     for compute_cluster_info in all_compute_clusters_info:
       yield ComputeCluster.from_auth_helper(self.auth_helper, **compute_cluster_info)
@@ -162,7 +168,8 @@ class User(Lister, BaseClient):
     workflow = resources_pb2.Workflow(id=base_workflow, app_id="main", user_id="clarifai")
     request = service_pb2.PostAppsRequest(
         user_app_id=self.user_app_id,
-        apps=[resources_pb2.App(id=app_id, default_workflow=workflow, **kwargs)])
+        apps=[resources_pb2.App(id=app_id, default_workflow=workflow, **kwargs)],
+    )
     response = self._grpc_request(self.STUB.PostApps, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
@@ -191,7 +198,8 @@ class User(Lister, BaseClient):
 
     request = service_pb2.PostRunnersRequest(
         user_app_id=self.user_app_id,
-        runners=[resources_pb2.Runner(id=runner_id, labels=labels, description=description)])
+        runners=[resources_pb2.Runner(id=runner_id, labels=labels, description=description)],
+    )
     response = self._grpc_request(self.STUB.PostRunners, request)
 
     if response.status.code != status_code_pb2.SUCCESS:
@@ -204,13 +212,13 @@ class User(Lister, BaseClient):
         user_id=self.id,
         labels=labels,
         description=description,
-        check_runner_exists=False)
+        check_runner_exists=False,
+    )
 
-  def _process_compute_cluster_config(self, config_filepath: str) -> Dict[str, Any]:
-    with open(config_filepath, "r") as file:
-      compute_cluster_config = yaml.safe_load(file)
-
-    assert "compute_cluster" in compute_cluster_config, "compute cluster info not found in the config file"
+  def _process_compute_cluster_config(self,
+                                      compute_cluster_config: Dict[str, Any]) -> Dict[str, Any]:
+    assert "compute_cluster" in compute_cluster_config, (
+        "compute cluster info not found in the config file")
     compute_cluster = compute_cluster_config['compute_cluster']
     assert "region" in compute_cluster, "region not found in the config file"
     assert "managed_by" in compute_cluster, "managed_by not found in the config file"
@@ -222,13 +230,18 @@ class User(Lister, BaseClient):
       compute_cluster["visibility"] = resources_pb2.Visibility(**compute_cluster["visibility"])
     return compute_cluster
 
-  def create_compute_cluster(self, config_filepath: str,
-                             compute_cluster_id: str = None) -> ComputeCluster:
+  def create_compute_cluster(
+      self,
+      config_filepath: str = None,
+      compute_cluster_id: str = None,
+      compute_cluster_config: Dict[str, Any] = None,
+  ) -> ComputeCluster:
     """Creates a compute cluster for the user.
 
     Args:
         config_filepath (str): The path to the compute cluster config file.
         compute_cluster_id (str): New compute cluster ID for the compute cluster to create.
+        compute_cluster_config (Dict[str, Any]): Optional dictionary containing compute cluster configuration.
 
     Returns:
         ComputeCluster: A Compute Cluster object for the specified compute cluster ID.
@@ -238,10 +251,21 @@ class User(Lister, BaseClient):
         >>> client = User(user_id="user_id")
         >>> compute_cluster = client.create_compute_cluster(config_filepath="config.yml")
     """
-    if not os.path.exists(config_filepath):
-      raise UserError(f"Compute Cluster config file not found at {config_filepath}")
 
-    compute_cluster_config = self._process_compute_cluster_config(config_filepath)
+    if config_filepath is not None:
+      assert compute_cluster_config is None, (
+          "Either config_filepath or compute_cluster_config should be provided, not both.")
+      if not os.path.exists(config_filepath):
+        raise UserError(f"Compute Cluster config file not found at {config_filepath}")
+      with open(config_filepath, "r"):
+        compute_cluster_config = yaml.safe_load(config_filepath)
+    elif compute_cluster_config is not None:
+      assert isinstance(compute_cluster_config,
+                        dict), ("compute_cluster_config should be a dictionary if provided.")
+    else:
+      raise AssertionError("Either config_filepath or compute_cluster_config should be provided.")
+
+    compute_cluster_config = self._process_compute_cluster_config(compute_cluster_config)
 
     if 'id' in compute_cluster_config:
       if compute_cluster_id is None:
@@ -252,7 +276,8 @@ class User(Lister, BaseClient):
         user_app_id=self.user_app_id,
         compute_clusters=[
             resources_pb2.ComputeCluster(id=compute_cluster_id, **compute_cluster_config)
-        ])
+        ],
+    )
     response = self._grpc_request(self.STUB.PostComputeClusters, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
@@ -360,7 +385,8 @@ class User(Lister, BaseClient):
         user_app_id=resources_pb2.UserAppIDSet(user_id=self.id, app_id=app_id),
         app=resources_pb2.App(id=app_id, **kwargs),
         action=action,
-        reindex=False)
+        reindex=False,
+    )
     response = self._grpc_request(self.STUB.PatchApp, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)

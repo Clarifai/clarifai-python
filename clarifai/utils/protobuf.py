@@ -21,10 +21,11 @@ WRAPPER_TYPES = {
 def dict_to_protobuf(pb_obj: Message, data: dict) -> None:
   """Recursively convert a nested dictionary to a Protobuf message object.
 
-    Args:
-        pb_obj: The target Protobuf message instance to populate.
-        data: Source dictionary containing the data to convert.
-    """
+  Args:
+      pb_obj: The target Protobuf message instance to populate.
+      data: Source dictionary containing the data to convert.
+  """
+
   for field, value in data.items():
     if field not in pb_obj.DESCRIPTOR.fields_by_name:
       logger.warning(f"Ignoring unknown field '{field}' in message '{pb_obj.DESCRIPTOR.name}'")
@@ -41,10 +42,22 @@ def dict_to_protobuf(pb_obj: Message, data: dict) -> None:
       elif field_descriptor.type == FieldDescriptor.TYPE_MESSAGE:
         _handle_message_field(pb_obj, field_descriptor, field, value)
 
+      # Handle enums as string or int.
+      # Alternative is to use MessageToDict with use_integers_for_enums=True everywhere
+      # we end up calling dict_to_protobuf afterwards.
+      elif field_descriptor.type == FieldDescriptor.TYPE_ENUM:
+        if isinstance(value, str):
+          enum_value = field_descriptor.enum_type.values_by_name.get(value)
+          if enum_value is not None:
+            setattr(pb_obj, field, enum_value.number)
+        elif isinstance(value, int):
+          enum_value = field_descriptor.enum_type.values_by_number.get(value)
+          if enum_value is not None:
+            setattr(pb_obj, field, enum_value.number)
+
       # Handle scalar fields
-      else:
-        if value:
-          setattr(pb_obj, field, value)
+      elif value:
+        setattr(pb_obj, field, value)
 
     except Exception as e:
       logger.error(f"Error processing field '{field}': {str(e)}")
@@ -92,16 +105,15 @@ def _handle_message_field(pb_obj: Message, field_descriptor: FieldDescriptor, fi
     _set_struct_value(target_field, value)
   elif msg_class in WRAPPER_TYPES:
     _set_wrapper_value(target_field, msg_class, value)
+  # Handle nested messages
+  elif isinstance(value, dict):
+    nested_pb = msg_class()
+    dict_to_protobuf(nested_pb, value)
+    target_field.CopyFrom(nested_pb)
+  elif isinstance(value, Message):
+    target_field.CopyFrom(value)
   else:
-    # Handle nested messages
-    if isinstance(value, dict):
-      nested_pb = msg_class()
-      dict_to_protobuf(nested_pb, value)
-      target_field.CopyFrom(nested_pb)
-    elif isinstance(value, Message):
-      target_field.CopyFrom(value)
-    else:
-      logger.warning(f"Invalid type {type(value).__name__} for message field '{field}'")
+    logger.warning(f"Invalid type {type(value).__name__} for message field '{field}'")
 
 
 def _set_timestamp_value(target_field: Message, value: object) -> None:
@@ -113,6 +125,8 @@ def _set_timestamp_value(target_field: Message, value: object) -> None:
   elif isinstance(value, (int, float)):
     ts.seconds = int(value)
     ts.nanos = int((value - ts.seconds) * 1e9)
+  elif isinstance(value, Timestamp):
+    ts = value
   else:
     logger.warning(f"Unsupported timestamp format: {type(value).__name__}")
   target_field.CopyFrom(ts)
@@ -120,16 +134,19 @@ def _set_timestamp_value(target_field: Message, value: object) -> None:
 
 def _set_struct_value(target_field: Message, value: object) -> None:
   """Convert dictionary to Protobuf Struct."""
-  if not isinstance(value, dict):
-    logger.warning(f"Expected dict for Struct field, got {type(value).__name__}")
-    return
+  if isinstance(value, struct_pb2.Struct):
+    struct = value
+  else:
+    if not isinstance(value, dict):
+      logger.warning(f"Expected dict for Struct field, got {type(value).__name__}")
+      return
 
-  struct = struct_pb2.Struct()
-  try:
-    struct.update(value)
-  except ValueError as e:
-    logger.error(f"Invalid value in Struct: {str(e)}")
-    raise
+    struct = struct_pb2.Struct()
+    try:
+      struct.update(value)
+    except ValueError as e:
+      logger.error(f"Invalid value in Struct: {str(e)}")
+      raise
   target_field.CopyFrom(struct)
 
 

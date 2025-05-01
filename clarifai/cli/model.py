@@ -1,6 +1,12 @@
 import click
 
 from clarifai.cli.base import cli
+from clarifai.utils.cli import validate_context
+from clarifai.utils.constants import (
+    DEFAULT_LOCAL_DEV_APP_ID, DEFAULT_LOCAL_DEV_COMPUTE_CLUSTER_CONFIG,
+    DEFAULT_LOCAL_DEV_COMPUTE_CLUSTER_ID, DEFAULT_LOCAL_DEV_MODEL_ID, DEFAULT_LOCAL_DEV_MODEL_TYPE,
+    DEFAULT_LOCAL_DEV_NODEPOOL_CONFIG, DEFAULT_LOCAL_DEV_NODEPOOL_ID)
+from clarifai.utils.logging import logger
 
 
 @cli.group(['model'])
@@ -17,7 +23,7 @@ def model():
     default="upload",
     show_default=True,
     help=
-    'The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.'
+    'The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.',
 )
 @click.option(
     '--skip_dockerfile',
@@ -28,9 +34,10 @@ def model():
 def upload(model_path, stage, skip_dockerfile):
   """Upload a model to Clarifai.
 
-    MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
+  MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
   """
   from clarifai.runners.models.model_builder import upload_model
+
   upload_model(model_path, stage, skip_dockerfile)
 
 
@@ -47,7 +54,7 @@ def upload(model_path, stage, skip_dockerfile):
     required=False,
     default=None,
     help=
-    'Option path to write the checkpoints to. This will place them in {out_path}/1/checkpoints If not provided it will default to {model_path}/1/checkpoints where the config.yaml is read.'
+    'Option path to write the checkpoints to. This will place them in {out_path}/1/checkpoints If not provided it will default to {model_path}/1/checkpoints where the config.yaml is read.',
 )
 @click.option(
     '--stage',
@@ -56,7 +63,7 @@ def upload(model_path, stage, skip_dockerfile):
     default="build",
     show_default=True,
     help=
-    'The stage we are calling download checkpoints from. Typically this would be in the build stage which is the default. Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.'
+    'The stage we are calling download checkpoints from. Typically this would be in the build stage which is the default. Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.',
 )
 def download_checkpoints(model_path, out_path, stage):
   """Download checkpoints from external source to local model_path
@@ -65,6 +72,7 @@ def download_checkpoints(model_path, out_path, stage):
   """
 
   from clarifai.runners.models.model_builder import ModelBuilder
+
   builder = ModelBuilder(model_path, download_validation_only=True)
   builder.download_checkpoints(stage=stage, checkpoint_path_override=out_path)
 
@@ -81,11 +89,13 @@ def download_checkpoints(model_path, out_path, stage):
     type=click.Path(exists=False),
     required=False,
     default=None,
-    help='Path to write the method signature defitions to. If not provided, use stdout.')
+    help='Path to write the method signature defitions to. If not provided, use stdout.',
+)
 def signatures(model_path, out_path):
   """Generate method signatures for the model."""
 
   from clarifai.runners.models.model_builder import ModelBuilder
+
   builder = ModelBuilder(model_path, download_validation_only=True)
   signatures = builder.method_signatures_yaml()
   if out_path:
@@ -107,19 +117,19 @@ def signatures(model_path, out_path):
     default='env',
     show_default=True,
     help=
-    'Specify how to test the model locally: "env" for virtual environment or "container" for Docker container. Defaults to "env".'
+    'Specify how to test the model locally: "env" for virtual environment or "container" for Docker container. Defaults to "env".',
 )
 @click.option(
     '--keep_env',
     is_flag=True,
     help=
-    'Keep the virtual environment after testing the model locally (applicable for virtualenv mode). Defaults to False.'
+    'Keep the virtual environment after testing the model locally (applicable for virtualenv mode). Defaults to False.',
 )
 @click.option(
     '--keep_image',
     is_flag=True,
     help=
-    'Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.'
+    'Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.',
 )
 @click.option(
     '--skip_dockerfile',
@@ -131,6 +141,7 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_
   """Test model locally."""
   try:
     from clarifai.runners.models import model_run_locally
+
     if mode == 'env' and keep_image:
       raise ValueError("'keep_image' is applicable only for 'container' mode")
     if mode == 'container' and keep_env:
@@ -146,7 +157,8 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_
           inside_container=True,
           run_model_server=False,
           keep_image=keep_image,
-          skip_dockerfile=skip_dockerfile)
+          skip_dockerfile=skip_dockerfile,
+      )
     click.echo("Model tested successfully.")
   except Exception as e:
     click.echo(f"Failed to test model locally: {e}", err=True)
@@ -165,26 +177,27 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_
     type=int,
     default=8000,
     show_default=True,
-    help="The port to host the gRPC server for running the model locally. Defaults to 8000.")
+    help="The port to host the gRPC server for running the model locally. Defaults to 8000.",
+)
 @click.option(
     '--mode',
     type=click.Choice(['env', 'container'], case_sensitive=False),
     default='env',
     show_default=True,
     help=
-    'Specifies how to run the model: "env" for virtual environment or "container" for Docker container. Defaults to "env".'
+    'Specifies how to run the model: "env" for virtual environment or "container" for Docker container. Defaults to "env".',
 )
 @click.option(
     '--keep_env',
     is_flag=True,
     help=
-    'Keep the virtual environment after testing the model locally (applicable for virtualenv mode). Defaults to False.'
+    'Keep the virtual environment after testing the model locally (applicable for virtualenv mode). Defaults to False.',
 )
 @click.option(
     '--keep_image',
     is_flag=True,
     help=
-    'Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.'
+    'Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.',
 )
 @click.option(
     '--skip_dockerfile',
@@ -196,6 +209,7 @@ def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=Fa
   """Run the model locally and start a gRPC server to serve the model."""
   try:
     from clarifai.runners.models import model_run_locally
+
     if mode == 'env' and keep_image:
       raise ValueError("'keep_image' is applicable only for 'container' mode")
     if mode == 'container' and keep_env:
@@ -212,7 +226,8 @@ def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=Fa
           run_model_server=True,
           port=port,
           keep_image=keep_image,
-          skip_dockerfile=skip_dockerfile)
+          skip_dockerfile=skip_dockerfile,
+      )
     click.echo(f"Model server started locally from {model_path} in {mode} mode.")
   except Exception as e:
     click.echo(f"Failed to starts model server locally: {e}", err=True)
@@ -225,12 +240,121 @@ def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=Fa
     required=False,
     default=".",
 )
-def local_dev(model_path):
-  """Run the model as a local dev runner to help debug your model connected to the API. You must set several envvars such as CLARIFAI_PAT, CLARIFAI_RUNNER_ID, CLARIFAI_NODEPOOL_ID, CLARIFAI_COMPUTE_CLUSTER_ID.
+@click.pass_context
+def local_dev(ctx, model_path):
+  """Run the model as a local dev runner to help debug your model connected to the API or to
+  leverage local compute resources manually. You must set several envvars such as CLARIFAI_PAT,
+  CLARIFAI_RUNNER_ID, CLARIFAI_NODEPOOL_ID, CLARIFAI_COMPUTE_CLUSTER_ID in your clarifai context.
 
   MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
   """
+  from clarifai.client.user import User
   from clarifai.runners.server import serve
+
+  validate_context(ctx)
+  user_id = ctx.obj.current.user_id
+  user = User(user_id=user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
+  logger.info(f"Current user_id: {user_id}")
+  logger.info("Checking if a local dev compute cluster exists...")
+
+  # see if ctx has CLARIFAI_COMPUTE_CLUSTER_ID, if not use default
+  try:
+    compute_cluster_id = ctx.obj.current.compute_cluster_id
+  except AttributeError:
+    compute_cluster_id = DEFAULT_LOCAL_DEV_COMPUTE_CLUSTER_ID
+  logger.info(f"Current compute_cluster_id: {compute_cluster_id}")
+
+  try:
+    compute_cluster = user.compute_cluster(compute_cluster_id)
+    if compute_cluster.cluster_type != 'local-dev':
+      raise ValueError(
+          f"Compute cluster {user_id}/{compute_cluster_id} is not a local-dev compute cluster. Please create a local-dev compute cluster."
+      )
+  except ValueError:
+    raise
+  except Exception as e:
+    logger.info(f"Failed to get compute cluster with ID {compute_cluster_id}: {e}")
+    y = input(
+        f"Compute cluster not found. Do you want to create a new compute cluster {user_id}/{compute_cluster_id}? (y/n): "
+    )
+    if y.lower() != 'y':
+      raise click.Abort()
+    # Create a compute cluster with default configuration for local dev.
+    compute_cluster = user.create_compute_cluster(
+        compute_cluster_id=compute_cluster_id,
+        compute_cluster_config=DEFAULT_LOCAL_DEV_COMPUTE_CLUSTER_CONFIG,
+    )
+    ctx.obj.current.CLARIFAI_COMPUTE_CLUSTER_ID = compute_cluster_id
+    ctx.obj.to_yaml()  # save to yaml file.
+
+  # Now check if there is a nodepool created in this compute cluser
+  try:
+    nodepool_id = ctx.obj.current.nodepool_id
+  except AttributeError:
+    nodepool_id = DEFAULT_LOCAL_DEV_NODEPOOL_ID
+  logger.info(f"Current nodepool_id: {nodepool_id}")
+
+  try:
+    compute_cluster.nodepool(nodepool_id)
+  except Exception as e:
+    logger.info(f"Failed to get nodepool with ID {nodepool_id}: {e}")
+    y = input(
+        f"Nodepool not found. Do you want to create a new nodepool {user_id}/{compute_cluster_id}/{nodepool_id}? (y/n): "
+    )
+    if y.lower() != 'y':
+      raise click.Abort()
+    compute_cluster.create_nodepool(
+        nodepool_config=DEFAULT_LOCAL_DEV_NODEPOOL_CONFIG, nodepool_id=nodepool_id)
+    ctx.obj.current.CLARIFAI_NODEPOOL_ID = nodepool_id
+    ctx.obj.to_yaml()  # save to yaml file.
+
+  logger.info("Checking if model is created to call for local development...")
+  # see if ctx has CLARIFAI_APP_ID, if not use default
+  try:
+    app_id = ctx.obj.current.app_id
+  except AttributeError:
+    app_id = DEFAULT_LOCAL_DEV_APP_ID
+  logger.info(f"Current app_id: {app_id}")
+
+  try:
+    app = user.app(app_id)
+  except Exception as e:
+    logger.info(f"Failed to get app with ID {app_id}: {e}")
+    y = input(f"App not found. Do you want to create a new app {user_id}/{app_id}? (y/n): ")
+    if y.lower() != 'y':
+      raise click.Abort()
+    app = user.create_app(app_id)
+    ctx.obj.current.CLARIFAI_APP_ID = app_id
+    ctx.obj.to_yaml()  # save to yaml file.
+
+  # Within this app we now need a model to call as the local dev runner.
+  try:
+    model_id = ctx.obj.current.model_id
+  except AttributeError:
+    model_id = DEFAULT_LOCAL_DEV_MODEL_ID
+  logger.info(f"Current model_id: {model_id}")
+
+  try:
+    model = app.model(model_id)
+  except Exception as e:
+    logger.info(f"Failed to get model with ID {model_id}: {e}")
+    y = input(
+        f"Model not found. Do you want to create a new model {user_id}/{app_id}/models/{model_id}? (y/n): "
+    )
+    if y.lower() != 'y':
+      raise click.Abort()
+    model = app.create_model(model_id, model_type_id=DEFAULT_LOCAL_DEV_MODEL_TYPE)
+    ctx.obj.current.CLARIFAI_MODEL_ID = model_id
+    ctx.obj.to_yaml()  # save to yaml file.
+
+  # Now we need to create a version for the model if no version exists. Only need one version that
+  # mentions it's a local dev runner.
+  model_versions = [v for v in model.list_versions()]
+  if len(model_versions) == 0:
+    logger.info("No model versions found. Creating a new version for local dev runner.")
+    version = model.create_version(pretrained_model_config={"local_dev": True})
+    logger.info(f"Created model version {version.id}")
+
   serve(model_path)
 
 
@@ -239,7 +363,8 @@ def local_dev(model_path):
     '--config',
     type=click.Path(exists=True),
     required=False,
-    help='Path to the model predict config file.')
+    help='Path to the model predict config file.',
+)
 @click.option('--model_id', required=False, help='Model ID of the model used to predict.')
 @click.option('--user_id', required=False, help='User ID of the model used to predict.')
 @click.option('--app_id', required=False, help='App ID of the model used to predict.')
@@ -260,34 +385,70 @@ def local_dev(model_path):
     '--inference_params', required=False, default='{}', help='Inference parameters to override')
 @click.option('--output_config', required=False, default='{}', help='Output config to override')
 @click.pass_context
-def predict(ctx, config, model_id, user_id, app_id, model_url, file_path, url, bytes, input_type,
-            compute_cluster_id, nodepool_id, deployment_id, inference_params, output_config):
+def predict(
+    ctx,
+    config,
+    model_id,
+    user_id,
+    app_id,
+    model_url,
+    file_path,
+    url,
+    bytes,
+    input_type,
+    compute_cluster_id,
+    nodepool_id,
+    deployment_id,
+    inference_params,
+    output_config,
+):
   """Predict using the given model"""
   import json
 
   from clarifai.client.model import Model
   from clarifai.utils.cli import from_yaml, validate_context
+
   validate_context(ctx)
   if config:
     config = from_yaml(config)
-    model_id, user_id, app_id, model_url, file_path, url, bytes, input_type, compute_cluster_id, nodepool_id, deployment_id, inference_params, output_config = (
-        config.get(k, v)
-        for k, v in [('model_id', model_id), ('user_id', user_id), ('app_id', app_id), (
-            'model_url', model_url), ('file_path', file_path), ('url', url), ('bytes', bytes), (
-                'input_type', input_type), ('compute_cluster_id', compute_cluster_id), (
-                    'nodepool_id',
-                    nodepool_id), ('deployment_id',
-                                   deployment_id), ('inference_params',
-                                                    inference_params), ('output_config',
-                                                                        output_config)])
-  if sum([opt[1] for opt in [(model_id, 1), (user_id, 1), (app_id, 1), (model_url, 3)]
-          if opt[0]]) != 3:
+    (
+        model_id,
+        user_id,
+        app_id,
+        model_url,
+        file_path,
+        url,
+        bytes,
+        input_type,
+        compute_cluster_id,
+        nodepool_id,
+        deployment_id,
+        inference_params,
+        output_config,
+    ) = (config.get(k, v)
+         for k, v in [
+             ('model_id', model_id),
+             ('user_id', user_id),
+             ('app_id', app_id),
+             ('model_url', model_url),
+             ('file_path', file_path),
+             ('url', url),
+             ('bytes', bytes),
+             ('input_type', input_type),
+             ('compute_cluster_id', compute_cluster_id),
+             ('nodepool_id', nodepool_id),
+             ('deployment_id', deployment_id),
+             ('inference_params', inference_params),
+             ('output_config', output_config),
+         ])
+  if (sum([opt[1] for opt in [(model_id, 1), (user_id, 1), (app_id, 1), (model_url, 3)]
+           if opt[0]]) != 3):
     raise ValueError("Either --model_id & --user_id & --app_id or --model_url must be provided.")
   if compute_cluster_id or nodepool_id or deployment_id:
-    if sum([
+    if (sum([
         opt[1] for opt in [(compute_cluster_id, 0.5), (nodepool_id, 0.5), (deployment_id, 1)]
         if opt[0]
-    ]) != 1:
+    ]) != 1):
       raise ValueError(
           "Either --compute_cluster_id & --nodepool_id or --deployment_id must be provided.")
   if model_url:
@@ -298,7 +459,8 @@ def predict(ctx, config, model_id, user_id, app_id, model_url, file_path, url, b
         user_id=user_id,
         app_id=app_id,
         pat=ctx.obj['pat'],
-        base_url=ctx.obj['base_url'])
+        base_url=ctx.obj['base_url'],
+    )
 
   if inference_params:
     inference_params = json.loads(inference_params)
@@ -313,7 +475,8 @@ def predict(ctx, config, model_id, user_id, app_id, model_url, file_path, url, b
         nodepool_id=nodepool_id,
         deployment_id=deployment_id,
         inference_params=inference_params,
-        output_config=output_config)
+        output_config=output_config,
+    )
   elif url:
     model_prediction = model.predict_by_url(
         url=url,
@@ -322,7 +485,8 @@ def predict(ctx, config, model_id, user_id, app_id, model_url, file_path, url, b
         nodepool_id=nodepool_id,
         deployment_id=deployment_id,
         inference_params=inference_params,
-        output_config=output_config)
+        output_config=output_config,
+    )
   elif bytes:
     bytes = str.encode(bytes)
     model_prediction = model.predict_by_bytes(
@@ -332,5 +496,6 @@ def predict(ctx, config, model_id, user_id, app_id, model_url, file_path, url, b
         nodepool_id=nodepool_id,
         deployment_id=deployment_id,
         inference_params=inference_params,
-        output_config=output_config)  ## TO DO: Add support for input_id
+        output_config=output_config,
+    )  ## TO DO: Add support for input_id
   click.echo(model_prediction)

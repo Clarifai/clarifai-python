@@ -9,6 +9,7 @@ from google.protobuf.json_format import MessageToDict
 from clarifai.client.base import BaseClient
 from clarifai.client.deployment import Deployment
 from clarifai.client.lister import Lister
+from clarifai.client.runner import Runner
 from clarifai.errors import UserError
 from clarifai.utils.logging import logger
 
@@ -16,14 +17,16 @@ from clarifai.utils.logging import logger
 class Nodepool(Lister, BaseClient):
   """Nodepool is a class that provides access to Clarifai API endpoints related to Nodepool information."""
 
-  def __init__(self,
-               nodepool_id: str = None,
-               user_id: str = None,
-               base_url: str = "https://api.clarifai.com",
-               pat: str = None,
-               token: str = None,
-               root_certificates_path: str = None,
-               **kwargs):
+  def __init__(
+      self,
+      nodepool_id: str = None,
+      user_id: str = None,
+      base_url: str = "https://api.clarifai.com",
+      pat: str = None,
+      token: str = None,
+      root_certificates_path: str = None,
+      **kwargs,
+  ):
     """Initializes a Nodepool object.
 
     Args:
@@ -44,7 +47,8 @@ class Nodepool(Lister, BaseClient):
         base=base_url,
         pat=pat,
         token=token,
-        root_certificates_path=root_certificates_path)
+        root_certificates_path=root_certificates_path,
+    )
     Lister.__init__(self)
 
   def list_deployments(self,
@@ -76,7 +80,8 @@ class Nodepool(Lister, BaseClient):
         service_pb2.ListDeploymentsRequest,
         request_data,
         per_page=per_page,
-        page_no=page_no)
+        page_no=page_no,
+    )
 
     for deployment_info in all_deployments_info:
       yield Deployment.from_auth_helper(auth=self.auth_helper, **deployment_info)
@@ -100,8 +105,8 @@ class Nodepool(Lister, BaseClient):
         resources_pb2.Nodepool(
             id=nodepool['id'],
             compute_cluster=resources_pb2.ComputeCluster(
-                id=nodepool['compute_cluster']['id'], user_id=self.user_app_id.user_id))
-        for nodepool in deployment['nodepools']
+                id=nodepool['compute_cluster']['id'], user_id=self.user_app_id.user_id),
+        ) for nodepool in deployment['nodepools']
     ]
     if 'user' in deployment['worker']:
       deployment['worker']['user'] = resources_pb2.User(**deployment['worker']['user'])
@@ -163,7 +168,8 @@ class Nodepool(Lister, BaseClient):
 
     request = service_pb2.PostDeploymentsRequest(
         user_app_id=self.user_app_id,
-        deployments=[resources_pb2.Deployment(id=deployment_id, **deployment_config)])
+        deployments=[resources_pb2.Deployment(id=deployment_id, **deployment_config)],
+    )
     response = self._grpc_request(self.STUB.PostDeployments, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
@@ -217,6 +223,50 @@ class Nodepool(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nDeployments Deleted\n%s", response.status)
+
+  def create_runner(self, config_filepath: str = None,
+                    runner_config: Dict[str, Any] = None) -> Runner:
+    """Creates a runner for the nodepool. Only needed for local dev runners.
+
+    Args:
+        config_filepath (str): The path to the runner config file.
+        nodepool_config (Dict[str, Any]) = nodepool_config or {}
+
+    Returns:
+        resources_pb2.Runner: A Runner object for the specified deployment ID.
+
+    Example:
+        >>> from clarifai.client.nodepool import Nodepool
+        >>> nodepool = Nodepool(nodepool_id="nodepool_id", user_id="user_id")
+        >>> runner = nodepool.create_runner(deployment_id="deployment_id")
+    """
+
+    if config_filepath is not None:
+      assert runner_config is not None, (
+          "runner_config cannot be None if config_filepath is provided")
+
+      if not os.path.exists(config_filepath):
+        raise UserError(f"Runner config file not found at {config_filepath}")
+      with open(config_filepath, "r") as file:
+        runner_config = yaml.safe_load(file)
+    elif runner_config is not None:
+      assert isinstance(runner_config, dict), "runner_config should be a dictionary if provided."
+    else:
+      raise AssertionError("Either config_filepath or runner_config must be provided.")
+
+    runner_config = self._process_runner_config(runner_config)
+
+    request = service_pb2.PostRunnersRequest(
+        user_app_id=self.user_app_id,
+        runners=[resources_pb2.Runner(**runner_config)],
+    )
+    response = self._grpc_request(self.STUB.PostRunners, request)
+
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nRunner created\n%s", response.status)
+
+    return Runner.from_auth_helper(self.auth_helper, runner_id=response.runners[0].id)
 
   def __getattr__(self, name):
     return getattr(self.nodepool_info, name)

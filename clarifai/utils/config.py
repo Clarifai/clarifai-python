@@ -9,10 +9,10 @@ from clarifai.utils.constants import DEFAULT_CONFIG
 
 class Context(OrderedDict):
   """
-    A context which has a name and a set of key-values as a dict under env.
+  A context which has a name and a set of key-values as a dict under env.
 
-    You can access the keys directly.
-    """
+  You can access the keys directly.
+  """
 
   def __init__(self, name, **kwargs):
     self['name'] = name
@@ -35,6 +35,10 @@ class Context(OrderedDict):
       if envvar_name in env:
         value = env[envvar_name]
         if value == "ENVVAR":
+          if envvar_name not in os.environ:
+            raise AttributeError(
+                f"Environment variable '{envvar_name}' not set. Attempting to load it for config '{self['name']}'. Please set it in your terminal."
+            )
           return os.environ[envvar_name]
       else:
         value = env[key]
@@ -63,7 +67,7 @@ class Context(OrderedDict):
 
 
 @dataclass
-class Config():
+class Config:
   current_context: str
   filename: str
   contexts: OrderedDict[str, Context] = field(default_factory=OrderedDict)
@@ -84,7 +88,7 @@ class Config():
     return {
         'current_context': self.current_context,
         'contexts': {k: v.to_serializable_dict()
-                     for k, v in self.contexts.items()}
+                     for k, v in self.contexts.items()},
     }
 
   def to_yaml(self, filename: str = None):
@@ -101,5 +105,5 @@ class Config():
 
   @property
   def current(self) -> Context:
-    """ get the current Context """
+    """get the current Context"""
     return self.contexts[self.current_context]

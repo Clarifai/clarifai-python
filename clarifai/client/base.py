@@ -74,15 +74,15 @@ class BaseClient:
         "token":
             kwargs.get("token", None) or auth._token,
         "root_certificates_path":
-            kwargs.get("root_certificates_path", None) or auth._root_certificates_path
+            kwargs.get("root_certificates_path", None) or auth._root_certificates_path,
     }
     _base = kwargs.get("base", None) or auth.base
     _clss = cls.__mro__[0]
     if _clss == BaseClient:
       kwargs = {
         **default_kwargs,
-        "base": _base, # Baseclient uses `base`
-        "ui": kwargs.get("ui", None) or auth.ui
+        "base": _base,  # Baseclient uses `base`
+        "ui": kwargs.get("ui", None) or auth.ui,
       }
     else:
       # Remove user_id and app_id if a custom URL is provided
@@ -160,9 +160,9 @@ class BaseClient:
             value_map = dict(number_value=None, string_value=None, bool_value=None)
 
             def map_fn(v):
-              return 'number_value' if isinstance(v, float) or isinstance(v, int) else \
-              'string_value' if isinstance(v, str) else \
-              'bool_value' if isinstance(v, bool) else None
+              return ('number_value'
+                      if isinstance(v, float) or isinstance(v, int) else 'string_value'
+                      if isinstance(v, str) else 'bool_value' if isinstance(v, bool) else None)
 
             value_map[map_fn(value)] = value
             value = struct_pb2.Value(**value_map)
