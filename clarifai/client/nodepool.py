@@ -191,9 +191,7 @@ class Nodepool(Lister, BaseClient):
 
     dict_response = MessageToDict(
         response.deployments[0], preserving_proto_field_name=True, use_integers_for_enums=True)
-    kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
-                                        list(dict_response.keys())[1])
-
+    kwargs = self.process_response_keys(dict_response, "deployment")
     return Deployment.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def deployment(self, deployment_id: str) -> Deployment:
@@ -218,9 +216,7 @@ class Nodepool(Lister, BaseClient):
       raise Exception(response.status)
     dict_response = MessageToDict(
         response, preserving_proto_field_name=True, use_integers_for_enums=True)
-    kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
-                                        list(dict_response.keys())[1])
-
+    kwargs = self.process_response_keys(dict_response["deployment"], "deployment")
     return Deployment.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def delete_deployments(self, deployment_ids: List[str]) -> None:
@@ -288,8 +284,7 @@ class Nodepool(Lister, BaseClient):
     self.logger.info("\nRunner created\n%s with id: %s", response.status, response.runners[0].id)
 
     dict_response = MessageToDict(response.runners[0], preserving_proto_field_name=True)
-    kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
-                                        list(dict_response.keys())[1])
+    kwargs = self.process_response_keys(dict_response, 'runner')
     return Runner.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def _process_runner_config(self, runner_config: str) -> Dict[str, Any]:
@@ -297,27 +292,6 @@ class Nodepool(Lister, BaseClient):
     runner = runner_config['runner']
     assert "worker" in runner, "worker not found in the config file"
     assert "num_replicas" in runner, "num_replicas not found in the config file"
-
-    # clarifai.api.UserAppIDSet user_app_id = 1;
-    # string nodepool_id = 2;
-    # // This allows you to create one or more runner by posting it to the API.
-    # repeated Runner runners = 3;
-    # string compute_cluster_id = 4;
-
-    # runner['compute_cluster'] = resources_pb2.ComputeCluster(id=self.id, user_id=self.user_id)
-    # runner['node_capacity_type'] = resources_pb2.NodeCapacityType(
-    #   capacity_types=[
-    #     capacity_type for capacity_type in runner['node_capacity_type']['capacity_types']
-    #   ]
-    # )
-    # instance_types = []
-    # for instance_type in runner['instance_types']:
-    #   if 'compute_info' in instance_type:
-    #     instance_type['compute_info'] = resources_pb2.ComputeInfo(**instance_type['compute_info'])
-    #   instance_types.append(resources_pb2.InstanceType(**instance_type))
-    # runner['instance_types'] = instance_types
-    # if "visibility" in runner:
-    #   runner["visibility"] = resources_pb2.Visibility(**runner["visibility"])
     return runner
 
   def __getattr__(self, name):

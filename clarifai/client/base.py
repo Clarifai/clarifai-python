@@ -143,6 +143,7 @@ class BaseClient:
 
     Args:
         old_dict (dict): The dictionary to convert.
+        listing_resource (str, optional): The resource type for which the keys are being processed.
 
     Returns:
         new_dict (dict): The dictionary with processed keys.

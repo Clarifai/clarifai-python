@@ -331,8 +331,7 @@ class User(Lister, BaseClient):
           Error: {response.status.description}""")
 
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
-    kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
-                                        list(dict_response.keys())[1])
+    kwargs = self.process_response_keys(dict_response["runner"], "runner")
 
     return dict(self.auth_helper, check_runner_exists=False, **kwargs)
 
@@ -356,8 +355,7 @@ class User(Lister, BaseClient):
       raise Exception(response.status)
 
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
-    kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
-                                        list(dict_response.keys())[1])
+    kwargs = self.process_response_keys(dict_response["compute_cluster"], "compute_cluster")
 
     return ComputeCluster.from_auth_helper(auth=self.auth_helper, **kwargs)
 

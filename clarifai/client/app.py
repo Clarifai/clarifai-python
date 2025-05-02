@@ -528,10 +528,10 @@ class App(Lister, BaseClient):
 
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
     # Display the workflow nodes tree.
+    wf = dict_response["workflows"][0]
     if display:
-      display_workflow_tree(dict_response["workflows"][0]["nodes"])
-    kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]][0],
-                                        "workflow")
+      display_workflow_tree(wf["nodes"])
+    kwargs = self.process_response_keys(wf, "workflow")
 
     return Workflow.from_auth_helper(auth=self.auth_helper, **kwargs)
 
@@ -639,8 +639,7 @@ class App(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
-    kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
-                                        list(dict_response.keys())[1])
+    kwargs = self.process_response_keys(dict_response['dataset'], 'dataset')
     kwargs['version'] = response.dataset.version if response.dataset.version else None
     kwargs['dataset_version_id'] = dataset_version_id
     return Dataset.from_auth_helper(auth=self.auth_helper, **kwargs)
@@ -704,8 +703,7 @@ class App(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
-    kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
-                                        list(dict_response.keys())[1])
+    kwargs = self.process_response_keys(dict_response['workflow'], "workflow")
 
     return Workflow.from_auth_helper(auth=self.auth_helper, **kwargs)
 
