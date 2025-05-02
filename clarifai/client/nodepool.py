@@ -160,8 +160,8 @@ class Nodepool(Lister, BaseClient):
     """
 
     if config_filepath is not None:
-      assert deployment_config is not None, (
-          "deployment_config cannot be None if config_filepath is provided")
+      assert deployment_config is None, (
+          "deployment_config has to be None if config_filepath is provided")
 
       if not os.path.exists(config_filepath):
         raise UserError(f"Deployment config file not found at {config_filepath}")
@@ -257,8 +257,7 @@ class Nodepool(Lister, BaseClient):
     """
 
     if config_filepath is not None:
-      assert runner_config is not None, (
-          "runner_config cannot be None if config_filepath is provided")
+      assert runner_config is None, "runner_config has to be None if config_filepath is provided"
 
       if not os.path.exists(config_filepath):
         raise UserError(f"Runner config file not found at {config_filepath}")

@@ -127,8 +127,8 @@ class ComputeCluster(Lister, BaseClient):
     """
 
     if config_filepath is not None:
-      assert nodepool_config is not None, (
-          "nodepool_config cannot be None if config_filepath is provided")
+      assert nodepool_config is None, (
+          "nodepool_config has to be None if config_filepath is provided")
 
       if not os.path.exists(config_filepath):
         raise UserError(f"Nodepool config file not found at {config_filepath}")
