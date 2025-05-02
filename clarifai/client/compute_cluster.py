@@ -157,13 +157,10 @@ class ComputeCluster(Lister, BaseClient):
       raise Exception(response.status)
     self.logger.info("\nNodepool created\n%s", response.status)
 
-    kwargs = {
-        "compute_cluster": {
-            "id": self.id,
-            "user_id": self.user_id,
-        },
-    }
-    return Nodepool.from_auth_helper(self.auth_helper, nodepool_id=nodepool_id, **kwargs)
+    dict_response = MessageToDict(response.nodepools[0], preserving_proto_field_name=True)
+    kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
+                                        list(dict_response.keys())[1])
+    return Nodepool.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def nodepool(self, nodepool_id: str) -> Nodepool:
     """Returns a Nodepool object for the existing nodepool ID.
@@ -188,7 +185,6 @@ class ComputeCluster(Lister, BaseClient):
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
     kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
                                         list(dict_response.keys())[1])
-
     return Nodepool.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def delete_nodepools(self, nodepool_ids: List[str]) -> None:
