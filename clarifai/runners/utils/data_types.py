@@ -29,7 +29,7 @@ class MessageData:
     return cls(value)
 
   def cast(self, python_type):
-    if python_type == self.__class__:
+    if python_type is self.__class__:
       return self
     raise TypeError(f'Incompatible type for {self.__class__.__name__}: {python_type}')
 
@@ -151,9 +151,9 @@ class Text(MessageData):
     raise TypeError(f'Incompatible type for Text: {type(value)}')
 
   def cast(self, python_type):
-    if python_type == str:
+    if python_type is str:
       return self.text
-    if python_type == Text:
+    if python_type is Text:
       return self
     raise TypeError(f'Incompatible type for Text: {python_type}')
 
@@ -186,11 +186,11 @@ class Region(MessageData):
       proto_region = RegionProto()
     self.proto = proto_region
     # use setters for init vals
-    if box and isinstance(
-        box, list) and len(box) == 4 and all(isinstance(val, (int, float)) for val in box):
+    if (box and isinstance(box, list) and len(box) == 4 and
+        all(isinstance(val, (int, float)) for val in box)):
       self.box = box
-    if concepts and isinstance(concepts,
-                               list) and all(isinstance(concept, Concept) for concept in concepts):
+    if (concepts and isinstance(concepts, list) and
+        all(isinstance(concept, Concept) for concept in concepts)):
       self.concepts = concepts
 
   @property
@@ -295,11 +295,11 @@ class Image(MessageData):
     raise TypeError(f'Incompatible type for Image: {type(value)}')
 
   def cast(self, python_type):
-    if python_type == Image:
+    if python_type is Image:
       return self
-    if python_type in (PILImage.Image, PILImage):
+    if python_type is PILImage.Image or python_type is PILImage:
       return self.to_pil()
-    if python_type == np.ndarray or get_origin(python_type) == np.ndarray:
+    if python_type is np.ndarray or get_origin(python_type) is np.ndarray:
       return self.to_numpy()
     raise TypeError(f'Incompatible type for Image: {python_type}')
 
@@ -355,11 +355,13 @@ class Audio(MessageData):
 
 class Frame(MessageData):
 
-  def __init__(self,
-               proto_frame: FrameProto = None,
-               image: Image = None,
-               regions: List[Region] = None,
-               time: float = None):
+  def __init__(
+      self,
+      proto_frame: FrameProto = None,
+      image: Image = None,
+      regions: List[Region] = None,
+      time: float = None,
+  ):
     if proto_frame is None:
       proto_frame = FrameProto()
     self.proto = proto_frame
@@ -455,7 +457,7 @@ class Video(MessageData):
 
 
 def cast(value, python_type):
-  list_type = (get_origin(python_type) == list)
+  list_type = get_origin(python_type) is list
   if isinstance(value, MessageData):
     return value.cast(python_type)
   if list_type and isinstance(value, np.ndarray):
