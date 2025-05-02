@@ -86,21 +86,18 @@ class Nodepool(Lister, BaseClient):
     for deployment_info in all_deployments_info:
       yield Deployment.from_auth_helper(auth=self.auth_helper, **deployment_info)
 
-  def _process_deployment_config(self, config_filepath: str) -> Dict[str, Any]:
-    with open(config_filepath, "r") as file:
-      deployment_config = yaml.safe_load(file)
-
+  def _process_deployment_config(self, deployment_config: Dict[str, Any]) -> Dict[str, Any]:
     assert "deployment" in deployment_config, "deployment info not found in the config file"
     deployment = deployment_config['deployment']
-    assert "autoscale_config" in deployment, "autoscale_config not found in the config file"
     assert ("worker" in deployment) and (
         ("model" in deployment["worker"]) or
         ("workflow" in deployment["worker"])), "worker info not found in the config file"
     assert "scheduling_choice" in deployment, "scheduling_choice not found in the config file"
     assert "nodepools" in deployment, "nodepools not found in the config file"
     deployment['user_id'] = self.user_app_id.user_id
-    deployment['autoscale_config'] = resources_pb2.AutoscaleConfig(
-        **deployment['autoscale_config'])
+    if "autoscale_config" in deployment:
+      deployment['autoscale_config'] = resources_pb2.AutoscaleConfig(
+          **deployment['autoscale_config'])
     deployment['nodepools'] = [
         resources_pb2.Nodepool(
             id=nodepool['id'],
@@ -141,7 +138,12 @@ class Nodepool(Lister, BaseClient):
     nodepool = resources_pb2.Nodepool(id=nodepool_id, compute_cluster=compute_cluster)
     return resources_pb2.RunnerSelector(nodepool=nodepool)
 
-  def create_deployment(self, config_filepath: str, deployment_id: str = None) -> Deployment:
+  def create_deployment(
+      self,
+      config_filepath: str = None,
+      deployment_id: str = None,
+      deployment_config: Dict[str, Any] = None,
+  ) -> Deployment:
     """Creates a deployment for the nodepool.
 
     Args:
@@ -156,10 +158,22 @@ class Nodepool(Lister, BaseClient):
         >>> nodepool = Nodepool(nodepool_id="nodepool_id", user_id="user_id")
         >>> deployment = nodepool.create_deployment(config_filepath="config.yml")
     """
-    if not os.path.exists(config_filepath):
-      raise UserError(f"Deployment config file not found at {config_filepath}")
 
-    deployment_config = self._process_deployment_config(config_filepath)
+    if config_filepath is not None:
+      assert deployment_config is not None, (
+          "deployment_config cannot be None if config_filepath is provided")
+
+      if not os.path.exists(config_filepath):
+        raise UserError(f"Deployment config file not found at {config_filepath}")
+      with open(config_filepath, "r") as file:
+        deployment_config = yaml.safe_load(file)
+    elif deployment_config is not None:
+      assert isinstance(deployment_config,
+                        dict), ("deployment_config should be a dictionary if provided.")
+    else:
+      raise AssertionError("Either config_filepath or deployment_config must be provided.")
+
+    deployment_config = self._process_deployment_config(deployment_config)
 
     if 'id' in deployment_config:
       if deployment_id is None:
@@ -197,7 +211,8 @@ class Nodepool(Lister, BaseClient):
 
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
-    dict_response = MessageToDict(response, preserving_proto_field_name=True)
+    dict_response = MessageToDict(
+        response, preserving_proto_field_name=True, use_integers_for_enums=True)
     kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
                                         list(dict_response.keys())[1])
 

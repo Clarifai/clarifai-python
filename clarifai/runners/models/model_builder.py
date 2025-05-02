@@ -182,7 +182,7 @@ class ModelBuilder:
       folder = ""  # will getcwd() next which ends with /
     if not os.path.isabs(folder):
       folder = os.path.join(os.getcwd(), folder)
-    logger.info(f"Validating folder: {folder}")
+    logger.debug(f"Validating folder: {folder}")
     if not os.path.exists(folder):
       raise FileNotFoundError(f"Folder {folder} not found, please provide a valid folder path")
     files = os.listdir(folder)

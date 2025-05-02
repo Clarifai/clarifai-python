@@ -9,6 +9,7 @@ DEFAULT_CONFIG = f'{os.environ["HOME"]}/.config/clarifai/config'
 # Default clusters, etc. for local dev runner easy setup
 DEFAULT_LOCAL_DEV_COMPUTE_CLUSTER_ID = "local-dev-compute-cluster"
 DEFAULT_LOCAL_DEV_NODEPOOL_ID = "local-dev-nodepool"
+DEFAULT_LOCAL_DEV_DEPLOYMENT_ID = "local-dev-deployment"
 DEFAULT_LOCAL_DEV_MODEL_ID = "local-dev-model"
 DEFAULT_LOCAL_DEV_APP_ID = "local-dev-runner-app"
 

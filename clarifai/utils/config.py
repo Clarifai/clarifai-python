@@ -77,8 +77,30 @@ class Context(OrderedDict):
         keys.append(k.replace("CLARIFAI_", "", 1))
     return keys
 
+  def to_stripped_lowercase(self):
+    dict(self['env'])
+
   def to_serializable_dict(self):
     return dict(self['env'])
+
+  def set_to_env(self):
+    """sets the context env vars to the current os.environ
+
+    Example:
+      # This is helpful in scripts so you can do
+
+      from clarifai.utils.config import Config
+
+      Config.from_yaml().current.set_to_env()
+
+    """
+    for k, v in self['env'].items():
+      if isinstance(v, dict):
+        continue
+      envvar_name = k.upper()
+      if not envvar_name.startswith('CLARIFAI_'):
+        envvar_name = 'CLARIFAI_' + envvar_name
+      os.environ[envvar_name] = str(v)
 
 
 @dataclass

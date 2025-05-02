@@ -7,8 +7,9 @@ from clarifai.cli.base import cli
 from clarifai.utils.cli import validate_context
 from clarifai.utils.constants import (
     DEFAULT_LOCAL_DEV_APP_ID, DEFAULT_LOCAL_DEV_COMPUTE_CLUSTER_CONFIG,
-    DEFAULT_LOCAL_DEV_COMPUTE_CLUSTER_ID, DEFAULT_LOCAL_DEV_MODEL_ID, DEFAULT_LOCAL_DEV_MODEL_TYPE,
-    DEFAULT_LOCAL_DEV_NODEPOOL_CONFIG, DEFAULT_LOCAL_DEV_NODEPOOL_ID)
+    DEFAULT_LOCAL_DEV_COMPUTE_CLUSTER_ID, DEFAULT_LOCAL_DEV_DEPLOYMENT_ID,
+    DEFAULT_LOCAL_DEV_MODEL_ID, DEFAULT_LOCAL_DEV_MODEL_TYPE, DEFAULT_LOCAL_DEV_NODEPOOL_CONFIG,
+    DEFAULT_LOCAL_DEV_NODEPOOL_ID)
 from clarifai.utils.logging import logger
 
 
@@ -281,11 +282,12 @@ def local_dev(ctx, model_path):
   from clarifai.runners.server import serve
 
   validate_context(ctx)
-  logger.info(f"Starting local development runner using context: {ctx.obj.current.name}")
+  logger.info("Checking setup for local development runner...")
+  logger.info(f"Current context: {ctx.obj.current.name}")
   user_id = ctx.obj.current.user_id
   user = User(user_id=user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
   logger.info(f"Current user_id: {user_id}")
-  logger.info("Checking if a local dev compute cluster exists...")
+  logger.debug("Checking if a local dev compute cluster exists...")
 
   # see if ctx has CLARIFAI_COMPUTE_CLUSTER_ID, if not use default
   try:
@@ -338,7 +340,7 @@ def local_dev(ctx, model_path):
     ctx.obj.current.CLARIFAI_NODEPOOL_ID = nodepool_id
     ctx.obj.to_yaml()  # save to yaml file.
 
-  logger.info("Checking if model is created to call for local development...")
+  logger.debug("Checking if model is created to call for local development...")
   # see if ctx has CLARIFAI_APP_ID, if not use default
   try:
     app_id = ctx.obj.current.app_id
@@ -387,7 +389,18 @@ def local_dev(ctx, model_path):
   else:
     version = model_versions[0].model_version
 
-  logger.info(f"Using model version {version.id}")
+  logger.info(f"Current model version {version.id}")
+
+  worker = {
+      "model": {
+          "id": f"{model.id}",
+          "model_version": {
+              "id": f"{version.id}",
+          },
+          "user_id": f"{user_id}",
+          "app_id": f"{app_id}",
+      },
+  }
 
   try:
     # if it's already in our context then we'll re-use the same one.
@@ -401,21 +414,48 @@ def local_dev(ctx, model_path):
     runner = nodepool.create_runner(runner_config={
         "runner": {
             "description": "Local dev runner for model testing",
-            "worker": {
-                "model": {
-                    "id": f"{model.id}",
-                    "model_version": {
-                        "id": f"{version.id}"
-                    },
-                    "user_id": f"{user_id}",
-                    "app_id": f"{app_id}",
-                },
-            },
+            "worker": worker,
             "num_replicas": 1,
         }
     })
     ctx.obj.current.CLARIFAI_RUNNER_ID = runner.id
     ctx.obj.to_yaml()
+
+  # To make it easier to call the model without specifying a runner selector
+  # we will also create a deployment tying the model to the nodepool.
+  try:
+    deployment_id = ctx.obj.current.deployment_id
+  except AttributeError:
+    deployment_id = DEFAULT_LOCAL_DEV_DEPLOYMENT_ID
+  try:
+    nodepool.deployment(deployment_id)
+  except Exception as e:
+    logger.info(f"Failed to get deployment with ID {deployment_id}: {e}")
+    y = input(
+        f"Deployment not found. Do you want to create a new deployment {user_id}/{compute_cluster_id}/{nodepool_id}/{deployment_id}? (y/n): "
+    )
+    if y.lower() != 'y':
+      raise click.Abort()
+    nodepool.create_deployment(
+        deployment_id=deployment_id,
+        deployment_config={
+            "deployment": {
+                "scheduling_choice":
+                    3,  # 3 means by price
+                "worker":
+                    worker,
+                "nodepools": [{
+                    "id": f"{nodepool_id}",
+                    "compute_cluster": {
+                        "id": f"{compute_cluster_id}",
+                        "user_id": f"{user_id}",
+                    },
+                }],
+            }
+        },
+    )
+    ctx.obj.current.CLARIFAI_DEPLOYMENT_ID = deployment_id
+    ctx.obj.to_yaml()  # save to yaml file.
 
   # Now that we have all the context in ctx.obj, we need to update the config.yaml in
   # the model_path directory with the model object containing user_id, app_id, model_id, version_id
@@ -437,6 +477,36 @@ def local_dev(ctx, model_path):
                                                DEFAULT_LOCAL_DEV_MODEL_TYPE)
     ModelBuilder._backup_config(config_file)
     ModelBuilder._save_config(config_file, config)
+
+  # client_model = Model(
+  # TODO: once we can generate_client_script from ModelBuilder or similar
+  # we should be able to put the exact function call in place.
+  # model_script = model.generate_client_script()
+
+  # TODO: put in the ClarifaiUrlHelper to create the model url.
+
+  logger.info(f"""\n
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+# About to start up the local dev runner in this terminal...
+# Here is a code snippet to call this model once it start from another terminal:
+
+from clarifai.client import Model
+from clarifai.utils.config import Config
+
+# set the current context to env vars.
+Config.from_yaml().current.set_to_env()
+
+model = Model(url="https://clarifai.com/{user_id}/{app_id}/models/{model_id}",
+              base_url="{ctx.obj.current.api_base}")
+
+# Change f and args to what your model does.
+result = model.f(args...)
+
+print(result)
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  """)
+
+  logger.info("Now starting the local dev runner...")
 
   # This reads the config.yaml from the model_path so we alter it above first.
   serve(
