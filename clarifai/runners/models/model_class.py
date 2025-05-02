@@ -1,10 +1,10 @@
-import collections.abc as abc
 import inspect
 import itertools
 import logging
 import os
 import traceback
 from abc import ABC
+from collections import abc
 from typing import Any, Dict, Iterator, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -96,7 +96,8 @@ class ModelClass(ABC):
       inference_params = get_inference_params(request)
       if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
         method_name = request.inputs[0].data.metadata['_method_name']
-      if method_name == '_GET_SIGNATURES':  # special case to fetch signatures, TODO add endpoint for this
+      if (method_name ==
+          '_GET_SIGNATURES'):  # special case to fetch signatures, TODO add endpoint for this
         return self._handle_get_signatures_request()
       if method_name not in self._get_method_info():
         raise ValueError(f"Method {method_name} not found in model class")
@@ -138,7 +139,8 @@ class ModelClass(ABC):
       return service_pb2.MultiOutputResponse(status=status_pb2.Status(
           code=status_code_pb2.FAILURE,
           details=str(e),
-          stack_trace=traceback.format_exc().split('\n')))
+          stack_trace=traceback.format_exc().split('\n'),
+      ))
 
   def generate_wrapper(self, request: service_pb2.PostModelOutputsRequest
                       ) -> Iterator[service_pb2.MultiOutputResponse]:
@@ -169,7 +171,8 @@ class ModelClass(ABC):
               output,
               signature.output_fields,
               proto=resp.outputs.add(),
-              convert_old_format=is_convert)
+              convert_old_format=is_convert,
+          )
           resp.status.code = status_code_pb2.SUCCESS
           yield resp
       else:
@@ -180,7 +183,8 @@ class ModelClass(ABC):
                 output,
                 signature.output_fields,
                 proto=resp.outputs.add(),
-                convert_old_format=is_convert)
+                convert_old_format=is_convert,
+            )
           resp.status.code = status_code_pb2.SUCCESS
           yield resp
     except Exception as e:
@@ -190,7 +194,8 @@ class ModelClass(ABC):
       yield service_pb2.MultiOutputResponse(status=status_pb2.Status(
           code=status_code_pb2.FAILURE,
           details=str(e),
-          stack_trace=traceback.format_exc().split('\n')))
+          stack_trace=traceback.format_exc().split('\n'),
+      ))
 
   def stream_wrapper(self, request_iterator: Iterator[service_pb2.PostModelOutputsRequest]
                     ) -> Iterator[service_pb2.MultiOutputResponse]:
@@ -258,13 +263,19 @@ class ModelClass(ABC):
       yield service_pb2.MultiOutputResponse(status=status_pb2.Status(
           code=status_code_pb2.FAILURE,
           details=str(e),
-          stack_trace=traceback.format_exc().split('\n')))
+          stack_trace=traceback.format_exc().split('\n'),
+      ))
 
-  def _convert_input_protos_to_python(self, inputs: List[resources_pb2.Input],
-                                      inference_params: dict,
-                                      variables_signature: List[resources_pb2.ModelTypeField],
-                                      python_param_types) -> List[Dict[str, Any]]:
+  def _convert_input_protos_to_python(
+      self,
+      inputs: List[resources_pb2.Input],
+      inference_params: dict,
+      variables_signature: List[resources_pb2.ModelTypeField],
+      python_param_types,
+  ) -> List[Dict[str, Any]]:
     result = []
+
+    print(python_param_types)
     for input in inputs:
       kwargs = deserialize(input.data, variables_signature, inference_params)
       # dynamic cast to annotated types
@@ -284,11 +295,13 @@ class ModelClass(ABC):
       result.append(kwargs)
     return result
 
-  def _convert_output_to_proto(self,
-                               output: Any,
-                               variables_signature: List[resources_pb2.ModelTypeField],
-                               proto=None,
-                               convert_old_format=False) -> resources_pb2.Output:
+  def _convert_output_to_proto(
+      self,
+      output: Any,
+      variables_signature: List[resources_pb2.ModelTypeField],
+      proto=None,
+      convert_old_format=False,
+  ) -> resources_pb2.Output:
     if proto is None:
       proto = resources_pb2.Output()
     serialize({'return': output}, variables_signature, proto.data, is_output=True)
@@ -316,7 +329,7 @@ class ModelClass(ABC):
           continue
         methods[name] = method_info
     # check for generic predict(request) -> response, etc. methods
-    #for name in ('predict', 'generate', 'stream'):
+    # for name in ('predict', 'generate', 'stream'):
     #  if hasattr(cls, name):
     #    method = getattr(cls, name)
     #    if not hasattr(method, _METHOD_INFO_ATTR):  # not already put in registry
