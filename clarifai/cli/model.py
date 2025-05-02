@@ -302,6 +302,11 @@ def local_dev(ctx, model_path):
       raise ValueError(
           f"Compute cluster {user_id}/{compute_cluster_id} is not a local-dev compute cluster. Please create a local-dev compute cluster."
       )
+    try:
+      compute_cluster_id = ctx.obj.current.compute_cluster_id
+    except AttributeError:  # doesn't exist in context but does in API then update the context.
+      ctx.obj.current.CLARIFAI_COMPUTE_CLUSTER_ID = compute_cluster.id
+      ctx.obj.to_yaml()  # save to yaml file.
   except ValueError:
     raise
   except Exception as e:
@@ -328,6 +333,11 @@ def local_dev(ctx, model_path):
 
   try:
     nodepool = compute_cluster.nodepool(nodepool_id)
+    try:
+      nodepool_id = ctx.obj.current.nodepool_id
+    except AttributeError:  # doesn't exist in context but does in API then update the context.
+      ctx.obj.current.CLARIFAI_NODEPOOL_ID = nodepool.id
+      ctx.obj.to_yaml()  # save to yaml file.
   except Exception as e:
     logger.info(f"Failed to get nodepool with ID {nodepool_id}: {e}")
     y = input(
@@ -350,6 +360,11 @@ def local_dev(ctx, model_path):
 
   try:
     app = user.app(app_id)
+    try:
+      app_id = ctx.obj.current.app_id
+    except AttributeError:  # doesn't exist in context but does in API then update the context.
+      ctx.obj.current.CLARIFAI_APP_ID = app.id
+      ctx.obj.to_yaml()  # save to yaml file.
   except Exception as e:
     logger.info(f"Failed to get app with ID {app_id}: {e}")
     y = input(f"App not found. Do you want to create a new app {user_id}/{app_id}? (y/n): ")
@@ -368,6 +383,11 @@ def local_dev(ctx, model_path):
 
   try:
     model = app.model(model_id)
+    try:
+      model_id = ctx.obj.current.model_id
+    except AttributeError:  # doesn't exist in context but does in API then update the context.
+      ctx.obj.current.CLARIFAI_MODEL_ID = model.id
+      ctx.obj.to_yaml()  # save to yaml file.
   except Exception as e:
     logger.info(f"Failed to get model with ID {model_id}: {e}")
     y = input(
@@ -418,6 +438,7 @@ def local_dev(ctx, model_path):
             "num_replicas": 1,
         }
     })
+    runner_id = runner.id
     ctx.obj.current.CLARIFAI_RUNNER_ID = runner.id
     ctx.obj.to_yaml()
 
@@ -428,7 +449,12 @@ def local_dev(ctx, model_path):
   except AttributeError:
     deployment_id = DEFAULT_LOCAL_DEV_DEPLOYMENT_ID
   try:
-    nodepool.deployment(deployment_id)
+    deployment = nodepool.deployment(deployment_id)
+    try:
+      deployment_id = ctx.obj.current.deployment_id
+    except AttributeError:  # doesn't exist in context but does in API then update the context.
+      ctx.obj.current.CLARIFAI_DEPLOYMENT_ID = deployment.id
+      ctx.obj.to_yaml()  # save to yaml file.
   except Exception as e:
     logger.info(f"Failed to get deployment with ID {deployment_id}: {e}")
     y = input(
@@ -456,6 +482,8 @@ def local_dev(ctx, model_path):
     )
     ctx.obj.current.CLARIFAI_DEPLOYMENT_ID = deployment_id
     ctx.obj.to_yaml()  # save to yaml file.
+
+  logger.info(f"Current deployment_id: {deployment_id}")
 
   # Now that we have all the context in ctx.obj, we need to update the config.yaml in
   # the model_path directory with the model object containing user_id, app_id, model_id, version_id
