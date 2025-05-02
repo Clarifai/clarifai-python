@@ -1,3 +1,4 @@
+import os
 import typing
 
 import pytest
@@ -7,16 +8,16 @@ from rich.tree import Tree
 
 def get_workflow_tree_test_data() -> typing.List[typing.Dict]:
   test_data = [
-        {   # Single Branch Single Node
-          "adjacency_dict": {"Input": [1]},
-          "expected_pattern": r"""
+    {  # Single Branch Single Node
+      "adjacency_dict": {"Input": [1]},
+      "expected_pattern": r"""
 Input
 └── 1
-"""
-        },
-        {   # Multi Branch Multiple Nodes
-            "adjacency_dict": {"Input": [1, 2], 2: [3, 4, 5], 4: [6, 7], 6: [8]},
-            "expected_pattern": r"""
+""",
+    },
+    {  # Multi Branch Multiple Nodes
+      "adjacency_dict": {"Input": [1, 2], 2: [3, 4, 5], 4: [6, 7], 6: [8]},
+      "expected_pattern": r"""
 Input
 ├── 1
 └── 2
@@ -26,18 +27,17 @@ Input
     │   │   └── 8
     │   └── 7
     └── 5
-"""
-      },
-      {   # Single Branch Multiple Nodes
-          "adjacency_dict": {"Input": [1], 1: [2], 2: [3]},
-          "expected_pattern": r"""
+""",
+    },
+    {  # Single Branch Multiple Nodes
+      "adjacency_dict": {"Input": [1], 1: [2], 2: [3]},
+      "expected_pattern": r"""
 Input
 └── 1
     └── 2
         └── 3
-"""
-      },
-
+""",
+    },
   ]
 
   return test_data
@@ -46,7 +46,9 @@ Input
 class TestDisplayWorkflowTree:
 
   def setup_method(self):
-    self.console = Console()
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
+    self.console = Console(
+        force_terminal=True, legacy_windows=False, width=80)  # Ensure consistent terminal behavior
 
   def build_node_tree(self, adj, node_id="Input"):
     """Recursively builds a rich tree of the workflow nodes. Simplified version of the function in clarifai/utils/logging.py"""
