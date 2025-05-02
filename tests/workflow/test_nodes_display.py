@@ -1,4 +1,3 @@
-import os
 import typing
 
 import pytest
@@ -46,9 +45,7 @@ Input
 class TestDisplayWorkflowTree:
 
   def setup_method(self):
-    os.environ['PYTHONIOENCODING'] = 'utf-8'
-    self.console = Console(
-        force_terminal=True, legacy_windows=False, width=80)  # Ensure consistent terminal behavior
+    self.console = Console(force_terminal=True, width=80)  # Ensure consistent terminal behavior
 
   def build_node_tree(self, adj, node_id="Input"):
     """Recursively builds a rich tree of the workflow nodes. Simplified version of the function in clarifai/utils/logging.py"""
