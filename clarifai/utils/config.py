@@ -50,6 +50,13 @@ class Context(OrderedDict):
     except KeyError as e:
       raise AttributeError(f"'{type(self).__name__}' object has no attribute '{key}'") from e
 
+  def __hasattr__(self, key):
+    if key == "name":
+      return True
+    else:
+      envvar_name = 'CLARIFAI_' + key.upper()
+      return envvar_name in self['env'] or key in self['env']
+
   def __setattr__(self, key, value):
     if key == "name":
       self['name'] = value
@@ -61,6 +68,14 @@ class Context(OrderedDict):
       del self['env'][key]
     except KeyError as e:
       raise AttributeError(f"'{type(self).__name__}' object has no attribute '{key}'") from e
+
+  def to_column_names(self):
+    """used for displaying on terminal."""
+    keys = []
+    for k in self['env'].keys():
+      if k.startswith("CLARIFAI_"):
+        keys.append(k.replace("CLARIFAI_", "", 1))
+    return keys
 
   def to_serializable_dict(self):
     return dict(self['env'])

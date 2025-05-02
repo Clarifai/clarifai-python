@@ -68,19 +68,32 @@ def main():
 
   parsed_args = parser.parse_args()
 
-  serve(parsed_args.model_path, parsed_args.port, parsed_args.pool_size,
-        parsed_args.max_queue_size, parsed_args.max_msg_length, parsed_args.enable_tls,
-        parsed_args.grpc)
+  serve(
+      parsed_args.model_path,
+      parsed_args.port,
+      parsed_args.pool_size,
+      parsed_args.max_queue_size,
+      parsed_args.max_msg_length,
+      parsed_args.enable_tls,
+      parsed_args.grpc,
+  )
 
 
-def serve(model_path,
-          port=8000,
-          pool_size=32,
-          max_queue_size=10,
-          max_msg_length=1024 * 1024 * 1024,
-          enable_tls=False,
-          grpc=False):
-
+def serve(
+    model_path,
+    port=8000,
+    pool_size=32,
+    max_queue_size=10,
+    max_msg_length=1024 * 1024 * 1024,
+    enable_tls=False,
+    grpc=False,
+    user_id: str = os.environ.get("CLARIFAI_USER_ID", None),
+    compute_cluster_id: str = os.environ.get("CLARIFAI_COMPUTE_CLUSTER_ID", None),
+    nodepool_id: str = os.environ.get("CLARIFAI_NODEPOOL_ID", None),
+    runner_id: str = os.environ.get("CLARIFAI_RUNNER_ID", None),
+    base_url: str = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com"),
+    pat: str = os.environ.get("CLARIFAI_PAT", None),
+):
   builder = ModelBuilder(model_path, download_validation_only=True)
 
   model = builder.create_model_instance()
@@ -91,7 +104,6 @@ def serve(model_path,
 
   # Setup the grpc server for local development.
   if grpc:
-
     # initialize the servicer with the runner so that it gets the predict(), generate(), stream() classes.
     servicer = ModelServicer(model)
 
@@ -111,14 +123,15 @@ def serve(model_path,
     logger.info(f"Access the model at http://localhost:{port}")
     server.wait_for_termination()
   else:  # start the runner with the proper env variables and as a runner protocol.
-
     # initialize the Runner class. This is what the user implements.
     runner = ModelRunner(
         model=model,
-        runner_id=os.environ["CLARIFAI_RUNNER_ID"],
-        nodepool_id=os.environ["CLARIFAI_NODEPOOL_ID"],
-        compute_cluster_id=os.environ["CLARIFAI_COMPUTE_CLUSTER_ID"],
-        base_url=os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com"),
+        user_id=user_id,
+        compute_cluster_id=compute_cluster_id,
+        nodepool_id=nodepool_id,
+        runner_id=runner_id,
+        base_url=base_url,
+        pat=pat,
         num_parallel_polls=num_threads,
     )
     runner.start()  # start the runner to fetch work from the API.

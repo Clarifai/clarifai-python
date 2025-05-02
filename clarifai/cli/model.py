@@ -1,3 +1,5 @@
+import os
+
 import click
 
 from clarifai.cli.base import cli
@@ -249,6 +251,7 @@ def local_dev(ctx, model_path):
   MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
   """
   from clarifai.client.user import User
+  from clarifai.runners.models.model_builder import ModelBuilder
   from clarifai.runners.server import serve
 
   validate_context(ctx)
@@ -295,7 +298,7 @@ def local_dev(ctx, model_path):
   logger.info(f"Current nodepool_id: {nodepool_id}")
 
   try:
-    compute_cluster.nodepool(nodepool_id)
+    nodepool = compute_cluster.nodepool(nodepool_id)
   except Exception as e:
     logger.info(f"Failed to get nodepool with ID {nodepool_id}: {e}")
     y = input(
@@ -303,7 +306,7 @@ def local_dev(ctx, model_path):
     )
     if y.lower() != 'y':
       raise click.Abort()
-    compute_cluster.create_nodepool(
+    nodepool = compute_cluster.create_nodepool(
         nodepool_config=DEFAULT_LOCAL_DEV_NODEPOOL_CONFIG, nodepool_id=nodepool_id)
     ctx.obj.current.CLARIFAI_NODEPOOL_ID = nodepool_id
     ctx.obj.to_yaml()  # save to yaml file.
@@ -352,10 +355,63 @@ def local_dev(ctx, model_path):
   model_versions = [v for v in model.list_versions()]
   if len(model_versions) == 0:
     logger.info("No model versions found. Creating a new version for local dev runner.")
-    version = model.create_version(pretrained_model_config={"local_dev": True})
+    version = model.create_version(pretrained_model_config={"local_dev": True}).model_version
     logger.info(f"Created model version {version.id}")
+  else:
+    version = model_versions[0].model_version
 
-  serve(model_path)
+  logger.info(f"Using model version {version.id}")
+
+  try:
+    # if it's already in our context then we'll re-use the same one.
+    # note these are UUIDs, we cannot provide a runner ID.
+    runner_id = ctx.obj.current.runner_id
+    logger.info(f"Current runner_id: {runner_id}")
+  except AttributeError:
+    logger.info(
+        f"Create the local dev runner tying this\n  {user_id}/{app_id}/models/{model.id} model (version: {version.id}) to the\n  {user_id}/{compute_cluster_id}/{nodepool_id} nodepool."
+    )
+    runner = nodepool.create_runner(runner_config={
+        "runner": {
+            "description": "Local dev runner for model testing",
+            "worker": {
+                "model": {
+                    "id": f"{model.id}",
+                    "model_version": {
+                        "id": f"{version.id}"
+                    },
+                    "user_id": f"{user_id}",
+                    "app_id": f"{app_id}",
+                },
+            },
+            "num_replicas": 1,
+        }
+    })
+    ctx.obj.current.CLARIFAI_RUNNER_ID = runner.id
+    ctx.obj.to_yaml()
+
+  # Now that we have all the context in ctx.obj, we need to update the config.yaml in
+  # the model_path directory with the model object containing user_id, app_id, model_id, version_id
+  config_file = os.path.join(model_path, 'config.yaml')
+  if not os.path.exists(config_file):
+    raise ValueError(
+        f"config.yaml not found in {model_path}. Please ensure you are passing the correct directory."
+    )
+  config = ModelBuilder._load_config(config_file)
+  config = ModelBuilder._set_local_dev_model(config, user_id, app_id, model_id,
+                                             DEFAULT_LOCAL_DEV_MODEL_TYPE)
+  ModelBuilder._save_config(config_file, config)
+
+  # This reads the config.yaml from the model_path so we alter it above first.
+  serve(
+      model_path,
+      user_id=user_id,
+      compute_cluster_id=compute_cluster_id,
+      nodepool_id=nodepool_id,
+      runner_id=runner_id,
+      base_url=ctx.obj.current.api_base,
+      pat=ctx.obj.current.pat,
+  )
 
 
 @model.command()

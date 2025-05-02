@@ -11,7 +11,7 @@ from clarifai.utils.constants import DEFAULT_CONFIG
 from clarifai.utils.logging import logger
 
 
-#@click.group(cls=CustomMultiGroup)
+# @click.group(cls=CustomMultiGroup)
 @click.group(cls=AliasedGroup)
 @click.option('--config', default=DEFAULT_CONFIG)
 @click.pass_context
@@ -33,7 +33,8 @@ def cli(ctx, config):
                     CLARIFAI_USER_ID=os.environ.get('CLARIFAI_USER_ID', ''),
                     CLARIFAI_API_BASE=os.environ.get('CLARIFAI_API_BASE', 'api.clarifai.com'),
                 )
-        })
+        },
+    )
     try:
       cfg.to_yaml(config)
     except Exception:
@@ -67,11 +68,10 @@ def current_context(ctx, output_format):
   """Get the current context"""
   if output_format == 'name':
     print(ctx.obj.current_context)
+  elif output_format == 'json':
+    print(json.dumps(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
   else:
-    if output_format == 'json':
-      print(json.dumps(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
-    else:
-      print(yaml.safe_dump(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
+    print(yaml.safe_dump(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
 
 
 @config.command(['list', 'ls'])
@@ -81,13 +81,23 @@ def current_context(ctx, output_format):
 def get_contexts(ctx, output_format):
   """Get all contexts"""
   if output_format == 'wide':
-    formatter = TableFormatter(custom_columns={
+    columns = {
         '': lambda c: '*' if c.name == ctx.obj.current_context else '',
         'NAME': lambda c: c.name,
         'USER_ID': lambda c: c.user_id,
         'API_BASE': lambda c: c.api_base,
         'PAT': lambda c: pat_display(c.pat),
-    })
+    }
+    additional_columns = set()
+    for cont in ctx.obj.contexts.values():
+      if 'env' in cont:
+        for key in cont.to_column_names():
+          if key not in columns:
+            additional_columns.add(key)
+    for key in sorted(additional_columns):
+      columns[key] = lambda c, k=key: getattr(c, k) if hasattr(c, k) else ""
+
+    formatter = TableFormatter(custom_columns=columns,)
     print(formatter.format(ctx.obj.contexts.values(), fmt="plain"))
   elif output_format == 'name':
     print('\n'.join(ctx.obj.contexts))
@@ -135,7 +145,8 @@ def login(ctx, api_url, user_id):
   user_id = user_id if user_id is not None else input('user id: ')
   pat = input_or_default(
       'personal access token value (default: "ENVVAR" to get our of env var rather than config): ',
-      'ENVVAR')
+      'ENVVAR',
+  )
 
   context = Context(
       name,
@@ -162,20 +173,6 @@ def pat_display(pat):
   return pat[:5] + "****"
 
 
-@context.command(['ls'])
-@click.pass_context
-def list(ctx):
-  """List available contexts"""
-  formatter = TableFormatter(custom_columns={
-      '': lambda c: '*' if c.name == ctx.obj.current_context else '',
-      'NAME': lambda c: c.name,
-      'USER_ID': lambda c: c.user_id,
-      'API_BASE': lambda c: c.api_base,
-      'PAT': lambda c: pat_display(c.pat)
-  })
-  print(formatter.format(ctx.obj.contexts.values(), fmt="plain"))
-
-
 def input_or_default(prompt, default):
   value = input(prompt)
   return value if value else default
@@ -197,7 +194,7 @@ def create(
   """Create a new context"""
   if name in ctx.obj.contexts:
     print(f'{name} already exists')
-    exit(1)
+    sys.exit(1)
   if not user_id:
     user_id = input('user id: ')
   if not base_url:
@@ -206,7 +203,8 @@ def create(
   if not pat:
     pat = input_or_default(
         'personal access token value (default: "ENVVAR" to get our of env var rather than config): ',
-        'ENVVAR')
+        'ENVVAR',
+    )
 
   context = Context(name, CLARIFAI_USER_ID=user_id, CLARIFAI_API_BASE=base_url, CLARIFAI_PAT=pat)
   ctx.obj.contexts[context.name] = context
@@ -221,7 +219,7 @@ def delete(ctx, name):
   """Delete a context"""
   if name not in ctx.obj.contexts:
     print(f'{name} is not a valid context')
-    exit(1)
+    sys.exit(1)
   ctx.obj.contexts.pop(name)
   ctx.obj.to_yaml()
   print(f'{name} deleted')

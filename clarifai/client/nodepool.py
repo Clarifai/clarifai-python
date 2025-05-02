@@ -258,15 +258,46 @@ class Nodepool(Lister, BaseClient):
 
     request = service_pb2.PostRunnersRequest(
         user_app_id=self.user_app_id,
+        nodepool_id=self.id,
+        compute_cluster_id=self.compute_cluster.id,
         runners=[resources_pb2.Runner(**runner_config)],
     )
     response = self._grpc_request(self.STUB.PostRunners, request)
 
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
-    self.logger.info("\nRunner created\n%s", response.status)
 
-    return Runner.from_auth_helper(self.auth_helper, runner_id=response.runners[0].id)
+    r = Runner.from_auth_helper(self.auth_helper, runner_id=response.runners[0].id)
+    self.logger.info("\nRunner created\n%s with id: %s", response.status, r.id)
+    return r
+
+  def _process_runner_config(self, runner_config: str) -> Dict[str, Any]:
+    assert "runner" in runner_config, "runner info not found in the config file"
+    runner = runner_config['runner']
+    assert "worker" in runner, "worker not found in the config file"
+    assert "num_replicas" in runner, "num_replicas not found in the config file"
+
+    # clarifai.api.UserAppIDSet user_app_id = 1;
+    # string nodepool_id = 2;
+    # // This allows you to create one or more runner by posting it to the API.
+    # repeated Runner runners = 3;
+    # string compute_cluster_id = 4;
+
+    # runner['compute_cluster'] = resources_pb2.ComputeCluster(id=self.id, user_id=self.user_id)
+    # runner['node_capacity_type'] = resources_pb2.NodeCapacityType(
+    #   capacity_types=[
+    #     capacity_type for capacity_type in runner['node_capacity_type']['capacity_types']
+    #   ]
+    # )
+    # instance_types = []
+    # for instance_type in runner['instance_types']:
+    #   if 'compute_info' in instance_type:
+    #     instance_type['compute_info'] = resources_pb2.ComputeInfo(**instance_type['compute_info'])
+    #   instance_types.append(resources_pb2.InstanceType(**instance_type))
+    # runner['instance_types'] = instance_types
+    # if "visibility" in runner:
+    #   runner["visibility"] = resources_pb2.Visibility(**runner["visibility"])
+    return runner
 
   def __getattr__(self, name):
     return getattr(self.nodepool_info, name)

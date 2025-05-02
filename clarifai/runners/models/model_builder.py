@@ -114,7 +114,6 @@ class ModelBuilder:
     original_import = builtins.__import__
 
     def custom_import(name, globals=None, locals=None, fromlist=(), level=0):
-
       # Allow standard libraries and clarifai
       if self._is_standard_or_clarifai(name):
         return original_import(name, globals, locals, fromlist, level)
@@ -202,6 +201,11 @@ class ModelBuilder:
       config = yaml.safe_load(file)
     return config
 
+  @staticmethod
+  def _save_config(config_file: str, config: dict):
+    with open(config_file, 'w') as f:
+      yaml.safe_dump(config, f)
+
   def _validate_config_checkpoints(self):
     """
     Validates the checkpoints section in the config file.
@@ -230,7 +234,8 @@ class ModelBuilder:
         "upload",
         "build",
         "runtime",
-    ], "Invalid value for when in the checkpoint loader when, needs to be one of ['upload', 'build', 'runtime']"
+    ], ("Invalid value for when in the checkpoint loader when, needs to be one of ['upload', 'build', 'runtime']"
+       )
     assert loader_type == "huggingface", "Only huggingface loader supported for now"
     if loader_type == "huggingface":
       assert "repo_id" in self.config.get("checkpoints"), "No repo_id specified in the config file"
@@ -284,15 +289,31 @@ class ModelBuilder:
     if not self._check_app_exists():
       sys.exit(1)
 
+  @staticmethod
+  def _set_local_dev_model(config, user_id, app_id, model_id, model_type_id):
+    """
+    Sets the model configuration for local development.
+    This is used when running the model locally without uploading it to Clarifai.
+    """
+    if 'model' not in config:
+      config['model'] = {}
+    config["model"]["user_id"] = user_id
+    config["model"]["app_id"] = app_id
+    config["model"]["id"] = model_id
+    config["model"]["model_type_id"] = model_type_id
+    return config
+
   def _validate_config(self):
     if not self.download_validation_only:
       self._validate_config_model()
 
-      assert "inference_compute_info" in self.config, "inference_compute_info not found in the config file"
+      assert "inference_compute_info" in self.config, (
+          "inference_compute_info not found in the config file")
 
       if self.config.get("concepts"):
         model_type_id = self.config.get('model').get('model_type_id')
-        assert model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
+        assert model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE, (
+            f"Model type {model_type_id} not supported for concepts")
 
     if self.config.get("checkpoints"):
       loader_type, _, hf_token, _, _, _ = self._validate_config_checkpoints()
@@ -373,9 +394,13 @@ class ModelBuilder:
       return url_helper.clarifai_url(self.client.user_app_id.user_id,
                                      self.client.user_app_id.app_id, "models", self.model_id)
     else:
-      return url_helper.clarifai_url(self.client.user_app_id.user_id,
-                                     self.client.user_app_id.app_id, "models", self.model_id,
-                                     self.model_version_id)
+      return url_helper.clarifai_url(
+          self.client.user_app_id.user_id,
+          self.client.user_app_id.app_id,
+          "models",
+          self.model_id,
+          self.model_version_id,
+      )
 
   def _get_model_proto(self):
     assert "model" in self.config, "model info not found in the config file"
@@ -392,8 +417,8 @@ class ModelBuilder:
     return model_proto
 
   def _get_inference_compute_info(self):
-    assert ("inference_compute_info" in self.config
-           ), "inference_compute_info not found in the config file"
+    assert "inference_compute_info" in self.config, (
+        "inference_compute_info not found in the config file")
     inference_compute_info = self.config.get('inference_compute_info')
     return json_format.ParseDict(inference_compute_info, resources_pb2.ComputeInfo())
 
@@ -438,8 +463,8 @@ class ModelBuilder:
       pkg, version = line, None  # No version specified
     for dep in dependencies:
       if dep == pkg:
-        if dep == 'torch' and line.find(
-            'whl/cpu') > 0:  # Ignore torch-cpu whl files, use base mage.
+        if (dep == 'torch' and
+            line.find('whl/cpu') > 0):  # Ignore torch-cpu whl files, use base mage.
           return None, None
         return dep.strip(), version.strip() if version else None
     return None, None
@@ -580,8 +605,8 @@ class ModelBuilder:
       return path
     clarifai_model_type_id = self.config.get('model').get('model_type_id')
 
-    loader_type, repo_id, hf_token, when, allowed_file_patterns, ignore_file_patterns = self._validate_config_checkpoints(
-    )
+    loader_type, repo_id, hf_token, when, allowed_file_patterns, ignore_file_patterns = (
+        self._validate_config_checkpoints())
     if stage not in ["build", "upload", "runtime"]:
       raise Exception("Invalid stage provided, must be one of ['build', 'upload', 'runtime']")
     if when != stage:
@@ -601,7 +626,8 @@ class ModelBuilder:
       success = loader.download_checkpoints(
           path,
           allowed_file_patterns=allowed_file_patterns,
-          ignore_file_patterns=ignore_file_patterns)
+          ignore_file_patterns=ignore_file_patterns,
+      )
 
     if loader_type:
       if not success:
@@ -625,7 +651,8 @@ class ModelBuilder:
       config = yaml.safe_load(file)
     model = config.get('model')
     model_type_id = model.get('model_type_id')
-    assert model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE, f"Model type {model_type_id} not supported for concepts"
+    assert model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE, (
+        f"Model type {model_type_id} not supported for concepts")
     concept_protos = self._concepts_protos_from_concepts(labels)
 
     config['concepts'] = [{'id': concept.id, 'name': concept.name} for concept in concept_protos]
@@ -645,7 +672,6 @@ class ModelBuilder:
 
     model_type_id = self.config.get('model').get('model_type_id')
     if model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE:
-
       if 'concepts' in self.config:
         labels = self.config.get('concepts')
         logger.info(f"Found {len(labels)} concepts in the config file.")
@@ -742,11 +768,11 @@ class ModelBuilder:
 
       _clear_line()
       print(
-          f"Status: {response.status.description}, "
-          f"Progress: {percent_completed}% - {details} ",
+          f"Status: {response.status.description}, Progress: {percent_completed}% - {details} ",
           f"request_id: {response.status.req_id}",
           end='\r',
-          flush=True)
+          flush=True,
+      )
     if response.status.code != status_code_pb2.MODEL_BUILDING:
       logger.error(f"Failed to upload model version: {response}")
       return
@@ -813,7 +839,8 @@ class ModelBuilder:
         model_id=self.model_proto.id,
         model_version_id=self.model_version_id,
         page=1,
-        per_page=50)
+        per_page=50,
+    )
     response = self.client.STUB.ListLogEntries(logs_request)
 
     return response
