@@ -257,8 +257,8 @@ class User(Lister, BaseClient):
           "Either config_filepath or compute_cluster_config should be provided, not both.")
       if not os.path.exists(config_filepath):
         raise UserError(f"Compute Cluster config file not found at {config_filepath}")
-      with open(config_filepath, "r"):
-        compute_cluster_config = yaml.safe_load(config_filepath)
+      with open(config_filepath, "r") as f:
+        compute_cluster_config = yaml.safe_load(f)
     elif compute_cluster_config is not None:
       assert isinstance(compute_cluster_config,
                         dict), ("compute_cluster_config should be a dictionary if provided.")
