@@ -33,6 +33,7 @@ from clarifai.utils.model_train import (find_and_replace_key, params_parser,
                                         response_to_model_params, response_to_param_info,
                                         response_to_templates)
 from clarifai.utils.protobuf import dict_to_protobuf
+
 MAX_SIZE_PER_STREAM = int(89_128_960)  # 85GiB
 MIN_CHUNK_FOR_UPLOAD_FILE = int(5_242_880)  # 5MiB
 MAX_CHUNK_FOR_UPLOAD_FILE = int(5_242_880_000)  # 5GiB
@@ -41,18 +42,20 @@ MAX_CHUNK_FOR_UPLOAD_FILE = int(5_242_880_000)  # 5GiB
 class Model(Lister, BaseClient):
   """Model is a class that provides access to Clarifai API endpoints related to Model information."""
 
-  def __init__(self,
-               url: str = None,
-               model_id: str = None,
-               model_version: Dict = {'id': ""},
-               base_url: str = "https://api.clarifai.com",
-               pat: str = None,
-               token: str = None,
-               root_certificates_path: str = None,
-               compute_cluster_id: str = None,
-               nodepool_id: str = None,
-               deployment_id: str = None,
-               **kwargs):
+  def __init__(
+      self,
+      url: str = None,
+      model_id: str = None,
+      model_version: Dict = {'id': ""},
+      base_url: str = "https://api.clarifai.com",
+      pat: str = None,
+      token: str = None,
+      root_certificates_path: str = None,
+      compute_cluster_id: str = None,
+      nodepool_id: str = None,
+      deployment_id: str = None,
+      **kwargs,
+  ):
     """Initializes a Model object.
 
     Args:
@@ -74,7 +77,11 @@ class Model(Lister, BaseClient):
       model_version = {'id': model_version_id}
       kwargs = {'user_id': user_id, 'app_id': app_id}
 
-    self.kwargs = {**kwargs, 'id': model_id, 'model_version': model_version, }
+    self.kwargs = {
+      **kwargs,
+      'id': model_id,
+      'model_version': model_version,
+    }
     self.model_info = resources_pb2.Model()
     dict_to_protobuf(self.model_info, self.kwargs)
 
@@ -96,8 +103,33 @@ class Model(Lister, BaseClient):
         base=base_url,
         pat=pat,
         token=token,
-        root_certificates_path=root_certificates_path)
+        root_certificates_path=root_certificates_path,
+    )
     Lister.__init__(self)
+
+  @classmethod
+  def from_current_context(cls, **kwargs) -> 'Model':
+    from clarifai.utils.config import Config
+
+    current = Config.from_yaml().current
+
+    # set the current context to env vars.
+    current.set_to_env()
+
+    url = f"https://clarifai.com/{current.user_id}/{current.app_id}/models/{current.model_id}"
+
+    # construct the Model object.
+    kwargs = {}
+    try:
+      kwargs['deployment_id'] = current.deployment_id
+    except AttributeError:
+      try:
+        kwargs['compute_cluster_id'] = current.compute_cluster_id
+        kwargs['nodepool_id'] = current.nodepool_id
+      except AttributeError:
+        pass
+
+    return Model(url, base_url=current.api_base, pat=current.pat, **kwargs)
 
   def list_training_templates(self) -> List[str]:
     """Lists all the training templates for the model type.
@@ -143,12 +175,14 @@ class Model(Lister, BaseClient):
     if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
       raise UserError(f"Model type {self.model_info.model_type_id} is not trainable")
     if template is None and self.model_info.model_type_id not in [
-        "clusterer", "embedding-classifier"
+        "clusterer",
+        "embedding-classifier",
     ]:
       raise UserError(
           f"Template should be provided for {self.model_info.model_type_id} model type")
     if template is not None and self.model_info.model_type_id in [
-        "clusterer", "embedding-classifier"
+        "clusterer",
+        "embedding-classifier",
     ]:
       raise UserError(
           f"Template should not be provided for {self.model_info.model_type_id} model type")
@@ -234,7 +268,8 @@ class Model(Lister, BaseClient):
         response=response,
         model_type_id=self.model_info.model_type_id,
         param=param,
-        template=template)
+        template=template,
+    )
 
     return param_info
 
@@ -272,7 +307,8 @@ class Model(Lister, BaseClient):
     request = service_pb2.PostModelVersionsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
-        model_versions=[resources_pb2.ModelVersion(**train_dict)])
+        model_versions=[resources_pb2.ModelVersion(**train_dict)],
+    )
     response = self._grpc_request(self.STUB.PostModelVersions, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
@@ -312,7 +348,7 @@ class Model(Lister, BaseClient):
           with open(version_id + '.log', 'wb') as file:
             for chunk in log_response.iter_content(chunk_size=4096):  # 4KB
               file.write(chunk)
-          self.logger.info(f"\nTraining logs are saving in '{version_id+'.log'}' file")
+          self.logger.info(f"\nTraining logs are saving in '{version_id + '.log'}' file")
 
       except requests.exceptions.RequestException as e:
         raise Exception(f"An error occurred while getting training logs: {e}")
@@ -358,14 +394,16 @@ class Model(Lister, BaseClient):
         >>> model_version = model.create_version(description='model_version_description')
     """
     if self.model_info.model_type_id in TRAINABLE_MODEL_TYPES:
-      raise UserError(
-          f"{self.model_info.model_type_id} is a trainable model type. Use 'model.train()' to train the model"
-      )
+      if 'pretrained_model_config' not in kwargs:
+        raise UserError(
+            f"{self.model_info.model_type_id} is a trainable model type. Use 'model.train()' to train the model"
+        )
 
     request = service_pb2.PostModelVersionsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
-        model_versions=[resources_pb2.ModelVersion(**kwargs)])
+        model_versions=[resources_pb2.ModelVersion(**kwargs)],
+    )
 
     response = self._grpc_request(self.STUB.PostModelVersions, request)
     if response.status.code != status_code_pb2.SUCCESS:
@@ -409,7 +447,8 @@ class Model(Lister, BaseClient):
         service_pb2.ListModelVersionsRequest,
         request_data,
         per_page=per_page,
-        page_no=page_no)
+        page_no=page_no,
+    )
 
     for model_version_info in all_model_versions_info:
       model_version_info['id'] = model_version_info['model_version_id']
@@ -421,7 +460,8 @@ class Model(Lister, BaseClient):
       yield Model.from_auth_helper(
           auth=self.auth_helper,
           model_id=self.id,
-          **dict(self.kwargs, model_version=model_version_info))
+          **dict(self.kwargs, model_version=model_version_info),
+      )
 
   @property
   def client(self):
@@ -520,11 +560,13 @@ class Model(Lister, BaseClient):
       raise Exception(response.status)
     self.input_types = response.model_type.input_fields
 
-  def _set_runner_selector(self,
-                           compute_cluster_id: str = None,
-                           nodepool_id: str = None,
-                           deployment_id: str = None,
-                           user_id: str = None):
+  def _set_runner_selector(
+      self,
+      compute_cluster_id: str = None,
+      nodepool_id: str = None,
+      deployment_id: str = None,
+      user_id: str = None,
+  ):
     runner_selector = None
     if deployment_id and (compute_cluster_id or nodepool_id):
       raise UserError(
@@ -552,11 +594,13 @@ class Model(Lister, BaseClient):
     # set the runner selector
     self._runner_selector = runner_selector
 
-  def predict_by_filepath(self,
-                          filepath: str,
-                          input_type: str = None,
-                          inference_params: Dict = {},
-                          output_config: Dict = {}):
+  def predict_by_filepath(
+      self,
+      filepath: str,
+      input_type: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     """Predicts the model based on the given filepath.
 
     Args:
@@ -584,11 +628,13 @@ class Model(Lister, BaseClient):
 
     return self.predict_by_bytes(file_bytes, input_type, inference_params, output_config)
 
-  def predict_by_bytes(self,
-                       input_bytes: bytes,
-                       input_type: str = None,
-                       inference_params: Dict = {},
-                       output_config: Dict = {}):
+  def predict_by_bytes(
+      self,
+      input_bytes: bytes,
+      input_type: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     """Predicts the model based on the given bytes.
 
     Args:
@@ -679,11 +725,13 @@ class Model(Lister, BaseClient):
 
     return self.client.generate(*args, **kwargs)
 
-  def generate_by_filepath(self,
-                           filepath: str,
-                           input_type: str = None,
-                           inference_params: Dict = {},
-                           output_config: Dict = {}):
+  def generate_by_filepath(
+      self,
+      filepath: str,
+      input_type: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     """Generate the stream output on model based on the given filepath.
 
     Args:
@@ -713,13 +761,16 @@ class Model(Lister, BaseClient):
         input_bytes=file_bytes,
         input_type=input_type,
         inference_params=inference_params,
-        output_config=output_config)
+        output_config=output_config,
+    )
 
-  def generate_by_bytes(self,
-                        input_bytes: bytes,
-                        input_type: str = None,
-                        inference_params: Dict = {},
-                        output_config: Dict = {}):
+  def generate_by_bytes(
+      self,
+      input_bytes: bytes,
+      input_type: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     """Generate the stream output on model based on the given bytes.
 
     Args:
@@ -831,11 +882,13 @@ class Model(Lister, BaseClient):
 
     return self.client.stream(*args, **kwargs)
 
-  def stream_by_filepath(self,
-                         filepath: str,
-                         input_type: str = None,
-                         inference_params: Dict = {},
-                         output_config: Dict = {}):
+  def stream_by_filepath(
+      self,
+      filepath: str,
+      input_type: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     """Stream the model output based on the given filepath.
 
     Args:
@@ -863,13 +916,16 @@ class Model(Lister, BaseClient):
         input_bytes_iterator=iter([file_bytes]),
         input_type=input_type,
         inference_params=inference_params,
-        output_config=output_config)
+        output_config=output_config,
+    )
 
-  def stream_by_bytes(self,
-                      input_bytes_iterator: Iterator[bytes],
-                      input_type: str = None,
-                      inference_params: Dict = {},
-                      output_config: Dict = {}):
+  def stream_by_bytes(
+      self,
+      input_bytes_iterator: Iterator[bytes],
+      input_type: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     """Stream the model output based on the given bytes.
 
     Args:
@@ -905,11 +961,13 @@ class Model(Lister, BaseClient):
     return self.stream(
         inputs=input_generator(), inference_params=inference_params, output_config=output_config)
 
-  def stream_by_url(self,
-                    url_iterator: Iterator[str],
-                    input_type: str = None,
-                    inference_params: Dict = {},
-                    output_config: Dict = {}):
+  def stream_by_url(
+      self,
+      url_iterator: Iterator[str],
+      input_type: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     """Stream the model output based on the given URL.
 
     Args:
@@ -1009,11 +1067,14 @@ class Model(Lister, BaseClient):
     Returns:
         resources_pb2.EvalMetrics
     """
-    assert self.model_info.model_version.id, "Model version is empty. Please provide `model_version` as arguments or with a URL as the format '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+    assert self.model_info.model_version.id, (
+        "Model version is empty. Please provide `model_version` as arguments or with a URL as the format '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+    )
     request = service_pb2.ListModelVersionEvaluationsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
-        model_version_id=self.model_info.model_version.id)
+        model_version_id=self.model_info.model_version.id,
+    )
     response = self._grpc_request(self.STUB.ListModelVersionEvaluations, request)
 
     if response.status.code != status_code_pb2.SUCCESS:
@@ -1021,16 +1082,18 @@ class Model(Lister, BaseClient):
 
     return response.eval_metrics
 
-  def evaluate(self,
-               dataset: Dataset = None,
-               dataset_id: str = None,
-               dataset_app_id: str = None,
-               dataset_user_id: str = None,
-               dataset_version_id: str = None,
-               eval_id: str = None,
-               extended_metrics: dict = None,
-               eval_info: dict = None) -> resources_pb2.EvalMetrics:
-    """ Run evaluation
+  def evaluate(
+      self,
+      dataset: Dataset = None,
+      dataset_id: str = None,
+      dataset_app_id: str = None,
+      dataset_user_id: str = None,
+      dataset_version_id: str = None,
+      eval_id: str = None,
+      extended_metrics: dict = None,
+      eval_info: dict = None,
+  ) -> resources_pb2.EvalMetrics:
+    """Run evaluation
 
     Args:
       dataset (Dataset): If Clarifai Dataset is set, it will ignore other arguments prefixed with 'dataset_'.
@@ -1046,7 +1109,9 @@ class Model(Lister, BaseClient):
       eval_metrics
 
     """
-    assert self.model_info.model_version.id, "Model version is empty. Please provide `model_version` as arguments or with a URL as the format '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+    assert self.model_info.model_version.id, (
+        "Model version is empty. Please provide `model_version` as arguments or with a URL as the format '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+    )
 
     if dataset:
       self.logger.info("Using dataset, ignore other arguments prefixed with 'dataset_'")
@@ -1062,7 +1127,8 @@ class Model(Lister, BaseClient):
         id=dataset_id,
         app_id=dataset_app_id or self.auth_helper.app_id,
         user_id=dataset_user_id or self.auth_helper.user_id,
-        version=resources_pb2.DatasetVersion(id=dataset_version_id))
+        version=resources_pb2.DatasetVersion(id=dataset_version_id),
+    )
 
     metrics = None
     if isinstance(extended_metrics, dict):
@@ -1138,7 +1204,8 @@ class Model(Lister, BaseClient):
             confusion_matrix=confusion_matrix,
             metrics_by_class=metrics_by_class,
             metrics_by_area=metrics_by_area,
-        ))
+        ),
+    )
     response = self._grpc_request(self.STUB.GetEvaluation, request)
 
     if response.status.code != status_code_pb2.SUCCESS:
@@ -1146,13 +1213,15 @@ class Model(Lister, BaseClient):
 
     return response.eval_metrics
 
-  def get_latest_eval(self,
-                      label_counts=False,
-                      test_set=False,
-                      binary_metrics=False,
-                      confusion_matrix=False,
-                      metrics_by_class=False,
-                      metrics_by_area=False) -> Union[resources_pb2.EvalMetrics, None]:
+  def get_latest_eval(
+      self,
+      label_counts=False,
+      test_set=False,
+      binary_metrics=False,
+      confusion_matrix=False,
+      metrics_by_class=False,
+      metrics_by_area=False,
+  ) -> Union[resources_pb2.EvalMetrics, None]:
     """
     Run `get_eval_by_id` method with latest `eval_id`
 
@@ -1179,7 +1248,8 @@ class Model(Lister, BaseClient):
           binary_metrics=binary_metrics,
           confusion_matrix=confusion_matrix,
           metrics_by_class=metrics_by_class,
-          metrics_by_area=metrics_by_area)
+          metrics_by_area=metrics_by_area,
+      )
 
     return result
 
@@ -1202,7 +1272,7 @@ class Model(Lister, BaseClient):
     for _eval in list_eval:
       if _eval.status.code == status_code_pb2.MODEL_EVALUATED:
         gt_ds = _eval.ground_truth_dataset
-        if (_id == gt_ds.id and user_id == gt_ds.user_id and app == gt_ds.app_id):
+        if _id == gt_ds.id and user_id == gt_ds.user_id and app == gt_ds.app_id:
           if not version or version == gt_ds.version.id:
             outputs.append(_eval)
 
@@ -1212,7 +1282,7 @@ class Model(Lister, BaseClient):
                    dataset: Dataset = None,
                    eval_id: str = None,
                    return_format: str = 'array') -> Union[resources_pb2.EvalTestSetEntry, Tuple[
-                       np.array, np.array, list, List[Input]], Tuple[List[dict], List[dict]]]:
+                       np.array, np.array, list, List[Input]], Tuple[List[dict], List[dict]],]:
     """Get ground truths, predictions and input information. Do not pass dataset and eval_id at same time
 
     Args:
@@ -1305,11 +1375,13 @@ class Model(Lister, BaseClient):
         f"Expected return_format in {supported_format}, got {return_format}")
     self.load_info()
     model_type_id = self.model_info.model_type_id
-    assert model_type_id in valid_model_types, \
-      f"This method only supports model types {valid_model_types}, but your model type is {self.model_info.model_type_id}."
+    assert model_type_id in valid_model_types, (
+        f"This method only supports model types {valid_model_types}, but your model type is {self.model_info.model_type_id}."
+    )
     assert not (dataset and
-                eval_id), "Using both `dataset` and `eval_id`, but only one should be passed."
-    assert not dataset or not eval_id, "Please provide either `dataset` or `eval_id`, but nothing was passed."
+                eval_id), ("Using both `dataset` and `eval_id`, but only one should be passed.")
+    assert not dataset or not eval_id, (
+        "Please provide either `dataset` or `eval_id`, but nothing was passed.")
     if model_type_id.endswith("-classifier") and return_format == "coco":
       raise ValueError(
           f"return_format coco only applies for `visual-detector`, however your model is `{model_type_id}`"
@@ -1325,14 +1397,13 @@ class Model(Lister, BaseClient):
 
     if return_format == "proto":
       return detail_eval_data.test_set
-    else:
-      if model_type_id.endswith("-classifier"):
-        return parse_eval_annotation_classifier(detail_eval_data)
-      elif model_type_id == "visual-detector":
-        if return_format == "array":
-          return parse_eval_annotation_detector(detail_eval_data)
-        elif return_format == "coco":
-          return parse_eval_annotation_detector_coco(detail_eval_data)
+    elif model_type_id.endswith("-classifier"):
+      return parse_eval_annotation_classifier(detail_eval_data)
+    elif model_type_id == "visual-detector":
+      if return_format == "array":
+        return parse_eval_annotation_detector(detail_eval_data)
+      elif return_format == "coco":
+        return parse_eval_annotation_detector_coco(detail_eval_data)
 
   def export(self, export_dir: str = None) -> None:
     """Export the model, stores the exported model as model.tar file
@@ -1347,7 +1418,9 @@ class Model(Lister, BaseClient):
                 or
         >>> model.export('/path/to/export_model_dir')
     """
-    assert self.model_info.model_version.id, "Model version ID is missing. Please provide a `model_version` with a valid `id` as an argument or as a URL in the following format: '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+    assert self.model_info.model_version.id, (
+        "Model version ID is missing. Please provide a `model_version` with a valid `id` as an argument or as a URL in the following format: '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+    )
     if export_dir:
       try:
         if not os.path.exists(export_dir):
@@ -1363,7 +1436,8 @@ class Model(Lister, BaseClient):
       )
       response = self._grpc_request(self.STUB.GetModelVersionExport, get_export_request)
 
-      if response.status.code != status_code_pb2.SUCCESS and response.status.code != status_code_pb2.CONN_DOES_NOT_EXIST:
+      if (response.status.code != status_code_pb2.SUCCESS and
+          response.status.code != status_code_pb2.CONN_DOES_NOT_EXIST):
         raise Exception(response.status)
 
       return response
@@ -1386,7 +1460,7 @@ class Model(Lister, BaseClient):
           if downloaded_size + range_size >= model_export_file_size:
             range_header = f"bytes={downloaded_size}-"
           else:
-            range_header = f"bytes={downloaded_size}-{(downloaded_size+range_size-1)}"
+            range_header = f"bytes={downloaded_size}-{(downloaded_size + range_size - 1)}"
           try:
             session = requests.Session()
             retries = Retry(total=5, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
@@ -1402,16 +1476,16 @@ class Model(Lister, BaseClient):
             os.fsync(f.fileno())
             downloaded_size += range_size
             if not retry:
-              range_size = (
-                  range_size * 2) if (range_size * 2) < MAX_RANGE_SIZE else MAX_RANGE_SIZE
-              chunk_size = (
-                  chunk_size * 2) if (chunk_size * 2) < MAX_CHUNK_SIZE else MAX_CHUNK_SIZE
+              range_size = ((range_size * 2)
+                            if (range_size * 2) < MAX_RANGE_SIZE else MAX_RANGE_SIZE)
+              chunk_size = ((chunk_size * 2)
+                            if (chunk_size * 2) < MAX_CHUNK_SIZE else MAX_CHUNK_SIZE)
           except Exception as e:
             self.logger.error(f"Error downloading model: {e}")
-            range_size = (
-                range_size // 2) if (range_size // 2) > MIN_RANGE_SIZE else MIN_RANGE_SIZE
-            chunk_size = (
-                chunk_size // 2) if (chunk_size // 2) > MIN_CHUNK_SIZE else MIN_CHUNK_SIZE
+            range_size = ((range_size // 2)
+                          if (range_size // 2) > MIN_RANGE_SIZE else MIN_RANGE_SIZE)
+            chunk_size = ((chunk_size // 2)
+                          if (chunk_size // 2) > MIN_CHUNK_SIZE else MIN_CHUNK_SIZE)
             retry = True
             retry_count += 1
             f.seek(downloaded_size)
@@ -1445,9 +1519,9 @@ class Model(Lister, BaseClient):
         backoff_iterator = BackoffIterator(10)
         while True:
           get_export_response = _get_export_response()
-          if (get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTING or \
-                get_export_response.export.status.code == status_code_pb2.MODEL_EXPORT_PENDING) and \
-                  time.time() - start_time < MODEL_EXPORT_TIMEOUT:
+          if (get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTING or
+              get_export_response.export.status.code == status_code_pb2.MODEL_EXPORT_PENDING
+             ) and time.time() - start_time < MODEL_EXPORT_TIMEOUT:
             self.logger.info(
                 f"Export process is ongoing for Model ID {self.id}, Version {self.model_info.model_version.id}. Please wait..."
             )
@@ -1466,8 +1540,8 @@ class Model(Lister, BaseClient):
         self.logger.info(
             f"Model ID {self.id} with version {self.model_info.model_version.id} is already exported, you can download it from the following URL: {get_export_response.export.url}"
         )
-    elif get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTING or \
-            get_export_response.export.status.code == status_code_pb2.MODEL_EXPORT_PENDING:
+    elif (get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTING or
+          get_export_response.export.status.code == status_code_pb2.MODEL_EXPORT_PENDING):
       self.logger.info(
           f"Export process is ongoing for Model ID {self.id}, Version {self.model_info.model_version.id}. Please wait..."
       )
@@ -1497,8 +1571,8 @@ class Model(Lister, BaseClient):
         input_fields_map=input_fields_map, output_fields_map=output_fields_map, model_zip_url=url)
 
   @staticmethod
-  def _make_inference_params_proto(
-      inference_parameters: List[Dict]) -> List[resources_pb2.ModelTypeField]:
+  def _make_inference_params_proto(inference_parameters: List[Dict],
+                                  ) -> List[resources_pb2.ModelTypeField]:
     """Convert list of Clarifai inference parameters to proto for uploading new version
 
     Args:
@@ -1528,17 +1602,19 @@ class Model(Lister, BaseClient):
       iterative_proto_params.append(proto_param)
     return iterative_proto_params
 
-  def create_version_by_file(self,
-                             file_path: str,
-                             input_field_maps: dict,
-                             output_field_maps: dict,
-                             inference_parameter_configs: dict = None,
-                             model_version: str = None,
-                             part_id: int = 1,
-                             range_start: int = 0,
-                             no_cache: bool = False,
-                             no_resume: bool = False,
-                             description: str = "") -> 'Model':
+  def create_version_by_file(
+      self,
+      file_path: str,
+      input_field_maps: dict,
+      output_field_maps: dict,
+      inference_parameter_configs: dict = None,
+      model_version: str = None,
+      part_id: int = 1,
+      range_start: int = 0,
+      no_cache: bool = False,
+      no_resume: bool = False,
+      description: str = "",
+  ) -> 'Model':
     """Create model version by uploading local file
 
     Args:
@@ -1560,20 +1636,21 @@ class Model(Lister, BaseClient):
 
     """
     file_size = os.path.getsize(file_path)
-    assert MIN_CHUNK_FOR_UPLOAD_FILE <= file_size <= MAX_CHUNK_FOR_UPLOAD_FILE, "The file size exceeds the allowable limit, which ranges from 5MiB to 5GiB."
+    assert MIN_CHUNK_FOR_UPLOAD_FILE <= file_size <= MAX_CHUNK_FOR_UPLOAD_FILE, (
+        "The file size exceeds the allowable limit, which ranges from 5MiB to 5GiB.")
 
     pretrained_proto = Model._make_pretrained_config_proto(
         input_field_maps=input_field_maps, output_field_maps=output_field_maps)
-    inference_param_proto = Model._make_inference_params_proto(
-        inference_parameter_configs) if inference_parameter_configs else None
+    inference_param_proto = (Model._make_inference_params_proto(inference_parameter_configs)
+                             if inference_parameter_configs else None)
 
     if file_size >= 1e9:
       chunk_size = 1024 * 50_000  # 50MB
     else:
       chunk_size = 1024 * 10_000  # 10MB
 
-    #self.logger.info(f"Chunk {chunk_size/1e6}MB, {file_size/chunk_size} steps")
-    #self.logger.info(f" Max bytes per stream {MAX_SIZE_PER_STREAM}")
+    # self.logger.info(f"Chunk {chunk_size/1e6}MB, {file_size/chunk_size} steps")
+    # self.logger.info(f" Max bytes per stream {MAX_SIZE_PER_STREAM}")
 
     cache_dir = os.path.join(file_path, '..', '.cache')
     cache_upload_file = os.path.join(cache_dir, "upload.json")
@@ -1601,7 +1678,8 @@ class Model(Lister, BaseClient):
                   id=model_version,
                   pretrained_model_config=pretrained_proto,
                   description=description,
-                  output_info=resources_pb2.OutputInfo(params_specs=inference_param_proto)),
+                  output_info=resources_pb2.OutputInfo(params_specs=inference_param_proto),
+              ),
           ))
 
     def _uploading(chunk, part_id, range_start, model_version):
@@ -1611,7 +1689,8 @@ class Model(Lister, BaseClient):
 
     finished_status = [status_code_pb2.SUCCESS, status_code_pb2.UPLOAD_DONE]
     uploading_in_progress_status = [
-        status_code_pb2.UPLOAD_IN_PROGRESS, status_code_pb2.MODEL_UPLOADING
+        status_code_pb2.UPLOAD_IN_PROGRESS,
+        status_code_pb2.MODEL_UPLOADING,
     ]
 
     def _save_cache(cache: dict):
@@ -1630,7 +1709,8 @@ class Model(Lister, BaseClient):
             chunk=chunk,
             part_id=iter_part_id,
             range_start=chunk_size * (iter_part_id - 1),
-            model_version=version)
+            model_version=version,
+        )
 
     tqdm_loader = tqdm(total=100)
     if model_version:
@@ -1655,8 +1735,8 @@ class Model(Lister, BaseClient):
           request, metadata=self.auth_helper.metadata)):
         if st_response.status.code in uploading_in_progress_status:
           if cache_uploading_info["model_version"]:
-            assert st_response.model_version_id == cache_uploading_info[
-                "model_version"], RuntimeError
+            assert st_response.model_version_id == cache_uploading_info["model_version"], (
+                RuntimeError)
           else:
             cache_uploading_info["model_version"] = st_response.model_version_id
           if st_step > 0:
@@ -1665,7 +1745,8 @@ class Model(Lister, BaseClient):
             _save_cache(cache_uploading_info)
 
             if st_response.status.percent_completed:
-              step_percent = st_response.status.percent_completed - cache_uploading_info["last_percent"]
+              step_percent = (
+                  st_response.status.percent_completed - cache_uploading_info["last_percent"])
               cache_uploading_info["last_percent"] += step_percent
               tqdm_loader.set_description(
                   f"{st_response.status.description}, {st_response.status.details}, version id  {cache_uploading_info.get('model_version')}"
@@ -1684,15 +1765,15 @@ class Model(Lister, BaseClient):
       end_part_id = n_chunks or 1
       for iter_part_id in range(int(last_part_id), int(n_chunks), int(n_chunk_per_stream)):
         end_part_id = iter_part_id + n_chunk_per_stream
-        if end_part_id >= n_chunks:
-          end_part_id = n_chunks
+        end_part_id = min(n_chunks, end_part_id)
         expected_steps = end_part_id - iter_part_id + 1  # init step
         st_reqs = stream_request(
             fp,
             iter_part_id,
             end_part_id=end_part_id,
             chunk_size=chunk_size,
-            version=cache_uploading_info["model_version"])
+            version=cache_uploading_info["model_version"],
+        )
         stream_and_logging(st_reqs, tqdm_loader, cache_uploading_info, expected_steps)
       # Stream last part
       accum_size = (end_part_id - 1) * chunk_size
@@ -1702,7 +1783,8 @@ class Model(Lister, BaseClient):
           end_part_id,
           end_part_id=end_part_id + 1,
           chunk_size=remained_size,
-          version=cache_uploading_info["model_version"])
+          version=cache_uploading_info["model_version"],
+      )
       stream_and_logging(st_reqs, tqdm_loader, cache_uploading_info, 2)
 
     # clean up cache
@@ -1723,14 +1805,17 @@ class Model(Lister, BaseClient):
     return Model.from_auth_helper(
         auth=self.auth_helper,
         model_id=self.id,
-        model_version=dict(id=cache_uploading_info.get('model_version')))
+        model_version=dict(id=cache_uploading_info.get('model_version')),
+    )
 
-  def create_version_by_url(self,
-                            url: str,
-                            input_field_maps: dict,
-                            output_field_maps: dict,
-                            inference_parameter_configs: List[dict] = None,
-                            description: str = "") -> 'Model':
+  def create_version_by_url(
+      self,
+      url: str,
+      input_field_maps: dict,
+      output_field_maps: dict,
+      inference_parameter_configs: List[dict] = None,
+      description: str = "",
+  ) -> 'Model':
     """Upload a new version of an existing model in the Clarifai platform using direct download url.
 
     Args:
@@ -1748,8 +1833,8 @@ class Model(Lister, BaseClient):
 
     pretrained_proto = Model._make_pretrained_config_proto(
         input_field_maps=input_field_maps, output_field_maps=output_field_maps, url=url)
-    inference_param_proto = Model._make_inference_params_proto(
-        inference_parameter_configs) if inference_parameter_configs else None
+    inference_param_proto = (Model._make_inference_params_proto(inference_parameter_configs)
+                             if inference_parameter_configs else None)
     request = service_pb2.PostModelVersionsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
@@ -1757,8 +1842,10 @@ class Model(Lister, BaseClient):
             resources_pb2.ModelVersion(
                 pretrained_model_config=pretrained_proto,
                 description=description,
-                output_info=resources_pb2.OutputInfo(params_specs=inference_param_proto))
-        ])
+                output_info=resources_pb2.OutputInfo(params_specs=inference_param_proto),
+            )
+        ],
+    )
     response = self._grpc_request(self.STUB.PostModelVersions, request)
 
     if response.status.code != status_code_pb2.SUCCESS:
@@ -1769,4 +1856,5 @@ class Model(Lister, BaseClient):
     return Model.from_auth_helper(
         auth=self.auth_helper,
         model_id=self.id,
-        model_version=dict(id=response.model.model_version.id))
+        model_version=dict(id=response.model.model_version.id),
+    )

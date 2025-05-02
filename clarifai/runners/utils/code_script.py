@@ -1,22 +1,55 @@
 import json
 from typing import List
+
 from clarifai_grpc.grpc.api import resources_pb2
+
 from clarifai.runners.utils import data_types
 
 
-def generate_client_script(method_signatures: List[resources_pb2.MethodSignature], user_id, app_id,
-                           model_id) -> str:
+def generate_client_script(
+    method_signatures: List[resources_pb2.MethodSignature],
+    user_id,
+    app_id,
+    model_id,
+    base_url: str = None,
+    deployment_id: str = None,
+    use_ctx: bool = False,
+) -> str:
   _CLIENT_TEMPLATE = """\
-from clarifai.runners.utils import data_types
 import os
-from clarifai.client import Model
 
-model = Model("www.clarifai.com/{user_id}/{app_id}/{model_id}",
-    deployment_id = os.environ['CLARIFAI_DEPLOYMENT_ID'], # Only needed for dedicated deployed models
-)
+from clarifai.client import Model
+from clarifai.runners.utils import data_types
+{model_section}
     """
+
+  deployment_id = ("os.environ['CLARIFAI_DEPLOYMENT_ID']"
+                   if deployment_id is None else deployment_id)
+
+  base_url_str = ""
+  if base_url is not None:
+    base_url_str = f"base_url={base_url},"
+
+  if use_ctx:
+    model_section = """
+model = Model.from_current_context()"""
+  else:
+    model_section = """
+ model = Model("https://clarifai.com/{user_id}/{app_id}/{model_id}",
+               deployment_id = {deployment_id}, # Only needed for dedicated deployed models
+               {base_url_str}
+ )
+"""
+    model_section = _CLIENT_TEMPLATE.format(
+        user_id=user_id,
+        app_id=app_id,
+        model_id=model_id,
+        deployment_id=deployment_id,
+        base_url_str=base_url_str,
+    )
+
   # Generate client template
-  client_template = _CLIENT_TEMPLATE.format(user_id=user_id, app_id=app_id, model_id=model_id)
+  client_template = _CLIENT_TEMPLATE.format(model_section=model_section,)
 
   # Generate method signatures
   method_signatures_str = []
@@ -26,7 +59,6 @@ model = Model("www.clarifai.com/{user_id}/{app_id}/{model_id}",
         resources_pb2.RunnerMethodType.UNARY_UNARY,
         resources_pb2.RunnerMethodType.UNARY_STREAMING,
     ]:
-
       client_script_str = f'response = model.{method_name}('
       annotations = _get_annotations_source(method_signature)
       for param_name, (param_type, default_value) in annotations.items():
@@ -50,9 +82,10 @@ model = Model("www.clarifai.com/{user_id}/{app_id}/{model_id}",
   # Combine all parts
   script_lines = []
   script_lines.append("\n# Clarifai Model Client Script")
-  script_lines.append(
-      "# Set the environment variables `CLARIFAI_DEPLOYMENT_ID` and `CLARIFAI_PAT` to run this script."
-  )
+  if not use_ctx:
+    script_lines.append(
+        "# Set the environment variables `CLARIFAI_DEPLOYMENT_ID` and `CLARIFAI_PAT` to run this script."
+    )
   script_lines.append("# Example usage:")
   script_lines.append(client_template)
   script_lines.append("# Example model prediction from different model methods: \n")
@@ -126,8 +159,8 @@ def _get_base_type(field: resources_pb2.ModelTypeField) -> str:
 
 def _map_default_value(field_type):
   """
-    Map the default value of a field type to a string representation.
-    """
+  Map the default value of a field type to a string representation.
+  """
   default_value = None
 
   if field_type == "str":
@@ -163,8 +196,8 @@ def _map_default_value(field_type):
 
 def _set_default_value(field_type):
   """
-    Set the default value of a field if it is not set.
-    """
+  Set the default value of a field if it is not set.
+  """
   default_value = None
   default_value = _map_default_value(field_type)
   if field_type.startswith("List["):
