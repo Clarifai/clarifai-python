@@ -21,17 +21,17 @@ DEFAULT_RUNTIME_DOWNLOAD_PATH = os.path.join(os.sep, "tmp", ".cache")
 # List of available torch images
 # Keep sorted by most recent cuda version.
 AVAILABLE_TORCH_IMAGES = [
-    '2.4.1-py3.11-cu124',
-    '2.5.1-py3.11-cu124',
-    '2.4.1-py3.12-cu124',
-    '2.5.1-py3.12-cu124',
-    '2.6.0-py3.12-cu126',
-    '2.7.0-py3.12-cu128',
-    '2.7.0-py3.12-rocm6.3',
+  '2.4.1-py3.11-cu124',
+  '2.5.1-py3.11-cu124',
+  '2.4.1-py3.12-cu124',
+  '2.5.1-py3.12-cu124',
+  '2.6.0-py3.12-cu126',
+  '2.7.0-py3.12-cu128',
+  '2.7.0-py3.12-rocm6.3',
 ]
 CONCEPTS_REQUIRED_MODEL_TYPE = [
-    'visual-classifier',
-    'visual-detector',
-    'visual-segmenter',
-    'text-classifier',
+  'visual-classifier',
+  'visual-detector',
+  'visual-segmenter',
+  'text-classifier',
 ]
