@@ -107,6 +107,30 @@ class Model(Lister, BaseClient):
     )
     Lister.__init__(self)
 
+  @classmethod
+  def from_current_context(cls, **kwargs) -> 'Model':
+    from clarifai.utils.config import Config
+
+    current = Config.from_yaml().current
+
+    # set the current context to env vars.
+    current.set_to_env()
+
+    url = f"https://clarifai.com/{current.user_id}/{current.app_id}/models/{current.model_id}"
+
+    # construct the Model object.
+    kwargs = {}
+    try:
+      kwargs['deployment_id'] = current.deployment_id
+    except AttributeError:
+      try:
+        kwargs['compute_cluster_id'] = current.compute_cluster_id
+        kwargs['nodepool_id'] = current.nodepool_id
+      except AttributeError:
+        pass
+
+    return Model(url, base_url=current.api_base, pat=current.pat, **kwargs)
+
   def list_training_templates(self) -> List[str]:
     """Lists all the training templates for the model type.
 

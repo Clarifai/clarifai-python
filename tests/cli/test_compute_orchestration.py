@@ -9,6 +9,7 @@ from clarifai.cli.base import cli
 from clarifai.client.compute_cluster import ComputeCluster
 from clarifai.client.nodepool import Nodepool
 from clarifai.client.user import User
+from clarifai.utils.logging import logger
 
 NOW = uuid.uuid4()
 
@@ -115,7 +116,7 @@ class TestComputeOrchestration:
             COMPUTE_CLUSTER_CONFIG_FILE,
         ],
     )
-    assert result.exit_code == 0, result
+    assert result.exit_code == 0, logger.exception(result)
 
   def test_create_nodepool(self, create_runner):
     with open(NODEPOOL_CONFIG_FILE) as f:
@@ -136,7 +137,7 @@ class TestComputeOrchestration:
             NODEPOOL_CONFIG_FILE,
         ],
     )
-    assert result.exit_code == 0, result
+    assert result.exit_code == 0, logger.exception(result)
 
   @pytest.mark.coverage_only
   def test_create_deployment(self, create_runner):
@@ -160,25 +161,25 @@ class TestComputeOrchestration:
             DEPLOYMENT_CONFIG_FILE,
         ],
     )
-    assert result.exit_code == 0, result
+    assert result.exit_code == 0, logger.exception(result)
 
   def test_list_compute_clusters(self, create_runner):
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = create_runner.invoke(cli, ["computecluster", "list"])
-    assert result.exit_code == 0, result
+    assert result.exit_code == 0, logger.exception(result)
     assert "USER_ID" in result.output
 
   def test_list_nodepools(self, create_runner):
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = create_runner.invoke(cli, ["nodepool", "list", CREATE_COMPUTE_CLUSTER_ID])
-    assert result.exit_code == 0, result
+    assert result.exit_code == 0, logger.exception(result)
     assert "USER_ID" in result.output
 
   def test_list_deployments(self, create_runner):
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = create_runner.invoke(cli, ["deployment", "list", CREATE_NODEPOOL_ID])
 
-    assert result.exit_code == 0, result
+    assert result.exit_code == 0, logger.exception(result)
     assert "USER_ID" in result.output
 
   @pytest.mark.coverage_only
@@ -186,15 +187,15 @@ class TestComputeOrchestration:
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = create_runner.invoke(
         cli, ["deployment", "delete", CREATE_NODEPOOL_ID, CREATE_DEPLOYMENT_ID])
-    assert result.exit_code == 0, result
+    assert result.exit_code == 0, logger.exception(result)
 
   def test_delete_nodepool(self, create_runner):
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = create_runner.invoke(
         cli, ["nodepool", "delete", CREATE_COMPUTE_CLUSTER_ID, CREATE_NODEPOOL_ID])
-    assert result.exit_code == 0, result
+    assert result.exit_code == 0, logger.exception(result)
 
   def test_delete_compute_cluster(self, create_runner):
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = create_runner.invoke(cli, ["computecluster", "delete", CREATE_COMPUTE_CLUSTER_ID])
-    assert result.exit_code == 0, result
+    assert result.exit_code == 0, logger.exception(result)

@@ -511,28 +511,29 @@ def local_dev(ctx, model_path):
   # we should be able to put the exact function call in place.
   # model_script = model.generate_client_script()
 
+  builder = ModelBuilder(model_path, download_validation_only=True)
+  method_signatures = builder.get_method_signatures()
+
+  from clarifai.runners.utils import code_script
+
+  snippet = code_script.generate_client_script(
+      method_signatures,
+      user_id=user_id,
+      app_id=app_id,
+      model_id=model_id,
+      deployment_id=deployment_id,
+      use_ctx=True,
+      base_url=ctx.obj.current.api_base,
+  )
+
   # TODO: put in the ClarifaiUrlHelper to create the model url.
 
-  logger.info(f"""\n
+  logger.info("""\n
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 # About to start up the local dev runner in this terminal...
 # Here is a code snippet to call this model once it start from another terminal:
-
-from clarifai.client import Model
-from clarifai.utils.config import Config
-
-# set the current context to env vars.
-Config.from_yaml().current.set_to_env()
-
-model = Model(url="https://clarifai.com/{user_id}/{app_id}/models/{model_id}",
-              base_url="{ctx.obj.current.api_base}")
-
-# Change f and args to what your model does.
-result = model.f(args...)
-
-print(result)
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  """)
+""")
+  logger.info(snippet)
 
   logger.info("Now starting the local dev runner...")
 
