@@ -189,7 +189,12 @@ class Nodepool(Lister, BaseClient):
       raise Exception(response.status)
     self.logger.info("\nDeployment created\n%s", response.status)
 
-    return Deployment.from_auth_helper(self.auth_helper, deployment_id=deployment_id)
+    dict_response = MessageToDict(
+        response.deployments[0], preserving_proto_field_name=True, use_integers_for_enums=True)
+    kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
+                                        list(dict_response.keys())[1])
+
+    return Deployment.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def deployment(self, deployment_id: str) -> Deployment:
     """Returns a Deployment object for the existing deployment ID.
@@ -280,10 +285,12 @@ class Nodepool(Lister, BaseClient):
 
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
+    self.logger.info("\nRunner created\n%s with id: %s", response.status, response.runners[0].id)
 
-    r = Runner.from_auth_helper(self.auth_helper, runner_id=response.runners[0].id)
-    self.logger.info("\nRunner created\n%s with id: %s", response.status, r.id)
-    return r
+    dict_response = MessageToDict(response.runners[0], preserving_proto_field_name=True)
+    kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
+                                        list(dict_response.keys())[1])
+    return Runner.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def _process_runner_config(self, runner_config: str) -> Dict[str, Any]:
     assert "runner" in runner_config, "runner info not found in the config file"
