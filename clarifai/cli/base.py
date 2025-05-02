@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import sys
 
 import click
@@ -49,7 +50,11 @@ def shell_completion(shell):
   os.system(f"_CLARIFAI_COMPLETE={shell}_source clarifai")
 
 
-@cli.group(['cfg'], cls=AliasedGroup)
+@cli.group(
+    ['cfg'],
+    cls=AliasedGroup,
+    context_settings={'max_content_width': shutil.get_terminal_size().columns - 10},
+)
 def config():
   """Manage CLI configuration"""
 

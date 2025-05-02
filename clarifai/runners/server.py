@@ -101,6 +101,9 @@ def serve(
   # `num_threads` can be set in config.yaml or via the environment variable CLARIFAI_NUM_THREADS="<integer>".
   # Note: The value in config.yaml takes precedence over the environment variable.
   num_threads = builder.config.get("num_threads")
+  import pdb
+
+  pdb.set_trace()
 
   # Setup the grpc server for local development.
   if grpc:

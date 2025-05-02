@@ -3,6 +3,7 @@ import importlib
 import inspect
 import os
 import re
+import shutil
 import sys
 import tarfile
 import time
@@ -200,6 +201,16 @@ class ModelBuilder:
     with open(config_file, 'r') as file:
       config = yaml.safe_load(file)
     return config
+
+  @staticmethod
+  def _backup_config(config_file: str):
+    if not os.path.exists(config_file):
+      return
+    backup_file = config_file + ".bak"
+    if os.path.exists(backup_file):
+      raise FileExistsError(
+          f"Backup file {backup_file} already exists. Please remove it before proceeding.")
+    shutil.copy(config_file, backup_file)
 
   @staticmethod
   def _save_config(config_file: str, config: dict):
