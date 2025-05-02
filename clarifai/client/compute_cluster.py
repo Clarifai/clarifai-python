@@ -157,7 +157,13 @@ class ComputeCluster(Lister, BaseClient):
       raise Exception(response.status)
     self.logger.info("\nNodepool created\n%s", response.status)
 
-    return Nodepool.from_auth_helper(self.auth_helper, nodepool_id=nodepool_id)
+    kwargs = {
+        "compute_cluster": {
+            "id": self.id,
+            "user_id": self.user_id,
+        },
+    }
+    return Nodepool.from_auth_helper(self.auth_helper, nodepool_id=nodepool_id, **kwargs)
 
   def nodepool(self, nodepool_id: str) -> Nodepool:
     """Returns a Nodepool object for the existing nodepool ID.
