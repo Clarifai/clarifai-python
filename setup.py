@@ -3,20 +3,20 @@ import re
 import setuptools
 
 with open("README.md", "r") as fh:
-  long_description = fh.read()
+    long_description = fh.read()
 
 with open("./clarifai/__init__.py") as f:
-  content = f.read()
+    content = f.read()
 _search_version = re.search(r'__version__\s*=\s*[\'"]([^\'"]*)[\'"]', content)
 assert _search_version
 version = _search_version.group(1)
 
 with open("requirements.txt", "r") as fh:
-  install_requires = fh.read().split('\n')
+    install_requires = fh.read().split('\n')
 
 if install_requires and install_requires[-1] == '':
-  # Remove the last empty line
-  install_requires = install_requires[:-1]
+    # Remove the last empty line
+    install_requires = install_requires[:-1]
 
 packages = setuptools.find_namespace_packages(include=["clarifai*"])
 
@@ -50,6 +50,9 @@ setuptools.setup(
         'all': ["pycocotools==2.0.6"],
     },
     entry_points={
-        "console_scripts": ["clarifai = clarifai.cli.base:cli",],
+        "console_scripts": [
+            "clarifai = clarifai.cli.base:cli",
+        ],
     },
-    include_package_data=True)
+    include_package_data=True,
+)
