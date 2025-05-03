@@ -31,8 +31,6 @@ class Runner(Lister, BaseClient):
         **kwargs: Additional keyword arguments to be passed to the runner.
     """
     self.kwargs = {**kwargs, 'id': runner_id}
-    breakpoint()
-    # self.runner_info = resources_pb2.Runner(**self.kwargs)
     self.runner_info = resources_pb2.Runner()
     dict_to_protobuf(self.runner_info, self.kwargs)
     self.logger = logger
