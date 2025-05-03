@@ -4,8 +4,8 @@ FROM --platform=$TARGETPLATFORM ${FINAL_IMAGE} as final
 COPY --link requirements.txt /home/nonroot/requirements.txt
 
 # Update clarifai package so we always have latest protocol to the API. Everything should land in /venv
-RUN ["pip", "install", "--no-cache-dir", "-r", "/home/nonroot/requirements.txt"]
-RUN ["pip", "show", "clarifai"]
+RUN ["uv", "pip", "install", "--no-cache-dir", "-r", "/home/nonroot/requirements.txt"]
+RUN ["uv", "pip", "show", "clarifai"]
 
 # Set the NUMBA cache dir to /tmp
 # Set the TORCHINDUCTOR cache dir to /tmp
