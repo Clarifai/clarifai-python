@@ -3,6 +3,7 @@ from clarifai_grpc.grpc.api import resources_pb2
 from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
 from clarifai.utils.logging import logger
+from clarifai.utils.protobuf import dict_to_protobuf
 
 
 class Runner(Lister, BaseClient):
@@ -30,7 +31,10 @@ class Runner(Lister, BaseClient):
         **kwargs: Additional keyword arguments to be passed to the runner.
     """
     self.kwargs = {**kwargs, 'id': runner_id}
-    self.runner_info = resources_pb2.Runner(**self.kwargs)
+    breakpoint()
+    # self.runner_info = resources_pb2.Runner(**self.kwargs)
+    self.runner_info = resources_pb2.Runner()
+    dict_to_protobuf(self.runner_info, self.kwargs)
     self.logger = logger
     BaseClient.__init__(
         self,

@@ -11,6 +11,7 @@ from clarifai.client.lister import Lister
 from clarifai.client.nodepool import Nodepool
 from clarifai.errors import UserError
 from clarifai.utils.logging import logger
+from clarifai.utils.protobuf import dict_to_protobuf
 
 
 class ComputeCluster(Lister, BaseClient):
@@ -38,7 +39,8 @@ class ComputeCluster(Lister, BaseClient):
         **kwargs: Additional keyword arguments to be passed to the compute cluster.
     """
     self.kwargs = {**kwargs, 'id': compute_cluster_id, 'user_id': user_id}
-    self.compute_cluster_info = resources_pb2.ComputeCluster(**self.kwargs)
+    self.compute_cluster_info = resources_pb2.ComputeCluster()
+    dict_to_protobuf(self.compute_cluster_info, self.kwargs)
     self.logger = logger
     BaseClient.__init__(
         self,
