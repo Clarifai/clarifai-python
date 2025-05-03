@@ -1,40 +1,75 @@
-# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
-select = ["E4", "E7", "E9", "F"]
-ignore = ["E501"]
+indent-width = 2
+line-length = 99
 
-# Allow fix for all enabled rules (when `--fix`) is provided.
-fixable = ["A", "B", "C", "D", "E", "F", "G", "I", "N", "Q", "S", "T", "W", "ANN", "ARG", "BLE", "COM", "DJ", "DTZ", "EM", "ERA", "EXE", "FBT", "ICN", "INP", "ISC", "NPY", "PD", "PGH", "PIE", "PL", "PT", "PTH", "PYI", "RET", "RSE", "RUF", "SIM", "SLF", "TCH", "TID", "TRY", "UP", "YTT"]
-unfixable = []
+[lint]
+select = [
+  "F",
+  "E",
+  "W",
+  "I",
+  "PLE", # pylint errors
+  "PLW", # pylint warnings
+  "PLC", # pylint conventions
+  "PLR", # pylint refactor
 
-# Exclude a variety of commonly ignored directories.
-exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".git-rewrite",
-    ".hg",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".pytype",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "venv",
+  # TODO to add more, just bigger diff:
+  # "C", # comprehension cleanups
+  # "D", # docstring formatting
+  # "RUF", # additional ruff specific things
 ]
 
-# Same as Black.
-line-length = 88
+ignore = [
+  # Things we shouldn't bother fixing:
+  "E111", # indentation multiple of 4.
+  "E402",  # Module level import not at top of file
+  "E501",  # line-too-long
+  "E701",  # Multiple statements on one line (colon)
+  "E722",  # bare-except
+  "E731",  # Do not assign a `lambda` expression, use a `def
+  "E741",  # Ambiguous variable name
+  "E743",  # Ambiguous function name
+  "W605", # invalid escape sequence
+  "C416",  # unnecessary-comprehension
+  "C901", # too complex
+  "PLC1802", # use len without comparison
+  "PLC0206", # values from dict without items
+  "PLR1714", # merging multiple comparisons
+  "PLW1508",  # invalid-envvar-default
+  "PLR0911",  # too-many-return-statements
+  "PLR0912",  # too-many-branches
+  "PLR0913",  # too-many-arguments
+  "PLR0915",  # too-many-statements
 
-# Allow unused variables when underscore-prefixed.
-dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+  # TODO: Should fix:
+  "F841",  # unused-variable
+  "W291",  # trailing-whitespace
 
-target-version = "py39"
+  # TODO: pylint ones we haven't fixed yet but should:
+  "PLW0603", # global-statement
+  "PLW2901", # loop var overwritten by assignment target
+  "PLR2004", # needs a constant
+  "PLR1704",  # redefined-argument-from-local
+]
+
+[lint.per-file-ignores]
+# Ignore autogenerate proto quirks
+"proto/**.py" = ["F401","E712","F403","I001"]
+"*_pb2*.py" = ["F401","E712","F821","E501","I001"]
+"*.ipynb" = ["F401","F821","I001"]
+# we do lots of type checking in here
+"utils/argspec.py" = ["E721"]
+# wildcard imports
+"conf/segmentation/test.py" = ["F403","F405"]
+"conf/tf_striate/slim/__init__.py" = ["F403"]
+
+[format]
+# just keep what we have so it's less of a change.
+quote-style = "preserve"
+# always use spaces instead of tabs
+indent-style = "space"
+
+exclude = [
+  "*pb2*.py",  # Exclude generated protos
+   "proto/**.py", # Exclude generated protos
+   "*.ipynb", # Skip notebooks.
+]
