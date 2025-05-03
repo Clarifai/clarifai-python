@@ -12,8 +12,12 @@ from clarifai.client.user import User
 from clarifai.client.workflow import Workflow
 from clarifai.constants.rag import MAX_UPLOAD_BATCH_SIZE
 from clarifai.errors import UserError
-from clarifai.rag.utils import (convert_messages_to_str, format_assistant_message, load_documents,
-                                split_document)
+from clarifai.rag.utils import (
+  convert_messages_to_str,
+  format_assistant_message,
+  load_documents,
+  split_document,
+)
 from clarifai.utils.constants import CLARIFAI_USER_ID_ENV_VAR
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import get_from_dict_or_env

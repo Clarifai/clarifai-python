@@ -7,13 +7,13 @@ def generate_id():
 
 
 def _format_non_streaming_response(
-    generated_text,
-    model="custom-model",
-    id=None,
-    created=None,
-    prompt_tokens=None,
-    completion_tokens=None,
-    finish_reason="stop",
+  generated_text,
+  model="custom-model",
+  id=None,
+  created=None,
+  prompt_tokens=None,
+  completion_tokens=None,
+  finish_reason="stop",
 ):
   if id is None:
     id = generate_id()
@@ -21,41 +21,39 @@ def _format_non_streaming_response(
     created = int(time.time())
 
   response = {
-      "id":
-          id,
-      "object":
-          "chat.completion",
-      "created":
-          created,
-      "model":
-          model,
-      "choices": [{
-          "index": 0,
-          "message": {
-              "role": "assistant",
-              "content": generated_text,
-          },
-          "finish_reason": finish_reason,
-          "logprobs": None,
-      }],
+    "id": id,
+    "object": "chat.completion",
+    "created": created,
+    "model": model,
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": generated_text,
+        },
+        "finish_reason": finish_reason,
+        "logprobs": None,
+      }
+    ],
   }
 
   if prompt_tokens is not None and completion_tokens is not None:
     response["usage"] = {
-        "prompt_tokens": prompt_tokens,
-        "completion_tokens": completion_tokens,
-        "total_tokens": prompt_tokens + completion_tokens,
+      "prompt_tokens": prompt_tokens,
+      "completion_tokens": completion_tokens,
+      "total_tokens": prompt_tokens + completion_tokens,
     }
 
   return response
 
 
 def _format_streaming_response(
-    generated_chunks,
-    model="custom-model",
-    id=None,
-    created=None,
-    finish_reason="stop",
+  generated_chunks,
+  model="custom-model",
+  id=None,
+  created=None,
+  finish_reason="stop",
 ):
   if id is None:
     id = generate_id()
@@ -64,69 +62,70 @@ def _format_streaming_response(
 
   for chunk in generated_chunks:
     yield {
-        "id":
-            id,
-        "object":
-            "chat.completion.chunk",
-        "created":
-            created,
-        "model":
-            model,
-        "choices": [{
-            "index": 0,
-            "delta": {
-                "content": chunk,
-            },
-            "finish_reason": None,
-            "logprobs": None,
-        }],
-    }
-
-  # Final chunk indicating completion
-  yield {
       "id": id,
       "object": "chat.completion.chunk",
       "created": created,
       "model": model,
-      "choices": [{
+      "choices": [
+        {
           "index": 0,
-          "delta": {},
-          "finish_reason": finish_reason,
+          "delta": {
+            "content": chunk,
+          },
+          "finish_reason": None,
           "logprobs": None,
-      }],
+        }
+      ],
+    }
+
+  # Final chunk indicating completion
+  yield {
+    "id": id,
+    "object": "chat.completion.chunk",
+    "created": created,
+    "model": model,
+    "choices": [
+      {
+        "index": 0,
+        "delta": {},
+        "finish_reason": finish_reason,
+        "logprobs": None,
+      }
+    ],
   }
 
 
 def openai_response(
-    generated_text,
-    model="custom-model",
-    id=None,
-    created=None,
-    prompt_tokens=None,
-    completion_tokens=None,
-    finish_reason="stop",
-    stream=True,
+  generated_text,
+  model="custom-model",
+  id=None,
+  created=None,
+  prompt_tokens=None,
+  completion_tokens=None,
+  finish_reason="stop",
+  stream=True,
 ):
   if stream:
     return _format_streaming_response(generated_text, model, id, created, finish_reason)
   else:
-    return _format_non_streaming_response(generated_text, model, id, created, prompt_tokens,
-                                          completion_tokens, finish_reason)
+    return _format_non_streaming_response(
+      generated_text, model, id, created, prompt_tokens, completion_tokens, finish_reason
+    )
 
 
 def openai_to_hf_messages(openai_messages):
   """
-    Converts OpenAI-style chat messages into a format compatible with Hugging Face's
-    `tokenizer.apply_chat_template()` function, supporting all modalities (text, images, etc.).
+  Converts OpenAI-style chat messages into a format compatible with Hugging Face's
+  `tokenizer.apply_chat_template()` function, supporting all modalities (text, images, etc.).
 
-    Args:
-        openai_messages (list): List of OpenAI-style messages, where each message is a dict with
-                                'role' (str) and 'content' (str or list of parts).
+  Args:
+      openai_messages (list): List of OpenAI-style messages, where each message is a dict with
+                              'role' (str) and 'content' (str or list of parts).
 
-    Returns:
-        list: Hugging Face-compatible messages. Each message is a dict with 'role' and 'content'.
-              Content is a string (text-only) or a list of parts (multimodal).
-    """
+  Returns:
+      list: Hugging Face-compatible messages. Each message is a dict with 'role' and 'content'.
+            Content is a string (text-only) or a list of parts (multimodal).
+  """
   hf_messages = []
   for msg in openai_messages:
     role = msg['role']
@@ -151,7 +150,7 @@ def openai_to_hf_messages(openai_messages):
         elif part['type'] == 'video_url':
           video_url = part["video_url"]["url"]
           if video_url.startswith("data:video"):
-            ValueError("Base64 video data is not supported in HF format.")
+            raise ValueError("Base64 video data is not supported in HF format.")
           else:
             # URL (model must handle downloads)
             converted_content.append({'type': 'video', 'url': video_url})

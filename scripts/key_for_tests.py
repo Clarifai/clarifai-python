@@ -38,8 +38,10 @@ def _request(method, url, payload={}, headers={}):
       error_body = json.dumps(json.loads(error_body), indent=4)
     except Exception:
       pass
-    raise Exception("ERROR after a HTTP request to: %s %s" % (method, full_url) +
-                    ". Response: %d %s:\n%s" % (e.code, e.reason, error_body))
+    raise Exception(
+      "ERROR after a HTTP request to: %s %s" % (method, full_url)
+      + ". Response: %d %s:\n%s" % (e.code, e.reason, error_body)
+    )
   return json.loads(response)
 
 
@@ -71,12 +73,14 @@ def create_pat():
 
   url = "/users/%s/keys" % user_id
   payload = {
-      "keys": [{
-          "description": "Auto-created in a CI test run",
-          "scopes": ["All"],
-          "type": "personal_access_token",
-          "apps": [],
-      }]
+    "keys": [
+      {
+        "description": "Auto-created in a CI test run",
+        "scopes": ["All"],
+        "type": "personal_access_token",
+        "apps": [],
+      }
+    ]
   }
   data = _request(method="POST", url=url, payload=payload, headers=_auth_headers(session_token))
   _assert_response_success(data)
@@ -107,23 +111,22 @@ def run(arguments):
     print(user_id)
   else:
     print(f"No relevant arguments specified. Run {sys.argv[0]} --help to see available options")
-    exit(1)
+    sys.exit(1)
 
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(
-      description="Create Applications, Keys, and Workflows for testing.")
-  parser.add_argument(
-      "--user-email",
-      dest="email",
-      help=
-      "The email of the account for which the command will run. (Defaults to ${CLARIFAI_USER_EMAIL})",
+    description="Create Applications, Keys, and Workflows for testing."
   )
   parser.add_argument(
-      "--user-password",
-      dest="password",
-      help=
-      "The password of the account for which the command will run. (Defaults to ${CLARIFAI_USER_PASSWORD})",
+    "--user-email",
+    dest="email",
+    help="The email of the account for which the command will run. (Defaults to ${CLARIFAI_USER_EMAIL})",
+  )
+  parser.add_argument(
+    "--user-password",
+    dest="password",
+    help="The password of the account for which the command will run. (Defaults to ${CLARIFAI_USER_PASSWORD})",
   )
   group = parser.add_mutually_exclusive_group()
   group.add_argument("--create-pat", action="store_true", help=" Creates a new PAT key.")

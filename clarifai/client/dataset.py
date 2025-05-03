@@ -20,11 +20,16 @@ from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
 from clarifai.constants.dataset import DATASET_UPLOAD_TASKS, MAX_RETRIES
-from clarifai.datasets.export.inputs_annotations import (DatasetExportReader,
-                                                         InputAnnotationDownloader)
+from clarifai.datasets.export.inputs_annotations import (
+  DatasetExportReader,
+  InputAnnotationDownloader,
+)
 from clarifai.datasets.upload.base import ClarifaiDataLoader
-from clarifai.datasets.upload.image import (VisualClassificationDataset, VisualDetectionDataset,
-                                            VisualSegmentationDataset)
+from clarifai.datasets.upload.image import (
+  VisualClassificationDataset,
+  VisualDetectionDataset,
+  VisualSegmentationDataset,
+)
 from clarifai.datasets.upload.multimodal import MultiModalDataset
 from clarifai.datasets.upload.text import TextClassificationDataset
 from clarifai.datasets.upload.utils import DisplayUploadStatus

@@ -3,8 +3,13 @@ import shutil
 import click
 
 from clarifai.cli.base import cli
-from clarifai.utils.cli import (AliasedGroup, display_co_resources, dump_yaml, from_yaml,
-                                validate_context)
+from clarifai.utils.cli import (
+  AliasedGroup,
+  display_co_resources,
+  dump_yaml,
+  from_yaml,
+  validate_context,
+)
 
 
 @cli.group(

@@ -730,9 +730,8 @@ class Inputs(Lister, BaseClient):
         self.logger.warning(response)
       else:
         return input_job_id, response
-    else:
-      if show_log:
-        self.logger.info("\nInputs Uploaded\n%s", response.status)
+    elif show_log:
+      self.logger.info("\nInputs Uploaded\n%s", response.status)
 
     return input_job_id, response
 
@@ -783,9 +782,8 @@ class Inputs(Lister, BaseClient):
         self.logger.warning(f"Post annotations failed due to {response.status}")
       finally:
         retry_upload.extend(batch_annot)
-    else:
-      if show_log:
-        self.logger.info("\nAnnotations Uploaded\n%s", response.status)
+    elif show_log:
+      self.logger.info("\nAnnotations Uploaded\n%s", response.status)
 
     return retry_upload
 

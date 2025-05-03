@@ -56,26 +56,25 @@ def response_to_model_params(response: MultiModelTypeResponse,
               params["inference_params"][_path[-1]] = None
           if _path[0] == 'output_info' and _path[1] == 'output_config':
             params["concepts_mutually_exclusive"] = (modeltypefield['defaultValue'])
-        else:
-          if 'modelTypeEnumOptions' in modeltypefield.keys():
-            #check given template is valid
-            all_templates = [template['id'] for template in modeltypefield['modelTypeEnumOptions']]
-            if template not in all_templates:
-              raise ValueError(f"Invalid template {template} for model type {model_type_id}. "
-                               f"Valid templates are {all_templates}")
-            for modeltypeenum in modeltypefield['modelTypeEnumOptions']:
-              #finding the given template
-              if modeltypeenum['id'] == template:
-                params['train_params']["template"] = modeltypeenum['id']
-                #iterate through the template fields
-                for modeltypeenumfield in modeltypeenum['modelTypeFields']:
-                  if "internalOnly" in modeltypeenumfield.keys():
-                    continue
-                  try:
-                    params["train_params"][modeltypeenumfield['path'].split('.')[
-                        -1]] = modeltypeenumfield['defaultValue']
-                  except Exception:
-                    params["train_params"][modeltypeenumfield['path'].split('.')[-1]] = None
+        elif 'modelTypeEnumOptions' in modeltypefield.keys():
+          #check given template is valid
+          all_templates = [template['id'] for template in modeltypefield['modelTypeEnumOptions']]
+          if template not in all_templates:
+            raise ValueError(f"Invalid template {template} for model type {model_type_id}. "
+                             f"Valid templates are {all_templates}")
+          for modeltypeenum in modeltypefield['modelTypeEnumOptions']:
+            #finding the given template
+            if modeltypeenum['id'] == template:
+              params['train_params']["template"] = modeltypeenum['id']
+              #iterate through the template fields
+              for modeltypeenumfield in modeltypeenum['modelTypeFields']:
+                if "internalOnly" in modeltypeenumfield.keys():
+                  continue
+                try:
+                  params["train_params"][modeltypeenumfield['path'].split('.')[
+                      -1]] = modeltypeenumfield['defaultValue']
+                except Exception:
+                  params["train_params"][modeltypeenumfield['path'].split('.')[-1]] = None
   #custom config
   if "custom_config" in params['train_params'].keys():
     # Write the content to the file

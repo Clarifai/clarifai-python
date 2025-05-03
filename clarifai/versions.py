@@ -1,4 +1,5 @@
 import os
+
 from clarifai import __version__
 
 CLIENT_VERSION = __version__

@@ -3,7 +3,6 @@
 import os
 
 from ..base import ClarifaiDataLoader
-
 from ..features import VisualDetectionFeatures
 
 #pycocotools is a dependency for this loader

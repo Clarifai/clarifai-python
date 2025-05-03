@@ -1,4 +1,5 @@
 import os
+
 import pytest
 from clarifai_grpc.grpc.api import resources_pb2
 

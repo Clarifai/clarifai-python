@@ -13,8 +13,15 @@ from google.protobuf.message import Message as MessageProto
 from clarifai.runners.utils import data_types, data_utils
 from clarifai.runners.utils.code_script import _get_base_type, _parse_default_value
 from clarifai.runners.utils.serializers import (
-    AtomicFieldSerializer, JSONSerializer, ListSerializer, MessageSerializer,
-    NamedFieldsSerializer, NDArraySerializer, Serializer, TupleSerializer)
+  AtomicFieldSerializer,
+  JSONSerializer,
+  ListSerializer,
+  MessageSerializer,
+  NamedFieldsSerializer,
+  NDArraySerializer,
+  Serializer,
+  TupleSerializer,
+)
 
 
 def build_function_signature(func):

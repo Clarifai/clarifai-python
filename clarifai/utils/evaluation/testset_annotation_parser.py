@@ -1,4 +1,5 @@
 from typing import List, Tuple
+
 import numpy as np
 from clarifai_grpc.grpc.api import resources_pb2 as respb2
 

@@ -20,9 +20,15 @@ from rich.markup import escape
 from clarifai.client.base import BaseClient
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.const import (
-    AVAILABLE_PYTHON_IMAGES, AVAILABLE_TORCH_IMAGES, CONCEPTS_REQUIRED_MODEL_TYPE,
-    DEFAULT_DOWNLOAD_CHECKPOINT_WHEN, DEFAULT_PYTHON_VERSION, DEFAULT_RUNTIME_DOWNLOAD_PATH,
-    PYTHON_BASE_IMAGE, TORCH_BASE_IMAGE)
+  AVAILABLE_PYTHON_IMAGES,
+  AVAILABLE_TORCH_IMAGES,
+  CONCEPTS_REQUIRED_MODEL_TYPE,
+  DEFAULT_DOWNLOAD_CHECKPOINT_WHEN,
+  DEFAULT_PYTHON_VERSION,
+  DEFAULT_RUNTIME_DOWNLOAD_PATH,
+  PYTHON_BASE_IMAGE,
+  TORCH_BASE_IMAGE,
+)
 from clarifai.runners.utils.loader import HuggingFaceLoader
 from clarifai.runners.utils.method_signatures import signatures_to_yaml
 from clarifai.urls.helper import ClarifaiUrlHelper

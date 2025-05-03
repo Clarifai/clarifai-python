@@ -22,16 +22,27 @@ from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
 from clarifai.client.model_client import ModelClient
 from clarifai.client.nodepool import Nodepool
-from clarifai.constants.model import (CHUNK_SIZE, MAX_CHUNK_SIZE, MAX_RANGE_SIZE, MIN_CHUNK_SIZE,
-                                      MIN_RANGE_SIZE, MODEL_EXPORT_TIMEOUT, RANGE_SIZE,
-                                      TRAINABLE_MODEL_TYPES)
+from clarifai.constants.model import (
+  CHUNK_SIZE,
+  MAX_CHUNK_SIZE,
+  MAX_RANGE_SIZE,
+  MIN_CHUNK_SIZE,
+  MIN_RANGE_SIZE,
+  MODEL_EXPORT_TIMEOUT,
+  RANGE_SIZE,
+  TRAINABLE_MODEL_TYPES,
+)
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator
-from clarifai.utils.model_train import (find_and_replace_key, params_parser,
-                                        response_to_model_params, response_to_param_info,
-                                        response_to_templates)
+from clarifai.utils.model_train import (
+  find_and_replace_key,
+  params_parser,
+  response_to_model_params,
+  response_to_param_info,
+  response_to_templates,
+)
 from clarifai.utils.protobuf import dict_to_protobuf
 
 MAX_SIZE_PER_STREAM = int(89_128_960)  # 85GiB
@@ -1366,8 +1377,10 @@ class Model(Lister, BaseClient):
 
     """
     from clarifai.utils.evaluation.testset_annotation_parser import (
-        parse_eval_annotation_classifier, parse_eval_annotation_detector,
-        parse_eval_annotation_detector_coco)
+      parse_eval_annotation_classifier,
+      parse_eval_annotation_detector,
+      parse_eval_annotation_detector_coco,
+    )
 
     valid_model_types = ["visual-classifier", "text-classifier", "visual-detector"]
     supported_format = ['proto', 'array', 'coco']

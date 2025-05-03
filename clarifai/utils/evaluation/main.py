@@ -5,8 +5,13 @@ from typing import List, Tuple, Union
 from clarifai.client.dataset import Dataset
 from clarifai.client.model import Model
 
-from .helpers import (MACRO_AVG, EvalType, _BaseEvalResultHandler, get_eval_type,
-                      make_handler_by_type)
+from .helpers import (
+  MACRO_AVG,
+  EvalType,
+  _BaseEvalResultHandler,
+  get_eval_type,
+  make_handler_by_type,
+)
 
 try:
   import seaborn as sns

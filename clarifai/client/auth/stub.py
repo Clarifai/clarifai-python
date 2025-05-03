@@ -8,6 +8,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.client.auth.register import RpcCallable, V2Stub
 from clarifai.utils.logging import logger
+
 throttle_status_codes = {
     status_code_pb2.CONN_THROTTLED,
     status_code_pb2.CONN_EXCEED_HOURLY_LIMIT,

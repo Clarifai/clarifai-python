@@ -2,11 +2,10 @@ from typing import Iterator
 
 from clarifai_grpc.grpc.api import service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
-
 from clarifai_protocol import BaseRunner
 from clarifai_protocol.utils.health import HealthProbeRequestHandler
-from ..utils.url_fetcher import ensure_urls_downloaded
 
+from ..utils.url_fetcher import ensure_urls_downloaded
 from .model_class import ModelClass
 
 

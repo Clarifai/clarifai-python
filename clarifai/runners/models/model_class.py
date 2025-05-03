@@ -1,10 +1,10 @@
-import collections.abc as abc
 import inspect
 import itertools
 import logging
 import os
 import traceback
 from abc import ABC
+from collections import abc
 from typing import Any, Dict, Iterator, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -13,9 +13,13 @@ from google.protobuf import json_format
 
 from clarifai.runners.utils import data_types
 from clarifai.runners.utils.data_utils import DataConverter
-from clarifai.runners.utils.method_signatures import (build_function_signature, deserialize,
-                                                      get_stream_from_signature, serialize,
-                                                      signatures_to_json)
+from clarifai.runners.utils.method_signatures import (
+  build_function_signature,
+  deserialize,
+  get_stream_from_signature,
+  serialize,
+  signatures_to_json,
+)
 
 _METHOD_INFO_ATTR = '_cf_method_info'
 

@@ -2,9 +2,8 @@ from io import BytesIO
 from typing import List
 
 from clarifai_grpc.grpc.api import resources_pb2
-from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeEnumOption
+from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeEnumOption, ModelTypeRangeInfo
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeField as InputFieldProto
-from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeRangeInfo
 from PIL import Image
 
 from clarifai.runners.utils.data_types import MessageData
@@ -233,9 +232,8 @@ class DataConverter:
         part = new_data.parts.add()
         part.id = field.name
         part.data.CopyFrom(part_data)
-      else:
-        if field.required:
-          raise ValueError(f"Field {field.name} is required but not set")
+      elif field.required:
+        raise ValueError(f"Field {field.name} is required but not set")
     return new_data
 
   @classmethod

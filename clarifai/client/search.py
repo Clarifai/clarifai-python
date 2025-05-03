@@ -10,8 +10,11 @@ from schema import SchemaError
 from clarifai.client.base import BaseClient
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
-from clarifai.constants.search import (DEFAULT_SEARCH_ALGORITHM, DEFAULT_SEARCH_METRIC,
-                                       DEFAULT_TOP_K)
+from clarifai.constants.search import (
+  DEFAULT_SEARCH_ALGORITHM,
+  DEFAULT_SEARCH_METRIC,
+  DEFAULT_TOP_K,
+)
 from clarifai.errors import UserError
 from clarifai.schema.search import get_schema
 

@@ -16,8 +16,16 @@ from PIL import ImageOps
 from clarifai.client.model_client import ModelClient
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.models.model_servicer import ModelServicer
-from clarifai.runners.utils.data_types import (Audio, Concept, Frame, Image, NamedFields, Region,
-                                               Text, Video)
+from clarifai.runners.utils.data_types import (
+  Audio,
+  Concept,
+  Frame,
+  Image,
+  NamedFields,
+  Region,
+  Text,
+  Video,
+)
 from clarifai.runners.utils.method_signatures import deserialize, serialize
 
 _ENABLE_PPRINT = os.getenv("PRINT", "false").lower() in ("true", "1")

@@ -2,8 +2,13 @@ import datetime
 import json
 import logging
 
-from clarifai.utils.logging import (JsonFormatter, TerminalFormatter, _get_library_name,
-                                    get_logger, set_logger_context)
+from clarifai.utils.logging import (
+  JsonFormatter,
+  TerminalFormatter,
+  _get_library_name,
+  get_logger,
+  set_logger_context,
+)
 
 
 def test_get_logger():

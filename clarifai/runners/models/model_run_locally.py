@@ -11,6 +11,7 @@ import traceback
 import venv
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
+
 from clarifai.runners.models.model_builder import ModelBuilder
 from clarifai.utils.logging import logger
 
