@@ -13,6 +13,7 @@ repos:
       - id: mixed-line-ending
       - id: trailing-whitespace
       - id: debug-statements
+        exclude: tests/runners/test_model_signatures.py
   - repo: https://github.com/timothycrosley/isort
     rev: 5.12.0
     hooks:
