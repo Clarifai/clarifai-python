@@ -20,37 +20,38 @@ CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.co
 
 @pytest.fixture
 def workflow():
-  return Workflow(
-      user_id=MAIN_APP_USER_ID,
-      app_id=MAIN_APP_ID,
-      workflow_id=WORKFLOW_ID,
-      output_config=resources_pb2.OutputConfig(max_concepts=3),
-      pat=CLARIFAI_PAT,
-      base_url=CLARIFAI_API_BASE)
+    return Workflow(
+        user_id=MAIN_APP_USER_ID,
+        app_id=MAIN_APP_ID,
+        workflow_id=WORKFLOW_ID,
+        output_config=resources_pb2.OutputConfig(max_concepts=3),
+        pat=CLARIFAI_PAT,
+        base_url=CLARIFAI_API_BASE,
+    )
 
 
 @pytest.mark.requires_secrets
 class TestWorkflowPredict:
+    def test_workflow_predict_image_url(self, workflow):
+        post_workflows_response = workflow.predict_by_url(DOG_IMAGE_URL, input_type="image")
 
-  def test_workflow_predict_image_url(self, workflow):
-    post_workflows_response = workflow.predict_by_url(DOG_IMAGE_URL, input_type="image")
+        assert len(post_workflows_response.results[0].outputs[0].data.concepts) > 0
 
-    assert len(post_workflows_response.results[0].outputs[0].data.concepts) > 0
+    def test_workflow_predict_image_bytes(self, workflow):
+        with open(RED_TRUCK_IMAGE_FILE_PATH, "rb") as f:
+            file_bytes = f.read()
+        post_workflows_response = workflow.predict_by_bytes(file_bytes, input_type="image")
 
-  def test_workflow_predict_image_bytes(self, workflow):
-    with open(RED_TRUCK_IMAGE_FILE_PATH, "rb") as f:
-      file_bytes = f.read()
-    post_workflows_response = workflow.predict_by_bytes(file_bytes, input_type="image")
+        assert len(post_workflows_response.results[0].outputs[0].data.concepts) > 0
 
-    assert len(post_workflows_response.results[0].outputs[0].data.concepts) > 0
+    def test_workflow_predict_file_path(self, workflow):
+        post_workflows_response = workflow.predict_by_filepath(
+            RED_TRUCK_IMAGE_FILE_PATH, input_type="image"
+        )
 
-  def test_workflow_predict_file_path(self, workflow):
-    post_workflows_response = workflow.predict_by_filepath(
-        RED_TRUCK_IMAGE_FILE_PATH, input_type="image")
+        assert len(post_workflows_response.results[0].outputs[0].data.concepts) > 0
 
-    assert len(post_workflows_response.results[0].outputs[0].data.concepts) > 0
+    def test_workflow_predict_max_concepts(self, workflow):
+        post_workflows_response = workflow.predict_by_url(DOG_IMAGE_URL, input_type="image")
 
-  def test_workflow_predict_max_concepts(self, workflow):
-    post_workflows_response = workflow.predict_by_url(DOG_IMAGE_URL, input_type="image")
-
-    assert len(post_workflows_response.results[0].outputs[0].data.concepts) == 3
+        assert len(post_workflows_response.results[0].outputs[0].data.concepts) == 3
