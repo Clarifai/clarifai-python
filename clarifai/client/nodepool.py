@@ -311,6 +311,26 @@ class Nodepool(Lister, BaseClient):
     kwargs = self.process_response_keys(dict_response, 'runner')
     return Runner.from_auth_helper(auth=self.auth_helper, **kwargs)
 
+  def delete_runners(self, runner_ids: List[str]) -> None:
+    """Deletes list of runners for the nodepool.
+
+    Args:
+        runner_ids (List[str]): The list of runner IDs to delete.
+
+    Example:
+        >>> from clarifai.client.nodepool import Nodepool
+        >>> nodepool = Nodepool(nodepool_id="nodepool_id", user_id="user_id")
+        >>> nodepool.delete_runners(runner_ids=["runner_id1", "runner_id2"])
+    """
+    assert isinstance(runner_ids, list), "runner_ids param should be a list"
+
+    request = service_pb2.DeleteRunnersRequest(user_app_id=self.user_app_id, ids=runner_ids)
+    response = self._grpc_request(self.STUB.DeleteRunners, request)
+
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    self.logger.info("\nRunners Deleted\n%s", response.status)
+
   def _process_runner_config(self, runner_config: str) -> Dict[str, Any]:
     assert "runner" in runner_config, "runner info not found in the config file"
     runner = runner_config['runner']
