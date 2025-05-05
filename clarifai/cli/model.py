@@ -434,7 +434,11 @@ def local_dev(ctx, model_path):
     # if it's already in our context then we'll re-use the same one.
     # note these are UUIDs, we cannot provide a runner ID.
     runner_id = ctx.obj.current.runner_id
-    logger.info(f"Current runner_id: {runner_id}")
+
+    try:
+      runner = nodepool.runner(runner_id)
+    except Exception as e:
+      raise AttributeError("Runner not found in nodepool.") from e
   except AttributeError:
     logger.info(
         f"Create the local dev runner tying this\n  {user_id}/{app_id}/models/{model.id} model (version: {version.id}) to the\n  {user_id}/{compute_cluster_id}/{nodepool_id} nodepool."
@@ -449,6 +453,8 @@ def local_dev(ctx, model_path):
     runner_id = runner.id
     ctx.obj.current.CLARIFAI_RUNNER_ID = runner.id
     ctx.obj.to_yaml()
+
+  logger.info(f"Current runner_id: {runner_id}")
 
   # To make it easier to call the model without specifying a runner selector
   # we will also create a deployment tying the model to the nodepool.

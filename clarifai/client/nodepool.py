@@ -240,6 +240,30 @@ class Nodepool(Lister, BaseClient):
       raise Exception(response.status)
     self.logger.info("\nDeployments Deleted\n%s", response.status)
 
+  def runner(self, runner_id: str) -> Runner:
+    """Returns a Runner object for the existing runner ID.
+
+    Args:
+        runner_id (str): The runner ID for the runner to interact with.
+
+    Returns:
+        Runner: A Runner object for the existing runner ID.
+
+    Example:
+        >>> from clarifai.client.nodepool import Nodepool
+        >>> nodepool = Nodepool(nodepool_id="nodepool_id", user_id="user_id")
+        >>> runner = nodepool.runner(runner_id="runner_id")
+    """
+    request = service_pb2.GetRunnerRequest(user_app_id=self.user_app_id, runner_id=runner_id)
+    response = self._grpc_request(self.STUB.GetRunner, request)
+
+    if response.status.code != status_code_pb2.SUCCESS:
+      raise Exception(response.status)
+    dict_response = MessageToDict(
+        response, preserving_proto_field_name=True, use_integers_for_enums=True)
+    kwargs = self.process_response_keys(dict_response["runner"], "runner")
+    return Runner.from_auth_helper(auth=self.auth_helper, **kwargs)
+
   def create_runner(self, config_filepath: str = None,
                     runner_config: Dict[str, Any] = None) -> Runner:
     """Creates a runner for the nodepool. Only needed for local dev runners.
