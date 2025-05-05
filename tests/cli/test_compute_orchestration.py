@@ -199,3 +199,34 @@ class TestComputeOrchestration:
     create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
     result = create_runner.invoke(cli, ["computecluster", "delete", CREATE_COMPUTE_CLUSTER_ID])
     assert result.exit_code == 0, logger.exception(result)
+
+  @pytest.mark.requires_secrets
+  def test_runner(self, create_runner):
+    runner_id = "test-runner-id"
+    nodepool = Nodepool(
+        user_id=CREATE_COMPUTE_CLUSTER_USER_ID,
+        nodepool_id=CREATE_NODEPOOL_ID,
+        pat=CLARIFAI_PAT,
+        base_url=CLARIFAI_API_BASE,
+    )
+
+    # Mock the runner retrieval
+    runner = nodepool.runner(runner_id=runner_id)
+    assert runner is not None, "Runner should not be None"
+    assert runner.id == runner_id, "Runner ID should match"
+
+  @pytest.mark.requires_secrets
+  def test_create_runner(self, create_runner):
+    runner_config = {"runner": {"worker": "test-worker", "num_replicas": 1}}
+    nodepool = Nodepool(
+        user_id=CREATE_COMPUTE_CLUSTER_USER_ID,
+        nodepool_id=CREATE_NODEPOOL_ID,
+        pat=CLARIFAI_PAT,
+        base_url=CLARIFAI_API_BASE,
+    )
+
+    # Mock the runner creation
+    runner = nodepool.create_runner(runner_config=runner_config)
+    assert runner is not None, "Runner should not be None"
+    assert runner.worker == "test-worker", "Worker should match"
+    assert runner.num_replicas == 1, "Number of replicas should match"

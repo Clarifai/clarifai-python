@@ -438,6 +438,7 @@ def local_dev(ctx, model_path):
     try:
       runner = nodepool.runner(runner_id)
     except Exception as e:
+
       raise AttributeError("Runner not found in nodepool.") from e
   except AttributeError:
     logger.info(
