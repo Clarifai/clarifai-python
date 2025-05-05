@@ -50,7 +50,7 @@ def create_nodepool():
 
 
 @pytest.fixture
-def create_runner():
+def cli_runner():
     return CliRunner(
         env={
             "CLARIFAI_USER_ID": CREATE_COMPUTE_CLUSTER_USER_ID,
@@ -102,15 +102,15 @@ class TestComputeOrchestration:
         except Exception:
             pass  # Ignore if not found
 
-    def test_create_compute_cluster(self, create_runner):
+    def test_create_compute_cluster(self, cli_runner):
         with open(COMPUTE_CLUSTER_CONFIG_FILE) as f:
             config = yaml.safe_load(f)
         config["compute_cluster"]["id"] = CREATE_COMPUTE_CLUSTER_ID
         with open(COMPUTE_CLUSTER_CONFIG_FILE, "w") as f:
             yaml.dump(config, f)
 
-        create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
-        result = create_runner.invoke(
+        cli_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
+        result = cli_runner.invoke(
             cli,
             [
                 "computecluster",
@@ -122,15 +122,15 @@ class TestComputeOrchestration:
         )
         assert result.exit_code == 0, logger.exception(result)
 
-    def test_create_nodepool(self, create_runner):
+    def test_create_nodepool(self, cli_runner):
         with open(NODEPOOL_CONFIG_FILE) as f:
             config = yaml.safe_load(f)
         config["nodepool"]["id"] = CREATE_NODEPOOL_ID
         with open(NODEPOOL_CONFIG_FILE, "w") as f:
             yaml.dump(config, f)
 
-        create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
-        result = create_runner.invoke(
+        cli_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
+        result = cli_runner.invoke(
             cli,
             [
                 "nodepool",
@@ -144,7 +144,7 @@ class TestComputeOrchestration:
         assert result.exit_code == 0, logger.exception(result)
 
     @pytest.mark.coverage_only
-    def test_create_deployment(self, create_runner):
+    def test_create_deployment(self, cli_runner):
         with open(DEPLOYMENT_CONFIG_FILE) as f:
             config = yaml.safe_load(f)
         config["deployment"]["id"] = CREATE_DEPLOYMENT_ID
@@ -153,8 +153,8 @@ class TestComputeOrchestration:
         with open(DEPLOYMENT_CONFIG_FILE, "w") as f:
             yaml.dump(config, f)
 
-        create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
-        result = create_runner.invoke(
+        cli_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
+        result = cli_runner.invoke(
             cli,
             [
                 "deployment",
@@ -167,41 +167,41 @@ class TestComputeOrchestration:
         )
         assert result.exit_code == 0, logger.exception(result)
 
-    def test_list_compute_clusters(self, create_runner):
-        create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
-        result = create_runner.invoke(cli, ["computecluster", "list"])
+    def test_list_compute_clusters(self, cli_runner):
+        cli_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
+        result = cli_runner.invoke(cli, ["computecluster", "list"])
         assert result.exit_code == 0, logger.exception(result)
         assert "USER_ID" in result.output
 
-    def test_list_nodepools(self, create_runner):
-        create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
-        result = create_runner.invoke(cli, ["nodepool", "list", CREATE_COMPUTE_CLUSTER_ID])
+    def test_list_nodepools(self, cli_runner):
+        cli_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
+        result = cli_runner.invoke(cli, ["nodepool", "list", CREATE_COMPUTE_CLUSTER_ID])
         assert result.exit_code == 0, logger.exception(result)
         assert "USER_ID" in result.output
 
-    def test_list_deployments(self, create_runner):
-        create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
-        result = create_runner.invoke(cli, ["deployment", "list", CREATE_NODEPOOL_ID])
+    def test_list_deployments(self, cli_runner):
+        cli_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
+        result = cli_runner.invoke(cli, ["deployment", "list", CREATE_NODEPOOL_ID])
 
         assert result.exit_code == 0, logger.exception(result)
         assert "USER_ID" in result.output
 
     @pytest.mark.coverage_only
-    def test_delete_deployment(self, create_runner):
-        create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
-        result = create_runner.invoke(
+    def test_delete_deployment(self, cli_runner):
+        cli_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
+        result = cli_runner.invoke(
             cli, ["deployment", "delete", CREATE_NODEPOOL_ID, CREATE_DEPLOYMENT_ID]
         )
         assert result.exit_code == 0, logger.exception(result)
 
-    def test_delete_nodepool(self, create_runner):
-        create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
-        result = create_runner.invoke(
+    def test_delete_nodepool(self, cli_runner):
+        cli_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
+        result = cli_runner.invoke(
             cli, ["nodepool", "delete", CREATE_COMPUTE_CLUSTER_ID, CREATE_NODEPOOL_ID]
         )
         assert result.exit_code == 0, logger.exception(result)
 
-    def test_delete_compute_cluster(self, create_runner):
-        create_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
-        result = create_runner.invoke(cli, ["computecluster", "delete", CREATE_COMPUTE_CLUSTER_ID])
+    def test_delete_compute_cluster(self, cli_runner):
+        cli_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
+        result = cli_runner.invoke(cli, ["computecluster", "delete", CREATE_COMPUTE_CLUSTER_ID])
         assert result.exit_code == 0, logger.exception(result)

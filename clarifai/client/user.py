@@ -179,45 +179,6 @@ class User(Lister, BaseClient):
         self.logger.info("\nApp created\n%s", response.status)
         return App.from_auth_helper(auth=self.auth_helper, app_id=app_id)
 
-    def create_runner(self, runner_id: str, labels: List[str], description: str) -> dict:
-        """Create a runner
-
-        Args:
-          runner_id (str): The Id of runner to create
-          labels (List[str]): Labels to match runner
-          description (str): Description of Runner
-
-        Returns:
-          Dict: A dictionary containing information about the specified Runner ID.
-
-        Example:
-            >>> from clarifai.client.user import User
-            >>> client = User(user_id="user_id")
-            >>> runner_info = client.create_runner(runner_id="runner_id", labels=["label to link runner"], description="laptop runner")
-        """
-
-        if not isinstance(labels, List):
-            raise UserError("Labels must be a List of strings")
-
-        request = service_pb2.PostRunnersRequest(
-            user_app_id=self.user_app_id,
-            runners=[resources_pb2.Runner(id=runner_id, labels=labels, description=description)],
-        )
-        response = self._grpc_request(self.STUB.PostRunners, request)
-
-        if response.status.code != status_code_pb2.SUCCESS:
-            raise Exception(response.status)
-        self.logger.info("\nRunner created\n%s", response.status)
-
-        return dict(
-            auth=self.auth_helper,
-            runner_id=runner_id,
-            user_id=self.id,
-            labels=labels,
-            description=description,
-            check_runner_exists=False,
-        )
-
     def _process_compute_cluster_config(
         self, compute_cluster_config: Dict[str, Any]
     ) -> Dict[str, Any]:
