@@ -79,7 +79,7 @@ def init_components(
       id=nodepool_id,
       description="test runners repo",
       compute_cluster=compute_cluster,
-      node_capacity_type=resources_pb2.NodeCapacityType(capacity_types=[1, 2]),
+      node_capacity_type=resources_pb2.NodeCapacityType(capacity_types=[1]),
       instance_types=[
           resources_pb2.InstanceType(
               id='instance-1',
