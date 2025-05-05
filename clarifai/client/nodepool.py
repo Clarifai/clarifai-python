@@ -343,7 +343,12 @@ class Nodepool(Lister, BaseClient):
         """
         assert isinstance(runner_ids, list), "runner_ids param should be a list"
 
-        request = service_pb2.DeleteRunnersRequest(user_app_id=self.user_app_id, ids=runner_ids)
+        request = service_pb2.DeleteRunnersRequest(
+            user_app_id=self.user_app_id,
+            ids=runner_ids,
+            compute_cluster_id=self.compute_cluster.id,
+            nodepool_id=self.id,
+        )
         response = self._grpc_request(self.STUB.DeleteRunners, request)
 
         if response.status.code != status_code_pb2.SUCCESS:
