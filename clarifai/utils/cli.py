@@ -37,12 +37,14 @@ def load_command_modules():
       importlib.import_module(f'clarifai.cli.{module_name}')
 
 
-def display_co_resources(response,
-                         custom_columns={
-                             'ID': lambda c: c.id,
-                             'USER_ID': lambda c: c.user_id,
-                             'DESCRIPTION': lambda c: c.description,
-                         }):
+def display_co_resources(
+    response,
+    custom_columns={
+        'ID': lambda c: c.id,
+        'USER_ID': lambda c: c.user_id,
+        'DESCRIPTION': lambda c: c.description,
+    },
+):
   """Display compute orchestration resources listing results using rich."""
 
   formatter = TableFormatter(custom_columns)
@@ -53,19 +55,19 @@ class TableFormatter:
 
   def __init__(self, custom_columns: OrderedDict):
     """
-        Initializes the TableFormatter with column headers and custom column mappings.
+    Initializes the TableFormatter with column headers and custom column mappings.
 
-        :param headers: List of column headers for the table.
-        """
+    :param headers: List of column headers for the table.
+    """
     self.custom_columns = custom_columns
 
   def format(self, objects, fmt='plain'):
     """
-        Formats a list of objects into a table with custom columns.
+    Formats a list of objects into a table with custom columns.
 
-        :param objects: List of objects to format into a table.
-        :return: A string representing the table.
-        """
+    :param objects: List of objects to format into a table.
+    :return: A string representing the table.
+    """
     # Prepare the rows by applying the custom column functions to each object
     rows = []
     for obj in objects:
@@ -80,11 +82,13 @@ class TableFormatter:
 
 class AliasedGroup(click.Group):
 
-  def __init__(self,
-               name: t.Optional[str] = None,
-               commands: t.Optional[t.Union[t.MutableMapping[str, click.Command], t.Sequence[
-                   click.Command]]] = None,
-               **attrs: t.Any) -> None:
+  def __init__(
+      self,
+      name: t.Optional[str] = None,
+      commands: t.Optional[t.Union[t.MutableMapping[str, click.Command], t.Sequence[
+          click.Command]]] = None,
+      **attrs: t.Any,
+  ) -> None:
     super().__init__(name, commands, **attrs)
     self.alias_map = {}
     self.command_to_aliases = defaultdict(list)
@@ -163,6 +167,7 @@ class AliasedGroup(click.Group):
 
 def validate_context(ctx):
   from clarifai.utils.logging import logger
+
   if ctx.obj == {}:
     logger.error("CLI config file missing. Run `clarifai login` to set up the CLI config.")
     sys.exit(1)

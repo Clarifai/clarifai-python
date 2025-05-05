@@ -1,10 +1,16 @@
+import shutil
+
 import click
 
 from clarifai.cli.base import cli
 from clarifai.utils.cli import AliasedGroup, display_co_resources, from_yaml, validate_context
 
 
-@cli.group(['deployment', 'dp'], cls=AliasedGroup)
+@cli.group(
+    ['deployment', 'dp'],
+    cls=AliasedGroup,
+    context_settings={'max_content_width': shutil.get_terminal_size().columns - 10},
+)
 def deployment():
   """Manage Deployments: create, delete, list"""
 
@@ -16,12 +22,14 @@ def deployment():
     '--config',
     type=click.Path(exists=True),
     required=True,
-    help='Path to the deployment config file.')
+    help='Path to the deployment config file.',
+)
 @click.pass_context
 def create(ctx, nodepool_id, deployment_id, config):
   """Create a new Deployment with the given config file."""
 
   from clarifai.client.nodepool import Nodepool
+
   validate_context(ctx)
   if not nodepool_id:
     deployment_config = from_yaml(config)
@@ -31,7 +39,8 @@ def create(ctx, nodepool_id, deployment_id, config):
       nodepool_id=nodepool_id,
       user_id=ctx.obj.current.user_id,
       pat=ctx.obj.current.pat,
-      base_url=ctx.obj.current.api_base)
+      base_url=ctx.obj.current.api_base,
+  )
   if deployment_id:
     nodepool.create_deployment(config, deployment_id=deployment_id)
   else:
@@ -55,7 +64,8 @@ def list(ctx, nodepool_id, page_no, per_page):
         nodepool_id=nodepool_id,
         user_id=ctx.obj.current.user_id,
         pat=ctx.obj.current.pat,
-        base_url=ctx.obj.current.api_base)
+        base_url=ctx.obj.current.api_base,
+    )
     response = nodepool.list_deployments(page_no=page_no, per_page=per_page)
   else:
     user = User(
@@ -69,7 +79,8 @@ def list(ctx, nodepool_id, page_no, per_page):
           compute_cluster_id=cc.id,
           user_id=ctx.obj.current.user_id,
           pat=ctx.obj.current.pat,
-          base_url=ctx.obj.current.api_base)
+          base_url=ctx.obj.current.api_base,
+      )
       nps.extend([i for i in compute_cluster.list_nodepools(page_no, per_page)])
     response = []
     for np in nps:
@@ -77,7 +88,8 @@ def list(ctx, nodepool_id, page_no, per_page):
           nodepool_id=np.id,
           user_id=ctx.obj.current.user_id,
           pat=ctx.obj.current.pat,
-          base_url=ctx.obj.current.api_base)
+          base_url=ctx.obj.current.api_base,
+      )
       response.extend([i for i in nodepool.list_deployments(page_no=page_no, per_page=per_page)])
 
   display_co_resources(
@@ -92,7 +104,8 @@ def list(ctx, nodepool_id, page_no, per_page):
           'MODEL_ID': lambda c: c.worker.model.id,
           'MODEL_VERSION_ID': lambda c: c.worker.model.model_version.id,
           'DESCRIPTION': lambda c: c.description,
-      })
+      },
+  )
 
 
 @deployment.command(['rm'])
@@ -108,5 +121,6 @@ def delete(ctx, nodepool_id, deployment_id):
       nodepool_id=nodepool_id,
       user_id=ctx.obj.current.user_id,
       pat=ctx.obj.current.pat,
-      base_url=ctx.obj.current.api_base)
+      base_url=ctx.obj.current.api_base,
+  )
   nodepool.delete_deployments([deployment_id])

@@ -9,10 +9,10 @@ from clarifai.utils.constants import DEFAULT_CONFIG
 
 class Context(OrderedDict):
   """
-    A context which has a name and a set of key-values as a dict under env.
+  A context which has a name and a set of key-values as a dict under env.
 
-    You can access the keys directly.
-    """
+  You can access the keys directly.
+  """
 
   def __init__(self, name, **kwargs):
     self['name'] = name
@@ -35,6 +35,10 @@ class Context(OrderedDict):
       if envvar_name in env:
         value = env[envvar_name]
         if value == "ENVVAR":
+          if envvar_name not in os.environ:
+            raise AttributeError(
+                f"Environment variable '{envvar_name}' not set. Attempting to load it for config '{self['name']}'. Please set it in your terminal."
+            )
           return os.environ[envvar_name]
       else:
         value = env[key]
@@ -45,6 +49,13 @@ class Context(OrderedDict):
       return value
     except KeyError as e:
       raise AttributeError(f"'{type(self).__name__}' object has no attribute '{key}'") from e
+
+  def __hasattr__(self, key):
+    if key == "name":
+      return True
+    else:
+      envvar_name = 'CLARIFAI_' + key.upper()
+      return envvar_name in self['env'] or key in self['env']
 
   def __setattr__(self, key, value):
     if key == "name":
@@ -58,12 +69,42 @@ class Context(OrderedDict):
     except KeyError as e:
       raise AttributeError(f"'{type(self).__name__}' object has no attribute '{key}'") from e
 
+  def to_column_names(self):
+    """used for displaying on terminal."""
+    keys = []
+    for k in self['env'].keys():
+      if k.startswith("CLARIFAI_"):
+        keys.append(k.replace("CLARIFAI_", "", 1))
+    return keys
+
+  def to_stripped_lowercase(self):
+    dict(self['env'])
+
   def to_serializable_dict(self):
     return dict(self['env'])
 
+  def set_to_env(self):
+    """sets the context env vars to the current os.environ
+
+    Example:
+      # This is helpful in scripts so you can do
+
+      from clarifai.utils.config import Config
+
+      Config.from_yaml().current.set_to_env()
+
+    """
+    for k, v in self['env'].items():
+      if isinstance(v, dict):
+        continue
+      envvar_name = k.upper()
+      if not envvar_name.startswith('CLARIFAI_'):
+        envvar_name = 'CLARIFAI_' + envvar_name
+      os.environ[envvar_name] = str(v)
+
 
 @dataclass
-class Config():
+class Config:
   current_context: str
   filename: str
   contexts: OrderedDict[str, Context] = field(default_factory=OrderedDict)
@@ -84,7 +125,7 @@ class Config():
     return {
         'current_context': self.current_context,
         'contexts': {k: v.to_serializable_dict()
-                     for k, v in self.contexts.items()}
+                     for k, v in self.contexts.items()},
     }
 
   def to_yaml(self, filename: str = None):
@@ -101,5 +142,5 @@ class Config():
 
   @property
   def current(self) -> Context:
-    """ get the current Context """
+    """get the current Context"""
     return self.contexts[self.current_context]

@@ -1,7 +1,6 @@
-import collections.abc as abc
 import inspect
 import json
-from collections import namedtuple
+from collections import abc, namedtuple
 from typing import Dict, List, Tuple, get_args, get_origin
 
 import numpy as np
@@ -25,8 +24,8 @@ def build_function_signature(func):
   sig = inspect.signature(func)
 
   # check if func is bound, and if not, remove self/cls
-  if getattr(func, '__self__', None) is None and sig.parameters and list(
-      sig.parameters.values())[0].name in ('self', 'cls'):
+  if (getattr(func, '__self__', None) is None and sig.parameters and
+      list(sig.parameters.values())[0].name in ('self', 'cls')):
     sig = sig.replace(parameters=list(sig.parameters.values())[1:])
 
   return_annotation = sig.return_annotation
@@ -113,8 +112,8 @@ def _process_output_field(field: resources_pb2.ModelTypeField) -> str:
 
 def get_method_signature(method_signature: resources_pb2.MethodSignature) -> str:
   """
-    Get the method signature of a method in a model.
-    """
+  Get the method signature of a method in a model.
+  """
   # Process input fields
   input_params = []
   for input_field in method_signature.input_fields:
@@ -149,7 +148,7 @@ def build_variable_signature(name, annotation, default=inspect.Parameter.empty, 
   sig.iterator = streaming
 
   if not is_output:
-    sig.required = (default is inspect.Parameter.empty)
+    sig.required = default is inspect.Parameter.empty
     if not sig.required:
       if isinstance(default, data_utils.InputField):
         sig = default.to_proto(sig)
@@ -171,8 +170,8 @@ def _fill_signature_type(sig, tp):
 
   # Handle NamedFields with annotations
   # Check for dynamically generated NamedFields subclasses (from type annotations)
-  if inspect.isclass(tp) and issubclass(tp, data_types.NamedFields) and hasattr(
-      tp, '__annotations__'):
+  if (inspect.isclass(tp) and issubclass(tp, data_types.NamedFields) and
+      hasattr(tp, '__annotations__')):
     sig.type = resources_pb2.ModelTypeField.DataType.NAMED_FIELDS
     for name, inner_type in tp.__annotations__.items():
       inner_sig = sig.type_args.add()
@@ -193,7 +192,7 @@ def _fill_signature_type(sig, tp):
   args = get_args(tp)
 
   # Handle Tuple type
-  if origin == tuple:
+  if origin is tuple:
     sig.type = resources_pb2.ModelTypeField.DataType.TUPLE
     for inner_type in args:
       inner_sig = sig.type_args.add()
@@ -202,7 +201,7 @@ def _fill_signature_type(sig, tp):
     return
 
   # Handle List type
-  if origin == list:
+  if origin is list:
     sig.type = resources_pb2.ModelTypeField.DataType.LIST
     inner_sig = sig.type_args.add()
     inner_sig.name = sig.name + '_item'
@@ -214,8 +213,8 @@ def _fill_signature_type(sig, tp):
 
 def serializer_from_signature(signature):
   '''
-    Get the serializer for the given signature.
-    '''
+  Get the serializer for the given signature.
+  '''
   if signature.type in _SERIALIZERS_BY_TYPE_ENUM:
     return _SERIALIZERS_BY_TYPE_ENUM[signature.type]
   if signature.type == resources_pb2.ModelTypeField.DataType.LIST:
@@ -231,7 +230,8 @@ def serializer_from_signature(signature):
 
 def signatures_to_json(signatures):
   assert isinstance(
-      signatures, dict), 'Expected dict of signatures {name: signature}, got %s' % type(signatures)
+      signatures,
+      dict), ('Expected dict of signatures {name: signature}, got %s' % type(signatures))
   # TODO change to proto when ready
   signatures = {name: MessageToDict(sig) for name, sig in signatures.items()}
   return json.dumps(signatures)
@@ -355,7 +355,7 @@ def _normalize_type(tp):
   '''
   # stream type indicates streaming, not part of the data itself
   # it can only be used at the top-level of the var type
-  streaming = (get_origin(tp) in [abc.Iterator, abc.Generator, abc.Iterable])
+  streaming = get_origin(tp) in [abc.Iterator, abc.Generator, abc.Iterable]
   if streaming:
     tp = get_args(tp)[0]
 
@@ -364,10 +364,10 @@ def _normalize_type(tp):
 
 def _normalize_data_type(tp):
   # container types that need to be serialized as parts
-  if get_origin(tp) == list and get_args(tp):
+  if get_origin(tp) is list and get_args(tp):
     return List[_normalize_data_type(get_args(tp)[0])]
 
-  if get_origin(tp) == tuple:
+  if get_origin(tp) is tuple:
     if not get_args(tp):
       raise TypeError('Tuple must have types specified')
     return Tuple[tuple(_normalize_data_type(val) for val in get_args(tp))]
@@ -375,12 +375,12 @@ def _normalize_data_type(tp):
   if isinstance(tp, (tuple, list)):
     return Tuple[tuple(_normalize_data_type(val) for val in tp)]
 
-  if tp == data_types.NamedFields:
+  if tp is data_types.NamedFields:
     raise TypeError('NamedFields must have types specified')
 
   # Handle dynamically generated NamedFields subclasses with annotations
-  if isinstance(tp, type) and issubclass(tp, data_types.NamedFields) and hasattr(
-      tp, '__annotations__'):
+  if (isinstance(tp, type) and issubclass(tp, data_types.NamedFields) and
+      hasattr(tp, '__annotations__')):
     return data_types.NamedFields(
         **{k: _normalize_data_type(v)
            for k, v in tp.__annotations__.items()})
@@ -389,7 +389,7 @@ def _normalize_data_type(tp):
     return data_types.NamedFields(**{name: _normalize_data_type(val) for name, val in tp.items()})
 
   # check if numpy array type, and if so, use ndarray
-  if get_origin(tp) == np.ndarray:
+  if get_origin(tp) is np.ndarray:
     return np.ndarray
 
   # check for PIL images (sometimes types use the module, sometimes the class)
@@ -397,7 +397,7 @@ def _normalize_data_type(tp):
   if tp in (data_types.Image, PIL.Image.Image):
     return data_types.Image
 
-  if tp == PIL.Image:
+  if tp is PIL.Image:
     raise TypeError('Use PIL.Image.Image instead of PIL.Image module')
 
   # jsonable list and dict, these can be serialized as json
@@ -457,8 +457,10 @@ _DATA_TYPES = {
         _DataType(resources_pb2.ModelTypeField.DataType.IMAGE,
                   MessageSerializer('image', data_types.Image)),
     data_types.Concept:
-        _DataType(resources_pb2.ModelTypeField.DataType.CONCEPT,
-                  MessageSerializer('concepts', data_types.Concept)),
+        _DataType(
+            resources_pb2.ModelTypeField.DataType.CONCEPT,
+            MessageSerializer('concepts', data_types.Concept),
+        ),
     data_types.Region:
         _DataType(resources_pb2.ModelTypeField.DataType.REGION,
                   MessageSerializer('regions', data_types.Region)),

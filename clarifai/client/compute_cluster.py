@@ -16,14 +16,16 @@ from clarifai.utils.logging import logger
 class ComputeCluster(Lister, BaseClient):
   """ComputeCluster is a class that provides access to Clarifai API endpoints related to Compute Cluster information."""
 
-  def __init__(self,
-               compute_cluster_id: str = None,
-               user_id: str = None,
-               base_url: str = "https://api.clarifai.com",
-               pat: str = None,
-               token: str = None,
-               root_certificates_path: str = None,
-               **kwargs):
+  def __init__(
+      self,
+      compute_cluster_id: str = None,
+      user_id: str = None,
+      base_url: str = "https://api.clarifai.com",
+      pat: str = None,
+      token: str = None,
+      root_certificates_path: str = None,
+      **kwargs,
+  ):
     """Initializes an ComputeCluster object.
 
     Args:
@@ -44,7 +46,8 @@ class ComputeCluster(Lister, BaseClient):
         base=base_url,
         pat=pat,
         token=token,
-        root_certificates_path=root_certificates_path)
+        root_certificates_path=root_certificates_path,
+    )
     Lister.__init__(self)
 
   def list_nodepools(self, page_no: int = None,
@@ -74,20 +77,19 @@ class ComputeCluster(Lister, BaseClient):
         service_pb2.ListNodepoolsRequest,
         request_data,
         per_page=per_page,
-        page_no=page_no)
+        page_no=page_no,
+    )
 
     for nodepool_info in all_nodepools_info:
       yield Nodepool.from_auth_helper(auth=self.auth_helper, **nodepool_info)
 
-  def _process_nodepool_config(self, config_filepath: str) -> Dict[str, Any]:
-    with open(config_filepath, "r") as file:
-      nodepool_config = yaml.safe_load(file)
-
+  def _process_nodepool_config(self, nodepool_config: str) -> Dict[str, Any]:
     assert "nodepool" in nodepool_config, "nodepool info not found in the config file"
     nodepool = nodepool_config['nodepool']
-    assert "instance_types" in nodepool, "region not found in the config file"
-    assert "node_capacity_type" in nodepool, "managed_by not found in the config file"
-    assert "max_instances" in nodepool, "cluster_type not found in the config file"
+    assert "instance_types" in nodepool, "instance_types not found in the config file"
+    assert "node_capacity_type" in nodepool, "node_capacity_type not found in the config file"
+    assert "min_instances" in nodepool, "min_instances not found in the config file"
+    assert "max_instances" in nodepool, "max_instances not found in the config file"
     nodepool['compute_cluster'] = resources_pb2.ComputeCluster(id=self.id, user_id=self.user_id)
     nodepool['node_capacity_type'] = resources_pb2.NodeCapacityType(capacity_types=[
         capacity_type for capacity_type in nodepool['node_capacity_type']['capacity_types']
@@ -102,12 +104,18 @@ class ComputeCluster(Lister, BaseClient):
       nodepool["visibility"] = resources_pb2.Visibility(**nodepool["visibility"])
     return nodepool
 
-  def create_nodepool(self, config_filepath: str, nodepool_id: str = None) -> Nodepool:
+  def create_nodepool(
+      self,
+      config_filepath: str = None,
+      nodepool_id: str = None,
+      nodepool_config: Dict[str, Any] = None,
+  ) -> Nodepool:
     """Creates a nodepool for the compute cluster.
 
     Args:
         config_filepath (str): The path to the nodepool config file.
         nodepool_id (str): New nodepool ID for the nodepool to create.
+        nodepool_config (Dict[str, Any]) = nodepool_config or {}
 
     Returns:
         Nodepool: A Nodepool object for the specified nodepool ID.
@@ -117,10 +125,22 @@ class ComputeCluster(Lister, BaseClient):
         >>> compute_cluster = ComputeCluster(compute_cluster_id="compute_cluster_id", user_id="user_id")
         >>> nodepool = compute_cluster.create_nodepool(config_filepath="config.yml")
     """
-    if not os.path.exists(config_filepath):
-      raise UserError(f"Nodepool config file not found at {config_filepath}")
 
-    nodepool_config = self._process_nodepool_config(config_filepath)
+    if config_filepath is not None:
+      assert nodepool_config is None, (
+          "nodepool_config has to be None if config_filepath is provided")
+
+      if not os.path.exists(config_filepath):
+        raise UserError(f"Nodepool config file not found at {config_filepath}")
+      with open(config_filepath, "r") as file:
+        nodepool_config = yaml.safe_load(file)
+    elif nodepool_config is not None:
+      assert isinstance(nodepool_config,
+                        dict), ("nodepool_config should be a dictionary if provided.")
+    else:
+      raise AssertionError("Either config_filepath or nodepool_config must be provided.")
+
+    nodepool_config = self._process_nodepool_config(nodepool_config)
 
     if 'id' in nodepool_config:
       if nodepool_id is None:
@@ -130,13 +150,16 @@ class ComputeCluster(Lister, BaseClient):
     request = service_pb2.PostNodepoolsRequest(
         user_app_id=self.user_app_id,
         compute_cluster_id=self.id,
-        nodepools=[resources_pb2.Nodepool(id=nodepool_id, **nodepool_config)])
+        nodepools=[resources_pb2.Nodepool(id=nodepool_id, **nodepool_config)],
+    )
     response = self._grpc_request(self.STUB.PostNodepools, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     self.logger.info("\nNodepool created\n%s", response.status)
 
-    return Nodepool.from_auth_helper(self.auth_helper, nodepool_id=nodepool_id)
+    dict_response = MessageToDict(response.nodepools[0], preserving_proto_field_name=True)
+    kwargs = self.process_response_keys(dict_response, 'nodepool')
+    return Nodepool.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def nodepool(self, nodepool_id: str) -> Nodepool:
     """Returns a Nodepool object for the existing nodepool ID.
@@ -159,9 +182,8 @@ class ComputeCluster(Lister, BaseClient):
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
     dict_response = MessageToDict(response, preserving_proto_field_name=True)
-    kwargs = self.process_response_keys(dict_response[list(dict_response.keys())[1]],
-                                        list(dict_response.keys())[1])
 
+    kwargs = self.process_response_keys(dict_response['nodepool'], 'nodepool')
     return Nodepool.from_auth_helper(auth=self.auth_helper, **kwargs)
 
   def delete_nodepools(self, nodepool_ids: List[str]) -> None:
