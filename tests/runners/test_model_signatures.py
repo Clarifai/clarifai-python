@@ -1557,12 +1557,14 @@ class TestModelCalls(unittest.TestCase):
 
     frame_proto = FrameProto()
     frame_proto.frame_info.time = 1000
+    frame_proto.frame_info.index = 123
     frame_proto.data.image.url = 'https://samples.clarifai.com/metro-north.jpg'
 
     test_frame = Frame(frame_proto)
 
     result = client.f(test_frame)
     self.assertEqual(result.time, 1.0)
+    self.assertEqual(result.index, 123)
     self.assertEqual(result.image.url, 'https://samples.clarifai.com/metro-north.jpg')
 
     with self.assertRaises(TypeError):

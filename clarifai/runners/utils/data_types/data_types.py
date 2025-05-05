@@ -446,11 +446,14 @@ class Audio(MessageData):
 
 class Frame(MessageData):
 
-  def __init__(self,
-               proto_frame: FrameProto = None,
-               image: Image = None,
-               regions: List[Region] = None,
-               time: float = None):
+  def __init__(
+      self,
+      proto_frame: FrameProto = None,
+      image: Image = None,
+      regions: List[Region] = None,
+      time: float = None,
+      index: int = None,
+  ):
     if proto_frame is None:
       proto_frame = FrameProto()
     self.proto = proto_frame
@@ -461,6 +464,8 @@ class Frame(MessageData):
       self.regions = regions
     if time:
       self.time = time
+    if index:
+      self.index = index
 
   @property
   def time(self) -> float:
@@ -471,6 +476,14 @@ class Frame(MessageData):
   @time.setter
   def time(self, value: float):
     self.proto.frame_info.time = int(value * 1000)
+
+  @property
+  def index(self) -> int:
+    return self.proto.frame_info.index
+
+  @index.setter
+  def index(self, value: int):
+    self.proto.frame_info.index = value
 
   @property
   def image(self) -> Image:
