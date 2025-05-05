@@ -1,6 +1,7 @@
 import io
 import json
 import re
+import uuid
 from typing import Iterable, List, Tuple, Union, get_args, get_origin
 
 import numpy as np
@@ -192,30 +193,47 @@ class Concept(MessageData):
 
 class Region(MessageData):
 
-  def __init__(self,
-               proto_region: RegionProto = None,
-               box: List[float] = None,
-               concepts: List[Concept] = None,
-               mask: Union['Image', PILImage.Image, np.ndarray] = None,
-               point: Tuple[float, float, float] = None,
-               track_id: str = None,
-               text: str = None):
+  def __init__(
+      self,
+      proto_region: RegionProto = None,
+      box: List[float] = None,
+      concepts: List[Concept] = None,
+      mask: Union['Image', PILImage.Image, np.ndarray] = None,
+      point: Tuple[float, float, float] = None,
+      track_id: str = None,
+      text: str = None,
+      id: str = None,
+  ):
+
     if proto_region is None:
-      proto_region = RegionProto()
-    self.proto = proto_region
-    # use setters for init vals
-    if box:
-      self.box = box
-    if concepts:
-      self.concepts = concepts
-    if mask:
-      self.mask = mask
-    if point:
-      self.point = point
-    if track_id:
-      self.track_id = track_id
-    if text:
-      self.text = text
+      self.proto = RegionProto()
+      # use setters for init vals
+      if box:
+        self.box = box
+      if concepts:
+        self.concepts = concepts
+      if mask:
+        self.mask = mask
+      if point:
+        self.point = point
+      if track_id:
+        self.track_id = track_id
+      if text:
+        self.text = text
+      self.id = id if id is not None else uuid.uuid4().hex
+    elif isinstance(proto_region, RegionProto):
+      self.proto = proto_region
+    else:
+      raise TypeError(
+          f"Expected type {RegionProto.__name__}, but got type {type(proto_region).__name__}")
+
+  @property
+  def id(self):
+    return self.proto.id
+
+  @id.setter
+  def id(self, value: str):
+    self.proto.id = value
 
   @property
   def text(self):
@@ -238,6 +256,8 @@ class Region(MessageData):
         value, list) and len(value) == 4 and all(isinstance(val, (int, float)) for val in value):
       bbox = self.proto.region_info.bounding_box
       bbox.left_col, bbox.top_row, bbox.right_col, bbox.bottom_row = value
+    else:
+      raise TypeError(f"Expected a list of 4 float values for 'box', but got: {value}")
 
   @property
   def concepts(self) -> List[Concept]:
@@ -247,6 +267,8 @@ class Region(MessageData):
   def concepts(self, value: List[Concept]):
     if isinstance(value, list) and all(isinstance(concept, Concept) for concept in value):
       self.proto.data.concepts.extend([concept.to_proto() for concept in value])
+    else:
+      raise TypeError(f"Expected a list of 'Concept' for 'concepts', but got: {value}")
 
   @property
   def mask(self) -> 'Image':
@@ -294,7 +316,7 @@ class Region(MessageData):
     self.proto.region_info.point.CopyFrom(point_proto)
 
   def __repr__(self) -> str:
-    return f"Region(box={self.box or []}, concepts={self.concepts or None}, point={self.point or None}, mask={self.mask or None}, track_id={self.track_id or None})"
+    return f"Region(id={self.id},box={self.box or []}, concepts={self.concepts or None}, point={self.point or None}, mask={self.mask or None}, track_id={self.track_id or None})"
 
   def to_proto(self) -> RegionProto:
     return self.proto

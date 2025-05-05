@@ -1455,6 +1455,7 @@ class TestModelCalls(unittest.TestCase):
 
     region_proto = RegionProto()
     region_proto.track_id = "123"
+    region_proto.id = "id-abc123"
     region_proto.region_info.mask.image.CopyFrom(_image_proto.to_proto())
     region_proto.region_info.point.col = _points[0]
     region_proto.region_info.point.row = _points[1]
@@ -1468,6 +1469,7 @@ class TestModelCalls(unittest.TestCase):
 
     self.assertAlmostEqual(result.mask.to_numpy().all(), test_region.mask.to_numpy().all())
     self.assertEqual(result.track_id, "123")
+    self.assertEqual(result.id, "id-abc123")
 
     with self.assertRaises(TypeError):
       test_region.track_id = 1234
