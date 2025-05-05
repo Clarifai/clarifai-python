@@ -31,28 +31,26 @@ DEFAULT_LOCAL_DEV_COMPUTE_CLUSTER_CONFIG = {
 
 DEFAULT_LOCAL_DEV_NODEPOOL_CONFIG = {
     "nodepool": {
-        "id":
-            DEFAULT_LOCAL_DEV_NODEPOOL_ID,
-        "description":
-            "Default Local Dev Nodepool",
+        "id": DEFAULT_LOCAL_DEV_NODEPOOL_ID,
+        "description": "Default Local Dev Nodepool",
         "compute_cluster": {
             "id": DEFAULT_LOCAL_DEV_COMPUTE_CLUSTER_ID,
             "user_id": None,  # This will be set when creating the compute cluster
         },
-        "instance_types": [{
-            "id": "local-cpu",
-            "compute_info": {
-                "cpu_limit": str(os.cpu_count()),
-                "cpu_memory": "16Gi",  # made up as we don't schedule based on this for local dev.
-                "num_accelerators": 0,  # TODO if we need accelerator detection for local dev.
-            },
-        }],
+        "instance_types": [
+            {
+                "id": "local-cpu",
+                "compute_info": {
+                    "cpu_limit": str(os.cpu_count()),
+                    "cpu_memory": "16Gi",  # made up as we don't schedule based on this for local dev.
+                    "num_accelerators": 0,  # TODO if we need accelerator detection for local dev.
+                },
+            }
+        ],
         "node_capacity_type": {
             "capacity_types": [1],
         },
-        "min_instances":
-            1,
-        "max_instances":
-            1,
+        "min_instances": 1,
+        "max_instances": 1,
     }
 }
