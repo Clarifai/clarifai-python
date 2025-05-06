@@ -1,6 +1,7 @@
 import operator
 from io import BytesIO
 from typing import List
+import math
 
 from clarifai_grpc.grpc.api import resources_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeEnumOption
@@ -181,10 +182,63 @@ class InputField(MessageData):
     locals()["__r" + _name[2:]] = _make(lambda x, y, _op=_op: _op(y, x))
   del _name, _op, _make
 
-  # Attribute access delegation – anything we did *not* define above
-  # will automatically be looked up on the wrapped default value.
+  # In-place operators
+  _inplace_ops = {
+      "__iadd__": operator.iadd,
+      "__isub__": operator.isub,
+      "__imul__": operator.imul,
+      "__itruediv__": operator.itruediv,
+      "__ifloordiv__": operator.ifloordiv,
+      "__imod__": operator.imod,
+      "__ipow__": operator.ipow,
+      "__ilshift__": operator.ilshift,
+      "__irshift__": operator.irshift,
+      "__iand__": operator.iand,
+      "__ixor__": operator.ixor,
+      "__ior__": operator.ior,
+  }
+
+  for _name, _op in _inplace_ops.items():
+      def _make_inplace(op):
+          def _f(self, other, *, _op=op):
+              self.default = _op(self.default, other)
+              return self
+          return _f
+      locals()[_name] = _make_inplace(_op)
+  del _name, _op, _make_inplace
+
+  # Formatting and other conversions
+  def __format__(self, format_spec):
+      return format(self.default, format_spec)
+
+  def __bytes__(self):
+      return bytes(self.default)
+
+  def __complex__(self):
+      return complex(self.default)
+
+  def __round__(self, ndigits=None):
+      return round(self.default, ndigits)
+
+  def __trunc__(self):
+      return math.trunc(self.default)
+
+  def __floor__(self):
+      return math.floor(self.default)
+
+  def __ceil__(self):
+      return math.ceil(self.default)
+
+# Attribute access delegation – anything we did *not* define above
+# will automatically be looked up on the wrapped default value.
+# Attribute access delegation
   def __getattr__(self, item):
-    return getattr(self.default, item)
+      return getattr(self.default, item)
+
+  def __get__(self, instance, owner):
+      if instance is None:
+          return self
+      return self.default
 
   def to_proto(self, proto=None) -> InputFieldProto:
     if proto is None:
