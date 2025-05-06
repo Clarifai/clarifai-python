@@ -5,6 +5,7 @@ from clarifai.client.lister import Lister
 from clarifai.utils.logging import logger
 from clarifai.utils.protobuf import dict_to_protobuf
 
+
 class Runner(Lister, BaseClient):
     """Runner is a class that provides access to Clarifai API endpoints related to Runner information."""
 
@@ -32,7 +33,7 @@ class Runner(Lister, BaseClient):
         self.kwargs = {**kwargs, 'id': runner_id}
         self.runner_info = resources_pb2.Runner()
         dict_to_protobuf(self.runner_info, self.kwargs)
-        
+
         self.logger = logger
         BaseClient.__init__(
             self,
