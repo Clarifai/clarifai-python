@@ -1,6 +1,16 @@
 [project]
-name = "clarifai-python"
-version = "11.3.0" # just so we can use uv run pytest.
+name = "clarifai"
+dynamic = [
+    "version",
+    "authors",
+    "license",
+    "classifiers",
+    "scripts",
+    "dependencies",
+    "optional-dependencies",
+    "requires-python",
+    "readme"  # For long_description
+]
 
 [tool.pytest.ini_options]
 markers = ["requires_secrets: mark a test as requiring secrets to run", "coverage_only: mark a test as required to run for coverage purpose only"]
