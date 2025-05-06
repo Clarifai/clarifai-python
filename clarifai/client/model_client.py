@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 import time
 from typing import Any, Dict, Iterator, List
@@ -14,6 +15,15 @@ from clarifai.runners.utils.method_signatures import (CompatibilitySerializer, d
                                                       signatures_from_json)
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator, status_is_retryable
+
+
+def is_async_context():
+  """Check if code is running in an async context."""
+  try:
+    asyncio.get_running_loop()
+    return True
+  except RuntimeError:
+    return False
 
 
 class ModelClient:
@@ -68,6 +78,7 @@ class ModelClient:
           ))
 
       method_signatures = None
+      print("Response for get model version:", response)
       if response.status.code == status_code_pb2.SUCCESS:
         method_signatures = response.model_version.method_signatures
       if response.status.code != status_code_pb2.SUCCESS:
@@ -105,6 +116,8 @@ class ModelClient:
     backoff_iterator = BackoffIterator(10)
     while True:
       response = self.STUB.PostModelOutputs(request)
+      print("Inside fetch signatures backup loop")
+      print("response for post model outputs:", response)
       if status_is_retryable(
           response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
         logger.info(f"Retrying model info fetch with response {response.status!r}")
@@ -130,11 +143,14 @@ class ModelClient:
       # define the function in this client instance
       if resources_pb2.RunnerMethodType.Name(method_signature.method_type) == 'UNARY_UNARY':
         call_func = self._predict
+        async_call_func = self._async_predict
       elif resources_pb2.RunnerMethodType.Name(method_signature.method_type) == 'UNARY_STREAMING':
         call_func = self._generate
+        #async_call_func = self._async_generate
       elif resources_pb2.RunnerMethodType.Name(
           method_signature.method_type) == 'STREAMING_STREAMING':
         call_func = self._stream
+        #async_call_func = self._async_stream
       else:
         raise ValueError(f"Unknown method type {method_signature.method_type}")
 
@@ -146,9 +162,10 @@ class ModelClient:
           continue
         method_argnames.append(outer)
 
-      def bind_f(method_name, method_argnames, call_func):
+      def bind_f(method_name, method_argnames, call_func, async_call_func):
 
-        def f(*args, **kwargs):
+        def sync_f(*args, **kwargs):
+          print(f"Inside sync function with args: {args}, kwargs: {kwargs}")
           if len(args) > len(method_argnames):
             raise TypeError(
                 f"{method_name}() takes {len(method_argnames)} positional arguments but {len(args)} were given"
@@ -171,10 +188,41 @@ class ModelClient:
             kwargs[name] = arg
           return call_func(kwargs, method_name)
 
-        return f
+        async def async_f(*args, **kwargs):
+          # Async version to call the async function
+          if len(args) > len(method_argnames):
+            raise TypeError(
+                f"{method_name}() takes {len(method_argnames)} positional arguments but {len(args)} were given"
+            )
+          if len(args) + len(kwargs) > len(method_argnames):
+            raise TypeError(
+                f"{method_name}() got an unexpected keyword argument {next(iter(kwargs))}")
+          if len(args) == 1 and (not kwargs) and isinstance(args[0], list):
+            batch_inputs = args[0]
+            # Validate each input is a dictionary
+            is_batch_input_valid = all(isinstance(input, dict) for input in batch_inputs)
+            if is_batch_input_valid and (not is_openai_chat_format(batch_inputs)):
+              # If the batch input is valid, call the function with the batch inputs and the method name
+              return await async_call_func(batch_inputs, method_name)
+
+          for name, arg in zip(method_argnames, args):  # handle positional with zip shortest
+            if name in kwargs:
+              raise TypeError(f"Multiple values for argument {name}")
+            kwargs[name] = arg
+          return await async_call_func(kwargs, method_name)
+
+        class MethodWrapper:
+
+          def __call__(self, *args, **kwargs):
+            if is_async_context():
+              print("result from is_async_context:", is_async_context())
+              return async_f(*args, **kwargs)
+            return sync_f(*args, **kwargs)
+
+        return MethodWrapper()
 
       # need to bind method_name to the value, not the mutating loop variable
-      f = bind_f(method_name, method_argnames, call_func)
+      f = bind_f(method_name, method_argnames, call_func, async_call_func)
 
       # set names, annotations and docstrings
       f.__name__ = method_name
@@ -324,6 +372,10 @@ class ModelClient:
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
     while True:
+      print("Inside sync predict loop")
+      print("Request template:", self.request_template)
+      print("stub:", self.STUB)
+      print("Request:", request)
       response = self.STUB.PostModelOutputs(request)
       if status_is_retryable(
           response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
@@ -335,6 +387,112 @@ class ModelClient:
         raise Exception(f"Model predict failed with response {response!r}")
       break
     return response
+
+  async def _async_predict(
+      self,
+      inputs,
+      method_name: str = 'predict',
+  ) -> Any:
+    """Asynchronously process inputs and make predictions.
+
+        Args:
+            inputs: Input data to process
+            method_name (str): Name of the method to call
+
+        Returns:
+            Processed prediction results
+        """
+    input_signature = self._method_signatures[method_name].input_fields
+    output_signature = self._method_signatures[method_name].output_fields
+
+    batch_input = True
+    if isinstance(inputs, dict):
+      inputs = [inputs]
+      batch_input = False
+
+    proto_inputs = []
+    for input in inputs:
+      proto = resources_pb2.Input()
+      serialize(input, input_signature, proto.data)
+      proto_inputs.append(proto)
+
+    response = await self._async_predict_by_proto(proto_inputs, method_name)
+
+    outputs = []
+    for output in response.outputs:
+      outputs.append(deserialize(output.data, output_signature, is_output=True))
+
+    return outputs if batch_input else outputs[0]
+
+  async def _async_predict_by_proto(
+      self,
+      inputs: List[resources_pb2.Input],
+      method_name: str = None,
+      inference_params: Dict = None,
+      output_config: Dict = None,
+  ) -> service_pb2.MultiOutputResponse:
+    """Asynchronously predicts the model based on the given inputs.
+
+    Args:
+        inputs (List[resources_pb2.Input]): The inputs to predict.
+        method_name (str): The remote method name to call.
+        inference_params (Dict): Inference parameters to override.
+        output_config (Dict): Output configuration to override.
+
+    Returns:
+        service_pb2.MultiOutputResponse: The prediction response(s).
+
+    Raises:
+        UserError: If inputs are invalid or exceed maximum limit.
+        Exception: If the model prediction fails.
+    """
+    if not isinstance(inputs, list):
+      raise UserError('Invalid inputs, inputs must be a list of Input objects.')
+    if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
+      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}.")
+
+    request = service_pb2.PostModelOutputsRequest()
+    request.CopyFrom(self.request_template)
+    request.inputs.extend(inputs)
+
+    if method_name:
+      for inp in request.inputs:
+        inp.data.metadata['_method_name'] = method_name
+    if inference_params:
+      request.model.model_version.output_info.params.update(inference_params)
+    if output_config:
+      request.model.model_version.output_info.output_config.MergeFrom(
+          resources_pb2.OutputConfig(**output_config))
+
+    start_time = time.time()
+    backoff_iterator = BackoffIterator(10)
+
+    while True:
+      try:
+        print("Inside async predict loop")
+        print("Request template:", self.request_template)
+        print("stub:", self.STUB)
+        print("Request:", request)
+        response = self.STUB.PostModelOutputs(request)
+        print("Response:", response)
+
+        if status_is_retryable(
+            response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
+          logger.info("Model is still deploying, please wait...")
+          await asyncio.sleep(next(backoff_iterator))
+          continue
+
+        if response.status.code != status_code_pb2.SUCCESS:
+          raise Exception(f"Model predict failed with response {response!r}")
+
+        return response
+
+      except Exception as e:
+        if time.time() - start_time >= 60 * 10:  # 10 minutes timeout
+          raise Exception("Model prediction timed out after 10 minutes") from e
+        logger.error(f"Error during prediction: {e}")
+        await asyncio.sleep(next(backoff_iterator))
+        continue
 
   def _generate(
       self,

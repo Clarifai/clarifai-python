@@ -1,3 +1,4 @@
+import asyncio
 import itertools
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -48,7 +49,9 @@ def validate_response(response, attempt, max_attempts):
     return handle_simple_response(response)
 
 
-def create_stub(auth_helper: ClarifaiAuthHelper = None, max_retry_attempts: int = 10) -> V2Stub:
+def create_stub(auth_helper: ClarifaiAuthHelper = None,
+                max_retry_attempts: int = 10,
+                is_async: bool = False) -> V2Stub:
   """
   Create client stub that handles authorization and basic retries for
   unavailable or throttled connections.
@@ -57,8 +60,10 @@ def create_stub(auth_helper: ClarifaiAuthHelper = None, max_retry_attempts: int 
     auth_helper:  ClarifaiAuthHelper to use for auth metadata (default: from env)
     max_retry_attempts:  max attempts to retry rpcs with retryable failures
   """
-  stub = AuthorizedStub(auth_helper)
+  stub = AuthorizedStub(auth_helper, is_async=is_async)
+  print("stub is async: ", is_async)
   if max_retry_attempts > 0:
+    print("Inside create stub, max_retry_attempts > 0")
     return RetryStub(stub, max_retry_attempts)
   return stub
 
@@ -66,17 +71,19 @@ def create_stub(auth_helper: ClarifaiAuthHelper = None, max_retry_attempts: int 
 class AuthorizedStub(V2Stub):
   """V2Stub proxy that inserts metadata authorization in rpc calls."""
 
-  def __init__(self, auth_helper: ClarifaiAuthHelper = None):
+  def __init__(self, auth_helper: ClarifaiAuthHelper = None, is_async: bool = False):
     if auth_helper is None:
       auth_helper = ClarifaiAuthHelper.from_env()
-    self.stub = auth_helper.get_stub()
-    self.async_stub = auth_helper.get_async_stub()
+    self.is_async = is_async
+    self.stub = auth_helper.get_async_stub() if is_async else auth_helper.get_stub()
+    print(f"Stub is async authorized: {self.is_async}")
     self.metadata = auth_helper.metadata
 
   def __getattr__(self, name):
     value = getattr(self.stub, name)
     if isinstance(value, RpcCallable):
       value = _AuthorizedRpcCallable(value, self.metadata)
+      print("Value authorized")
     return value
 
 
@@ -86,12 +93,17 @@ class _AuthorizedRpcCallable(RpcCallable):
   def __init__(self, func, metadata):
     self.f = func
     self.metadata = metadata
+    self.is_async = asyncio.iscoroutinefunction(func)
+    print(f"Function {func} is async: {self.is_async}")
 
   def __repr__(self):
     return repr(self.f)
 
   def __call__(self, *args, **kwargs):
     metadata = kwargs.pop('metadata', self.metadata)
+    if self.is_async:
+      # For async functions, return a coroutine
+      return self.f(*args, **kwargs, metadata=metadata)
     return self.f(*args, **kwargs, metadata=metadata)
 
   def future(self, *args, **kwargs):
@@ -111,26 +123,45 @@ class RetryStub(V2Stub):
     self.stub = stub
     self.max_attempts = max_attempts
     self.backoff_time = backoff_time
+    self.is_async = getattr(stub, 'is_async', False)
 
   def __getattr__(self, name):
     value = getattr(self.stub, name)
     if isinstance(value, RpcCallable):
-      value = _RetryRpcCallable(value, self.max_attempts, self.backoff_time)
+      value = _RetryRpcCallable(value, self.max_attempts, self.backoff_time, self.is_async)
     return value
 
 
 class _RetryRpcCallable(RpcCallable):
   """Retries rpc calls on unavailable server or throttle codes"""
 
-  def __init__(self, func, max_attempts, backoff_time):
+  def __init__(self, func, max_attempts, backoff_time, is_async=False):
     self.f = func
     self.max_attempts = max_attempts
     self.backoff_time = backoff_time
+    self.is_async = is_async or asyncio.iscoroutinefunction(func)
 
   def __repr__(self):
     return repr(self.f)
 
-  def __call__(self, *args, **kwargs):
+  async def _async_call__(self, *args, **kwargs):
+    attempt = 0
+    while attempt < self.max_attempts:
+      attempt += 1
+      if attempt != 1:
+        await asyncio.sleep(self.backoff_time)
+      try:
+        response = await self.f(*args, **kwargs)
+        v = validate_response(response, attempt, self.max_attempts)
+        if v is not None:
+          return v
+      except grpc.RpcError as e:
+        if (e.code() in retry_codes_grpc) and attempt < self.max_attempts:
+          logger.debug('Retrying with status %s' % e.code())
+        else:
+          raise
+
+  def _sync_call__(self, *args, **kwargs):
     attempt = 0
     while attempt < self.max_attempts:
       attempt += 1
@@ -147,8 +178,19 @@ class _RetryRpcCallable(RpcCallable):
         else:
           raise
 
+  def __call__(self, *args, **kwargs):
+    if self.is_async:
+      return self._async_call__(*args, **kwargs)
+    return self._sync_call__(*args, **kwargs)
+
+  async def __call_async__(self, *args, **kwargs):
+    """Explicit async call method"""
+    return await self._async_call(*args, **kwargs)
+
   def future(self, *args, **kwargs):
     # TODO use single result event loop thread with asyncio
+    if self.is_async:
+      return asyncio.create_task(self._async_call(*args, **kwargs))
     return _threadpool.submit(self, *args, **kwargs)
 
   def __getattr__(self, name):

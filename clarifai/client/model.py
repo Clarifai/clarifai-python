@@ -434,11 +434,13 @@ class Model(Lister, BaseClient):
           model=self.model_info,
           runner_selector=self._runner_selector,
       )
+      print("Inside model.py cient", self.STUB)
       self._client = ModelClient(self.STUB, request_template=request_template)
     return self._client
 
   @property
   def async_client(self):
+    print("Inside model.py async_client-1")
     if not hasattr(self, "_aclient") or self._aclient is None:
       request_template = service_pb2.PostModelOutputsRequest(
           user_app_id=self.user_app_id,
@@ -447,7 +449,9 @@ class Model(Lister, BaseClient):
           model=self.model_info,
           runner_selector=self._runner_selector,
       )
+      print("Inside model.py async_client-2", self.async_stub)
       self._aclient = ModelClient(self.async_stub, request_template=request_template)
+    print("Inside model.py async_client-3")
     return self._aclient
 
   def predict(self, *args, **kwargs):
@@ -479,6 +483,8 @@ class Model(Lister, BaseClient):
         If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
         protos directly for compatibility with previous versions of the SDK.
         """
+
+    print("Inside async predict")
 
     return await self.async_client.predict(*args, **kwargs)
 
