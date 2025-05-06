@@ -251,6 +251,31 @@ class Nodepool(Lister, BaseClient):
             raise Exception(response.status)
         self.logger.info("\nDeployments Deleted\n%s", response.status)
 
+    def runner(self, runner_id: str) -> Runner:
+        """Returns a Runner object for the existing runner ID.
+
+        Args:
+            runner_id (str): The runner ID for the runner to interact with.
+
+        Returns:
+            Runner: A Runner object for the existing runner ID.
+
+        Example:
+            >>> from clarifai.client.nodepool import Nodepool
+            >>> nodepool = Nodepool(nodepool_id="nodepool_id", user_id="user_id")
+            >>> runner = nodepool.runner(runner_id="runner_id")
+        """
+        request = service_pb2.GetRunnerRequest(user_app_id=self.user_app_id, runner_id=runner_id)
+        response = self._grpc_request(self.STUB.GetRunner, request)
+
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+        dict_response = MessageToDict(
+            response, preserving_proto_field_name=True, use_integers_for_enums=True
+        )
+        kwargs = self.process_response_keys(dict_response["runner"], "runner")
+        return Runner.from_auth_helper(auth=self.auth_helper, **kwargs)
+
     def create_runner(
         self, config_filepath: str = None, runner_config: Dict[str, Any] = None
     ) -> Runner:
@@ -304,6 +329,31 @@ class Nodepool(Lister, BaseClient):
         dict_response = MessageToDict(response.runners[0], preserving_proto_field_name=True)
         kwargs = self.process_response_keys(dict_response, 'runner')
         return Runner.from_auth_helper(auth=self.auth_helper, **kwargs)
+
+    def delete_runners(self, runner_ids: List[str]) -> None:
+        """Deletes list of runners for the nodepool.
+
+        Args:
+            runner_ids (List[str]): The list of runner IDs to delete.
+
+        Example:
+            >>> from clarifai.client.nodepool import Nodepool
+            >>> nodepool = Nodepool(nodepool_id="nodepool_id", user_id="user_id")
+            >>> nodepool.delete_runners(runner_ids=["runner_id1", "runner_id2"])
+        """
+        assert isinstance(runner_ids, list), "runner_ids param should be a list"
+
+        request = service_pb2.DeleteRunnersRequest(
+            user_app_id=self.user_app_id,
+            ids=runner_ids,
+            compute_cluster_id=self.compute_cluster.id,
+            nodepool_id=self.id,
+        )
+        response = self._grpc_request(self.STUB.DeleteRunners, request)
+
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+        self.logger.info("\nRunners Deleted\n%s", response.status)
 
     def _process_runner_config(self, runner_config: str) -> Dict[str, Any]:
         assert "runner" in runner_config, "runner info not found in the config file"

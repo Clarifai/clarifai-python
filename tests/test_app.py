@@ -156,13 +156,6 @@ class TestApp:
             )
             assert "SUCCESS" in caplog.text
 
-    # def test_create_runner(self, client):
-    #   client = User(user_id=CREATE_APP_USER_ID, pat=CLARIFAI_PAT)
-    #   runner_info = client.create_runner(
-    #       CREATE_RUNNER_ID, labels=["ci runner"], description="CI test runner")
-    #   assert runner_info.get("runner_id") == CREATE_RUNNER_ID and runner_info.get(
-    #       "user_id") == CREATE_APP_USER_ID
-
     def test_get_dataset(self, create_app):
         dataset = create_app.dataset(dataset_id=CREATE_DATASET_ID)
         dataset.create_version()
