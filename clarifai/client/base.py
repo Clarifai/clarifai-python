@@ -50,7 +50,7 @@ class BaseClient:
 
     self.auth_helper = ClarifaiAuthHelper(**kwargs, validate=False)
     self.STUB = create_stub(self.auth_helper)
-    self.async_stub = self.auth_helper.get_async_stub()
+    self.async_stub = create_stub(self.auth_helper, is_async=True)
     self.metadata = self.auth_helper.metadata
     self.pat = self.auth_helper.pat
     self.token = self.auth_helper._token

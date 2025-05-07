@@ -61,10 +61,8 @@ def create_stub(auth_helper: ClarifaiAuthHelper = None,
     max_retry_attempts:  max attempts to retry rpcs with retryable failures
   """
   stub = AuthorizedStub(auth_helper, is_async=is_async)
-  print("stub is async: ", is_async)
   if max_retry_attempts > 0:
-    print("Inside create stub, max_retry_attempts > 0")
-    return RetryStub(stub, max_retry_attempts)
+    return RetryStub(stub, max_retry_attempts, is_async=is_async)
   return stub
 
 
@@ -76,14 +74,12 @@ class AuthorizedStub(V2Stub):
       auth_helper = ClarifaiAuthHelper.from_env()
     self.is_async = is_async
     self.stub = auth_helper.get_async_stub() if is_async else auth_helper.get_stub()
-    print(f"Stub is async authorized: {self.is_async}")
     self.metadata = auth_helper.metadata
 
   def __getattr__(self, name):
     value = getattr(self.stub, name)
     if isinstance(value, RpcCallable):
       value = _AuthorizedRpcCallable(value, self.metadata)
-      print("Value authorized")
     return value
 
 
@@ -94,7 +90,6 @@ class _AuthorizedRpcCallable(RpcCallable):
     self.f = func
     self.metadata = metadata
     self.is_async = asyncio.iscoroutinefunction(func)
-    print(f"Function {func} is async: {self.is_async}")
 
   def __repr__(self):
     return repr(self.f)
@@ -119,11 +114,11 @@ class RetryStub(V2Stub):
   V2Stub proxy that retries requests (currently on unavailable server or throttle codes)
   """
 
-  def __init__(self, stub, max_attempts=10, backoff_time=5):
+  def __init__(self, stub, max_attempts=10, backoff_time=5, is_async=False):
     self.stub = stub
     self.max_attempts = max_attempts
     self.backoff_time = backoff_time
-    self.is_async = getattr(stub, 'is_async', False)
+    self.is_async = is_async
 
   def __getattr__(self, name):
     value = getattr(self.stub, name)

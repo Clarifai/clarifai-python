@@ -5,6 +5,7 @@ from typing import Any, Dict, Iterator, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
+from clarifai.client.auth.register import V2Stub
 
 from clarifai.constants.model import MAX_MODEL_PREDICT_INPUTS
 from clarifai.errors import UserError
@@ -31,16 +32,21 @@ class ModelClient:
   Client for calling model predict, generate, and stream methods.
   '''
 
-  def __init__(self, stub, request_template: service_pb2.PostModelOutputsRequest = None):
+  def __init__(self,
+               stub,
+               async_stub: V2Stub = None,
+               request_template: service_pb2.PostModelOutputsRequest = None):
     '''
         Initialize the model client.
 
         Args:
             stub: The gRPC stub for the model.
+            async_stub: The async gRPC stub for the model.
             request_template: The template for the request to send to the model, including
             common fields like model_id, model_version, cluster, etc.
         '''
     self.STUB = stub
+    self.async_stub = async_stub
     self.request_template = request_template or service_pb2.PostModelOutputsRequest()
     self._method_signatures = None
     self._defined = False
@@ -78,7 +84,6 @@ class ModelClient:
           ))
 
       method_signatures = None
-      print("Response for get model version:", response)
       if response.status.code == status_code_pb2.SUCCESS:
         method_signatures = response.model_version.method_signatures
       if response.status.code != status_code_pb2.SUCCESS:
@@ -116,8 +121,6 @@ class ModelClient:
     backoff_iterator = BackoffIterator(10)
     while True:
       response = self.STUB.PostModelOutputs(request)
-      print("Inside fetch signatures backup loop")
-      print("response for post model outputs:", response)
       if status_is_retryable(
           response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
         logger.info(f"Retrying model info fetch with response {response.status!r}")
@@ -146,11 +149,11 @@ class ModelClient:
         async_call_func = self._async_predict
       elif resources_pb2.RunnerMethodType.Name(method_signature.method_type) == 'UNARY_STREAMING':
         call_func = self._generate
-        #async_call_func = self._async_generate
+        async_call_func = self._async_generate
       elif resources_pb2.RunnerMethodType.Name(
           method_signature.method_type) == 'STREAMING_STREAMING':
         call_func = self._stream
-        #async_call_func = self._async_stream
+        async_call_func = self._async_stream
       else:
         raise ValueError(f"Unknown method type {method_signature.method_type}")
 
@@ -165,7 +168,6 @@ class ModelClient:
       def bind_f(method_name, method_argnames, call_func, async_call_func):
 
         def sync_f(*args, **kwargs):
-          print(f"Inside sync function with args: {args}, kwargs: {kwargs}")
           if len(args) > len(method_argnames):
             raise TypeError(
                 f"{method_name}() takes {len(method_argnames)} positional arguments but {len(args)} were given"
@@ -215,7 +217,6 @@ class ModelClient:
 
           def __call__(self, *args, **kwargs):
             if is_async_context():
-              print("result from is_async_context:", is_async_context())
               return async_f(*args, **kwargs)
             return sync_f(*args, **kwargs)
 
@@ -372,10 +373,6 @@ class ModelClient:
     start_time = time.time()
     backoff_iterator = BackoffIterator(10)
     while True:
-      print("Inside sync predict loop")
-      print("Request template:", self.request_template)
-      print("stub:", self.STUB)
-      print("Request:", request)
       response = self.STUB.PostModelOutputs(request)
       if status_is_retryable(
           response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
@@ -469,12 +466,8 @@ class ModelClient:
 
     while True:
       try:
-        print("Inside async predict loop")
-        print("Request template:", self.request_template)
-        print("stub:", self.STUB)
-        print("Request:", request)
-        response = self.STUB.PostModelOutputs(request)
-        print("Response:", response)
+        response = await self.async_stub.PostModelOutputs(
+            request, metadata=(('authorization', 'Key 1fed7d87ae0e41f49497ca9f9fb1d9e9'),))
 
         if status_is_retryable(
             response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
@@ -488,7 +481,7 @@ class ModelClient:
         return response
 
       except Exception as e:
-        if time.time() - start_time >= 60 * 10:  # 10 minutes timeout
+        if time.time() - start_time >= 10 * 1:  # 10 minutes timeout
           raise Exception("Model prediction timed out after 10 minutes") from e
         logger.error(f"Error during prediction: {e}")
         await asyncio.sleep(next(backoff_iterator))
@@ -580,6 +573,97 @@ class ModelClient:
     yield response  # yield the first response
 
     for response in stream_response:
+      if response.status.code != status_code_pb2.SUCCESS:
+        raise Exception(f"Model Generate failed with response {response.status!r}")
+      yield response
+
+  async def _async_generate(
+      self,
+      inputs,
+      method_name: str = 'generate',
+  ) -> Any:
+    input_signature = self._method_signatures[method_name].input_fields
+    output_signature = self._method_signatures[method_name].output_fields
+
+    batch_input = True
+    if isinstance(inputs, dict):
+      inputs = [inputs]
+      batch_input = False
+
+    proto_inputs = []
+    for input in inputs:
+      proto = resources_pb2.Input()
+      serialize(input, input_signature, proto.data)
+      proto_inputs.append(proto)
+
+    response_stream = await self._async_generate_by_proto(proto_inputs, method_name)
+
+    for response in response_stream:
+      outputs = []
+      for output in response.outputs:
+        outputs.append(deserialize(output.data, output_signature, is_output=True))
+      if batch_input:
+        yield outputs
+      else:
+        yield outputs[0]
+
+  async def _async_generate_by_proto(
+      self,
+      inputs: List[resources_pb2.Input],
+      method_name: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
+    """Generate the async stream output on model based on the given inputs.
+
+    Args:
+        inputs (list[Input]): The inputs to generate, must be less than 128.
+        method_name (str): The remote method name to call.
+        inference_params (dict): The inference params to override.
+        output_config (dict): The output config to override.
+    """
+    if not isinstance(inputs, list):
+      raise UserError('Invalid inputs, inputs must be a list of Input objects.')
+    if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
+      raise UserError(f"Too many inputs. Max is {MAX_MODEL_PREDICT_INPUTS}."
+                     )  # TODO Use Chunker for inputs len > 128
+
+    request = service_pb2.PostModelOutputsRequest()
+    request.CopyFrom(self.request_template)
+
+    request.inputs.extend(inputs)
+
+    if method_name:
+      # TODO put in new proto field?
+      for inp in request.inputs:
+        inp.data.metadata['_method_name'] = method_name
+    if inference_params:
+      request.model.model_version.output_info.params.update(inference_params)
+    if output_config:
+      request.model.model_version.output_info.output_config.MergeFromDict(output_config)
+
+    start_time = time.time()
+    backoff_iterator = BackoffIterator(10)
+    started = False
+    while not started:
+      stream_response = await self.async_stub.GenerateModelOutputs(
+          request, metadata=(('authorization', 'Key 1fed7d87ae0e41f49497ca9f9fb1d9e9'),))
+      try:
+        response = await stream_response.__anext__()  # get the first response
+      except StopAsyncIteration:
+        raise Exception("Model Generate failed with no response")
+      if status_is_retryable(response.status.code) and \
+              time.time() - start_time < 60 * 10:
+        logger.info("Model is still deploying, please wait...")
+        await asyncio.sleep(next(backoff_iterator))
+        continue
+      if response.status.code != status_code_pb2.SUCCESS:
+        raise Exception(f"Model Generate failed with response {response.status!r}")
+      started = True
+
+    yield response  # yield the first response
+
+    async for response in stream_response:
       if response.status.code != status_code_pb2.SUCCESS:
         raise Exception(f"Model Generate failed with response {response.status!r}")
       yield response
@@ -679,6 +763,85 @@ class ModelClient:
                 time.time() - start_time < 60 * 10:
           logger.info("Model is still deploying, please wait...")
           time.sleep(next(backoff_iterator))
+          break
+        if response.status.code != status_code_pb2.SUCCESS:
+          raise Exception(f"Model Predict failed with response {response.status!r}")
+        else:
+          if not generation_started:
+            generation_started = True
+          yield response
+
+  async def _async_stream(
+      self,
+      inputs,
+      method_name: str = 'stream',
+  ) -> Any:
+    input_signature = self._method_signatures[method_name].input_fields
+    output_signature = self._method_signatures[method_name].output_fields
+
+    if isinstance(inputs, list):
+      assert len(inputs) == 1, 'streaming methods do not support batched calls'
+      inputs = inputs[0]
+    assert isinstance(inputs, dict)
+    kwargs = inputs
+
+    # find the streaming vars in the input signature, and the streaming input python param
+    stream_sig = get_stream_from_signature(input_signature)
+    if stream_sig is None:
+      raise ValueError("Streaming method must have a Stream input")
+    stream_argname = stream_sig.name
+
+    # get the streaming input generator from the user-provided function arg values
+    user_inputs_generator = kwargs.pop(stream_argname)
+
+    async def _input_proto_stream():
+      # first item contains all the inputs and the first stream item
+      proto = resources_pb2.Input()
+      try:
+        item = await user_inputs_generator.__anext__()
+      except StopAsyncIteration:
+        return  # no items to stream
+      kwargs[stream_argname] = item
+      serialize(kwargs, input_signature, proto.data)
+
+      yield proto
+
+      # subsequent items are just the stream items
+      async for item in user_inputs_generator:
+        proto = resources_pb2.Input()
+        serialize({stream_argname: item}, [stream_sig], proto.data)
+        yield proto
+
+    response_stream = await self._async_stream_by_proto(_input_proto_stream(), method_name)
+
+    async for response in response_stream:
+      assert len(response.outputs) == 1, 'streaming methods must have exactly one output'
+      yield deserialize(response.outputs[0].data, output_signature, is_output=True)
+
+  async def _async_stream_by_proto(self,
+                                   inputs: Iterator[List[resources_pb2.Input]],
+                                   method_name: str = None,
+                                   inference_params: Dict = {},
+                                   output_config: Dict = {}):
+    """Generate the async stream output on model based on the given stream of inputs.
+    """
+    # if not isinstance(inputs, Iterator[List[Input]]):
+    #   raise UserError('Invalid inputs, inputs must be a iterator of list of Input objects.')
+
+    request = self._req_iterator(inputs, method_name, inference_params, output_config)
+
+    start_time = time.time()
+    backoff_iterator = BackoffIterator(10)
+    generation_started = False
+    while True:
+      if generation_started:
+        break
+      stream_response = await self.async_stub.StreamModelOutputs(request)
+      async for response in stream_response:
+        if status_is_retryable(response.status.code) and \
+                time.time() - start_time < 60 * 10:
+          logger.info("Model is still deploying, please wait...")
+          await asyncio.sleep(next(backoff_iterator))
           break
         if response.status.code != status_code_pb2.SUCCESS:
           raise Exception(f"Model Predict failed with response {response.status!r}")
