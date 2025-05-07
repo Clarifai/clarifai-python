@@ -1368,30 +1368,105 @@ class TestModelCalls(unittest.TestCase):
         with self.assertRaises(TypeError):
             client.f(y=test_region)
 
+    def test_Mask_Point_in_Region(self):
+        class MyModel(ModelClass):
+            @ModelClass.method
+            def f(self, x: Region) -> Region:
+                return x
+
+        client = _get_servicer_client(MyModel())
+        _image_proto = Image.from_numpy(np.zeros((10, 10), dtype="uint8"))
+        _points = [1, 2, 3]
+
+        region_proto = RegionProto()
+        region_proto.track_id = "123"
+        region_proto.id = "id-abc123"
+        region_proto.region_info.mask.image.CopyFrom(_image_proto.to_proto())
+        region_proto.region_info.point.col = _points[0]
+        region_proto.region_info.point.row = _points[1]
+        region_proto.region_info.point.z = _points[2]
+
+        test_region = Region(region_proto)
+
+        result = client.f(test_region)
+        for i in range(3):
+            self.assertAlmostEqual(result.point[i], _points[i], places=5)
+
+        self.assertAlmostEqual(result.mask.to_numpy().all(), test_region.mask.to_numpy().all())
+        self.assertEqual(result.track_id, "123")
+        self.assertEqual(result.id, "id-abc123")
+
+        with self.assertRaises(TypeError):
+            test_region.track_id = 1234
+        with self.assertRaises(TypeError):
+            test_region.point = [123, 123, 123]
+        with self.assertRaises(TypeError):
+            test_region.point = "123"
+        with self.assertRaises(TypeError):
+            test_region.point = 123
+        with self.assertRaises(ValueError):
+            test_region.point = [0.1, 0.1, 0.1, 0.2]
+        with self.assertRaises(TypeError):
+            test_region.mask = 123
+
+    def test_set_Mask_in_Region(self):
+        class MyModel(ModelClass):
+            @ModelClass.method
+            def f(self, x: Region) -> Region:
+                return x
+
+        client = _get_servicer_client(MyModel())
+
+        # test set mask by np.ndarray
+        numpy_rand_image = (np.random.rand(10, 10) * 255).astype("uint8")
+        region_proto = Region()
+        region_proto.mask = numpy_rand_image
+
+        result = client.f(region_proto)
+
+        self.assertAlmostEqual(result.mask.to_numpy().all(), numpy_rand_image.all())
+        self.assertAlmostEqual(np.asarray(result.mask.to_pil()).all(), numpy_rand_image.all())
+
+        # test set mask by PILImage
+        region_proto2 = Region()
+        region_proto2.mask = PILImage.fromarray(numpy_rand_image)
+        result2 = client.f(region_proto2)
+
+        self.assertAlmostEqual(result2.mask.to_numpy().all(), numpy_rand_image.all())
+        self.assertAlmostEqual(np.asarray(result2.mask.to_pil()).all(), numpy_rand_image.all())
+
+        # test set mask by Image
+        region_proto3 = Region()
+        region_proto3.mask = Image.from_numpy(numpy_rand_image)
+        result3 = client.f(region_proto3)
+
+        self.assertAlmostEqual(result3.mask.to_numpy().all(), numpy_rand_image.all())
+        self.assertAlmostEqual(np.asarray(result3.mask.to_pil()).all(), numpy_rand_image.all())
+
     def test_Audio_type(self):
         class MyModel(ModelClass):
             @ModelClass.method
             def f(self, x: Audio) -> Audio:
                 return x
 
-        client = _get_servicer_client(MyModel())
+                client = _get_servicer_client(MyModel())
 
-        test_audio = Audio(AudioProto(url='https://samples.clarifai.com/GoodMorning.wav'))
+                test_audio = Audio(AudioProto(url='https://samples.clarifai.com/GoodMorning.wav'))
 
-        result = client.f(test_audio)
-        self.assertEqual(result.url, 'https://samples.clarifai.com/GoodMorning.wav')
+                result = client.f(test_audio)
+                self.assertEqual(result.url, 'https://samples.clarifai.com/GoodMorning.wav')
 
-        with self.assertRaises(TypeError):
-            client.f('abc')
+                with self.assertRaises(TypeError):
+                    client.f('abc')
 
-        with self.assertRaises(TypeError):
-            client.f(3)
+                with self.assertRaises(TypeError):
+                    client.f(3)
 
-        with self.assertRaises(TypeError):
-            client.f()
+                with self.assertRaises(TypeError):
+                    client.f()
 
-        with self.assertRaises(TypeError):
-            client.f(y=test_audio)
+                with self.assertRaises(TypeError):
+                    client.f(y=test_audio)
 
     def test_Frame_type(self):
         class MyModel(ModelClass):
@@ -1403,12 +1478,14 @@ class TestModelCalls(unittest.TestCase):
 
         frame_proto = FrameProto()
         frame_proto.frame_info.time = 1000
+        frame_proto.frame_info.index = 123
         frame_proto.data.image.url = 'https://samples.clarifai.com/metro-north.jpg'
 
         test_frame = Frame(frame_proto)
 
         result = client.f(test_frame)
         self.assertEqual(result.time, 1.0)
+        self.assertEqual(result.index, 123)
         self.assertEqual(result.image.url, 'https://samples.clarifai.com/metro-north.jpg')
 
         with self.assertRaises(TypeError):

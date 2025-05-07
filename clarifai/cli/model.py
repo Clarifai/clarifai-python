@@ -99,7 +99,10 @@ def download_checkpoints(model_path, out_path, stage):
     help='Path to write the method signature defitions to. If not provided, use stdout.',
 )
 def signatures(model_path, out_path):
-    """Generate method signatures for the model."""
+    """Generate method signatures for the model.
+
+    MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
+    """
 
     from clarifai.runners.models.model_builder import ModelBuilder
 
@@ -113,11 +116,11 @@ def signatures(model_path, out_path):
 
 
 @model.command()
-@click.option(
-    '--model_path',
+@click.argument(
+    "model_path",
     type=click.Path(exists=True),
-    required=True,
-    help='Path to the model directory.',
+    required=False,
+    default=".",
 )
 @click.option(
     '--mode',
@@ -142,7 +145,10 @@ def signatures(model_path, out_path):
     help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. Apply for `--mode conatainer`.',
 )
 def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_dockerfile=False):
-    """Test model locally."""
+    """Test model locally.
+
+    MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
+    """
     try:
         from clarifai.runners.models import model_run_locally
 
@@ -206,7 +212,10 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_
     help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. Apply for `--mode conatainer`.',
 )
 def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=False):
-    """Run the model locally and start a gRPC server to serve the model."""
+    """Run the model locally and start a gRPC server to serve the model.
+
+    MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
+    """
     try:
         from clarifai.runners.models import model_run_locally
 
