@@ -1,5 +1,6 @@
 [project]
 name = "clarifai"
+requires-python = ">=3.8"
 dynamic = [
     "version",
     "authors",
@@ -8,7 +9,6 @@ dynamic = [
     "scripts",
     "dependencies",
     "optional-dependencies",
-    "requires-python",
     "readme"  # For long_description
 ]
 
