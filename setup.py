@@ -2,16 +2,16 @@ import re
 
 import setuptools
 
-with open("README.md", "r") as fh:
+with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
-with open("./clarifai/__init__.py") as f:
+with open("./clarifai/__init__.py", encoding="utf-8") as f:
     content = f.read()
 _search_version = re.search(r'__version__\s*=\s*[\'"]([^\'"]*)[\'"]', content)
 assert _search_version
 version = _search_version.group(1)
 
-with open("requirements.txt", "r") as fh:
+with open("requirements.txt", "r", encoding="utf-8") as fh:
     install_requires = fh.read().split('\n')
 
 if install_requires and install_requires[-1] == '':
@@ -47,7 +47,7 @@ setuptools.setup(
     python_requires='>=3.8',
     install_requires=install_requires,
     extras_require={
-        'all': ["pycocotools==2.0.6"],
+        'all': ["pycocotools>=2.0.7"],
     },
     entry_points={
         "console_scripts": [
