@@ -151,13 +151,8 @@ class ClarifaiAuthHelper:
         try:
             if st.query_params:
                 auth.add_streamlit_query_params(st.query_params)
-            elif "query_params" in st.session_state:
-                auth.add_streamlit_query_params(st.session_state.query_params)
             else:
-                st.error(
-                    "Either initialize the 'ClarifaiAuthHelper' in the main app.py file or add 'query_params' to the session state in the main app.py file."
-                )
-                st.stop()
+                auth.add_streamlit_query_params(st.session_state)
         except Exception as e:
             st.error(e)
             st.stop()
@@ -209,8 +204,7 @@ class ClarifaiAuthHelper:
                 base: as 'base' in query_params.
 
         Args:
-          query_params: the streamlit.experimental_get_query_params() response or an empty dict to fall
-        back to using env vars.
+          query_params: the streamlit.query_params response or streamlit.session_state.
         """
 
         if query_params == "":  # empty response from streamlit
