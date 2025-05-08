@@ -149,7 +149,15 @@ class ClarifaiAuthHelper:
 
         # Then add in the query params.
         try:
-            auth.add_streamlit_query_params(dict(st.query_params))
+            if st.query_params:
+                auth.add_streamlit_query_params(st.query_params)
+            elif "query_params" in st.session_state:
+                auth.add_streamlit_query_params(st.session_state.query_params)
+            else:
+                st.error(
+                    "Either initialize the 'ClarifaiAuthHelper' in the main app.py file or add 'query_params' to the session state in the main app.py file."
+                )
+                st.stop()
         except Exception as e:
             st.error(e)
             st.stop()
@@ -204,37 +212,23 @@ class ClarifaiAuthHelper:
           query_params: the streamlit.experimental_get_query_params() response or an empty dict to fall
         back to using env vars.
         """
-        error_description = """
-Please check the following required query params are in the url:
- - 'user_id': the user ID accessing the module.
- - 'app_id': the app the module is being accessed from.
- - 'token' or 'pat': to authenticate the calling user with a session token or personal access token.
-
-Additionally, these optional params are supported:
- - 'base': the base domain for the API such as https://api.clarifai.com
- - 'ui': the overall UI domain for redirects such as https://clarifai.com
-"""
 
         if query_params == "":  # empty response from streamlit
             query_params = {}
-        for k in ["user_id", "app_id", "token", "pat"]:
-            if k in query_params and len(query_params[k]) != 1:
-                err_str = "There should only be 1 query param value for key '%s'" % k
-                raise Exception(err_str + error_description)
         if "user_id" in query_params:
-            self.user_id = query_params["user_id"][0]
+            self.user_id = query_params["user_id"]
         if "app_id" in query_params:
-            self.app_id = query_params["app_id"][0]
+            self.app_id = query_params["app_id"]
         if "token" in query_params:
-            self._token = query_params["token"][0]
+            self._token = query_params["token"]
         if "pat" in query_params:
-            self._pat = query_params["pat"][0]
+            self._pat = query_params["pat"]
         if "base" in query_params:
-            self.set_base(query_params["base"][0])
+            self.set_base(query_params["base"])
         if "ui" in query_params:
-            self.set_ui(query_params["ui"][0])
+            self.set_ui(query_params["ui"])
         if "root_certificates_path" in query_params:
-            self._root_certificates_path = query_params["root_certificates_path"][0]
+            self._root_certificates_path = query_params["root_certificates_path"]
 
     @classmethod
     def from_env(cls, validate: bool = True) -> "ClarifaiAuthHelper":
