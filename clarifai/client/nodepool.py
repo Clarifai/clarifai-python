@@ -326,7 +326,9 @@ class Nodepool(Lister, BaseClient):
             "\nRunner created\n%s with id: %s", response.status, response.runners[0].id
         )
 
-        dict_response = MessageToDict(response.runners[0], preserving_proto_field_name=True)
+        dict_response = MessageToDict(
+            response.runners[0], preserving_proto_field_name=True, use_integers_for_enums=True
+        )
         kwargs = self.process_response_keys(dict_response, 'runner')
         return Runner.from_auth_helper(auth=self.auth_helper, **kwargs)
 
