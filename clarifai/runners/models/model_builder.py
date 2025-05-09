@@ -284,23 +284,22 @@ class ModelBuilder:
     if self.config.get("checkpoints"):
       loader_type, _, hf_token, _, _, _ = self._validate_config_checkpoints()
 
-      if loader_type == "huggingface" and hf_token:
-        is_valid_token = HuggingFaceLoader.validate_hftoken(hf_token)
-        if not is_valid_token:
+      if loader_type == "huggingface":
+        is_valid_token = hf_token and HuggingFaceLoader.validate_hftoken(hf_token)
+        if not is_valid_token and hf_token:
           logger.info(
               "Continuing without Hugging Face token for validating config in model builder.")
-        if is_valid_token:
-          is_repo_access_valid = HuggingFaceLoader.validate_hf_repo_access(
-              repo_id=(self.config.get("checkpoints").get("repo_id")), token=hf_token)
-        else:
-          is_repo_access_valid = HuggingFaceLoader.validate_hf_repo_access(
-              self.config.get("checkpoints").get("repo_id"))
 
-        if not is_repo_access_valid:
+        has_repo_access = HuggingFaceLoader.validate_hf_repo_access(
+            repo_id=self.config.get("checkpoints", {}).get("repo_id"),
+            token=hf_token if is_valid_token else None,
+        )
+
+        if not has_repo_access:
           logger.error(
               f"Invalid Hugging Face repo access for repo {self.config.get('checkpoints').get('repo_id')}. Please check your repo and try again."
           )
-          sys.exit("Invalid Hugging Face repo access, exiting.")
+          sys.exit("Token does not have access to HuggingFace repo , exiting.")
 
     num_threads = self.config.get("num_threads")
     if num_threads or num_threads == 0:
