@@ -5,7 +5,7 @@ from typing import List
 
 from clarifai_grpc.grpc.api import resources_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeEnumOption, ModelTypeRangeInfo
-from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeField as InputFieldProto
+from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeField as ParamProto
 from PIL import Image
 
 from clarifai.runners.utils.data_types import MessageData
@@ -59,7 +59,7 @@ def is_openai_chat_format(messages):
     return True
 
 
-class InputField(MessageData):
+class Param(MessageData):
     """A field that can be used to store input data."""
 
     def __init__(
@@ -91,7 +91,7 @@ class InputField(MessageData):
         if self.choices is not None:
             attrs.append(f"choices={self.choices!r}")
         attrs.append(f"is_param={self.is_param!r}")
-        return f"InputField({', '.join(attrs)})"
+        return f"Param({', '.join(attrs)})"
 
     # All *explicit* conversions
     def __int__(self):
@@ -243,9 +243,9 @@ class InputField(MessageData):
             return self
         return self.default
 
-    def to_proto(self, proto=None) -> InputFieldProto:
+    def to_proto(self, proto=None) -> ParamProto:
         if proto is None:
-            proto = InputFieldProto()
+            proto = ParamProto()
         if self.description is not None:
             proto.description = self.description
 
@@ -323,7 +323,7 @@ class InputField(MessageData):
             import json
 
             if proto is None:
-                proto = InputFieldProto()
+                proto = ParamProto()
             if default is not None:
                 proto.default = json.dumps(default)
             return proto
