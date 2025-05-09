@@ -161,10 +161,10 @@ def build_variable_signature(name, annotation, default=inspect.Parameter.empty, 
     if not is_output:
         sig.required = default is inspect.Parameter.empty
         if not sig.required:
-            if isinstance(default, data_utils.InputField):
+            if isinstance(default, data_utils.Param):
                 sig = default.to_proto(sig)
             else:
-                sig = data_utils.InputField.set_default(sig, default)
+                sig = data_utils.Param.set_default(sig, default)
 
     _fill_signature_type(sig, tp)
 

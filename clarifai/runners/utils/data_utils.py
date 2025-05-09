@@ -1,9 +1,11 @@
+import math
+import operator
 from io import BytesIO
 from typing import List
 
 from clarifai_grpc.grpc.api import resources_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeEnumOption, ModelTypeRangeInfo
-from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeField as InputFieldProto
+from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeField as ParamProto
 from PIL import Image
 
 from clarifai.runners.utils.data_types import MessageData
@@ -57,7 +59,7 @@ def is_openai_chat_format(messages):
     return True
 
 
-class InputField(MessageData):
+class Param(MessageData):
     """A field that can be used to store input data."""
 
     def __init__(
@@ -67,14 +69,14 @@ class InputField(MessageData):
         min_value=None,
         max_value=None,
         choices=None,
-        #  is_param=True
+        is_param=True,
     ):
         self.default = default
         self.description = description
         self.min_value = min_value
         self.max_value = max_value
         self.choices = choices
-        # self.is_param = is_param
+        self.is_param = is_param
 
     def __repr__(self) -> str:
         attrs = []
@@ -88,12 +90,162 @@ class InputField(MessageData):
             attrs.append(f"max_value={self.max_value!r}")
         if self.choices is not None:
             attrs.append(f"choices={self.choices!r}")
-        # attrs.append(f"is_param={self.is_param!r}")
-        return f"InputField({', '.join(attrs)})"
+        attrs.append(f"is_param={self.is_param!r}")
+        return f"Param({', '.join(attrs)})"
 
-    def to_proto(self, proto=None) -> InputFieldProto:
+    # All *explicit* conversions
+    def __int__(self):
+        return int(self.default)
+
+    def __float__(self):
+        return float(self.default)
+
+    def __str__(self):
+        return str(self.default)
+
+    def __bool__(self):
+        return bool(self.default)
+
+    def __index__(self):
+        return int(self.default)  # for slicing
+
+    # sequence / mapping protocol delegation
+    def __len__(self):
+        return len(self.default)
+
+    def __iter__(self):
+        return iter(self.default)
+
+    def __reversed__(self):
+        return reversed(self.default)
+
+    def __contains__(self, item):
+        return item in self.default
+
+    def __getitem__(self, key):
+        return self.default[key]
+
+    def __setitem__(self, k, v):
+        self.default[k] = v
+
+    def __delitem__(self, k):
+        del self.default[k]
+
+    def __hash__(self):
+        return hash(self.default)
+
+    def __call__(self, *args, **kwargs):
+        return self.default(*args, **kwargs)
+
+    # Comparison operators
+    def __eq__(self, other):
+        return self.default == other
+
+    def __lt__(self, other):
+        return self.default < other
+
+    def __le__(self, other):
+        return self.default <= other
+
+    def __gt__(self, other):
+        return self.default > other
+
+    def __ge__(self, other):
+        return self.default >= other
+
+    # Arithmetic operators – # arithmetic & bitwise operators – auto-generated
+    _arith_ops = {
+        "__add__": operator.add,
+        "__sub__": operator.sub,
+        "__mul__": operator.mul,
+        "__truediv__": operator.truediv,
+        "__floordiv__": operator.floordiv,
+        "__mod__": operator.mod,
+        "__pow__": operator.pow,
+        "__and__": operator.and_,
+        "__or__": operator.or_,
+        "__xor__": operator.xor,
+        "__lshift__": operator.lshift,
+        "__rshift__": operator.rshift,
+    }
+
+    # Create both left- and right-hand versions of each operator
+    for _name, _op in _arith_ops.items():
+
+        def _make(op):
+            def _f(self, other, *, _op=op):  # default arg binds op
+                return _op(self.default, other)
+
+            return _f
+
+        locals()[_name] = _make(_op)
+        locals()["__r" + _name[2:]] = _make(lambda x, y, _op=_op: _op(y, x))
+    del _name, _op, _make
+
+    # In-place operators
+    _inplace_ops = {
+        "__iadd__": operator.iadd,
+        "__isub__": operator.isub,
+        "__imul__": operator.imul,
+        "__itruediv__": operator.itruediv,
+        "__ifloordiv__": operator.ifloordiv,
+        "__imod__": operator.imod,
+        "__ipow__": operator.ipow,
+        "__ilshift__": operator.ilshift,
+        "__irshift__": operator.irshift,
+        "__iand__": operator.iand,
+        "__ixor__": operator.ixor,
+        "__ior__": operator.ior,
+    }
+
+    for _name, _op in _inplace_ops.items():
+
+        def _make_inplace(op):
+            def _f(self, other, *, _op=op):
+                self.default = _op(self.default, other)
+                return self
+
+            return _f
+
+        locals()[_name] = _make_inplace(_op)
+    del _name, _op, _make_inplace
+
+    # Formatting and other conversions
+    def __format__(self, format_spec):
+        return format(self.default, format_spec)
+
+    def __bytes__(self):
+        return bytes(self.default)
+
+    def __complex__(self):
+        return complex(self.default)
+
+    def __round__(self, ndigits=None):
+        return round(self.default, ndigits)
+
+    def __trunc__(self):
+        return math.trunc(self.default)
+
+    def __floor__(self):
+        return math.floor(self.default)
+
+    def __ceil__(self):
+        return math.ceil(self.default)
+
+    # Attribute access delegation – anything we did *not* define above
+    # will automatically be looked up on the wrapped default value.
+    # Attribute access delegation
+    def __getattr__(self, item):
+        return getattr(self.default, item)
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+        return self.default
+
+    def to_proto(self, proto=None) -> ParamProto:
         if proto is None:
-            proto = InputFieldProto()
+            proto = ParamProto()
         if self.description is not None:
             proto.description = self.description
 
@@ -111,7 +263,7 @@ class InputField(MessageData):
             if self.max_value is not None:
                 range_info.max = float(self.max_value)
             proto.model_type_range_info.CopyFrom(range_info)
-        # proto.is_param = self.is_param
+        proto.is_param = self.is_param
 
         if self.default is not None:
             proto = self.set_default(proto, self.default)
@@ -162,7 +314,7 @@ class InputField(MessageData):
             min_value=min_value,
             max_value=max_value,
             choices=choices,
-            # is_param=proto.is_param
+            is_param=proto.is_param,
         )
 
     @classmethod
@@ -171,7 +323,7 @@ class InputField(MessageData):
             import json
 
             if proto is None:
-                proto = InputFieldProto()
+                proto = ParamProto()
             if default is not None:
                 proto.default = json.dumps(default)
             return proto
