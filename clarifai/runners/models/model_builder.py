@@ -20,9 +20,13 @@ from rich.markup import escape
 from clarifai.client.base import BaseClient
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.const import (
+    AMD_PYTHON_BASE_IMAGE,
+    AMD_VLLM_BASE_IMAGE,
     AVAILABLE_PYTHON_IMAGES,
     AVAILABLE_TORCH_IMAGES,
     CONCEPTS_REQUIRED_MODEL_TYPE,
+    DEFAULT_AMD_GPU_VERSION,
+    DEFAULT_AMD_TORCH_VERSION,
     DEFAULT_DOWNLOAD_CHECKPOINT_WHEN,
     DEFAULT_PYTHON_VERSION,
     DEFAULT_RUNTIME_DOWNLOAD_PATH,
@@ -532,6 +536,9 @@ class ModelBuilder:
                 dependencies_version[dependency] = version if version else None
         return dependencies_version
 
+    def _is_amd(self):
+        pass
+
     def create_dockerfile(self):
         dockerfile_template = os.path.join(
             os.path.dirname(os.path.dirname(__file__)),
@@ -562,30 +569,64 @@ class ModelBuilder:
             )
             python_version = DEFAULT_PYTHON_VERSION
 
-        # This is always the final image used for runtime.
-        final_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
-        downloader_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
-
         # Parse the requirements.txt file to determine the base image
         dependencies = self._parse_requirements()
-        if 'torch' in dependencies and dependencies['torch']:
-            torch_version = dependencies['torch']
 
-            # Sort in reverse so that newer cuda versions come first and are preferred.
-            for image in sorted(AVAILABLE_TORCH_IMAGES, reverse=True):
-                if torch_version in image and f'py{python_version}' in image:
-                    # like cu124, rocm6.3, etc.
-                    gpu_version = image.split('-')[-1]
-                    final_image = TORCH_BASE_IMAGE.format(
-                        torch_version=torch_version,
-                        python_version=python_version,
-                        gpu_version=gpu_version,
+        is_amd = self._is_amd()
+        if is_amd:
+            final_image = AMD_PYTHON_BASE_IMAGE.format(python_version=python_version)
+            downloader_image = AMD_PYTHON_BASE_IMAGE.format(python_version=python_version)
+            if 'vllm' in dependencies:
+                if python_version != DEFAULT_PYTHON_VERSION:
+                    raise Exception(
+                        f"VLLM is not supported with Python version {python_version}, please use Python version {DEFAULT_PYTHON_VERSION} in your config.yaml"
                     )
+                final_image = AMD_VLLM_BASE_IMAGE.format(python_version=DEFAULT_PYTHON_VERSION)
+                logger.info("Using vLLM base image to build the Docker image")
+            elif 'torch' in dependencies:
+                torch_version = dependencies['torch']
+                if not torch_version:
                     logger.info(
-                        f"Using Torch version {torch_version} base image to build the Docker image"
+                        f"torch version not found in requirements.txt, using the default version {DEFAULT_AMD_TORCH_VERSION}"
                     )
-                    break
-
+                    torch_version = DEFAULT_AMD_TORCH_VERSION
+                if torch_version not in [DEFAULT_AMD_TORCH_VERSION]:
+                    raise Exception(
+                        f"torch version {torch_version} not supported, please use one of the following versions: {DEFAULT_AMD_TORCH_VERSION} in your requirements.txt"
+                    )
+                if python_version != DEFAULT_PYTHON_VERSION:
+                    raise Exception(
+                        f"torch is not supported with Python version {python_version}, please use Python version {DEFAULT_PYTHON_VERSION} in your config.yaml"
+                    )
+                python_version = DEFAULT_PYTHON_VERSION
+                gpu_version = DEFAULT_AMD_GPU_VERSION
+                final_image = TORCH_BASE_IMAGE.format(
+                    torch_version=torch_version,
+                    python_version=python_version,
+                    gpu_version=gpu_version,
+                )
+                logger.info(
+                    f"Using Torch version {torch_version} base image to build the Docker image"
+                )
+        else:
+            final_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
+            downloader_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
+            if 'torch' in dependencies and dependencies['torch']:
+                torch_version = dependencies['torch']
+                # Sort in reverse so that newer cuda versions come first and are preferred.
+                for image in sorted(AVAILABLE_TORCH_IMAGES, reverse=True):
+                    if torch_version in image and f'py{python_version}' in image:
+                        # like cu124, rocm6.3, etc.
+                        gpu_version = image.split('-')[-1]
+                        final_image = TORCH_BASE_IMAGE.format(
+                            torch_version=torch_version,
+                            python_version=python_version,
+                            gpu_version=gpu_version,
+                        )
+                        logger.info(
+                            f"Using Torch version {torch_version} base image to build the Docker image"
+                        )
+                        break
         if 'clarifai' not in dependencies:
             raise Exception(
                 f"clarifai not found in requirements.txt, please add clarifai to the requirements.txt file with a fixed version. Current version is clarifai=={CLIENT_VERSION}"
