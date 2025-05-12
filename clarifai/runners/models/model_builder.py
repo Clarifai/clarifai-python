@@ -540,13 +540,25 @@ class ModelBuilder:
         """
         Check if the model is AMD or not.
         """
+        is_amd_gpu = False
+        is_nvidia_gpu = False
         if "inference_compute_info" in self.config:
             inference_compute_info = self.config.get('inference_compute_info')
             if 'accelerator_type' in inference_compute_info:
                 for accelerator in inference_compute_info['accelerator_type']:
                     if 'amd' in accelerator.lower():
-                        return True
-        return False
+                        is_amd_gpu = True
+                    elif 'nvidia' in accelerator.lower():
+                        is_nvidia_gpu = True
+        if is_amd_gpu and is_nvidia_gpu:
+            raise Exception(
+                "Both AMD and NVIDIA GPUs are specified in the config file, please use only one type of GPU."
+            )
+        if is_amd_gpu:
+            logger.info("Using AMD base image to build the Docker image and upload the model")
+        elif is_nvidia_gpu:
+            logger.info("Using NVIDIA base image to build the Docker image and upload the model")
+        return is_amd_gpu
 
     def create_dockerfile(self):
         dockerfile_template = os.path.join(
@@ -581,8 +593,8 @@ class ModelBuilder:
         # Parse the requirements.txt file to determine the base image
         dependencies = self._parse_requirements()
 
-        is_amd = self._is_amd()
-        if is_amd:
+        is_amd_gpu = self._is_amd()
+        if is_amd_gpu:
             final_image = AMD_PYTHON_BASE_IMAGE.format(python_version=python_version)
             downloader_image = AMD_PYTHON_BASE_IMAGE.format(python_version=python_version)
             if 'vllm' in dependencies:
