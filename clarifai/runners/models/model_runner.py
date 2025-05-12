@@ -5,6 +5,8 @@ from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from clarifai_protocol import BaseRunner
 from clarifai_protocol.utils.health import HealthProbeRequestHandler
 
+from clarifai.utils.logging import logger
+
 from ..utils.url_fetcher import ensure_urls_downloaded
 from .model_class import ModelClass
 
@@ -84,6 +86,9 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         ensure_urls_downloaded(request)
 
         resp = self.model.predict_wrapper(request)
+        logger.debug(
+            f'Request_id: {request.status.req_id}, ',
+        )
         if resp.status.code != status_code_pb2.SUCCESS:
             return service_pb2.RunnerItemOutput(multi_output_response=resp)
         successes = [o.status.code == status_code_pb2.SUCCESS for o in resp.outputs]
@@ -117,6 +122,9 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         ensure_urls_downloaded(request)
 
         for resp in self.model.generate_wrapper(request):
+            logger.debug(
+                f'Request_id: {request.status.req_id}, ',
+            )
             if resp.status.code != status_code_pb2.SUCCESS:
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
                 continue
@@ -151,6 +159,9 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
     ) -> Iterator[service_pb2.RunnerItemOutput]:
         # Call the generate() method the underlying model implements.
         for resp in self.model.stream_wrapper(pmo_iterator(runner_item_iterator)):
+            logger.debug(
+                f'Request_id: {resp.status.req_id}, ',
+            )
             if resp.status.code != status_code_pb2.SUCCESS:
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
                 continue
