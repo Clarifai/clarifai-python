@@ -11,18 +11,20 @@ TORCH_BASE_IMAGE = registry + '/torch:{torch_version}-py{python_version}-{gpu_ve
 
 AMD_PYTHON_BASE_IMAGE = registry + '/amd-python-base:{python_version}-' + AMD_GIT_SHA
 AMD_TORCH_BASE_IMAGE = (
-    registry + '/torch:{torch_version}-py{python_version}-{gpu_version}-' + AMD_GIT_SHA
+    registry + '/amd-torch:{torch_version}-py{python_version}-{gpu_version}-' + AMD_GIT_SHA
 )
-AMD_VLLM_BASE_IMAGE = registry + '/amd-vllm-base:{python_version}-' + AMD_GIT_SHA
+AMD_VLLM_BASE_IMAGE = (
+    registry + '/amd-vllm:{torch_version}-py{python_version}-{gpu_version}-' + AMD_GIT_SHA
+)
 
 # List of available python base images
 AVAILABLE_PYTHON_IMAGES = ['3.11', '3.12']
 
 DEFAULT_PYTHON_VERSION = 3.12
 
-DEFAULT_AMD_TORCH_VERSION = '2.7.0'
+DEFAULT_AMD_TORCH_VERSION = '2.8.0.dev20250511+rocm6.4'
 
-DEFAULT_AMD_GPU_VERSION = 'rocm6.3'
+DEFAULT_AMD_GPU_VERSION = 'rocm6.4'
 
 # By default we download at runtime.
 DEFAULT_DOWNLOAD_CHECKPOINT_WHEN = "runtime"

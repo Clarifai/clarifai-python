@@ -590,10 +590,35 @@ class ModelBuilder:
                     raise Exception(
                         f"VLLM is not supported with Python version {python_version}, please use Python version {DEFAULT_PYTHON_VERSION} in your config.yaml"
                     )
-                final_image = AMD_VLLM_BASE_IMAGE.format(python_version=DEFAULT_PYTHON_VERSION)
+                torch_version = dependencies.get('torch', None)
+                if 'torch' in dependencies:
+                    if python_version != DEFAULT_PYTHON_VERSION:
+                        raise Exception(
+                            f"torch is not supported with Python version {python_version}, please use Python version {DEFAULT_PYTHON_VERSION} in your config.yaml"
+                        )
+                    if not torch_version:
+                        logger.info(
+                            f"torch version not found in requirements.txt, using the default version {DEFAULT_AMD_TORCH_VERSION}"
+                        )
+                        torch_version = DEFAULT_AMD_TORCH_VERSION
+                    if torch_version not in [DEFAULT_AMD_TORCH_VERSION]:
+                        raise Exception(
+                            f"torch version {torch_version} not supported, please use one of the following versions: {DEFAULT_AMD_TORCH_VERSION} in your requirements.txt"
+                        )
+                python_version = DEFAULT_PYTHON_VERSION
+                gpu_version = DEFAULT_AMD_GPU_VERSION
+                final_image = AMD_VLLM_BASE_IMAGE.format(
+                    torch_version=torch_version,
+                    python_version=python_version,
+                    gpu_version=gpu_version,
+                )
                 logger.info("Using vLLM base image to build the Docker image")
             elif 'torch' in dependencies:
                 torch_version = dependencies['torch']
+                if python_version != DEFAULT_PYTHON_VERSION:
+                    raise Exception(
+                        f"torch is not supported with Python version {python_version}, please use Python version {DEFAULT_PYTHON_VERSION} in your config.yaml"
+                    )
                 if not torch_version:
                     logger.info(
                         f"torch version not found in requirements.txt, using the default version {DEFAULT_AMD_TORCH_VERSION}"
@@ -602,10 +627,6 @@ class ModelBuilder:
                 if torch_version not in [DEFAULT_AMD_TORCH_VERSION]:
                     raise Exception(
                         f"torch version {torch_version} not supported, please use one of the following versions: {DEFAULT_AMD_TORCH_VERSION} in your requirements.txt"
-                    )
-                if python_version != DEFAULT_PYTHON_VERSION:
-                    raise Exception(
-                        f"torch is not supported with Python version {python_version}, please use Python version {DEFAULT_PYTHON_VERSION} in your config.yaml"
                     )
                 python_version = DEFAULT_PYTHON_VERSION
                 gpu_version = DEFAULT_AMD_GPU_VERSION
