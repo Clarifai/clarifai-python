@@ -1,3 +1,8 @@
+## [[11.4.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.1) - [PyPI](https://pypi.org/project/clarifai/11.4.1/) - 2025-05-09
+
+### Changed
+- Param for Inference params in model.py and FE [(#567)](https://github.com/Clarifai/clarifai-python/pull/567)
+
 ## [[11.4.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.0) - [PyPI](https://pypi.org/project/clarifai/11.4.0/) - 2025-05-08
 
 ### Changed
