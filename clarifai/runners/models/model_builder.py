@@ -537,7 +537,16 @@ class ModelBuilder:
         return dependencies_version
 
     def _is_amd(self):
-        pass
+        """
+        Check if the model is AMD or not.
+        """
+        if "inference_compute_info" in self.config:
+            inference_compute_info = self.config.get('inference_compute_info')
+            if 'accelerator_type' in inference_compute_info:
+                for accelerator in inference_compute_info['accelerator_type']:
+                    if 'amd' in accelerator.lower():
+                        return True
+        return False
 
     def create_dockerfile(self):
         dockerfile_template = os.path.join(
