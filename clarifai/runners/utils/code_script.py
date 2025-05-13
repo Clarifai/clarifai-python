@@ -35,19 +35,12 @@ from clarifai.runners.utils import data_types
         model_section = """
 model = Model.from_current_context()"""
     else:
-        model_section = """
- model = Model("https://clarifai.com/{user_id}/{app_id}/{model_id}",
+        model_section = f"""
+model = Model("https://clarifai.com/{user_id}/{app_id}/{model_id}",
                deployment_id = {deployment_id}, # Only needed for dedicated deployed models
                {base_url_str}
  )
 """
-        model_section = _CLIENT_TEMPLATE.format(
-            user_id=user_id,
-            app_id=app_id,
-            model_id=model_id,
-            deployment_id=deployment_id,
-            base_url_str=base_url_str,
-        )
 
     # Generate client template
     client_template = _CLIENT_TEMPLATE.format(

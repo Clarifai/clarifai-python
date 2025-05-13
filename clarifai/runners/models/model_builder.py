@@ -849,7 +849,23 @@ class ModelBuilder:
         logger.info(f"Created Model Version ID: {self.model_version_id}")
         logger.info(f"Full url to that version is: {self.model_url}")
         try:
-            self.monitor_model_build()
+            is_uploaded = self.monitor_model_build()
+            if is_uploaded:
+                from clarifai.runners.utils import code_script
+
+                method_signatures = self.get_method_signatures()
+                snippet = code_script.generate_client_script(
+                    method_signatures,
+                    user_id=self.client.user_app_id.user_id,
+                    app_id=self.client.user_app_id.app_id,
+                    model_id=self.model_proto.id,
+                )
+                logger.info("""\n
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+# Here is a code snippet to call this model:
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+                """)
+                logger.info(snippet)
         finally:
             if os.path.exists(self.tar_file):
                 logger.debug(f"Cleaning up upload file: {self.tar_file}")
