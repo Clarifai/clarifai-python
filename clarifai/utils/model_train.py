@@ -7,156 +7,175 @@ from google.protobuf.struct_pb2 import Struct
 
 
 def response_to_templates(response: MultiModelTypeResponse, model_type_id: str) -> List[str]:
-  """Converts the response from the API to a list of templates for the given model type id."""
-  dict_response = MessageToDict(response)
-  templates = []
-  for model_type in dict_response['modelTypes']:
-    if model_type['id'] == model_type_id:
-      for modeltypefield in model_type['modelTypeFields']:
-        if modeltypefield['path'].split('.')[-1] == "template":
-          templates = [template['id'] for template in modeltypefield['modelTypeEnumOptions']]
-  return templates
+    """Converts the response from the API to a list of templates for the given model type id."""
+    dict_response = MessageToDict(response)
+    templates = []
+    for model_type in dict_response['modelTypes']:
+        if model_type['id'] == model_type_id:
+            for modeltypefield in model_type['modelTypeFields']:
+                if modeltypefield['path'].split('.')[-1] == "template":
+                    templates = [
+                        template['id'] for template in modeltypefield['modelTypeEnumOptions']
+                    ]
+    return templates
 
 
-def response_to_model_params(response: MultiModelTypeResponse,
-                             model_type_id: str,
-                             template: str = None) -> Dict[str, Any]:
-  """Converts the response from the API to a dictionary of model params for the given model type id."""
-  dict_response = MessageToDict(response)
-  params = {}
-  if model_type_id != "clusterer":
-    params["dataset_id"] = ""
-    params["dataset_version_id"] = ""
-  if model_type_id not in ["clusterer", "text-to-text"]:
-    params["concepts"] = []
-  params["train_params"] = dict()
+def response_to_model_params(
+    response: MultiModelTypeResponse, model_type_id: str, template: str = None
+) -> Dict[str, Any]:
+    """Converts the response from the API to a dictionary of model params for the given model type id."""
+    dict_response = MessageToDict(response)
+    params = {}
+    if model_type_id != "clusterer":
+        params["dataset_id"] = ""
+        params["dataset_version_id"] = ""
+    if model_type_id not in ["clusterer", "text-to-text"]:
+        params["concepts"] = []
+    params["train_params"] = dict()
 
-  for model_type in dict_response['modelTypes']:
-    if model_type['id'] == model_type_id:
-      #iterate through the model type fields
-      for modeltypefield in model_type['modelTypeFields']:
-        _path = modeltypefield['path'].split('.')
-        #removing the fields which are not required
-        if (_path[0] in ["'eval_info'"]) or (_path[1] in ["dataset", "data"]) or (_path[-1] in [
-            "dataset_id", "dataset_version_id"
-        ]) or ("internalOnly" in modeltypefield.keys()):
-          continue
-        #checking the template model type fields
-        if _path[-1] != "template":
-          if _path[0] == 'train_info':
-            try:
-              params["train_params"][_path[-1]] = modeltypefield['defaultValue']
-            except Exception:
-              params["train_params"][_path[-1]] = None
-          if _path[0] == 'output_info':
-            params["inference_params"] = dict()
-            try:
-              params["inference_params"][_path[-1]] = modeltypefield['defaultValue']
-            except Exception:
-              params["inference_params"][_path[-1]] = None
-          if _path[0] == 'output_info' and _path[1] == 'output_config':
-            params["concepts_mutually_exclusive"] = (modeltypefield['defaultValue'])
-        else:
-          if 'modelTypeEnumOptions' in modeltypefield.keys():
-            #check given template is valid
-            all_templates = [template['id'] for template in modeltypefield['modelTypeEnumOptions']]
-            if template not in all_templates:
-              raise ValueError(f"Invalid template {template} for model type {model_type_id}. "
-                               f"Valid templates are {all_templates}")
-            for modeltypeenum in modeltypefield['modelTypeEnumOptions']:
-              #finding the given template
-              if modeltypeenum['id'] == template:
-                params['train_params']["template"] = modeltypeenum['id']
-                #iterate through the template fields
-                for modeltypeenumfield in modeltypeenum['modelTypeFields']:
-                  if "internalOnly" in modeltypeenumfield.keys():
+    for model_type in dict_response['modelTypes']:
+        if model_type['id'] == model_type_id:
+            # iterate through the model type fields
+            for modeltypefield in model_type['modelTypeFields']:
+                _path = modeltypefield['path'].split('.')
+                # removing the fields which are not required
+                if (
+                    (_path[0] in ["'eval_info'"])
+                    or (_path[1] in ["dataset", "data"])
+                    or (_path[-1] in ["dataset_id", "dataset_version_id"])
+                    or ("internalOnly" in modeltypefield.keys())
+                ):
                     continue
-                  try:
-                    params["train_params"][modeltypeenumfield['path'].split('.')[
-                        -1]] = modeltypeenumfield['defaultValue']
-                  except Exception:
-                    params["train_params"][modeltypeenumfield['path'].split('.')[-1]] = None
-  #custom config
-  if "custom_config" in params['train_params'].keys():
-    # Write the content to the file
-    file_path = params['train_params']['template'] + ".py"
-    with open(file_path, "w") as script_file:
-      script_file.write(params['train_params']['custom_config'])
-    params['train_params']['custom_config'] = file_path
+                # checking the template model type fields
+                if _path[-1] != "template":
+                    if _path[0] == 'train_info':
+                        try:
+                            params["train_params"][_path[-1]] = modeltypefield['defaultValue']
+                        except Exception:
+                            params["train_params"][_path[-1]] = None
+                    if _path[0] == 'output_info':
+                        params["inference_params"] = dict()
+                        try:
+                            params["inference_params"][_path[-1]] = modeltypefield['defaultValue']
+                        except Exception:
+                            params["inference_params"][_path[-1]] = None
+                    if _path[0] == 'output_info' and _path[1] == 'output_config':
+                        params["concepts_mutually_exclusive"] = modeltypefield['defaultValue']
+                elif 'modelTypeEnumOptions' in modeltypefield.keys():
+                    # check given template is valid
+                    all_templates = [
+                        template['id'] for template in modeltypefield['modelTypeEnumOptions']
+                    ]
+                    if template not in all_templates:
+                        raise ValueError(
+                            f"Invalid template {template} for model type {model_type_id}. "
+                            f"Valid templates are {all_templates}"
+                        )
+                    for modeltypeenum in modeltypefield['modelTypeEnumOptions']:
+                        # finding the given template
+                        if modeltypeenum['id'] == template:
+                            params['train_params']["template"] = modeltypeenum['id']
+                            # iterate through the template fields
+                            for modeltypeenumfield in modeltypeenum['modelTypeFields']:
+                                if "internalOnly" in modeltypeenumfield.keys():
+                                    continue
+                                try:
+                                    params["train_params"][
+                                        modeltypeenumfield['path'].split('.')[-1]
+                                    ] = modeltypeenumfield['defaultValue']
+                                except Exception:
+                                    params["train_params"][
+                                        modeltypeenumfield['path'].split('.')[-1]
+                                    ] = None
+    # custom config
+    if "custom_config" in params['train_params'].keys():
+        # Write the content to the file
+        file_path = params['train_params']['template'] + ".py"
+        with open(file_path, "w") as script_file:
+            script_file.write(params['train_params']['custom_config'])
+        params['train_params']['custom_config'] = file_path
 
-  return params
+    return params
 
 
 def params_parser(params_dict: dict, concepts: List = None) -> Dict[str, Any]:
-  """Converts the params dictionary to a dictionary of model specific params for the given model"""
-  #dict parser
-  train_dict = {}
-  train_dict["train_info"] = dict()
-  train_dict["output_info"] = dict()
+    """Converts the params dictionary to a dictionary of model specific params for the given model"""
+    # dict parser
+    train_dict = {}
+    train_dict["train_info"] = dict()
+    train_dict["output_info"] = dict()
 
-  train_dict["train_info"]['params'] = Struct()
-  if 'custom_config' in params_dict['train_params'].keys():
-    # Open and read the Python file
-    with open(params_dict['train_params']['custom_config'], 'r') as python_file:
-      custom_config = python_file.read()
-    params_dict['train_params']['custom_config'] = custom_config
+    train_dict["train_info"]['params'] = Struct()
+    if 'custom_config' in params_dict['train_params'].keys():
+        # Open and read the Python file
+        with open(params_dict['train_params']['custom_config'], 'r') as python_file:
+            custom_config = python_file.read()
+        params_dict['train_params']['custom_config'] = custom_config
 
-  train_dict["train_info"]['params'].update(params_dict["train_params"])
-  if 'dataset_id' in params_dict.keys():
-    train_dict["train_info"]['params']['dataset_id'] = params_dict['dataset_id']
-    train_dict["train_info"]['params']['dataset_version_id'] = params_dict['dataset_version_id']
-  train_dict['train_info'] = resources_pb2.TrainInfo(**train_dict['train_info'])
+    train_dict["train_info"]['params'].update(params_dict["train_params"])
+    if 'dataset_id' in params_dict.keys():
+        train_dict["train_info"]['params']['dataset_id'] = params_dict['dataset_id']
+        train_dict["train_info"]['params']['dataset_version_id'] = params_dict[
+            'dataset_version_id'
+        ]
+    train_dict['train_info'] = resources_pb2.TrainInfo(**train_dict['train_info'])
 
-  if 'concepts' in params_dict.keys():
-    assert set(params_dict["concepts"]).issubset(
-        concepts), "Invalid concept IDs. Available concepts in the app are {}".format(concepts)
-    train_dict["output_info"]['data'] = resources_pb2.Data(
-        concepts=[resources_pb2.Concept(id=concept_id) for concept_id in params_dict["concepts"]])
-  if 'inference_params' in params_dict.keys():
-    train_dict["output_info"]['params'] = Struct()
-    train_dict['output_info']['params'].update(params_dict["inference_params"])
-  if 'concepts_mutually_exclusive' in params_dict.keys():
-    train_dict['output_info']['output_config'] = resources_pb2.OutputConfig(
-        concepts_mutually_exclusive=params_dict['concepts_mutually_exclusive'])
-  train_dict['output_info'] = resources_pb2.OutputInfo(**train_dict['output_info'])
+    if 'concepts' in params_dict.keys():
+        assert set(params_dict["concepts"]).issubset(concepts), (
+            "Invalid concept IDs. Available concepts in the app are {}".format(concepts)
+        )
+        train_dict["output_info"]['data'] = resources_pb2.Data(
+            concepts=[
+                resources_pb2.Concept(id=concept_id) for concept_id in params_dict["concepts"]
+            ]
+        )
+    if 'inference_params' in params_dict.keys():
+        train_dict["output_info"]['params'] = Struct()
+        train_dict['output_info']['params'].update(params_dict["inference_params"])
+    if 'concepts_mutually_exclusive' in params_dict.keys():
+        train_dict['output_info']['output_config'] = resources_pb2.OutputConfig(
+            concepts_mutually_exclusive=params_dict['concepts_mutually_exclusive']
+        )
+    train_dict['output_info'] = resources_pb2.OutputInfo(**train_dict['output_info'])
 
-  return train_dict
+    return train_dict
 
 
-def response_to_param_info(response: MultiModelTypeResponse,
-                           model_type_id: str,
-                           param: str,
-                           template: str = None) -> Dict[str, Any]:
-  """Converts the response from the API to a dictionary of model param info for the given model type id."""
-  dict_response = MessageToDict(response)
-  for model_type in dict_response['modelTypes']:
-    if model_type['id'] == model_type_id:
-      #iterate through the model type fields
-      for modeltypefield in model_type['modelTypeFields']:
-        if modeltypefield['path'].split('.')[-1] == param:
-          if param == 'template':
-            del modeltypefield['placeholder']
-            del modeltypefield['modelTypeEnumOptions']
-            return modeltypefield
-          modeltypefield['param'] = modeltypefield.pop('path').split('.')[-1]
-          del modeltypefield['placeholder']
-          return modeltypefield
-        #checking the template model type fields
-        if modeltypefield['path'].split('.')[-1] == "template":
-          for modeltypeenum in modeltypefield['modelTypeEnumOptions']:
-            if modeltypeenum['id'] == template:
-              #iterate through the template fields
-              for modeltypeenumfield in modeltypeenum['modelTypeFields']:
-                if modeltypeenumfield['path'].split('.')[-1] == param:
-                  modeltypeenumfield['param'] = modeltypeenumfield.pop('path').split('.')[-1]
-                  del modeltypeenumfield['placeholder']
-                  return modeltypeenumfield
+def response_to_param_info(
+    response: MultiModelTypeResponse, model_type_id: str, param: str, template: str = None
+) -> Dict[str, Any]:
+    """Converts the response from the API to a dictionary of model param info for the given model type id."""
+    dict_response = MessageToDict(response)
+    for model_type in dict_response['modelTypes']:
+        if model_type['id'] == model_type_id:
+            # iterate through the model type fields
+            for modeltypefield in model_type['modelTypeFields']:
+                if modeltypefield['path'].split('.')[-1] == param:
+                    if param == 'template':
+                        del modeltypefield['placeholder']
+                        del modeltypefield['modelTypeEnumOptions']
+                        return modeltypefield
+                    modeltypefield['param'] = modeltypefield.pop('path').split('.')[-1]
+                    del modeltypefield['placeholder']
+                    return modeltypefield
+                # checking the template model type fields
+                if modeltypefield['path'].split('.')[-1] == "template":
+                    for modeltypeenum in modeltypefield['modelTypeEnumOptions']:
+                        if modeltypeenum['id'] == template:
+                            # iterate through the template fields
+                            for modeltypeenumfield in modeltypeenum['modelTypeFields']:
+                                if modeltypeenumfield['path'].split('.')[-1] == param:
+                                    modeltypeenumfield['param'] = modeltypeenumfield.pop(
+                                        'path'
+                                    ).split('.')[-1]
+                                    del modeltypeenumfield['placeholder']
+                                    return modeltypeenumfield
 
 
 def find_and_replace_key(nested_dict: Dict, target_key: str, replacement_value: Any) -> None:
-  """Finds and replaces the target key with the replacement value in the nested dictionary."""
-  for key, value in nested_dict.items():
-    if key == target_key:
-      nested_dict[key] = replacement_value
-    elif isinstance(value, dict):
-      find_and_replace_key(value, target_key, replacement_value)
+    """Finds and replaces the target key with the replacement value in the nested dictionary."""
+    for key, value in nested_dict.items():
+        if key == target_key:
+            nested_dict[key] = replacement_value
+        elif isinstance(value, dict):
+            find_and_replace_key(value, target_key, replacement_value)
