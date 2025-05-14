@@ -62,6 +62,21 @@ def is_openai_chat_format(messages):
 class Param(MessageData):
     """A field that can be used to store input data."""
 
+    def __new__(cls, default=None, **kwargs):
+        # If no default is provided, proceed normally
+        if default is None:
+            return super().__new__(cls)
+
+        # Dynamically create a class that inherits from type(default) and Param
+        base_type = type(default)
+
+        class DynamicParam(base_type, Param):
+            pass
+
+        # Use the base_type's __new__ to safely create the instance
+        instance = base_type.__new__(DynamicParam)
+        return instance
+
     def __init__(
         self,
         default=None,
@@ -95,10 +110,10 @@ class Param(MessageData):
 
     # All *explicit* conversions
     def __int__(self):
-        return int(self.default)
+        return int(self.default) if self.default is not None else 0
 
     def __float__(self):
-        return float(self.default)
+        return float(self.default) if self.default is not None else 0.0
 
     def __str__(self):
         return str(self.default)
@@ -153,6 +168,16 @@ class Param(MessageData):
     def __ge__(self, other):
         return self.default >= other
 
+    def __getattribute__(self, name):
+        """Intercept attribute access to mimic default value behavior"""
+        try:
+            # First try to get Param attributes normally
+            return object.__getattribute__(self, name)
+        except AttributeError:
+            # Fall back to the default value's attributes
+            default = object.__getattribute__(self, 'default')
+            return getattr(default, name)
+
     # Arithmetic operators – # arithmetic & bitwise operators – auto-generated
     _arith_ops = {
         "__add__": operator.add,
@@ -169,11 +194,10 @@ class Param(MessageData):
         "__rshift__": operator.rshift,
     }
 
-    # Create both left- and right-hand versions of each operator
     for _name, _op in _arith_ops.items():
 
         def _make(op):
-            def _f(self, other, *, _op=op):  # default arg binds op
+            def _f(self, other, *, _op=op):
                 return _op(self.default, other)
 
             return _f
@@ -242,6 +266,19 @@ class Param(MessageData):
         if instance is None:
             return self
         return self.default
+
+    @property
+    def __class__(self):
+        if self.default is None:
+            return super().__class__
+        return type(self.default)
+
+    def __json__(self):
+        return self.default if not hasattr(self.default, '__json__') else self.default.__json__()
+
+    # Ensure JSON serialization uses the default value
+    def __reduce__(self):
+        return (type(self.default), (self.default,))
 
     def to_proto(self, proto=None) -> ParamProto:
         if proto is None:
@@ -325,7 +362,14 @@ class Param(MessageData):
             if proto is None:
                 proto = ParamProto()
             if default is not None:
-                proto.default = json.dumps(default)
+                if isinstance(default, int):
+                    proto.default = int(default)
+                elif isinstance(default, float):
+                    proto.default = float(default)
+                elif isinstance(default, bool):
+                    proto.default = bool(default)
+                else:
+                    proto.default = json.dumps(default)
             return proto
         except Exception:
             if default is not None:
