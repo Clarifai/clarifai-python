@@ -107,7 +107,6 @@ class Model(Lister, BaseClient):
             compute_cluster_id=compute_cluster_id,
             nodepool_id=nodepool_id,
             deployment_id=deployment_id,
-            user_id=self.user_id,  # FIXME the deployment's user_id can be different than the model's.
         )
         BaseClient.__init__(
             self,
@@ -600,8 +599,17 @@ class Model(Lister, BaseClient):
         compute_cluster_id: str = None,
         nodepool_id: str = None,
         deployment_id: str = None,
-        user_id: str = None,
     ):
+        # Get UserID
+        if any([deployment_id, nodepool_id, compute_cluster_id]):
+            request = service_pb2.GetUserRequest(
+                user_app_id=resources_pb2.UserAppIDSet(user_id='me')
+            )
+            response = self._grpc_request(self.STUB.GetUser, request)
+            if response.status.code != status_code_pb2.SUCCESS:
+                raise Exception(f"Get User failed with response {response.status!r}")
+            user_id = response.user.id
+
         runner_selector = None
         if deployment_id and (compute_cluster_id or nodepool_id):
             raise UserError(
@@ -609,22 +617,10 @@ class Model(Lister, BaseClient):
             )
 
         if deployment_id:
-            if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
-                raise UserError(
-                    "User ID is required for model prediction with deployment ID, please provide user_id in the method call."
-                )
-            if not user_id:
-                user_id = os.environ.get('CLARIFAI_USER_ID')
             runner_selector = Deployment.get_runner_selector(
                 user_id=user_id, deployment_id=deployment_id
             )
         elif compute_cluster_id and nodepool_id:
-            if not user_id and not os.environ.get('CLARIFAI_USER_ID'):
-                raise UserError(
-                    "User ID is required for model prediction with compute cluster ID and nodepool ID, please provide user_id in the method call."
-                )
-            if not user_id:
-                user_id = os.environ.get('CLARIFAI_USER_ID')
             runner_selector = Nodepool.get_runner_selector(
                 user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id
             )
