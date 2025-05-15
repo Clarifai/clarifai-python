@@ -31,6 +31,10 @@ def validate_response(response, attempt, max_attempts):
       else:
         return response
 
+    # Check if response is an async iterator
+    if hasattr(response, '__aiter__'):
+      return response  # Return async iterator directly for handling in _async_call__
+
   # Check if the response is an instance of a gRPC streaming call
   if isinstance(response, grpc._channel._MultiThreadedRendezvous):
     try:
@@ -79,17 +83,17 @@ class AuthorizedStub(V2Stub):
   def __getattr__(self, name):
     value = getattr(self.stub, name)
     if isinstance(value, RpcCallable):
-      value = _AuthorizedRpcCallable(value, self.metadata)
+      value = _AuthorizedRpcCallable(value, self.metadata, self.is_async)
     return value
 
 
 class _AuthorizedRpcCallable(RpcCallable):
   """Adds metadata(authorization header) to rpc calls"""
 
-  def __init__(self, func, metadata):
+  def __init__(self, func, metadata, is_async):
     self.f = func
     self.metadata = metadata
-    self.is_async = asyncio.iscoroutinefunction(func)
+    self.is_async = is_async or asyncio.iscoroutinefunction(func)
 
   def __repr__(self):
     return repr(self.f)
@@ -98,8 +102,16 @@ class _AuthorizedRpcCallable(RpcCallable):
     metadata = kwargs.pop('metadata', self.metadata)
     if self.is_async:
       # For async functions, return a coroutine
-      return self.f(*args, **kwargs, metadata=metadata)
-    return self.f(*args, **kwargs, metadata=metadata)
+      return self.f(
+          *args,
+          **kwargs,
+          metadata=metadata,
+      )
+    return self.f(
+        *args,
+        **kwargs,
+        metadata=metadata,
+    )
 
   def future(self, *args, **kwargs):
     metadata = kwargs.pop('metadata', self.metadata)
@@ -140,21 +152,71 @@ class _RetryRpcCallable(RpcCallable):
     return repr(self.f)
 
   async def _async_call__(self, *args, **kwargs):
-    attempt = 0
-    while attempt < self.max_attempts:
-      attempt += 1
+    """Handle async RPC calls with retries and validation"""
+    for attempt in range(1, self.max_attempts + 1):
       if attempt != 1:
         await asyncio.sleep(self.backoff_time)
+
       try:
-        response = await self.f(*args, **kwargs)
-        v = validate_response(response, attempt, self.max_attempts)
-        if v is not None:
-          return v
+        response = self.f(*args, **kwargs)
+
+        #Handle streaming response
+        if hasattr(response, '__aiter__'):
+          return await self._handle_streaming_response(response, attempt)
+
+        #Handle regular async response
+        validated_response = await self._handle_regular_response(response, attempt)
+        if validated_response is not None:
+          return validated_response
+
       except grpc.RpcError as e:
-        if (e.code() in retry_codes_grpc) and attempt < self.max_attempts:
-          logger.debug('Retrying with status %s' % e.code())
-        else:
+        if not self._should_retry(e, attempt):
           raise
+        logger.debug(f'Retrying after error {e.code()} (attempt {attempt}/{self.max_attempts})')
+
+    raise Exception(f'Max attempts reached ({self.max_attempts}) without success')
+
+  async def _handle_streaming_response(self, response, attempt):
+    """Handle streaming response validation and processing"""
+
+    async def validated_stream():
+      try:
+        async for item in response:
+          if not self._is_valid_response(item):
+            if attempt < self.max_attempts:
+              yield None  # Signal for retry
+            raise Exception(f'Validation failed on streaming response (attempt {attempt})')
+          yield item
+      except grpc.RpcError as e:
+        if not self._should_retry(e, attempt):
+          raise
+        yield None  # Signal for retry
+
+    return validated_stream()
+
+  async def _handle_regular_response(self, response, attempt):
+    """Handle regular async response validation and processing"""
+    try:
+      result = await response
+      if not self._is_valid_response(result):
+        if attempt < self.max_attempts:
+          return None  # Signal for retry
+        raise Exception(f'Validation failed on response (attempt {attempt})')
+      return result
+    except grpc.RpcError as e:
+      if not self._should_retry(e, attempt):
+        raise
+      return None  # Signal for retry
+
+  def _is_valid_response(self, response):
+    """Check if response status is valid"""
+    return not (hasattr(response, 'status') and hasattr(response.status, 'code') and
+                response.status.code in throttle_status_codes)
+
+  def _should_retry(self, error, attempt):
+    """Determine if we should retry based on error and attempt count"""
+    return (isinstance(error, grpc.RpcError) and error.code() in retry_codes_grpc and
+            attempt < self.max_attempts)
 
   def _sync_call__(self, *args, **kwargs):
     attempt = 0

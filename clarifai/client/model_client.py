@@ -205,13 +205,14 @@ class ModelClient:
             is_batch_input_valid = all(isinstance(input, dict) for input in batch_inputs)
             if is_batch_input_valid and (not is_openai_chat_format(batch_inputs)):
               # If the batch input is valid, call the function with the batch inputs and the method name
-              return await async_call_func(batch_inputs, method_name)
+              return async_call_func(batch_inputs, method_name)
 
           for name, arg in zip(method_argnames, args):  # handle positional with zip shortest
             if name in kwargs:
               raise TypeError(f"Multiple values for argument {name}")
             kwargs[name] = arg
-          return await async_call_func(kwargs, method_name)
+
+          return async_call_func(kwargs, method_name)
 
         class MethodWrapper:
 
@@ -223,8 +224,8 @@ class ModelClient:
         return MethodWrapper()
 
       # need to bind method_name to the value, not the mutating loop variable
-      f = bind_f(method_name, method_argnames, call_func, async_call_func)
 
+      f = bind_f(method_name, method_argnames, call_func, async_call_func)
       # set names, annotations and docstrings
       f.__name__ = method_name
       f.__qualname__ = f'{self.__class__.__name__}.{method_name}'
@@ -322,7 +323,6 @@ class ModelClient:
 
       serialize(input, input_signature, proto.data)
       proto_inputs.append(proto)
-
     response = self._predict_by_proto(proto_inputs, method_name)
 
     outputs = []
@@ -388,7 +388,7 @@ class ModelClient:
   async def _async_predict(
       self,
       inputs,
-      method_name: str = 'predict',
+      method_name: str = 'async_predict',
   ) -> Any:
     """Asynchronously process inputs and make predictions.
 
@@ -412,9 +412,7 @@ class ModelClient:
       proto = resources_pb2.Input()
       serialize(input, input_signature, proto.data)
       proto_inputs.append(proto)
-
     response = await self._async_predict_by_proto(proto_inputs, method_name)
-
     outputs = []
     for output in response.outputs:
       outputs.append(deserialize(output.data, output_signature, is_output=True))
@@ -466,8 +464,7 @@ class ModelClient:
 
     while True:
       try:
-        response = await self.async_stub.PostModelOutputs(
-            request, metadata=(('authorization', 'Key 1fed7d87ae0e41f49497ca9f9fb1d9e9'),))
+        response = await self.async_stub.PostModelOutputs(request)
 
         if status_is_retryable(
             response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
@@ -595,10 +592,9 @@ class ModelClient:
       proto = resources_pb2.Input()
       serialize(input, input_signature, proto.data)
       proto_inputs.append(proto)
+    response_stream = self._async_generate_by_proto(proto_inputs, method_name)
 
-    response_stream = await self._async_generate_by_proto(proto_inputs, method_name)
-
-    for response in response_stream:
+    async for response in response_stream:
       outputs = []
       for output in response.outputs:
         outputs.append(deserialize(output.data, output_signature, is_output=True))
@@ -646,10 +642,12 @@ class ModelClient:
     backoff_iterator = BackoffIterator(10)
     started = False
     while not started:
-      stream_response = await self.async_stub.GenerateModelOutputs(
-          request, metadata=(('authorization', 'Key 1fed7d87ae0e41f49497ca9f9fb1d9e9'),))
+      # stream response returns gRPC async iterable - UnaryStreamCall
+      stream_response = self.async_stub.GenerateModelOutputs(request)
+      stream_res = await stream_response  # get the async iterable
+      iterator = stream_res.__aiter__()  # get the async iterator for the response
       try:
-        response = await stream_response.__anext__()  # get the first response
+        response = await iterator.__anext__()  # getting the first response
       except StopAsyncIteration:
         raise Exception("Model Generate failed with no response")
       if status_is_retryable(response.status.code) and \
@@ -663,7 +661,7 @@ class ModelClient:
 
     yield response  # yield the first response
 
-    async for response in stream_response:
+    async for response in iterator:
       if response.status.code != status_code_pb2.SUCCESS:
         raise Exception(f"Model Generate failed with response {response.status!r}")
       yield response
@@ -771,6 +769,7 @@ class ModelClient:
             generation_started = True
           yield response
 
+  # TODO: Test async streaming.
   async def _async_stream(
       self,
       inputs,
