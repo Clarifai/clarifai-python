@@ -467,6 +467,7 @@ class Model(Lister, BaseClient):
         If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
         protos directly for compatibility with previous versions of the SDK.
         """
+    inputs = None
     if 'inputs' in kwargs:
       inputs = kwargs['inputs']
     elif args:
@@ -478,7 +479,12 @@ class Model(Lister, BaseClient):
       return await self.client._async_predict_by_proto(
           inputs=inputs, inference_params=inference_params, output_config=output_config)
 
-    return await self.client.predict(*args, **kwargs)
+    # Adding try-except, since the await works differently with jupyter kernels and in regular python scripts.
+    try:
+      return await self.client.predict(*args, **kwargs)
+    except TypeError:
+      # In jupyter, it returns a str object instead of a co-routine.
+      return self.client.predict(*args, **kwargs)
 
   def __getattr__(self, name):
     try:
@@ -717,10 +723,10 @@ class Model(Lister, BaseClient):
       assert len(args) <= 1, "Cannot pass in raw protos and additional arguments at the same time."
       inference_params = kwargs.get('inference_params', {})
       output_config = kwargs.get('output_config', {})
-      return await self.client._async_generate_by_proto(
+      return self.client._async_generate_by_proto(
           inputs=inputs, inference_params=inference_params, output_config=output_config)
 
-    return await self.client.generate(*args, **kwargs)
+    return self.client.generate(*args, **kwargs)
 
   def generate_by_filepath(self,
                            filepath: str,
@@ -874,7 +880,7 @@ class Model(Lister, BaseClient):
 
     return self.client.stream(*args, **kwargs)
 
-  def async_stream(self, *args, **kwargs):
+  async def async_stream(self, *args, **kwargs):
     """
         Calls the model's async stream() method with the given arguments.
 

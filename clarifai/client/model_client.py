@@ -22,6 +22,10 @@ def is_async_context():
   """Check if code is running in an async context."""
   try:
     asyncio.get_running_loop()
+    import sys
+    # In Jupyter, to check if we're actually in an async cell. Becaue by default jupyter considers it as async.
+    if 'ipykernel' in sys.modules:
+      return False
     return True
   except RuntimeError:
     return False
@@ -773,7 +777,7 @@ class ModelClient:
   async def _async_stream(
       self,
       inputs,
-      method_name: str = 'stream',
+      method_name: str = 'async_stream',
   ) -> Any:
     input_signature = self._method_signatures[method_name].input_fields
     output_signature = self._method_signatures[method_name].output_fields
