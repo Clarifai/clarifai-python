@@ -60,18 +60,6 @@ def is_openai_chat_format(messages):
     return True
 
 
-# Custom JSON Encoder only for Param
-class ParamEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, Param):
-            return obj.__json__()
-        return super().default(obj)
-
-
-# Override the default encoder globally for json.dumps (only when used with User)
-json._default_encoder = ParamEncoder()
-
-
 class Param(MessageData):
     """A field that can be used to store input data."""
 
@@ -90,6 +78,7 @@ class Param(MessageData):
         self.max_value = max_value
         self.choices = choices
         self.is_param = is_param
+        self._patch_encoder()
 
     def __repr__(self) -> str:
         attrs = []
@@ -267,6 +256,21 @@ class Param(MessageData):
 
     def __json__(self):
         return self.default if not hasattr(self.default, '__json__') else self.default.__json__()
+
+    @classmethod
+    def _patch_encoder(cls):
+        # only patch once
+        if getattr(json.JSONEncoder, "_user_patched", False):
+            return
+        original = json.JSONEncoder.default
+
+        def default(self, obj):
+            if isinstance(obj, Param):
+                return obj.__json__()
+            return original(self, obj)
+
+        json.JSONEncoder.default = default
+        json.JSONEncoder._user_patched = True
 
     def to_proto(self, proto=None) -> ParamProto:
         if proto is None:
