@@ -62,24 +62,9 @@ def is_openai_chat_format(messages):
 class Param(MessageData):
     """A field that can be used to store input data."""
 
-    def __new__(cls, default=None, **kwargs):
-        # If no default is provided, proceed normally
-        if default is None:
-            return super().__new__(cls)
-
-        # Dynamically create a class that inherits from type(default) and Param
-        base_type = type(default)
-
-        class DynamicParam(base_type, Param):
-            pass
-
-        # Use the base_type's __new__ to safely create the instance
-        instance = base_type.__new__(DynamicParam)
-        return instance
-
     def __init__(
         self,
-        default=None,
+        default,
         description=None,
         min_value=None,
         max_value=None,
@@ -291,7 +276,7 @@ class Param(MessageData):
                 option = ModelTypeEnumOption(id=str(choice))
                 proto.model_type_enum_options.append(option)
 
-        proto.required = self.default is None
+        proto.required = False
 
         if self.min_value is not None or self.max_value is not None:
             range_info = ModelTypeRangeInfo()
@@ -361,15 +346,7 @@ class Param(MessageData):
 
             if proto is None:
                 proto = ParamProto()
-            if default is not None:
-                if isinstance(default, int):
-                    proto.default = int(default)
-                elif isinstance(default, float):
-                    proto.default = float(default)
-                elif isinstance(default, bool):
-                    proto.default = bool(default)
-                else:
-                    proto.default = json.dumps(default)
+            proto.default = json.dumps(default)
             return proto
         except Exception:
             if default is not None:
