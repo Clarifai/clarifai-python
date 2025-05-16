@@ -5,8 +5,8 @@ from typing import Any, Dict, Iterator, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
-from clarifai.client.auth.register import V2Stub
 
+from clarifai.client.auth.register import V2Stub
 from clarifai.constants.model import MAX_MODEL_PREDICT_INPUTS
 from clarifai.errors import UserError
 from clarifai.runners.utils import code_script, method_signatures
@@ -23,6 +23,7 @@ def is_async_context():
   try:
     asyncio.get_running_loop()
     import sys
+
     # In Jupyter, to check if we're actually in an async cell. Becaue by default jupyter considers it as async.
     if 'ipykernel' in sys.modules:
       return False
@@ -33,8 +34,8 @@ def is_async_context():
 
 class ModelClient:
   '''
-  Client for calling model predict, generate, and stream methods.
-  '''
+    Client for calling model predict, generate, and stream methods.
+    '''
 
   def __init__(self,
                stub,
@@ -45,7 +46,6 @@ class ModelClient:
 
         Args:
             stub: The gRPC stub for the model.
-            async_stub: The async gRPC stub for the model.
             request_template: The template for the request to send to the model, including
             common fields like model_id, model_version, cluster, etc.
         '''
@@ -57,8 +57,8 @@ class ModelClient:
 
   def fetch(self):
     '''
-    Fetch function signature definitions from the model and define the functions in the client
-    '''
+        Fetch function signature definitions from the model and define the functions in the client
+        '''
     if self._defined:
       return
     try:
@@ -74,11 +74,11 @@ class ModelClient:
 
   def _fetch_signatures(self):
     '''
-      Fetch the method signatures from the model.
+        Fetch the method signatures from the model.
 
-      Returns:
-          Dict: The method signatures.
-      '''
+        Returns:
+            Dict: The method signatures.
+        '''
     try:
       response = self.STUB.GetModelVersion(
           service_pb2.GetModelVersionRequest(
@@ -109,11 +109,11 @@ class ModelClient:
 
   def _fetch_signatures_backup(self):
     '''
-      This is a temporary method of fetching the method signatures from the model.
+        This is a temporary method of fetching the method signatures from the model.
 
-      Returns:
-          Dict: The method signatures.
-      '''
+        Returns:
+            Dict: The method signatures.
+        '''
 
     request = service_pb2.PostModelOutputsRequest()
     request.CopyFrom(self.request_template)
@@ -125,15 +125,15 @@ class ModelClient:
     backoff_iterator = BackoffIterator(10)
     while True:
       response = self.STUB.PostModelOutputs(request)
-      if status_is_retryable(
-          response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
+      if (status_is_retryable(response.status.code) and
+          time.time() - start_time < 60 * 10):  # 10 minutes
         logger.info(f"Retrying model info fetch with response {response.status!r}")
         time.sleep(next(backoff_iterator))
         continue
       break
-    if (response.status.code == status_code_pb2.INPUT_UNSUPPORTED_FORMAT or
-        (response.status.code == status_code_pb2.SUCCESS and
-         response.outputs[0].data.text.raw == '')):
+    if response.status.code == status_code_pb2.INPUT_UNSUPPORTED_FORMAT or (
+        response.status.code == status_code_pb2.SUCCESS and
+        response.outputs[0].data.text.raw == ''):
       # return codes/values from older models that don't support _GET_SIGNATURES
       self._method_signatures = {}
       self._define_compatability_functions()
@@ -144,18 +144,20 @@ class ModelClient:
 
   def _define_functions(self):
     '''
-    Define the functions based on the method signatures.
-    '''
+        Define the functions based on the method signatures.
+        '''
     for method_name, method_signature in self._method_signatures.items():
       # define the function in this client instance
       if resources_pb2.RunnerMethodType.Name(method_signature.method_type) == 'UNARY_UNARY':
         call_func = self._predict
         async_call_func = self._async_predict
-      elif resources_pb2.RunnerMethodType.Name(method_signature.method_type) == 'UNARY_STREAMING':
+      elif (resources_pb2.RunnerMethodType.Name(
+          method_signature.method_type) == 'UNARY_STREAMING'):
         call_func = self._generate
         async_call_func = self._async_generate
-      elif resources_pb2.RunnerMethodType.Name(
-          method_signature.method_type) == 'STREAMING_STREAMING':
+
+      elif (resources_pb2.RunnerMethodType.Name(
+          method_signature.method_type) == 'STREAMING_STREAMING'):
         call_func = self._stream
         async_call_func = self._async_stream
       else:
@@ -228,8 +230,8 @@ class ModelClient:
         return MethodWrapper()
 
       # need to bind method_name to the value, not the mutating loop variable
-
       f = bind_f(method_name, method_argnames, call_func, async_call_func)
+
       # set names, annotations and docstrings
       f.__name__ = method_name
       f.__qualname__ = f'{self.__class__.__name__}.{method_name}'
@@ -249,9 +251,9 @@ class ModelClient:
   def available_methods(self) -> List[str]:
     """Get the available methods for this model.
 
-    Returns:
-        List[str]: The available methods.
-    """
+        Returns:
+            List[str]: The available methods.
+        """
     if not self._defined:
       self.fetch()
     return self._method_signatures.keys()
@@ -259,12 +261,12 @@ class ModelClient:
   def method_signature(self, method_name: str) -> str:
     """Get the method signature for a method.
 
-    Args:
-        method_name (str): The name of the method.
+        Args:
+            method_name (str): The name of the method.
 
-    Returns:
-        str: The method signature.
-    """
+        Returns:
+            str: The method signature.
+        """
     if not self._defined:
       self.fetch()
     return method_signatures.get_method_signature(self._method_signatures[method_name])
@@ -272,9 +274,9 @@ class ModelClient:
   def generate_client_script(self) -> str:
     """Generate a client script for this model.
 
-    Returns:
-        str: The client script.
-    """
+        Returns:
+            str: The client script.
+        """
     if not self._defined:
       self.fetch()
     method_signatures = []
@@ -284,10 +286,10 @@ class ModelClient:
         method_signatures,
         user_id=self.request_template.user_app_id.user_id,
         app_id=self.request_template.user_app_id.app_id,
-        model_id=self.request_template.model_id)
+        model_id=self.request_template.model_id,
+    )
 
   def _define_compatability_functions(self):
-
     serializer = CompatibilitySerializer()
 
     def predict(input: Any) -> Any:
@@ -327,6 +329,7 @@ class ModelClient:
 
       serialize(input, input_signature, proto.data)
       proto_inputs.append(proto)
+
     response = self._predict_by_proto(proto_inputs, method_name)
 
     outputs = []
@@ -345,15 +348,15 @@ class ModelClient:
   ) -> service_pb2.MultiOutputResponse:
     """Predicts the model based on the given inputs.
 
-      Args:
-          inputs (List[resources_pb2.Input]): The inputs to predict.
-          method_name (str): The remote method name to call.
-          inference_params (Dict): Inference parameters to override.
-          output_config (Dict): Output configuration to override.
+        Args:
+            inputs (List[resources_pb2.Input]): The inputs to predict.
+            method_name (str): The remote method name to call.
+            inference_params (Dict): Inference parameters to override.
+            output_config (Dict): Output configuration to override.
 
-      Returns:
-          service_pb2.MultiOutputResponse: The prediction response(s).
-      """
+        Returns:
+            service_pb2.MultiOutputResponse: The prediction response(s).
+        """
     if not isinstance(inputs, list):
       raise UserError('Invalid inputs, inputs must be a list of Input objects.')
     if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
@@ -378,8 +381,8 @@ class ModelClient:
     backoff_iterator = BackoffIterator(10)
     while True:
       response = self.STUB.PostModelOutputs(request)
-      if status_is_retryable(
-          response.status.code) and time.time() - start_time < 60 * 10:  # 10 minutes
+      if (status_is_retryable(response.status.code) and
+          time.time() - start_time < 60 * 10):  # 10 minutes
         logger.info("Model is still deploying, please wait...")
         time.sleep(next(backoff_iterator))
         continue
@@ -395,14 +398,12 @@ class ModelClient:
       method_name: str = 'async_predict',
   ) -> Any:
     """Asynchronously process inputs and make predictions.
-
-        Args:
-            inputs: Input data to process
-            method_name (str): Name of the method to call
-
-        Returns:
-            Processed prediction results
-        """
+            Args:
+                inputs: Input data to process
+                method_name (str): Name of the method to call
+            Returns:
+                Processed prediction results
+            """
     input_signature = self._method_signatures[method_name].input_fields
     output_signature = self._method_signatures[method_name].output_fields
 
@@ -431,20 +432,17 @@ class ModelClient:
       output_config: Dict = None,
   ) -> service_pb2.MultiOutputResponse:
     """Asynchronously predicts the model based on the given inputs.
-
-    Args:
-        inputs (List[resources_pb2.Input]): The inputs to predict.
-        method_name (str): The remote method name to call.
-        inference_params (Dict): Inference parameters to override.
-        output_config (Dict): Output configuration to override.
-
-    Returns:
-        service_pb2.MultiOutputResponse: The prediction response(s).
-
-    Raises:
-        UserError: If inputs are invalid or exceed maximum limit.
-        Exception: If the model prediction fails.
-    """
+        Args:
+            inputs (List[resources_pb2.Input]): The inputs to predict.
+            method_name (str): The remote method name to call.
+            inference_params (Dict): Inference parameters to override.
+            output_config (Dict): Output configuration to override.
+        Returns:
+            service_pb2.MultiOutputResponse: The prediction response(s).
+        Raises:
+            UserError: If inputs are invalid or exceed maximum limit.
+            Exception: If the model prediction fails.
+        """
     if not isinstance(inputs, list):
       raise UserError('Invalid inputs, inputs must be a list of Input objects.')
     if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
@@ -527,12 +525,12 @@ class ModelClient:
   ):
     """Generate the stream output on model based on the given inputs.
 
-    Args:
-        inputs (list[Input]): The inputs to generate, must be less than 128.
-        method_name (str): The remote method name to call.
-        inference_params (dict): The inference params to override.
-        output_config (dict): The output config to override.
-    """
+        Args:
+            inputs (list[Input]): The inputs to generate, must be less than 128.
+            method_name (str): The remote method name to call.
+            inference_params (dict): The inference params to override.
+            output_config (dict): The output config to override.
+        """
     if not isinstance(inputs, list):
       raise UserError('Invalid inputs, inputs must be a list of Input objects.')
     if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
@@ -562,8 +560,7 @@ class ModelClient:
         response = next(stream_response)  # get the first response
       except StopIteration:
         raise Exception("Model Generate failed with no response")
-      if status_is_retryable(response.status.code) and \
-              time.time() - start_time < 60 * 10:
+      if status_is_retryable(response.status.code) and time.time() - start_time < 60 * 10:
         logger.info("Model is still deploying, please wait...")
         time.sleep(next(backoff_iterator))
         continue
@@ -615,13 +612,12 @@ class ModelClient:
       output_config: Dict = {},
   ):
     """Generate the async stream output on model based on the given inputs.
-
-    Args:
-        inputs (list[Input]): The inputs to generate, must be less than 128.
-        method_name (str): The remote method name to call.
-        inference_params (dict): The inference params to override.
-        output_config (dict): The output config to override.
-    """
+        Args:
+            inputs (list[Input]): The inputs to generate, must be less than 128.
+            method_name (str): The remote method name to call.
+            inference_params (dict): The inference params to override.
+            output_config (dict): The output config to override.
+        """
     if not isinstance(inputs, list):
       raise UserError('Invalid inputs, inputs must be a list of Input objects.')
     if len(inputs) > MAX_MODEL_PREDICT_INPUTS:
@@ -717,11 +713,13 @@ class ModelClient:
       assert len(response.outputs) == 1, 'streaming methods must have exactly one output'
       yield deserialize(response.outputs[0].data, output_signature, is_output=True)
 
-  def _req_iterator(self,
-                    input_iterator: Iterator[List[resources_pb2.Input]],
-                    method_name: str = None,
-                    inference_params: Dict = {},
-                    output_config: Dict = {}):
+  def _req_iterator(
+      self,
+      input_iterator: Iterator[List[resources_pb2.Input]],
+      method_name: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     request = service_pb2.PostModelOutputsRequest()
     request.CopyFrom(self.request_template)
     if inference_params:
@@ -741,13 +739,14 @@ class ModelClient:
           inp.data.metadata['_method_name'] = method_name
       yield req
 
-  def _stream_by_proto(self,
-                       inputs: Iterator[List[resources_pb2.Input]],
-                       method_name: str = None,
-                       inference_params: Dict = {},
-                       output_config: Dict = {}):
-    """Generate the stream output on model based on the given stream of inputs.
-    """
+  def _stream_by_proto(
+      self,
+      inputs: Iterator[List[resources_pb2.Input]],
+      method_name: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
+    """Generate the stream output on model based on the given stream of inputs."""
     # if not isinstance(inputs, Iterator[List[Input]]):
     #   raise UserError('Invalid inputs, inputs must be a iterator of list of Input objects.')
 
@@ -761,8 +760,7 @@ class ModelClient:
         break
       stream_response = self.STUB.StreamModelOutputs(request)
       for response in stream_response:
-        if status_is_retryable(response.status.code) and \
-                time.time() - start_time < 60 * 10:
+        if (status_is_retryable(response.status.code) and time.time() - start_time < 60 * 10):
           logger.info("Model is still deploying, please wait...")
           time.sleep(next(backoff_iterator))
           break
@@ -827,7 +825,7 @@ class ModelClient:
                                    inference_params: Dict = {},
                                    output_config: Dict = {}):
     """Generate the async stream output on model based on the given stream of inputs.
-    """
+        """
     # if not isinstance(inputs, Iterator[List[Input]]):
     #   raise UserError('Invalid inputs, inputs must be a iterator of list of Input objects.')
 

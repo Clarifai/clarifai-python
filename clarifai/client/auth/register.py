@@ -1,6 +1,6 @@
 import abc
-import grpc
 
+import grpc
 from clarifai_grpc.grpc.api import service_pb2_grpc
 
 

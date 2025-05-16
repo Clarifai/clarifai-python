@@ -17,24 +17,24 @@ from clarifai.utils.misc import get_from_dict_or_env
 class BaseClient:
   """BaseClient is the base class for all the classes interacting with Clarifai endpoints.
 
-  Args:
-      **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
-          - user_id (str): A user ID for authentication.
-          - app_id (str): An app ID for the application to interact with.
-          - pat (str): A personal access token for authentication.
-          - token (str): A session token for authentication. Accepts either a session token or a pat.
-          - base (str): The base URL for the API endpoint. Defaults to 'https://api.clarifai.com'.
-          - ui (str): The URL for the UI. Defaults to 'https://clarifai.com'.
-          - root_certificates_path (str): Path to the SSL root certificates file, used to establish secure gRPC connections.
+    Args:
+        **kwargs: Additional keyword arguments to be passed to the ClarifaiAuthHelper.
+            - user_id (str): A user ID for authentication.
+            - app_id (str): An app ID for the application to interact with.
+            - pat (str): A personal access token for authentication.
+            - token (str): A session token for authentication. Accepts either a session token or a pat.
+            - base (str): The base URL for the API endpoint. Defaults to 'https://api.clarifai.com'.
+            - ui (str): The URL for the UI. Defaults to 'https://clarifai.com'.
+            - root_certificates_path (str): Path to the SSL root certificates file, used to establish secure gRPC connections.
 
 
-  Attributes:
-      auth_helper (ClarifaiAuthHelper): An instance of ClarifaiAuthHelper for authentication.
-      STUB (Stub): The gRPC Stub object for API interaction.
-      metadata (tuple): The gRPC metadata containing the personal access token.
-      userDataObject (UserAppIDSet): The protobuf object representing user and app IDs.
-      base (str): The base URL for the API endpoint.
-  """
+    Attributes:
+        auth_helper (ClarifaiAuthHelper): An instance of ClarifaiAuthHelper for authentication.
+        STUB (Stub): The gRPC Stub object for API interaction.
+        metadata (tuple): The gRPC metadata containing the personal access token.
+        userDataObject (UserAppIDSet): The protobuf object representing user and app IDs.
+        base (str): The base URL for the API endpoint.
+    """
 
   def __init__(self, **kwargs):
     token, pat = "", ""
@@ -75,15 +75,15 @@ class BaseClient:
         "token":
             kwargs.get("token", None) or auth._token,
         "root_certificates_path":
-            kwargs.get("root_certificates_path", None) or auth._root_certificates_path
+            kwargs.get("root_certificates_path", None) or auth._root_certificates_path,
     }
     _base = kwargs.get("base", None) or auth.base
     _clss = cls.__mro__[0]
     if _clss == BaseClient:
       kwargs = {
-        **default_kwargs,
-        "base": _base, # Baseclient uses `base`
-        "ui": kwargs.get("ui", None) or auth.ui
+          **default_kwargs,
+          "base": _base,  # Baseclient uses `base`
+          "ui": kwargs.get("ui", None) or auth.ui,
       }
     else:
       # Remove user_id and app_id if a custom URL is provided
@@ -100,13 +100,13 @@ class BaseClient:
   def _grpc_request(self, method: Callable, argument: Any):
     """Makes a gRPC request to the API.
 
-    Args:
-        method (Callable): The gRPC method to call.
-        argument (Any): The argument to pass to the gRPC method.
+        Args:
+            method (Callable): The gRPC method to call.
+            argument (Any): The argument to pass to the gRPC method.
 
-    Returns:
-        res (Any): The result of the gRPC method call.
-    """
+        Returns:
+            res (Any): The result of the gRPC method call.
+        """
 
     try:
       res = method(argument, metadata=self.auth_helper.metadata)
@@ -118,12 +118,12 @@ class BaseClient:
   def convert_string_to_timestamp(self, date_str) -> Timestamp:
     """Converts a string to a Timestamp object.
 
-    Args:
-        date_str (str): The string to convert.
+        Args:
+            date_str (str): The string to convert.
 
-    Returns:
-        Timestamp: The converted Timestamp object.
-    """
+        Returns:
+            Timestamp: The converted Timestamp object.
+        """
     # Parse the string into a Python datetime object
     try:
       datetime_obj = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S.%fZ')
@@ -142,12 +142,13 @@ class BaseClient:
   def process_response_keys(self, old_dict, listing_resource=None):
     """Converts keys in a response dictionary to resource proto format.
 
-    Args:
-        old_dict (dict): The dictionary to convert.
+        Args:
+            old_dict (dict): The dictionary to convert.
+            listing_resource (str, optional): The resource type for which the keys are being processed.
 
-    Returns:
-        new_dict (dict): The dictionary with processed keys.
-    """
+        Returns:
+            new_dict (dict): The dictionary with processed keys.
+        """
     if listing_resource:
       old_dict[f'{listing_resource}_id'] = old_dict['id']
       old_dict.pop('id')
@@ -161,9 +162,9 @@ class BaseClient:
             value_map = dict(number_value=None, string_value=None, bool_value=None)
 
             def map_fn(v):
-              return 'number_value' if isinstance(v, float) or isinstance(v, int) else \
-              'string_value' if isinstance(v, str) else \
-              'bool_value' if isinstance(v, bool) else None
+              return ('number_value'
+                      if isinstance(v, float) or isinstance(v, int) else 'string_value'
+                      if isinstance(v, str) else 'bool_value' if isinstance(v, bool) else None)
 
             value_map[map_fn(value)] = value
             value = struct_pb2.Value(**value_map)

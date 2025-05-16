@@ -42,30 +42,32 @@ MAX_CHUNK_FOR_UPLOAD_FILE = int(5_242_880_000)  # 5GiB
 class Model(Lister, BaseClient):
   """Model is a class that provides access to Clarifai API endpoints related to Model information."""
 
-  def __init__(self,
-               url: str = None,
-               model_id: str = None,
-               model_version: Dict = {'id': ""},
-               base_url: str = "https://api.clarifai.com",
-               pat: str = None,
-               token: str = None,
-               root_certificates_path: str = None,
-               compute_cluster_id: str = None,
-               nodepool_id: str = None,
-               deployment_id: str = None,
-               **kwargs):
+  def __init__(
+      self,
+      url: str = None,
+      model_id: str = None,
+      model_version: Dict = {'id': ""},
+      base_url: str = "https://api.clarifai.com",
+      pat: str = None,
+      token: str = None,
+      root_certificates_path: str = None,
+      compute_cluster_id: str = None,
+      nodepool_id: str = None,
+      deployment_id: str = None,
+      **kwargs,
+  ):
     """Initializes a Model object.
 
-    Args:
-        url (str): The URL to initialize the model object.
-        model_id (str): The Model ID to interact with.
-        model_version (dict): The Model Version to interact with.
-        base_url (str): Base API url. Default "https://api.clarifai.com"
-        pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
-        token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
-        root_certificates_path (str): Path to the SSL root certificates file, used to establish secure gRPC connections.
-        **kwargs: Additional keyword arguments to be passed to the Model.
-    """
+        Args:
+            url (str): The URL to initialize the model object.
+            model_id (str): The Model ID to interact with.
+            model_version (dict): The Model Version to interact with.
+            base_url (str): Base API url. Default "https://api.clarifai.com"
+            pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
+            token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
+            root_certificates_path (str): Path to the SSL root certificates file, used to establish secure gRPC connections.
+            **kwargs: Additional keyword arguments to be passed to the Model.
+        """
     if url and model_id:
       raise UserError("You can only specify one of url or model_id.")
     if not url and not model_id:
@@ -75,7 +77,11 @@ class Model(Lister, BaseClient):
       model_version = {'id': model_version_id}
       kwargs = {'user_id': user_id, 'app_id': app_id}
 
-    self.kwargs = {**kwargs, 'id': model_id, 'model_version': model_version, }
+    self.kwargs = {
+        **kwargs,
+        'id': model_id,
+        'model_version': model_version,
+    }
     self.model_info = resources_pb2.Model()
     dict_to_protobuf(self.model_info, self.kwargs)
 
@@ -97,20 +103,45 @@ class Model(Lister, BaseClient):
         base=base_url,
         pat=pat,
         token=token,
-        root_certificates_path=root_certificates_path)
+        root_certificates_path=root_certificates_path,
+    )
     Lister.__init__(self)
+
+  @classmethod
+  def from_current_context(cls, **kwargs) -> 'Model':
+    from clarifai.utils.config import Config
+
+    current = Config.from_yaml().current
+
+    # set the current context to env vars.
+    current.set_to_env()
+
+    url = f"https://clarifai.com/{current.user_id}/{current.app_id}/models/{current.model_id}"
+
+    # construct the Model object.
+    kwargs = {}
+    try:
+      kwargs['deployment_id'] = current.deployment_id
+    except AttributeError:
+      try:
+        kwargs['compute_cluster_id'] = current.compute_cluster_id
+        kwargs['nodepool_id'] = current.nodepool_id
+      except AttributeError:
+        pass
+
+    return Model(url, base_url=current.api_base, pat=current.pat, **kwargs)
 
   def list_training_templates(self) -> List[str]:
     """Lists all the training templates for the model type.
 
-    Returns:
-        templates (List): List of training templates for the model type.
+        Returns:
+            templates (List): List of training templates for the model type.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> print(model.list_training_templates())
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+            >>> print(model.list_training_templates())
+        """
     if not self.model_info.model_type_id:
       self.load_info()
     if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
@@ -127,29 +158,31 @@ class Model(Lister, BaseClient):
   def get_params(self, template: str = None, save_to: str = 'params.yaml') -> Dict[str, Any]:
     """Returns the model params for the model type and yaml file.
 
-    Args:
-        template (str): The template to use for the model type.
-        yaml_file (str): The yaml file to save the model params.
+        Args:
+            template (str): The template to use for the model type.
+            yaml_file (str): The yaml file to save the model params.
 
-    Returns:
-        params (Dict): Dictionary of model params for the model type.
+        Returns:
+            params (Dict): Dictionary of model params for the model type.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+            >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
+        """
     if not self.model_info.model_type_id:
       self.load_info()
     if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
       raise UserError(f"Model type {self.model_info.model_type_id} is not trainable")
     if template is None and self.model_info.model_type_id not in [
-        "clusterer", "embedding-classifier"
+        "clusterer",
+        "embedding-classifier",
     ]:
       raise UserError(
           f"Template should be provided for {self.model_info.model_type_id} model type")
     if template is not None and self.model_info.model_type_id in [
-        "clusterer", "embedding-classifier"
+        "clusterer",
+        "embedding-classifier",
     ]:
       raise UserError(
           f"Template should not be provided for {self.model_info.model_type_id} model type")
@@ -172,15 +205,15 @@ class Model(Lister, BaseClient):
   def update_params(self, **kwargs) -> None:
     """Updates the model params for the model.
 
-    Args:
-        **kwargs: model params to update.
+        Args:
+            **kwargs: model params to update.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
-        >>> model.update_params(batch_size = 8, dataset_version = 'dataset_version_id')
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+            >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
+            >>> model.update_params(batch_size = 8, dataset_version = 'dataset_version_id')
+        """
     if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
       raise UserError(f"Model type {self.model_info.model_type_id} is not trainable")
     if len(self.training_params) == 0:
@@ -201,18 +234,18 @@ class Model(Lister, BaseClient):
   def get_param_info(self, param: str) -> Dict[str, Any]:
     """Returns the param info for the param.
 
-    Args:
-        param (str): The param to get the info for.
+        Args:
+            param (str): The param to get the info for.
 
-    Returns:
-        param_info (Dict): Dictionary of model param info for the param.
+        Returns:
+            param_info (Dict): Dictionary of model param info for the param.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
-        >>> model.get_param_info('param')
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+            >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
+            >>> model.get_param_info('param')
+        """
     if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
       raise UserError(f"Model type {self.model_info.model_type_id} is not trainable")
     if len(self.training_params) == 0:
@@ -225,7 +258,8 @@ class Model(Lister, BaseClient):
     ]
     if param not in all_keys:
       raise UserError(f"Invalid param: '{param}' for model type '{self.model_info.model_type_id}'")
-    template = self.training_params['train_params']['template'] if 'template' in all_keys else None
+    template = (self.training_params['train_params']['template']
+                if 'template' in all_keys else None)
 
     request = service_pb2.ListModelTypesRequest(user_app_id=self.user_app_id,)
     response = self._grpc_request(self.STUB.ListModelTypes, request)
@@ -235,25 +269,26 @@ class Model(Lister, BaseClient):
         response=response,
         model_type_id=self.model_info.model_type_id,
         param=param,
-        template=template)
+        template=template,
+    )
 
     return param_info
 
   def train(self, yaml_file: str = None) -> str:
     """Trains the model based on the given yaml file or model params.
 
-    Args:
-        yaml_file (str): The yaml file for the model params.
+        Args:
+            yaml_file (str): The yaml file for the model params.
 
-    Returns:
-        model_version_id (str): The model version ID for the model.
+        Returns:
+            model_version_id (str): The model version ID for the model.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
-        >>> model.train('model_params.yaml')
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+            >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
+            >>> model.train('model_params.yaml')
+        """
     if not self.model_info.model_type_id:
       self.load_info()
     if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
@@ -273,7 +308,8 @@ class Model(Lister, BaseClient):
     request = service_pb2.PostModelVersionsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
-        model_versions=[resources_pb2.ModelVersion(**train_dict)])
+        model_versions=[resources_pb2.ModelVersion(**train_dict)],
+    )
     response = self._grpc_request(self.STUB.PostModelVersions, request)
     if response.status.code != status_code_pb2.SUCCESS:
       raise Exception(response.status)
@@ -284,18 +320,18 @@ class Model(Lister, BaseClient):
   def training_status(self, version_id: str = None, training_logs: bool = False) -> Dict[str, str]:
     """Get the training status for the model version. Also stores training logs
 
-    Args:
-        version_id (str): The version ID to get the training status for.
-        training_logs (bool): Whether to save the training logs in a file.
+        Args:
+            version_id (str): The version ID to get the training status for.
+            training_logs (bool): Whether to save the training logs in a file.
 
-    Returns:
-        training_status (Dict): Dictionary of training status for the model version.
+        Returns:
+            training_status (Dict): Dictionary of training status for the model version.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model.training_status(version_id='version_id',training_logs=True)
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+            >>> model.training_status(version_id='version_id',training_logs=True)
+        """
     if not version_id and not self.model_info.model_version.id:
       raise UserError(
           "Model version ID is missing. Please provide a `model_version` with a valid `id` as an argument or as a URL in the following format: '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
@@ -313,7 +349,7 @@ class Model(Lister, BaseClient):
           with open(version_id + '.log', 'wb') as file:
             for chunk in log_response.iter_content(chunk_size=4096):  # 4KB
               file.write(chunk)
-          self.logger.info(f"\nTraining logs are saving in '{version_id+'.log'}' file")
+          self.logger.info(f"\nTraining logs are saving in '{version_id + '.log'}' file")
 
       except requests.exceptions.RequestException as e:
         raise Exception(f"An error occurred while getting training logs: {e}")
@@ -323,14 +359,14 @@ class Model(Lister, BaseClient):
   def delete_version(self, version_id: str) -> None:
     """Deletes a model version for the Model.
 
-    Args:
-        version_id (str): The version ID to delete.
+        Args:
+            version_id (str): The version ID to delete.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model.delete_version(version_id='version_id')
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+            >>> model.delete_version(version_id='version_id')
+        """
     request = service_pb2.DeleteModelVersionRequest(
         user_app_id=self.user_app_id, model_id=self.id, version_id=version_id)
 
@@ -342,31 +378,33 @@ class Model(Lister, BaseClient):
   def create_version(self, **kwargs) -> 'Model':
     """Creates a model version for the Model.
 
-    Args:
-        **kwargs: Additional keyword arguments to be passed to Model Version.
-          - description (str): The description of the model version.
-          - concepts (list[Concept]): The concepts to associate with the model version.
-          - output_info (resources_pb2.OutputInfo(): The output info to associate with the model version.
+        Args:
+            **kwargs: Additional keyword arguments to be passed to Model Version.
+              - description (str): The description of the model version.
+              - concepts (list[Concept]): The concepts to associate with the model version.
+              - output_info (resources_pb2.OutputInfo(): The output info to associate with the model version.
 
-    Returns:
-        Model: A Model object for the specified model ID.
+        Returns:
+            Model: A Model object for the specified model ID.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("url")
-                    or
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model_version = model.create_version(description='model_version_description')
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model("url")
+                        or
+            >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+            >>> model_version = model.create_version(description='model_version_description')
+        """
     if self.model_info.model_type_id in TRAINABLE_MODEL_TYPES:
-      raise UserError(
-          f"{self.model_info.model_type_id} is a trainable model type. Use 'model.train()' to train the model"
-      )
+      if 'pretrained_model_config' not in kwargs:
+        raise UserError(
+            f"{self.model_info.model_type_id} is a trainable model type. Use 'model.train()' to train the model"
+        )
 
     request = service_pb2.PostModelVersionsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
-        model_versions=[resources_pb2.ModelVersion(**kwargs)])
+        model_versions=[resources_pb2.ModelVersion(**kwargs)],
+    )
 
     response = self._grpc_request(self.STUB.PostModelVersions, request)
     if response.status.code != status_code_pb2.SUCCESS:
@@ -383,24 +421,24 @@ class Model(Lister, BaseClient):
                     per_page: int = None) -> Generator['Model', None, None]:
     """Lists all the versions for the model.
 
-    Args:
-        page_no (int): The page number to list.
-        per_page (int): The number of items per page.
+        Args:
+            page_no (int): The page number to list.
+            per_page (int): The number of items per page.
 
-    Yields:
-        Model: Model objects for the versions of the model.
+        Yields:
+            Model: Model objects for the versions of the model.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
-                    or
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> all_model_versions = list(model.list_versions())
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+                        or
+            >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+            >>> all_model_versions = list(model.list_versions())
 
-    Note:
-        Defaults to 16 per page if page_no is specified and per_page is not specified.
-        If both page_no and per_page are None, then lists all the resources.
-    """
+        Note:
+            Defaults to 16 per page if page_no is specified and per_page is not specified.
+            If both page_no and per_page are None, then lists all the resources.
+        """
     request_data = dict(
         user_app_id=self.user_app_id,
         model_id=self.id,
@@ -410,7 +448,8 @@ class Model(Lister, BaseClient):
         service_pb2.ListModelVersionsRequest,
         request_data,
         per_page=per_page,
-        page_no=page_no)
+        page_no=page_no,
+    )
 
     for model_version_info in all_model_versions_info:
       model_version_info['id'] = model_version_info['model_version_id']
@@ -422,7 +461,8 @@ class Model(Lister, BaseClient):
       yield Model.from_auth_helper(
           auth=self.auth_helper,
           model_id=self.id,
-          **dict(self.kwargs, model_version=model_version_info))
+          **dict(self.kwargs, model_version=model_version_info),
+      )
 
   @property
   def client(self):
@@ -440,11 +480,11 @@ class Model(Lister, BaseClient):
 
   def predict(self, *args, **kwargs):
     """
-    Calls the model's predict() method with the given arguments.
+        Calls the model's predict() method with the given arguments.
 
-    If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
-    protos directly for compatibility with previous versions of the SDK.
-    """
+        If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+        protos directly for compatibility with previous versions of the SDK.
+        """
 
     inputs = None
     if 'inputs' in kwargs:
@@ -452,7 +492,8 @@ class Model(Lister, BaseClient):
     elif args:
       inputs = args[0]
     if inputs and isinstance(inputs, list) and isinstance(inputs[0], resources_pb2.Input):
-      assert len(args) <= 1, "Cannot pass in raw protos and additional arguments at the same time."
+      assert len(args) <= 1, (
+          "Cannot pass in raw protos and additional arguments at the same time.")
       inference_params = kwargs.get('inference_params', {})
       output_config = kwargs.get('output_config', {})
       return self.client._predict_by_proto(
@@ -462,11 +503,10 @@ class Model(Lister, BaseClient):
 
   async def async_predict(self, *args, **kwargs):
     """
-        Calls the model's async predict() method with the given arguments.
-
-        If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
-        protos directly for compatibility with previous versions of the SDK.
-        """
+            Calls the model's async predict() method with the given arguments.
+            If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+            protos directly for compatibility with previous versions of the SDK.
+            """
     inputs = None
     if 'inputs' in kwargs:
       inputs = kwargs['inputs']
@@ -505,11 +545,11 @@ class Model(Lister, BaseClient):
   def _check_predict_input_type(self, input_type: str) -> None:
     """Checks if the input type is valid for the model.
 
-    Args:
-        input_type (str): The input type to check.
-    Returns:
-        None
-    """
+        Args:
+            input_type (str): The input type to check.
+        Returns:
+            None
+        """
     if not input_type:
       self.load_input_types()
       if len(self.input_types) > 1:
@@ -525,16 +565,16 @@ class Model(Lister, BaseClient):
   def load_input_types(self) -> None:
     """Loads the input types for the model.
 
-    Returns:
-        None
+        Returns:
+            None
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
-                    or
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model.load_input_types()
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+                        or
+            >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+            >>> model.load_input_types()
+        """
     if self.input_types:
       return self.input_types
     if self.model_info.model_type_id == "":
@@ -548,11 +588,13 @@ class Model(Lister, BaseClient):
       raise Exception(response.status)
     self.input_types = response.model_type.input_fields
 
-  def _set_runner_selector(self,
-                           compute_cluster_id: str = None,
-                           nodepool_id: str = None,
-                           deployment_id: str = None,
-                           user_id: str = None):
+  def _set_runner_selector(
+      self,
+      compute_cluster_id: str = None,
+      nodepool_id: str = None,
+      deployment_id: str = None,
+      user_id: str = None,
+  ):
     runner_selector = None
     if deployment_id and (compute_cluster_id or nodepool_id):
       raise UserError(
@@ -580,30 +622,32 @@ class Model(Lister, BaseClient):
     # set the runner selector
     self._runner_selector = runner_selector
 
-  def predict_by_filepath(self,
-                          filepath: str,
-                          input_type: str = None,
-                          inference_params: Dict = {},
-                          output_config: Dict = {}):
+  def predict_by_filepath(
+      self,
+      filepath: str,
+      input_type: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     """Predicts the model based on the given filepath.
 
-    Args:
-        filepath (str): The filepath to predict.
-        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
-        inference_params (dict): The inference params to override.
-        output_config (dict): The output config to override.
-          min_value (float): The minimum value of the prediction confidence to filter.
-          max_concepts (int): The maximum number of concepts to return.
-          select_concepts (list[Concept]): The concepts to select.
+        Args:
+            filepath (str): The filepath to predict.
+            input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
+            inference_params (dict): The inference params to override.
+            output_config (dict): The output config to override.
+              min_value (float): The minimum value of the prediction confidence to filter.
+              max_concepts (int): The maximum number of concepts to return.
+              select_concepts (list[Concept]): The concepts to select.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
-                    or
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model_prediction = model.predict_by_filepath('/path/to/image.jpg')
-        >>> model_prediction = model.predict_by_filepath('/path/to/text.txt')
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+                        or
+            >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+            >>> model_prediction = model.predict_by_filepath('/path/to/image.jpg')
+            >>> model_prediction = model.predict_by_filepath('/path/to/text.txt')
+        """
     if not os.path.isfile(filepath):
       raise UserError('Invalid filepath.')
 
@@ -612,28 +656,30 @@ class Model(Lister, BaseClient):
 
     return self.predict_by_bytes(file_bytes, input_type, inference_params, output_config)
 
-  def predict_by_bytes(self,
-                       input_bytes: bytes,
-                       input_type: str = None,
-                       inference_params: Dict = {},
-                       output_config: Dict = {}):
+  def predict_by_bytes(
+      self,
+      input_bytes: bytes,
+      input_type: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     """Predicts the model based on the given bytes.
 
-    Args:
-        input_bytes (bytes): File Bytes to predict on.
-        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
-        inference_params (dict): The inference params to override.
-        output_config (dict): The output config to override.
-          min_value (float): The minimum value of the prediction confidence to filter.
-          max_concepts (int): The maximum number of concepts to return.
-          select_concepts (list[Concept]): The concepts to select.
+        Args:
+            input_bytes (bytes): File Bytes to predict on.
+            input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
+            inference_params (dict): The inference params to override.
+            output_config (dict): The output config to override.
+              min_value (float): The minimum value of the prediction confidence to filter.
+              max_concepts (int): The maximum number of concepts to return.
+              select_concepts (list[Concept]): The concepts to select.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("https://clarifai.com/openai/chat-completion/models/GPT-4")
-        >>> model_prediction = model.predict_by_bytes(b'Write a tweet on future of AI',
-                                                      inference_params=dict(temperature=str(0.7), max_tokens=30)))
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model("https://clarifai.com/openai/chat-completion/models/GPT-4")
+            >>> model_prediction = model.predict_by_bytes(b'Write a tweet on future of AI',
+                                                          inference_params=dict(temperature=str(0.7), max_tokens=30)))
+        """
     self._check_predict_input_type(input_type)
 
     if self.input_types[0] == "image":
@@ -648,29 +694,31 @@ class Model(Lister, BaseClient):
     return self.predict(
         inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
-  def predict_by_url(self,
-                     url: str,
-                     input_type: str = None,
-                     inference_params: Dict = {},
-                     output_config: Dict = {}):
+  def predict_by_url(
+      self,
+      url: str,
+      input_type: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     """Predicts the model based on the given URL.
 
-    Args:
-        url (str): The URL to predict.
-        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio'.
-        inference_params (dict): The inference params to override.
-        output_config (dict): The output config to override.
-          min_value (float): The minimum value of the prediction confidence to filter.
-          max_concepts (int): The maximum number of concepts to return.
-          select_concepts (list[Concept]): The concepts to select.
+        Args:
+            url (str): The URL to predict.
+            input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio'.
+            inference_params (dict): The inference params to override.
+            output_config (dict): The output config to override.
+              min_value (float): The minimum value of the prediction confidence to filter.
+              max_concepts (int): The maximum number of concepts to return.
+              select_concepts (list[Concept]): The concepts to select.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
-                    or
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> model_prediction = model.predict_by_url('url')
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+                        or
+            >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+            >>> model_prediction = model.predict_by_url('url')
+        """
     self._check_predict_input_type(input_type)
 
     if self.input_types[0] == "image":
@@ -687,11 +735,11 @@ class Model(Lister, BaseClient):
 
   def generate(self, *args, **kwargs):
     """
-    Calls the model's generate() method with the given arguments.
+        Calls the model's generate() method with the given arguments.
 
-    If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
-    protos directly for compatibility with previous versions of the SDK.
-    """
+        If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+        protos directly for compatibility with previous versions of the SDK.
+        """
 
     inputs = None
     if 'inputs' in kwargs:
@@ -699,7 +747,8 @@ class Model(Lister, BaseClient):
     elif args:
       inputs = args[0]
     if inputs and isinstance(inputs, list) and isinstance(inputs[0], resources_pb2.Input):
-      assert len(args) <= 1, "Cannot pass in raw protos and additional arguments at the same time."
+      assert len(args) <= 1, (
+          "Cannot pass in raw protos and additional arguments at the same time.")
       inference_params = kwargs.get('inference_params', {})
       output_config = kwargs.get('output_config', {})
       return self.client._generate_by_proto(
@@ -709,10 +758,9 @@ class Model(Lister, BaseClient):
 
   async def async_generate(self, *args, **kwargs):
     """
-        Calls the model's async generate() method with the given arguments.
-
-        If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
-        protos directly for compatibility with previous versions of the SDK.
+            Calls the model's async generate() method with the given arguments.
+            If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+            protos directly for compatibility with previous versions of the SDK.
         """
     inputs = None
     if 'inputs' in kwargs:
@@ -728,30 +776,32 @@ class Model(Lister, BaseClient):
 
     return self.client.generate(*args, **kwargs)
 
-  def generate_by_filepath(self,
-                           filepath: str,
-                           input_type: str = None,
-                           inference_params: Dict = {},
-                           output_config: Dict = {}):
+  def generate_by_filepath(
+      self,
+      filepath: str,
+      input_type: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     """Generate the stream output on model based on the given filepath.
 
-    Args:
-        filepath (str): The filepath to predict.
-        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
-        inference_params (dict): The inference params to override.
-        output_config (dict): The output config to override.
-          min_value (float): The minimum value of the prediction confidence to filter.
-          max_concepts (int): The maximum number of concepts to return.
-          select_concepts (list[Concept]): The concepts to select.
+        Args:
+            filepath (str): The filepath to predict.
+            input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
+            inference_params (dict): The inference params to override.
+            output_config (dict): The output config to override.
+              min_value (float): The minimum value of the prediction confidence to filter.
+              max_concepts (int): The maximum number of concepts to return.
+              select_concepts (list[Concept]): The concepts to select.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
-                    or
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> stream_response = model.generate_by_filepath('/path/to/image.jpg', 'image', deployment_id='deployment_id')
-        >>> list_stream_response = [response for response in stream_response]
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+                        or
+            >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+            >>> stream_response = model.generate_by_filepath('/path/to/image.jpg', 'image', deployment_id='deployment_id')
+            >>> list_stream_response = [response for response in stream_response]
+        """
     if not os.path.isfile(filepath):
       raise UserError('Invalid filepath.')
 
@@ -762,32 +812,35 @@ class Model(Lister, BaseClient):
         input_bytes=file_bytes,
         input_type=input_type,
         inference_params=inference_params,
-        output_config=output_config)
+        output_config=output_config,
+    )
 
-  def generate_by_bytes(self,
-                        input_bytes: bytes,
-                        input_type: str = None,
-                        inference_params: Dict = {},
-                        output_config: Dict = {}):
+  def generate_by_bytes(
+      self,
+      input_bytes: bytes,
+      input_type: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     """Generate the stream output on model based on the given bytes.
 
-    Args:
-        input_bytes (bytes): File Bytes to predict on.
-        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
-        inference_params (dict): The inference params to override.
-        output_config (dict): The output config to override.
-          min_value (float): The minimum value of the prediction confidence to filter.
-          max_concepts (int): The maximum number of concepts to return.
-          select_concepts (list[Concept]): The concepts to select.
+        Args:
+            input_bytes (bytes): File Bytes to predict on.
+            input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
+            inference_params (dict): The inference params to override.
+            output_config (dict): The output config to override.
+              min_value (float): The minimum value of the prediction confidence to filter.
+              max_concepts (int): The maximum number of concepts to return.
+              select_concepts (list[Concept]): The concepts to select.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("https://clarifai.com/openai/chat-completion/models/GPT-4")
-        >>> stream_response = model.generate_by_bytes(b'Write a tweet on future of AI',
-                                                      deployment_id='deployment_id',
-                                                      inference_params=dict(temperature=str(0.7), max_tokens=30)))
-        >>> list_stream_response = [response for response in stream_response]
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model("https://clarifai.com/openai/chat-completion/models/GPT-4")
+            >>> stream_response = model.generate_by_bytes(b'Write a tweet on future of AI',
+                                                          deployment_id='deployment_id',
+                                                          inference_params=dict(temperature=str(0.7), max_tokens=30)))
+            >>> list_stream_response = [response for response in stream_response]
+        """
     self._check_predict_input_type(input_type)
 
     if self.input_types[0] == "image":
@@ -802,30 +855,32 @@ class Model(Lister, BaseClient):
     return self.generate(
         inputs=[input_proto], inference_params=inference_params, output_config=output_config)
 
-  def generate_by_url(self,
-                      url: str,
-                      input_type: str = None,
-                      inference_params: Dict = {},
-                      output_config: Dict = {}):
+  def generate_by_url(
+      self,
+      url: str,
+      input_type: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     """Generate the stream output on model based on the given URL.
 
-    Args:
-        url (str): The URL to predict.
-        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
-        inference_params (dict): The inference params to override.
-        output_config (dict): The output config to override.
-          min_value (float): The minimum value of the prediction confidence to filter.
-          max_concepts (int): The maximum number of concepts to return.
-          select_concepts (list[Concept]): The concepts to select.
+        Args:
+            url (str): The URL to predict.
+            input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
+            inference_params (dict): The inference params to override.
+            output_config (dict): The output config to override.
+              min_value (float): The minimum value of the prediction confidence to filter.
+              max_concepts (int): The maximum number of concepts to return.
+              select_concepts (list[Concept]): The concepts to select.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
-                    or
-        >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-        >>> stream_response = model.generate_by_url('url', deployment_id='deployment_id')
-        >>> list_stream_response = [response for response in stream_response]
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model("url") # Example URL: https://clarifai.com/clarifai/main/models/general-image-recognition
+                        or
+            >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+            >>> stream_response = model.generate_by_url('url', deployment_id='deployment_id')
+            >>> list_stream_response = [response for response in stream_response]
+        """
     self._check_predict_input_type(input_type)
 
     if self.input_types[0] == "image":
@@ -842,11 +897,11 @@ class Model(Lister, BaseClient):
 
   def stream(self, *args, **kwargs):
     """
-    Calls the model's stream() method with the given arguments.
+        Calls the model's stream() method with the given arguments.
 
-    If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
-    protos directly for compatibility with previous versions of the SDK.
-    """
+        If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+        protos directly for compatibility with previous versions of the SDK.
+        """
 
     use_proto_call = False
     inputs = None
@@ -872,7 +927,8 @@ class Model(Lister, BaseClient):
             args = (inputs,) + args[1:]
 
     if use_proto_call:
-      assert len(args) <= 1, "Cannot pass in raw protos and additional arguments at the same time."
+      assert len(args) <= 1, (
+          "Cannot pass in raw protos and additional arguments at the same time.")
       inference_params = kwargs.get('inference_params', {})
       output_config = kwargs.get('output_config', {})
       return self.client._stream_by_proto(
@@ -882,11 +938,10 @@ class Model(Lister, BaseClient):
 
   async def async_stream(self, *args, **kwargs):
     """
-        Calls the model's async stream() method with the given arguments.
-
-        If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
-        protos directly for compatibility with previous versions of the SDK.
-        """
+            Calls the model's async stream() method with the given arguments.
+            If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+            protos directly for compatibility with previous versions of the SDK.
+            """
 
     use_proto_call = False
     inputs = None
@@ -920,28 +975,30 @@ class Model(Lister, BaseClient):
 
     return self.client.async_stream(*args, **kwargs)
 
-  def stream_by_filepath(self,
-                         filepath: str,
-                         input_type: str = None,
-                         inference_params: Dict = {},
-                         output_config: Dict = {}):
+  def stream_by_filepath(
+      self,
+      filepath: str,
+      input_type: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     """Stream the model output based on the given filepath.
 
-    Args:
-        filepath (str): The filepath to predict.
-        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
-        inference_params (dict): The inference params to override.
-        output_config (dict): The output config to override.
-          min_value (float): The minimum value of the prediction confidence to filter.
-          max_concepts (int): The maximum number of concepts to return.
-          select_concepts (list[Concept]): The concepts to select.
+        Args:
+            filepath (str): The filepath to predict.
+            input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
+            inference_params (dict): The inference params to override.
+            output_config (dict): The output config to override.
+              min_value (float): The minimum value of the prediction confidence to filter.
+              max_concepts (int): The maximum number of concepts to return.
+              select_concepts (list[Concept]): The concepts to select.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("url")
-        >>> stream_response = model.stream_by_filepath('/path/to/image.jpg', deployment_id='deployment_id')
-        >>> list_stream_response = [response for response in stream_response]
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model("url")
+            >>> stream_response = model.stream_by_filepath('/path/to/image.jpg', deployment_id='deployment_id')
+            >>> list_stream_response = [response for response in stream_response]
+        """
     if not os.path.isfile(filepath):
       raise UserError('Invalid filepath.')
 
@@ -952,32 +1009,35 @@ class Model(Lister, BaseClient):
         input_bytes_iterator=iter([file_bytes]),
         input_type=input_type,
         inference_params=inference_params,
-        output_config=output_config)
+        output_config=output_config,
+    )
 
-  def stream_by_bytes(self,
-                      input_bytes_iterator: Iterator[bytes],
-                      input_type: str = None,
-                      inference_params: Dict = {},
-                      output_config: Dict = {}):
+  def stream_by_bytes(
+      self,
+      input_bytes_iterator: Iterator[bytes],
+      input_type: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     """Stream the model output based on the given bytes.
 
-    Args:
-        input_bytes_iterator (Iterator[bytes]): Iterator of file bytes to predict on.
-        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
-        inference_params (dict): The inference params to override.
-        output_config (dict): The output config to override.
-          min_value (float): The minimum value of the prediction confidence to filter.
-          max_concepts (int): The maximum number of concepts to return.
-          select_concepts (list[Concept]): The concepts to select.
+        Args:
+            input_bytes_iterator (Iterator[bytes]): Iterator of file bytes to predict on.
+            input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
+            inference_params (dict): The inference params to override.
+            output_config (dict): The output config to override.
+              min_value (float): The minimum value of the prediction confidence to filter.
+              max_concepts (int): The maximum number of concepts to return.
+              select_concepts (list[Concept]): The concepts to select.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("https://clarifai.com/openai/chat-completion/models/GPT-4")
-        >>> stream_response = model.stream_by_bytes(iter([b'Write a tweet on future of AI']),
-                                                    deployment_id='deployment_id',
-                                                    inference_params=dict(temperature=str(0.7), max_tokens=30)))
-        >>> list_stream_response = [response for response in stream_response]
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model("https://clarifai.com/openai/chat-completion/models/GPT-4")
+            >>> stream_response = model.stream_by_bytes(iter([b'Write a tweet on future of AI']),
+                                                        deployment_id='deployment_id',
+                                                        inference_params=dict(temperature=str(0.7), max_tokens=30)))
+            >>> list_stream_response = [response for response in stream_response]
+        """
     self._check_predict_input_type(input_type)
 
     def input_generator():
@@ -992,30 +1052,35 @@ class Model(Lister, BaseClient):
           yield [Inputs.get_input_from_bytes("", audio_bytes=input_bytes)]
 
     return self.stream(
-        inputs=input_generator(), inference_params=inference_params, output_config=output_config)
+        inputs=input_generator(),
+        inference_params=inference_params,
+        output_config=output_config,
+    )
 
-  def stream_by_url(self,
-                    url_iterator: Iterator[str],
-                    input_type: str = None,
-                    inference_params: Dict = {},
-                    output_config: Dict = {}):
+  def stream_by_url(
+      self,
+      url_iterator: Iterator[str],
+      input_type: str = None,
+      inference_params: Dict = {},
+      output_config: Dict = {},
+  ):
     """Stream the model output based on the given URL.
 
-    Args:
-        url_iterator (Iterator[str]): Iterator of URLs to predict.
-        input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
-        inference_params (dict): The inference params to override.
-        output_config (dict): The output config to override.
-          min_value (float): The minimum value of the prediction confidence to filter.
-          max_concepts (int): The maximum number of concepts to return.
-          select_concepts (list[Concept]): The concepts to select.
+        Args:
+            url_iterator (Iterator[str]): Iterator of URLs to predict.
+            input_type (str, optional): The type of input. Can be 'image', 'text', 'video' or 'audio.
+            inference_params (dict): The inference params to override.
+            output_config (dict): The output config to override.
+              min_value (float): The minimum value of the prediction confidence to filter.
+              max_concepts (int): The maximum number of concepts to return.
+              select_concepts (list[Concept]): The concepts to select.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("url")
-        >>> stream_response = model.stream_by_url(iter(['url']), deployment_id='deployment_id')
-        >>> list_stream_response = [response for response in stream_response]
-    """
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model("url")
+            >>> stream_response = model.stream_by_url(iter(['url']), deployment_id='deployment_id')
+            >>> list_stream_response = [response for response in stream_response]
+        """
     self._check_predict_input_type(input_type)
 
     def input_generator():
@@ -1030,19 +1095,22 @@ class Model(Lister, BaseClient):
           yield [Inputs.get_input_from_url("", audio_url=url)]
 
     return self.stream(
-        inputs=input_generator(), inference_params=inference_params, output_config=output_config)
+        inputs=input_generator(),
+        inference_params=inference_params,
+        output_config=output_config,
+    )
 
   def _override_model_version(self, inference_params: Dict = {}, output_config: Dict = {}) -> None:
     """Overrides the model version.
 
-    Args:
-        inference_params (dict): The inference params to override.
-        output_config (dict): The output config to override.
-          min_value (float): The minimum value of the prediction confidence to filter.
-          max_concepts (int): The maximum number of concepts to return.
-          select_concepts (list[Concept]): The concepts to select.
-          sample_ms (int): The number of milliseconds to sample.
-    """
+        Args:
+            inference_params (dict): The inference params to override.
+            output_config (dict): The output config to override.
+              min_value (float): The minimum value of the prediction confidence to filter.
+              max_concepts (int): The maximum number of concepts to return.
+              select_concepts (list[Concept]): The concepts to select.
+              sample_ms (int): The number of milliseconds to sample.
+        """
     params = Struct()
     if inference_params is not None:
       params.update(inference_params)
@@ -1054,9 +1122,9 @@ class Model(Lister, BaseClient):
   def _list_concepts(self) -> List[str]:
     """Lists all the concepts for the model type.
 
-    Returns:
-        concepts (List): List of concepts for the model type.
-    """
+        Returns:
+            concepts (List): List of concepts for the model type.
+        """
     request_data = dict(user_app_id=self.user_app_id)
     all_concepts_infos = self.list_pages_generator(self.STUB.ListConcepts,
                                                    service_pb2.ListConceptsRequest, request_data)
@@ -1067,7 +1135,8 @@ class Model(Lister, BaseClient):
     request = service_pb2.GetModelRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
-        version_id=self.model_info.model_version.id)
+        version_id=self.model_info.model_version.id,
+    )
     response = self._grpc_request(self.STUB.GetModel, request)
 
     if response.status.code != status_code_pb2.SUCCESS:
@@ -1092,17 +1161,20 @@ class Model(Lister, BaseClient):
   def list_evaluations(self) -> resources_pb2.EvalMetrics:
     """List all eval_metrics of current model version
 
-    Raises:
-        Exception: Failed to call API
+        Raises:
+            Exception: Failed to call API
 
-    Returns:
-        resources_pb2.EvalMetrics
-    """
-    assert self.model_info.model_version.id, "Model version is empty. Please provide `model_version` as arguments or with a URL as the format '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+        Returns:
+            resources_pb2.EvalMetrics
+        """
+    assert self.model_info.model_version.id, (
+        "Model version is empty. Please provide `model_version` as arguments or with a URL as the format '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+    )
     request = service_pb2.ListModelVersionEvaluationsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
-        model_version_id=self.model_info.model_version.id)
+        model_version_id=self.model_info.model_version.id,
+    )
     response = self._grpc_request(self.STUB.ListModelVersionEvaluations, request)
 
     if response.status.code != status_code_pb2.SUCCESS:
@@ -1110,32 +1182,36 @@ class Model(Lister, BaseClient):
 
     return response.eval_metrics
 
-  def evaluate(self,
-               dataset: Dataset = None,
-               dataset_id: str = None,
-               dataset_app_id: str = None,
-               dataset_user_id: str = None,
-               dataset_version_id: str = None,
-               eval_id: str = None,
-               extended_metrics: dict = None,
-               eval_info: dict = None) -> resources_pb2.EvalMetrics:
-    """ Run evaluation
+  def evaluate(
+      self,
+      dataset: Dataset = None,
+      dataset_id: str = None,
+      dataset_app_id: str = None,
+      dataset_user_id: str = None,
+      dataset_version_id: str = None,
+      eval_id: str = None,
+      extended_metrics: dict = None,
+      eval_info: dict = None,
+  ) -> resources_pb2.EvalMetrics:
+    """Run evaluation
 
-    Args:
-      dataset (Dataset): If Clarifai Dataset is set, it will ignore other arguments prefixed with 'dataset_'.
-      dataset_id (str): Dataset Id. Default is None.
-      dataset_app_id (str): App ID for cross app evaluation, leave it as None to use Model App ID. Default is None.
-      dataset_user_id (str): User ID for cross app evaluation, leave it as None to use Model User ID. Default is None.
-      dataset_version_id (str): Dataset version Id. Default is None.
-      eval_id (str): Specific ID for the evaluation. You must specify this parameter to either overwrite the result with the dataset ID or format your evaluation in an informative manner. If you don't, it will use random ID from system. Default is None.
-      extended_metrics (dict): user custom metrics result. Default is None.
-      eval_info (dict): custom eval info. Default is empty dict.
+        Args:
+          dataset (Dataset): If Clarifai Dataset is set, it will ignore other arguments prefixed with 'dataset_'.
+          dataset_id (str): Dataset Id. Default is None.
+          dataset_app_id (str): App ID for cross app evaluation, leave it as None to use Model App ID. Default is None.
+          dataset_user_id (str): User ID for cross app evaluation, leave it as None to use Model User ID. Default is None.
+          dataset_version_id (str): Dataset version Id. Default is None.
+          eval_id (str): Specific ID for the evaluation. You must specify this parameter to either overwrite the result with the dataset ID or format your evaluation in an informative manner. If you don't, it will use random ID from system. Default is None.
+          extended_metrics (dict): user custom metrics result. Default is None.
+          eval_info (dict): custom eval info. Default is empty dict.
 
-    Return
-      eval_metrics
+        Return
+          eval_metrics
 
-    """
-    assert self.model_info.model_version.id, "Model version is empty. Please provide `model_version` as arguments or with a URL as the format '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+        """
+    assert self.model_info.model_version.id, (
+        "Model version is empty. Please provide `model_version` as arguments or with a URL as the format '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+    )
 
     if dataset:
       self.logger.info("Using dataset, ignore other arguments prefixed with 'dataset_'")
@@ -1151,7 +1227,8 @@ class Model(Lister, BaseClient):
         id=dataset_id,
         app_id=dataset_app_id or self.auth_helper.app_id,
         user_id=dataset_user_id or self.auth_helper.user_id,
-        version=resources_pb2.DatasetVersion(id=dataset_version_id))
+        version=resources_pb2.DatasetVersion(id=dataset_version_id),
+    )
 
     metrics = None
     if isinstance(extended_metrics, dict):
@@ -1202,21 +1279,21 @@ class Model(Lister, BaseClient):
   ) -> resources_pb2.EvalMetrics:
     """Get detail eval_metrics by eval_id with extra metric fields
 
-    Args:
-        eval_id (str): eval id
-        label_counts (bool, optional): Set True to get label counts. Defaults to False.
-        test_set (bool, optional): Set True to get test set. Defaults to False.
-        binary_metrics (bool, optional): Set True to get binary metric. Defaults to False.
-        confusion_matrix (bool, optional): Set True to get confusion matrix. Defaults to False.
-        metrics_by_class (bool, optional): Set True to get metrics by class. Defaults to False.
-        metrics_by_area (bool, optional): Set True to get metrics by area. Defaults to False.
+        Args:
+            eval_id (str): eval id
+            label_counts (bool, optional): Set True to get label counts. Defaults to False.
+            test_set (bool, optional): Set True to get test set. Defaults to False.
+            binary_metrics (bool, optional): Set True to get binary metric. Defaults to False.
+            confusion_matrix (bool, optional): Set True to get confusion matrix. Defaults to False.
+            metrics_by_class (bool, optional): Set True to get metrics by class. Defaults to False.
+            metrics_by_area (bool, optional): Set True to get metrics by area. Defaults to False.
 
-    Raises:
-        Exception: Failed to call API
+        Raises:
+            Exception: Failed to call API
 
-    Returns:
-        resources_pb2.EvalMetrics: eval_metrics
-    """
+        Returns:
+            resources_pb2.EvalMetrics: eval_metrics
+        """
     request = service_pb2.GetEvaluationRequest(
         user_app_id=self.user_app_id,
         evaluation_id=eval_id,
@@ -1227,7 +1304,8 @@ class Model(Lister, BaseClient):
             confusion_matrix=confusion_matrix,
             metrics_by_class=metrics_by_class,
             metrics_by_area=metrics_by_area,
-        ))
+        ),
+    )
     response = self._grpc_request(self.STUB.GetEvaluation, request)
 
     if response.status.code != status_code_pb2.SUCCESS:
@@ -1235,28 +1313,30 @@ class Model(Lister, BaseClient):
 
     return response.eval_metrics
 
-  def get_latest_eval(self,
-                      label_counts=False,
-                      test_set=False,
-                      binary_metrics=False,
-                      confusion_matrix=False,
-                      metrics_by_class=False,
-                      metrics_by_area=False) -> Union[resources_pb2.EvalMetrics, None]:
+  def get_latest_eval(
+      self,
+      label_counts=False,
+      test_set=False,
+      binary_metrics=False,
+      confusion_matrix=False,
+      metrics_by_class=False,
+      metrics_by_area=False,
+  ) -> Union[resources_pb2.EvalMetrics, None]:
     """
-    Run `get_eval_by_id` method with latest `eval_id`
+        Run `get_eval_by_id` method with latest `eval_id`
 
-    Args:
-      label_counts (bool, optional): Set True to get label counts. Defaults to False.
-      test_set (bool, optional): Set True to get test set. Defaults to False.
-      binary_metrics (bool, optional): Set True to get binary metric. Defaults to False.
-      confusion_matrix (bool, optional): Set True to get confusion matrix. Defaults to False.
-      metrics_by_class (bool, optional): Set True to get metrics by class. Defaults to False.
-      metrics_by_area (bool, optional): Set True to get metrics by area. Defaults to False.
+        Args:
+          label_counts (bool, optional): Set True to get label counts. Defaults to False.
+          test_set (bool, optional): Set True to get test set. Defaults to False.
+          binary_metrics (bool, optional): Set True to get binary metric. Defaults to False.
+          confusion_matrix (bool, optional): Set True to get confusion matrix. Defaults to False.
+          metrics_by_class (bool, optional): Set True to get metrics by class. Defaults to False.
+          metrics_by_area (bool, optional): Set True to get metrics by area. Defaults to False.
 
-    Returns:
-      eval_metric if model is evaluated otherwise None.
+        Returns:
+          eval_metric if model is evaluated otherwise None.
 
-    """
+        """
 
     _latest = self.list_evaluations()[0]
     result = None
@@ -1268,19 +1348,20 @@ class Model(Lister, BaseClient):
           binary_metrics=binary_metrics,
           confusion_matrix=confusion_matrix,
           metrics_by_class=metrics_by_class,
-          metrics_by_area=metrics_by_area)
+          metrics_by_area=metrics_by_area,
+      )
 
     return result
 
   def get_eval_by_dataset(self, dataset: Dataset) -> List[resources_pb2.EvalMetrics]:
     """Get all eval data of dataset
 
-    Args:
-        dataset (Dataset): Clarifai dataset
+        Args:
+            dataset (Dataset): Clarifai dataset
 
-    Returns:
-        List[resources_pb2.EvalMetrics]
-    """
+        Returns:
+            List[resources_pb2.EvalMetrics]
+        """
     _id = dataset.id
     app = dataset.app_id or self.app_id
     user_id = dataset.user_id or self.user_id
@@ -1291,7 +1372,7 @@ class Model(Lister, BaseClient):
     for _eval in list_eval:
       if _eval.status.code == status_code_pb2.MODEL_EVALUATED:
         gt_ds = _eval.ground_truth_dataset
-        if (_id == gt_ds.id and user_id == gt_ds.user_id and app == gt_ds.app_id):
+        if _id == gt_ds.id and user_id == gt_ds.user_id and app == gt_ds.app_id:
           if not version or version == gt_ds.version.id:
             outputs.append(_eval)
 
@@ -1301,89 +1382,89 @@ class Model(Lister, BaseClient):
                    dataset: Dataset = None,
                    eval_id: str = None,
                    return_format: str = 'array') -> Union[resources_pb2.EvalTestSetEntry, Tuple[
-                       np.array, np.array, list, List[Input]], Tuple[List[dict], List[dict]]]:
+                       np.array, np.array, list, List[Input]], Tuple[List[dict], List[dict]],]:
     """Get ground truths, predictions and input information. Do not pass dataset and eval_id at same time
 
-    Args:
-        dataset (Dataset): Clarifai dataset, get eval data of latest eval result of dataset.
-        eval_id (str): Evaluation ID, get eval data of specific eval id.
-        return_format (str, optional): Choice {proto, array, coco}. !Note that `coco` is only applicable for 'visual-detector'. Defaults to 'array'.
+        Args:
+            dataset (Dataset): Clarifai dataset, get eval data of latest eval result of dataset.
+            eval_id (str): Evaluation ID, get eval data of specific eval id.
+            return_format (str, optional): Choice {proto, array, coco}. !Note that `coco` is only applicable for 'visual-detector'. Defaults to 'array'.
 
-    Returns:
+        Returns:
 
-        Depends on `return_format`.
+            Depends on `return_format`.
 
-        * if return_format == proto
-          `resources_pb2.EvalTestSetEntry`
+            * if return_format == proto
+              `resources_pb2.EvalTestSetEntry`
 
-        * if return_format == array
-          `Tuple(np.array, np.array, List[str], List[Input])`: Tuple has 4 elements (y, y_pred, concept_ids, inputs).
-            y, y_pred, concept_ids can be used to compute metrics. 'inputs' can be use to download
-            - if model is 'classifier': 'y' and 'y_pred' are both arrays with a shape of (num_inputs,)
-            - if model is 'visual-detector': 'y' and 'y_pred' are arrays with a shape of (num_inputs,), where each element is array has shape (num_annotation, 6) consists of [x_min, y_min, x_max, y_max, concept_index, score]. The score is always 1 for 'y'
+            * if return_format == array
+              `Tuple(np.array, np.array, List[str], List[Input])`: Tuple has 4 elements (y, y_pred, concept_ids, inputs).
+                y, y_pred, concept_ids can be used to compute metrics. 'inputs' can be use to download
+                - if model is 'classifier': 'y' and 'y_pred' are both arrays with a shape of (num_inputs,)
+                - if model is 'visual-detector': 'y' and 'y_pred' are arrays with a shape of (num_inputs,), where each element is array has shape (num_annotation, 6) consists of [x_min, y_min, x_max, y_max, concept_index, score]. The score is always 1 for 'y'
 
-        * if return_format == coco: Applicable only for 'visual-detector'
-          `Tuple[List[Dict], List[Dict]]`: Tuple has 2 elemnts where first element is COCO Ground Truth and last one is COCO Prediction Annotation
+            * if return_format == coco: Applicable only for 'visual-detector'
+              `Tuple[List[Dict], List[Dict]]`: Tuple has 2 elemnts where first element is COCO Ground Truth and last one is COCO Prediction Annotation
 
-    Example Usages:
-    ------
-    * Evaluate `visual-classifier` using sklearn
+        Example Usages:
+        ------
+        * Evaluate `visual-classifier` using sklearn
 
-    ```python
-    import os
-    from sklearn.metrics import accuracy_score
-    from sklearn.metrics import classification_report
-    import numpy as np
-    from clarifai.client.model import Model
-    from clarifai.client.dataset import Dataset
-    os.environ["CLARIFAI_PAT"] = "???"
-    model = Model(url="url/of/model/includes/version-id")
-    dataset = Dataset(dataset_id="dataset-id")
-    y, y_pred, clss, input_protos = model.get_raw_eval(dataset, return_format="array")
-    y = np.argmax(y, axis=1)
-    y_pred = np.argmax(y_pred, axis=1)
-    report = classification_report(y, y_pred, target_names=clss)
-    print(report)
-    acc = accuracy_score(y, y_pred)
-    print("acc ", acc)
-    ```
+        ```python
+        import os
+        from sklearn.metrics import accuracy_score
+        from sklearn.metrics import classification_report
+        import numpy as np
+        from clarifai.client.model import Model
+        from clarifai.client.dataset import Dataset
+        os.environ["CLARIFAI_PAT"] = "???"
+        model = Model(url="url/of/model/includes/version-id")
+        dataset = Dataset(dataset_id="dataset-id")
+        y, y_pred, clss, input_protos = model.get_raw_eval(dataset, return_format="array")
+        y = np.argmax(y, axis=1)
+        y_pred = np.argmax(y_pred, axis=1)
+        report = classification_report(y, y_pred, target_names=clss)
+        print(report)
+        acc = accuracy_score(y, y_pred)
+        print("acc ", acc)
+        ```
 
-    * Evaluate `visual-detector` using COCOeval
+        * Evaluate `visual-detector` using COCOeval
 
-    ```python
-    import os
-    import json
-    from pycocotools.coco import COCO
-    from pycocotools.cocoeval import COCOeval
-    from clarifai.client.model import Model
-    from clarifai.client.dataset import Dataset
-    os.environ["CLARIFAI_PAT"] = "???" # Insert your PAT
-    model = Model(url=model_url)
-    dataset = Dataset(url=dataset_url)
-    y, y_pred = model.get_raw_eval(dataset, return_format="coco")
-    # save as files to load in COCO API
-    def save_annot(d, path):
-      with open(path, "w") as fp:
-        json.dump(d, fp, indent=2)
-    gt_path = os.path.join("gt.json")
-    pred_path = os.path.join("pred.json")
-    save_annot(y, gt_path)
-    save_annot(y_pred, pred_path)
+        ```python
+        import os
+        import json
+        from pycocotools.coco import COCO
+        from pycocotools.cocoeval import COCOeval
+        from clarifai.client.model import Model
+        from clarifai.client.dataset import Dataset
+        os.environ["CLARIFAI_PAT"] = "???" # Insert your PAT
+        model = Model(url=model_url)
+        dataset = Dataset(url=dataset_url)
+        y, y_pred = model.get_raw_eval(dataset, return_format="coco")
+        # save as files to load in COCO API
+        def save_annot(d, path):
+          with open(path, "w") as fp:
+            json.dump(d, fp, indent=2)
+        gt_path = os.path.join("gt.json")
+        pred_path = os.path.join("pred.json")
+        save_annot(y, gt_path)
+        save_annot(y_pred, pred_path)
 
-    cocoGt = COCO(gt_path)
-    cocoPred = COCO(pred_path)
-    cocoEval = COCOeval(cocoGt, cocoPred, "bbox")
-    cocoEval.evaluate()
-    cocoEval.accumulate()
-    cocoEval.summarize() # Print out result of all classes with all area type
-    # Example:
-    # Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.863
-    # Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.973
-    # Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.939
-    # ...
-    ```
+        cocoGt = COCO(gt_path)
+        cocoPred = COCO(pred_path)
+        cocoEval = COCOeval(cocoGt, cocoPred, "bbox")
+        cocoEval.evaluate()
+        cocoEval.accumulate()
+        cocoEval.summarize() # Print out result of all classes with all area type
+        # Example:
+        # Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.863
+        # Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.973
+        # Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.939
+        # ...
+        ```
 
-    """
+        """
     from clarifai.utils.evaluation.testset_annotation_parser import (
         parse_eval_annotation_classifier, parse_eval_annotation_detector,
         parse_eval_annotation_detector_coco)
@@ -1394,11 +1475,13 @@ class Model(Lister, BaseClient):
         f"Expected return_format in {supported_format}, got {return_format}")
     self.load_info()
     model_type_id = self.model_info.model_type_id
-    assert model_type_id in valid_model_types, \
-      f"This method only supports model types {valid_model_types}, but your model type is {self.model_info.model_type_id}."
+    assert model_type_id in valid_model_types, (
+        f"This method only supports model types {valid_model_types}, but your model type is {self.model_info.model_type_id}."
+    )
     assert not (dataset and
-                eval_id), "Using both `dataset` and `eval_id`, but only one should be passed."
-    assert not dataset or not eval_id, "Please provide either `dataset` or `eval_id`, but nothing was passed."
+                eval_id), ("Using both `dataset` and `eval_id`, but only one should be passed.")
+    assert not dataset or not eval_id, (
+        "Please provide either `dataset` or `eval_id`, but nothing was passed.")
     if model_type_id.endswith("-classifier") and return_format == "coco":
       raise ValueError(
           f"return_format coco only applies for `visual-detector`, however your model is `{model_type_id}`"
@@ -1414,29 +1497,30 @@ class Model(Lister, BaseClient):
 
     if return_format == "proto":
       return detail_eval_data.test_set
-    else:
-      if model_type_id.endswith("-classifier"):
-        return parse_eval_annotation_classifier(detail_eval_data)
-      elif model_type_id == "visual-detector":
-        if return_format == "array":
-          return parse_eval_annotation_detector(detail_eval_data)
-        elif return_format == "coco":
-          return parse_eval_annotation_detector_coco(detail_eval_data)
+    elif model_type_id.endswith("-classifier"):
+      return parse_eval_annotation_classifier(detail_eval_data)
+    elif model_type_id == "visual-detector":
+      if return_format == "array":
+        return parse_eval_annotation_detector(detail_eval_data)
+      elif return_format == "coco":
+        return parse_eval_annotation_detector_coco(detail_eval_data)
 
   def export(self, export_dir: str = None) -> None:
     """Export the model, stores the exported model as model.tar file
 
-    Args:
-        export_dir (str, optional): If provided, the exported model will be saved in the specified directory else export status will be shown. Defaults to None.
+        Args:
+            export_dir (str, optional): If provided, the exported model will be saved in the specified directory else export status will be shown. Defaults to None.
 
-    Example:
-        >>> from clarifai.client.model import Model
-        >>> model = Model("url")
-        >>> model.export()
-                or
-        >>> model.export('/path/to/export_model_dir')
-    """
-    assert self.model_info.model_version.id, "Model version ID is missing. Please provide a `model_version` with a valid `id` as an argument or as a URL in the following format: '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model("url")
+            >>> model.export()
+                    or
+            >>> model.export('/path/to/export_model_dir')
+        """
+    assert self.model_info.model_version.id, (
+        "Model version ID is missing. Please provide a `model_version` with a valid `id` as an argument or as a URL in the following format: '{user_id}/{app_id}/models/{your_model_id}/model_version_id/{your_version_model_id}' when initializing."
+    )
     if export_dir:
       try:
         if not os.path.exists(export_dir):
@@ -1452,14 +1536,16 @@ class Model(Lister, BaseClient):
       )
       response = self._grpc_request(self.STUB.GetModelVersionExport, get_export_request)
 
-      if response.status.code != status_code_pb2.SUCCESS and response.status.code != status_code_pb2.CONN_DOES_NOT_EXIST:
+      if (response.status.code != status_code_pb2.SUCCESS and
+          response.status.code != status_code_pb2.CONN_DOES_NOT_EXIST):
         raise Exception(response.status)
 
       return response
 
     def _download_exported_model(
         get_model_export_response: service_pb2.SingleModelVersionExportResponse,
-        local_filepath: str):
+        local_filepath: str,
+    ):
       model_export_url = get_model_export_response.export.url
       model_export_file_size = get_model_export_response.export.size
 
@@ -1475,7 +1561,7 @@ class Model(Lister, BaseClient):
           if downloaded_size + range_size >= model_export_file_size:
             range_header = f"bytes={downloaded_size}-"
           else:
-            range_header = f"bytes={downloaded_size}-{(downloaded_size+range_size-1)}"
+            range_header = (f"bytes={downloaded_size}-{(downloaded_size + range_size - 1)}")
           try:
             session = requests.Session()
             retries = Retry(total=5, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
@@ -1491,16 +1577,16 @@ class Model(Lister, BaseClient):
             os.fsync(f.fileno())
             downloaded_size += range_size
             if not retry:
-              range_size = (
-                  range_size * 2) if (range_size * 2) < MAX_RANGE_SIZE else MAX_RANGE_SIZE
-              chunk_size = (
-                  chunk_size * 2) if (chunk_size * 2) < MAX_CHUNK_SIZE else MAX_CHUNK_SIZE
+              range_size = ((range_size * 2)
+                            if (range_size * 2) < MAX_RANGE_SIZE else MAX_RANGE_SIZE)
+              chunk_size = ((chunk_size * 2)
+                            if (chunk_size * 2) < MAX_CHUNK_SIZE else MAX_CHUNK_SIZE)
           except Exception as e:
             self.logger.error(f"Error downloading model: {e}")
-            range_size = (
-                range_size // 2) if (range_size // 2) > MIN_RANGE_SIZE else MIN_RANGE_SIZE
-            chunk_size = (
-                chunk_size // 2) if (chunk_size // 2) > MIN_CHUNK_SIZE else MIN_CHUNK_SIZE
+            range_size = ((range_size // 2)
+                          if (range_size // 2) > MIN_RANGE_SIZE else MIN_RANGE_SIZE)
+            chunk_size = ((chunk_size // 2)
+                          if (chunk_size // 2) > MIN_CHUNK_SIZE else MIN_CHUNK_SIZE)
             retry = True
             retry_count += 1
             f.seek(downloaded_size)
@@ -1534,9 +1620,9 @@ class Model(Lister, BaseClient):
         backoff_iterator = BackoffIterator(10)
         while True:
           get_export_response = _get_export_response()
-          if (get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTING or \
-                get_export_response.export.status.code == status_code_pb2.MODEL_EXPORT_PENDING) and \
-                  time.time() - start_time < MODEL_EXPORT_TIMEOUT:
+          if (get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTING or
+              get_export_response.export.status.code == status_code_pb2.MODEL_EXPORT_PENDING
+             ) and time.time() - start_time < MODEL_EXPORT_TIMEOUT:
             self.logger.info(
                 f"Export process is ongoing for Model ID {self.id}, Version {self.model_info.model_version.id}. Please wait..."
             )
@@ -1555,8 +1641,8 @@ class Model(Lister, BaseClient):
         self.logger.info(
             f"Model ID {self.id} with version {self.model_info.model_version.id} is already exported, you can download it from the following URL: {get_export_response.export.url}"
         )
-    elif get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTING or \
-            get_export_response.export.status.code == status_code_pb2.MODEL_EXPORT_PENDING:
+    elif (get_export_response.export.status.code == status_code_pb2.MODEL_EXPORTING or
+          get_export_response.export.status.code == status_code_pb2.MODEL_EXPORT_PENDING):
       self.logger.info(
           f"Export process is ongoing for Model ID {self.id}, Version {self.model_info.model_version.id}. Please wait..."
       )
@@ -1567,11 +1653,11 @@ class Model(Lister, BaseClient):
                                     url: str = None):
     """Make PretrainedModelConfig for uploading new version
 
-    Args:
-        input_field_maps (dict): dict
-        output_field_maps (dict): dict
-        url (str, optional): direct download url. Defaults to None.
-    """
+        Args:
+            input_field_maps (dict): dict
+            output_field_maps (dict): dict
+            url (str, optional): direct download url. Defaults to None.
+        """
 
     def _parse_fields_map(x):
       """parse input, outputs to Struct"""
@@ -1583,19 +1669,22 @@ class Model(Lister, BaseClient):
     output_fields_map = _parse_fields_map(output_field_maps)
 
     return resources_pb2.PretrainedModelConfig(
-        input_fields_map=input_fields_map, output_fields_map=output_fields_map, model_zip_url=url)
+        input_fields_map=input_fields_map,
+        output_fields_map=output_fields_map,
+        model_zip_url=url,
+    )
 
   @staticmethod
-  def _make_inference_params_proto(
-      inference_parameters: List[Dict]) -> List[resources_pb2.ModelTypeField]:
+  def _make_inference_params_proto(inference_parameters: List[Dict],
+                                  ) -> List[resources_pb2.ModelTypeField]:
     """Convert list of Clarifai inference parameters to proto for uploading new version
 
-    Args:
-        inference_parameters (List[Dict]): Each dict has keys {field_type, path, default_value, description}
+        Args:
+            inference_parameters (List[Dict]): Each dict has keys {field_type, path, default_value, description}
 
-    Returns:
-        List[resources_pb2.ModelTypeField]
-    """
+        Returns:
+            List[resources_pb2.ModelTypeField]
+        """
 
     def _make_default_value_proto(dtype, value):
       if dtype == 1:
@@ -1617,52 +1706,55 @@ class Model(Lister, BaseClient):
       iterative_proto_params.append(proto_param)
     return iterative_proto_params
 
-  def create_version_by_file(self,
-                             file_path: str,
-                             input_field_maps: dict,
-                             output_field_maps: dict,
-                             inference_parameter_configs: dict = None,
-                             model_version: str = None,
-                             part_id: int = 1,
-                             range_start: int = 0,
-                             no_cache: bool = False,
-                             no_resume: bool = False,
-                             description: str = "") -> 'Model':
+  def create_version_by_file(
+      self,
+      file_path: str,
+      input_field_maps: dict,
+      output_field_maps: dict,
+      inference_parameter_configs: dict = None,
+      model_version: str = None,
+      part_id: int = 1,
+      range_start: int = 0,
+      no_cache: bool = False,
+      no_resume: bool = False,
+      description: str = "",
+  ) -> 'Model':
     """Create model version by uploading local file
 
-    Args:
-        file_path (str): path to built file.
-        input_field_maps (dict): a dict where the key is clarifai input field and the value is triton model input,
-          {clarifai_input_field: triton_input_filed}.
-        output_field_maps (dict): a dict where the keys are clarifai output fields and the values are triton model outputs,
-          {clarifai_output_field1: triton_output_filed1, clarifai_output_field2: triton_output_filed2,...}.
-        inference_parameter_configs (List[dict]): list of dicts - keys are path, field_type, default_value, description. Default is None
-        model_version (str, optional): Custom model version. Defaults to None.
-        part_id (int, optional): part id of file. Defaults to 1.
-        range_start (int, optional): range of uploaded size. Defaults to 0.
-        no_cache (bool, optional): not saving uploading cache that is used to resume uploading. Defaults to False.
-        no_resume (bool, optional): disable auto resume upload. Defaults to False.
-        description (str): Model description.
+        Args:
+            file_path (str): path to built file.
+            input_field_maps (dict): a dict where the key is clarifai input field and the value is triton model input,
+              {clarifai_input_field: triton_input_filed}.
+            output_field_maps (dict): a dict where the keys are clarifai output fields and the values are triton model outputs,
+              {clarifai_output_field1: triton_output_filed1, clarifai_output_field2: triton_output_filed2,...}.
+            inference_parameter_configs (List[dict]): list of dicts - keys are path, field_type, default_value, description. Default is None
+            model_version (str, optional): Custom model version. Defaults to None.
+            part_id (int, optional): part id of file. Defaults to 1.
+            range_start (int, optional): range of uploaded size. Defaults to 0.
+            no_cache (bool, optional): not saving uploading cache that is used to resume uploading. Defaults to False.
+            no_resume (bool, optional): disable auto resume upload. Defaults to False.
+            description (str): Model description.
 
-    Return:
-      Model: instance of Model with new created version
+        Return:
+          Model: instance of Model with new created version
 
-    """
+        """
     file_size = os.path.getsize(file_path)
-    assert MIN_CHUNK_FOR_UPLOAD_FILE <= file_size <= MAX_CHUNK_FOR_UPLOAD_FILE, "The file size exceeds the allowable limit, which ranges from 5MiB to 5GiB."
+    assert MIN_CHUNK_FOR_UPLOAD_FILE <= file_size <= MAX_CHUNK_FOR_UPLOAD_FILE, (
+        "The file size exceeds the allowable limit, which ranges from 5MiB to 5GiB.")
 
     pretrained_proto = Model._make_pretrained_config_proto(
         input_field_maps=input_field_maps, output_field_maps=output_field_maps)
-    inference_param_proto = Model._make_inference_params_proto(
-        inference_parameter_configs) if inference_parameter_configs else None
+    inference_param_proto = (Model._make_inference_params_proto(inference_parameter_configs)
+                             if inference_parameter_configs else None)
 
     if file_size >= 1e9:
       chunk_size = 1024 * 50_000  # 50MB
     else:
       chunk_size = 1024 * 10_000  # 10MB
 
-    #self.logger.info(f"Chunk {chunk_size/1e6}MB, {file_size/chunk_size} steps")
-    #self.logger.info(f" Max bytes per stream {MAX_SIZE_PER_STREAM}")
+    # self.logger.info(f"Chunk {chunk_size/1e6}MB, {file_size/chunk_size} steps")
+    # self.logger.info(f" Max bytes per stream {MAX_SIZE_PER_STREAM}")
 
     cache_dir = os.path.join(file_path, '..', '.cache')
     cache_upload_file = os.path.join(cache_dir, "upload.json")
@@ -1690,7 +1782,8 @@ class Model(Lister, BaseClient):
                   id=model_version,
                   pretrained_model_config=pretrained_proto,
                   description=description,
-                  output_info=resources_pb2.OutputInfo(params_specs=inference_param_proto)),
+                  output_info=resources_pb2.OutputInfo(params_specs=inference_param_proto),
+              ),
           ))
 
     def _uploading(chunk, part_id, range_start, model_version):
@@ -1700,7 +1793,8 @@ class Model(Lister, BaseClient):
 
     finished_status = [status_code_pb2.SUCCESS, status_code_pb2.UPLOAD_DONE]
     uploading_in_progress_status = [
-        status_code_pb2.UPLOAD_IN_PROGRESS, status_code_pb2.MODEL_UPLOADING
+        status_code_pb2.UPLOAD_IN_PROGRESS,
+        status_code_pb2.MODEL_UPLOADING,
     ]
 
     def _save_cache(cache: dict):
@@ -1719,7 +1813,8 @@ class Model(Lister, BaseClient):
             chunk=chunk,
             part_id=iter_part_id,
             range_start=chunk_size * (iter_part_id - 1),
-            model_version=version)
+            model_version=version,
+        )
 
     tqdm_loader = tqdm(total=100)
     if model_version:
@@ -1744,8 +1839,8 @@ class Model(Lister, BaseClient):
           request, metadata=self.auth_helper.metadata)):
         if st_response.status.code in uploading_in_progress_status:
           if cache_uploading_info["model_version"]:
-            assert st_response.model_version_id == cache_uploading_info[
-                "model_version"], RuntimeError
+            assert (st_response.model_version_id == cache_uploading_info["model_version"]
+                   ), RuntimeError
           else:
             cache_uploading_info["model_version"] = st_response.model_version_id
           if st_step > 0:
@@ -1754,7 +1849,8 @@ class Model(Lister, BaseClient):
             _save_cache(cache_uploading_info)
 
             if st_response.status.percent_completed:
-              step_percent = st_response.status.percent_completed - cache_uploading_info["last_percent"]
+              step_percent = (
+                  st_response.status.percent_completed - cache_uploading_info["last_percent"])
               cache_uploading_info["last_percent"] += step_percent
               tqdm_loader.set_description(
                   f"{st_response.status.description}, {st_response.status.details}, version id  {cache_uploading_info.get('model_version')}"
@@ -1773,15 +1869,15 @@ class Model(Lister, BaseClient):
       end_part_id = n_chunks or 1
       for iter_part_id in range(int(last_part_id), int(n_chunks), int(n_chunk_per_stream)):
         end_part_id = iter_part_id + n_chunk_per_stream
-        if end_part_id >= n_chunks:
-          end_part_id = n_chunks
+        end_part_id = min(n_chunks, end_part_id)
         expected_steps = end_part_id - iter_part_id + 1  # init step
         st_reqs = stream_request(
             fp,
             iter_part_id,
             end_part_id=end_part_id,
             chunk_size=chunk_size,
-            version=cache_uploading_info["model_version"])
+            version=cache_uploading_info["model_version"],
+        )
         stream_and_logging(st_reqs, tqdm_loader, cache_uploading_info, expected_steps)
       # Stream last part
       accum_size = (end_part_id - 1) * chunk_size
@@ -1791,7 +1887,8 @@ class Model(Lister, BaseClient):
           end_part_id,
           end_part_id=end_part_id + 1,
           chunk_size=remained_size,
-          version=cache_uploading_info["model_version"])
+          version=cache_uploading_info["model_version"],
+      )
       stream_and_logging(st_reqs, tqdm_loader, cache_uploading_info, 2)
 
     # clean up cache
@@ -1812,33 +1909,36 @@ class Model(Lister, BaseClient):
     return Model.from_auth_helper(
         auth=self.auth_helper,
         model_id=self.id,
-        model_version=dict(id=cache_uploading_info.get('model_version')))
+        model_version=dict(id=cache_uploading_info.get('model_version')),
+    )
 
-  def create_version_by_url(self,
-                            url: str,
-                            input_field_maps: dict,
-                            output_field_maps: dict,
-                            inference_parameter_configs: List[dict] = None,
-                            description: str = "") -> 'Model':
+  def create_version_by_url(
+      self,
+      url: str,
+      input_field_maps: dict,
+      output_field_maps: dict,
+      inference_parameter_configs: List[dict] = None,
+      description: str = "",
+  ) -> 'Model':
     """Upload a new version of an existing model in the Clarifai platform using direct download url.
 
-    Args:
-      url (str]): url of zip of model
-      input_field_maps (dict): a dict where the key is clarifai input field and the value is triton model input,
-          {clarifai_input_field: triton_input_filed}.
-      output_field_maps (dict): a dict where the keys are clarifai output fields and the values are triton model outputs,
-          {clarifai_output_field1: triton_output_filed1, clarifai_output_field2: triton_output_filed2,...}.
-      inference_parameter_configs (List[dict]): list of dicts - keys are path, field_type, default_value, description. Default is None
-      description (str): Model description.
+        Args:
+          url (str]): url of zip of model
+          input_field_maps (dict): a dict where the key is clarifai input field and the value is triton model input,
+              {clarifai_input_field: triton_input_filed}.
+          output_field_maps (dict): a dict where the keys are clarifai output fields and the values are triton model outputs,
+              {clarifai_output_field1: triton_output_filed1, clarifai_output_field2: triton_output_filed2,...}.
+          inference_parameter_configs (List[dict]): list of dicts - keys are path, field_type, default_value, description. Default is None
+          description (str): Model description.
 
-    Return:
-      Model: instance of Model with new created version
-    """
+        Return:
+          Model: instance of Model with new created version
+        """
 
     pretrained_proto = Model._make_pretrained_config_proto(
         input_field_maps=input_field_maps, output_field_maps=output_field_maps, url=url)
-    inference_param_proto = Model._make_inference_params_proto(
-        inference_parameter_configs) if inference_parameter_configs else None
+    inference_param_proto = (Model._make_inference_params_proto(inference_parameter_configs)
+                             if inference_parameter_configs else None)
     request = service_pb2.PostModelVersionsRequest(
         user_app_id=self.user_app_id,
         model_id=self.id,
@@ -1846,8 +1946,10 @@ class Model(Lister, BaseClient):
             resources_pb2.ModelVersion(
                 pretrained_model_config=pretrained_proto,
                 description=description,
-                output_info=resources_pb2.OutputInfo(params_specs=inference_param_proto))
-        ])
+                output_info=resources_pb2.OutputInfo(params_specs=inference_param_proto),
+            )
+        ],
+    )
     response = self._grpc_request(self.STUB.PostModelVersions, request)
 
     if response.status.code != status_code_pb2.SUCCESS:
@@ -1858,4 +1960,5 @@ class Model(Lister, BaseClient):
     return Model.from_auth_helper(
         auth=self.auth_helper,
         model_id=self.id,
-        model_version=dict(id=response.model.model_version.id))
+        model_version=dict(id=response.model.model_version.id),
+    )

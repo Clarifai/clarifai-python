@@ -9,6 +9,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.client.auth.register import RpcCallable, V2Stub
 from clarifai.utils.logging import logger
+
 throttle_status_codes = {
     status_code_pb2.CONN_THROTTLED,
     status_code_pb2.CONN_EXCEED_HOURLY_LIMIT,
@@ -57,13 +58,13 @@ def create_stub(auth_helper: ClarifaiAuthHelper = None,
                 max_retry_attempts: int = 10,
                 is_async: bool = False) -> V2Stub:
   """
-  Create client stub that handles authorization and basic retries for
-  unavailable or throttled connections.
+    Create client stub that handles authorization and basic retries for
+    unavailable or throttled connections.
 
-  Args:
-    auth_helper:  ClarifaiAuthHelper to use for auth metadata (default: from env)
-    max_retry_attempts:  max attempts to retry rpcs with retryable failures
-  """
+    Args:
+      auth_helper:  ClarifaiAuthHelper to use for auth metadata (default: from env)
+      max_retry_attempts:  max attempts to retry rpcs with retryable failures
+    """
   stub = AuthorizedStub(auth_helper, is_async=is_async)
   if max_retry_attempts > 0:
     return RetryStub(stub, max_retry_attempts, is_async=is_async)
@@ -123,8 +124,8 @@ class _AuthorizedRpcCallable(RpcCallable):
 
 class RetryStub(V2Stub):
   """
-  V2Stub proxy that retries requests (currently on unavailable server or throttle codes)
-  """
+    V2Stub proxy that retries requests (currently on unavailable server or throttle codes)
+    """
 
   def __init__(self, stub, max_attempts=10, backoff_time=5, is_async=False):
     self.stub = stub
