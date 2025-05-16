@@ -1,3 +1,4 @@
+import json
 import math
 import operator
 from io import BytesIO
@@ -59,6 +60,18 @@ def is_openai_chat_format(messages):
     return True
 
 
+# Custom JSON Encoder only for Param
+class ParamEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Param):
+            return obj.__json__()
+        return super().default(obj)
+
+
+# Override the default encoder globally for json.dumps (only when used with User)
+json._default_encoder = ParamEncoder()
+
+
 class Param(MessageData):
     """A field that can be used to store input data."""
 
@@ -95,10 +108,10 @@ class Param(MessageData):
 
     # All *explicit* conversions
     def __int__(self):
-        return int(self.default) if self.default is not None else 0
+        return int(self.default)
 
     def __float__(self):
-        return float(self.default) if self.default is not None else 0.0
+        return float(self.default)
 
     def __str__(self):
         return str(self.default)
@@ -182,7 +195,7 @@ class Param(MessageData):
     for _name, _op in _arith_ops.items():
 
         def _make(op):
-            def _f(self, other, *, _op=op):
+            def _f(self, other, *, _op=op):  # default arg binds op
                 return _op(self.default, other)
 
             return _f
@@ -252,18 +265,8 @@ class Param(MessageData):
             return self
         return self.default
 
-    @property
-    def __class__(self):
-        if self.default is None:
-            return super().__class__
-        return type(self.default)
-
     def __json__(self):
         return self.default if not hasattr(self.default, '__json__') else self.default.__json__()
-
-    # Ensure JSON serialization uses the default value
-    def __reduce__(self):
-        return (type(self.default), (self.default,))
 
     def to_proto(self, proto=None) -> ParamProto:
         if proto is None:
