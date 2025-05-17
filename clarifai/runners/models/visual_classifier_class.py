@@ -9,6 +9,7 @@ from PIL import Image as PILImage
 
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.data_types import Concept, Frame, Image
+from clarifai.utils.logging import logger
 
 
 class VisualClassifierClass(ModelClass):
@@ -32,10 +33,10 @@ class VisualClassifierClass(ModelClass):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_video_file:
             temp_video_file.write(video_bytes)
             temp_video_path = temp_video_file.name
-            print(f"temp_video_path: {temp_video_path}")
+            logger.debug(f"temp_video_path: {temp_video_path}")
 
             video = cv2.VideoCapture(temp_video_path)
-            print(f"video opened: {video.isOpened()}")
+            logger.debug(f"video opened: {video.isOpened()}")
 
             while video.isOpened():
                 ret, frame = video.read()
