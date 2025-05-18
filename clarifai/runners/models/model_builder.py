@@ -41,13 +41,6 @@ dependencies = [
 ]
 
 
-def _clear_line(n: int = 1) -> None:
-    LINE_UP = '\033[1A'  # Move cursor up one line
-    LINE_CLEAR = '\x1b[2K'  # Clear the entire line
-    for _ in range(n):
-        print(LINE_UP, end=LINE_CLEAR, flush=True)
-
-
 def is_related(object_class, main_class):
     # Check if the object_class is a subclass of main_class
     if issubclass(object_class, main_class):
@@ -843,7 +836,6 @@ class ModelBuilder:
                 percent_completed = response.status.percent_completed
             details = response.status.details
 
-            _clear_line()
             print(
                 f"Status: {response.status.description}, Progress: {percent_completed}% - {details} ",
                 f"request_id: {response.status.req_id}",
@@ -957,7 +949,12 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
             for log_entry in logs.log_entries:
                 if log_entry.url not in seen_logs:
                     seen_logs.add(log_entry.url)
-                    # logger.info(f"{escape(log_entry.message.strip())}")
+                    log_entry_msg = re.sub(
+                        r"(\\*)(\[[a-z#/@][^[]*?])",
+                        lambda m: f"{m.group(1)}{m.group(1)}\\{m.group(2)}",
+                        log_entry.message.strip(),
+                    )
+                    logger.info(log_entry_msg)
             if status_code == status_code_pb2.MODEL_BUILDING:
                 print(
                     f"Model is building... (elapsed {time.time() - st:.1f}s)", end='\r', flush=True
