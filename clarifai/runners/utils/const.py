@@ -30,5 +30,8 @@ AVAILABLE_TORCH_IMAGES = [
     '2.7.0-py3.12-rocm6.3',
 ]
 CONCEPTS_REQUIRED_MODEL_TYPE = [
-    'visual-classifier', 'visual-detector', 'visual-segmenter', 'text-classifier'
+    'visual-classifier',
+    'visual-detector',
+    'visual-segmenter',
+    'text-classifier',
 ]

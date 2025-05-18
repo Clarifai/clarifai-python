@@ -1,3 +1,26 @@
+## [[11.4.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.1) - [PyPI](https://pypi.org/project/clarifai/11.4.1/) - 2025-05-09
+
+### Changed
+- Param for Inference params in model.py and FE [(#567)](https://github.com/Clarifai/clarifai-python/pull/567)
+
+## [[11.4.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.0) - [PyPI](https://pypi.org/project/clarifai/11.4.0/) - 2025-05-08
+
+### Changed
+- Fixed Streamlit Query Parameters retrieval issue in ClarifaiAuthHelper. [(#577)](https://github.com/Clarifai/clarifai-python/pull/577)
+- Fixed pyproject.toml. [(#575)](https://github.com/Clarifai/clarifai-python/pull/575)
+- Fixed local dev runners. [(#574)](https://github.com/Clarifai/clarifai-python/pull/574)
+- Fixed issue of runner ID of local dev runners. [(#573)](https://github.com/Clarifai/clarifai-python/pull/573)
+- Switched to `uv` and `ruff` to speed up tests and formatting & linting. [(#572)](https://github.com/Clarifai/clarifai-python/pull/572)
+- Changed some `==` to `is`. [(#570)](https://github.com/Clarifai/clarifai-python/pull/570)
+- Local dev runner setup using CLI is easier now. [(#568)](https://github.com/Clarifai/clarifai-python/pull/568)
+- Fixed indirect inheritence from ModelClass. [(#566)](https://github.com/Clarifai/clarifai-python/pull/566)
+
+## [[11.3.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.3.0) - [PyPI](https://pypi.org/project/clarifai/11.3.0/) - 2025-04-22
+
+### Changed
+- We support pythonic models now. See [runners-examples](https://github.com/clarifai/runners-examples) [(#525)](https://github.com/Clarifai/clarifai-python/pull/525)
+- Fixed failing tests. [(#559)](https://github.com/Clarifai/clarifai-python/pull/559)
+
 ## [[11.2.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.2.3) - [PyPI](https://pypi.org/project/clarifai/11.2.3/) - 2025-04-08
 
 ### Changed
