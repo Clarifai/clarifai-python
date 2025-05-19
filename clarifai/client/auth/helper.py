@@ -308,6 +308,29 @@ class ClarifaiAuthHelper:
         stub = service_pb2_grpc.V2Stub(channel)
         return stub
 
+    def get_async_stub(self) -> service_pb2_grpc.V2Stub:
+        """Get the API gRPC async stub using the right channel based on the API endpoint base.
+        Returns:
+        stub: The service_pb2_grpc.V2Stub stub for the API.
+        """
+        if self._base not in base_https_cache:
+            raise Exception("Cannot determine if base %s is https" % self._base)
+
+        https = base_https_cache[self._base]
+        if https:
+            channel = ClarifaiChannel.get_aio_grpc_channel(
+                base=self._base, root_certificates_path=self._root_certificates_path
+            )
+        else:
+            if self._base.find(":") >= 0:
+                host, port = self._base.split(":")
+            else:
+                host = self._base
+                port = 80
+            channel = ClarifaiChannel.get_aio_insecure_grpc_channel(base=host, port=port)
+        stub = service_pb2_grpc.V2Stub(channel)
+        return stub
+
     @property
     def ui(self) -> str:
         """Return the domain for the UI."""
