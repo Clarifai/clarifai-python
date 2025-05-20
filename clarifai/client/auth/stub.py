@@ -101,13 +101,7 @@ class _AuthorizedRpcCallable(RpcCallable):
 
     def __call__(self, *args, **kwargs):
         metadata = kwargs.pop('metadata', self.metadata)
-        if self.is_async:
-            # For async functions, return a coroutine
-            return self.f(
-                *args,
-                **kwargs,
-                metadata=metadata,
-            )
+
         return self.f(
             *args,
             **kwargs,
