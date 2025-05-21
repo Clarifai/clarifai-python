@@ -1,3 +1,14 @@
+## [[11.4.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.2) - [PyPI](https://pypi.org/project/clarifai/11.4.2/) - 2025-05-21
+
+### Changed
+- Fix Pythonic bugs [(#586)](https://github.com/Clarifai/clarifai-python/pull/586)
+- Addition of Base Class for Visual Classifier Models [(#585)](https://github.com/Clarifai/clarifai-python/pull/585)
+- Print script after model upload [(#583)](https://github.com/Clarifai/clarifai-python/pull/583)
+- Add AMD changes [(#581)](https://github.com/Clarifai/clarifai-python/pull/581)
+- Removed duplicate model downloads and improved error logging for gated HF repo. [(#564)](https://github.com/Clarifai/clarifai-python/pull/564)
+- Addition of Base Class for Visual Detector Models [(#563)](https://github.com/Clarifai/clarifai-python/pull/563)
+- remove rich from req [(#560)](https://github.com/Clarifai/clarifai-python/pull/560)
+
 ## [[11.4.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.1) - [PyPI](https://pypi.org/project/clarifai/11.4.1/) - 2025-05-09
 
 ### Changed
