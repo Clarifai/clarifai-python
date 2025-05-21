@@ -417,7 +417,7 @@ class ModelClient:
     async def _async_predict(
         self,
         inputs,
-        method_name: str = 'async_predict',
+        method_name: str = 'predict',
     ) -> Any:
         """Asynchronously process inputs and make predictions.
 
@@ -428,6 +428,7 @@ class ModelClient:
         Returns:
             Processed prediction results
         """
+        # method_name is set to 'predict' by default, this is because to replicate the input and output signature behaviour of sync to async predict.
         input_signature = self._method_signatures[method_name].input_fields
         output_signature = self._method_signatures[method_name].output_fields
 
@@ -611,6 +612,7 @@ class ModelClient:
         inputs,
         method_name: str = 'generate',
     ) -> Any:
+        # method_name is set to 'generate' by default, this is because to replicate the input and output signature behaviour of sync to async generate.
         input_signature = self._method_signatures[method_name].input_fields
         output_signature = self._method_signatures[method_name].output_fields
 
@@ -810,8 +812,9 @@ class ModelClient:
     async def _async_stream(
         self,
         inputs,
-        method_name: str = 'async_stream',
+        method_name: str = 'stream',
     ) -> Any:
+        # method_name is set to 'stream' by default, this is because to replicate the input and output signature behaviour of sync to async stream.
         input_signature = self._method_signatures[method_name].input_fields
         output_signature = self._method_signatures[method_name].output_fields
 
