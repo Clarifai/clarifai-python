@@ -302,6 +302,9 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
                 raise TypeError(f'Missing required argument: {sig.name}')
             continue  # skip missing fields, they can be set to default on the server
         data = kwargs[sig.name]
+        default = data_utils.Param.get_default(sig)
+        if data is None and default is None:
+            continue
         serializer = serializer_from_signature(sig)
         # TODO determine if any (esp the first) var can go in the proto without parts
         # and whether to put this in the signature or dynamically determine it
@@ -312,7 +315,7 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
     return proto
 
 
-def deserialize(proto, signatures, inference_params={}, is_output=False):
+def deserialize(proto, signatures, is_output=False):
     '''
     Deserialize the given proto into kwargs using the given signatures.
     '''
@@ -323,11 +326,8 @@ def deserialize(proto, signatures, inference_params={}, is_output=False):
     for sig_i, sig in enumerate(signatures):
         serializer = serializer_from_signature(sig)
         part = parts_by_name.get(sig.name)
-        inference_params_value = inference_params.get(sig.name)
         if part is not None:
             kwargs[sig.name] = serializer.deserialize(part.data)
-        elif inference_params_value is not None:
-            kwargs[sig.name] = inference_params_value
         else:
             if sig_i == 0:
                 # possible inlined first value

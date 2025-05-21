@@ -1,3 +1,4 @@
+import json
 import math
 import operator
 from io import BytesIO
@@ -64,7 +65,7 @@ class Param(MessageData):
 
     def __init__(
         self,
-        default=None,
+        default,
         description=None,
         min_value=None,
         max_value=None,
@@ -77,6 +78,7 @@ class Param(MessageData):
         self.max_value = max_value
         self.choices = choices
         self.is_param = is_param
+        self._patch_encoder()
 
     def __repr__(self) -> str:
         attrs = []
@@ -153,6 +155,16 @@ class Param(MessageData):
     def __ge__(self, other):
         return self.default >= other
 
+    def __getattribute__(self, name):
+        """Intercept attribute access to mimic default value behavior"""
+        try:
+            # First try to get Param attributes normally
+            return object.__getattribute__(self, name)
+        except AttributeError:
+            # Fall back to the default value's attributes
+            default = object.__getattribute__(self, 'default')
+            return getattr(default, name)
+
     # Arithmetic operators – # arithmetic & bitwise operators – auto-generated
     _arith_ops = {
         "__add__": operator.add,
@@ -169,7 +181,6 @@ class Param(MessageData):
         "__rshift__": operator.rshift,
     }
 
-    # Create both left- and right-hand versions of each operator
     for _name, _op in _arith_ops.items():
 
         def _make(op):
@@ -243,6 +254,24 @@ class Param(MessageData):
             return self
         return self.default
 
+    def __json__(self):
+        return self.default if not hasattr(self.default, '__json__') else self.default.__json__()
+
+    @classmethod
+    def _patch_encoder(cls):
+        # only patch once
+        if getattr(json.JSONEncoder, "_user_patched", False):
+            return
+        original = json.JSONEncoder.default
+
+        def default(self, obj):
+            if isinstance(obj, Param):
+                return obj.__json__()
+            return original(self, obj)
+
+        json.JSONEncoder.default = default
+        json.JSONEncoder._user_patched = True
+
     def to_proto(self, proto=None) -> ParamProto:
         if proto is None:
             proto = ParamProto()
@@ -254,7 +283,7 @@ class Param(MessageData):
                 option = ModelTypeEnumOption(id=str(choice))
                 proto.model_type_enum_options.append(option)
 
-        proto.required = self.default is None
+        proto.required = False
 
         if self.min_value is not None or self.max_value is not None:
             range_info = ModelTypeRangeInfo()
@@ -324,8 +353,7 @@ class Param(MessageData):
 
             if proto is None:
                 proto = ParamProto()
-            if default is not None:
-                proto.default = json.dumps(default)
+            proto.default = json.dumps(default)
             return proto
         except Exception:
             if default is not None:
