@@ -3,7 +3,7 @@ from typing import List
 
 from clarifai_grpc.grpc.api import resources_pb2
 
-from clarifai.runners.utils import data_types
+from clarifai.runners.utils import data_utils
 
 
 def generate_client_script(
@@ -51,28 +51,24 @@ model = Model("https://clarifai.com/{user_id}/{app_id}/{model_id}",
     method_signatures_str = []
     for method_signature in method_signatures:
         method_name = method_signature.name
-        if method_signature.method_type in [
-            resources_pb2.RunnerMethodType.UNARY_UNARY,
-            resources_pb2.RunnerMethodType.UNARY_STREAMING,
-        ]:
-            client_script_str = f'response = model.{method_name}('
-            annotations = _get_annotations_source(method_signature)
-            for param_name, (param_type, default_value) in annotations.items():
-                if param_name == "return":
-                    continue
-                if default_value is None:
-                    default_value = _set_default_value(param_type)
-                    if param_type == "str":
-                        default_value = repr(default_value)
-
-                client_script_str += f"{param_name}={default_value}, "
-            client_script_str = client_script_str.rstrip(", ") + ")"
-            if method_signature.method_type == resources_pb2.RunnerMethodType.UNARY_UNARY:
-                client_script_str += "\nprint(response)"
-            elif method_signature.method_type == resources_pb2.RunnerMethodType.UNARY_STREAMING:
-                client_script_str += "\nfor res in response:\n    print(res)"
-            client_script_str += "\n"
-            method_signatures_str.append(client_script_str)
+        client_script_str = f'response = model.{method_name}('
+        annotations = _get_annotations_source(method_signature)
+        for param_name, (param_type, default_value) in annotations.items():
+            print(
+                f"param_name: {param_name}, param_type: {param_type}, default_value: {default_value}"
+            )
+            if param_name == "return":
+                continue
+            if default_value is None:
+                default_value = _set_default_value(param_type)
+            client_script_str += f"{param_name}={default_value}, "
+        client_script_str = client_script_str.rstrip(", ") + ")"
+        if method_signature.method_type == resources_pb2.RunnerMethodType.UNARY_UNARY:
+            client_script_str += "\nprint(response)"
+        elif method_signature.method_type == resources_pb2.RunnerMethodType.UNARY_STREAMING:
+            client_script_str += "\nfor res in response:\n    print(res)"
+        client_script_str += "\n"
+        method_signatures_str.append(client_script_str)
 
     method_signatures_str = "\n".join(method_signatures_str)
     # Combine all parts
@@ -100,9 +96,8 @@ def _get_annotations_source(method_signature: resources_pb2.MethodSignature) -> 
         if input_field.iterator:
             param_type = f"Iterator[{param_type}]"
         default_value = None
-        if input_field.default:
+        if data_utils.Param.get_default(input_field):
             default_value = _parse_default_value(input_field)
-
         annotations[param_name] = (param_type, default_value)
     if not method_signature.output_fields:
         raise ValueError("MethodSignature must have at least one output field")
@@ -170,23 +165,21 @@ def _map_default_value(field_type):
     elif field_type == "bool":
         default_value = False
     elif field_type == "data_types.Image":
-        default_value = data_types.Image.from_url("https://samples.clarifai.com/metro-north.jpg")
+        default_value = 'data_types.Image.from_url("https://samples.clarifai.com/metro-north.jpg")'
     elif field_type == "data_types.Text":
-        default_value = data_types.Text("What's the future of AI?")
+        default_value = 'data_types.Text("What is the future of AI?")'
     elif field_type == "data_types.Audio":
-        default_value = data_types.Audio.from_url("https://samples.clarifai.com/audio.mp3")
+        default_value = 'data_types.Audio.from_url("https://samples.clarifai.com/audio.mp3")'
     elif field_type == "data_types.Video":
-        default_value = data_types.Video.from_url("https://samples.clarifai.com/video.mp4")
+        default_value = 'data_types.Video.from_url("https://samples.clarifai.com/video.mp4")'
     elif field_type == "data_types.Concept":
-        default_value = data_types.Concept(id="concept_id", name="dog", value=0.95)
+        default_value = 'data_types.Concept(id="concept_id", name="dog", value=0.95)'
     elif field_type == "data_types.Region":
-        default_value = data_types.Region(
-            box=[0.1, 0.1, 0.5, 0.5],
-        )
+        default_value = 'data_types.Region(box=[0.1, 0.1, 0.5, 0.5],)'
     elif field_type == "data_types.Frame":
-        default_value = data_types.Frame.from_url("https://samples.clarifai.com/video.mp4", 0)
+        default_value = 'data_types.Frame.from_url("https://samples.clarifai.com/video.mp4", 0)'
     elif field_type == "data_types.NDArray":
-        default_value = data_types.NDArray([1, 2, 3])
+        default_value = 'data_types.NDArray([1, 2, 3])'
     else:
         default_value = None
     return default_value
@@ -196,6 +189,12 @@ def _set_default_value(field_type):
     """
     Set the default value of a field if it is not set.
     """
+    is_iterator = False
+    print(f"before field_type: {field_type}")
+    if field_type.startswith("Iterator["):
+        is_iterator = True
+        field_type = field_type[9:-1]
+    print(f"after field_type: {field_type}")
     default_value = None
     default_value = _map_default_value(field_type)
     if field_type.startswith("List["):
@@ -212,6 +211,11 @@ def _set_default_value(field_type):
         element_type_defaults = [_map_default_value(et) for et in element_types]
         default_value = f"{{{', '.join([str(et) for et in element_type_defaults])}}}"
 
+    if field_type == 'str':
+        default_value = repr(default_value)
+    if is_iterator:
+        default_value = f'iter([{default_value}])'
+    print(f"after default_value: {default_value}")
     return default_value
 
 
