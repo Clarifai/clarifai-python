@@ -600,7 +600,7 @@ class ModelBuilder:
             if 'vllm' in dependencies:
                 if python_version != DEFAULT_PYTHON_VERSION:
                     raise Exception(
-                        f"VLLM is not supported with Python version {python_version}, please use Python version {DEFAULT_PYTHON_VERSION} in your config.yaml"
+                        f"vLLM is not supported with Python version {python_version}, please use Python version {DEFAULT_PYTHON_VERSION} in your config.yaml"
                     )
                 torch_version = dependencies.get('torch', None)
                 if 'torch' in dependencies:
