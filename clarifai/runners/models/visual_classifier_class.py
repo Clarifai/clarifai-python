@@ -8,12 +8,12 @@ import torch
 from PIL import Image as PILImage
 
 from clarifai.runners.models.model_class import ModelClass
-from clarifai.runners.utils.data_types import Concept, Frame, Image, Region
+from clarifai.runners.utils.data_types import Concept, Frame, Image
 from clarifai.utils.logging import logger
 
 
-class VisualDetectorClass(ModelClass):
-    """Base class for visual detection models supporting image and video processing."""
+class VisualClassifierClass(ModelClass):
+    """Base class for visual classification models supporting image and video processing."""
 
     @staticmethod
     def preprocess_image(image_bytes: bytes) -> PILImage:
@@ -51,29 +51,25 @@ class VisualDetectorClass(ModelClass):
             os.unlink(temp_video_path)
 
     @staticmethod
-    def process_detections(
-        results: List[Dict[str, torch.Tensor]], threshold: float, model_labels: Dict[int, str]
-    ) -> List[List[Region]]:
-        """Convert model outputs into a structured format of detections.
+    def process_concepts(
+        logits: torch.Tensor, threshold: float, model_labels: Dict[int, str]
+    ) -> List[List[Concept]]:
+        """Convert model logits into a structured format of concepts.
 
         Args:
-            results: Raw detection results from model
-            threshold: Confidence threshold for detections
-            model_labels: Dictionary mapping label indices to names
+            logits: Model output logits as a tensor (batch_size x num_classes)
+            model_labels: Dictionary mapping label indices to label names
 
         Returns:
-            List of lists containing Region objects for each detection
+            List of lists containing Concept objects for each input in the batch
         """
         outputs = []
-        for result in results:
-            detections = []
-            for score, label_idx, box in zip(result["scores"], result["labels"], result["boxes"]):
-                if score > threshold:
-                    label = model_labels[label_idx.item()]
-                    detections.append(
-                        Region(
-                            box=box.tolist(), concepts=[Concept(name=label, value=score.item())]
-                        )
-                    )
-            outputs.append(detections)
+        for logit in logits:
+            probs = torch.softmax(logit, dim=-1)
+            sorted_indices = torch.argsort(probs, dim=-1, descending=True)
+            output_concepts = []
+            for idx in sorted_indices:
+                concept = Concept(name=model_labels[idx.item()], value=probs[idx].item())
+                output_concepts.append(concept)
+            outputs.append(output_concepts)
         return outputs
