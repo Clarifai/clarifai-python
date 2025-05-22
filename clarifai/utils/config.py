@@ -113,7 +113,7 @@ class Context(OrderedDict):
           Config.from_yaml().current.print_env_vars()
 
         """
-        for k, v in self['env'].items():
+        for k, v in sorted(self['env'].items()):
             if isinstance(v, dict):
                 continue
             envvar_name = k.upper()

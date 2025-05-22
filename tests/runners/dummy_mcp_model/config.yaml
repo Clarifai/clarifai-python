@@ -1,4 +1,4 @@
-# This is the sample config file for the GOT OCR2.O model.
+# This is the sample config file for a MCP model.
 
 model:
   id: "dummy-runner-model"
