@@ -155,7 +155,7 @@ def openai_to_hf_messages(openai_messages):
         elif part['type'] == 'video_url':
           video_url = part["video_url"]["url"]
           if video_url.startswith("data:video"):
-            ValueError("Base64 video data is not supported in HF format.")
+            raise ValueError("Base64 video data is not supported in HF format.")
           else:
             # URL (model must handle downloads)
             converted_content.append({'type': 'video', 'url': video_url})

@@ -1,16 +1,34 @@
 import io
 import json
-from typing import Iterable, List, get_args, get_origin
+import re
+import uuid
+from typing import Iterable, List, Tuple, Union, get_args, get_origin
 
 import numpy as np
 from clarifai_grpc.grpc.api.resources_pb2 import Audio as AudioProto
 from clarifai_grpc.grpc.api.resources_pb2 import Concept as ConceptProto
 from clarifai_grpc.grpc.api.resources_pb2 import Frame as FrameProto
 from clarifai_grpc.grpc.api.resources_pb2 import Image as ImageProto
+from clarifai_grpc.grpc.api.resources_pb2 import Mask as MaskProto
+from clarifai_grpc.grpc.api.resources_pb2 import Point as PointProto
 from clarifai_grpc.grpc.api.resources_pb2 import Region as RegionProto
 from clarifai_grpc.grpc.api.resources_pb2 import Text as TextProto
 from clarifai_grpc.grpc.api.resources_pb2 import Video as VideoProto
 from PIL import Image as PILImage
+
+__all__ = [
+    "Audio",
+    "Concept",
+    "Frame",
+    "Image",
+    "Region",
+    "Text",
+    "Video",
+    "MessageData",
+    "NamedFieldsMeta",
+    "NamedFields",
+    "JSON",
+]
 
 
 class MessageData:
@@ -29,7 +47,7 @@ class MessageData:
     return cls(value)
 
   def cast(self, python_type):
-    if python_type == self.__class__:
+    if python_type is self.__class__:
       return self
     raise TypeError(f'Incompatible type for {self.__class__.__name__}: {python_type}')
 
@@ -151,19 +169,25 @@ class Text(MessageData):
     raise TypeError(f'Incompatible type for Text: {type(value)}')
 
   def cast(self, python_type):
-    if python_type == str:
+    if python_type is str:
       return self.text
-    if python_type == Text:
+    if python_type is Text:
       return self
     raise TypeError(f'Incompatible type for Text: {python_type}')
 
 
 class Concept(MessageData):
 
-  def __init__(self, name: str, value: float = 1):
-    self.id = name
+  def __init__(self, name: str, value: float = 1.0, id: str = None):
     self.name = name
     self.value = value
+    self.id = id or Concept._concept_name_to_id(name)
+
+  @staticmethod
+  def _concept_name_to_id(name: str):
+    _name = re.sub(r'[^a-zA-Z0-9\s]', '', name)
+    _name = _name.replace(' ', '-')
+    return _name
 
   def __repr__(self) -> str:
     return f"Concept(id={self.id!r}, name={self.name!r}, value={self.value})"
@@ -173,35 +197,75 @@ class Concept(MessageData):
 
   @classmethod
   def from_proto(cls, proto: ConceptProto) -> "Concept":
-    return cls(proto.name, proto.value)
+    return cls(id=proto.id, name=proto.name, value=proto.value)
 
 
 class Region(MessageData):
 
-  def __init__(self,
-               proto_region: RegionProto = None,
-               box: List[float] = None,
-               concepts: List[Concept] = None):
+  def __init__(
+      self,
+      proto_region: RegionProto = None,
+      box: List[float] = None,
+      concepts: List[Concept] = None,
+      mask: Union['Image', PILImage.Image, np.ndarray] = None,
+      point: Tuple[float, float, float] = None,
+      track_id: str = None,
+      text: str = None,
+      id: str = None,
+  ):
     if proto_region is None:
-      proto_region = RegionProto()
-    self.proto = proto_region
-    # use setters for init vals
-    if box and isinstance(
-        box, list) and len(box) == 4 and all(isinstance(val, (int, float)) for val in box):
-      self.box = box
-    if concepts and isinstance(concepts,
-                               list) and all(isinstance(concept, Concept) for concept in concepts):
-      self.concepts = concepts
+      self.proto = RegionProto()
+      # use setters for init vals
+      if box:
+        self.box = box
+      if concepts:
+        self.concepts = concepts
+      if mask:
+        self.mask = mask
+      if point:
+        self.point = point
+      if track_id:
+        self.track_id = track_id
+      if text:
+        self.text = text
+      self.id = id if id is not None else uuid.uuid4().hex
+    elif isinstance(proto_region, RegionProto):
+      self.proto = proto_region
+    else:
+      raise TypeError(
+          f"Expected type {RegionProto.__name__}, but got type {type(proto_region).__name__}")
+
+  @property
+  def id(self):
+    return self.proto.id
+
+  @id.setter
+  def id(self, value: str):
+    self.proto.id = value
+
+  @property
+  def text(self):
+    return self.proto.data.text.raw
+
+  @text.setter
+  def text(self, value: str):
+    self.proto.data.text.raw = value
 
   @property
   def box(self) -> List[float]:
+    """[xmin, ymin, xmax, ymax]"""
     bbox = self.proto.region_info.bounding_box
-    return [bbox.left_col, bbox.top_row, bbox.right_col, bbox.bottom_row]  # x1, y1, x2, y2
+    # x1, y1, x2, y2
+    return [bbox.left_col, bbox.top_row, bbox.right_col, bbox.bottom_row]
 
   @box.setter
   def box(self, value: List[float]):
-    bbox = self.proto.region_info.bounding_box
-    bbox.left_col, bbox.top_row, bbox.right_col, bbox.bottom_row = value
+    if (isinstance(value, list) and len(value) == 4 and
+        all(isinstance(val, (int, float)) for val in value)):
+      bbox = self.proto.region_info.bounding_box
+      bbox.left_col, bbox.top_row, bbox.right_col, bbox.bottom_row = value
+    else:
+      raise TypeError(f"Expected a list of 4 float values for 'box', but got: {value}")
 
   @property
   def concepts(self) -> List[Concept]:
@@ -209,10 +273,58 @@ class Region(MessageData):
 
   @concepts.setter
   def concepts(self, value: List[Concept]):
-    self.proto.data.concepts.extend([concept.to_proto() for concept in value])
+    if isinstance(value, list) and all(isinstance(concept, Concept) for concept in value):
+      self.proto.data.concepts.extend([concept.to_proto() for concept in value])
+    else:
+      raise TypeError(f"Expected a list of 'Concept' for 'concepts', but got: {value}")
+
+  @property
+  def mask(self) -> 'Image':
+    return Image.from_proto(self.proto.region_info.mask.image)
+
+  @mask.setter
+  def mask(self, value: Union['Image', PILImage.Image, np.ndarray]):
+    if isinstance(value, PILImage.Image):
+      value = Image.from_pil(value)
+    elif isinstance(value, np.ndarray):
+      value = Image.from_numpy(value)
+    elif not isinstance(value, Image):
+      raise TypeError(
+          f"Expected one of types ['Image', PIL.Image.Image, numpy.ndarray] got '{type(value).__name__}'"
+      )
+    self.proto.region_info.mask.CopyFrom(MaskProto(image=value.to_proto()))
+
+  @property
+  def track_id(self) -> str:
+    return self.proto.track_id
+
+  @track_id.setter
+  def track_id(self, value: str):
+    if not isinstance(value, str):
+      raise TypeError(f"Expected str for track_id, got {type(value).__name__}")
+    self.proto.track_id = value
+
+  @property
+  def point(self) -> Tuple[float, float, float]:
+    """[x,y,z]"""
+    point = self.proto.region_info.point
+    return point.col, point.row, point.z
+
+  @point.setter
+  def point(self, value: Tuple[float, float, float]):
+    if not isinstance(value, Iterable):
+      raise TypeError(f"Expected a tuple of floats, got {type(value).__name__}")
+    value = tuple(value)
+    if len(value) != 3:
+      raise ValueError(f"Expected 3 elements, got {len(value)}")
+    if not all(isinstance(v, float) for v in value):
+      raise TypeError("All elements must be floats")
+    x, y, z = value
+    point_proto = PointProto(col=x, row=y, z=z)
+    self.proto.region_info.point.CopyFrom(point_proto)
 
   def __repr__(self) -> str:
-    return f"Region(box={self.box}, concepts={self.concepts})"
+    return f"Region(id={self.id},box={self.box or []}, concepts={self.concepts or None}, point={self.point or None}, mask={self.mask or None}, track_id={self.track_id or None})"
 
   def to_proto(self) -> RegionProto:
     return self.proto
@@ -264,9 +376,18 @@ class Image(MessageData):
     return cls(proto_image)
 
   @classmethod
-  def from_pil(cls, pil_image: PILImage.Image) -> "Image":
+  def from_pil(cls, pil_image: PILImage.Image, img_format="PNG") -> "Image":
     with io.BytesIO() as output:
-      pil_image.save(output, format="PNG")
+      pil_image.save(output, format=img_format)
+      image_bytes = output.getvalue()
+    proto_image = ImageProto(base64=image_bytes)
+    return cls(proto_image)
+
+  @classmethod
+  def from_numpy(cls, numpy_image: np.ndarray, img_format="PNG") -> "Image":
+    pil_image = PILImage.fromarray(numpy_image)
+    with io.BytesIO() as output:
+      pil_image.save(output, format=img_format)
       image_bytes = output.getvalue()
     proto_image = ImageProto(base64=image_bytes)
     return cls(proto_image)
@@ -303,11 +424,11 @@ class Image(MessageData):
     raise TypeError(f'Incompatible type for Image: {type(value)}')
 
   def cast(self, python_type):
-    if python_type == Image:
+    if python_type is Image:
       return self
-    if python_type in (PILImage.Image, PILImage):
+    if python_type is PILImage.Image or python_type is PILImage:
       return self.to_pil()
-    if python_type == np.ndarray or get_origin(python_type) == np.ndarray:
+    if python_type is np.ndarray or get_origin(python_type) is np.ndarray:
       return self.to_numpy()
     raise TypeError(f'Incompatible type for Image: {python_type}')
 
@@ -371,11 +492,14 @@ class Audio(MessageData):
 
 class Frame(MessageData):
 
-  def __init__(self,
-               proto_frame: FrameProto = None,
-               image: Image = None,
-               regions: List[Region] = None,
-               time: float = None):
+  def __init__(
+      self,
+      proto_frame: FrameProto = None,
+      image: Image = None,
+      regions: List[Region] = None,
+      time: float = None,
+      index: int = None,
+  ):
     if proto_frame is None:
       proto_frame = FrameProto()
     self.proto = proto_frame
@@ -386,6 +510,8 @@ class Frame(MessageData):
       self.regions = regions
     if time:
       self.time = time
+    if index:
+      self.index = index
 
   @property
   def time(self) -> float:
@@ -396,6 +522,14 @@ class Frame(MessageData):
   @time.setter
   def time(self, value: float):
     self.proto.frame_info.time = int(value * 1000)
+
+  @property
+  def index(self) -> int:
+    return self.proto.frame_info.index
+
+  @index.setter
+  def index(self, value: int):
+    self.proto.frame_info.index = value
 
   @property
   def image(self) -> Image:
@@ -479,7 +613,7 @@ class Video(MessageData):
 
 
 def cast(value, python_type):
-  list_type = (get_origin(python_type) == list)
+  list_type = get_origin(python_type) is list
   if isinstance(value, MessageData):
     return value.cast(python_type)
   if list_type and isinstance(value, np.ndarray):

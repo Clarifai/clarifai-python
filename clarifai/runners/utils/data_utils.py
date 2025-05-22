@@ -1,9 +1,12 @@
+import json
+import math
+import operator
 from io import BytesIO
 from typing import Dict, List
 
 from clarifai_grpc.grpc.api import resources_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeEnumOption
-from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeField as InputFieldProto
+from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeField as ParamProto
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeRangeInfo
 from PIL import Image as PILImage
 
@@ -86,24 +89,25 @@ def process_video(video: Video) -> Dict:
   return video
 
 
-class InputField(MessageData):
+class Param(MessageData):
   """A field that can be used to store input data."""
 
   def __init__(
       self,
-      default=None,
+      default,
       description=None,
       min_value=None,
       max_value=None,
       choices=None,
-      #  is_param=True
+      is_param=True,
   ):
     self.default = default
     self.description = description
     self.min_value = min_value
     self.max_value = max_value
     self.choices = choices
-    # self.is_param = is_param
+    self.is_param = is_param
+    self._patch_encoder()
 
   def __repr__(self) -> str:
     attrs = []
@@ -117,12 +121,191 @@ class InputField(MessageData):
       attrs.append(f"max_value={self.max_value!r}")
     if self.choices is not None:
       attrs.append(f"choices={self.choices!r}")
-    # attrs.append(f"is_param={self.is_param!r}")
-    return f"InputField({', '.join(attrs)})"
+    attrs.append(f"is_param={self.is_param!r}")
+    return f"Param({', '.join(attrs)})"
 
-  def to_proto(self, proto=None) -> InputFieldProto:
+  # All *explicit* conversions
+  def __int__(self):
+    return int(self.default)
+
+  def __float__(self):
+    return float(self.default)
+
+  def __str__(self):
+    return str(self.default)
+
+  def __bool__(self):
+    return bool(self.default)
+
+  def __index__(self):
+    return int(self.default)  # for slicing
+
+  # sequence / mapping protocol delegation
+  def __len__(self):
+    return len(self.default)
+
+  def __iter__(self):
+    return iter(self.default)
+
+  def __reversed__(self):
+    return reversed(self.default)
+
+  def __contains__(self, item):
+    return item in self.default
+
+  def __getitem__(self, key):
+    return self.default[key]
+
+  def __setitem__(self, k, v):
+    self.default[k] = v
+
+  def __delitem__(self, k):
+    del self.default[k]
+
+  def __hash__(self):
+    return hash(self.default)
+
+  def __call__(self, *args, **kwargs):
+    return self.default(*args, **kwargs)
+
+  # Comparison operators
+  def __eq__(self, other):
+    return self.default == other
+
+  def __lt__(self, other):
+    return self.default < other
+
+  def __le__(self, other):
+    return self.default <= other
+
+  def __gt__(self, other):
+    return self.default > other
+
+  def __ge__(self, other):
+    return self.default >= other
+
+  def __getattribute__(self, name):
+    """Intercept attribute access to mimic default value behavior"""
+    try:
+      # First try to get Param attributes normally
+      return object.__getattribute__(self, name)
+    except AttributeError:
+      # Fall back to the default value's attributes
+      default = object.__getattribute__(self, 'default')
+      return getattr(default, name)
+
+  # Arithmetic operators – # arithmetic & bitwise operators – auto-generated
+  _arith_ops = {
+      "__add__": operator.add,
+      "__sub__": operator.sub,
+      "__mul__": operator.mul,
+      "__truediv__": operator.truediv,
+      "__floordiv__": operator.floordiv,
+      "__mod__": operator.mod,
+      "__pow__": operator.pow,
+      "__and__": operator.and_,
+      "__or__": operator.or_,
+      "__xor__": operator.xor,
+      "__lshift__": operator.lshift,
+      "__rshift__": operator.rshift,
+  }
+
+  for _name, _op in _arith_ops.items():
+
+    def _make(op):
+
+      def _f(self, other, *, _op=op):  # default arg binds op
+        return _op(self.default, other)
+
+      return _f
+
+    locals()[_name] = _make(_op)
+    locals()["__r" + _name[2:]] = _make(lambda x, y, _op=_op: _op(y, x))
+  del _name, _op, _make
+
+  # In-place operators
+  _inplace_ops = {
+      "__iadd__": operator.iadd,
+      "__isub__": operator.isub,
+      "__imul__": operator.imul,
+      "__itruediv__": operator.itruediv,
+      "__ifloordiv__": operator.ifloordiv,
+      "__imod__": operator.imod,
+      "__ipow__": operator.ipow,
+      "__ilshift__": operator.ilshift,
+      "__irshift__": operator.irshift,
+      "__iand__": operator.iand,
+      "__ixor__": operator.ixor,
+      "__ior__": operator.ior,
+  }
+
+  for _name, _op in _inplace_ops.items():
+
+    def _make_inplace(op):
+
+      def _f(self, other, *, _op=op):
+        self.default = _op(self.default, other)
+        return self
+
+      return _f
+
+    locals()[_name] = _make_inplace(_op)
+  del _name, _op, _make_inplace
+
+  # Formatting and other conversions
+  def __format__(self, format_spec):
+    return format(self.default, format_spec)
+
+  def __bytes__(self):
+    return bytes(self.default)
+
+  def __complex__(self):
+    return complex(self.default)
+
+  def __round__(self, ndigits=None):
+    return round(self.default, ndigits)
+
+  def __trunc__(self):
+    return math.trunc(self.default)
+
+  def __floor__(self):
+    return math.floor(self.default)
+
+  def __ceil__(self):
+    return math.ceil(self.default)
+
+  # Attribute access delegation – anything we did *not* define above
+  # will automatically be looked up on the wrapped default value.
+  # Attribute access delegation
+  def __getattr__(self, item):
+    return getattr(self.default, item)
+
+  def __get__(self, instance, owner):
+    if instance is None:
+      return self
+    return self.default
+
+  def __json__(self):
+    return self.default if not hasattr(self.default, '__json__') else self.default.__json__()
+
+  @classmethod
+  def _patch_encoder(cls):
+    # only patch once
+    if getattr(json.JSONEncoder, "_user_patched", False):
+      return
+    original = json.JSONEncoder.default
+
+    def default(self, obj):
+      if isinstance(obj, Param):
+        return obj.__json__()
+      return original(self, obj)
+
+    json.JSONEncoder.default = default
+    json.JSONEncoder._user_patched = True
+
+  def to_proto(self, proto=None) -> ParamProto:
     if proto is None:
-      proto = InputFieldProto()
+      proto = ParamProto()
     if self.description is not None:
       proto.description = self.description
 
@@ -131,7 +314,7 @@ class InputField(MessageData):
         option = ModelTypeEnumOption(id=str(choice))
         proto.model_type_enum_options.append(option)
 
-    proto.required = self.default is None
+    proto.required = False
 
     if self.min_value is not None or self.max_value is not None:
       range_info = ModelTypeRangeInfo()
@@ -140,7 +323,7 @@ class InputField(MessageData):
       if self.max_value is not None:
         range_info.max = float(self.max_value)
       proto.model_type_range_info.CopyFrom(range_info)
-    # proto.is_param = self.is_param
+    proto.is_param = self.is_param
 
     if self.default is not None:
       proto = self.set_default(proto, self.default)
@@ -156,6 +339,7 @@ class InputField(MessageData):
         default = pb_value.string_value
         try:
           import json
+
           default = json.loads(default)
         except json.JSONDecodeError:
           pass
@@ -168,8 +352,8 @@ class InputField(MessageData):
       elif pb_value.HasField('bool_value'):
         default = pb_value.bool_value
 
-    choices = [option.id for option in proto.model_type_enum_options
-              ] if proto.model_type_enum_options else None
+    choices = ([option.id for option in proto.model_type_enum_options]
+               if proto.model_type_enum_options else None)
 
     min_value = None
     max_value = None
@@ -187,17 +371,17 @@ class InputField(MessageData):
         min_value=min_value,
         max_value=max_value,
         choices=choices,
-        # is_param=proto.is_param
+        is_param=proto.is_param,
     )
 
   @classmethod
   def set_default(cls, proto=None, default=None):
     try:
       import json
+
       if proto is None:
-        proto = InputFieldProto()
-      if default is not None:
-        proto.default = json.dumps(default)
+        proto = ParamProto()
+      proto.default = json.dumps(default)
       return proto
     except Exception:
       if default is not None:
@@ -212,6 +396,7 @@ class InputField(MessageData):
     default_str = proto.default
     default = None
     import json
+
     try:
       # Attempt to parse as JSON first (for complex types)
       return json.loads(default_str)
@@ -261,9 +446,8 @@ class DataConverter:
         part = new_data.parts.add()
         part.id = field.name
         part.data.CopyFrom(part_data)
-      else:
-        if field.required:
-          raise ValueError(f"Field {field.name} is required but not set")
+      elif field.required:
+        raise ValueError(f"Field {field.name} is required but not set")
     return new_data
 
   @classmethod
@@ -341,9 +525,11 @@ class DataConverter:
       if not field.type_args:
         raise ValueError("LIST type requires type_args")
       element_field = field.type_args[0]
-      if element_field in (resources_pb2.ModelTypeField.DataType.CONCEPT,
-                           resources_pb2.ModelTypeField.DataType.REGION,
-                           resources_pb2.ModelTypeField.DataType.FRAME):
+      if element_field in (
+          resources_pb2.ModelTypeField.DataType.CONCEPT,
+          resources_pb2.ModelTypeField.DataType.REGION,
+          resources_pb2.ModelTypeField.DataType.FRAME,
+      ):
         # convert to new format
         new_data = cls._convert_field(old_data, element_field)
       return new_data
@@ -359,8 +545,18 @@ class DataConverter:
 
     # Check if any singular field is set
     singular_fields = [
-        'image', 'video', 'metadata', 'geo', 'text', 'audio', 'ndarray', 'int_value',
-        'float_value', 'bytes_value', 'bool_value', 'string_value'
+        'image',
+        'video',
+        'metadata',
+        'geo',
+        'text',
+        'audio',
+        'ndarray',
+        'int_value',
+        'float_value',
+        'bytes_value',
+        'bool_value',
+        'string_value',
     ]
     for field in singular_fields:
       if data.HasField(field):
@@ -368,8 +564,16 @@ class DataConverter:
 
     # Check if any repeated field has elements
     repeated_fields = [
-        'concepts', 'colors', 'clusters', 'embeddings', 'regions', 'frames', 'tracks',
-        'time_segments', 'hits', 'heatmaps'
+        'concepts',
+        'colors',
+        'clusters',
+        'embeddings',
+        'regions',
+        'frames',
+        'tracks',
+        'time_segments',
+        'hits',
+        'heatmaps',
     ]
     for field in repeated_fields:
       if getattr(data, field):
@@ -399,8 +603,17 @@ class DataConverter:
 
     # Repeated fields
     repeated_fields = [
-        "concepts", "colors", "clusters", "embeddings", "regions", "frames", "tracks",
-        "time_segments", "hits", "heatmaps", "parts"
+        "concepts",
+        "colors",
+        "clusters",
+        "embeddings",
+        "regions",
+        "frames",
+        "tracks",
+        "time_segments",
+        "hits",
+        "heatmaps",
+        "parts",
     ]
     for field in repeated_fields:
       if getattr(data_msg, field):  # checks if the list is not empty
