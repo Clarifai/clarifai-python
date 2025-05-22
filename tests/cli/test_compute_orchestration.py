@@ -213,57 +213,48 @@ class TestLocalDevCLI:
     """Tests for the local_dev CLI functionality."""
     
     @pytest.fixture
-    def mock_user(self):
-        """Mock User class and its methods."""
-        with mock.patch("clarifai.client.user.User") as mock_user:
-            # Create mock for the compute_cluster method
+    def mock_model_local_dev_components(self):
+        """Mock all components used by the local_dev CLI function."""
+        with mock.patch("clarifai.cli.model.DEFAULT_LOCAL_DEV_COMPUTE_CLUSTER_ID", "test-cluster"), \
+             mock.patch("clarifai.cli.model.DEFAULT_LOCAL_DEV_NODEPOOL_ID", "test-nodepool"), \
+             mock.patch("clarifai.cli.model.validate_context") as mock_validate, \
+             mock.patch("clarifai.client.user.User") as mock_user, \
+             mock.patch("clarifai.runners.models.model_builder.ModelBuilder") as mock_builder, \
+             mock.patch("clarifai.runners.server.serve") as mock_serve, \
+             mock.patch("clarifai.runners.utils.code_script.generate_client_script") as mock_code_script, \
+             mock.patch("builtins.input", return_value="y"):
+            
+            # Set up mock user and compute cluster
             mock_compute_cluster = mock.MagicMock()
             mock_compute_cluster.cluster_type = 'local-dev'
             mock_user.return_value.compute_cluster.return_value = mock_compute_cluster
             
-            # Create mock for nodepool
+            # Set up mock nodepool
             mock_nodepool = mock.MagicMock()
             mock_compute_cluster.nodepool.return_value = mock_nodepool
             
-            # Create mock for runner
+            # Set up mock runner
             mock_runner = mock.MagicMock()
             mock_nodepool.runner.return_value = mock_runner
             
-            yield mock_user
-    
-    @pytest.fixture
-    def mock_model_builder(self):
-        """Mock ModelBuilder class."""
-        with mock.patch("clarifai.runners.models.model_builder.ModelBuilder") as mock_builder:
-            mock_instance = mock_builder.return_value
-            mock_instance.get_method_signatures.return_value = [
+            # Set up mock builder
+            mock_builder.return_value.get_method_signatures.return_value = [
                 {"method_name": "test_method", "parameters": []}
             ]
-            yield mock_builder
-    
-    @pytest.fixture
-    def mock_serve(self):
-        """Mock serve function."""
-        with mock.patch("clarifai.runners.server.serve") as mock_serve:
-            yield mock_serve
-    
-    @pytest.fixture
-    def mock_validate_context(self):
-        """Mock validate_context function."""
-        with mock.patch("clarifai.cli.model.validate_context") as mock_validate:
-            yield mock_validate
-    
-    @pytest.fixture
-    def mock_code_script(self):
-        """Mock code_script module."""
-        with mock.patch("clarifai.runners.utils.code_script.generate_client_script") as mock_generate:
-            mock_generate.return_value = "TEST_SCRIPT"
-            yield mock_generate
             
-    @pytest.fixture
-    def mock_input(self, monkeypatch):
-        """Mock input function to always return 'y'."""
-        monkeypatch.setattr('builtins.input', lambda _: 'y')
+            # Set up mock code script
+            mock_code_script.return_value = "TEST_SCRIPT"
+            
+            yield {
+                "validate_context": mock_validate,
+                "user": mock_user,
+                "compute_cluster": mock_compute_cluster,
+                "nodepool": mock_nodepool,
+                "runner": mock_runner,
+                "builder": mock_builder,
+                "serve": mock_serve,
+                "code_script": mock_code_script
+            }
     
     @pytest.fixture
     def model_path_fixture(self, tmpdir):
@@ -285,130 +276,124 @@ class TestLocalDevCLI:
             
         return str(model_dir)
     
-    def test_local_dev_all_resources_exist(
-        self, cli_runner, mock_user, mock_model_builder, mock_serve, 
-        mock_validate_context, mock_code_script, model_path_fixture
-    ):
+    def test_local_dev_all_resources_exist(self, cli_runner, mock_model_local_dev_components, model_path_fixture):
         """Test local_dev function when all resources exist."""
-        # Set up the context
-        ctx_mock = mock.MagicMock()
-        ctx_mock.obj.current.name = "test-context"
-        ctx_mock.obj.current.user_id = "test-user"
-        ctx_mock.obj.current.pat = "test-pat"
-        ctx_mock.obj.current.api_base = "https://api.test.com"
-        ctx_mock.obj.current.compute_cluster_id = "test-cluster"
-        ctx_mock.obj.current.nodepool_id = "test-nodepool"
-        ctx_mock.obj.current.runner_id = "test-runner"
-        ctx_mock.obj.current.app_id = "test-app"
-        ctx_mock.obj.current.model_id = "test-model"
+        # Import here to allow patching before import
+        from clarifai.cli.model import local_dev
         
-        with mock.patch("click.pass_context") as mock_click_ctx:
-            mock_click_ctx.return_value = ctx_mock
-            
-            # Call the function
-            result = cli_runner.invoke(cli, ["model", "local-dev", model_path_fixture])
-            
-            # Verify interactions
-            mock_validate_context.assert_called_once()
-            mock_user.assert_called_once()
-            mock_user.return_value.compute_cluster.assert_called_once_with("test-cluster")
-            mock_code_script.assert_called_once()
-            mock_serve.assert_called_once()
+        # Set up context mock
+        ctx = mock.MagicMock()
+        ctx.obj = mock.MagicMock()
+        ctx.obj.current = mock.MagicMock()
+        ctx.obj.current.name = "test-context"
+        ctx.obj.current.user_id = "test-user"
+        ctx.obj.current.pat = "test-pat"
+        ctx.obj.current.api_base = "https://api.test.com"
+        ctx.obj.current.compute_cluster_id = "test-cluster"
+        ctx.obj.current.nodepool_id = "test-nodepool"
+        ctx.obj.current.runner_id = "test-runner"
+        ctx.obj.current.app_id = "test-app"
+        ctx.obj.current.model_id = "test-model"
+        
+        # Call the function directly
+        local_dev(ctx, model_path_fixture)
+        
+        # Verify interactions
+        mock_model_local_dev_components["validate_context"].assert_called_once()
+        mock_model_local_dev_components["user"].assert_called_once()
+        mock_model_local_dev_components["user"].return_value.compute_cluster.assert_called_once_with("test-cluster")
+        mock_model_local_dev_components["code_script"].assert_called_once()
+        mock_model_local_dev_components["serve"].assert_called_once()
     
-    def test_local_dev_no_runner(
-        self, cli_runner, mock_user, mock_model_builder, mock_serve, 
-        mock_validate_context, mock_code_script, model_path_fixture
-    ):
+    def test_local_dev_no_runner(self, cli_runner, mock_model_local_dev_components, model_path_fixture):
         """Test local_dev function when compute cluster and nodepool exist but runner doesn't."""
-        # Set up the context
-        ctx_mock = mock.MagicMock()
-        ctx_mock.obj.current.name = "test-context"
-        ctx_mock.obj.current.user_id = "test-user"
-        ctx_mock.obj.current.pat = "test-pat"
-        ctx_mock.obj.current.api_base = "https://api.test.com"
-        ctx_mock.obj.current.compute_cluster_id = "test-cluster"
-        ctx_mock.obj.current.nodepool_id = "test-nodepool"
-        ctx_mock.obj.current.app_id = "test-app"
-        ctx_mock.obj.current.model_id = "test-model"
+        # Import here to allow patching before import
+        from clarifai.cli.model import local_dev
+        
+        # Set up context mock
+        ctx = mock.MagicMock()
+        ctx.obj = mock.MagicMock()
+        ctx.obj.current = mock.MagicMock()
+        ctx.obj.current.name = "test-context"
+        ctx.obj.current.user_id = "test-user"
+        ctx.obj.current.pat = "test-pat"
+        ctx.obj.current.api_base = "https://api.test.com"
+        ctx.obj.current.compute_cluster_id = "test-cluster"
+        ctx.obj.current.nodepool_id = "test-nodepool"
+        ctx.obj.current.app_id = "test-app"
+        ctx.obj.current.model_id = "test-model"
         
         # Set up runner not found exception
-        mock_nodepool = mock_user.return_value.compute_cluster.return_value.nodepool.return_value
-        mock_nodepool.runner.side_effect = AttributeError("Runner not found in nodepool.")
+        mock_model_local_dev_components["nodepool"].runner.side_effect = AttributeError("Runner not found in nodepool.")
         
-        with mock.patch("click.pass_context") as mock_click_ctx:
-            mock_click_ctx.return_value = ctx_mock
-            
-            # Call the function
-            result = cli_runner.invoke(cli, ["model", "local-dev", model_path_fixture])
-            
-            # Verify interactions
-            mock_validate_context.assert_called_once()
-            mock_user.assert_called_once()
-            mock_user.return_value.compute_cluster.assert_called_once_with("test-cluster")
-            mock_nodepool.create_runner.assert_called_once()
-            mock_code_script.assert_called_once()
-            mock_serve.assert_called_once()
+        # Call the function directly
+        local_dev(ctx, model_path_fixture)
+        
+        # Verify interactions
+        mock_model_local_dev_components["validate_context"].assert_called_once()
+        mock_model_local_dev_components["user"].assert_called_once()
+        mock_model_local_dev_components["user"].return_value.compute_cluster.assert_called_once_with("test-cluster")
+        mock_model_local_dev_components["nodepool"].create_runner.assert_called_once()
+        mock_model_local_dev_components["code_script"].assert_called_once()
+        mock_model_local_dev_components["serve"].assert_called_once()
     
-    def test_local_dev_no_nodepool(
-        self, cli_runner, mock_user, mock_model_builder, mock_serve, 
-        mock_validate_context, mock_code_script, model_path_fixture, mock_input
-    ):
+    def test_local_dev_no_nodepool(self, cli_runner, mock_model_local_dev_components, model_path_fixture):
         """Test local_dev function when compute cluster exists but nodepool doesn't."""
-        # Set up the context
-        ctx_mock = mock.MagicMock()
-        ctx_mock.obj.current.name = "test-context"
-        ctx_mock.obj.current.user_id = "test-user"
-        ctx_mock.obj.current.pat = "test-pat"
-        ctx_mock.obj.current.api_base = "https://api.test.com"
-        ctx_mock.obj.current.compute_cluster_id = "test-cluster"
-        ctx_mock.obj.current.app_id = "test-app"
-        ctx_mock.obj.current.model_id = "test-model"
+        # Import here to allow patching before import
+        from clarifai.cli.model import local_dev
+        
+        # Set up context mock
+        ctx = mock.MagicMock()
+        ctx.obj = mock.MagicMock()
+        ctx.obj.current = mock.MagicMock()
+        ctx.obj.current.name = "test-context"
+        ctx.obj.current.user_id = "test-user"
+        ctx.obj.current.pat = "test-pat"
+        ctx.obj.current.api_base = "https://api.test.com"
+        ctx.obj.current.compute_cluster_id = "test-cluster"
+        ctx.obj.current.app_id = "test-app"
+        ctx.obj.current.model_id = "test-model"
         
         # Set up nodepool not found exception
-        mock_compute_cluster = mock_user.return_value.compute_cluster.return_value
-        mock_compute_cluster.nodepool.side_effect = Exception("Nodepool not found.")
+        mock_model_local_dev_components["compute_cluster"].nodepool.side_effect = Exception("Nodepool not found.")
         
-        with mock.patch("click.pass_context") as mock_click_ctx:
-            mock_click_ctx.return_value = ctx_mock
-            
-            # Call the function
-            result = cli_runner.invoke(cli, ["model", "local-dev", model_path_fixture])
-            
-            # Verify interactions
-            mock_validate_context.assert_called_once()
-            mock_user.assert_called_once()
-            mock_user.return_value.compute_cluster.assert_called_once_with("test-cluster")
-            mock_compute_cluster.create_nodepool.assert_called_once()
-            mock_code_script.assert_called_once()
-            mock_serve.assert_called_once()
+        # Call the function directly
+        local_dev(ctx, model_path_fixture)
+        
+        # Verify interactions
+        mock_model_local_dev_components["validate_context"].assert_called_once()
+        mock_model_local_dev_components["user"].assert_called_once()
+        mock_model_local_dev_components["user"].return_value.compute_cluster.assert_called_once_with("test-cluster")
+        mock_model_local_dev_components["compute_cluster"].create_nodepool.assert_called_once()
+        mock_model_local_dev_components["code_script"].assert_called_once()
+        mock_model_local_dev_components["serve"].assert_called_once()
     
-    def test_local_dev_no_compute_cluster(
-        self, cli_runner, mock_user, mock_model_builder, mock_serve, 
-        mock_validate_context, mock_code_script, model_path_fixture, mock_input
-    ):
+    def test_local_dev_no_compute_cluster(self, cli_runner, mock_model_local_dev_components, model_path_fixture):
         """Test local_dev function when compute cluster doesn't exist."""
-        # Set up the context
-        ctx_mock = mock.MagicMock()
-        ctx_mock.obj.current.name = "test-context"
-        ctx_mock.obj.current.user_id = "test-user"
-        ctx_mock.obj.current.pat = "test-pat"
-        ctx_mock.obj.current.api_base = "https://api.test.com"
-        ctx_mock.obj.current.app_id = "test-app"
-        ctx_mock.obj.current.model_id = "test-model"
+        # Import here to allow patching before import
+        from clarifai.cli.model import local_dev
+        
+        # Set up context mock
+        ctx = mock.MagicMock()
+        ctx.obj = mock.MagicMock()
+        ctx.obj.current = mock.MagicMock()
+        ctx.obj.current.name = "test-context"
+        ctx.obj.current.user_id = "test-user"
+        ctx.obj.current.pat = "test-pat"
+        ctx.obj.current.api_base = "https://api.test.com"
+        ctx.obj.current.app_id = "test-app"
+        ctx.obj.current.model_id = "test-model"
         
         # Set up compute cluster not found exception
-        mock_user.return_value.compute_cluster.side_effect = Exception("Compute cluster not found.")
+        mock_model_local_dev_components["user"].return_value.compute_cluster.side_effect = Exception("Compute cluster not found.")
         
-        with mock.patch("click.pass_context") as mock_click_ctx:
-            mock_click_ctx.return_value = ctx_mock
-            
-            # Call the function
-            result = cli_runner.invoke(cli, ["model", "local-dev", model_path_fixture])
-            
-            # Verify interactions
-            mock_validate_context.assert_called_once()
-            mock_user.assert_called_once()
-            mock_user.return_value.compute_cluster.assert_called_once()
-            mock_user.return_value.create_compute_cluster.assert_called_once()
-            mock_code_script.assert_called_once()
-            mock_serve.assert_called_once()
+        # Call the function directly
+        local_dev(ctx, model_path_fixture)
+        
+        # Verify interactions
+        mock_model_local_dev_components["validate_context"].assert_called_once()
+        mock_model_local_dev_components["user"].assert_called_once()
+        mock_model_local_dev_components["user"].return_value.compute_cluster.assert_called_once()
+        mock_model_local_dev_components["user"].return_value.create_compute_cluster.assert_called_once()
+        mock_model_local_dev_components["code_script"].assert_called_once()
+        mock_model_local_dev_components["serve"].assert_called_once()

@@ -75,8 +75,10 @@ class TestContext:
         with mock.patch.dict(os.environ, {'CLARIFAI_USER_ID': 'env_user'}):
             assert context.user_id == 'env_user'
         
-        with pytest.raises(AttributeError):
-            context.user_id
+        # Remove CLARIFAI_USER_ID from environment and try to access it
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(AttributeError):
+                print(context.user_id)
     
     def test_context_setattr(self):
         """Test setting attributes."""
