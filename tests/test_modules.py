@@ -24,7 +24,7 @@ def test_module_install_url(helper):
 
 def test_install_with_custom_imv_id():
     custom_imv_id = "some_imv_id"
-    helper = ClarifaiUrlHelper(custom_imv_id)
+    helper = ClarifaiUrlHelper(module_manager_imv_id=custom_imv_id)
     install_url = helper.module_install_ui_url("person", "app", "XXX")
     assert (
         install_url
