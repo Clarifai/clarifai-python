@@ -144,9 +144,8 @@ def dump(ctx_obj, output_format):
 
 
 @config.command(['cat'])
-@click.option('-o', '--output-format', default='yaml', type=click.Choice(['yaml', 'json']))
 @click.pass_obj
-def env(ctx_obj, output_format):
+def env(ctx_obj):
     """Print env vars. Use: eval "$(clarifai config env)" """
     ctx_obj.current.print_env_vars()
 

@@ -10,32 +10,6 @@ from mcp.shared.exceptions import McpError
 
 from clarifai.runners.models.model_class import ModelClass
 
-# class MCPServerProvider(abc.ABC):
-#     """
-#     Base class for creating Model Context Protocol (MCP) servers.
-
-#     This class provides a base implementation of the MCP server, including
-#     methods for handling requests and responses, as well as error handling and
-#     logging.
-
-#     Attributes:
-#     _server: The FastMCP server instance.
-#     _tools: List of tools available in the server.
-#     _resources: List of resources available in the server.
-#     _prompts: List of prompts available in the server.
-
-#     Methods:
-#     get_server(): Returns the FastMCP server instance.
-#     mcp_transport(msg): Handles incoming messages and sends them to the FastMCP server.
-#     """
-
-#     @abc.abstractmethod
-#     def get_server(self) -> FastMCP:
-#         """Required method for each subclass to implement to return the FastMCP server to use."""
-#         if self._server is None:
-#             raise ValueError("Server not initialized")
-#         return self._server
-
 
 class MCPModelClass(ModelClass):
     """Base class for wrapping FastMCP servers as a model running in Clarfai. This handles
@@ -123,19 +97,18 @@ class MCPModelClass(ModelClass):
         # The JSONRPCRequest are supposed to have an id but the InitializeRequest
         # does not have it.
         d = json.loads(msg)
+        id = d.get('id', "")
 
         # If we have an id it's a JSONRPCRequest
-        if not d.get('method', None).startswith("notifications/"):
-            # rpc_message2 = types.JSONRPCRequest.model_validate(rpc_message)
-            # underlying: types.JSONRPCRequest = rpc_message.root
+        if not d.get('method', '').startswith("notifications/"):
             client_message = types.ClientRequest.model_validate(d)
-            response = asyncio.run(
-                send_request(client_message, id=d.get('id', ""))
-            )  # underlying.id))
+            response = asyncio.run(send_request(client_message, id=id))
         else:  # JSONRPCRequest
             client_message = types.ClientNotification.model_validate(d)
             response = asyncio.run(send_notification(client_message))
         if response is None:
-            return ""
+            response = types.JSONRPCError(
+                jsonrpc="2.0", id=id, error="Got empty response from MCP server."
+            )
         # return as a serialized json string
         return response.model_dump_json(by_alias=True, exclude_none=True)

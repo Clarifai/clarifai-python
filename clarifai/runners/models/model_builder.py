@@ -413,6 +413,12 @@ class ModelBuilder:
     def get_method_signatures(self, mocking=True):
         """
         Returns the method signatures for the model class.
+
+        Args:
+          mocking (bool): Whether to mock the model class or not. Defaults to False.
+
+        Returns:
+          list: A list of method signatures for the model class.
         """
         model_class = self.load_model_class(mocking=mocking)
         method_info = model_class._get_method_info()
@@ -436,22 +442,42 @@ class ModelBuilder:
         return self._client
 
     @property
-    def model_url(self):
+    def model_ui_url(self):
+        url_helper = ClarifaiUrlHelper(self._client.auth_helper)
+        # Note(zeiler): the UI experience isn't the best when including version id right now.
+        # if self.model_version_id is not None:
+        #     return url_helper.clarifai_url(
+        #         self.client.user_app_id.user_id,
+        #         self.client.user_app_id.app_id,
+        #         "models",
+        #         self.model_id,
+        #         self.model_version_id,
+        #     )
+        # else:
+        return url_helper.clarifai_url(
+            self.client.user_app_id.user_id,
+            self.client.user_app_id.app_id,
+            "models",
+            self.model_id,
+        )
+
+    @property
+    def model_api_url(self):
         url_helper = ClarifaiUrlHelper(self._client.auth_helper)
         if self.model_version_id is not None:
-            return url_helper.clarifai_url(
-                self.client.user_app_id.user_id,
-                self.client.user_app_id.app_id,
-                "models",
-                self.model_id,
-            )
-        else:
-            return url_helper.clarifai_url(
+            return url_helper.api_url(
                 self.client.user_app_id.user_id,
                 self.client.user_app_id.app_id,
                 "models",
                 self.model_id,
                 self.model_version_id,
+            )
+        else:
+            return url_helper.api_url(
+                self.client.user_app_id.user_id,
+                self.client.user_app_id.app_id,
+                "models",
+                self.model_id,
             )
 
     def _get_model_proto(self):
@@ -930,44 +956,20 @@ class ModelBuilder:
             return
         self.model_version_id = response.model_version_id
         logger.info(f"Created Model Version ID: {self.model_version_id}")
-        logger.info(f"Full url to that version is: {self.model_url}")
+        logger.info(f"Full url to that version is: {self.model_ui_url}")
         try:
             is_uploaded = self.monitor_model_build()
             if is_uploaded:
-                # Provide an mcp client config
-                if model_type_id == "mcp":
-                    snippet = (
-                        """
-import asyncio
-import os
-from fastmcp import Client
-from fastmcp.client.transports import StreamableHttpTransport
+                # python code to run the model.
+                from clarifai.runners.utils import code_script
 
-transport = StreamableHttpTransport(url="%s/mcp",
-                                    headers={"Authorization": "Bearer " + os.environ["CLARIFAI_PAT"]})
-
-async def main():
-  async with Client(transport) as client:
-    tools = await client.list_tools()
-    print(f"Available tools: {tools}")
-    result = await client.call_tool(tools[0].name, {"a": 5, "b": 3})
-    print(f"Result: {result[0].text}")
-
-if __name__ == "__main__":
-  asyncio.run(main())
-"""
-                        % self.model_url
-                    )
-                else:  # python code to run the model.
-                    from clarifai.runners.utils import code_script
-
-                    method_signatures = self.get_method_signatures()
-                    snippet = code_script.generate_client_script(
-                        method_signatures,
-                        user_id=self.client.user_app_id.user_id,
-                        app_id=self.client.user_app_id.app_id,
-                        model_id=self.model_proto.id,
-                    )
+                method_signatures = self.get_method_signatures()
+                snippet = code_script.generate_client_script(
+                    method_signatures,
+                    user_id=self.client.user_app_id.user_id,
+                    app_id=self.client.user_app_id.app_id,
+                    model_id=self.model_proto.id,
+                )
                 logger.info("""\n
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 # Here is a code snippet to use this model:
@@ -1074,7 +1076,7 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                 logger.info("Model build complete!")
                 logger.info(f"Build time elapsed {time.time() - st:.1f}s)")
                 logger.info(
-                    f"Check out the model at {self.model_url} version: {self.model_version_id}"
+                    f"Check out the model at {self.model_ui_url} version: {self.model_version_id}"
                 )
                 return True
             else:
@@ -1099,10 +1101,12 @@ def upload_model(folder, stage, skip_dockerfile):
     exists = builder.check_model_exists()
     if exists:
         logger.info(
-            f"Model already exists at {builder.model_url}, this upload will create a new version for it."
+            f"Model already exists at {builder.model_ui_url}, this upload will create a new version for it."
         )
     else:
-        logger.info(f"New model will be created at {builder.model_url} with it's first version.")
+        logger.info(
+            f"New model will be created at {builder.model_ui_url} with it's first version."
+        )
 
     input("Press Enter to continue...")
     builder.upload_model_version()

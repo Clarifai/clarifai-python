@@ -4,6 +4,7 @@ from typing import List
 from clarifai_grpc.grpc.api import resources_pb2
 
 from clarifai.runners.utils import data_utils
+from clarifai.urls.helper import ClarifaiUrlHelper
 
 
 def generate_client_script(
@@ -15,6 +16,38 @@ def generate_client_script(
     deployment_id: str = None,
     use_ctx: bool = False,
 ) -> str:
+    url_helper = ClarifaiUrlHelper()
+
+    # Provide an mcp client config
+    if len(method_signatures) == 1 and method_signatures[0].name == "mcp_transport":
+        api_url = url_helper.api_url(
+            user_id,
+            app_id,
+            "models",
+            model_id,
+        )
+
+        _CLIENT_TEMPLATE = """
+import asyncio
+import os
+from fastmcp import Client
+from fastmcp.client.transports import StreamableHttpTransport
+
+transport = StreamableHttpTransport(url="%s/mcp",
+                                    headers={"Authorization": "Bearer " + os.environ["CLARIFAI_PAT"]})
+
+async def main():
+  async with Client(transport) as client:
+    tools = await client.list_tools()
+    print(f"Available tools: {tools}")
+    result = await client.call_tool(tools[0].name, {"a": 5, "b": 3})
+    print(f"Result: {result[0].text}")
+
+if __name__ == "__main__":
+  asyncio.run(main())
+"""
+        return _CLIENT_TEMPLATE % api_url
+
     _CLIENT_TEMPLATE = """\
 import os
 
@@ -35,8 +68,9 @@ from clarifai.runners.utils import data_types
         model_section = """
 model = Model.from_current_context()"""
     else:
+        model_ui_url = url_helper.clarifai_url(user_id, app_id, "models", model_id)
         model_section = f"""
-model = Model("https://clarifai.com/{user_id}/{app_id}/models/{model_id}",
+model = Model({model_ui_url},
                deployment_id = {deployment_id}, # Only needed for dedicated deployed models
                {base_url_str}
  )

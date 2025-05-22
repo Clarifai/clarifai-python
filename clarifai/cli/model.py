@@ -546,8 +546,6 @@ def local_dev(ctx, model_path):
         base_url=ctx.obj.current.api_base,
     )
 
-    # TODO: put in the ClarifaiUrlHelper to create the model url.
-
     logger.info("""\n
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 # About to start up the local dev runner in this terminal...

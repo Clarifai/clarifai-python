@@ -21,6 +21,7 @@ from clarifai.client.lister import Lister
 from clarifai.constants.dataset import MAX_RETRIES
 from clarifai.constants.input import MAX_UPLOAD_BATCH_SIZE
 from clarifai.errors import UserError
+from clarifai.utils.constants import DEFAULT_BASE
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator, Chunker, clean_input_id
 
@@ -33,7 +34,7 @@ class Inputs(Lister, BaseClient):
         user_id: str = None,
         app_id: str = None,
         logger_level: str = "INFO",
-        base_url: str = "https://api.clarifai.com",
+        base_url: str = DEFAULT_BASE,
         pat: str = None,
         token: str = None,
         root_certificates_path: str = None,

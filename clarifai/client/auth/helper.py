@@ -7,10 +7,12 @@ from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2_grpc
 
 from clarifai import __version__
-from clarifai.utils.constants import CLARIFAI_PAT_ENV_VAR, CLARIFAI_SESSION_TOKEN_ENV_VAR
-
-DEFAULT_BASE = "https://api.clarifai.com"
-DEFAULT_UI = "https://clarifai.com"
+from clarifai.utils.constants import (
+    CLARIFAI_PAT_ENV_VAR,
+    CLARIFAI_SESSION_TOKEN_ENV_VAR,
+    DEFAULT_BASE,
+    DEFAULT_UI,
+)
 
 REQUEST_ID_PREFIX_HEADER = "x-clarifai-request-id-prefix"
 REQUEST_ID_PREFIX = f"sdk-python-{__version__}"
