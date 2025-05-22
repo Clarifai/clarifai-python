@@ -42,9 +42,9 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -r tests/requirements.txt
-        pip install genbadge[coverage]
+        pip install uv
+        uv venv
+        uv pip install -r requirements.txt -r tests/requirements.txt genbadge[coverage]
     - name: Run static analysis lint
       uses: pre-commit/action@v3.0.0
     - name: Check if Dockerfile.template changed
@@ -76,27 +76,27 @@ jobs:
           export CLARIFAI_API_BASE="https://api.clarifai.com" # CLARIFAI_GRPC_BASE is used by the gRPC channel
         fi
         export PYTHONPATH=.
-        export CLARIFAI_USER_ID="$(python scripts/key_for_tests.py --get-userid)"
-        export CLARIFAI_PAT="$(python scripts/key_for_tests.py --create-pat)"
+        export CLARIFAI_USER_ID="$(uv run python scripts/key_for_tests.py --get-userid)"
+        export CLARIFAI_PAT="$(uv run python scripts/key_for_tests.py --create-pat)"
         if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
           # Run coverage for all but the container test
-          pytest --cov=. --cov-report=xml:coverage/coverage.cobertura.xml --ignore=tests/runners/test_model_run_locally-container.py
+          uv run pytest --cov=. --cov-report=xml:coverage/coverage.cobertura.xml --ignore=tests/runners/test_model_run_locally-container.py
 
           # Conditionally run the container test
           if [ "${{ steps.check_dockerfile_change.outputs.changed }}" = "true" ]; then
-            pytest --cov=. --cov-append --cov-report=xml:coverage/coverage.cobertura.xml tests/runners/test_model_run_locally-container.py
+            uv run pytest --cov=. --cov-append --cov-report=xml:coverage/coverage.cobertura.xml tests/runners/test_model_run_locally-container.py
           fi
         elif [ "${{ inputs.PERIODIC_CHECKS }}" = "true" ]; then
-          pytest -m "not coverage_only" --cov=. --cov-report=xml:coverage/coverage.cobertura.xml --ignore=tests/runners/test_model_run_locally-container.py
+          uv run pytest -m "not coverage_only" --cov=. --cov-report=xml:coverage/coverage.cobertura.xml --ignore=tests/runners/test_model_run_locally-container.py
 
           if [ "${{ steps.check_dockerfile_change.outputs.changed }}" = "true" ]; then
-            pytest -m "not coverage_only" --cov=. --cov-append --cov-report=xml:coverage/coverage.cobertura.xml tests/runners/test_model_run_locally-container.py
+            uv run pytest -m "not coverage_only" --cov=. --cov-append --cov-report=xml:coverage/coverage.cobertura.xml tests/runners/test_model_run_locally-container.py
           fi
         else
-          pytest -m "not requires_secrets" --cov=. --cov-report=xml:coverage/coverage.cobertura.xml --ignore=tests/runners/test_model_run_locally-container.py
+          uv run pytest -m "not requires_secrets" --cov=. --cov-report=xml:coverage/coverage.cobertura.xml --ignore=tests/runners/test_model_run_locally-container.py
 
           if [ "${{ steps.check_dockerfile_change.outputs.changed }}" = "true" ]; then
-            pytest -m "not requires_secrets" --cov=. --cov-append --cov-report=xml:coverage/coverage.cobertura.xml tests/runners/test_model_run_locally-container.py
+            uv run pytest -m "not requires_secrets" --cov=. --cov-append --cov-report=xml:coverage/coverage.cobertura.xml tests/runners/test_model_run_locally-container.py
           fi
         fi
     - name: Code Coverage Report

@@ -1,3 +1,4 @@
 aiohttp
 requests
 clarifai
+huggingface_hub
