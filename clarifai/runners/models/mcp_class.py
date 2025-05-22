@@ -82,8 +82,6 @@ class MCPModelClass(ModelClass):
                 )
 
                 result_type = None
-                print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
-                print(types.PingRequest)
                 if isinstance(client_message.root, types.PingRequest):
                     result_type = types.EmptyResult
                 elif isinstance(client_message.root, types.InitializeRequest):
