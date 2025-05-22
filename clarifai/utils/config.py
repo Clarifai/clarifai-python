@@ -102,6 +102,25 @@ class Context(OrderedDict):
                 envvar_name = 'CLARIFAI_' + envvar_name
             os.environ[envvar_name] = str(v)
 
+    def print_env_vars(self):
+        """prints the context env vars to the terminal
+
+        Example:
+          # This is helpful in scripts so you can do
+
+          from clarifai.utils.config import Config
+
+          Config.from_yaml().current.print_env_vars()
+
+        """
+        for k, v in self['env'].items():
+            if isinstance(v, dict):
+                continue
+            envvar_name = k.upper()
+            if not envvar_name.startswith('CLARIFAI_'):
+                envvar_name = 'CLARIFAI_' + envvar_name
+            print(f"export {envvar_name}=\"{v}\"")
+
 
 @dataclass
 class Config:

@@ -143,6 +143,14 @@ def dump(ctx_obj, output_format):
         json.dump(ctx_obj.to_dict(), sys.stdout, indent=2)
 
 
+@config.command(['cat'])
+@click.option('-o', '--output-format', default='yaml', type=click.Choice(['yaml', 'json']))
+@click.pass_obj
+def env(ctx_obj, output_format):
+    """Print env vars. Use: eval "$(clarifai config env)" """
+    ctx_obj.current.print_env_vars()
+
+
 @cli.command()
 @click.argument('api_url', default="https://api.clarifai.com")
 @click.option('--user_id', required=False, help='User ID')

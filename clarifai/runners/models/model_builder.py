@@ -410,11 +410,11 @@ class ModelBuilder:
         signatures = {method.name: method.signature for method in method_info.values()}
         return signatures_to_yaml(signatures)
 
-    def get_method_signatures(self):
+    def get_method_signatures(self, mocking=True):
         """
         Returns the method signatures for the model class.
         """
-        model_class = self.load_model_class(mocking=True)
+        model_class = self.load_model_class(mocking=mocking)
         method_info = model_class._get_method_info()
         signatures = [method.signature for method in method_info.values()]
         return signatures
@@ -934,18 +934,43 @@ class ModelBuilder:
         try:
             is_uploaded = self.monitor_model_build()
             if is_uploaded:
-                from clarifai.runners.utils import code_script
+                # Provide an mcp client config
+                if model_type_id == "mcp":
+                    snippet = (
+                        """
+import asyncio
+import os
+from fastmcp import Client
+from fastmcp.client.transports import StreamableHttpTransport
 
-                method_signatures = self.get_method_signatures()
-                snippet = code_script.generate_client_script(
-                    method_signatures,
-                    user_id=self.client.user_app_id.user_id,
-                    app_id=self.client.user_app_id.app_id,
-                    model_id=self.model_proto.id,
-                )
+transport = StreamableHttpTransport(url="%s/mcp",
+                                    headers={"Authorization": "Bearer " + os.environ["CLARIFAI_PAT"]})
+
+async def main():
+  async with Client(transport) as client:
+    tools = await client.list_tools()
+    print(f"Available tools: {tools}")
+    result = await client.call_tool(tools[0].name, {"a": 5, "b": 3})
+    print(f"Result: {result[0].text}")
+
+if __name__ == "__main__":
+  asyncio.run(main())
+"""
+                        % self.model_url
+                    )
+                else:  # python code to run the model.
+                    from clarifai.runners.utils import code_script
+
+                    method_signatures = self.get_method_signatures()
+                    snippet = code_script.generate_client_script(
+                        method_signatures,
+                        user_id=self.client.user_app_id.user_id,
+                        app_id=self.client.user_app_id.app_id,
+                        model_id=self.model_proto.id,
+                    )
                 logger.info("""\n
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-# Here is a code snippet to call this model:
+# Here is a code snippet to use this model:
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                 """)
                 logger.info(snippet)
