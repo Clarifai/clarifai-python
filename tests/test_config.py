@@ -100,8 +100,9 @@ class TestContext:
         """Test deleting attributes."""
         context = Context('test_context', CLARIFAI_USER_ID='test_user')
         
-        delattr(context, 'user_id')
-        assert 'user_id' not in context['env']
+        # The attribute should be deleted using the key name in env
+        delattr(context, 'CLARIFAI_USER_ID')
+        assert 'CLARIFAI_USER_ID' not in context['env']
         
         with pytest.raises(AttributeError):
             delattr(context, 'nonexistent_attr')

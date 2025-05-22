@@ -215,7 +215,7 @@ class TestLocalDevCLI:
     @pytest.fixture
     def mock_user(self):
         """Mock User class and its methods."""
-        with mock.patch("clarifai.cli.model.User") as mock_user:
+        with mock.patch("clarifai.client.user.User") as mock_user:
             # Create mock for the compute_cluster method
             mock_compute_cluster = mock.MagicMock()
             mock_compute_cluster.cluster_type = 'local-dev'
@@ -234,7 +234,7 @@ class TestLocalDevCLI:
     @pytest.fixture
     def mock_model_builder(self):
         """Mock ModelBuilder class."""
-        with mock.patch("clarifai.cli.model.ModelBuilder") as mock_builder:
+        with mock.patch("clarifai.runners.models.model_builder.ModelBuilder") as mock_builder:
             mock_instance = mock_builder.return_value
             mock_instance.get_method_signatures.return_value = [
                 {"method_name": "test_method", "parameters": []}
@@ -244,7 +244,7 @@ class TestLocalDevCLI:
     @pytest.fixture
     def mock_serve(self):
         """Mock serve function."""
-        with mock.patch("clarifai.cli.model.serve") as mock_serve:
+        with mock.patch("clarifai.runners.server.serve") as mock_serve:
             yield mock_serve
     
     @pytest.fixture
@@ -256,9 +256,9 @@ class TestLocalDevCLI:
     @pytest.fixture
     def mock_code_script(self):
         """Mock code_script module."""
-        with mock.patch("clarifai.cli.model.code_script") as mock_code_script:
-            mock_code_script.generate_client_script.return_value = "TEST_SCRIPT"
-            yield mock_code_script
+        with mock.patch("clarifai.runners.utils.code_script.generate_client_script") as mock_generate:
+            mock_generate.return_value = "TEST_SCRIPT"
+            yield mock_generate
             
     @pytest.fixture
     def mock_input(self, monkeypatch):
@@ -302,8 +302,8 @@ class TestLocalDevCLI:
         ctx_mock.obj.current.app_id = "test-app"
         ctx_mock.obj.current.model_id = "test-model"
         
-        with mock.patch("click.pass_context", return_value=ctx_mock):
-            from clarifai.cli.model import local_dev
+        with mock.patch("click.pass_context") as mock_click_ctx:
+            mock_click_ctx.return_value = ctx_mock
             
             # Call the function
             result = cli_runner.invoke(cli, ["model", "local-dev", model_path_fixture])
@@ -312,7 +312,7 @@ class TestLocalDevCLI:
             mock_validate_context.assert_called_once()
             mock_user.assert_called_once()
             mock_user.return_value.compute_cluster.assert_called_once_with("test-cluster")
-            mock_code_script.generate_client_script.assert_called_once()
+            mock_code_script.assert_called_once()
             mock_serve.assert_called_once()
     
     def test_local_dev_no_runner(
@@ -335,7 +335,9 @@ class TestLocalDevCLI:
         mock_nodepool = mock_user.return_value.compute_cluster.return_value.nodepool.return_value
         mock_nodepool.runner.side_effect = AttributeError("Runner not found in nodepool.")
         
-        with mock.patch("click.pass_context", return_value=ctx_mock):
+        with mock.patch("click.pass_context") as mock_click_ctx:
+            mock_click_ctx.return_value = ctx_mock
+            
             # Call the function
             result = cli_runner.invoke(cli, ["model", "local-dev", model_path_fixture])
             
@@ -344,7 +346,7 @@ class TestLocalDevCLI:
             mock_user.assert_called_once()
             mock_user.return_value.compute_cluster.assert_called_once_with("test-cluster")
             mock_nodepool.create_runner.assert_called_once()
-            mock_code_script.generate_client_script.assert_called_once()
+            mock_code_script.assert_called_once()
             mock_serve.assert_called_once()
     
     def test_local_dev_no_nodepool(
@@ -366,7 +368,9 @@ class TestLocalDevCLI:
         mock_compute_cluster = mock_user.return_value.compute_cluster.return_value
         mock_compute_cluster.nodepool.side_effect = Exception("Nodepool not found.")
         
-        with mock.patch("click.pass_context", return_value=ctx_mock):
+        with mock.patch("click.pass_context") as mock_click_ctx:
+            mock_click_ctx.return_value = ctx_mock
+            
             # Call the function
             result = cli_runner.invoke(cli, ["model", "local-dev", model_path_fixture])
             
@@ -375,7 +379,7 @@ class TestLocalDevCLI:
             mock_user.assert_called_once()
             mock_user.return_value.compute_cluster.assert_called_once_with("test-cluster")
             mock_compute_cluster.create_nodepool.assert_called_once()
-            mock_code_script.generate_client_script.assert_called_once()
+            mock_code_script.assert_called_once()
             mock_serve.assert_called_once()
     
     def test_local_dev_no_compute_cluster(
@@ -395,7 +399,9 @@ class TestLocalDevCLI:
         # Set up compute cluster not found exception
         mock_user.return_value.compute_cluster.side_effect = Exception("Compute cluster not found.")
         
-        with mock.patch("click.pass_context", return_value=ctx_mock):
+        with mock.patch("click.pass_context") as mock_click_ctx:
+            mock_click_ctx.return_value = ctx_mock
+            
             # Call the function
             result = cli_runner.invoke(cli, ["model", "local-dev", model_path_fixture])
             
@@ -404,5 +410,5 @@ class TestLocalDevCLI:
             mock_user.assert_called_once()
             mock_user.return_value.compute_cluster.assert_called_once()
             mock_user.return_value.create_compute_cluster.assert_called_once()
-            mock_code_script.generate_client_script.assert_called_once()
+            mock_code_script.assert_called_once()
             mock_serve.assert_called_once()
