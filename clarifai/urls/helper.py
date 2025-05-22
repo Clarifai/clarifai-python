@@ -1,10 +1,25 @@
+import os
+from collections import namedtuple
 from urllib.parse import urlparse
+
+from clarifai.utils.constants import DEFAULT_BASE, DEFAULT_UI
+
+# To help with using ClarifaiUrlHelper with defaults as ClarifaiUrlHelper()
+auth_obj = namedtuple("auth", ["ui", "base"])
+default_auth = auth_obj(
+    ui=os.environ.get("CLARIFAI_UI", DEFAULT_UI),
+    base=os.environ.get("CLARIFAI_API_BASE", DEFAULT_BASE),
+)
 
 
 class ClarifaiUrlHelper(object):
     """Lots of helper functionality for dealing with urls around modules."""
 
-    def __init__(self, auth, module_manager_imv_id="module_manager_install"):
+    def __init__(
+        self,
+        auth=default_auth,
+        module_manager_imv_id: str = "module_manager_install",
+    ):
         """
         Args:
           auth: a ClarifaiAuthHelper object.
@@ -13,13 +28,17 @@ class ClarifaiUrlHelper(object):
         self._module_manager_imv_id = module_manager_imv_id
 
     @property
-    def auth(self):
-        return self._auth
+    def ui(self):
+        return self._auth.ui
+
+    @property
+    def base(self):
+        return self._auth.base
 
     def module_ui_url(self, user_id, app_id, module_id, module_version_id):
         """This is the path to the module in community."""
         return "%s/%s/%s/modules/%s/versions/%s" % (
-            self.auth.ui,
+            self.ui,
             user_id,
             app_id,
             module_id,
@@ -30,7 +49,7 @@ class ClarifaiUrlHelper(object):
         """This is a url that allows for installation of the module from the community at 'module_url'
         into the destination app_id of the destination user_id."""
         return "%s/%s/%s/installed_module_versions/%s/install?install=%s" % (
-            self.auth.ui,
+            self.ui,
             dest_user_id,
             dest_app_id,
             self._module_manager_imv_id,
@@ -39,22 +58,51 @@ class ClarifaiUrlHelper(object):
 
     def imv_ui_url(self, dest_user_id, dest_app_id, imv_id):
         return "%s/%s/%s/installed_module_versions/%s" % (
-            self.auth.ui,
+            self.ui,
             dest_user_id,
             dest_app_id,
             imv_id,
         )
 
-    def clarifai_url(self, user_id, app_id, resource_type, resource_id, version_id: str = None):
-        """This is the path to the resource in community.
+    def api_url(self, user_id, app_id, resource_type, resource_id, version_id: str = None):
+        """This is the path to the resource in the API.
+
+        Example:
+          https://api.clarifai.com/v2/zeiler/app/modules/module1/versions/2
+          https://api.clarifai.com/v2/zeiler/app/models/model1/versions/2
+          https://api.clarifai.com/v2/zeiler/app/concepts/concept1
+          https://api.clarifai.com/v2/zeiler/app/workflows/workflow1
+          https://api.clarifai.com/v2/zeiler/app/tasks/task1
+          https://api.clarifai.com/v2/zeiler/app/installed_module_versions/module_manager_install
 
         Args:
           user_id: the author of the resource.
           app_id: the author's app the resource was created in.
-          resource_type: the type of resource. One of "modules", "models", "concepts", "inputs", "workflows", "tasks", "installed_module_versions"
+          resource_type: the type of resource. One of "modules", "models", "concepts", "inputs", "workflows", "tasks"
           resource_id: the resource ID
-          version_id: the version of the resource.
         """
+        self._validate_resource_type(resource_type)
+        if version_id is None:
+            return "%s/v2/users/%s/apps/%s/%s/%s" % (
+                self.base,
+                user_id,
+                app_id,
+                resource_type,
+                resource_id,
+            )
+
+        if resource_type in ["concepts", "tasks", "installed_module_versions"]:
+            raise ValueError(f"{resource_type} do not have versions.")
+        return "%s/v2/users/%s/apps/%s/%s/%s/versions/%s" % (
+            self.base,
+            user_id,
+            app_id,
+            resource_type,
+            resource_id,
+            version_id,
+        )
+
+    def _validate_resource_type(self, resource_type):
         if resource_type not in [
             "modules",
             "models",
@@ -68,10 +116,30 @@ class ClarifaiUrlHelper(object):
                 "resource_type must be one of modules, models, concepts, inputs, workflows, tasks, installed_module_versions but was %s"
                 % resource_type
             )
+
+    def clarifai_url(self, user_id, app_id, resource_type, resource_id, version_id: str = None):
+        """This is the path to the resource in community UI.
+
+        Example:
+          https://clarifai.com/zeiler/modules/module1/versions/2
+          https://clarifai.com/zeiler/models/model1/versions/2
+          https://clarifai.com/zeiler/concepts/concept1
+          https://clarifai.com/zeiler/workflows/workflow1
+          https://clarifai.com/zeiler/tasks/task1
+          https://clarifai.com/zeiler/installed_module_versions/module_manager_install
+
+        Args:
+          user_id: the author of the resource.
+          app_id: the author's app the resource was created in.
+          resource_type: the type of resource. One of "modules", "models", "concepts", "inputs", "workflows", "tasks", "installed_module_versions"
+          resource_id: the resource ID
+          version_id: the version of the resource.
+        """
+        self._validate_resource_type(resource_type)
         if version_id is None:
-            return "%s/%s/%s/%s/%s" % (self.auth.ui, user_id, app_id, resource_type, resource_id)
+            return "%s/%s/%s/%s/%s" % (self.ui, user_id, app_id, resource_type, resource_id)
         return "%s/%s/%s/%s/%s/versions/%s" % (
-            self.auth.ui,
+            self.ui,
             user_id,
             app_id,
             resource_type,

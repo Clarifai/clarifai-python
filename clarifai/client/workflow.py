@@ -14,6 +14,7 @@ from clarifai.client.model import Model
 from clarifai.constants.workflow import MAX_WORKFLOW_PREDICT_INPUTS
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
+from clarifai.utils.constants import DEFAULT_BASE
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator, status_is_retryable
 from clarifai.workflows.export import Exporter
@@ -28,7 +29,7 @@ class Workflow(Lister, BaseClient):
         workflow_id: str = None,
         workflow_version: Dict = {'id': ""},
         output_config: Dict = {'min_value': 0},
-        base_url: str = "https://api.clarifai.com",
+        base_url: str = DEFAULT_BASE,
         pat: str = None,
         token: str = None,
         root_certificates_path: str = None,

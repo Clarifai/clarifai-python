@@ -1,5 +1,9 @@
 import os
 
+DEFAULT_UI = os.environ.get("CLARIFAI_UI", "https://clarifai.com")
+DEFAULT_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
+
+
 CLARIFAI_PAT_ENV_VAR = "CLARIFAI_PAT"
 CLARIFAI_SESSION_TOKEN_ENV_VAR = "CLARIFAI_SESSION_TOKEN"
 CLARIFAI_USER_ID_ENV_VAR = "CLARIFAI_USER_ID"

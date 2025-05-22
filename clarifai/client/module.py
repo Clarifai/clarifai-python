@@ -6,6 +6,7 @@ from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
+from clarifai.utils.constants import DEFAULT_BASE
 from clarifai.utils.logging import logger
 
 
@@ -17,7 +18,7 @@ class Module(Lister, BaseClient):
         url: str = None,
         module_id: str = None,
         module_version: Dict = {'id': ""},
-        base_url: str = "https://api.clarifai.com",
+        base_url: str = DEFAULT_BASE,
         pat: str = None,
         token: str = None,
         root_certificates_path: str = None,

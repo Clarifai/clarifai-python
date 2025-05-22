@@ -45,6 +45,7 @@ ClarifaiDatasetType = TypeVar(
     VisualSegmentationDataset,
     TextClassificationDataset,
 )
+from clarifai.utils.constants import DEFAULT_BASE
 
 
 class Dataset(Lister, BaseClient):
@@ -55,7 +56,7 @@ class Dataset(Lister, BaseClient):
         url: str = None,
         dataset_id: str = None,
         dataset_version_id: str = None,
-        base_url: str = "https://api.clarifai.com",
+        base_url: str = DEFAULT_BASE,
         pat: str = None,
         token: str = None,
         root_certificates_path: str = None,

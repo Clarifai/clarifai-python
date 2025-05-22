@@ -410,11 +410,17 @@ class ModelBuilder:
         signatures = {method.name: method.signature for method in method_info.values()}
         return signatures_to_yaml(signatures)
 
-    def get_method_signatures(self):
+    def get_method_signatures(self, mocking=True):
         """
         Returns the method signatures for the model class.
+
+        Args:
+          mocking (bool): Whether to mock the model class or not. Defaults to False.
+
+        Returns:
+          list: A list of method signatures for the model class.
         """
-        model_class = self.load_model_class(mocking=True)
+        model_class = self.load_model_class(mocking=mocking)
         method_info = model_class._get_method_info()
         signatures = [method.signature for method in method_info.values()]
         return signatures
@@ -436,22 +442,42 @@ class ModelBuilder:
         return self._client
 
     @property
-    def model_url(self):
+    def model_ui_url(self):
+        url_helper = ClarifaiUrlHelper(self._client.auth_helper)
+        # Note(zeiler): the UI experience isn't the best when including version id right now.
+        # if self.model_version_id is not None:
+        #     return url_helper.clarifai_url(
+        #         self.client.user_app_id.user_id,
+        #         self.client.user_app_id.app_id,
+        #         "models",
+        #         self.model_id,
+        #         self.model_version_id,
+        #     )
+        # else:
+        return url_helper.clarifai_url(
+            self.client.user_app_id.user_id,
+            self.client.user_app_id.app_id,
+            "models",
+            self.model_id,
+        )
+
+    @property
+    def model_api_url(self):
         url_helper = ClarifaiUrlHelper(self._client.auth_helper)
         if self.model_version_id is not None:
-            return url_helper.clarifai_url(
-                self.client.user_app_id.user_id,
-                self.client.user_app_id.app_id,
-                "models",
-                self.model_id,
-            )
-        else:
-            return url_helper.clarifai_url(
+            return url_helper.api_url(
                 self.client.user_app_id.user_id,
                 self.client.user_app_id.app_id,
                 "models",
                 self.model_id,
                 self.model_version_id,
+            )
+        else:
+            return url_helper.api_url(
+                self.client.user_app_id.user_id,
+                self.client.user_app_id.app_id,
+                "models",
+                self.model_id,
             )
 
     def _get_model_proto(self):
@@ -930,10 +956,11 @@ class ModelBuilder:
             return
         self.model_version_id = response.model_version_id
         logger.info(f"Created Model Version ID: {self.model_version_id}")
-        logger.info(f"Full url to that version is: {self.model_url}")
+        logger.info(f"Full url to that version is: {self.model_ui_url}")
         try:
             is_uploaded = self.monitor_model_build()
             if is_uploaded:
+                # python code to run the model.
                 from clarifai.runners.utils import code_script
 
                 method_signatures = self.get_method_signatures()
@@ -945,7 +972,7 @@ class ModelBuilder:
                 )
                 logger.info("""\n
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-# Here is a code snippet to call this model:
+# Here is a code snippet to use this model:
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                 """)
                 logger.info(snippet)
@@ -1049,7 +1076,7 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                 logger.info("Model build complete!")
                 logger.info(f"Build time elapsed {time.time() - st:.1f}s)")
                 logger.info(
-                    f"Check out the model at {self.model_url} version: {self.model_version_id}"
+                    f"Check out the model at {self.model_ui_url} version: {self.model_version_id}"
                 )
                 return True
             else:
@@ -1074,10 +1101,12 @@ def upload_model(folder, stage, skip_dockerfile):
     exists = builder.check_model_exists()
     if exists:
         logger.info(
-            f"Model already exists at {builder.model_url}, this upload will create a new version for it."
+            f"Model already exists at {builder.model_ui_url}, this upload will create a new version for it."
         )
     else:
-        logger.info(f"New model will be created at {builder.model_url} with it's first version.")
+        logger.info(
+            f"New model will be created at {builder.model_ui_url} with it's first version."
+        )
 
     input("Press Enter to continue...")
     builder.upload_model_version()

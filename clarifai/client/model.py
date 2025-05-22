@@ -34,6 +34,7 @@ from clarifai.constants.model import (
 )
 from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
+from clarifai.utils.constants import DEFAULT_BASE
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator
 from clarifai.utils.model_train import (
@@ -58,7 +59,7 @@ class Model(Lister, BaseClient):
         url: str = None,
         model_id: str = None,
         model_version: Dict = {'id': ""},
-        base_url: str = "https://api.clarifai.com",
+        base_url: str = DEFAULT_BASE,
         pat: str = None,
         token: str = None,
         root_certificates_path: str = None,

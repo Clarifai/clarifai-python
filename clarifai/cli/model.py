@@ -504,6 +504,10 @@ def local_dev(ctx, model_path):
 
     logger.info(f"Current deployment_id: {deployment_id}")
 
+    logger.info(
+        f"Full url for the model: /users/{user_id}/apps/{app_id}/models/{model.id}/versions/{version.id}"
+    )
+
     # Now that we have all the context in ctx.obj, we need to update the config.yaml in
     # the model_path directory with the model object containing user_id, app_id, model_id, version_id
     config_file = os.path.join(model_path, 'config.yaml')
@@ -526,13 +530,9 @@ def local_dev(ctx, model_path):
         ModelBuilder._backup_config(config_file)
         ModelBuilder._save_config(config_file, config)
 
-    # client_model = Model(
-    # TODO: once we can generate_client_script from ModelBuilder or similar
-    # we should be able to put the exact function call in place.
-    # model_script = model.generate_client_script()
-
     builder = ModelBuilder(model_path, download_validation_only=True)
-    method_signatures = builder.get_method_signatures()
+    # don't mock for local dev since you need the dependencies to run the code anyways.
+    method_signatures = builder.get_method_signatures(mocking=False)
 
     from clarifai.runners.utils import code_script
 
@@ -545,8 +545,6 @@ def local_dev(ctx, model_path):
         use_ctx=True,
         base_url=ctx.obj.current.api_base,
     )
-
-    # TODO: put in the ClarifaiUrlHelper to create the model url.
 
     logger.info("""\n
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
