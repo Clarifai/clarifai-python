@@ -1,6 +1,7 @@
 import pytest
 
 from clarifai.urls.helper import ClarifaiUrlHelper
+from clarifai.utils.constants import DEFAULT_UI
 
 
 @pytest.fixture()
@@ -10,14 +11,14 @@ def helper():
 
 def test_module_Ui_url(helper):
     url = helper.module_ui_url("clarifai", "main", "module_1", "version_1")
-    assert url == "http://clarifai.com/clarifai/main/modules/module_1/versions/version_1"
+    assert url == f"{DEFAULT_UI}/clarifai/main/modules/module_1/versions/version_1"
 
 
 def test_module_install_url(helper):
     install_url = helper.module_install_ui_url("person", "app", "XXX")
     assert (
         install_url
-        == "http://clarifai.com/person/app/installed_module_versions/module_manager_install/install?install=XXX"
+        == f"{DEFAULT_UI}/person/app/installed_module_versions/module_manager_install/install?install=XXX"
     )
 
 
@@ -27,7 +28,7 @@ def test_install_with_custom_imv_id():
     install_url = helper.module_install_ui_url("person", "app", "XXX")
     assert (
         install_url
-        == "http://clarifai.com/person/app/installed_module_versions/some_imv_id/install?install=XXX"
+        == f"{DEFAULT_UI}/person/app/installed_module_versions/some_imv_id/install?install=XXX"
     )
 
 
