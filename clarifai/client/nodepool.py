@@ -11,6 +11,7 @@ from clarifai.client.deployment import Deployment
 from clarifai.client.lister import Lister
 from clarifai.client.runner import Runner
 from clarifai.errors import UserError
+from clarifai.utils.constants import DEFAULT_BASE
 from clarifai.utils.logging import logger
 
 
@@ -21,7 +22,7 @@ class Nodepool(Lister, BaseClient):
         self,
         nodepool_id: str = None,
         user_id: str = None,
-        base_url: str = "https://api.clarifai.com",
+        base_url: str = DEFAULT_BASE,
         pat: str = None,
         token: str = None,
         root_certificates_path: str = None,

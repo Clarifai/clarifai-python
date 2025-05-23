@@ -2,6 +2,7 @@ from clarifai_grpc.grpc.api import resources_pb2
 
 from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
+from clarifai.utils.constants import DEFAULT_BASE
 from clarifai.utils.logging import logger
 from clarifai.utils.protobuf import dict_to_protobuf
 
@@ -13,7 +14,7 @@ class Runner(Lister, BaseClient):
         self,
         runner_id: str = None,
         user_id: str = None,
-        base_url: str = "https://api.clarifai.com",
+        base_url: str = DEFAULT_BASE,
         pat: str = None,
         token: str = None,
         root_certificates_path: str = None,
