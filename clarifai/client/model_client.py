@@ -8,7 +8,6 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from clarifai.constants.model import MAX_MODEL_PREDICT_INPUTS
 from clarifai.errors import UserError
 from clarifai.runners.utils import code_script, method_signatures
-from clarifai.runners.utils.data_utils import is_openai_chat_format
 from clarifai.runners.utils.method_signatures import (
     CompatibilitySerializer,
     deserialize,
@@ -16,6 +15,7 @@ from clarifai.runners.utils.method_signatures import (
     serialize,
     signatures_from_json,
 )
+from clarifai.runners.utils.openai_convertor import is_openai_chat_format
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import BackoffIterator, status_is_retryable
 

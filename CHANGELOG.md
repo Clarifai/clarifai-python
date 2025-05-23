@@ -1,3 +1,9 @@
+## [[11.4.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.3) - [PyPI](https://pypi.org/project/clarifai/11.4.3/) - 2025-05-23
+
+### Changed
+- Simplified openai client wrapper functions [(#562)](https://github.com/Clarifai/clarifai-python/pull/562)
+- MCP integration, CLI commands and improved environment variable handling [(#592)](https://github.com/Clarifai/clarifai-python/pull/592)
+
 ## [[11.4.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.2) - [PyPI](https://pypi.org/project/clarifai/11.4.2/) - 2025-05-21
 
 ### Changed

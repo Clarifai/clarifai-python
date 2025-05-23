@@ -1,63 +1,89 @@
+import base64
 import json
 import math
 import operator
 from io import BytesIO
-from typing import List
+from typing import Dict, List
 
+import requests
 from clarifai_grpc.grpc.api import resources_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeEnumOption, ModelTypeRangeInfo
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeField as ParamProto
-from PIL import Image
+from PIL import Image as PILImage
 
-from clarifai.runners.utils.data_types import MessageData
+from clarifai.runners.utils.data_types import Audio, Image, MessageData, Video
 
 
-def image_to_bytes(img: Image.Image, format="JPEG") -> bytes:
+def image_to_bytes(img: PILImage.Image, format="JPEG") -> bytes:
     buffered = BytesIO()
     img.save(buffered, format=format)
     img_str = buffered.getvalue()
     return img_str
 
 
-def bytes_to_image(bytes_img) -> Image.Image:
-    img = Image.open(BytesIO(bytes_img))
+def bytes_to_image(bytes_img) -> PILImage.Image:
+    img = PILImage.open(BytesIO(bytes_img))
     return img
 
 
-def is_openai_chat_format(messages):
-    """
-    Verify if the given argument follows the OpenAI chat messages format.
+def process_image(image: Image) -> Dict:
+    """Convert Clarifai Image object to OpenAI image format."""
 
-    Args:
-        messages (list): A list of dictionaries representing chat messages.
+    if image.bytes:
+        b64_img = image.to_base64_str()
+        return {'type': 'image_url', 'image_url': {'url': f"data:image/jpeg;base64,{b64_img}"}}
+    elif image.url:
+        return {'type': 'image_url', 'image_url': {'url': image.url}}
+    else:
+        raise ValueError("Image must contain either bytes or URL")
 
-    Returns:
-        bool: True if valid, False otherwise.
-    """
-    if not isinstance(messages, list):
-        return False
 
-    valid_roles = {"system", "user", "assistant", "function"}
+def process_audio(audio: Audio) -> Dict:
+    """Convert Clarifai Audio object to OpenAI audio format."""
 
-    for msg in messages:
-        if not isinstance(msg, dict):
-            return False
-        if "role" not in msg or "content" not in msg:
-            return False
-        if msg["role"] not in valid_roles:
-            return False
+    if audio.bytes:
+        audio = audio.to_base64_str()
+        audio = {
+            "type": "input_audio",
+            "input_audio": {"data": audio, "format": "wav"},
+        }
+    elif audio.url:
+        response = requests.get(audio.url)
+        if response.status_code != 200:
+            raise ValueError(f"Failed to fetch audio from URL: {audio.url}")
+        audio_base64_str = base64.b64encode(response.content).decode('utf-8')
+        audio = {
+            "type": "input_audio",
+            "input_audio": {"data": audio_base64_str, "format": "wav"},
+        }
+    else:
+        raise ValueError("Audio must contain either bytes or URL")
 
-        content = msg["content"]
+    return audio
 
-        # Content should be either a string (text message) or a multimodal list
-        if isinstance(content, str):
-            continue  # Valid text message
 
-        elif isinstance(content, list):
-            for item in content:
-                if not isinstance(item, dict):
-                    return False
-    return True
+def process_video(video: Video) -> Dict:
+    """Convert Clarifai Video object to OpenAI video format."""
+
+    if video.bytes:
+        video = "data:video/mp4;base64," + video.to_base64_str()
+        video = {
+            "type": "video_url",
+            "video_url": {"url": video},
+        }
+    elif video.url:
+        response = requests.get(video.url)
+        if response.status_code != 200:
+            raise ValueError(f"Failed to fetch video from URL: {video.url}")
+        video_base64_str = base64.b64encode(response.content).decode('utf-8')
+        video = {
+            "type": "video_url",
+            "video_url": {"url": video_base64_str},
+        }
+    else:
+        raise ValueError("Video must contain either bytes or URL")
+
+    return video
 
 
 class Param(MessageData):
