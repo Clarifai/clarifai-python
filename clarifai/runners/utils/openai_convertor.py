@@ -197,7 +197,7 @@ def build_openai_messages(
 
     openai_messages = []
     # Add previous conversation history
-    if messages:
+    if messages and is_openai_chat_format(messages):
         openai_messages.extend(messages)
 
     content = []

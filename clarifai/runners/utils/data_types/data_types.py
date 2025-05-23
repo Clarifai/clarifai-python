@@ -396,12 +396,18 @@ class Image(MessageData):
         return PILImage.open(io.BytesIO(self.proto.base64))
 
     def to_base64_str(self) -> str:
-        if isinstance(self.proto.base64, bytes):
-            return self.proto.base64.decode('utf-8')
-        elif isinstance(self.proto.base64, str):
-            return self.proto.base64
-        elif not self.proto.base64:
+        if not self.proto.base64:
             raise ValueError("Image has no bytes")
+        if isinstance(self.proto.base64, str):
+            return self.proto.base64
+        if isinstance(self.proto.base64, bytes):
+            try:
+                # trying direct decode (if already a base64 bytes)
+                return self.proto.base64.decode('utf-8')
+            except UnicodeDecodeError:
+                import base64
+
+                return base64.b64encode(self.proto.base64).decode('utf-8')
 
     def to_numpy(self) -> np.ndarray:
         return np.asarray(self.to_pil())
@@ -475,12 +481,18 @@ class Audio(MessageData):
         return self.proto
 
     def to_base64_str(self) -> str:
-        if isinstance(self.proto.base64, bytes):
-            return self.proto.base64.decode('utf-8')
-        elif isinstance(self.proto.base64, str):
-            return self.proto.base64
-        elif not self.proto.base64:
+        if not self.proto.base64:
             raise ValueError("Audio has no bytes")
+        if isinstance(self.proto.base64, str):
+            return self.proto.base64
+        if isinstance(self.proto.base64, bytes):
+            try:
+                # trying direct decode (if already a base64 bytes)
+                return self.proto.base64.decode('utf-8')
+            except UnicodeDecodeError:
+                import base64
+
+                return base64.b64encode(self.proto.base64).decode('utf-8')
 
     @classmethod
     def from_proto(cls, proto: AudioProto) -> "Audio":
@@ -595,12 +607,18 @@ class Video(MessageData):
         return self.proto
 
     def to_base64_str(self) -> str:
-        if isinstance(self.proto.base64, bytes):
-            return self.proto.base64.decode('utf-8')
-        elif isinstance(self.proto.base64, str):
-            return self.proto.base64
-        elif not self.proto.base64:
+        if not self.proto.base64:
             raise ValueError("Video has no bytes")
+        if isinstance(self.proto.base64, str):
+            return self.proto.base64
+        if isinstance(self.proto.base64, bytes):
+            try:
+                # trying direct decode (if already a base64 bytes)
+                return self.proto.base64.decode('utf-8')
+            except UnicodeDecodeError:
+                import base64
+
+                return base64.b64encode(self.proto.base64).decode('utf-8')
 
     @classmethod
     def from_proto(cls, proto: VideoProto) -> "Video":
