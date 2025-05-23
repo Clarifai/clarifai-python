@@ -8,16 +8,17 @@ from clarifai.runners.models.openai_class import OpenAIModelClass
 class MockOpenAIClient:
     """Mock OpenAI client for testing."""
     
-    class ChatCompletions:
+    class Completions:
         def create(self, **kwargs):
-            """Mock create method that returns a simple completion or stream."""
+            """Mock create method for compatibility."""
             if kwargs.get("stream", False):
                 return MockCompletionStream(kwargs.get("messages", []))
             else:
                 return MockCompletion(kwargs.get("messages", []))
     
     def __init__(self):
-        self.chat = self.ChatCompletions()
+        self.chat = self  # Make self.chat point to self for compatibility
+        self.completions = self.Completions()  # For compatibility with some clients
 
 
 class MockCompletion:
@@ -103,33 +104,20 @@ class DummyOpenAIModel(OpenAIModelClass):
         return MockOpenAIClient()
     
     def _process_request(self, model, messages, temperature=1.0, max_tokens=None):
-        """Override to handle the MockCompletion response format."""
-        completion_args = {
-            "model": model,
-            "messages": messages,
-            "temperature": temperature
-        }
-        if max_tokens is not None:
-            completion_args["max_tokens"] = max_tokens
-        
-        # This returns our mock completion object
-        return self.client.chat.completions.create(**completion_args).choices[0].message.content
+        """Process a request for non-streaming responses."""
+        # Simply return the text of the last message as our "response"
+        last_message = messages[-1] if messages else {"content": ""}
+        return f"Echo: {last_message.get('content', '')}"
     
     def _process_streaming_request(self, model, messages, temperature=1.0, max_tokens=None):
-        """Override to handle the MockCompletionStream response format."""
-        completion_args = {
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-            "stream": True
-        }
-        if max_tokens is not None:
-            completion_args["max_tokens"] = max_tokens
+        """Process a request for streaming responses."""
+        # Generate a simple text response
+        last_message = messages[-1] if messages else {"content": ""}
+        response_text = f"Echo: {last_message.get('content', '')}"
         
-        # This returns our mock stream
-        for chunk in self.client.chat.completions.create(**completion_args):
-            if chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+        # Yield chunks of the response
+        for i in range(0, len(response_text), 5):
+            yield response_text[i:i+5]
     
     # Additional example method that could be added for specific model implementations
     @OpenAIModelClass.method
