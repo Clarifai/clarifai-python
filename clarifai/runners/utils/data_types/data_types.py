@@ -408,6 +408,8 @@ class Image(MessageData):
                 import base64
 
                 return base64.b64encode(self.proto.base64).decode('utf-8')
+        else:
+            raise TypeError("Expected str or bytes for Image.base64")
 
     def to_numpy(self) -> np.ndarray:
         return np.asarray(self.to_pil())
@@ -493,6 +495,8 @@ class Audio(MessageData):
                 import base64
 
                 return base64.b64encode(self.proto.base64).decode('utf-8')
+        else:
+            raise TypeError("Expected str or bytes for Audio.base64")
 
     @classmethod
     def from_proto(cls, proto: AudioProto) -> "Audio":
@@ -619,6 +623,8 @@ class Video(MessageData):
                 import base64
 
                 return base64.b64encode(self.proto.base64).decode('utf-8')
+        else:
+            raise TypeError("Expected str or bytes for Video.base64")
 
     @classmethod
     def from_proto(cls, proto: VideoProto) -> "Video":
