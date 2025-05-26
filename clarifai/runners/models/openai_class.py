@@ -4,7 +4,6 @@ import json
 from typing import Any, Dict, Iterator, List, Optional
 
 from clarifai.runners.models.model_class import ModelClass
-from clarifai.runners.utils.openai_convertor import openai_response
 
 
 class OpenAIModelClass(ModelClass):
@@ -45,10 +44,9 @@ class OpenAIModelClass(ModelClass):
                 chunks = self._process_streaming_request(
                     model=model, messages=messages, temperature=temperature, max_tokens=max_tokens
                 )
-                # Format the response as an OpenAI streaming response
-                response = openai_response(generated_text=chunks, model=model, stream=True)
-                # Since this is a generator, we need to convert it to a list for JSON serialization
-                response_list = list(response)
+                response_list = []
+                for chunk in chunks:
+                    response_list.append(chunk)
                 return json.dumps(response_list)
             else:
                 # For non-streaming responses
@@ -56,9 +54,7 @@ class OpenAIModelClass(ModelClass):
                     model=model, messages=messages, temperature=temperature, max_tokens=max_tokens
                 )
 
-                # Format the response as an OpenAI response
-                response = openai_response(generated_text=completion, model=model, stream=False)
-                return json.dumps(response)
+                return json.dumps(completion)
         except Exception as e:
             error_response = {
                 "error": {
@@ -117,7 +113,7 @@ class OpenAIModelClass(ModelClass):
             completion_args["max_tokens"] = max_tokens
 
         completion = self.client.chat.completions.create(**completion_args)
-        return completion.choices[0].message.content
+        return completion
 
     def _process_streaming_request(
         self,
@@ -144,4 +140,4 @@ class OpenAIModelClass(ModelClass):
         for chunk in completion_stream:
             if hasattr(chunk.choices[0], 'delta') and hasattr(chunk.choices[0].delta, 'content'):
                 if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+                    yield chunk
