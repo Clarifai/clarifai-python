@@ -171,14 +171,14 @@ def openai_to_hf_messages(openai_messages):
 
 
 def build_openai_messages(
-    prompt: str,
-    image: Image,
-    images: List[Image],
-    audio: Audio,
-    audios: List[Audio],
-    video: Video,
-    videos: List[Video],
-    messages: List[Dict],
+    prompt: str = None,
+    image: Image = None,
+    images: List[Image] = None,
+    audio: Audio = None,
+    audios: List[Audio] = None,
+    video: Video = None,
+    videos: List[Video] = None,
+    messages: List[Dict] = None,
 ) -> List[Dict]:
     """
     Construct OpenAI-compatible messages from input components.
