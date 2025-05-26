@@ -7,4 +7,3 @@ pypdf==3.17.4
 seaborn==0.13.2
 pycocotools>=2.0.7
 rich>=13.4.2
-fastmcp>=2.3.4
