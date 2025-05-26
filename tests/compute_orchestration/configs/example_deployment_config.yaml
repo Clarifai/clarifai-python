@@ -1,23 +1,23 @@
 deployment:
+  id: "my_string_cat_8_thread_dep"
+  description: "some random deployment"
   autoscale_config:
-    disable_packing: false
-    max_replicas: 1
     min_replicas: 0
-    scale_down_delay_seconds: 30
-    scale_to_zero_delay_seconds: 50
-    scale_up_delay_seconds: 30
+    max_replicas: 1
     traffic_history_seconds: 100
-  description: some random deployment
-  id: ci_test_dep_4c176159-0bb1-438c-a53b-c141c4af59a3
-  nodepools:
-  - compute_cluster:
-      id: ci_test_cc_4c176159-0bb1-438c-a53b-c141c4af59a3
-    id: ci_test_np_4c176159-0bb1-438c-a53b-c141c4af59a3
-  scheduling_choice: 4
+    scale_down_delay_seconds: 30
+    scale_up_delay_seconds: 30
+    scale_to_zero_delay_seconds: 50
+    disable_packing: false
   worker:
     model:
-      app_id: Test-Model-Upload
-      id: python_string_cat
+      id: "python_string_cat"
       model_version:
-        id: b7038e059a0c4ddca29c22aec561824d
-      user_id: clarifai
+        id: "b7038e059a0c4ddca29c22aec561824d"
+      user_id: "clarifai"
+      app_id: "Test-Model-Upload"
+  scheduling_choice: 4
+  nodepools:
+    - id: "test-nodepool-6"
+      compute_cluster:
+          id: "test-aws-cluster"
