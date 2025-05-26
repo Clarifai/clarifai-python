@@ -54,6 +54,11 @@ class TestOpenAIModelClass:
         # With PR #597 we now get the raw OpenAI response back
         # The DummyOpenAIModel returns "Echo: [message content]"
         assert "Echo: Hello world" in response
+        
+        # Verify that the response is exactly what we expect from the dummy model
+        # which returns a simple string with the format "Echo: [message content]"
+        expected_response = "Echo: Hello world"
+        assert expected_response == data
 
     def test_transport_method_streaming(self):
         """Test the openai_transport method with streaming."""
@@ -76,15 +81,17 @@ class TestOpenAIModelClass:
         # The DummyOpenAIModel's _process_streaming_request yields chunk objects
         # with the entire content, not just the formatted objects
         full_response = ""
-        for chunk in data:
-            # Check if we have an object or a string
-            if isinstance(chunk, str):
-                full_response += chunk
-            else:
-                # This could be a different structure based on how chunk is returned
-                # We just want to ensure our test doesn't break
-                pass
+        
+        # Verify that each chunk is a string (as expected from our DummyOpenAIModel)
+        for i, chunk in enumerate(data):
+            # Every chunk should be a string based on our implementation
+            assert isinstance(chunk, str)
+            
+            # Verify the chunking is done correctly (5 chars per chunk in DummyOpenAIModel)
+            expected_chunk = "Echo: Hello world"[i*5:(i+1)*5]
+            assert chunk == expected_chunk
+            
+            full_response += chunk
                 
-        # If we accumulated some text, check it
-        if full_response:
-            assert "Echo: Hello world" in full_response
+        # Verify the full reconstructed response
+        assert full_response == "Echo: Hello world"
