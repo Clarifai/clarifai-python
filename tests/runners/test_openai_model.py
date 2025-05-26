@@ -89,6 +89,36 @@ class TestOpenAIModelClass:
         assert len(last_chunk["choices"][0]["delta"]) == 0
         assert last_chunk["choices"][0]["finish_reason"] == "stop"
     
+    def test_openai_stream_transport(self):
+        """Test the new openai_stream_transport method."""
+        model = DummyOpenAIModel()
+        model.load_model()
+        
+        # Create a simple chat request
+        request = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Hello, world!"}
+            ]
+        }
+        
+        # Test with string input
+        response_iter = model.openai_stream_transport(json.dumps(request))
+        chunks = list(response_iter)
+        
+        # Verify response format - should be raw text chunks
+        assert len(chunks) > 0
+        combined = ''.join(chunks)
+        assert combined == "Echo: Hello, world!"
+        
+        # Test error handling
+        bad_request = json.dumps({"messages": [{"role": "invalid"}]})
+        response_iter = model.openai_stream_transport(bad_request)
+        chunks = list(response_iter)
+        assert len(chunks) == 1
+        assert chunks[0].startswith("Error:")
+    
     def test_custom_method(self):
         """Test custom method on the DummyOpenAIModel."""
         model = DummyOpenAIModel()

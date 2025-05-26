@@ -83,6 +83,40 @@ class OpenAIModelClass(ModelClass):
             }
             return json.dumps(error_response)
 
+    @ModelClass.method
+    def openai_stream_transport(self, req: str) -> Iterator[str]:
+        """Process an OpenAI-compatible request and return a streaming response iterator.
+        
+        This method is used when stream=True and returns an iterator of strings directly,
+        without converting to a list or JSON serializing.
+        
+        Args:
+            req: The request as a JSON string.
+            
+        Returns:
+            Iterator[str]: An iterator yielding text chunks from the streaming response.
+        """
+        # Parse the incoming message
+        request_data = json.loads(req)
+        
+        # Extract key parameters from the request
+        model = request_data.get("model", "")
+        messages = request_data.get("messages", [])
+        temperature = request_data.get("temperature", 1.0)
+        max_tokens = request_data.get("max_tokens", None)
+        
+        # Process the streaming request and return the iterator directly
+        try:
+            return self._process_streaming_request(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+        except Exception as e:
+            # For errors, yield a single error message
+            yield f"Error: {str(e)}"
+
     def _process_request(
         self, 
         model: str, 

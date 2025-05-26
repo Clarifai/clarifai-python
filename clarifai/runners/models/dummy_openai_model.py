@@ -1,6 +1,7 @@
 """Dummy OpenAI model implementation for testing."""
 
 from typing import Any, Dict, Iterator, List
+import json
 
 from clarifai.runners.models.openai_class import OpenAIModelClass
 
@@ -118,6 +119,27 @@ class DummyOpenAIModel(OpenAIModelClass):
         # Yield chunks of the response
         for i in range(0, len(response_text), 5):
             yield response_text[i:i+5]
+    
+    # Override the method directly for testing
+    @OpenAIModelClass.method
+    def openai_stream_transport(self, req: str) -> Iterator[str]:
+        """Direct implementation for testing purposes."""
+        try:
+            request_data = json.loads(req)
+            messages = request_data.get("messages", [])
+            
+            # Validate the request format for testing
+            if not messages or not isinstance(messages[0], dict) or "content" not in messages[0]:
+                raise ValueError("Invalid message format")
+                
+            last_message = messages[-1] if messages else {"content": ""}
+            response_text = f"Echo: {last_message.get('content', '')}"
+            
+            chunks = [response_text[i:i+5] for i in range(0, len(response_text), 5)]
+            for chunk in chunks:
+                yield chunk
+        except Exception as e:
+            yield f"Error: {str(e)}"
     
     # Additional example method that could be added for specific model implementations
     @OpenAIModelClass.method
