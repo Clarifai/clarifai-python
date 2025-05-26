@@ -196,7 +196,7 @@ class ModelClient:
             f.__name__ = method_name
             f.__qualname__ = f'{self.__class__.__name__}.{method_name}'
             input_annotations = code_script._get_annotations_source(method_signature)
-            return_annotation = input_annotations.pop('return', (None, None))[0]
+            return_annotation = input_annotations.pop('return', (None, None, None))[0]
             sig = inspect.signature(f).replace(
                 parameters=[
                     inspect.Parameter(k, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=v[0])
