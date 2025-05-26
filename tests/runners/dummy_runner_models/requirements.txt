@@ -2,4 +2,3 @@ aiohttp
 requests
 clarifai
 huggingface_hub
-fastmcp>=2.3.4
