@@ -87,13 +87,13 @@ model = Model({model_ui_url},
         method_name = method_signature.name
         client_script_str = f'response = model.{method_name}('
         annotations = _get_annotations_source(method_signature)
-        for param_name, (param_type, default_value) in annotations.items():
+        for param_name, (param_type, default_value, required) in annotations.items():
             print(
                 f"param_name: {param_name}, param_type: {param_type}, default_value: {default_value}"
             )
             if param_name == "return":
                 continue
-            if default_value is None:
+            if default_value is None and required:
                 default_value = _set_default_value(param_type)
             client_script_str += f"{param_name}={default_value}, "
         client_script_str = client_script_str.rstrip(", ") + ")"
@@ -132,7 +132,7 @@ def _get_annotations_source(method_signature: resources_pb2.MethodSignature) -> 
         default_value = None
         if data_utils.Param.get_default(input_field):
             default_value = _parse_default_value(input_field)
-        annotations[param_name] = (param_type, default_value)
+        annotations[param_name] = (param_type, default_value, input_field.required)
     if not method_signature.output_fields:
         raise ValueError("MethodSignature must have at least one output field")
     for output_field in method_signature.output_fields:
@@ -140,7 +140,7 @@ def _get_annotations_source(method_signature: resources_pb2.MethodSignature) -> 
         param_type = _get_base_type(output_field)
         if output_field.iterator:
             param_type = f"Iterator[{param_type}]"
-        annotations[param_name] = (param_type, None)
+        annotations[param_name] = (param_type, None, output_field.required)
     return annotations
 
 
@@ -189,7 +189,7 @@ def _map_default_value(field_type):
     default_value = None
 
     if field_type == "str":
-        default_value = 'What is the future of AI?'
+        default_value = repr('What is the future of AI?')
     elif field_type == "bytes":
         default_value = b""
     elif field_type == "int":
@@ -224,11 +224,9 @@ def _set_default_value(field_type):
     Set the default value of a field if it is not set.
     """
     is_iterator = False
-    print(f"before field_type: {field_type}")
     if field_type.startswith("Iterator["):
         is_iterator = True
         field_type = field_type[9:-1]
-    print(f"after field_type: {field_type}")
     default_value = None
     default_value = _map_default_value(field_type)
     if field_type.startswith("List["):
@@ -245,11 +243,8 @@ def _set_default_value(field_type):
         element_type_defaults = [_map_default_value(et) for et in element_types]
         default_value = f"{{{', '.join([str(et) for et in element_type_defaults])}}}"
 
-    if field_type == 'str':
-        default_value = repr(default_value)
     if is_iterator:
         default_value = f'iter([{default_value}])'
-    print(f"after default_value: {default_value}")
     return default_value
 
 

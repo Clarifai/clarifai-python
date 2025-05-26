@@ -74,30 +74,10 @@ def build_function_signature(func):
     assert method_type in ('UNARY_UNARY', 'UNARY_STREAMING', 'STREAMING_STREAMING')
     # method_signature.method_type = method_type
     method_signature.description = inspect.cleandoc(func.__doc__ or '')
-    # method_signature.annotations_json = json.dumps(_get_annotations_source(func))
 
     method_signature.input_fields.extend(input_sigs)
     method_signature.output_fields.append(output_sig)
     return method_signature
-
-
-# def _get_annotations_source(func):
-#   """Extracts raw annotation strings from the function source."""
-#   source = inspect.getsource(func)  # Get function source code
-#   source = textwrap.dedent(source)  # Dedent source code
-#   tree = ast.parse(source)  # Parse into AST
-#   func_node = next(node for node in tree.body
-#                    if isinstance(node, ast.FunctionDef))  # Get function node
-
-#   annotations = {}
-#   for arg in func_node.args.args:  # Process arguments
-#     if arg.annotation:
-#       annotations[arg.arg] = ast.unparse(arg.annotation)  # Get raw annotation string
-
-#   if func_node.returns:  # Process return type
-#     annotations["return"] = ast.unparse(func_node.returns)
-
-#   return annotations
 
 
 def _process_input_field(field: resources_pb2.ModelTypeField) -> str:

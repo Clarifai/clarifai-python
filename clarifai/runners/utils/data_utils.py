@@ -320,9 +320,7 @@ class Param(MessageData):
             proto.model_type_range_info.CopyFrom(range_info)
         proto.is_param = self.is_param
 
-        if self.default is not None:
-            proto = self.set_default(proto, self.default)
-
+        proto = self.set_default(proto, self.default)
         return proto
 
     @classmethod
