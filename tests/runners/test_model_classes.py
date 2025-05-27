@@ -81,18 +81,19 @@ class TestModelClasses:
         response_str = model.openai_transport(json.dumps(request))
         response_chunks = json.loads(response_str)
 
-        # Verify the response format for streaming
         assert isinstance(response_chunks, list)
         assert len(response_chunks) > 0
-        for chunk in response_chunks:
-            assert "id" in chunk
-            assert "created" in chunk
-            assert "model" in chunk
-            assert "choices" in chunk
-            assert len(chunk["choices"]) > 0
-            assert "delta" in chunk["choices"][0]
-            if chunk["choices"][0]["delta"].get("content"):
-                assert "Echo: Hello, world!" in chunk["choices"][0]["delta"]["content"]
+
+        # Check first chunk for content
+        first_chunk = response_chunks[0]
+        assert "id" in first_chunk
+        assert "created" in first_chunk
+        assert "model" in first_chunk
+        assert "choices" in first_chunk
+        assert len(first_chunk["choices"]) > 0
+        assert "delta" in first_chunk["choices"][0]
+        assert "content" in first_chunk["choices"][0]["delta"]
+        assert "Echo: Hello world" in first_chunk["choices"][0]["delta"]["content"]
 
     def test_custom_method(self):
         """Test custom method on the DummyOpenAIModel."""

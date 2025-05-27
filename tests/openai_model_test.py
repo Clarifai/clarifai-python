@@ -80,12 +80,23 @@ class TestOpenAIModelClass:
 
         assert isinstance(data, list)
         assert len(data) > 0
-        for chunk in data:
+
+        # Check first chunk for content
+        first_chunk = data[0]
+        assert "id" in first_chunk
+        assert "created" in first_chunk
+        assert "model" in first_chunk
+        assert "choices" in first_chunk
+        assert len(first_chunk["choices"]) > 0
+        assert "delta" in first_chunk["choices"][0]
+        assert "content" in first_chunk["choices"][0]["delta"]
+        assert "Echo: Hello world" in first_chunk["choices"][0]["delta"]["content"]
+
+        # Check remaining chunks for structure
+        for chunk in data[1:]:
             assert "id" in chunk
             assert "created" in chunk
             assert "model" in chunk
             assert "choices" in chunk
             assert len(chunk["choices"]) > 0
             assert "delta" in chunk["choices"][0]
-            if chunk["choices"][0]["delta"].get("content"):
-                assert "Echo: Hello world" in chunk["choices"][0]["delta"]["content"]

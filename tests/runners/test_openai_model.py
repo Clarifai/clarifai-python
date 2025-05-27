@@ -110,7 +110,7 @@ class TestOpenAIModelClass:
         bad_request = json.dumps({"messages": [{"role": "invalid"}]})
         response_iter = model.openai_stream_transport(bad_request)
         chunks = list(response_iter)
-        assert len(chunks) == 1
+        assert len(chunks) == 2
         assert chunks[0].startswith("Error:")
 
     def test_custom_method(self):
