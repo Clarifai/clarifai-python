@@ -89,38 +89,19 @@ class MockCompletionStream:
                     else None
                 )
 
-        def __init__(self, messages):
-            # Generate a simple response based on the last message
-            last_message = messages[-1] if messages else {"content": ""}
-            self.response_text = f"Echo: {last_message.get('content', '')}"
-            # Divide the response into chunks of 5 characters
-            self.chunks = [
-                self.response_text[i : i + 5] for i in range(0, len(self.response_text), 5)
-            ]
-            self.current_chunk = 0
-            self.include_usage = False
-
-        def __iter__(self):
-            return self
-
-        def __next__(self):
-            if self.current_chunk < len(self.chunks):
-                chunk = self.Chunk(self.chunks[self.current_chunk], self.include_usage)
-                self.current_chunk += 1
-                return chunk
-            elif self.current_chunk == len(self.chunks):
-                # Final chunk with empty content to indicate completion
-                self.current_chunk += 1
-                return self.Chunk(include_usage=self.include_usage)
-            else:
-                raise StopIteration
+        def __init__(self, content=None, include_usage=False):
+            self.choices = [self.Choice(content, include_usage)]
+            self.id = "dummy-chunk-id"
+            self.created = 1234567890
+            self.model = "dummy-model"
+            self.usage = self.choices[0].usage
 
         def to_dict(self) -> Dict[str, Any]:
             """Convert the chunk to a dictionary."""
             result = {
-                "id": "dummy-chunk-id",
-                "created": 1234567890,
-                "model": "dummy-model",
+                "id": self.id,
+                "created": self.created,
+                "model": self.model,
                 "choices": [
                     {
                         "delta": {"role": choice.delta.role, "content": choice.delta.content}
@@ -135,6 +116,30 @@ class MockCompletionStream:
             if self.usage:
                 result["usage"] = self.usage
             return result
+
+    def __init__(self, messages):
+        # Generate a simple response based on the last message
+        last_message = messages[-1] if messages else {"content": ""}
+        self.response_text = f"Echo: {last_message.get('content', '')}"
+        # Divide the response into chunks of 5 characters
+        self.chunks = [self.response_text[i : i + 5] for i in range(0, len(self.response_text), 5)]
+        self.current_chunk = 0
+        self.include_usage = False
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.current_chunk < len(self.chunks):
+            chunk = self.Chunk(self.chunks[self.current_chunk], self.include_usage)
+            self.current_chunk += 1
+            return chunk
+        elif self.current_chunk == len(self.chunks):
+            # Final chunk with empty content to indicate completion
+            self.current_chunk += 1
+            return self.Chunk(include_usage=self.include_usage)
+        else:
+            raise StopIteration
 
 
 class DummyOpenAIModel(OpenAIModelClass):
