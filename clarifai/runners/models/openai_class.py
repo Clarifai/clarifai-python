@@ -24,8 +24,7 @@ class OpenAIModelClass(ModelClass):
         raise NotImplementedError("Subclasses must implement get_openai_client() method")
 
     def get_model(self) -> str:
-        '''Required method for each subclass to implement to return model to use with opeani client'''
-        """Return the model name to use with OpenAI client."""
+        """Required method for each subclass to implement to return the model name to use with OpenAI client"""
         raise NotImplementedError("Subclasses must implement get_model() method")
 
     def _extract_request_params(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -147,21 +146,22 @@ class OpenAIModelClass(ModelClass):
             return self._format_error_response(e)
 
     @ModelClass.method
-    def openai_stream_transport(self, req: str) -> Iterator[str]:
+    def openai_stream_transport(self, msg: str) -> Iterator[str]:
         """Process an OpenAI-compatible request and return a streaming response iterator.
         This method is used when stream=True and returns an iterator of strings directly,
         without converting to a list or JSON serializing.
 
         Args:
-            req: The request as a JSON string.
+            msg: The request as a JSON string.
 
         Returns:
             Iterator[str]: An iterator yielding text chunks from the streaming response.
         """
         try:
-            request_data = json.loads(req)
+            request_data = json.loads(msg)
             params = self._extract_request_params(request_data)
-            return self._process_streaming_request(**params)
+            for chunk in self._process_streaming_request(**params):
+                yield json.dumps(chunk)
         except Exception as e:
             yield f"Error: {str(e)}"
 
