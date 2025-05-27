@@ -1,7 +1,7 @@
 """Dummy OpenAI model implementation for testing."""
 
 import json
-from typing import Iterator
+from typing import Any, Dict, Iterator
 
 from clarifai.runners.models.openai_class import OpenAIModelClass
 
@@ -51,6 +51,23 @@ class MockCompletion:
         self.created = 1234567890
         self.model = "dummy-model"
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert the completion object to a dictionary."""
+        return {
+            "id": self.id,
+            "created": self.created,
+            "model": self.model,
+            "choices": [
+                {
+                    "message": {"role": choice.message.role, "content": choice.message.content},
+                    "finish_reason": choice.finish_reason,
+                    "index": choice.index,
+                }
+                for choice in self.choices
+            ],
+            "usage": self.usage,
+        }
+
 
 class MockCompletionStream:
     """Mock completion stream that mimics the OpenAI streaming response structure."""
@@ -62,39 +79,62 @@ class MockCompletionStream:
                     self.content = content
                     self.role = "assistant" if content is None else None
 
-            def __init__(self, content=None):
+            def __init__(self, content=None, include_usage=False):
                 self.delta = self.Delta(content)
                 self.finish_reason = None if content else "stop"
                 self.index = 0
+                self.usage = (
+                    {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+                    if include_usage
+                    else None
+                )
 
-        def __init__(self, content=None):
-            self.choices = [self.Choice(content)]
-            self.id = "dummy-chunk-id"
-            self.created = 1234567890
-            self.model = "dummy-model"
+        def __init__(self, messages):
+            # Generate a simple response based on the last message
+            last_message = messages[-1] if messages else {"content": ""}
+            self.response_text = f"Echo: {last_message.get('content', '')}"
+            # Divide the response into chunks of 5 characters
+            self.chunks = [
+                self.response_text[i : i + 5] for i in range(0, len(self.response_text), 5)
+            ]
+            self.current_chunk = 0
+            self.include_usage = False
 
-    def __init__(self, messages):
-        # Generate a simple response based on the last message
-        last_message = messages[-1] if messages else {"content": ""}
-        self.response_text = f"Echo: {last_message.get('content', '')}"
-        # Divide the response into chunks of 5 characters
-        self.chunks = [self.response_text[i : i + 5] for i in range(0, len(self.response_text), 5)]
-        self.current_chunk = 0
+        def __iter__(self):
+            return self
 
-    def __iter__(self):
-        return self
+        def __next__(self):
+            if self.current_chunk < len(self.chunks):
+                chunk = self.Chunk(self.chunks[self.current_chunk], self.include_usage)
+                self.current_chunk += 1
+                return chunk
+            elif self.current_chunk == len(self.chunks):
+                # Final chunk with empty content to indicate completion
+                self.current_chunk += 1
+                return self.Chunk(include_usage=self.include_usage)
+            else:
+                raise StopIteration
 
-    def __next__(self):
-        if self.current_chunk < len(self.chunks):
-            chunk = self.Chunk(self.chunks[self.current_chunk])
-            self.current_chunk += 1
-            return chunk
-        elif self.current_chunk == len(self.chunks):
-            # Final chunk with empty content to indicate completion
-            self.current_chunk += 1
-            return self.Chunk()
-        else:
-            raise StopIteration
+        def to_dict(self) -> Dict[str, Any]:
+            """Convert the chunk to a dictionary."""
+            result = {
+                "id": "dummy-chunk-id",
+                "created": 1234567890,
+                "model": "dummy-model",
+                "choices": [
+                    {
+                        "delta": {"role": choice.delta.role, "content": choice.delta.content}
+                        if choice.delta.content is not None
+                        else {"role": choice.delta.role},
+                        "finish_reason": choice.finish_reason,
+                        "index": choice.index,
+                    }
+                    for choice in self.choices
+                ],
+            }
+            if self.usage:
+                result["usage"] = self.usage
+            return result
 
 
 class DummyOpenAIModel(OpenAIModelClass):
@@ -107,23 +147,21 @@ class DummyOpenAIModel(OpenAIModelClass):
     def get_model(self):
         return "dummy-model"
 
-    def _process_request(self, **kwargs):
+    def _process_request(self, **kwargs) -> Dict[str, Any]:
         """Process a request for non-streaming responses."""
-        # Simply return the text of the last message as our "response"
-        messages = kwargs.get("messages", [])
-        last_message = messages[-1] if messages else {"content": ""}
-        return f"Echo: {last_message.get('content', '')}"
+        completion_args = self._create_completion_args(kwargs)
+        return self.client.chat.completions.create(**completion_args).to_dict()
 
-    def _process_streaming_request(self, **kwargs) -> Iterator[str]:
+    def _process_streaming_request(self, **kwargs) -> Iterator[Dict[str, Any]]:
         """Process a request for streaming responses."""
-        # Generate a simple text response
-        messages = kwargs.get("messages", [])
-        last_message = messages[-1] if messages else {"content": ""}
-        response_text = f"Echo: {last_message.get('content', '')}"
+        completion_args = self._create_completion_args(kwargs, stream=True)
+        completion_stream = self.client.chat.completions.create(**completion_args)
+        completion_stream.include_usage = kwargs.get('stream_options', {}).get(
+            'include_usage', False
+        )
 
-        # Yield chunks of the response
-        for i in range(0, len(response_text), 5):
-            yield response_text[i : i + 5]
+        for chunk in completion_stream:
+            yield chunk.to_dict()
 
     # Override the method directly for testing
     @OpenAIModelClass.method
@@ -131,18 +169,10 @@ class DummyOpenAIModel(OpenAIModelClass):
         """Direct implementation for testing purposes."""
         try:
             request_data = json.loads(req)
-            messages = request_data.get("messages", [])
+            params = self._extract_request_params(request_data)
 
-            # Validate the request format for testing
-            if not messages or not isinstance(messages[0], dict) or "content" not in messages[0]:
-                raise ValueError("Invalid message format")
-
-            last_message = messages[-1] if messages else {"content": ""}
-            response_text = f"Echo: {last_message.get('content', '')}"
-
-            chunks = [response_text[i : i + 5] for i in range(0, len(response_text), 5)]
-            for chunk in chunks:
-                yield chunk
+            for chunk in self._process_streaming_request(**params):
+                yield json.dumps(chunk)
         except Exception as e:
             yield f"Error: {str(e)}"
 

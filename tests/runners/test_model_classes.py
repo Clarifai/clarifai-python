@@ -27,6 +27,11 @@ class TestModelClasses:
         with pytest.raises(NotImplementedError):
             OpenAIModelClass().get_openai_client()
 
+        # Test that client has required attributes
+        client = model.get_openai_client()
+        assert hasattr(client, 'chat')
+        assert hasattr(client, 'completions')
+
     def test_openai_transport_non_streaming(self):
         """Test OpenAI transport method with non-streaming request."""
         model = DummyOpenAIModel()
@@ -46,7 +51,16 @@ class TestModelClasses:
         response_str = model.openai_transport(json.dumps(request))
         response = json.loads(response_str)
 
-        assert "Echo: Hello, world!" in response
+        # Verify response structure
+        assert "id" in response
+        assert "created" in response
+        assert "model" in response
+        assert "choices" in response
+        assert len(response["choices"]) > 0
+        assert "message" in response["choices"][0]
+        assert "content" in response["choices"][0]["message"]
+        assert "Echo: Hello, world!" in response["choices"][0]["message"]["content"]
+        assert "usage" in response
 
     def test_openai_transport_streaming(self):
         """Test OpenAI transport method with streaming request."""
@@ -70,6 +84,15 @@ class TestModelClasses:
         # Verify the response format for streaming
         assert isinstance(response_chunks, list)
         assert len(response_chunks) > 0
+        for chunk in response_chunks:
+            assert "id" in chunk
+            assert "created" in chunk
+            assert "model" in chunk
+            assert "choices" in chunk
+            assert len(chunk["choices"]) > 0
+            assert "delta" in chunk["choices"][0]
+            if chunk["choices"][0]["delta"].get("content"):
+                assert "Echo: Hello, world!" in chunk["choices"][0]["delta"]["content"]
 
     def test_custom_method(self):
         """Test custom method on the DummyOpenAIModel."""

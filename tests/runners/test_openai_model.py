@@ -41,7 +41,15 @@ class TestOpenAIModelClass:
         response = json.loads(response_str)
 
         # Verify the response format
-        assert "Echo: Hello, world!" in response
+        assert "id" in response
+        assert "created" in response
+        assert "model" in response
+        assert "choices" in response
+        assert len(response["choices"]) > 0
+        assert "message" in response["choices"][0]
+        assert "content" in response["choices"][0]["message"]
+        assert "Echo: Hello, world!" in response["choices"][0]["message"]["content"]
+        assert "usage" in response
 
     def test_openai_transport_streaming(self):
         """Test OpenAI transport method with streaming request."""
@@ -65,6 +73,15 @@ class TestOpenAIModelClass:
         # Verify the response format for streaming
         assert isinstance(response_chunks, list)
         assert len(response_chunks) > 0
+        for chunk in response_chunks:
+            assert "id" in chunk
+            assert "created" in chunk
+            assert "model" in chunk
+            assert "choices" in chunk
+            assert len(chunk["choices"]) > 0
+            assert "delta" in chunk["choices"][0]
+            if chunk["choices"][0]["delta"].get("content"):
+                assert "Echo: Hello, world!" in chunk["choices"][0]["delta"]["content"]
 
     def test_openai_stream_transport(self):
         """Test the new openai_stream_transport method."""
@@ -87,7 +104,7 @@ class TestOpenAIModelClass:
         # Verify response format - should be raw text chunks
         assert len(chunks) > 0
         combined = ''.join(chunks)
-        assert combined == "Echo: Hello, world!"
+        assert "Echo: Hello, world!" in combined
 
         # Test error handling
         bad_request = json.dumps({"messages": [{"role": "invalid"}]})

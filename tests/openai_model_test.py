@@ -36,6 +36,8 @@ class TestOpenAIModelClass:
 
         client = model.get_openai_client()
         assert client is not None
+        assert hasattr(client, 'chat')
+        assert hasattr(client, 'completions')
 
     def test_transport_method_non_streaming(self):
         """Test the openai_transport method with non-streaming."""
@@ -50,7 +52,17 @@ class TestOpenAIModelClass:
 
         response = model.openai_transport(json.dumps(request))
         data = json.loads(response)
-        assert isinstance(data, str)
+
+        # Verify response structure
+        assert "id" in data
+        assert "created" in data
+        assert "model" in data
+        assert "choices" in data
+        assert len(data["choices"]) > 0
+        assert "message" in data["choices"][0]
+        assert "content" in data["choices"][0]["message"]
+        assert "Echo: Hello world" in data["choices"][0]["message"]["content"]
+        assert "usage" in data
 
     def test_transport_method_streaming(self):
         """Test the openai_transport method with streaming."""
@@ -68,3 +80,12 @@ class TestOpenAIModelClass:
 
         assert isinstance(data, list)
         assert len(data) > 0
+        for chunk in data:
+            assert "id" in chunk
+            assert "created" in chunk
+            assert "model" in chunk
+            assert "choices" in chunk
+            assert len(chunk["choices"]) > 0
+            assert "delta" in chunk["choices"][0]
+            if chunk["choices"][0]["delta"].get("content"):
+                assert "Echo: Hello world" in chunk["choices"][0]["delta"]["content"]
