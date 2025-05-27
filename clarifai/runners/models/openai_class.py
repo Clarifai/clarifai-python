@@ -14,8 +14,8 @@ class OpenAIModelClass(ModelClass):
     the requests and responses.
     """
 
-    def load_model(self):
-        """Initialize the OpenAI client."""
+    def __init__(self) -> None:
+        super().__init__()
         self.client = self.get_openai_client()
         self.model = self.get_model()
 
@@ -24,8 +24,9 @@ class OpenAIModelClass(ModelClass):
         raise NotImplementedError("Subclasses must implement get_openai_client() method")
 
     def get_model(self) -> str:
-        '''Required method for each subclass to implement to return the OpenAI-compatible client to use.'''
-        raise NotImplementedError("Subclasses must implement get_openai_client() method")
+        '''Required method for each subclass to implement to return model to use with opeani client'''
+        """Return the model name to use with OpenAI client."""
+        raise NotImplementedError("Subclasses must implement get_model() method")
 
     def _extract_request_params(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """Extract and validate common openai arguments parameters from the request data.

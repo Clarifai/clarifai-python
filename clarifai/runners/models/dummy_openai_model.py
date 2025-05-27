@@ -104,6 +104,9 @@ class DummyOpenAIModel(OpenAIModelClass):
         """Return a mock OpenAI client."""
         return MockOpenAIClient()
 
+    def get_model(self):
+        return "dummy-model"
+
     def _process_request(self, model, messages, temperature=1.0, max_tokens=None):
         """Process a request for non-streaming responses."""
         # Simply return the text of the last message as our "response"
