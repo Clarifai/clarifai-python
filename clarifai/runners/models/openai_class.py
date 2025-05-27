@@ -9,23 +9,29 @@ from clarifai.runners.models.model_class import ModelClass
 class OpenAIModelClass(ModelClass):
     """Base class for wrapping OpenAI-compatible servers as a model running in Clarifai.
     This handles all the transport between the API and the OpenAI-compatible server.
-    Simply subclass this and implement the get_openai_client() method to return
-    the OpenAI-compatible client instance. The client is then used to handle all
-    the requests and responses.
+
+    To use this class, create a subclass and set the following class attributes:
+    - openai_client: The OpenAI-compatible client instance
+    - model_name: The name of the model to use with the client
+
+    Example:
+        class MyOpenAIModel(OpenAIModelClass):
+            openai_client = OpenAI(api_key="your-key")
+            model_name = "gpt-4"
     """
 
+    # These should be overridden in subclasses
+    openai_client = None
+    model_name = None
+
     def __init__(self) -> None:
-        super().__init__()
-        self.client = self.get_openai_client()
-        self.model = self.get_model()
+        if self.openai_client is None:
+            raise NotImplementedError("Subclasses must set the 'openai_client' class attribute")
+        if self.model_name is None:
+            self.model_name = self.openai_client.models.list().data[0].id
 
-    def get_openai_client(self) -> Any:
-        """Required method for each subclass to implement to return the OpenAI-compatible client to use."""
-        raise NotImplementedError("Subclasses must implement get_openai_client() method")
-
-    def get_model(self) -> str:
-        """Required method for each subclass to implement to return the model name to use with OpenAI client"""
-        raise NotImplementedError("Subclasses must implement get_model() method")
+        self.client = self.openai_client
+        self.model = self.model_name
 
     def _extract_request_params(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """Extract and validate common openai arguments parameters from the request data.

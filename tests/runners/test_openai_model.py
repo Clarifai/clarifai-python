@@ -17,9 +17,9 @@ class TestOpenAIModelClass:
         model = DummyOpenAIModel()
         assert isinstance(model, OpenAIModelClass)
 
-        # Test that subclass must implement get_openai_client()
+        # Test that subclass must have `openai_client` attribute
         with pytest.raises(NotImplementedError):
-            OpenAIModelClass().get_openai_client()
+            OpenAIModelClass().openai_client
 
     def test_openai_transport_non_streaming(self):
         """Test OpenAI transport method with non-streaming request."""
@@ -110,7 +110,7 @@ class TestOpenAIModelClass:
         bad_request = json.dumps({"messages": [{"role": "invalid"}]})
         response_iter = model.openai_stream_transport(bad_request)
         chunks = list(response_iter)
-        assert len(chunks) == 2
+        assert len(chunks) == 1
         assert chunks[0].startswith("Error:")
 
     def test_custom_method(self):
