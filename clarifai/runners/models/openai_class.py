@@ -114,7 +114,8 @@ class OpenAIModelClass(ModelClass):
 
     @ModelClass.method
     def openai_transport(self, msg: str) -> str:
-        """Process an OpenAI-compatible request and return the response.
+        """The single model method to get the OpenAI-compatible request and send it to the OpenAI server
+        then return its response.
 
         Args:
             msg: JSON string containing the request parameters
@@ -143,6 +144,8 @@ class OpenAIModelClass(ModelClass):
     @ModelClass.method
     def openai_stream_transport(self, req: str) -> Iterator[str]:
         """Process an OpenAI-compatible request and return a streaming response iterator.
+        This method is used when stream=True and returns an iterator of strings directly,
+        without converting to a list or JSON serializing.
 
         Args:
             req: JSON string containing the request parameters
