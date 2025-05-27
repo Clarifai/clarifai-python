@@ -1,6 +1,7 @@
 """Base class for creating OpenAI-compatible API server."""
 
 import json
+import traceback
 from typing import Any, Dict, Iterator
 
 from clarifai.runners.models.model_class import ModelClass
@@ -154,6 +155,7 @@ class OpenAIModelClass(ModelClass):
                 return json.dumps(completion)
 
         except Exception as e:
+            traceback.print_exc()
             return self._format_error_response(e)
 
     @ModelClass.method
