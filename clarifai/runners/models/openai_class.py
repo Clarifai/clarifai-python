@@ -17,9 +17,14 @@ class OpenAIModelClass(ModelClass):
     def load_model(self):
         """Initialize the OpenAI client."""
         self.client = self.get_openai_client()
+        self.model = self.get_model()
 
     def get_openai_client(self) -> Any:
         """Required method for each subclass to implement to return the OpenAI-compatible client to use."""
+        raise NotImplementedError("Subclasses must implement get_openai_client() method")
+
+    def get_model(self) -> str:
+        '''Required method for each subclass to implement to return the OpenAI-compatible client to use.'''
         raise NotImplementedError("Subclasses must implement get_openai_client() method")
 
     def _extract_request_params(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -32,7 +37,6 @@ class OpenAIModelClass(ModelClass):
             Dict containing the extracted parameters
         """
         return {
-            "model": request_data.get("model", ""),
             "messages": request_data.get("messages", []),
             "temperature": request_data.get("temperature", 1.0),
             "max_tokens": request_data.get("max_tokens"),
@@ -63,7 +67,7 @@ class OpenAIModelClass(ModelClass):
             Dict containing the completion arguments
         """
         completion_args = {
-            "model": params["model"],
+            "model": self.model,
             "messages": params["messages"],
             "temperature": params["temperature"],
         }
@@ -148,10 +152,10 @@ class OpenAIModelClass(ModelClass):
         without converting to a list or JSON serializing.
 
         Args:
-            req: JSON string containing the request parameters
+            req: The request as a JSON string.
 
         Returns:
-            Iterator yielding response chunks or error message
+            Iterator[str]: An iterator yielding text chunks from the streaming response.
         """
         try:
             request_data = json.loads(req)
@@ -170,7 +174,7 @@ class OpenAIModelClass(ModelClass):
             The completion response from the OpenAI client
         """
         completion_args = self._create_completion_args(kwargs)
-        return self.client.chat.completions.create(**completion_args)
+        return self.client.chat.completions.create(**completion_args).to_dict()
 
     def _process_streaming_request(self, **kwargs) -> Iterator[str]:
         """Process a streaming request using the OpenAI client.
@@ -185,6 +189,5 @@ class OpenAIModelClass(ModelClass):
         completion_stream = self.client.chat.completions.create(**completion_args)
 
         for chunk in completion_stream:
-            if hasattr(chunk.choices[0], 'delta') and hasattr(chunk.choices[0].delta, 'content'):
-                if chunk.choices[0].delta.content:
-                    yield chunk
+            if hasattr(chunk.choices[0], 'delta'):
+                yield chunk.to_dict()
