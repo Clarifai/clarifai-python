@@ -2,7 +2,7 @@ import os
 
 registry = os.environ.get('CLARIFAI_BASE_IMAGE_REGISTRY', 'public.ecr.aws/clarifai-models')
 
-GIT_SHA = "b8ae56bf3b7c95e686ca002b07ca83d259c716eb"
+GIT_SHA = "2da7528fcd2430129918a4b9b4e0197028a29769"
 
 AMD_GIT_SHA = "81e942130173f54927e7c9a65aabc7e32780616d"
 
