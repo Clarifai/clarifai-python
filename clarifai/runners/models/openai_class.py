@@ -187,10 +187,7 @@ class OpenAIModelClass(ModelClass):
                             prompt_tokens=chunk['usage']['prompt_tokens'],
                             completion_tokens=chunk['usage']['completion_tokens'],
                         )
-                if (chunk.get('choices') and len(chunk['choices']) > 0) or (
-                    params.get('stream_options') and params['stream_options'].get('include_usage')
-                ):
-                    yield json.dumps(chunk)
+                yield json.dumps(chunk)
         except Exception as e:
             yield f"Error: {str(e)}"
 
