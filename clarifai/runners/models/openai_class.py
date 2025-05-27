@@ -140,7 +140,15 @@ class OpenAIModelClass(ModelClass):
                 return json.dumps(response_list)
             else:
                 completion = self._process_request(**params)
-                return json.dumps(completion)
+
+                json_response = json.dumps(completion)
+                if json_response.usage:
+                    if json_response.usage.prompt_tokens and json_response.usage.completion_tokens:
+                        self.set_output_context(
+                            prompt_tokens=json_response.usage.prompt_tokens,
+                            completion_tokens=json_response.usage.completion_tokens,
+                        )
+                return json_response
 
         except Exception as e:
             return self._format_error_response(e)
