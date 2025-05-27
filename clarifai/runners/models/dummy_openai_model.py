@@ -121,8 +121,12 @@ class MockCompletionStream:
         # Generate a simple response based on the last message
         last_message = messages[-1] if messages else {"content": ""}
         self.response_text = f"Echo: {last_message.get('content', '')}"
-        # Divide the response into chunks of 5 characters
-        self.chunks = [self.response_text[i : i + 5] for i in range(0, len(self.response_text), 5)]
+        # Create chunks that ensure the full text is included
+        self.chunks = [
+            self.response_text,  # First chunk contains the full text
+            " ",  # Second chunk is just a space
+            "",  # Final chunk is empty to indicate completion
+        ]
         self.current_chunk = 0
         self.include_usage = False
 
@@ -134,10 +138,6 @@ class MockCompletionStream:
             chunk = self.Chunk(self.chunks[self.current_chunk], self.include_usage)
             self.current_chunk += 1
             return chunk
-        elif self.current_chunk == len(self.chunks):
-            # Final chunk with empty content to indicate completion
-            self.current_chunk += 1
-            return self.Chunk(include_usage=self.include_usage)
         else:
             raise StopIteration
 
