@@ -52,6 +52,7 @@ class OpenAIModelClass(ModelClass):
             "tool_choice": request_data.get("tool_choice"),
             "tool_resources": request_data.get("tool_resources"),
             "modalities": request_data.get("modalities"),
+            "stream_options": request_data.get("stream_options"),
         }
 
     def _create_completion_args(
@@ -74,6 +75,7 @@ class OpenAIModelClass(ModelClass):
 
         if stream:
             completion_args["stream"] = True
+            completion_args['stream_options'] = {"include_usage": True}
 
         # Add optional parameters if they exist
         optional_params = [
@@ -140,15 +142,16 @@ class OpenAIModelClass(ModelClass):
                 return json.dumps(response_list)
             else:
                 completion = self._process_request(**params)
-
-                json_response = json.dumps(completion)
-                if json_response.usage:
-                    if json_response.usage.prompt_tokens and json_response.usage.completion_tokens:
+                if completion['usage']:
+                    if completion['usage'].get('prompt_tokens') and completion['usage'].get(
+                        'completion_tokens'
+                    ):
                         self.set_output_context(
-                            prompt_tokens=json_response.usage.prompt_tokens,
-                            completion_tokens=json_response.usage.completion_tokens,
+                            prompt_tokens=completion['usage']['prompt_tokens'],
+                            completion_tokens=completion['usage']['completion_tokens'],
                         )
-                return json_response
+
+                return json.dumps(completion)
 
         except Exception as e:
             return self._format_error_response(e)
@@ -169,7 +172,18 @@ class OpenAIModelClass(ModelClass):
             request_data = json.loads(msg)
             params = self._extract_request_params(request_data)
             for chunk in self._process_streaming_request(**params):
-                yield json.dumps(chunk)
+                if chunk.get('usage'):
+                    if chunk['usage'].get('prompt_tokens') and chunk['usage'].get(
+                        'completion_tokens'
+                    ):
+                        self.set_output_context(
+                            prompt_tokens=chunk['usage']['prompt_tokens'],
+                            completion_tokens=chunk['usage']['completion_tokens'],
+                        )
+                if (chunk.get('choices') and len(chunk['choices']) > 0) or (
+                    params.get('stream_options') and params['stream_options'].get('include_usage')
+                ):
+                    yield json.dumps(chunk)
         except Exception as e:
             yield f"Error: {str(e)}"
 
@@ -198,5 +212,4 @@ class OpenAIModelClass(ModelClass):
         completion_stream = self.client.chat.completions.create(**completion_args)
 
         for chunk in completion_stream:
-            if hasattr(chunk.choices[0], 'delta'):
-                yield chunk.to_dict()
+            yield chunk.to_dict()
