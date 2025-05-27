@@ -93,7 +93,7 @@ class TestModelClasses:
         assert len(first_chunk["choices"]) > 0
         assert "delta" in first_chunk["choices"][0]
         assert "content" in first_chunk["choices"][0]["delta"]
-        assert "Echo: Hello world" in first_chunk["choices"][0]["delta"]["content"]
+        assert "Echo: Hello, world!" in first_chunk["choices"][0]["delta"]["content"]
 
     def test_custom_method(self):
         """Test custom method on the DummyOpenAIModel."""

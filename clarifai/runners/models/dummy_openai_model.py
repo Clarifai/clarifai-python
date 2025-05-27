@@ -175,6 +175,20 @@ class DummyOpenAIModel(OpenAIModelClass):
             request_data = json.loads(req)
             params = self._extract_request_params(request_data)
 
+            # Validate messages
+            if not params.get("messages"):
+                yield "Error: No messages provided"
+                return
+
+            for message in params["messages"]:
+                if (
+                    not isinstance(message, dict)
+                    or "role" not in message
+                    or "content" not in message
+                ):
+                    yield "Error: Invalid message format"
+                    return
+
             for chunk in self._process_streaming_request(**params):
                 yield json.dumps(chunk)
         except Exception as e:
