@@ -23,9 +23,14 @@ class TestModelClasses:
         model = DummyOpenAIModel()
         assert isinstance(model, OpenAIModelClass)
 
-        # Test that subclass must implement get_openai_client()
+        # Test that subclass must have `openai_client` attribute
         with pytest.raises(NotImplementedError):
-            OpenAIModelClass().get_openai_client()
+            OpenAIModelClass().openai_client
+
+        # Test that client has required attributes
+        client = model.openai_client
+        assert hasattr(client, 'chat')
+        assert hasattr(client, 'completions')
 
     def test_openai_transport_non_streaming(self):
         """Test OpenAI transport method with non-streaming request."""
@@ -46,7 +51,16 @@ class TestModelClasses:
         response_str = model.openai_transport(json.dumps(request))
         response = json.loads(response_str)
 
-        assert "Echo: Hello, world!" in response
+        # Verify response structure
+        assert "id" in response
+        assert "created" in response
+        assert "model" in response
+        assert "choices" in response
+        assert len(response["choices"]) > 0
+        assert "message" in response["choices"][0]
+        assert "content" in response["choices"][0]["message"]
+        assert "Echo: Hello, world!" in response["choices"][0]["message"]["content"]
+        assert "usage" in response
 
     def test_openai_transport_streaming(self):
         """Test OpenAI transport method with streaming request."""
@@ -67,9 +81,19 @@ class TestModelClasses:
         response_str = model.openai_transport(json.dumps(request))
         response_chunks = json.loads(response_str)
 
-        # Verify the response format for streaming
         assert isinstance(response_chunks, list)
         assert len(response_chunks) > 0
+
+        # Check first chunk for content
+        first_chunk = response_chunks[0]
+        assert "id" in first_chunk
+        assert "created" in first_chunk
+        assert "model" in first_chunk
+        assert "choices" in first_chunk
+        assert len(first_chunk["choices"]) > 0
+        assert "delta" in first_chunk["choices"][0]
+        assert "content" in first_chunk["choices"][0]["delta"]
+        assert "Echo: Hello, world!" in first_chunk["choices"][0]["delta"]["content"]
 
     def test_custom_method(self):
         """Test custom method on the DummyOpenAIModel."""

@@ -25,17 +25,19 @@ class TestOpenAIModelClass:
         assert issubclass(OpenAIModelClass, ModelClass)
 
     def test_abstract_method(self):
-        """Test that get_openai_client is abstract."""
+        """Test that has `openai_client` attribute."""
         with pytest.raises(NotImplementedError):
-            OpenAIModelClass().get_openai_client()
+            OpenAIModelClass().openai_client
 
     def test_dummy_model(self):
         """Test that DummyOpenAIModel works."""
         model = DummyOpenAIModel()
         assert isinstance(model, OpenAIModelClass)
 
-        client = model.get_openai_client()
+        client = model.openai_client
         assert client is not None
+        assert hasattr(client, 'chat')
+        assert hasattr(client, 'completions')
 
     def test_transport_method_non_streaming(self):
         """Test the openai_transport method with non-streaming."""
@@ -50,7 +52,17 @@ class TestOpenAIModelClass:
 
         response = model.openai_transport(json.dumps(request))
         data = json.loads(response)
-        assert isinstance(data, str)
+
+        # Verify response structure
+        assert "id" in data
+        assert "created" in data
+        assert "model" in data
+        assert "choices" in data
+        assert len(data["choices"]) > 0
+        assert "message" in data["choices"][0]
+        assert "content" in data["choices"][0]["message"]
+        assert "Echo: Hello world" in data["choices"][0]["message"]["content"]
+        assert "usage" in data
 
     def test_transport_method_streaming(self):
         """Test the openai_transport method with streaming."""
@@ -68,3 +80,23 @@ class TestOpenAIModelClass:
 
         assert isinstance(data, list)
         assert len(data) > 0
+
+        # Check first chunk for content
+        first_chunk = data[0]
+        assert "id" in first_chunk
+        assert "created" in first_chunk
+        assert "model" in first_chunk
+        assert "choices" in first_chunk
+        assert len(first_chunk["choices"]) > 0
+        assert "delta" in first_chunk["choices"][0]
+        assert "content" in first_chunk["choices"][0]["delta"]
+        assert "Echo: Hello world" in first_chunk["choices"][0]["delta"]["content"]
+
+        # Check remaining chunks for structure
+        for chunk in data[1:]:
+            assert "id" in chunk
+            assert "created" in chunk
+            assert "model" in chunk
+            assert "choices" in chunk
+            assert len(chunk["choices"]) > 0
+            assert "delta" in chunk["choices"][0]

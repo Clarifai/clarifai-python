@@ -88,9 +88,6 @@ model = Model({model_ui_url},
         client_script_str = f'response = model.{method_name}('
         annotations = _get_annotations_source(method_signature)
         for param_name, (param_type, default_value, required) in annotations.items():
-            print(
-                f"param_name: {param_name}, param_type: {param_type}, default_value: {default_value}"
-            )
             if param_name == "return":
                 continue
             if default_value is None and required:
@@ -262,7 +259,7 @@ def _parse_default_value(field: resources_pb2.ModelTypeField):
         elif data_type == resources_pb2.ModelTypeField.DataType.BOOL:
             return 'True' if default_str.lower() == 'true' else 'False'
         elif data_type == resources_pb2.ModelTypeField.DataType.STR:
-            return repr(default_str)
+            return default_str
         elif data_type == resources_pb2.ModelTypeField.DataType.BYTES:
             return f"b{repr(default_str.encode('utf-8'))}"
         elif data_type == resources_pb2.ModelTypeField.DataType.JSON_DATA:
