@@ -52,7 +52,7 @@ class OpenAIModelClass(ModelClass):
             "tool_choice": request_data.get("tool_choice"),
             "tool_resources": request_data.get("tool_resources"),
             "modalities": request_data.get("modalities"),
-            "stream_options": request_data.get("stream_options"),
+            "stream_options": request_data.get("stream_options", {"include_usage": True}),
         }
 
     def _create_completion_args(
@@ -75,7 +75,8 @@ class OpenAIModelClass(ModelClass):
 
         if stream:
             completion_args["stream"] = True
-            completion_args['stream_options'] = {"include_usage": True}
+            if params.get("stream_options"):
+                completion_args["stream_options"] = params["stream_options"]
 
         # Add optional parameters if they exist
         optional_params = [
@@ -95,7 +96,7 @@ class OpenAIModelClass(ModelClass):
         ]
 
         for param in optional_params:
-            if params[param] is not None:
+            if params.get(param) is not None:
                 completion_args[param] = params[param]
 
         return completion_args
