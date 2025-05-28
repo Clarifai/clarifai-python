@@ -1,3 +1,8 @@
+## [[11.4.6]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.6) - [PyPI](https://pypi.org/project/clarifai/11.4.6/) - 2025-05-28
+
+### Changed
+- Fixed Model Upload  [(#606)] (https://github.com/Clarifai/clarifai-python/pull/606)
+
 ## [[11.4.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.5) - [PyPI](https://pypi.org/project/clarifai/11.4.5/) - 2025-05-28
 
 ### Changed
