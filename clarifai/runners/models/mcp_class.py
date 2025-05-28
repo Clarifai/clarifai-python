@@ -102,13 +102,22 @@ class MCPModelClass(ModelClass):
         # If we have an id it's a JSONRPCRequest
         if not d.get('method', '').startswith("notifications/"):
             client_message = types.ClientRequest.model_validate(d)
+            # Note(zeiler): this response is the "result" field of the JSONRPCResponse.
+            # the API will fill in the "id" and "jsonrpc" fields.
             response = asyncio.run(send_request(client_message, id=id))
+            if response is None:
+                response = types.JSONRPCError(
+                    jsonrpc="2.0",
+                    id=id,
+                    error=types.ErrorData(
+                        code=types.INTERNAL_ERROR, message="Got empty response from MCP server."
+                    ),
+                )
+            # return as a serialized json string
+            res = response.model_dump_json(by_alias=True, exclude_none=True)
+            return res
         else:  # JSONRPCRequest
             client_message = types.ClientNotification.model_validate(d)
-            response = asyncio.run(send_notification(client_message))
-        if response is None:
-            response = types.JSONRPCError(
-                jsonrpc="2.0", id=id, error="Got empty response from MCP server."
-            )
-        # return as a serialized json string
-        return response.model_dump_json(by_alias=True, exclude_none=True)
+            # send_notification returns None always so nothing to return.
+            asyncio.run(send_notification(client_message))
+            return "{}"
