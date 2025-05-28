@@ -144,8 +144,8 @@ class MockCompletionStream:
 class DummyOpenAIModel(OpenAIModelClass):
     """Dummy OpenAI model implementation for testing."""
 
-    openai_client = MockOpenAIClient()
-    model_name = "dummy-model"
+    client = MockOpenAIClient()
+    model = "dummy-model"
 
     def _process_request(self, **kwargs) -> Dict[str, Any]:
         """Process a request for non-streaming responses."""

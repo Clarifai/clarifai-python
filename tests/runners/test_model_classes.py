@@ -23,12 +23,12 @@ class TestModelClasses:
         model = DummyOpenAIModel()
         assert isinstance(model, OpenAIModelClass)
 
-        # Test that subclass must have `openai_client` attribute
+        # Test that subclass must have `client` attribute
         with pytest.raises(NotImplementedError):
-            OpenAIModelClass().openai_client
+            OpenAIModelClass().client
 
         # Test that client has required attributes
-        client = model.openai_client
+        client = model.client
         assert hasattr(client, 'chat')
         assert hasattr(client, 'completions')
 

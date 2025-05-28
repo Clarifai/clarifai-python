@@ -11,13 +11,13 @@ class OpenAIModelClass(ModelClass):
     This handles all the transport between the API and the OpenAI-compatible server.
 
     To use this class, create a subclass and set the following class attributes:
-    - openai_client: The OpenAI-compatible client instance
-    - model_name: The name of the model to use with the client
+    - client: The OpenAI-compatible client instance
+    - model: The name of the model to use with the client
 
     Example:
         class MyOpenAIModel(OpenAIModelClass):
-            openai_client = OpenAI(api_key="your-key")
-            model_name = "gpt-4"
+            client = OpenAI(api_key="your-key")
+            model = "gpt-4"
     """
 
     # These should be overridden in subclasses
@@ -29,7 +29,7 @@ class OpenAIModelClass(ModelClass):
             raise NotImplementedError("Subclasses must set the 'client' class attribute")
         if self.model is None:
             try:
-                self.model = self.openai_client.models.list().data[0].id
+                self.model = self.client.models.list().data[0].id
             except Exception as e:
                 raise NotImplementedError(
                     "Subclasses must set the 'model' class attribute or ensure the client can list models"

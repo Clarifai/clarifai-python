@@ -17,9 +17,9 @@ class TestOpenAIModelClass:
         model = DummyOpenAIModel()
         assert isinstance(model, OpenAIModelClass)
 
-        # Test that subclass must have `openai_client` attribute
+        # Test that subclass must have `client` attribute
         with pytest.raises(NotImplementedError):
-            OpenAIModelClass().openai_client
+            OpenAIModelClass().client
 
     def test_openai_transport_non_streaming(self):
         """Test OpenAI transport method with non-streaming request."""
