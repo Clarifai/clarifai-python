@@ -64,6 +64,47 @@ class ClarifaiUrlHelper(object):
             imv_id,
         )
 
+    def mcp_api_url(self, user_id, app_id, model_id, version_id: str = None):
+        """We have a special endpoint for MCP hosted models.
+
+        Example:
+          https://api.clarifai.com/v2/ext/mcp/v1/users/{user_id}/apps/{app_id}/models/{model_id}/versions/{version_id}
+
+        Args:
+          user_id: the author of the resource.
+          app_id: the author's app the resource was created in.
+          model_id: the resource ID
+          version_id: the version of the resource.
+        """
+        if version_id is None:
+            return "%s/v2/ext/mcp/v1/users/%s/apps/%s/models/%s" % (
+                self.base,
+                user_id,
+                app_id,
+                model_id,
+            )
+        return "%s/v2/ext/mcp/v1/users/%s/apps/%s/models/%s/versions/%s" % (
+            self.base,
+            user_id,
+            app_id,
+            model_id,
+            version_id,
+        )
+
+    def openai_api_url(self):
+        """We have a special endpoint for openAI compatible models.
+
+        This doesn't include the /chat/completions suffix which the openAI client automatically
+        adds.
+
+        It also doesn't incldue the model which you an set as the model arg in an openAI client call
+        using the clarifai_url() method below.
+
+        Example:
+          https://api.clarifai.com/v2/ext/openai/v1
+        """
+        return "%s/v2/ext/openai/v1" % self.base
+
     def api_url(self, user_id, app_id, resource_type, resource_id, version_id: str = None):
         """This is the path to the resource in the API.
 

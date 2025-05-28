@@ -130,7 +130,7 @@ class Model(Lister, BaseClient):
         # set the current context to env vars.
         current.set_to_env()
 
-        url = f"https://clarifai.com/{current.user_id}/{current.app_id}/models/{current.model_id}"
+        url = f"https://{current.ui}/{current.user_id}/{current.app_id}/models/{current.model_id}"
 
         # construct the Model object.
         kwargs = {}

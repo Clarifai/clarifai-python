@@ -3,6 +3,8 @@ import os
 DEFAULT_UI = os.environ.get("CLARIFAI_UI", "https://clarifai.com")
 DEFAULT_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
 
+MCP_TRANSPORT_NAME = "mcp_transport"
+OPENAI_TRANSPORT_NAME = "openai_transport"
 
 CLARIFAI_PAT_ENV_VAR = "CLARIFAI_PAT"
 CLARIFAI_SESSION_TOKEN_ENV_VAR = "CLARIFAI_SESSION_TOKEN"
