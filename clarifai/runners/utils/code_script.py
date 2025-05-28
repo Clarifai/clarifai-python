@@ -4,7 +4,22 @@ from typing import List
 from clarifai_grpc.grpc.api import resources_pb2
 
 from clarifai.runners.utils import data_utils
-from clarifai.urls.helper import ClarifaiUrlHelper
+from clarifai.urls.helper import ClarifaiUrlHelper, auth_obj
+from clarifai.utils.config import Config
+from clarifai.utils.constants import MCP_TRANSPORT_NAME, OPENAI_TRANSPORT_NAME
+
+
+def has_signature_method(
+    name: str, method_signatures: List[resources_pb2.MethodSignature]
+) -> bool:
+    """
+    Check if a method signature with the given name exists in the list of method signatures.
+
+    :param name: The name of the method to check.
+    :param method_signatures: List of MethodSignature objects to search in.
+    :return: True if a method with the given name exists, False otherwise.
+    """
+    return any(method_signature.name == name for method_signature in method_signatures)
 
 
 def generate_client_script(
@@ -16,14 +31,18 @@ def generate_client_script(
     deployment_id: str = None,
     use_ctx: bool = False,
 ) -> str:
-    url_helper = ClarifaiUrlHelper()
+    if use_ctx:
+        # use the config values.
+        current = Config.from_yaml().current
+        url_helper = ClarifaiUrlHelper(auth_obj(ui=current.ui, base=current.api_base))
+    else:
+        url_helper = ClarifaiUrlHelper()
 
-    # Provide an mcp client config
-    if len(method_signatures) == 1 and method_signatures[0].name == "mcp_transport":
-        api_url = url_helper.api_url(
+    # Provide an mcp client config if there is a method named "mcp_transport"
+    if has_signature_method(MCP_TRANSPORT_NAME, method_signatures):
+        mcp_url = url_helper.mcp_api_url(
             user_id,
             app_id,
-            "models",
             model_id,
         )
 
@@ -33,20 +52,48 @@ import os
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
-transport = StreamableHttpTransport(url="%s/mcp",
+transport = StreamableHttpTransport(url="%s",
                                     headers={"Authorization": "Bearer " + os.environ["CLARIFAI_PAT"]})
 
 async def main():
   async with Client(transport) as client:
     tools = await client.list_tools()
     print(f"Available tools: {tools}")
+    # TODO: update the dictionary of arguments passed to call_tool to make sense for your MCP.
     result = await client.call_tool(tools[0].name, {"a": 5, "b": 3})
     print(f"Result: {result[0].text}")
 
 if __name__ == "__main__":
   asyncio.run(main())
 """
-        return _CLIENT_TEMPLATE % api_url
+        return _CLIENT_TEMPLATE % mcp_url
+
+    if has_signature_method(OPENAI_TRANSPORT_NAME, method_signatures):
+        openai_api_base = url_helper.openai_api_url()
+        model_ui_url = url_helper.clarifai_url(user_id, app_id, "models", model_id)
+        _CLIENT_TEMPLATE = """
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="%s",
+    api_key=os.environ['CLARIFAI_PAT'],
+)
+response = client.chat.completions.create(
+    model="%s",
+    messages=[
+        {"role": "developer", "content": "Talk like a pirate."},
+        {
+            "role": "user",
+            "content": "How do I check if a Python object is an instance of a class?",
+        },
+    ],
+    temperature=0.7,
+    stream=False, # stream=True also works, just iterator over the response
+)
+print(response)
+"""
+        return _CLIENT_TEMPLATE % (openai_api_base, model_ui_url)
 
     _CLIENT_TEMPLATE = """\
 import os

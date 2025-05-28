@@ -505,7 +505,7 @@ def local_dev(ctx, model_path):
     logger.info(f"Current deployment_id: {deployment_id}")
 
     logger.info(
-        f"Full url for the model: /users/{user_id}/apps/{app_id}/models/{model.id}/versions/{version.id}"
+        f"Full url for the model: {ctx.obj.current.ui}/users/{user_id}/apps/{app_id}/models/{model.id}/versions/{version.id}"
     )
 
     # Now that we have all the context in ctx.obj, we need to update the config.yaml in

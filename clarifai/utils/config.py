@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 import yaml
 
-from clarifai.utils.constants import DEFAULT_CONFIG
+from clarifai.utils.constants import DEFAULT_BASE, DEFAULT_CONFIG, DEFAULT_UI
 
 
 class Context(OrderedDict):
@@ -23,6 +23,12 @@ class Context(OrderedDict):
             self['env'] = kwargs
 
     def __getattr__(self, key):
+        """Get the key from the config. You can pass a lowercase key like "pat" and it will check if
+        the environment variable CLARIFAI_PAT set and use that first. If no env var, then it checks
+        if that env var name is in the config and use that. If not then checks if
+        "pat" is in the config, if not then it falls back to CLARIFAI_PAT in the environment
+        variables, else raises an AttributeError.
+        """
         try:
             if key == 'name':
                 return self[key]
@@ -32,7 +38,9 @@ class Context(OrderedDict):
             # Allow accessing CLARIFAI_PAT type env var names from config as .pat
             envvar_name = 'CLARIFAI_' + key.upper()
             env = self['env']
-            if envvar_name in env:
+            if envvar_name in os.environ:  # environment variable take precedence.
+                value = os.environ[envvar_name]
+            elif envvar_name in env:
                 value = env[envvar_name]
                 if value == "ENVVAR":
                     if envvar_name not in os.environ:
@@ -40,8 +48,17 @@ class Context(OrderedDict):
                             f"Environment variable '{envvar_name}' not set. Attempting to load it for config '{self['name']}'. Please set it in your terminal."
                         )
                     return os.environ[envvar_name]
-            else:
+            elif key in env:  # check if key is in the config
                 value = env[key]
+            # below are some default fallback values for UI and API base.
+            elif envvar_name == 'CLARIFAI_UI':
+                value = DEFAULT_UI
+            elif envvar_name == 'CLARIFAI_API_BASE':
+                value = DEFAULT_BASE
+            else:
+                raise AttributeError(
+                    f"'{type(self).__name__}' object has no attribute '{key}' or '{envvar_name}' and '{envvar_name}' is also not in os.environ:"
+                )
 
             if isinstance(value, dict):
                 return Context(value)

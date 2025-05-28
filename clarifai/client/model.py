@@ -122,6 +122,7 @@ class Model(Lister, BaseClient):
 
     @classmethod
     def from_current_context(cls, **kwargs) -> 'Model':
+        from clarifai.urls.helper import ClarifaiUrlHelper, auth_obj
         from clarifai.utils.config import Config
 
         current = Config.from_yaml().current
@@ -129,7 +130,8 @@ class Model(Lister, BaseClient):
         # set the current context to env vars.
         current.set_to_env()
 
-        url = f"https://clarifai.com/{current.user_id}/{current.app_id}/models/{current.model_id}"
+        url_helper = ClarifaiUrlHelper(auth_obj(ui=current.ui, base=current.api_base))
+        url = url_helper.clarifai_url(current.user_id, current.app_id, "models", current.model_id)
 
         # construct the Model object.
         kwargs = {}
