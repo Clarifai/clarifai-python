@@ -427,6 +427,24 @@ class User(Lister, BaseClient):
             raise Exception(response.status)
         self.logger.info("\nCompute Cluster Deleted\n%s", response.status)
 
+    def get_user_info(self, user_id: str = None) -> resources_pb2.User:
+        """Returns the user information for the specified user ID.
+
+        Args:
+            user_id (str): The user ID for the user to interact with.
+
+        Returns:
+            User: A User object for the specified user ID.
+        """
+        request = service_pb2.GetUserRequest(
+            user_app_id=resources_pb2.UserAppIDSet(user_id=user_id if user_id else self.id)
+        )
+        response = self._grpc_request(self.STUB.GetUser, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+
+        return response
+
     def __getattr__(self, name):
         return getattr(self.user_info, name)
 

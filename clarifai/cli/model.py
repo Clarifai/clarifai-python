@@ -683,7 +683,14 @@ def predict(
                 "Either --compute_cluster_id & --nodepool_id or --deployment_id must be provided."
             )
     if model_url:
-        model = Model(url=model_url, pat=ctx.obj['pat'], base_url=ctx.obj['base_url'])
+        model = Model(
+            url=model_url,
+            pat=ctx.obj['pat'],
+            base_url=ctx.obj['base_url'],
+            compute_cluster_id=compute_cluster_id,
+            nodepool_id=nodepool_id,
+            deployment_id=deployment_id,
+        )
     else:
         model = Model(
             model_id=model_id,
@@ -691,6 +698,9 @@ def predict(
             app_id=app_id,
             pat=ctx.obj['pat'],
             base_url=ctx.obj['base_url'],
+            compute_cluster_id=compute_cluster_id,
+            nodepool_id=nodepool_id,
+            deployment_id=deployment_id,
         )
 
     if inference_params:
@@ -702,9 +712,6 @@ def predict(
         model_prediction = model.predict_by_filepath(
             filepath=file_path,
             input_type=input_type,
-            compute_cluster_id=compute_cluster_id,
-            nodepool_id=nodepool_id,
-            deployment_id=deployment_id,
             inference_params=inference_params,
             output_config=output_config,
         )
@@ -712,9 +719,6 @@ def predict(
         model_prediction = model.predict_by_url(
             url=url,
             input_type=input_type,
-            compute_cluster_id=compute_cluster_id,
-            nodepool_id=nodepool_id,
-            deployment_id=deployment_id,
             inference_params=inference_params,
             output_config=output_config,
         )
@@ -723,9 +727,6 @@ def predict(
         model_prediction = model.predict_by_bytes(
             input_bytes=bytes,
             input_type=input_type,
-            compute_cluster_id=compute_cluster_id,
-            nodepool_id=nodepool_id,
-            deployment_id=deployment_id,
             inference_params=inference_params,
             output_config=output_config,
         )  ## TO DO: Add support for input_id
