@@ -21,17 +21,19 @@ class OpenAIModelClass(ModelClass):
     """
 
     # These should be overridden in subclasses
-    openai_client = None
-    model_name = None
+    client = None
+    model = None
 
     def __init__(self) -> None:
-        if self.openai_client is None:
-            raise NotImplementedError("Subclasses must set the 'openai_client' class attribute")
-        if self.model_name is None:
-            self.model_name = self.openai_client.models.list().data[0].id
-
-        self.client = self.openai_client
-        self.model = self.model_name
+        if self.client is None:
+            raise NotImplementedError("Subclasses must set the 'client' class attribute")
+        if self.model is None:
+            try:
+                self.model = self.openai_client.models.list().data[0].id
+            except Exception as e:
+                raise NotImplementedError(
+                    "Subclasses must set the 'model' class attribute or ensure the client can list models"
+                ) from e
 
     def _extract_request_params(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """Extract and validate common openai arguments parameters from the request data.

@@ -6,6 +6,7 @@ import traceback
 from abc import ABC
 from collections import abc
 from typing import Any, Dict, Iterator, List
+from unittest.mock import MagicMock
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
@@ -346,6 +347,13 @@ class ModelClass(ABC):
         methods = {}
         for base in reversed(cls.__mro__):
             for name, method in base.__dict__.items():
+                # Skip class attributes, mocked objects, and non-methods
+                if not callable(method) or isinstance(method, (classmethod, staticmethod)):
+                    continue
+                # Skip any mocked objects or attributes
+                if isinstance(method, MagicMock) or hasattr(method, '_mock_return_value'):
+                    continue
+                # Only include methods that have been decorated with @ModelClass.method
                 method_info = getattr(method, _METHOD_INFO_ATTR, None)
                 if not method_info:  # regular function, not a model method
                     continue
