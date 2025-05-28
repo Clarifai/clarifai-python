@@ -1,6 +1,7 @@
-## [[11.5.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.0) - [PyPI](https://pypi.org/project/clarifai/11.5.0/) - 2025-05-28
+## [[11.4.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.5) - [PyPI](https://pypi.org/project/clarifai/11.4.5/) - 2025-05-28
 
 ### Changed
+- Updated clarifai-grpc and clarifai-protocol versions to latest releases
 
 ## [[11.4.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.3) - [PyPI](https://pypi.org/project/clarifai/11.4.3/) - 2025-05-23
 
