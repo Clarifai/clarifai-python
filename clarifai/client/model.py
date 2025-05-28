@@ -602,13 +602,9 @@ class Model(Lister, BaseClient):
     ):
         # Get UserID
         if any([deployment_id, nodepool_id, compute_cluster_id]):
-            request = service_pb2.GetUserRequest(
-                user_app_id=resources_pb2.UserAppIDSet(user_id='me')
-            )
-            response = self._grpc_request(self.STUB.GetUser, request)
-            if response.status.code != status_code_pb2.SUCCESS:
-                raise Exception(f"Get User failed with response {response.status!r}")
-            user_id = response.user.id
+            from clarifai.client.user import User
+
+            user_id = User().get_user_info(user_id='me').user.id
 
         runner_selector = None
         if deployment_id and (compute_cluster_id or nodepool_id):
