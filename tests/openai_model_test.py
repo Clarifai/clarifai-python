@@ -25,16 +25,16 @@ class TestOpenAIModelClass:
         assert issubclass(OpenAIModelClass, ModelClass)
 
     def test_abstract_method(self):
-        """Test that has `openai_client` attribute."""
+        """Test that has `client` attribute."""
         with pytest.raises(NotImplementedError):
-            OpenAIModelClass().openai_client
+            OpenAIModelClass().client
 
     def test_dummy_model(self):
         """Test that DummyOpenAIModel works."""
         model = DummyOpenAIModel()
         assert isinstance(model, OpenAIModelClass)
 
-        client = model.openai_client
+        client = model.client
         assert client is not None
         assert hasattr(client, 'chat')
         assert hasattr(client, 'completions')
