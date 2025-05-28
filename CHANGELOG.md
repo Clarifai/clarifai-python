@@ -1,3 +1,17 @@
+## [[11.4.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.5) - [PyPI](https://pypi.org/project/clarifai/11.4.5/) - 2025-05-28
+
+### Changed
+- Fixed `MCPModelClass` notifications bug [(#602)] (https://github.com/Clarifai/clarifai-python/pull/602)
+- Improved the `OpenAIModelClass` to streamline request processing, add modularity, and simplify parameter extraction and validation [(#601)] (https://github.com/Clarifai/clarifai-python/pull/601)
+- Fixed a bug in the `OpenAIModelClass` to return the full json responses [(#597)] (https://github.com/Clarifai/clarifai-python/pull/597)
+- Cleanup fastmcp [(#596)] (https://github.com/Clarifai/clarifai-python/pull/596)
+- Added `OpenAIModelClass` to allow developers to create models that interact with OpenAI-compatible API endpoints [(#594)] (https://github.com/Clarifai/clarifai-python/pull/594)
+
+## [[11.4.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.4) - [PyPI](https://pypi.org/project/clarifai/11.4.4/) - 2025-05-26
+
+### Changed
+- Fixed openai messages Utils function and code-snippet function [(#595)] (https://github.com/Clarifai/clarifai-python/pull/595)
+
 ## [[11.4.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.3) - [PyPI](https://pypi.org/project/clarifai/11.4.3/) - 2025-05-23
 
 ### Changed
