@@ -1,15 +1,8 @@
-import os
 from collections import namedtuple
 from urllib.parse import urlparse
 
-from clarifai.utils.constants import DEFAULT_BASE, DEFAULT_UI
-
 # To help with using ClarifaiUrlHelper with defaults as ClarifaiUrlHelper()
 auth_obj = namedtuple("auth", ["ui", "base"])
-default_auth = auth_obj(
-    ui=os.environ.get("CLARIFAI_UI", DEFAULT_UI),
-    base=os.environ.get("CLARIFAI_API_BASE", DEFAULT_BASE),
-)
 
 
 class ClarifaiUrlHelper(object):
@@ -17,7 +10,7 @@ class ClarifaiUrlHelper(object):
 
     def __init__(
         self,
-        auth=default_auth,
+        auth=None,
         module_manager_imv_id: str = "module_manager_install",
     ):
         """
@@ -265,7 +258,7 @@ class ClarifaiUrlHelper(object):
         )
 
     @classmethod
-    def split_clarifai_app_url(cls, url):
+    def split_clarifai_app_url(cls, url: str):
         """
         clarifai.com uses fully qualified urls to resources.
         They are in the format of:
@@ -283,7 +276,7 @@ class ClarifaiUrlHelper(object):
         return tuple(parts[1:])
 
     @classmethod
-    def split_clarifai_url(cls, url):
+    def split_clarifai_url(cls, url: str):
         """
         clarifai.com uses fully qualified urls to resources.
         They are in the format of:
@@ -308,7 +301,7 @@ class ClarifaiUrlHelper(object):
         return user_id, app_id, resource_type, resource_id, resource_version_id
 
     @classmethod
-    def split_module_ui_url(cls, install):
+    def split_module_ui_url(cls, install: str):
         """Takes in a path like https://clarifai.com/zeiler/app/modules/module1/versions/2 to split it apart into it's IDs.
 
         Returns:
