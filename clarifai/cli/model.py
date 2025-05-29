@@ -26,6 +26,91 @@ def model():
 
 
 @model.command()
+@click.argument(
+    "model_path",
+    type=click.Path(),
+    required=False,
+    default=".",
+)
+@click.option(
+    '--model-type-id',
+    type=click.Choice(['mcp', 'openai'], case_sensitive=False),
+    required=False,
+    help='Model type: "mcp" for MCPModelClass, "openai" for OpenAIModelClass, or leave empty for default ModelClass.',
+)
+def init(model_path, model_type_id):
+    """Initialize a new model directory structure.
+    
+    Creates the following structure in the specified directory:
+    ├── 1/
+    │   └── model.py
+    ├── requirements.txt
+    └── config.yaml
+    
+    MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
+    """
+    from clarifai.cli.model_templates import (
+        get_config_template,
+        get_model_template,
+        get_requirements_template,
+    )
+    
+    # Resolve the absolute path
+    model_path = os.path.abspath(model_path)
+    
+    # Create the model directory if it doesn't exist
+    os.makedirs(model_path, exist_ok=True)
+    
+    # Create the 1/ subdirectory
+    model_version_dir = os.path.join(model_path, "1")
+    os.makedirs(model_version_dir, exist_ok=True)
+    
+    # Create model.py
+    model_py_path = os.path.join(model_version_dir, "model.py")
+    if os.path.exists(model_py_path):
+        logger.warning(f"File {model_py_path} already exists, skipping...")
+    else:
+        model_template = get_model_template(model_type_id)
+        with open(model_py_path, 'w') as f:
+            f.write(model_template)
+        logger.info(f"Created {model_py_path}")
+    
+    # Create requirements.txt
+    requirements_path = os.path.join(model_path, "requirements.txt")
+    if os.path.exists(requirements_path):
+        logger.warning(f"File {requirements_path} already exists, skipping...")
+    else:
+        requirements_template = get_requirements_template()
+        with open(requirements_path, 'w') as f:
+            f.write(requirements_template)
+        logger.info(f"Created {requirements_path}")
+    
+    # Create config.yaml
+    config_path = os.path.join(model_path, "config.yaml")
+    if os.path.exists(config_path):
+        logger.warning(f"File {config_path} already exists, skipping...")
+    else:
+        # Map model_type_id to appropriate config model_type_id
+        config_model_type_id = "text-to-text"  # default
+        if model_type_id == "mcp":
+            config_model_type_id = "mcp"
+        elif model_type_id == "openai":
+            config_model_type_id = "text-to-text"  # OpenAI models typically use text-to-text
+        
+        config_template = get_config_template(config_model_type_id)
+        with open(config_path, 'w') as f:
+            f.write(config_template)
+        logger.info(f"Created {config_path}")
+    
+    logger.info(f"Model initialization complete in {model_path}")
+    logger.info("Next steps:")
+    logger.info("1. Search for '# TODO: please fill in' comments in the generated files")
+    logger.info("2. Update the model configuration in config.yaml")
+    logger.info("3. Add your model dependencies to requirements.txt")
+    logger.info("4. Implement your model logic in 1/model.py")
+
+
+@model.command()
 @click.argument("model_path", type=click.Path(exists=True), required=False, default=".")
 @click.option(
     '--stage',
