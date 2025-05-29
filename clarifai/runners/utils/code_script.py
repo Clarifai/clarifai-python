@@ -4,8 +4,7 @@ from typing import List
 from clarifai_grpc.grpc.api import resources_pb2
 
 from clarifai.runners.utils import data_utils
-from clarifai.urls.helper import ClarifaiUrlHelper, auth_obj
-from clarifai.utils.config import Config
+from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.constants import MCP_TRANSPORT_NAME, OPENAI_TRANSPORT_NAME
 
 
@@ -31,12 +30,7 @@ def generate_client_script(
     deployment_id: str = None,
     use_ctx: bool = False,
 ) -> str:
-    if use_ctx:
-        # use the config values.
-        current = Config.from_yaml().current
-        url_helper = ClarifaiUrlHelper(auth_obj(ui=current.ui, base=current.api_base))
-    else:
-        url_helper = ClarifaiUrlHelper()
+    url_helper = ClarifaiUrlHelper(None)
 
     # Provide an mcp client config if there is a method named "mcp_transport"
     if has_signature_method(MCP_TRANSPORT_NAME, method_signatures):
