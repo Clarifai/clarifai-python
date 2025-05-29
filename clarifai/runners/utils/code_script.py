@@ -30,7 +30,7 @@ def generate_client_script(
     deployment_id: str = None,
     use_ctx: bool = False,
 ) -> str:
-    url_helper = ClarifaiUrlHelper(None)
+    url_helper = ClarifaiUrlHelper()
 
     # Provide an mcp client config if there is a method named "mcp_transport"
     if has_signature_method(MCP_TRANSPORT_NAME, method_signatures):

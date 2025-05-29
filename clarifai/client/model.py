@@ -125,8 +125,8 @@ class Model(Lister, BaseClient):
         from clarifai.urls.helper import ClarifaiUrlHelper
 
         # passing None to ClarifaiUrlHelper uses the current context to set it up.
-        url_helper = ClarifaiUrlHelper(None)
-        current = ClarifaiUrlHelper.current_ctx
+        url_helper = ClarifaiUrlHelper()
+        current = url_helper.current_ctx
         url = url_helper.clarifai_url(resource_type="models", resource_id=current.model_id)
 
         # construct the Model object.
