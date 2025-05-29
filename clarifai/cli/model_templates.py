@@ -23,7 +23,7 @@ class MyModel(ModelClass):
         pass
 
     @ModelClass.method
-    def predict(self, text1: Text = "") -> Text:
+    def predict(self, prompt: Text = "") -> Text:
         """This is the method that will be called when the runner is run. It takes in an input and
         returns an output.
         
@@ -31,19 +31,19 @@ class MyModel(ModelClass):
         # Implement your prediction logic here
         """
         # Example implementation:
-        # output_text = text1.text + " processed"
+        # output_text = prompt.text + " processed"
         # return Text(output_text)
         
         return Text("Hello World")
 
     # Optional: Add more methods as needed
     # @ModelClass.method
-    # def generate(self, text1: Text = Text("")) -> Iterator[Text]:
+    # def generate(self, prompt: Text = Text("")) -> Iterator[Text]:
     #     """Example yielding a streamed response."""
     #     # TODO: please fill in
     #     # Implement your generation logic here
     #     for i in range(5):
-    #         output_text = text1.text + f" generated {i}"
+    #         output_text = prompt.text + f" generated {i}"
     #         yield Text(output_text)
 '''
 
