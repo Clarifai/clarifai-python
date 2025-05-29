@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 import yaml
 
 from clarifai.utils.constants import DEFAULT_BASE, DEFAULT_CONFIG, DEFAULT_UI
+from clarifai.utils.logging import logger
 
 
 class Context(OrderedDict):
@@ -153,8 +154,17 @@ class Config:
 
     @classmethod
     def from_yaml(cls, filename: str = DEFAULT_CONFIG):
-        with open(filename, 'r') as f:
-            cfg = yaml.safe_load(f)
+        """Loads the configuration from a YAML file.
+        If the file does not exist, it initializes with empty config.
+        """
+        cfg = {"current_context": "_empty_", "contexts": {"_empty_": {}}}
+        if os.path.exists(filename):
+            with open(filename, 'r') as f:
+                cfg = yaml.safe_load(f)
+        else:
+            logger.warning(
+                f"Config file {filename} not found, using default config. Run 'clarifai config' on the command line to create a config file."
+            )
         return cls(**cfg, filename=filename)
 
     def to_dict(self):
@@ -177,5 +187,10 @@ class Config:
 
     @property
     def current(self) -> Context:
-        """get the current Context"""
+        """Get the current Context or an empty one if your config is not setup."""
+        if not self.current_context:
+            logger.warning(
+                "No current context set, returning empty context. Run 'clarifai config' on the command line to create a config file."
+            )
+            return Context("_empty_")
         return self.contexts[self.current_context]

@@ -542,7 +542,6 @@ def local_dev(ctx, model_path):
         app_id=app_id,
         model_id=model_id,
         deployment_id=deployment_id,
-        use_ctx=True,
         base_url=ctx.obj.current.api_base,
     )
 
