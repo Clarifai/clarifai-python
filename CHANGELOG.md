@@ -1,3 +1,10 @@
+## [[11.4.7]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.7) - [PyPI](https://pypi.org/project/clarifai/11.4.7/) - 2025-05-29
+
+### Changed
+- Improve usage of clarifai config in urls  [(#608)] (https://github.com/Clarifai/clarifai-python/pull/608)
+- Update code snippets for MCP / OpenAI  [(#607)] (https://github.com/Clarifai/clarifai-python/pull/607)
+
+
 ## [[11.4.6]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.6) - [PyPI](https://pypi.org/project/clarifai/11.4.6/) - 2025-05-28
 
 ### Changed

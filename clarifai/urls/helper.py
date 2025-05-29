@@ -1,15 +1,8 @@
-import os
 from collections import namedtuple
 from urllib.parse import urlparse
 
-from clarifai.utils.constants import DEFAULT_BASE, DEFAULT_UI
-
 # To help with using ClarifaiUrlHelper with defaults as ClarifaiUrlHelper()
 auth_obj = namedtuple("auth", ["ui", "base"])
-default_auth = auth_obj(
-    ui=os.environ.get("CLARIFAI_UI", DEFAULT_UI),
-    base=os.environ.get("CLARIFAI_API_BASE", DEFAULT_BASE),
-)
 
 
 class ClarifaiUrlHelper(object):
@@ -17,15 +10,19 @@ class ClarifaiUrlHelper(object):
 
     def __init__(
         self,
-        auth=default_auth,
+        auth=None,
         module_manager_imv_id: str = "module_manager_install",
     ):
         """
         Args:
-          auth: a ClarifaiAuthHelper object.
+          auth: a ClarifaiAuthHelper object. Pass None to use the values from the current context.
+          module_manager_imv_id: the ID of the module manager installed module version.
         """
         self._auth = auth
         self._module_manager_imv_id = module_manager_imv_id
+        self._current_context = None
+        if self._auth is None:
+            self._auth = auth_obj(self.current_ctx.ui, self.current_ctx.api_base)
 
     @property
     def ui(self):
@@ -35,8 +32,31 @@ class ClarifaiUrlHelper(object):
     def base(self):
         return self._auth.base
 
-    def module_ui_url(self, user_id, app_id, module_id, module_version_id):
+    @property
+    def current_ctx(self):
+        if self._current_context is None:
+            from clarifai.utils.config import Config
+
+            self._current_context = Config.from_yaml().current
+        return self._current_context
+
+    def module_ui_url(
+        self,
+        user_id: str = None,
+        app_id: str = None,
+        module_id: str = None,
+        module_version_id: str = None,
+    ):
         """This is the path to the module in community."""
+        if user_id is None:
+            user_id = self.current_ctx.user_id
+        if app_id is None:
+            app_id = self.current_ctx.app_id
+        if module_id is None:
+            module_id = self.current_ctx.module_id
+        if module_version_id is None:
+            module_version_id = self.current_ctx.module_version_id
+
         return "%s/%s/%s/modules/%s/versions/%s" % (
             self.ui,
             user_id,
@@ -45,9 +65,17 @@ class ClarifaiUrlHelper(object):
             module_version_id,
         )
 
-    def module_install_ui_url(self, dest_user_id, dest_app_id, module_url):
+    def module_install_ui_url(
+        self, dest_user_id: str = None, dest_app_id: str = None, module_url: str = None
+    ):
         """This is a url that allows for installation of the module from the community at 'module_url'
         into the destination app_id of the destination user_id."""
+        if dest_user_id is None:
+            dest_user_id = self.current_ctx.user_id
+        if dest_app_id is None:
+            dest_app_id = self.current_ctx.app_id
+        if module_url is None:
+            raise ValueError("module_url must be provided to install a module.")
         return "%s/%s/%s/installed_module_versions/%s/install?install=%s" % (
             self.ui,
             dest_user_id,
@@ -56,7 +84,14 @@ class ClarifaiUrlHelper(object):
             module_url,
         )
 
-    def imv_ui_url(self, dest_user_id, dest_app_id, imv_id):
+    def imv_ui_url(self, dest_user_id: str = None, dest_app_id: str = None, imv_id: str = None):
+        """This is the path to the resource in the UI."""
+        if dest_user_id is None:
+            dest_user_id = self.current_ctx.user_id
+        if dest_app_id is None:
+            dest_app_id = self.current_ctx.app_id
+        if imv_id is None:
+            raise ValueError("imv_id must be provided to get the IMV API URL.")
         return "%s/%s/%s/installed_module_versions/%s" % (
             self.ui,
             dest_user_id,
@@ -64,7 +99,9 @@ class ClarifaiUrlHelper(object):
             imv_id,
         )
 
-    def mcp_api_url(self, user_id, app_id, model_id, version_id: str = None):
+    def mcp_api_url(
+        self, user_id: str = None, app_id: str = None, model_id: str = None, version_id: str = None
+    ):
         """We have a special endpoint for MCP hosted models.
 
         Example:
@@ -76,6 +113,12 @@ class ClarifaiUrlHelper(object):
           model_id: the resource ID
           version_id: the version of the resource.
         """
+        if user_id is None:
+            user_id = self.current_ctx.user_id
+        if app_id is None:
+            app_id = self.current_ctx.app_id
+        if model_id is None:
+            model_id = self.current_ctx.model_id
         if version_id is None:
             return "%s/v2/ext/mcp/v1/users/%s/apps/%s/models/%s" % (
                 self.base,
@@ -105,7 +148,14 @@ class ClarifaiUrlHelper(object):
         """
         return "%s/v2/ext/openai/v1" % self.base
 
-    def api_url(self, user_id, app_id, resource_type, resource_id, version_id: str = None):
+    def api_url(
+        self,
+        user_id: str = None,
+        app_id: str = None,
+        resource_type: str = None,
+        resource_id: str = None,
+        version_id: str = None,
+    ):
         """This is the path to the resource in the API.
 
         Example:
@@ -122,6 +172,12 @@ class ClarifaiUrlHelper(object):
           resource_type: the type of resource. One of "modules", "models", "concepts", "inputs", "workflows", "tasks"
           resource_id: the resource ID
         """
+        if user_id is None:
+            user_id = self.current_ctx.user_id
+        if app_id is None:
+            app_id = self.current_ctx.app_id
+        if resource_id is None:
+            raise ValueError("resource_id must be provided to get the API URL.")
         self._validate_resource_type(resource_type)
         if version_id is None:
             return "%s/v2/users/%s/apps/%s/%s/%s" % (
@@ -158,7 +214,14 @@ class ClarifaiUrlHelper(object):
                 % resource_type
             )
 
-    def clarifai_url(self, user_id, app_id, resource_type, resource_id, version_id: str = None):
+    def clarifai_url(
+        self,
+        user_id: str = None,
+        app_id: str = None,
+        resource_type: str = None,
+        resource_id: str = None,
+        version_id: str = None,
+    ):
         """This is the path to the resource in community UI.
 
         Example:
@@ -176,6 +239,12 @@ class ClarifaiUrlHelper(object):
           resource_id: the resource ID
           version_id: the version of the resource.
         """
+        if user_id is None:
+            user_id = self.current_ctx.user_id
+        if app_id is None:
+            app_id = self.current_ctx.app_id
+        if resource_id is None:
+            raise ValueError("resource_id must be provided to get the API URL.")
         self._validate_resource_type(resource_type)
         if version_id is None:
             return "%s/%s/%s/%s/%s" % (self.ui, user_id, app_id, resource_type, resource_id)
@@ -189,7 +258,7 @@ class ClarifaiUrlHelper(object):
         )
 
     @classmethod
-    def split_clarifai_app_url(cls, url):
+    def split_clarifai_app_url(cls, url: str):
         """
         clarifai.com uses fully qualified urls to resources.
         They are in the format of:
@@ -207,7 +276,7 @@ class ClarifaiUrlHelper(object):
         return tuple(parts[1:])
 
     @classmethod
-    def split_clarifai_url(cls, url):
+    def split_clarifai_url(cls, url: str):
         """
         clarifai.com uses fully qualified urls to resources.
         They are in the format of:
@@ -232,7 +301,7 @@ class ClarifaiUrlHelper(object):
         return user_id, app_id, resource_type, resource_id, resource_version_id
 
     @classmethod
-    def split_module_ui_url(cls, install):
+    def split_module_ui_url(cls, install: str):
         """Takes in a path like https://clarifai.com/zeiler/app/modules/module1/versions/2 to split it apart into it's IDs.
 
         Returns:

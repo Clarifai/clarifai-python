@@ -8,7 +8,7 @@ import yaml
 
 from clarifai.utils.cli import AliasedGroup, TableFormatter, load_command_modules
 from clarifai.utils.config import Config, Context
-from clarifai.utils.constants import DEFAULT_CONFIG
+from clarifai.utils.constants import DEFAULT_BASE, DEFAULT_CONFIG, DEFAULT_UI
 from clarifai.utils.logging import logger
 
 
@@ -31,7 +31,8 @@ def cli(ctx, config):
                     'default',
                     CLARIFAI_PAT=os.environ.get('CLARIFAI_PAT', ''),
                     CLARIFAI_USER_ID=os.environ.get('CLARIFAI_USER_ID', ''),
-                    CLARIFAI_API_BASE=os.environ.get('CLARIFAI_API_BASE', 'api.clarifai.com'),
+                    CLARIFAI_API_BASE=DEFAULT_BASE,
+                    CLARIFAI_UI=DEFAULT_UI,
                 )
             },
         )

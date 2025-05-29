@@ -1,6 +1,5 @@
 import logging
 import os
-from collections import namedtuple
 
 import pytest
 
@@ -14,8 +13,6 @@ TEXT_FILE_PATH = os.path.dirname(__file__) + "/assets/sample.txt"
 PDF_URL = "https://samples.clarifai.com/test_doc.pdf"
 
 CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
-
-auth_obj = namedtuple("auth", "ui")
 
 
 def client():
