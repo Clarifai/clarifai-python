@@ -8,7 +8,6 @@ def get_model_class_template() -> str:
     return '''from typing import Iterator
 
 from clarifai.runners.models.model_class import ModelClass
-from clarifai.runners.utils.data_types import Text
 
 
 class MyModel(ModelClass):
@@ -23,7 +22,7 @@ class MyModel(ModelClass):
         pass
 
     @ModelClass.method
-    def predict(self, prompt: Text = "") -> Text:
+    def predict(self, prompt: str = "") -> str:
         """This is the method that will be called when the runner is run. It takes in an input and
         returns an output.
         
@@ -31,20 +30,20 @@ class MyModel(ModelClass):
         # Implement your prediction logic here
         """
         # Example implementation:
-        # output_text = prompt.text + " processed"
-        # return Text(output_text)
+        # output_text = prompt + " processed"
+        # return output_text
         
-        return Text("Hello World")
+        return "Hello World"
 
     # Optional: Add more methods as needed
     # @ModelClass.method
-    # def generate(self, prompt: Text = Text("")) -> Iterator[Text]:
+    # def generate(self, prompt: str = "") -> Iterator[str]:
     #     """Example yielding a streamed response."""
     #     # TODO: please fill in
     #     # Implement your generation logic here
     #     for i in range(5):
-    #         output_text = prompt.text + f" generated {i}"
-    #         yield Text(output_text)
+    #         output_text = prompt + f" generated {i}"
+    #         yield output_text
 '''
 
 
@@ -109,15 +108,15 @@ class MyModel(OpenAIModelClass):
     """A custom model implementation using OpenAIModelClass."""
     
     # TODO: please fill in
-    # Configure your OpenAI-compatible client
+    # Configure your OpenAI-compatible client for local model
     client = OpenAI(
-        api_key="your-api-key-here",  # TODO: please fill in
-        base_url="https://api.openai.com/v1",  # TODO: please fill in - modify for your API endpoint
+        api_key="local-key",  # TODO: please fill in - use your local API key
+        base_url="http://localhost:8000/v1",  # TODO: please fill in - your local model server endpoint
     )
     
     # TODO: please fill in
     # Specify the model name to use
-    model = "gpt-3.5-turbo"  # TODO: please fill in - replace with your model name
+    model = "my-local-model"  # TODO: please fill in - replace with your local model name
     
     def load_model(self):
         """Optional: Add any additional model loading logic here."""
@@ -144,11 +143,14 @@ build_info:
 inference_compute_info:
   cpu_limit: "1"
   cpu_memory: "1Gi"
+  cpu_request: "0.5"  # TODO: please fill in - CPU request amount
+  memory_request: "512Mi"  # TODO: please fill in - memory request amount
   num_accelerators: 0
+  accelerator_request: 0  # TODO: please fill in - number of accelerators requested
 
 # TODO: please fill in (optional) - add checkpoints section if needed
 # checkpoints:
-#   type: "huggingface"  # or "s3", "gcs", "url", etc.
+#   type: "huggingface"  # supported type
 #   repo_id: "your-model-repo"  # for huggingface
 #   when: "build"  # or "runtime", "upload"
 '''
