@@ -1,3 +1,9 @@
+## [[11.4.9]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.9) - [PyPI](https://pypi.org/project/clarifai/11.4.9/) - 2025-05-30
+
+### Changed
+- Updated Model Upload section in Readme  [(#613)] (https://github.com/Clarifai/clarifai-python/pull/613)
+- Add clarifai model init to CLI to create default files for model upload [(#611)] (https://github.com/Clarifai/clarifai-python/pull/611)
+
 ## [[11.4.8]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.8) - [PyPI](https://pypi.org/project/clarifai/11.4.8/) - 2025-05-29
 
 ### Changed
