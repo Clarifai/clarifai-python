@@ -561,3 +561,8 @@ rag_agent = RAG(workflow_url="WORKFLOW_URL")
 
 See many more code examples in this [repo](https://github.com/Clarifai/examples).
 Also see the official [Python SDK docs](https://clarifai-python.readthedocs.io/en/latest/index.html)
+
+## :open_file_folder: Model Upload
+
+Examples for uploading models and runners have been moved to this [repo](https://github.com/Clarifai/runners-examples).
+Find our official documentation at [docs.clarifai.com/compute/models/upload](https://docs.clarifai.com/compute/models/upload).
