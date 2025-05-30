@@ -241,4 +241,3 @@ def get_model_template(model_type_id: str = None) -> str:
     if model_type_id in MODEL_TYPE_TEMPLATES:
         return MODEL_TYPE_TEMPLATES[model_type_id]()
     return get_model_class_template()
-
