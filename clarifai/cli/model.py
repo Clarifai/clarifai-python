@@ -80,7 +80,7 @@ def init(model_path, model_type_id):
     if os.path.exists(requirements_path):
         logger.warning(f"File {requirements_path} already exists, skipping...")
     else:
-        requirements_template = get_requirements_template()
+        requirements_template = get_requirements_template(model_type_id)
         with open(requirements_path, 'w') as f:
             f.write(requirements_template)
         logger.info(f"Created {requirements_path}")
@@ -90,12 +90,7 @@ def init(model_path, model_type_id):
     if os.path.exists(config_path):
         logger.warning(f"File {config_path} already exists, skipping...")
     else:
-        # Map model_type_id to appropriate config model_type_id
         config_model_type_id = "text-to-text"  # default
-        if model_type_id == "mcp":
-            config_model_type_id = "mcp"
-        elif model_type_id == "openai":
-            config_model_type_id = "text-to-text"  # OpenAI models typically use text-to-text
         
         config_template = get_config_template(config_model_type_id)
         with open(config_path, 'w') as f:
