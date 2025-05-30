@@ -40,13 +40,13 @@ def model():
 )
 def init(model_path, model_type_id):
     """Initialize a new model directory structure.
-    
+
     Creates the following structure in the specified directory:
     ├── 1/
     │   └── model.py
     ├── requirements.txt
     └── config.yaml
-    
+
     MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
     """
     from clarifai.cli.model_templates import (
@@ -54,17 +54,17 @@ def init(model_path, model_type_id):
         get_model_template,
         get_requirements_template,
     )
-    
+
     # Resolve the absolute path
     model_path = os.path.abspath(model_path)
-    
+
     # Create the model directory if it doesn't exist
     os.makedirs(model_path, exist_ok=True)
-    
+
     # Create the 1/ subdirectory
     model_version_dir = os.path.join(model_path, "1")
     os.makedirs(model_version_dir, exist_ok=True)
-    
+
     # Create model.py
     model_py_path = os.path.join(model_version_dir, "model.py")
     if os.path.exists(model_py_path):
@@ -74,7 +74,7 @@ def init(model_path, model_type_id):
         with open(model_py_path, 'w') as f:
             f.write(model_template)
         logger.info(f"Created {model_py_path}")
-    
+
     # Create requirements.txt
     requirements_path = os.path.join(model_path, "requirements.txt")
     if os.path.exists(requirements_path):
@@ -84,19 +84,19 @@ def init(model_path, model_type_id):
         with open(requirements_path, 'w') as f:
             f.write(requirements_template)
         logger.info(f"Created {requirements_path}")
-    
+
     # Create config.yaml
     config_path = os.path.join(model_path, "config.yaml")
     if os.path.exists(config_path):
         logger.warning(f"File {config_path} already exists, skipping...")
     else:
         config_model_type_id = "text-to-text"  # default
-        
+
         config_template = get_config_template(config_model_type_id)
         with open(config_path, 'w') as f:
             f.write(config_template)
         logger.info(f"Created {config_path}")
-    
+
     logger.info(f"Model initialization complete in {model_path}")
     logger.info("Next steps:")
     logger.info("1. Search for '# TODO: please fill in' comments in the generated files")

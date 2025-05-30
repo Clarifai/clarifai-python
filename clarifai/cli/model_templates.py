@@ -109,18 +109,18 @@ from clarifai.runners.utils.openai_convertor import build_openai_messages
 
 class MyModel(OpenAIModelClass):
     """A custom model implementation using OpenAIModelClass."""
-    
+
     # TODO: please fill in
     # Configure your OpenAI-compatible client for local model
     client = OpenAI(
         api_key="local-key",  # TODO: please fill in - use your local API key
         base_url="http://localhost:8000/v1",  # TODO: please fill in - your local model server endpoint
     )
-    
+
     # TODO: please fill in
     # Specify the model name to use
     model = "my-local-model"  # TODO: please fill in - replace with your local model name
-    
+
     def load_model(self):
         """Optional: Add any additional model loading logic here."""
         # TODO: please fill in (optional)
@@ -241,3 +241,4 @@ def get_model_template(model_type_id: str = None) -> str:
     if model_type_id in MODEL_TYPE_TEMPLATES:
         return MODEL_TYPE_TEMPLATES[model_type_id]()
     return get_model_class_template()
+
