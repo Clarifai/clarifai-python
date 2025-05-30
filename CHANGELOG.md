@@ -1,3 +1,8 @@
+## [[11.4.10]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.10) - [PyPI](https://pypi.org/project/clarifai/11.4.10/) - 2025-05-30
+
+### Changed
+- Add back in pretrained model config  [(#616)] (https://github.com/Clarifai/clarifai-python/pull/616)
+
 ## [[11.4.9]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.9) - [PyPI](https://pypi.org/project/clarifai/11.4.9/) - 2025-05-30
 
 ### Changed

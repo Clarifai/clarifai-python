@@ -839,6 +839,7 @@ class ModelBuilder:
     def get_model_version_proto(self):
         signatures = self.get_method_signatures()
         model_version_proto = resources_pb2.ModelVersion(
+            pretrained_model_config=resources_pb2.PretrainedModelConfig(),
             inference_compute_info=self.inference_compute_info,
             method_signatures=signatures,
         )
