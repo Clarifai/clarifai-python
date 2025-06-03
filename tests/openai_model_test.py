@@ -75,8 +75,8 @@ class TestOpenAIModelClass:
             "stream": True,
         }
 
-        response = model.openai_transport(json.dumps(request))
-        data = json.loads(response)
+        response = model.openai_stream_transport(json.dumps(request))
+        data = [json.loads(resp) for resp in response]
 
         assert isinstance(data, list)
         assert len(data) > 0

@@ -68,7 +68,6 @@ class TestOpenAIModelClass:
 
         # Call the transport method
         response_str = model.openai_transport(json.dumps(request))
-        print(f"{response_str=}")
 
         response = json.loads(response_str)
         assert "id" in response

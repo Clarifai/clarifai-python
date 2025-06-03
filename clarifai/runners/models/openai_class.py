@@ -53,7 +53,6 @@ class OpenAIModelClass(ModelClass):
             stream_options.update({"include_usage": True})
             completion_args["stream_options"] = stream_options
         completion_args["stream"] = stream
-        print(f"{completion_args=}")
 
         return completion_args
 
