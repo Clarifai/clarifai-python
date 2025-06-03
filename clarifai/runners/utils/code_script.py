@@ -111,7 +111,7 @@ model = Model.from_current_context()"""
     else:
         model_ui_url = url_helper.clarifai_url(user_id, app_id, "models", model_id)
         model_section = f"""
-model = Model({model_ui_url},
+model = Model("{model_ui_url}",
                deployment_id = {deployment_id}, # Only needed for dedicated deployed models
                {base_url_str}
  )
