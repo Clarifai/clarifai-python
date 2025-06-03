@@ -51,7 +51,7 @@ class TestOpenAIModelClass:
         assert "Echo: Hello, world!" in response["choices"][0]["message"]["content"]
         assert "usage" in response
 
-    def test_openai_transport_streaming(self):
+    def test_openai_transport(self):
         """Test OpenAI transport method with streaming request."""
         model = DummyOpenAIModel()
         model.load_model()
@@ -63,25 +63,21 @@ class TestOpenAIModelClass:
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": "Hello, world!"},
             ],
-            "stream": True,
+            "stream": False,
         }
 
         # Call the transport method
         response_str = model.openai_transport(json.dumps(request))
-        response_chunks = json.loads(response_str)
+        print(f"{response_str=}")
 
-        # Verify the response format for streaming
-        assert isinstance(response_chunks, list)
-        assert len(response_chunks) > 0
-        for chunk in response_chunks:
-            assert "id" in chunk
-            assert "created" in chunk
-            assert "model" in chunk
-            assert "choices" in chunk
-            assert len(chunk["choices"]) > 0
-            assert "delta" in chunk["choices"][0]
-            if chunk["choices"][0]["delta"].get("content"):
-                assert "Echo: Hello, world!" in chunk["choices"][0]["delta"]["content"]
+        response = json.loads(response_str)
+        assert "id" in response
+        assert "created" in response
+        assert "model" in response
+        assert "choices" in response
+        assert len(response["choices"]) > 0
+        if response["choices"][0].get("content"):
+            assert "Echo: Hello, world!" in response["choices"][0]["content"]
 
     def test_openai_stream_transport(self):
         """Test the new openai_stream_transport method."""
@@ -95,6 +91,7 @@ class TestOpenAIModelClass:
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": "Hello, world!"},
             ],
+            "stream": True,
         }
 
         # Test with string input
