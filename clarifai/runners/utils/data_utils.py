@@ -377,8 +377,14 @@ class Param(MessageData):
 
             if proto is None:
                 proto = ParamProto()
-            proto.default = json.dumps(default)
+
+            if isinstance(default, str):
+                proto.default = default
+            else:
+                proto.default = json.dumps(default)
+
             return proto
+
         except Exception:
             if default is not None:
                 proto.default = str(default)

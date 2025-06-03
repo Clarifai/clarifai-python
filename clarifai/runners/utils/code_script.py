@@ -133,6 +133,8 @@ model = Model({model_ui_url},
                 continue
             if default_value is None and required:
                 default_value = _set_default_value(param_type)
+            if param_type == "str" and default_value is not None:
+                default_value = json.dumps(default_value)
             client_script_str += f"{param_name}={default_value}, "
         client_script_str = client_script_str.rstrip(", ") + ")"
         if method_signature.method_type == resources_pb2.RunnerMethodType.UNARY_UNARY:
