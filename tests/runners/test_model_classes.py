@@ -78,8 +78,8 @@ class TestModelClasses:
         }
 
         # Call the transport method
-        response_str = model.openai_transport(json.dumps(request))
-        response_chunks = json.loads(response_str)
+        response = model.openai_stream_transport(json.dumps(request))
+        response_chunks = [json.loads(resp) for resp in response]
 
         assert isinstance(response_chunks, list)
         assert len(response_chunks) > 0
