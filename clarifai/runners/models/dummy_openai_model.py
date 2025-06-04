@@ -13,9 +13,9 @@ class MockOpenAIClient:
         def create(self, **kwargs):
             """Mock create method for compatibility."""
             if kwargs.get("stream", False):
-                return MockCompletionStream(kwargs.get("messages", []))
+                return MockCompletionStream(**kwargs)
             else:
-                return MockCompletion(kwargs.get("messages", []))
+                return MockCompletion(**kwargs)
 
     def __init__(self):
         self.chat = self  # Make self.chat point to self for compatibility
@@ -49,8 +49,9 @@ class MockCompletion:
             self.finish_reason = "stop"
             self.index = 0
 
-    def __init__(self, messages):
+    def __init__(self, **kwargs):
         # Generate a simple response based on the last message
+        messages = kwargs.get("messages")
         last_message = messages[-1] if messages else {"content": ""}
         response_text = f"Echo: {last_message.get('content', '')}"
 
@@ -152,8 +153,10 @@ class MockCompletionStream:
         def model_dump(self):
             return self.to_dict()
 
-    def __init__(self, messages):
+    def __init__(self, **kwargs):
         # Generate a simple response based on the last message
+        messages = kwargs.get("messages")
+
         last_message = messages[-1] if messages else {"content": ""}
         self.response_text = f"Echo: {last_message.get('content', '')}"
         # Create chunks that ensure the full text is included in the first chunk
@@ -162,7 +165,7 @@ class MockCompletionStream:
             "",  # Final chunk is empty to indicate completion
         ]
         self.current_chunk = 0
-        self.include_usage = False
+        self.include_usage = kwargs.get("stream_options", {}).get("include_usage")
 
     def __iter__(self):
         return self
@@ -190,9 +193,6 @@ class DummyOpenAIModel(OpenAIModelClass):
     def _process_streaming_request(self, **kwargs) -> Iterator[Dict[str, Any]]:
         """Process a request for streaming responses."""
         completion_stream = self.client.chat.completions.create(**kwargs)
-        # completion_stream.include_usage = kwargs.get('stream_options', {}).get(
-        #     'include_usage', False
-        # )
 
         for chunk in completion_stream:
             yield chunk.model_dump()
@@ -203,7 +203,7 @@ class DummyOpenAIModel(OpenAIModelClass):
         """Direct implementation for testing purposes."""
         try:
             request_data = json.loads(req)
-
+            request_data = self._create_completion_args(request_data)
             # Validate messages
             if not request_data.get("messages"):
                 yield "Error: No messages provided"

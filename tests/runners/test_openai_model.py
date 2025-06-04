@@ -95,12 +95,15 @@ class TestOpenAIModelClass:
 
         # Test with string input
         response_iter = model.openai_stream_transport(json.dumps(request))
-        chunks = list(response_iter)
-
+        chunks_text = list(response_iter)
+        chunks = [json.loads(resp) for resp in chunks_text]
         # Verify response format - should be raw text chunks
         assert len(chunks) > 0
-        combined = ''.join(chunks)
+        combined = ''.join(chunks_text)
         assert "Echo: Hello, world!" in combined
+        assert chunks[-1]["usage"]["total_tokens"] > 0
+        assert chunks[-1]["usage"]["prompt_tokens"] > 0
+        assert chunks[-1]["usage"]["completion_tokens"] > 0
 
         # Test error handling
         bad_request = json.dumps({"messages": [{"role": "invalid"}]})
@@ -108,6 +111,29 @@ class TestOpenAIModelClass:
         chunks = list(response_iter)
         assert len(chunks) == 1
         assert chunks[0].startswith("Error:")
+
+        # Test return usage even if not set it
+        request = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Hello, world!"},
+            ],
+            "stream": True,
+            "stream_options": {"include_usage": False},
+        }
+        response_iter = model.openai_stream_transport(json.dumps(request))
+        chunks_text = list(response_iter)
+        chunks = [json.loads(resp) for resp in chunks_text]
+
+        assert len(chunks) > 0
+        combined = ''.join(chunks_text)
+        # Verify response format - should be raw text chunks
+        assert "Echo: Hello, world!" in combined
+        # Verify usage still returns
+        assert chunks[-1]["usage"]["total_tokens"] > 0
+        assert chunks[-1]["usage"]["prompt_tokens"] > 0
+        assert chunks[-1]["usage"]["completion_tokens"] > 0
 
     def test_custom_method(self):
         """Test custom method on the DummyOpenAIModel."""
