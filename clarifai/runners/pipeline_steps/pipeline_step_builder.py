@@ -36,7 +36,10 @@ class PipelineStepBuilder:
     def client(self):
         """Get or create the Clarifai client."""
         if self._client is None:
-            self._client = BaseClient()
+            pipeline_step_config = self.config["pipeline_step"]
+            user_id = pipeline_step_config["user_id"]
+            app_id = pipeline_step_config["app_id"]
+            self._client = BaseClient(user_id=user_id, app_id=app_id)
         return self._client
 
     def _validate_folder(self, folder):
