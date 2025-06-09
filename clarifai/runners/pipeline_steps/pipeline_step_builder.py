@@ -15,12 +15,12 @@ from clarifai.versions import CLIENT_VERSION
 
 class PipelineStepBuilder:
     """Pipeline Step Builder class for managing pipeline step upload to Clarifai."""
-    
+
     def __init__(self, folder: str):
         """
         Initialize PipelineStepBuilder.
-        
-        :param folder: The folder containing the pipeline step files (config.yaml, requirements.txt, 
+
+        :param folder: The folder containing the pipeline step files (config.yaml, requirements.txt,
                       dockerfile, and pipeline_step.py in 1/ subdirectory)
         """
         self._client = None
@@ -42,19 +42,19 @@ class PipelineStepBuilder:
     def _validate_folder(self, folder):
         """Validate that the folder contains required files."""
         folder = os.path.abspath(folder)
-        
+
         # Check for required files
         required_files = ['config.yaml']
         for file in required_files:
             file_path = os.path.join(folder, file)
             if not os.path.exists(file_path):
                 raise FileNotFoundError(f"Required file '{file}' not found in {folder}")
-        
+
         # Check for pipeline_step.py in 1/ subdirectory
         pipeline_step_file = os.path.join(folder, '1', 'pipeline_step.py')
         if not os.path.exists(pipeline_step_file):
             raise FileNotFoundError(f"Required file '1/pipeline_step.py' not found in {folder}")
-        
+
         return folder
 
     @staticmethod
@@ -72,10 +72,10 @@ class PipelineStepBuilder:
         # Validate pipeline_step section
         if "pipeline_step" not in self.config:
             raise ValueError("pipeline_step section not found in config.yaml")
-        
+
         pipeline_step = self.config["pipeline_step"]
         required_fields = ["id", "user_id", "app_id"]
-        
+
         for field in required_fields:
             if field not in pipeline_step:
                 raise ValueError(f"{field} not found in pipeline_step section of config.yaml")
@@ -89,27 +89,27 @@ class PipelineStepBuilder:
     def _get_pipeline_step_proto(self):
         """Create pipeline step proto from config."""
         pipeline_step_config = self.config["pipeline_step"]
-        
+
         pipeline_step_proto = resources_pb2.PipelineStep(
             id=pipeline_step_config["id"],
             user_id=pipeline_step_config["user_id"]
         )
-        
+
         return pipeline_step_proto
 
     def _get_pipeline_step_compute_info(self):
         """Get pipeline step compute info from config."""
         compute_config = self.config.get("pipeline_step_compute_info", {})
-        
+
         compute_info = resources_pb2.ComputeInfo()
-        
+
         if "cpu_limit" in compute_config:
             compute_info.cpu_limit = compute_config["cpu_limit"]
         if "cpu_memory" in compute_config:
             compute_info.cpu_memory = compute_config["cpu_memory"]
         if "num_accelerators" in compute_config:
             compute_info.num_accelerators = compute_config["num_accelerators"]
-            
+
         return compute_info
 
     def check_pipeline_step_exists(self):
@@ -130,7 +130,7 @@ class PipelineStepBuilder:
         if self.check_pipeline_step_exists():
             logger.info(f"Pipeline step {self.pipeline_step_id} already exists")
             return True
-            
+
         try:
             # Build pipeline step input params
             input_params = []
@@ -146,26 +146,26 @@ class PipelineStepBuilder:
                     if "accepted_values" in param_config:
                         param.accepted_values.extend(param_config["accepted_values"])
                     input_params.append(param)
-            
+
             pipeline_step = resources_pb2.PipelineStep(
                 id=self.pipeline_step_id,
                 user_id=self.pipeline_step_proto.user_id
             )
-            
+
             resp = self.client.STUB.PostPipelineSteps(
                 service_pb2.PostPipelineStepsRequest(
                     user_app_id=self.client.user_app_id,
                     pipeline_steps=[pipeline_step]
                 )
             )
-            
+
             if resp.status.code == status_code_pb2.SUCCESS:
                 logger.info(f"Successfully created pipeline step {self.pipeline_step_id}")
                 return True
             else:
                 logger.error(f"Failed to create pipeline step: {resp.status}")
                 return False
-                
+
         except Exception as e:
             logger.error(f"Error creating pipeline step: {e}")
             return False
@@ -189,35 +189,35 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
         # Get Python version from config or use default
         build_info = self.config.get('build_info', {})
         python_version = build_info.get('python_version', '3.12')
-        
+
         # Ensure requirements.txt has clarifai
         self._ensure_clarifai_requirement()
-        
+
         # Replace placeholders
         dockerfile_content = Template(dockerfile_template).safe_substitute(
             PYTHON_VERSION=python_version
         )
-        
+
         # Write Dockerfile
         dockerfile_path = os.path.join(self.folder, 'Dockerfile')
         with open(dockerfile_path, 'w') as dockerfile:
             dockerfile.write(dockerfile_content)
-        
+
         logger.info(f"Created Dockerfile at {dockerfile_path}")
 
     def _ensure_clarifai_requirement(self):
         """Ensure clarifai is in requirements.txt with proper version."""
         requirements_path = os.path.join(self.folder, 'requirements.txt')
-        
+
         # Read existing requirements
         requirements = []
         if os.path.exists(requirements_path):
             with open(requirements_path, 'r') as f:
                 requirements = f.readlines()
-        
+
         # Check if clarifai is already present
         has_clarifai = any('clarifai' in line for line in requirements)
-        
+
         if not has_clarifai:
             requirements.append(f'clarifai=={CLIENT_VERSION}\n')
             with open(requirements_path, 'w') as f:
@@ -239,7 +239,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
         # Create tar file
         file_path = self.tar_file
         logger.debug(f"Creating tar file: {file_path}")
-        
+
         def filter_func(tarinfo):
             name = tarinfo.name
             exclude = [os.path.basename(self.tar_file), "*~", "*.pyc", "*.pyo", "__pycache__"]
@@ -247,9 +247,9 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
 
         with tarfile.open(file_path, "w:gz") as tar:
             tar.add(self.folder, arcname=".", filter=filter_func)
-        
+
         logger.debug("Tar file creation complete")
-        
+
         file_size = os.path.getsize(file_path)
         logger.debug(f"Tar file size: {file_size} bytes")
 
@@ -260,7 +260,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
             ):
                 percent_completed = getattr(response.status, 'percent_completed', 0)
                 details = response.status.details
-                
+
                 print(
                     f"Status: {response.status.description}, Progress: {percent_completed}% - {details}",
                     f"request_id: {response.status.req_id}",
@@ -271,13 +271,13 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
             if response.status.code != status_code_pb2.PIPELINE_STEP_BUILDING:
                 logger.error(f"Failed to upload pipeline step version: {response}")
                 return False
-                
+
             self.pipeline_step_version_id = response.pipeline_step_version.id
             logger.info(f"\nCreated Pipeline Step Version ID: {self.pipeline_step_version_id}")
-            
+
             # Monitor build progress
             return self._monitor_pipeline_step_build()
-            
+
         finally:
             # Clean up tar file
             if os.path.exists(file_path):
@@ -288,7 +288,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
         """Iterator for uploading pipeline step version in chunks."""
         # First yield the config
         yield self._init_upload_pipeline_step_version(file_path)
-        
+
         # Then yield file content in chunks
         with open(file_path, "rb") as f:
             file_size = os.path.getsize(file_path)
@@ -298,7 +298,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
             logger.debug(f"File size: {file_size}")
             logger.debug(f"Chunk size: {chunk_size}")
             logger.debug(f"Number of chunks: {num_chunks}")
-            
+
             read_so_far = 0
             for part_id in range(num_chunks):
                 try:
@@ -326,7 +326,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
         file_size = os.path.getsize(file_path)
         logger.debug(f"Uploading pipeline step version of pipeline step {self.pipeline_step_id}")
         logger.debug(f"Using file '{os.path.basename(file_path)}' of size: {file_size} bytes")
-        
+
         # Build pipeline step input params
         input_params = []
         if "pipeline_step_input_params" in self.config:
@@ -341,7 +341,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                 if "accepted_values" in param_config:
                     param.accepted_values.extend(param_config["accepted_values"])
                 input_params.append(param)
-        
+
         # Create pipeline step version proto
         pipeline_step_config = self.config["pipeline_step"]
         pipeline_step_version = resources_pb2.PipelineStepVersion(
@@ -351,7 +351,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
             pipeline_step_input_params=input_params,
             pipeline_step_compute_info=self.pipeline_step_compute_info
         )
-        
+
         # Build info from config
         build_info = self.config.get('build_info', {})
         if build_info:
@@ -359,7 +359,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
             if 'python_version' in build_info:
                 version_build_info.python_version = build_info['python_version']
             pipeline_step_version.build_info.CopyFrom(version_build_info)
-        
+
         return service_pb2.PostPipelineStepVersionsUploadRequest(
             config=service_pb2.PostPipelineStepVersionsUploadConfig(
                 user_app_id=self.client.user_app_id,
@@ -380,9 +380,9 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                         version_id=self.pipeline_step_version_id,
                     )
                 )
-                
+
                 status_code = resp.pipeline_step_version.status.code
-                
+
                 if status_code == status_code_pb2.PIPELINE_STEP_BUILDING:
                     print(
                         f"Pipeline step is building... (elapsed {time.time() - st:.1f}s)", 
@@ -399,7 +399,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                         f"\nPipeline step build failed with status: {resp.pipeline_step_version.status}"
                     )
                     return False
-                    
+
             except Exception as e:
                 logger.error(f"Error monitoring pipeline step build: {e}")
                 return False
@@ -408,15 +408,15 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
 def upload_pipeline_step(folder, skip_dockerfile=False):
     """
     Upload a pipeline step to Clarifai.
-    
+
     :param folder: The folder containing the pipeline step files.
     :param skip_dockerfile: If True, will not create a Dockerfile.
     """
     builder = PipelineStepBuilder(folder)
-    
+
     if not skip_dockerfile:
         builder.create_dockerfile()
-    
+
     exists = builder.check_pipeline_step_exists()
     if exists:
         logger.info(
@@ -428,7 +428,7 @@ def upload_pipeline_step(folder, skip_dockerfile=False):
         )
 
     input("Press Enter to continue...")
-    
+
     success = builder.upload_pipeline_step_version()
     if success:
         logger.info("Pipeline step upload completed successfully!")

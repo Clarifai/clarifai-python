@@ -5,7 +5,7 @@ from clarifai.versions import CLIENT_VERSION
 
 def get_config_template():
     """Get the config.yaml template for pipeline steps."""
-    return f"""pipeline_step:
+    return """pipeline_step:
   id: "text-classifier-train-upload-step"  # TODO: please fill in
   user_id: "your_user_id"  # TODO: please fill in
   app_id: "your_app_id"  # TODO: please fill in
@@ -38,30 +38,30 @@ This is a template for pipeline step implementation.
 
 class PipelineStepProcessor:
     """Template pipeline step processor class."""
-    
+
     def __init__(self):
         """Initialize the pipeline step processor."""
         pass
-    
+
     def load_pipeline_step(self):
         """Load any necessary resources for the pipeline step."""
         # TODO: Implement loading logic here
         pass
-    
+
     def process(self, param_a, param_b="default-param-b-value"):
         """
         Process the pipeline step with given parameters.
-        
+
         Args:
             param_a: First parameter
             param_b: Second parameter with default value
-            
+
         Returns:
             Processing result
         """
         # TODO: Implement your pipeline step logic here
         print(f"Processing with param_a: {param_a}, param_b: {param_b}")
-        
+
         # Example processing logic
         result = {
             "status": "success",
@@ -69,7 +69,7 @@ class PipelineStepProcessor:
             "param_b": param_b,
             "processed": True
         }
-        
+
         return result
 '''
 
