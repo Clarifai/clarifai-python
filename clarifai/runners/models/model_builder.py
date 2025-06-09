@@ -1172,7 +1172,7 @@ def setup_deployment_for_model(builder):
     if create_new_cc:
         # Provide URL to create a new compute cluster
         url_helper = ClarifaiUrlHelper()
-        compute_cluster_url = f"{url_helper.ui}/{user_id}/compute-clusters/new"
+        compute_cluster_url = f"{url_helper.ui}/settings/compute/new"
         logger.info(f"Please create a new compute cluster by visiting: {compute_cluster_url}")
 
         # Ask if they want to open the URL in browser
@@ -1242,7 +1242,7 @@ def setup_deployment_for_model(builder):
     if create_new_np:
         # Provide URL to create a new nodepool
         url_helper = ClarifaiUrlHelper()
-        nodepool_url = f"{url_helper.ui}/{user_id}/nodepools/new"
+        nodepool_url = f"{url_helper.ui}/settings/compute/{compute_cluster.id}/nodepools/new"
         logger.info(f"Please create a new nodepool by visiting: {nodepool_url}")
 
         # Ask if they want to open the URL in browser
@@ -1283,7 +1283,7 @@ def setup_deployment_for_model(builder):
     # Step 3: Help create a new deployment by providing URL
     # Provide URL to create a new deployment
     url_helper = ClarifaiUrlHelper()
-    deployment_url = f"{url_helper.ui}/{user_id}/{app_id}/models/{model_id}?tab=deployments"
+    deployment_url = f"{url_helper.ui}/settings/compute/deployments/new?computeClusterId={compute_cluster.id}&nodePoolId={nodepool.id}"
     logger.info(f"Please create a new deployment by visiting: {deployment_url}")
 
     # Ask if they want to open the URL in browser
