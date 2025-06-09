@@ -135,8 +135,9 @@ class OpenAIModelClass(ModelClass):
 
     @ModelClass.method
     def openai_stream_transport(self, msg: str) -> Iterator[str]:
-        """Process an OpenAI-compatible streaming request.
-        Currently only supports chat completions streaming.
+        """Process an OpenAI-compatible request and return a streaming response iterator.
+        This method is used when stream=True and returns an iterator of strings directly,
+        without converting to a list or JSON serializing. Supports chat completions and responses endpoints.
 
         Args:
             msg: The request as a JSON string.
