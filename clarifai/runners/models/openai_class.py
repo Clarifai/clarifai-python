@@ -141,11 +141,17 @@ class OpenAIModelClass(ModelClass):
             if endpoint != "/chat/completions" and endpoint != "/responses":
                 raise ValueError("Streaming is only supported for chat completions and responses.")
 
-            stream_output = self._route_request(endpoint, request_data)
-            for chunk in stream_output:
-                if endpoint == "/chat/completions":
+            if endpoint == "/responses":
+                # Handle responses endpoint
+                stream_response = self._route_request(endpoint, request_data)
+                for chunk in stream_response:
+                    yield json.dumps(chunk.model_dump())
+            else:
+                completion_args = self._create_completion_args(request_data)
+                stream_completion = self.client.chat.completions.create(**completion_args)
+                for chunk in stream_completion:
                     self._set_usage(chunk)
-                yield json.dumps(chunk.model_dump())
+                    yield json.dumps(chunk.model_dump())
 
         except Exception as e:
             yield f"Error: {e}"
