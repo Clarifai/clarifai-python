@@ -17,7 +17,6 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf import json_format
 
 from clarifai.client.base import BaseClient
-from clarifai.client.nodepool import Nodepool
 from clarifai.client.user import User
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.const import (
@@ -1175,22 +1174,22 @@ def setup_deployment_for_model(builder):
         url_helper = ClarifaiUrlHelper()
         compute_cluster_url = f"{url_helper.ui}/{user_id}/compute-clusters/new"
         logger.info(f"Please create a new compute cluster by visiting: {compute_cluster_url}")
-        
+
         input("After creating the compute cluster, press Enter to continue...")
-        
+
         # Re-fetch the compute clusters list after user has created one
         logger.info("Re-checking for available compute clusters...")
         compute_clusters = list(user.list_compute_clusters())
-        
+
         if not compute_clusters:
             logger.info("No compute clusters found. Please make sure you have created a compute cluster and try again.")
             return
-        
+
         # Show the updated list and let user choose
         logger.info("Available compute clusters:")
         for i, cc in enumerate(compute_clusters):
             logger.info(f"{i+1}. {cc.id} ({cc.description if hasattr(cc, 'description') else 'No description'})")
-        
+
         choice = input(f"Choose a compute cluster (1-{len(compute_clusters)}): ")
         try:
             idx = int(choice) - 1
@@ -1237,22 +1236,22 @@ def setup_deployment_for_model(builder):
         url_helper = ClarifaiUrlHelper()
         nodepool_url = f"{url_helper.ui}/{user_id}/nodepools/new"
         logger.info(f"Please create a new nodepool by visiting: {nodepool_url}")
-        
+
         input("After creating the nodepool, press Enter to continue...")
-        
+
         # Re-fetch the nodepools list after user has created one
         logger.info(f"Re-checking for available nodepools in compute cluster '{compute_cluster.id}'...")
         nodepools = list(compute_cluster.list_nodepools())
-        
+
         if not nodepools:
             logger.info("No nodepools found. Please make sure you have created a nodepool in the selected compute cluster and try again.")
             return
-        
+
         # Show the updated list and let user choose
         logger.info("Available nodepools:")
         for i, np in enumerate(nodepools):
             logger.info(f"{i+1}. {np.id} ({np.description if hasattr(np, 'description') else 'No description'})")
-        
+
         choice = input(f"Choose a nodepool (1-{len(nodepools)}): ")
         try:
             idx = int(choice) - 1
@@ -1265,60 +1264,19 @@ def setup_deployment_for_model(builder):
             logger.info("Invalid choice. Aborting deployment setup.")
             return
 
-    # Step 3: Create deployment for the model
-    deployment_id = input(f"Enter a name for the deployment (or press Enter for '{model_id}-deployment'): ")
-    if not deployment_id:
-        deployment_id = f"{model_id}-deployment"
+    # Step 3: Help create a new deployment by providing URL
+    # Provide URL to create a new deployment
+    url_helper = ClarifaiUrlHelper()
+    deployment_url = f"{url_helper.ui}/{user_id}/{app_id}/models/{model_id}?tab=deployments"
+    logger.info(f"Please create a new deployment by visiting: {deployment_url}")
 
-    # Setup worker config that points to the model
-    worker = {
-        "model": {
-            "id": model_id,
-            "model_version": {
-                "id": builder.model_version_id,
-            },
-            "user_id": user_id,
-            "app_id": app_id,
-        }
-    }
+    # Ask if they want to open the URL in browser
+    open_browser = input("Do you want to open the deployment creation page in your browser? (y/n): ")
+    if open_browser.lower() == 'y':
+        try:
+            webbrowser.open(deployment_url)
+        except Exception as e:
+            logger.error(f"Failed to open browser: {e}")
 
-    # Create deployment config
-    deployment_config = {
-        "deployment": {
-            "id": deployment_id,
-            "description": f"Deployment for {model_id}",
-            "scheduling_choice": 3,  # 3 means by price
-            "worker": worker,
-            "nodepools": [
-                {
-                    "id": nodepool.id,
-                    "compute_cluster": {
-                        "id": compute_cluster.id,
-                        "user_id": user_id
-                    }
-                }
-            ]
-        }
-    }
-
-    logger.info(f"Creating deployment '{deployment_id}'...")
-    try:
-        nodepool.create_deployment(deployment_config=deployment_config)
-        logger.info(f"Deployment '{deployment_id}' created successfully.")
-
-        # Construct and show URL to the user
-        ui_url = ClarifaiUrlHelper().ui
-        deployment_url = f"{ui_url}/{user_id}/{app_id}/models/{model_id}?tab=deployments"
-        logger.info(f"You can view your deployment at: {deployment_url}")
-
-        # Ask if they want to open the URL in browser
-        open_browser = input("Do you want to open the deployment in your browser? (y/n): ")
-        if open_browser.lower() == 'y':
-            try:
-                webbrowser.open(deployment_url)
-            except Exception as e:
-                logger.error(f"Failed to open browser: {e}")
-
-    except Exception as e:
-        logger.error(f"Failed to create deployment: {e}")
-        return
+    logger.info("After creating the deployment, your model will be ready for inference!")
+    logger.info(f"You can always return to view your deployments at: {deployment_url}")
