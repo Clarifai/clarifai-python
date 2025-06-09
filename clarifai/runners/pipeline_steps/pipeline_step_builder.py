@@ -295,40 +295,59 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
         # Then yield file content in chunks
         with open(file_path, "rb") as f:
             file_size = os.path.getsize(file_path)
-            chunk_size = int(127 * 1024 * 1024)  # 127MB chunk size
-            num_chunks = (file_size // chunk_size) + 1
+            chunk_size = int(14 * 1024 * 1024)  # 14MB chunk size (reduced from 127MB)
             logger.info("Uploading pipeline step content...")
             logger.debug(f"File size: {file_size}")
             logger.debug(f"Chunk size: {chunk_size}")
-            logger.debug(f"Number of chunks: {num_chunks}")
 
-            read_so_far = 0
-            for part_id in range(num_chunks):
+            offset = 0
+            part_id = 1
+            while offset < file_size:
                 try:
-                    chunk_size = min(chunk_size, file_size - read_so_far)
-                    chunk = f.read(chunk_size)
+                    current_chunk_size = min(chunk_size, file_size - offset)
+                    chunk = f.read(current_chunk_size)
                     if not chunk:
                         break
                     yield service_pb2.PostPipelineStepVersionsUploadRequest(
                         content_part=resources_pb2.UploadContentPart(
                             data=chunk,
-                            part_number=part_id + 1,
-                            range_start=read_so_far,
+                            part_number=part_id,
+                            range_start=offset,
                         )
                     )
-                    read_so_far += len(chunk)
+                    offset += len(chunk)
+                    part_id += 1
                 except Exception as e:
                     logger.exception(f"\nError uploading file: {e}")
                     break
 
-        if read_so_far == file_size:
+        if offset == file_size:
             logger.info("Upload complete!")
+
+    def _get_tar_file_content_size(self, tar_file_path):
+        """
+        Calculates the total size of the contents of a tar file.
+
+        Args:
+          tar_file_path (str): The path to the tar file.
+
+        Returns:
+          int: The total size of the contents in bytes.
+        """
+        total_size = 0
+        with tarfile.open(tar_file_path, 'r') as tar:
+            for member in tar:
+                if member.isfile():
+                    total_size += member.size
+        return total_size
 
     def _init_upload_pipeline_step_version(self, file_path):
         """Initialize the pipeline step version upload."""
         file_size = os.path.getsize(file_path)
+        storage_request_size = self._get_tar_file_content_size(file_path)
         logger.debug(f"Uploading pipeline step version of pipeline step {self.pipeline_step_id}")
         logger.debug(f"Using file '{os.path.basename(file_path)}' of size: {file_size} bytes")
+        logger.debug(f"Storage request size: {storage_request_size} bytes")
 
         # Build pipeline step input params
         input_params = []
@@ -345,29 +364,20 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                     param.accepted_values.extend(param_config["accepted_values"])
                 input_params.append(param)
 
-        # Create pipeline step version proto
-        pipeline_step_config = self.config["pipeline_step"]
+        # Create pipeline step version proto (without full pipeline step object)
         pipeline_step_version = resources_pb2.PipelineStepVersion(
-            pipeline_step=self.pipeline_step_proto,
-            user_id=pipeline_step_config["user_id"],
-            app_id=pipeline_step_config["app_id"],
+            description="Pipeline step version",
             pipeline_step_input_params=input_params,
             pipeline_step_compute_info=self.pipeline_step_compute_info
         )
 
-        # Build info from config
-        build_info = self.config.get('build_info', {})
-        if build_info:
-            version_build_info = resources_pb2.BuildInfo()
-            if 'python_version' in build_info:
-                version_build_info.python_version = build_info['python_version']
-            pipeline_step_version.build_info.CopyFrom(version_build_info)
-
         return service_pb2.PostPipelineStepVersionsUploadRequest(
-            config=service_pb2.PostPipelineStepVersionsUploadConfig(
+            upload_config=service_pb2.PostPipelineStepVersionsUploadConfig(
                 user_app_id=self.client.user_app_id,
+                pipeline_step_id=self.pipeline_step_id,
                 pipeline_step_version=pipeline_step_version,
-                total_size=file_size
+                total_size=file_size,
+                storage_request_size=storage_request_size
             )
         )
 
