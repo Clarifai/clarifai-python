@@ -12,6 +12,9 @@ from clarifai.client.base import BaseClient
 from clarifai.utils.logging import logger
 from clarifai.versions import CLIENT_VERSION
 
+# Upload chunk size for pipeline step versions (14MB)
+UPLOAD_CHUNK_SIZE = 14 * 1024 * 1024
+
 
 class PipelineStepBuilder:
     """Pipeline Step Builder class for managing pipeline step upload to Clarifai."""
@@ -295,7 +298,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
         # Then yield file content in chunks
         with open(file_path, "rb") as f:
             file_size = os.path.getsize(file_path)
-            chunk_size = int(14 * 1024 * 1024)  # 14MB chunk size (reduced from 127MB)
+            chunk_size = UPLOAD_CHUNK_SIZE
             logger.info("Uploading pipeline step content...")
             logger.debug(f"File size: {file_size}")
             logger.debug(f"Chunk size: {chunk_size}")
