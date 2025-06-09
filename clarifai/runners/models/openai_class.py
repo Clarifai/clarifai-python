@@ -20,6 +20,15 @@ class OpenAIModelClass(ModelClass):
             model = "gpt-4"
     """
 
+    # API Endpoints
+    ENDPOINT_CHAT_COMPLETIONS = "/chat/completions"
+    ENDPOINT_IMAGES_GENERATE = "/images/generations"
+    ENDPOINT_EMBEDDINGS = "/embeddings"
+    ENDPOINT_RESPONSES = "/responses"
+
+    # Default endpoint
+    DEFAULT_ENDPOINT = ENDPOINT_CHAT_COMPLETIONS
+
     # These should be overridden in subclasses
     client = None
     model = None
@@ -94,10 +103,10 @@ class OpenAIModelClass(ModelClass):
     def _route_request(self, endpoint: str, request_data: Dict[str, Any]):
         """Route the request to appropriate handler based on endpoint."""
         handlers = {
-            "/chat/completions": self._handle_chat_completions,
-            "/images/generations": self._handle_images_generate,
-            "/embeddings": self._handle_embeddings,
-            "/responses": self._handle_responses,
+            self.ENDPOINT_CHAT_COMPLETIONS: self._handle_chat_completions,
+            self.ENDPOINT_IMAGES_GENERATE: self._handle_images_generate,
+            self.ENDPOINT_EMBEDDINGS: self._handle_embeddings,
+            self.ENDPOINT_RESPONSES: self._handle_responses,
         }
 
         handler = handlers.get(endpoint)
@@ -118,7 +127,7 @@ class OpenAIModelClass(ModelClass):
         """
         try:
             request_data = json.loads(msg)
-            endpoint = request_data.pop("openai_endpoint", "/chat/completions")
+            endpoint = request_data.pop("openai_endpoint", self.DEFAULT_ENDPOINT)
             response = self._route_request(endpoint, request_data)
             return json.dumps(response.model_dump())
         except Exception as e:
@@ -137,11 +146,11 @@ class OpenAIModelClass(ModelClass):
         """
         try:
             request_data = json.loads(msg)
-            endpoint = request_data.pop("openai_endpoint", "/chat/completions")
-            if endpoint != "/chat/completions" and endpoint != "/responses":
+            endpoint = request_data.pop("openai_endpoint", self.DEFAULT_ENDPOINT)
+            if endpoint not in [self.ENDPOINT_CHAT_COMPLETIONS, self.ENDPOINT_RESPONSES]:
                 raise ValueError("Streaming is only supported for chat completions and responses.")
 
-            if endpoint == "/responses":
+            if endpoint == self.ENDPOINT_RESPONSES:
                 # Handle responses endpoint
                 stream_response = self._route_request(endpoint, request_data)
                 for chunk in stream_response:
