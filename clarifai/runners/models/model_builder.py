@@ -1121,6 +1121,7 @@ def upload_model(folder, stage, skip_dockerfile):
 
     # Setup deployment for the uploaded model
     setup_deployment_for_model(builder)
+
 def setup_deployment_for_model(builder):
     """
     Set up deployment for a model after upload.
@@ -1128,15 +1129,16 @@ def setup_deployment_for_model(builder):
     :param builder: The ModelBuilder instance that has uploaded the model.
     """
 
-    user_id = builder.user_id
-    app_id = builder.app_id
-    model_id = builder.model_id
+    model = builder.config.get('model')
+    user_id = model.get('user_id')
+    app_id = model.get('app_id')
+    model_id = model.get('id')
 
     # Set up the API client with the user's credentials
     user = User(
         user_id=user_id,
-        pat=builder._client._session.pat,
-        base_url=builder._client._session.base
+        pat=builder.client.pat,
+        base_url=builder.client.base
     )
 
     # Step 1: Check for available compute clusters and let user choose or create a new one
@@ -1256,6 +1258,9 @@ def setup_deployment_for_model(builder):
     worker = {
         "model": {
             "id": model_id,
+            "model_version": {
+                "id": builder.model_version_id,
+            },
             "user_id": user_id,
             "app_id": app_id,
         }
@@ -1266,6 +1271,7 @@ def setup_deployment_for_model(builder):
         "deployment": {
             "id": deployment_id,
             "description": f"Deployment for {model_id}",
+            "scheduling_choice": 3,  # 3 means by price
             "worker": worker,
             "nodepools": [
                 {
@@ -1281,18 +1287,12 @@ def setup_deployment_for_model(builder):
 
     logger.info(f"Creating deployment '{deployment_id}'...")
     try:
-        np_client = Nodepool(
-            nodepool_id=nodepool.id,
-            user_id=user_id,
-            pat=builder._client._session.pat,
-            base_url=builder._client._session.base
-        )
-        np_client.create_deployment(deployment_config)
+        nodepool.create_deployment(deployment_config=deployment_config)
         logger.info(f"Deployment '{deployment_id}' created successfully.")
 
         # Construct and show URL to the user
-        ui_url = ClarifaiUrlHelper.ui_url(builder._client._session.base)
-        deployment_url = f"{ui_url}/users/{user_id}/apps/{app_id}/deployments/{deployment_id}"
+        ui_url = ClarifaiUrlHelper().ui
+        deployment_url = f"{ui_url}/{user_id}/{app_id}/models/{model_id}?tab=deployments"
         logger.info(f"You can view your deployment at: {deployment_url}")
 
         # Ask if they want to open the URL in browser
