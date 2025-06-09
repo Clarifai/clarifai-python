@@ -309,7 +309,6 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                     chunk = f.read(chunk_size)
                     if not chunk:
                         break
-                    read_so_far += len(chunk)
                     yield service_pb2.PostPipelineStepVersionsUploadRequest(
                         content_part=resources_pb2.UploadContentPart(
                             data=chunk,
@@ -317,6 +316,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                             range_start=read_so_far,
                         )
                     )
+                    read_so_far += len(chunk)
                 except Exception as e:
                     logger.exception(f"\nError uploading file: {e}")
                     break
