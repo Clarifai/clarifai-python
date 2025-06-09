@@ -1121,6 +1121,7 @@ def upload_model(folder, stage, skip_dockerfile):
     # Setup deployment for the uploaded model
     setup_deployment_for_model(builder)
 
+
 def setup_deployment_for_model(builder):
     """
     Set up deployment for a model after upload.
@@ -1134,11 +1135,7 @@ def setup_deployment_for_model(builder):
     model_id = model.get('id')
 
     # Set up the API client with the user's credentials
-    user = User(
-        user_id=user_id,
-        pat=builder.client.pat,
-        base_url=builder.client.base
-    )
+    user = User(user_id=user_id, pat=builder.client.pat, base_url=builder.client.base)
 
     # Step 1: Check for available compute clusters and let user choose or create a new one
     logger.info("Checking for available compute clusters...")
@@ -1148,9 +1145,13 @@ def setup_deployment_for_model(builder):
     if compute_clusters:
         logger.info("Available compute clusters:")
         for i, cc in enumerate(compute_clusters):
-            logger.info(f"{i+1}. {cc.id} ({cc.description if hasattr(cc, 'description') else 'No description'})")
+            logger.info(
+                f"{i + 1}. {cc.id} ({cc.description if hasattr(cc, 'description') else 'No description'})"
+            )
 
-        choice = input(f"Choose a compute cluster (1-{len(compute_clusters)}) or 'n' to create a new one: ")
+        choice = input(
+            f"Choose a compute cluster (1-{len(compute_clusters)}) or 'n' to create a new one: "
+        )
         if choice.lower() == 'n':
             create_new_cc = True
         else:
@@ -1176,7 +1177,9 @@ def setup_deployment_for_model(builder):
         logger.info(f"Please create a new compute cluster by visiting: {compute_cluster_url}")
 
         # Ask if they want to open the URL in browser
-        open_browser = input("Do you want to open the compute cluster creation page in your browser? (y/n): ")
+        open_browser = input(
+            "Do you want to open the compute cluster creation page in your browser? (y/n): "
+        )
         if open_browser.lower() == 'y':
             try:
                 webbrowser.open(compute_cluster_url)
@@ -1190,13 +1193,17 @@ def setup_deployment_for_model(builder):
         compute_clusters = list(user.list_compute_clusters())
 
         if not compute_clusters:
-            logger.info("No compute clusters found. Please make sure you have created a compute cluster and try again.")
+            logger.info(
+                "No compute clusters found. Please make sure you have created a compute cluster and try again."
+            )
             return
 
         # Show the updated list and let user choose
         logger.info("Available compute clusters:")
         for i, cc in enumerate(compute_clusters):
-            logger.info(f"{i+1}. {cc.id} ({cc.description if hasattr(cc, 'description') else 'No description'})")
+            logger.info(
+                f"{i + 1}. {cc.id} ({cc.description if hasattr(cc, 'description') else 'No description'})"
+            )
 
         choice = input(f"Choose a compute cluster (1-{len(compute_clusters)}): ")
         try:
@@ -1218,7 +1225,9 @@ def setup_deployment_for_model(builder):
     if nodepools:
         logger.info("Available nodepools:")
         for i, np in enumerate(nodepools):
-            logger.info(f"{i+1}. {np.id} ({np.description if hasattr(np, 'description') else 'No description'})")
+            logger.info(
+                f"{i + 1}. {np.id} ({np.description if hasattr(np, 'description') else 'No description'})"
+            )
 
         choice = input(f"Choose a nodepool (1-{len(nodepools)}) or 'n' to create a new one: ")
         if choice.lower() == 'n':
@@ -1246,7 +1255,9 @@ def setup_deployment_for_model(builder):
         logger.info(f"Please create a new nodepool by visiting: {nodepool_url}")
 
         # Ask if they want to open the URL in browser
-        open_browser = input("Do you want to open the nodepool creation page in your browser? (y/n): ")
+        open_browser = input(
+            "Do you want to open the nodepool creation page in your browser? (y/n): "
+        )
         if open_browser.lower() == 'y':
             try:
                 webbrowser.open(nodepool_url)
@@ -1256,17 +1267,23 @@ def setup_deployment_for_model(builder):
         input("After creating the nodepool, press Enter to continue...")
 
         # Re-fetch the nodepools list after user has created one
-        logger.info(f"Re-checking for available nodepools in compute cluster '{compute_cluster.id}'...")
+        logger.info(
+            f"Re-checking for available nodepools in compute cluster '{compute_cluster.id}'..."
+        )
         nodepools = list(compute_cluster.list_nodepools())
 
         if not nodepools:
-            logger.info("No nodepools found. Please make sure you have created a nodepool in the selected compute cluster and try again.")
+            logger.info(
+                "No nodepools found. Please make sure you have created a nodepool in the selected compute cluster and try again."
+            )
             return
 
         # Show the updated list and let user choose
         logger.info("Available nodepools:")
         for i, np in enumerate(nodepools):
-            logger.info(f"{i+1}. {np.id} ({np.description if hasattr(np, 'description') else 'No description'})")
+            logger.info(
+                f"{i + 1}. {np.id} ({np.description if hasattr(np, 'description') else 'No description'})"
+            )
 
         choice = input(f"Choose a nodepool (1-{len(nodepools)}): ")
         try:
@@ -1287,7 +1304,9 @@ def setup_deployment_for_model(builder):
     logger.info(f"Please create a new deployment by visiting: {deployment_url}")
 
     # Ask if they want to open the URL in browser
-    open_browser = input("Do you want to open the deployment creation page in your browser? (y/n): ")
+    open_browser = input(
+        "Do you want to open the deployment creation page in your browser? (y/n): "
+    )
     if open_browser.lower() == 'y':
         try:
             webbrowser.open(deployment_url)
