@@ -63,7 +63,7 @@ class OpenAIModelClass(ModelClass):
                 completion_tokens=resp.usage.completion_tokens,
             )
 
-    def _handle_chat_completions(self, request_data: Dict[str, Any], stream: bool = False):
+    def _handle_chat_completions(self, request_data: Dict[str, Any]):
         """Handle chat completion requests."""
         completion_args = self._create_completion_args(request_data)
         completion = self.client.chat.completions.create(**completion_args)
@@ -88,14 +88,14 @@ class OpenAIModelClass(ModelClass):
         """Handle response requests."""
         response_args = {**request_data}
         response_args.update({"model": self.model})
-        response = self.client.responses.list(**response_args)
+        response = self.client.responses.create(**response_args)
         return response
 
-    def _route_request(self, endpoint: str, request_data: Dict[str, Any], stream: bool = False):
+    def _route_request(self, endpoint: str, request_data: Dict[str, Any]):
         """Route the request to appropriate handler based on endpoint."""
         handlers = {
             "/chat/completions": self._handle_chat_completions,
-            "/images/generate": self._handle_images_generate,
+            "/images/generations": self._handle_images_generate,
             "/embeddings": self._handle_embeddings,
             "/responses": self._handle_responses,
         }
@@ -104,11 +104,7 @@ class OpenAIModelClass(ModelClass):
         if not handler:
             raise ValueError(f"Unsupported endpoint: {endpoint}")
 
-        return (
-            handler(request_data, stream)
-            if endpoint == "/chat/completions"
-            else handler(request_data)
-        )
+        return handler(request_data)
 
     @ModelClass.method
     def openai_transport(self, msg: str) -> str:
@@ -142,12 +138,13 @@ class OpenAIModelClass(ModelClass):
         try:
             request_data = json.loads(msg)
             endpoint = request_data.pop("openai_endpoint", "/chat/completions")
-            if endpoint != "/chat/completions":
-                raise ValueError("Streaming is only supported for chat completions")
+            if endpoint != "/chat/completions" and endpoint != "/responses":
+                raise ValueError("Streaming is only supported for chat completions and responses.")
 
-            completion_stream = self._route_request(endpoint, request_data, stream=True)
-            for chunk in completion_stream:
-                self._set_usage(chunk)
+            stream_output = self._route_request(endpoint, request_data)
+            for chunk in stream_output:
+                if endpoint == "/chat/completions":
+                    self._set_usage(chunk)
                 yield json.dumps(chunk.model_dump())
 
         except Exception as e:
