@@ -1175,6 +1175,14 @@ def setup_deployment_for_model(builder):
         compute_cluster_url = f"{url_helper.ui}/{user_id}/compute-clusters/new"
         logger.info(f"Please create a new compute cluster by visiting: {compute_cluster_url}")
 
+        # Ask if they want to open the URL in browser
+        open_browser = input("Do you want to open the compute cluster creation page in your browser? (y/n): ")
+        if open_browser.lower() == 'y':
+            try:
+                webbrowser.open(compute_cluster_url)
+            except Exception as e:
+                logger.error(f"Failed to open browser: {e}")
+
         input("After creating the compute cluster, press Enter to continue...")
 
         # Re-fetch the compute clusters list after user has created one
@@ -1236,6 +1244,14 @@ def setup_deployment_for_model(builder):
         url_helper = ClarifaiUrlHelper()
         nodepool_url = f"{url_helper.ui}/{user_id}/nodepools/new"
         logger.info(f"Please create a new nodepool by visiting: {nodepool_url}")
+
+        # Ask if they want to open the URL in browser
+        open_browser = input("Do you want to open the nodepool creation page in your browser? (y/n): ")
+        if open_browser.lower() == 'y':
+            try:
+                webbrowser.open(nodepool_url)
+            except Exception as e:
+                logger.error(f"Failed to open browser: {e}")
 
         input("After creating the nodepool, press Enter to continue...")
 
