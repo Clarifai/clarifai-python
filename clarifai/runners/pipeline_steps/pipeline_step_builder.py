@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import tarfile
 import time
@@ -387,41 +388,84 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
             )
         )
 
-    def _monitor_pipeline_step_build(self):
-        """Monitor the pipeline step build process."""
+    def _monitor_pipeline_step_build(self, timeout_sec=300, interval_sec=1):
+        """
+        Monitor the pipeline step build process with timeout and log display.
+
+        :param timeout_sec: Maximum time to wait for build completion (default 300 seconds)
+        :param interval_sec: Interval between status checks (default 1 second)
+        :return: True if build successful, False otherwise
+        """
+        max_checks = timeout_sec // interval_sec
+        seen_logs = set()  # To avoid duplicate log messages
         st = time.time()
-        while True:
+
+        for _ in range(max_checks):
+            print(
+                f"Pipeline Step is building... (elapsed {time.time() - st:.1f}s)", 
+                end='\r', 
+                flush=True
+            )
+
             try:
-                resp = self.client.STUB.GetPipelineStepVersion(
+                response = self.client.STUB.GetPipelineStepVersion(
                     service_pb2.GetPipelineStepVersionRequest(
                         user_app_id=self.client.user_app_id,
                         pipeline_step_id=self.pipeline_step_id,
-                        version_id=self.pipeline_step_version_id,
-                    )
+                        pipeline_step_version_id=self.pipeline_step_version_id,
+                    ),
+                    metadata=self.client.auth_helper.metadata,
+                )
+                logger.debug(f"GetPipelineStepVersion Response: {response}")
+
+                # Fetch and display build logs
+                logs_request = service_pb2.ListLogEntriesRequest(
+                    log_type="builder",
+                    user_app_id=self.client.user_app_id,
+                    pipeline_step_id=self.pipeline_step_id,
+                    pipeline_step_version_id=self.pipeline_step_version_id,
+                    page=1,
+                    per_page=50,
+                )
+                logs = self.client.STUB.ListLogEntries(
+                    logs_request, 
+                    metadata=self.client.auth_helper.metadata
                 )
 
-                status_code = resp.pipeline_step_version.status.code
+                for log_entry in logs.log_entries:
+                    if log_entry.url not in seen_logs:
+                        seen_logs.add(log_entry.url)
+                        log_entry_msg = re.sub(
+                            r"(\\*)(\[[a-z#/@][^[]*?])",
+                            lambda m: f"{m.group(1)}{m.group(1)}\\{m.group(2)}",
+                            log_entry.message.strip(),
+                        )
+                        logger.info(log_entry_msg)
 
-                if status_code == status_code_pb2.PIPELINE_STEP_BUILDING:
-                    print(
-                        f"Pipeline step is building... (elapsed {time.time() - st:.1f}s)", 
-                        end='\r', 
-                        flush=True
-                    )
-                    time.sleep(1)
-                elif status_code == status_code_pb2.PIPELINE_STEP_READY:
-                    logger.info("\nPipeline step build complete!")
-                    logger.info(f"Build time elapsed {time.time() - st:.1f}s")
-                    return True
-                else:
-                    logger.error(
-                        f"\nPipeline step build failed with status: {resp.pipeline_step_version.status}"
-                    )
-                    return False
+                status = response.pipeline_step_version.status.code
+                if status in {
+                    status_code_pb2.StatusCode.PIPELINE_STEP_READY,
+                    status_code_pb2.StatusCode.PIPELINE_STEP_BUILDING_FAILED,
+                    status_code_pb2.StatusCode.PIPELINE_STEP_BUILD_UNEXPECTED_ERROR,
+                    status_code_pb2.StatusCode.INTERNAL_UNCATEGORIZED,
+                }:
+                    if status == status_code_pb2.StatusCode.PIPELINE_STEP_READY:
+                        logger.info("\nPipeline step build complete!")
+                        logger.info(f"Build time elapsed {time.time() - st:.1f}s")
+                        return True
+                    else:
+                        logger.error(
+                            f"\nPipeline step build failed with status: {response.pipeline_step_version.status}"
+                        )
+                        return False
+
+                time.sleep(interval_sec)
 
             except Exception as e:
                 logger.error(f"Error monitoring pipeline step build: {e}")
                 return False
+
+        raise TimeoutError("Pipeline step build did not finish in time")
 
 
 def upload_pipeline_step(folder, skip_dockerfile=False):
