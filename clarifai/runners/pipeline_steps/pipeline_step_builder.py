@@ -10,6 +10,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 
 from clarifai.client.base import BaseClient
 from clarifai.utils.logging import logger
+from clarifai.utils.misc import get_uuid
 from clarifai.versions import CLIENT_VERSION
 
 # Upload chunk size for pipeline step versions (14MB)
@@ -367,8 +368,10 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                     param.accepted_values.extend(param_config["accepted_values"])
                 input_params.append(param)
 
-        # Create pipeline step version proto (without full pipeline step object)
+        # Create pipeline step version proto with generated ID
+        version_id = get_uuid(16)  # Generate a 16-character UUID
         pipeline_step_version = resources_pb2.PipelineStepVersion(
+            id=version_id,
             description="Pipeline step version",
             pipeline_step_input_params=input_params,
             pipeline_step_compute_info=self.pipeline_step_compute_info
