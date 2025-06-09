@@ -1171,26 +1171,36 @@ def setup_deployment_for_model(builder):
         create_new_cc = True
 
     if create_new_cc:
-        cc_id = input("Enter a name for the new compute cluster: ")
-        if not cc_id:
-            logger.info("Empty compute cluster ID provided. Aborting deployment setup.")
+        # Provide URL to create a new compute cluster
+        url_helper = ClarifaiUrlHelper()
+        compute_cluster_url = f"{url_helper.ui}/{user_id}/compute-clusters/new"
+        logger.info(f"Please create a new compute cluster by visiting: {compute_cluster_url}")
+        
+        input("After creating the compute cluster, press Enter to continue...")
+        
+        # Re-fetch the compute clusters list after user has created one
+        logger.info("Re-checking for available compute clusters...")
+        compute_clusters = list(user.list_compute_clusters())
+        
+        if not compute_clusters:
+            logger.info("No compute clusters found. Please make sure you have created a compute cluster and try again.")
             return
-
-        # Simple compute cluster config with defaults
-        cc_config = {
-            "compute_cluster": {
-                "id": cc_id,
-                "cluster_type": "users",
-                "description": f"Compute cluster for {model_id}",
-            }
-        }
-
-        logger.info(f"Creating new compute cluster '{cc_id}'...")
+        
+        # Show the updated list and let user choose
+        logger.info("Available compute clusters:")
+        for i, cc in enumerate(compute_clusters):
+            logger.info(f"{i+1}. {cc.id} ({cc.description if hasattr(cc, 'description') else 'No description'})")
+        
+        choice = input(f"Choose a compute cluster (1-{len(compute_clusters)}): ")
         try:
-            compute_cluster = user.create_compute_cluster(cc_config)
-            logger.info(f"Compute cluster '{cc_id}' created successfully.")
-        except Exception as e:
-            logger.error(f"Failed to create compute cluster: {e}")
+            idx = int(choice) - 1
+            if 0 <= idx < len(compute_clusters):
+                compute_cluster = compute_clusters[idx]
+            else:
+                logger.info("Invalid choice. Aborting deployment setup.")
+                return
+        except ValueError:
+            logger.info("Invalid choice. Aborting deployment setup.")
             return
 
     # Step 2: Check for available nodepools and let user choose or create a new one
@@ -1223,30 +1233,36 @@ def setup_deployment_for_model(builder):
         create_new_np = True
 
     if create_new_np:
-        np_id = input("Enter a name for the new nodepool: ")
-        if not np_id:
-            logger.info("Empty nodepool ID provided. Aborting deployment setup.")
+        # Provide URL to create a new nodepool
+        url_helper = ClarifaiUrlHelper()
+        nodepool_url = f"{url_helper.ui}/{user_id}/nodepools/new"
+        logger.info(f"Please create a new nodepool by visiting: {nodepool_url}")
+        
+        input("After creating the nodepool, press Enter to continue...")
+        
+        # Re-fetch the nodepools list after user has created one
+        logger.info(f"Re-checking for available nodepools in compute cluster '{compute_cluster.id}'...")
+        nodepools = list(compute_cluster.list_nodepools())
+        
+        if not nodepools:
+            logger.info("No nodepools found. Please make sure you have created a nodepool in the selected compute cluster and try again.")
             return
-
-        # Simple nodepool config with defaults
-        np_config = {
-            "nodepool": {
-                "id": np_id,
-                "description": f"Nodepool for {model_id}",
-                "compute_cluster": {
-                    "id": compute_cluster.id,
-                    "user_id": user_id
-                },
-                "instance_count": 1
-            }
-        }
-
-        logger.info(f"Creating new nodepool '{np_id}'...")
+        
+        # Show the updated list and let user choose
+        logger.info("Available nodepools:")
+        for i, np in enumerate(nodepools):
+            logger.info(f"{i+1}. {np.id} ({np.description if hasattr(np, 'description') else 'No description'})")
+        
+        choice = input(f"Choose a nodepool (1-{len(nodepools)}): ")
         try:
-            nodepool = compute_cluster.create_nodepool(np_config)
-            logger.info(f"Nodepool '{np_id}' created successfully.")
-        except Exception as e:
-            logger.error(f"Failed to create nodepool: {e}")
+            idx = int(choice) - 1
+            if 0 <= idx < len(nodepools):
+                nodepool = nodepools[idx]
+            else:
+                logger.info("Invalid choice. Aborting deployment setup.")
+                return
+        except ValueError:
+            logger.info("Invalid choice. Aborting deployment setup.")
             return
 
     # Step 3: Create deployment for the model
