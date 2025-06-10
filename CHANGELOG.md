@@ -1,3 +1,10 @@
+## [[11.5.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.0) - [PyPI](https://pypi.org/project/clarifai/11.5.0/) - 2025-06-10
+
+### Changed
+- Removed an unused parameter in VisualClassifier class  [(#622)] (https://github.com/Clarifai/clarifai-python/pull/622)
+- Add support to `/responses`, `/embeddings`, and `/images/generations` endpoints to the OpenAI class  [(#619)] (https://github.com/Clarifai/clarifai-python/pull/619)
+- Fixed data display issue and updated openai params  [(#618)] (https://github.com/Clarifai/clarifai-python/pull/618)
+
 ## [[11.4.10]](https://github.com/Clarifai/clarifai-python/releases/tag/11.4.10) - [PyPI](https://pypi.org/project/clarifai/11.4.10/) - 2025-05-30
 
 ### Changed
