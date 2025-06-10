@@ -52,15 +52,15 @@ def create_app():
 
 
 @pytest.fixture(scope="module")
-def clarifai_app():
+async def clarifai_app():
     """
     Fixture to create and clean up a Clarifai app before/after running the tests.
     """
-    app_id, user = create_app()
+    app_id, user = await create_app()
     yield app_id  # Provide the app_id to the tests
     # Cleanup: delete the app after tests
     try:
-        user.delete_app(app_id=app_id)
+        await user.delete_app(app_id=app_id)
         print(f"Deleted app '{app_id}' successfully.")
     except Exception as e:
         print(f"Failed to delete app '{app_id}': {e}")
