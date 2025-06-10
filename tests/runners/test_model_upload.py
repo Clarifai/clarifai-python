@@ -4,7 +4,6 @@ import uuid
 from pathlib import Path
 
 import pytest
-import pytest_asyncio
 import yaml
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
@@ -52,16 +51,16 @@ def create_app():
     return CREATE_APP_ID, user
 
 
-@pytest_asyncio.fixture(scope="module")
-async def clarifai_app():
+@pytest.fixture(scope="module")
+def clarifai_app():
     """
     Fixture to create and clean up a Clarifai app before/after running the tests.
     """
-    app_id, user = await create_app()
+    app_id, user = create_app()
     yield app_id  # Provide the app_id to the tests
     # Cleanup: delete the app after tests
     try:
-        await user.delete_app(app_id=app_id)
+        user.delete_app(app_id=app_id)
         print(f"Deleted app '{app_id}' successfully.")
     except Exception as e:
         print(f"Failed to delete app '{app_id}': {e}")
