@@ -1,4 +1,5 @@
 pytest==7.1.2
+pytest-asyncio
 pytest-cov==5.0.0
 pytest-xdist==2.5.0
 llama-index-core==0.12.33
