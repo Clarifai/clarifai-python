@@ -4,6 +4,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
 import yaml
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
@@ -51,7 +52,7 @@ def create_app():
     return CREATE_APP_ID, user
 
 
-@pytest.fixture(scope="module")
+@pytest_asyncio.fixture(scope="module")
 async def clarifai_app():
     """
     Fixture to create and clean up a Clarifai app before/after running the tests.
