@@ -4,6 +4,7 @@ import inspect
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tarfile
 import time
@@ -563,6 +564,42 @@ class ModelBuilder:
                 dependencies_version[dependency] = version if version else None
         return dependencies_version
 
+    def _validate_requirements(self, python_version):
+        """here we use uv pip compile to validate the requirements.txt file
+        and ensure that the dependencies are compatible with each other prior to uploading
+        """
+        if not os.path.exists(os.path.join(self.folder, 'requirements.txt')):
+            raise FileNotFoundError(
+                "requirements.txt not found in the folder, please provide a valid requirements.txt file"
+            )
+        path = os.path.join(self.folder, 'requirements.txt')
+        # run the f"uv pip compile {path} --universal" command to validate the requirements.txt file
+        if not shutil.which('uv'):
+            raise Exception(
+                "uv command not found, please install uv to validate the requirements.txt file"
+            )
+        logger.info(f"Setup: Validating requirements.txt file at {path} using uv pip compile")
+        # Don't log the output of the comment unless it errors.
+        result = subprocess.run(
+            f"uv pip compile {path} --universal --python {python_version} --no-header  --no-emit-index-url",
+            shell=True,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            logger.error(f"Error validating requirements.txt file: {result.stderr}")
+            logger.error(
+                "Failed to validate the requirements.txt file, please check the file for errors"
+            )
+            logger.error("Output: " + result.stdout)
+            # If we have an error, raise an exception.
+            return False
+        else:
+            logger.info("Setup: Requirements.txt file validated successfully")
+            # If we have no error, we can just return.
+            return True
+
     def _is_amd(self):
         """
         Check if the model is AMD or not.
@@ -582,10 +619,49 @@ class ModelBuilder:
                 "Both AMD and NVIDIA GPUs are specified in the config file, please use only one type of GPU."
             )
         if is_amd_gpu:
-            logger.info("Using AMD base image to build the Docker image and upload the model")
+            logger.info(
+                "Setup: Using AMD base image to build the Docker image and upload the model"
+            )
         elif is_nvidia_gpu:
-            logger.info("Using NVIDIA base image to build the Docker image and upload the model")
+            logger.info(
+                "Setup: Using NVIDIA base image to build the Docker image and upload the model"
+            )
         return is_amd_gpu
+
+    def _lint_python_code(self):
+        """
+        Lint the python code in the model.py file using flake8.
+        This will help catch any simple bugs in the code before uploading it to the API.
+        """
+        if not shutil.which('ruff'):
+            raise Exception("ruff command not found, please install ruff to lint the python code")
+        # List all the python files in the /1/ folder recursively and lint them.
+        python_files = []
+        for root, _, files in os.walk(os.path.join(self.folder, '1')):
+            for file in files:
+                if file.endswith('.py'):
+                    python_files.append(os.path.join(root, file))
+        if not python_files:
+            logger.info("No Python files found to lint, skipping linting step.")
+        else:
+            logger.info(f"Setup: Linting Python files: {python_files}")
+        # Run ruff to lint the python code.
+        command = "ruff check --select=F"
+        result = subprocess.run(
+            f"{command} {' '.join(python_files)}",
+            shell=True,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            logger.error(f"Error linting Python code: {result.stderr}")
+            logger.error("Output: " + result.stdout)
+            logger.error(
+                f"Failed to lint the Python code, please check the code for errors using '{command}' so you don't have simple errors in your code prior to upload."
+            )
+        else:
+            logger.info("Setup: Python code linted successfully, no errors found.")
 
     def create_dockerfile(self):
         dockerfile_template = os.path.join(
@@ -609,13 +685,20 @@ class ModelBuilder:
                 )
 
             logger.info(
-                f"Using Python version {python_version} from the config file to build the Dockerfile"
+                f"Setup: Using Python version {python_version} from the config file to build the Dockerfile"
             )
         else:
             logger.info(
-                f"Python version not found in the config file, using default Python version: {DEFAULT_PYTHON_VERSION}"
+                f"Setup: Python version not found in the config file, using default Python version: {DEFAULT_PYTHON_VERSION}"
             )
             python_version = DEFAULT_PYTHON_VERSION
+
+        # Before we bother even picking the right base image, let's use uv to validate
+        # that the requirements.txt file is valid and compatible.
+        self._validate_requirements(python_version)
+
+        # Make sure any python code will not have simple bugs by linting it first.
+        self._lint_python_code()
 
         # Parse the requirements.txt file to determine the base image
         dependencies = self._parse_requirements()
@@ -637,7 +720,7 @@ class ModelBuilder:
                         )
                     if not torch_version:
                         logger.info(
-                            f"torch version not found in requirements.txt, using the default version {DEFAULT_AMD_TORCH_VERSION}"
+                            f"Setup: torch version not found in requirements.txt, using the default version {DEFAULT_AMD_TORCH_VERSION}"
                         )
                         torch_version = DEFAULT_AMD_TORCH_VERSION
                     if torch_version not in [DEFAULT_AMD_TORCH_VERSION]:
@@ -651,7 +734,7 @@ class ModelBuilder:
                     python_version=python_version,
                     gpu_version=gpu_version,
                 )
-                logger.info("Using vLLM base image to build the Docker image")
+                logger.info("Setup: Using vLLM base image to build the Docker image")
             elif 'torch' in dependencies:
                 torch_version = dependencies['torch']
                 if python_version != DEFAULT_PYTHON_VERSION:
@@ -675,7 +758,7 @@ class ModelBuilder:
                     gpu_version=gpu_version,
                 )
                 logger.info(
-                    f"Using Torch version {torch_version} base image to build the Docker image"
+                    f"Setup: Using Torch version {torch_version} base image to build the Docker image"
                 )
         else:
             final_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
@@ -684,6 +767,8 @@ class ModelBuilder:
                 torch_version = dependencies['torch']
                 # Sort in reverse so that newer cuda versions come first and are preferred.
                 for image in sorted(AVAILABLE_TORCH_IMAGES, reverse=True):
+                    if image.find('rocm') >= 0:
+                        continue  # skip ROCm images as those are handled above.
                     if torch_version in image and f'py{python_version}' in image:
                         # like cu124, rocm6.3, etc.
                         gpu_version = image.split('-')[-1]
@@ -693,7 +778,7 @@ class ModelBuilder:
                             gpu_version=gpu_version,
                         )
                         logger.info(
-                            f"Using Torch version {torch_version} base image to build the Docker image"
+                            f"Setup: Using Torch version {torch_version} base image to build the Docker image"
                         )
                         break
         if 'clarifai' not in dependencies:
