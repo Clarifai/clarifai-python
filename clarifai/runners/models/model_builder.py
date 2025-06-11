@@ -4,6 +4,7 @@ import inspect
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tarfile
 import time
@@ -563,6 +564,42 @@ class ModelBuilder:
                 dependencies_version[dependency] = version if version else None
         return dependencies_version
 
+    def _validate_requirements(self):
+        """here we use uv pip compile to validate the requirements.txt file
+        and ensure that the dependencies are compatible with each other prior to uploading
+        """
+        if not os.path.exists(os.path.join(self.folder, 'requirements.txt')):
+            raise FileNotFoundError(
+                "requirements.txt not found in the folder, please provide a valid requirements.txt file"
+            )
+        path = os.path.join(self.folder, 'requirements.txt')
+        # run the f"uv pip compile {path} --universal" command to validate the requirements.txt file
+        if not shutil.which('uv'):
+            raise Exception(
+                "uv command not found, please install uv to validate the requirements.txt file"
+            )
+        logger.info(f"Validating requirements.txt file at {path} using uv pip compile")
+        # Don't log the output of the comment unless it errors.
+        result = subprocess.run(
+            f"uv pip compile {path} --universal --no-header  --no-emit-index-url",
+            shell=True,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            logger.error(f"Error validating requirements.txt file: {result.stderr}")
+            logger.error(
+                "Failed to validate the requirements.txt file, please check the file for errors"
+            )
+            logger.error("Output: " + result.stdout)
+            # If we have an error, raise an exception.
+            return False
+        else:
+            logger.info("Requirements.txt file validated successfully")
+            # If we have no error, we can just return.
+            return True
+
     def _is_amd(self):
         """
         Check if the model is AMD or not.
@@ -587,7 +624,49 @@ class ModelBuilder:
             logger.info("Using NVIDIA base image to build the Docker image and upload the model")
         return is_amd_gpu
 
+    def _lint_python_code(self):
+        """
+        Lint the python code in the model.py file using flake8.
+        This will help catch any simple bugs in the code before uploading it to the API.
+        """
+        if not shutil.which('ruff'):
+            raise Exception("ruff command not found, please install ruff to lint the python code")
+        # List all the python files in the /1/ folder recursively and lint them.
+        python_files = []
+        for root, _, files in os.walk(os.path.join(self.folder, '1')):
+            for file in files:
+                if file.endswith('.py'):
+                    python_files.append(os.path.join(root, file))
+        if not python_files:
+            logger.info("No Python files found to lint, skipping linting step.")
+        else:
+            logger.info(f"Linting Python files: {python_files}")
+        # Run ruff to lint the python code.
+        command = "ruff check --select=F"
+        result = subprocess.run(
+            f"{command} {' '.join(python_files)}",
+            shell=True,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            logger.error(f"Error linting Python code: {result.stderr}")
+            logger.error("Output: " + result.stdout)
+            logger.error(
+                f"Failed to lint the Python code, please check the code for errors using '{command}' so you don't have simple errors in your code prior to upload."
+            )
+        else:
+            logger.info("Python code linted successfully, no errors found.")
+
     def create_dockerfile(self):
+        # Before we bother even picking the right base image, let's use uv to validate
+        # that the requirements.txt file is valid and compatible.
+        self._validate_requirements()
+
+        # Make sure any python code will not have simple bugs by linting it first.
+        self._lint_python_code()
+
         dockerfile_template = os.path.join(
             os.path.dirname(os.path.dirname(__file__)),
             'dockerfile_template',
@@ -684,6 +763,8 @@ class ModelBuilder:
                 torch_version = dependencies['torch']
                 # Sort in reverse so that newer cuda versions come first and are preferred.
                 for image in sorted(AVAILABLE_TORCH_IMAGES, reverse=True):
+                    if image.find('rocm') >= 0:
+                        continue  # skip ROCm images as those are handled above.
                     if torch_version in image and f'py{python_version}' in image:
                         # like cu124, rocm6.3, etc.
                         gpu_version = image.split('-')[-1]
