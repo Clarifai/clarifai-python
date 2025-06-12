@@ -474,8 +474,13 @@ class App(Lister, BaseClient):
                     app_id=node['model'].get('app_id', self.user_app_id.app_id),
                 )
             except Exception as e:
-                self.logger.error(f"Error getting model {node['model']['model_id']}: {e}")
-                raise
+                if "Model does not exist" in str(e):
+                    model = self.create_model(
+                        **{k: v for k, v in node['model'].items() if k != 'output_info'}
+                    )
+                    model_version = model.create_version(output_info=output_info)
+                    all_models.append(model_version.model_info)
+                    continue
 
             # If the model version ID is specified, or if the yaml model is the same as the one in the api
             if node["model"].get("model_version_id", "") or is_same_yaml_model(
