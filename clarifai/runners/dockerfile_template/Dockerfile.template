@@ -3,9 +3,13 @@ FROM --platform=$TARGETPLATFORM ${FINAL_IMAGE} as final
 
 COPY --link requirements.txt /home/nonroot/requirements.txt
 
+ENV VIRTUAL_ENV=/venv
+ENV PATH="/home/nonroot/.local/bin:$VIRTUAL_ENV/bin:$PATH"
+
+
 # Update clarifai package so we always have latest protocol to the API. Everything should land in /venv
-RUN ["pip", "install", "--no-cache-dir", "-r", "/home/nonroot/requirements.txt"]
-RUN ["pip", "show", "clarifai"]
+RUN ["uv", "pip", "install", "--no-cache-dir", "-r", "/home/nonroot/requirements.txt"]
+RUN ["uv", "pip", "show", "--no-cache-dir", "clarifai"]
 
 # Set the NUMBA cache dir to /tmp
 # Set the TORCHINDUCTOR cache dir to /tmp
@@ -46,6 +50,6 @@ ENV PYTHONPATH=${PYTHONPATH}:/home/nonroot/main \
 
 # Finally run the clarifai entrypoint to start the runner loop and local dev server.
 # Note(zeiler): we may want to make this a clarifai CLI call.
-ENTRYPOINT ["python", "-m", "clarifai.runners.server"]
+ENTRYPOINT ["uv", "python", "-m", "clarifai.runners.server"]
 CMD ["--model_path", "/home/nonroot/main"]
 #############################
