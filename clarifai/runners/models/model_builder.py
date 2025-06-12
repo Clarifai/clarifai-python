@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tarfile
 import time
+import webbrowser
 from string import Template
 from unittest.mock import MagicMock
 
@@ -17,6 +18,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf import json_format
 
 from clarifai.client.base import BaseClient
+from clarifai.client.user import User
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.const import (
     AMD_PYTHON_BASE_IMAGE,
@@ -1194,4 +1196,208 @@ def upload_model(folder, stage, skip_dockerfile):
         )
 
     input("Press Enter to continue...")
-    builder.upload_model_version()
+    model_version = builder.upload_model_version()
+
+    # Ask user if they want to deploy the model
+    deploy_model = input("Do you want to deploy the model? (y/n): ")
+    if deploy_model.lower() != 'y':
+        logger.info("Model uploaded successfully. Skipping deployment setup.")
+        return
+
+    # Setup deployment for the uploaded model
+    setup_deployment_for_model(builder)
+
+
+def setup_deployment_for_model(builder):
+    """
+    Set up deployment for a model after upload.
+
+    :param builder: The ModelBuilder instance that has uploaded the model.
+    """
+
+    model = builder.config.get('model')
+    user_id = model.get('user_id')
+    app_id = model.get('app_id')
+    model_id = model.get('id')
+
+    # Set up the API client with the user's credentials
+    user = User(user_id=user_id, pat=builder.client.pat, base_url=builder.client.base)
+
+    # Step 1: Check for available compute clusters and let user choose or create a new one
+    logger.info("Checking for available compute clusters...")
+    compute_clusters = list(user.list_compute_clusters())
+
+    compute_cluster = None
+    if compute_clusters:
+        logger.info("Available compute clusters:")
+        for i, cc in enumerate(compute_clusters):
+            logger.info(
+                f"{i + 1}. {cc.id} ({cc.description if hasattr(cc, 'description') else 'No description'})"
+            )
+
+        choice = input(
+            f"Choose a compute cluster (1-{len(compute_clusters)}) or 'n' to create a new one: "
+        )
+        if choice.lower() == 'n':
+            create_new_cc = True
+        else:
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(compute_clusters):
+                    compute_cluster = compute_clusters[idx]
+                    create_new_cc = False
+                else:
+                    logger.info("Invalid choice. Creating a new compute cluster.")
+                    create_new_cc = True
+            except ValueError:
+                logger.info("Invalid choice. Creating a new compute cluster.")
+                create_new_cc = True
+    else:
+        logger.info("No compute clusters found.")
+        create_new_cc = True
+
+    if create_new_cc:
+        # Provide URL to create a new compute cluster
+        url_helper = ClarifaiUrlHelper()
+        compute_cluster_url = f"{url_helper.ui}/settings/compute/new"
+        logger.info(f"Please create a new compute cluster by visiting: {compute_cluster_url}")
+
+        # Ask if they want to open the URL in browser
+        open_browser = input(
+            "Do you want to open the compute cluster creation page in your browser? (y/n): "
+        )
+        if open_browser.lower() == 'y':
+            try:
+                webbrowser.open(compute_cluster_url)
+            except Exception as e:
+                logger.error(f"Failed to open browser: {e}")
+
+        input("After creating the compute cluster, press Enter to continue...")
+
+        # Re-fetch the compute clusters list after user has created one
+        logger.info("Re-checking for available compute clusters...")
+        compute_clusters = list(user.list_compute_clusters())
+
+        if not compute_clusters:
+            logger.info(
+                "No compute clusters found. Please make sure you have created a compute cluster and try again."
+            )
+            return
+
+        # Show the updated list and let user choose
+        logger.info("Available compute clusters:")
+        for i, cc in enumerate(compute_clusters):
+            logger.info(
+                f"{i + 1}. {cc.id} ({cc.description if hasattr(cc, 'description') else 'No description'})"
+            )
+
+        choice = input(f"Choose a compute cluster (1-{len(compute_clusters)}): ")
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(compute_clusters):
+                compute_cluster = compute_clusters[idx]
+            else:
+                logger.info("Invalid choice. Aborting deployment setup.")
+                return
+        except ValueError:
+            logger.info("Invalid choice. Aborting deployment setup.")
+            return
+
+    # Step 2: Check for available nodepools and let user choose or create a new one
+    logger.info(f"Checking for available nodepools in compute cluster '{compute_cluster.id}'...")
+    nodepools = list(compute_cluster.list_nodepools())
+
+    nodepool = None
+    if nodepools:
+        logger.info("Available nodepools:")
+        for i, np in enumerate(nodepools):
+            logger.info(
+                f"{i + 1}. {np.id} ({np.description if hasattr(np, 'description') else 'No description'})"
+            )
+
+        choice = input(f"Choose a nodepool (1-{len(nodepools)}) or 'n' to create a new one: ")
+        if choice.lower() == 'n':
+            create_new_np = True
+        else:
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(nodepools):
+                    nodepool = nodepools[idx]
+                    create_new_np = False
+                else:
+                    logger.info("Invalid choice. Creating a new nodepool.")
+                    create_new_np = True
+            except ValueError:
+                logger.info("Invalid choice. Creating a new nodepool.")
+                create_new_np = True
+    else:
+        logger.info("No nodepools found in this compute cluster.")
+        create_new_np = True
+
+    if create_new_np:
+        # Provide URL to create a new nodepool
+        url_helper = ClarifaiUrlHelper()
+        nodepool_url = f"{url_helper.ui}/settings/compute/{compute_cluster.id}/nodepools/new"
+        logger.info(f"Please create a new nodepool by visiting: {nodepool_url}")
+
+        # Ask if they want to open the URL in browser
+        open_browser = input(
+            "Do you want to open the nodepool creation page in your browser? (y/n): "
+        )
+        if open_browser.lower() == 'y':
+            try:
+                webbrowser.open(nodepool_url)
+            except Exception as e:
+                logger.error(f"Failed to open browser: {e}")
+
+        input("After creating the nodepool, press Enter to continue...")
+
+        # Re-fetch the nodepools list after user has created one
+        logger.info(
+            f"Re-checking for available nodepools in compute cluster '{compute_cluster.id}'..."
+        )
+        nodepools = list(compute_cluster.list_nodepools())
+
+        if not nodepools:
+            logger.info(
+                "No nodepools found. Please make sure you have created a nodepool in the selected compute cluster and try again."
+            )
+            return
+
+        # Show the updated list and let user choose
+        logger.info("Available nodepools:")
+        for i, np in enumerate(nodepools):
+            logger.info(
+                f"{i + 1}. {np.id} ({np.description if hasattr(np, 'description') else 'No description'})"
+            )
+
+        choice = input(f"Choose a nodepool (1-{len(nodepools)}): ")
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(nodepools):
+                nodepool = nodepools[idx]
+            else:
+                logger.info("Invalid choice. Aborting deployment setup.")
+                return
+        except ValueError:
+            logger.info("Invalid choice. Aborting deployment setup.")
+            return
+
+    # Step 3: Help create a new deployment by providing URL
+    # Provide URL to create a new deployment
+    url_helper = ClarifaiUrlHelper()
+    deployment_url = f"{url_helper.ui}/settings/compute/deployments/new?computeClusterId={compute_cluster.id}&nodePoolId={nodepool.id}"
+    logger.info(f"Please create a new deployment by visiting: {deployment_url}")
+
+    # Ask if they want to open the URL in browser
+    open_browser = input(
+        "Do you want to open the deployment creation page in your browser? (y/n): "
+    )
+    if open_browser.lower() == 'y':
+        try:
+            webbrowser.open(deployment_url)
+        except Exception as e:
+            logger.error(f"Failed to open browser: {e}")
+
+    logger.info("After creating the deployment, your model will be ready for inference!")
+    logger.info(f"You can always return to view your deployments at: {deployment_url}")

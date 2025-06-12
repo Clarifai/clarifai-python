@@ -12,6 +12,5 @@ workflow:
           model_id: margin-110-image-crop
           user_id: clarifai
           app_id: main
-
       node_inputs:
         - node_id: detector
