@@ -125,7 +125,7 @@ def test_model_uploader_flow(dummy_models_path):
     2. Checks folder validation
     3. Creates or reuses an existing model
     4. Uploads a new model version
-    5. Waits for the build
+    5. Waits for the buil
     """
     # Initialize
     builder = ModelBuilder(folder=str(dummy_models_path))
