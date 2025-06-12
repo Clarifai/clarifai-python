@@ -5,6 +5,8 @@ workflow:
       model:
           model_id: a403429f2ddf4b49b307e318f00e528b
           model_version_id: 34ce21a40cc24b6b96ffee54aabff139
+          user_id: clarifai
+          app_id: main
     - id: cropper
       model:
           model_id: margin-110-image-crop

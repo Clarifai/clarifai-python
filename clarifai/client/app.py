@@ -470,8 +470,8 @@ class App(Lister, BaseClient):
                 model = self.model(
                     model_id=node['model']['model_id'],
                     model_version={"id": node['model'].get('model_version_id', "")},
-                    user_id=node['model'].get('user_id', ""),
-                    app_id=node['model'].get('app_id', ""),
+                    user_id=node['model'].get('user_id', self.user_app_id.user_id),
+                    app_id=node['model'].get('app_id', self.user_app_id.app_id),
                 )
             except Exception as e:
                 if "Model does not exist" in str(e):

@@ -5,7 +5,11 @@ workflow:
       model:
           model_id: face-detection
           model_version_id: fe995da8cb73490f8556416ecf25cea3
+          user_id: clarifai
+          app_id: main
     - id: moderation
       model:
           model_id: moderation-recognition
           model_version_id: aa8be956dbaa4b7a858826a84253cab9
+          user_id: clarifai
+          app_id: main
