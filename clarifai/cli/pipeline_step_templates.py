@@ -13,7 +13,7 @@ def get_config_template():
 pipeline_step_input_params:
   - name: param_a
   - name: param_b
-    default: "default-param-b-value"
+    default: "param_b_allowed_value1"
     description: "param_b is the second parameter of the pipeline step"
     accepted_values:  # list of accepted values for param_b
       - "param_b_allowed_value1"
