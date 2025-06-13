@@ -5,6 +5,8 @@ workflow:
       model:
           model_id: face-detection
           model_version_id: fe995da8cb73490f8556416ecf25cea3
+          user_id: clarifai
+          app_id: main
     - id: cropper
       model:
           model_id: margin-100-image-crop-custom # such a model ID does not exist, so it will be created using the below model fields

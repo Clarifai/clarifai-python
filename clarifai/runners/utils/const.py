@@ -2,9 +2,9 @@ import os
 
 registry = os.environ.get('CLARIFAI_BASE_IMAGE_REGISTRY', 'public.ecr.aws/clarifai-models')
 
-GIT_SHA = "b8ae56bf3b7c95e686ca002b07ca83d259c716eb"
+GIT_SHA = "42938da8e33b0f37ee7db16b83631da94c2348b9"
 
-AMD_GIT_SHA = "81e942130173f54927e7c9a65aabc7e32780616d"
+AMD_GIT_SHA = "42938da8e33b0f37ee7db16b83631da94c2348b9"
 
 PYTHON_BASE_IMAGE = registry + '/python-base:{python_version}-' + GIT_SHA
 TORCH_BASE_IMAGE = registry + '/torch:{torch_version}-py{python_version}-{gpu_version}-' + GIT_SHA
