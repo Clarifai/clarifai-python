@@ -2,13 +2,12 @@
 
 import asyncio
 import json
-from typing import Any
-
-from fastmcp import Client, FastMCP  # use fastmcp v2 not the built in mcp
-from mcp import types
-from mcp.shared.exceptions import McpError
+from typing import TYPE_CHECKING, Any
 
 from clarifai.runners.models.model_class import ModelClass
+
+if TYPE_CHECKING:
+    from fastmcp import FastMCP
 
 
 class MCPModelClass(ModelClass):
@@ -19,10 +18,17 @@ class MCPModelClass(ModelClass):
     """
 
     def load_model(self):
+        try:
+            from fastmcp import Client
+        except ImportError:
+            raise ImportError(
+                "fastmcp package is required to use MCP functionality. "
+                "Install it with: pip install fastmcp"
+            )
         # in memory transport provided in fastmcp v2 so we can easily use the client functions.
         self.client = Client(self.get_server())
 
-    def get_server(self) -> FastMCP:
+    def get_server(self) -> 'FastMCP':
         """Required method for each subclass to implement to return the FastMCP server to use."""
         raise NotImplementedError("Subclasses must implement get_server() method")
 
@@ -32,6 +38,8 @@ class MCPModelClass(ModelClass):
         return it's response.
 
         """
+        from mcp import types
+        from mcp.shared.exceptions import McpError
 
         async def send_notification(client_message: types.ClientNotification) -> None:
             async with self.client:
