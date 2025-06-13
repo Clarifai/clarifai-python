@@ -1,3 +1,14 @@
+## [[11.5.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.2) - [PyPI](https://pypi.org/project/clarifai/11.5.2/) - 2025-06-13
+
+### Changed
+- improve local dev and url helper [(630)](https://github.com/Clarifai/clarifai-python/pull/630)
+
+### Fixed
+- Proactively check code and requirements before upload [(625)](https://github.com/Clarifai/clarifai-python/pull/625)
+- fix amd and circular imports [(628)](https://github.com/Clarifai/clarifai-python/pull/628)
+
+
+
 ## [[11.5.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.1) - [PyPI](https://pypi.org/project/clarifai/11.5.1/) - 2025-06-13
 
 ### Changed
