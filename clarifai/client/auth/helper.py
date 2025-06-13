@@ -13,6 +13,7 @@ from clarifai.utils.constants import (
     DEFAULT_BASE,
     DEFAULT_UI,
 )
+from clarifai.utils.logging import logger
 
 REQUEST_ID_PREFIX_HEADER = "x-clarifai-request-id-prefix"
 REQUEST_ID_PREFIX = f"sdk-python-{__version__}"
@@ -45,11 +46,13 @@ def https_cache(cache: dict, url: str) -> str:
     elif url not in cache:
         # We know our endpoints are https.
         host_name = urlparse(url).hostname
-        if host_name and host_name.endswith(".clarifai.com"):
+        if host_name and (
+            host_name.endswith(".clarifai.com") or host_name.endswith(".clarifai.com:443")
+        ):
             cache[url] = HTTPS
         else:  # need to test it.
             try:  # make request to https endpoint.
-                urllib.request.urlopen("https://%s/v2/auth/methods" % url, timeout=1)
+                urllib.request.urlopen("https://%s/v2/auth/methods" % url, timeout=5)
                 cache[url] = HTTPS  # cache it.
             except Exception as e:
                 if "SSL" in str(e):  # if ssl error then we know it's http.
@@ -60,10 +63,12 @@ def https_cache(cache: dict, url: str) -> str:
                             "When providing an insecure url it must have both host:port format"
                         )
                 else:
-                    raise Exception(
+                    logger.exception(
                         "Could not get a valid response from url: %s, is the API running there?"
                         % url
-                    ) from e
+                    )
+                    logger.info("Going to assume HTTPS by default for base %s", url)
+                    cache[url] = HTTPS
     return url
 
 
