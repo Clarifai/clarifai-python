@@ -262,11 +262,24 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
         logger.debug(f"Tar file size: {file_size} bytes")
 
         try:
-            # Upload pipeline step version
+            # Upload pipeline step version with client-side progress tracking
+            uploaded_bytes = 0
+            chunk_count = 0
+            total_chunks = (file_size + UPLOAD_CHUNK_SIZE - 1) // UPLOAD_CHUNK_SIZE  # Ceiling division
+
             for response in self.client.STUB.PostPipelineStepVersionsUpload(
                 self._pipeline_step_version_upload_iterator(file_path)
             ):
-                percent_completed = getattr(response.status, 'percent_completed', 0)
+                # Calculate progress based on chunks uploaded
+                if chunk_count == 0:
+                    # First response is config upload, no progress yet
+                    percent_completed = 0
+                else:
+                    # Calculate progress based on completed chunks
+                    uploaded_bytes = min(chunk_count * UPLOAD_CHUNK_SIZE, file_size)
+                    percent_completed = min(100, int((uploaded_bytes / file_size) * 100))
+
+                chunk_count += 1
                 details = response.status.details
 
                 print(
@@ -280,7 +293,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                 logger.error(f"Failed to upload pipeline step version: {response}")
                 return False
 
-            self.pipeline_step_version_id = response.pipeline_step_version.id
+            self.pipeline_step_version_id = response.pipeline_step_version_id
             logger.info(f"\nCreated Pipeline Step Version ID: {self.pipeline_step_version_id}")
 
             # Monitor build progress
