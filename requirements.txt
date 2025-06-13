@@ -1,5 +1,5 @@
 clarifai-grpc>=11.5.5
-clarifai-protocol>=0.0.23
+clarifai-protocol>=0.0.24
 numpy>=1.22.0
 tqdm>=4.65.0
 PyYAML>=6.0.1
@@ -10,3 +10,5 @@ fsspec>=2024.6.1
 click>=8.1.7
 requests>=2.32.3
 aiohttp>=3.10.0
+uv==0.7.12
+ruff==0.11.4

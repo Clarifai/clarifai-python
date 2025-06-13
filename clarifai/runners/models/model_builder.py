@@ -4,9 +4,11 @@ import inspect
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tarfile
 import time
+import webbrowser
 from string import Template
 from unittest.mock import MagicMock
 
@@ -16,6 +18,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf import json_format
 
 from clarifai.client.base import BaseClient
+from clarifai.client.user import User
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.const import (
     AMD_PYTHON_BASE_IMAGE,
@@ -563,6 +566,42 @@ class ModelBuilder:
                 dependencies_version[dependency] = version if version else None
         return dependencies_version
 
+    def _validate_requirements(self, python_version):
+        """here we use uv pip compile to validate the requirements.txt file
+        and ensure that the dependencies are compatible with each other prior to uploading
+        """
+        if not os.path.exists(os.path.join(self.folder, 'requirements.txt')):
+            raise FileNotFoundError(
+                "requirements.txt not found in the folder, please provide a valid requirements.txt file"
+            )
+        path = os.path.join(self.folder, 'requirements.txt')
+        # run the f"uv pip compile {path} --universal" command to validate the requirements.txt file
+        if not shutil.which('uv'):
+            raise Exception(
+                "uv command not found, please install uv to validate the requirements.txt file"
+            )
+        logger.info(f"Setup: Validating requirements.txt file at {path} using uv pip compile")
+        # Don't log the output of the comment unless it errors.
+        result = subprocess.run(
+            f"uv pip compile {path} --universal --python {python_version} --no-header  --no-emit-index-url",
+            shell=True,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            logger.error(f"Error validating requirements.txt file: {result.stderr}")
+            logger.error(
+                "Failed to validate the requirements.txt file, please check the file for errors"
+            )
+            logger.error("Output: " + result.stdout)
+            # If we have an error, raise an exception.
+            return False
+        else:
+            logger.info("Setup: Requirements.txt file validated successfully")
+            # If we have no error, we can just return.
+            return True
+
     def _is_amd(self):
         """
         Check if the model is AMD or not.
@@ -582,10 +621,49 @@ class ModelBuilder:
                 "Both AMD and NVIDIA GPUs are specified in the config file, please use only one type of GPU."
             )
         if is_amd_gpu:
-            logger.info("Using AMD base image to build the Docker image and upload the model")
+            logger.info(
+                "Setup: Using AMD base image to build the Docker image and upload the model"
+            )
         elif is_nvidia_gpu:
-            logger.info("Using NVIDIA base image to build the Docker image and upload the model")
+            logger.info(
+                "Setup: Using NVIDIA base image to build the Docker image and upload the model"
+            )
         return is_amd_gpu
+
+    def _lint_python_code(self):
+        """
+        Lint the python code in the model.py file using flake8.
+        This will help catch any simple bugs in the code before uploading it to the API.
+        """
+        if not shutil.which('ruff'):
+            raise Exception("ruff command not found, please install ruff to lint the python code")
+        # List all the python files in the /1/ folder recursively and lint them.
+        python_files = []
+        for root, _, files in os.walk(os.path.join(self.folder, '1')):
+            for file in files:
+                if file.endswith('.py'):
+                    python_files.append(os.path.join(root, file))
+        if not python_files:
+            logger.info("No Python files found to lint, skipping linting step.")
+        else:
+            logger.info(f"Setup: Linting Python files: {python_files}")
+        # Run ruff to lint the python code.
+        command = "ruff check --select=F"
+        result = subprocess.run(
+            f"{command} {' '.join(python_files)}",
+            shell=True,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            logger.error(f"Error linting Python code: {result.stderr}")
+            logger.error("Output: " + result.stdout)
+            logger.error(
+                f"Failed to lint the Python code, please check the code for errors using '{command}' so you don't have simple errors in your code prior to upload."
+            )
+        else:
+            logger.info("Setup: Python code linted successfully, no errors found.")
 
     def create_dockerfile(self):
         dockerfile_template = os.path.join(
@@ -609,13 +687,20 @@ class ModelBuilder:
                 )
 
             logger.info(
-                f"Using Python version {python_version} from the config file to build the Dockerfile"
+                f"Setup: Using Python version {python_version} from the config file to build the Dockerfile"
             )
         else:
             logger.info(
-                f"Python version not found in the config file, using default Python version: {DEFAULT_PYTHON_VERSION}"
+                f"Setup: Python version not found in the config file, using default Python version: {DEFAULT_PYTHON_VERSION}"
             )
             python_version = DEFAULT_PYTHON_VERSION
+
+        # Before we bother even picking the right base image, let's use uv to validate
+        # that the requirements.txt file is valid and compatible.
+        self._validate_requirements(python_version)
+
+        # Make sure any python code will not have simple bugs by linting it first.
+        self._lint_python_code()
 
         # Parse the requirements.txt file to determine the base image
         dependencies = self._parse_requirements()
@@ -637,7 +722,7 @@ class ModelBuilder:
                         )
                     if not torch_version:
                         logger.info(
-                            f"torch version not found in requirements.txt, using the default version {DEFAULT_AMD_TORCH_VERSION}"
+                            f"Setup: torch version not found in requirements.txt, using the default version {DEFAULT_AMD_TORCH_VERSION}"
                         )
                         torch_version = DEFAULT_AMD_TORCH_VERSION
                     if torch_version not in [DEFAULT_AMD_TORCH_VERSION]:
@@ -651,7 +736,7 @@ class ModelBuilder:
                     python_version=python_version,
                     gpu_version=gpu_version,
                 )
-                logger.info("Using vLLM base image to build the Docker image")
+                logger.info("Setup: Using vLLM base image to build the Docker image")
             elif 'torch' in dependencies:
                 torch_version = dependencies['torch']
                 if python_version != DEFAULT_PYTHON_VERSION:
@@ -675,7 +760,7 @@ class ModelBuilder:
                     gpu_version=gpu_version,
                 )
                 logger.info(
-                    f"Using Torch version {torch_version} base image to build the Docker image"
+                    f"Setup: Using Torch version {torch_version} base image to build the Docker image"
                 )
         else:
             final_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
@@ -684,6 +769,8 @@ class ModelBuilder:
                 torch_version = dependencies['torch']
                 # Sort in reverse so that newer cuda versions come first and are preferred.
                 for image in sorted(AVAILABLE_TORCH_IMAGES, reverse=True):
+                    if image.find('rocm') >= 0:
+                        continue  # skip ROCm images as those are handled above.
                     if torch_version in image and f'py{python_version}' in image:
                         # like cu124, rocm6.3, etc.
                         gpu_version = image.split('-')[-1]
@@ -693,7 +780,7 @@ class ModelBuilder:
                             gpu_version=gpu_version,
                         )
                         logger.info(
-                            f"Using Torch version {torch_version} base image to build the Docker image"
+                            f"Setup: Using Torch version {torch_version} base image to build the Docker image"
                         )
                         break
         if 'clarifai' not in dependencies:
@@ -1109,4 +1196,208 @@ def upload_model(folder, stage, skip_dockerfile):
         )
 
     input("Press Enter to continue...")
-    builder.upload_model_version()
+    model_version = builder.upload_model_version()
+
+    # Ask user if they want to deploy the model
+    deploy_model = input("Do you want to deploy the model? (y/n): ")
+    if deploy_model.lower() != 'y':
+        logger.info("Model uploaded successfully. Skipping deployment setup.")
+        return
+
+    # Setup deployment for the uploaded model
+    setup_deployment_for_model(builder)
+
+
+def setup_deployment_for_model(builder):
+    """
+    Set up deployment for a model after upload.
+
+    :param builder: The ModelBuilder instance that has uploaded the model.
+    """
+
+    model = builder.config.get('model')
+    user_id = model.get('user_id')
+    app_id = model.get('app_id')
+    model_id = model.get('id')
+
+    # Set up the API client with the user's credentials
+    user = User(user_id=user_id, pat=builder.client.pat, base_url=builder.client.base)
+
+    # Step 1: Check for available compute clusters and let user choose or create a new one
+    logger.info("Checking for available compute clusters...")
+    compute_clusters = list(user.list_compute_clusters())
+
+    compute_cluster = None
+    if compute_clusters:
+        logger.info("Available compute clusters:")
+        for i, cc in enumerate(compute_clusters):
+            logger.info(
+                f"{i + 1}. {cc.id} ({cc.description if hasattr(cc, 'description') else 'No description'})"
+            )
+
+        choice = input(
+            f"Choose a compute cluster (1-{len(compute_clusters)}) or 'n' to create a new one: "
+        )
+        if choice.lower() == 'n':
+            create_new_cc = True
+        else:
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(compute_clusters):
+                    compute_cluster = compute_clusters[idx]
+                    create_new_cc = False
+                else:
+                    logger.info("Invalid choice. Creating a new compute cluster.")
+                    create_new_cc = True
+            except ValueError:
+                logger.info("Invalid choice. Creating a new compute cluster.")
+                create_new_cc = True
+    else:
+        logger.info("No compute clusters found.")
+        create_new_cc = True
+
+    if create_new_cc:
+        # Provide URL to create a new compute cluster
+        url_helper = ClarifaiUrlHelper()
+        compute_cluster_url = f"{url_helper.ui}/settings/compute/new"
+        logger.info(f"Please create a new compute cluster by visiting: {compute_cluster_url}")
+
+        # Ask if they want to open the URL in browser
+        open_browser = input(
+            "Do you want to open the compute cluster creation page in your browser? (y/n): "
+        )
+        if open_browser.lower() == 'y':
+            try:
+                webbrowser.open(compute_cluster_url)
+            except Exception as e:
+                logger.error(f"Failed to open browser: {e}")
+
+        input("After creating the compute cluster, press Enter to continue...")
+
+        # Re-fetch the compute clusters list after user has created one
+        logger.info("Re-checking for available compute clusters...")
+        compute_clusters = list(user.list_compute_clusters())
+
+        if not compute_clusters:
+            logger.info(
+                "No compute clusters found. Please make sure you have created a compute cluster and try again."
+            )
+            return
+
+        # Show the updated list and let user choose
+        logger.info("Available compute clusters:")
+        for i, cc in enumerate(compute_clusters):
+            logger.info(
+                f"{i + 1}. {cc.id} ({cc.description if hasattr(cc, 'description') else 'No description'})"
+            )
+
+        choice = input(f"Choose a compute cluster (1-{len(compute_clusters)}): ")
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(compute_clusters):
+                compute_cluster = compute_clusters[idx]
+            else:
+                logger.info("Invalid choice. Aborting deployment setup.")
+                return
+        except ValueError:
+            logger.info("Invalid choice. Aborting deployment setup.")
+            return
+
+    # Step 2: Check for available nodepools and let user choose or create a new one
+    logger.info(f"Checking for available nodepools in compute cluster '{compute_cluster.id}'...")
+    nodepools = list(compute_cluster.list_nodepools())
+
+    nodepool = None
+    if nodepools:
+        logger.info("Available nodepools:")
+        for i, np in enumerate(nodepools):
+            logger.info(
+                f"{i + 1}. {np.id} ({np.description if hasattr(np, 'description') else 'No description'})"
+            )
+
+        choice = input(f"Choose a nodepool (1-{len(nodepools)}) or 'n' to create a new one: ")
+        if choice.lower() == 'n':
+            create_new_np = True
+        else:
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(nodepools):
+                    nodepool = nodepools[idx]
+                    create_new_np = False
+                else:
+                    logger.info("Invalid choice. Creating a new nodepool.")
+                    create_new_np = True
+            except ValueError:
+                logger.info("Invalid choice. Creating a new nodepool.")
+                create_new_np = True
+    else:
+        logger.info("No nodepools found in this compute cluster.")
+        create_new_np = True
+
+    if create_new_np:
+        # Provide URL to create a new nodepool
+        url_helper = ClarifaiUrlHelper()
+        nodepool_url = f"{url_helper.ui}/settings/compute/{compute_cluster.id}/nodepools/new"
+        logger.info(f"Please create a new nodepool by visiting: {nodepool_url}")
+
+        # Ask if they want to open the URL in browser
+        open_browser = input(
+            "Do you want to open the nodepool creation page in your browser? (y/n): "
+        )
+        if open_browser.lower() == 'y':
+            try:
+                webbrowser.open(nodepool_url)
+            except Exception as e:
+                logger.error(f"Failed to open browser: {e}")
+
+        input("After creating the nodepool, press Enter to continue...")
+
+        # Re-fetch the nodepools list after user has created one
+        logger.info(
+            f"Re-checking for available nodepools in compute cluster '{compute_cluster.id}'..."
+        )
+        nodepools = list(compute_cluster.list_nodepools())
+
+        if not nodepools:
+            logger.info(
+                "No nodepools found. Please make sure you have created a nodepool in the selected compute cluster and try again."
+            )
+            return
+
+        # Show the updated list and let user choose
+        logger.info("Available nodepools:")
+        for i, np in enumerate(nodepools):
+            logger.info(
+                f"{i + 1}. {np.id} ({np.description if hasattr(np, 'description') else 'No description'})"
+            )
+
+        choice = input(f"Choose a nodepool (1-{len(nodepools)}): ")
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(nodepools):
+                nodepool = nodepools[idx]
+            else:
+                logger.info("Invalid choice. Aborting deployment setup.")
+                return
+        except ValueError:
+            logger.info("Invalid choice. Aborting deployment setup.")
+            return
+
+    # Step 3: Help create a new deployment by providing URL
+    # Provide URL to create a new deployment
+    url_helper = ClarifaiUrlHelper()
+    deployment_url = f"{url_helper.ui}/settings/compute/deployments/new?computeClusterId={compute_cluster.id}&nodePoolId={nodepool.id}"
+    logger.info(f"Please create a new deployment by visiting: {deployment_url}")
+
+    # Ask if they want to open the URL in browser
+    open_browser = input(
+        "Do you want to open the deployment creation page in your browser? (y/n): "
+    )
+    if open_browser.lower() == 'y':
+        try:
+            webbrowser.open(deployment_url)
+        except Exception as e:
+            logger.error(f"Failed to open browser: {e}")
+
+    logger.info("After creating the deployment, your model will be ready for inference!")
+    logger.info(f"You can always return to view your deployments at: {deployment_url}")
