@@ -1,7 +1,6 @@
 import os
 import urllib.request
 from typing import Any, Dict
-from urllib.parse import urlparse
 
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2_grpc
@@ -42,28 +41,31 @@ def https_cache(cache: dict, url: str) -> str:
     elif url.startswith("http://"):
         url = url.replace("http://", "")
         cache[url] = HTTP
-    elif url not in cache:
+    elif url.endswith(":443"):
+        # If it ends with :443 then we know it's https.
+        # trim it off the right
+        url = url[:-4]
+        cache[url] = HTTPS
+    elif url.find('.clarifai.com') >= 0:
         # We know our endpoints are https.
-        host_name = urlparse(url).hostname
-        if host_name and host_name.endswith(".clarifai.com"):
-            cache[url] = HTTPS
-        else:  # need to test it.
-            try:  # make request to https endpoint.
-                urllib.request.urlopen("https://%s/v2/auth/methods" % url, timeout=1)
-                cache[url] = HTTPS  # cache it.
-            except Exception as e:
-                if "SSL" in str(e):  # if ssl error then we know it's http.
-                    cache[url] = HTTP
-                    # For http urls we need host:port format.
-                    if ":" not in url:
-                        raise Exception(
-                            "When providing an insecure url it must have both host:port format"
-                        )
-                else:
+        cache[url] = HTTPS
+    elif url not in cache:
+        # need to test ones that we don't have in the cache yet.
+        try:  # make request to https endpoint.
+            urllib.request.urlopen("https://%s/v2/auth/methods" % url, timeout=5)
+            cache[url] = HTTPS  # cache it.
+        except Exception as e:
+            if "SSL" in str(e):  # if ssl error then we know it's http.
+                cache[url] = HTTP
+                # For http urls we need host:port format.
+                if ":" not in url:
                     raise Exception(
-                        "Could not get a valid response from url: %s, is the API running there?"
-                        % url
-                    ) from e
+                        "When providing an insecure url it must have both host:port format"
+                    )
+            else:
+                raise Exception(
+                    "Could not get a valid response from url: %s, is the API running there?" % url
+                ) from e
     return url
 
 

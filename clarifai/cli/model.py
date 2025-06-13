@@ -520,6 +520,10 @@ def local_dev(ctx, model_path):
 
         try:
             runner = nodepool.runner(runner_id)
+            # ensure the deployment is using the latest version.
+            if runner.worker.model.model_version.id != version.id:
+                nodepool.delete_runners([runner_id])
+                raise AttributeError("Deleted runner that was for an old model version ID.")
         except Exception as e:
             raise AttributeError("Runner not found in nodepool.") from e
     except AttributeError:
@@ -549,6 +553,10 @@ def local_dev(ctx, model_path):
         deployment_id = DEFAULT_LOCAL_DEV_DEPLOYMENT_ID
     try:
         deployment = nodepool.deployment(deployment_id)
+        # ensure the deployment is using the latest version.
+        if deployment.worker.model.model_version.id != version.id:
+            nodepool.delete_deployments([deployment_id])
+            raise Exception("Deleted deployment that was for an old model version ID.")
         try:
             deployment_id = ctx.obj.current.deployment_id
         except AttributeError:  # doesn't exist in context but does in API then update the context.
@@ -576,6 +584,7 @@ def local_dev(ctx, model_path):
                             },
                         }
                     ],
+                    "deploy_latest_version": True,
                 }
             },
         )
