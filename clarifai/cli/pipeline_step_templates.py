@@ -32,45 +32,25 @@ pipeline_step_compute_info:
 
 def get_pipeline_step_template():
     """Get the pipeline_step.py template."""
-    return '''"""
-This is a template for pipeline step implementation.
-"""
+    return '''import argparse
 
-class PipelineStepProcessor:
-    """Template pipeline step processor class."""
+import clarifai
 
-    def __init__(self):
-        """Initialize the pipeline step processor."""
-        pass
 
-    def load_pipeline_step(self):
-        """Load any necessary resources for the pipeline step."""
-        # TODO: Implement loading logic here
-        pass
+def main():
+    parser = argparse.ArgumentParser(description='Concatenate two strings.')
+    parser.add_argument('--param_a', type=str, required=True, help='First string to concatenate')
+    parser.add_argument('--param_b', type=str, required=True, help='Second string to concatenate')
 
-    def process(self, param_a, param_b="default-param-b-value"):
-        """
-        Process the pipeline step with given parameters.
+    args = parser.parse_args()
 
-        Args:
-            param_a: First parameter
-            param_b: Second parameter with default value
+    print(clarifai.__version__)
 
-        Returns:
-            Processing result
-        """
-        # TODO: Implement your pipeline step logic here
-        print(f"Processing with param_a: {param_a}, param_b: {param_b}")
+    print(f"Concatenation Output: {args.param_a + args.param_b}")
 
-        # Example processing logic
-        result = {
-            "status": "success",
-            "param_a": param_a,
-            "param_b": param_b,
-            "processed": True
-        }
 
-        return result
+if __name__ == "__main__":
+    main()
 '''
 
 
