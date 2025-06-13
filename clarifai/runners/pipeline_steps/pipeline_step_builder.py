@@ -99,8 +99,7 @@ class PipelineStepBuilder:
         pipeline_step_config = self.config["pipeline_step"]
 
         pipeline_step_proto = resources_pb2.PipelineStep(
-            id=pipeline_step_config["id"],
-            user_id=pipeline_step_config["user_id"]
+            id=pipeline_step_config["id"], user_id=pipeline_step_config["user_id"]
         )
 
         return pipeline_step_proto
@@ -125,8 +124,7 @@ class PipelineStepBuilder:
         try:
             resp = self.client.STUB.GetPipelineStep(
                 service_pb2.GetPipelineStepRequest(
-                    user_app_id=self.client.user_app_id,
-                    pipeline_step_id=self.pipeline_step_id
+                    user_app_id=self.client.user_app_id, pipeline_step_id=self.pipeline_step_id
                 )
             )
             return resp.status.code == status_code_pb2.SUCCESS
@@ -144,9 +142,7 @@ class PipelineStepBuilder:
             input_params = []
             if "pipeline_step_input_params" in self.config:
                 for param_config in self.config["pipeline_step_input_params"]:
-                    param = resources_pb2.PipelineStepInputParam(
-                        name=param_config["name"]
-                    )
+                    param = resources_pb2.PipelineStepInputParam(name=param_config["name"])
                     if "default" in param_config:
                         param.default_value = param_config["default"]
                     if "description" in param_config:
@@ -156,14 +152,12 @@ class PipelineStepBuilder:
                     input_params.append(param)
 
             pipeline_step = resources_pb2.PipelineStep(
-                id=self.pipeline_step_id,
-                user_id=self.pipeline_step_proto.user_id
+                id=self.pipeline_step_id, user_id=self.pipeline_step_proto.user_id
             )
 
             resp = self.client.STUB.PostPipelineSteps(
                 service_pb2.PostPipelineStepsRequest(
-                    user_app_id=self.client.user_app_id,
-                    pipeline_steps=[pipeline_step]
+                    user_app_id=self.client.user_app_id, pipeline_steps=[pipeline_step]
                 )
             )
 
@@ -265,7 +259,9 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
             # Upload pipeline step version with client-side progress tracking
             uploaded_bytes = 0
             chunk_count = 0
-            total_chunks = (file_size + UPLOAD_CHUNK_SIZE - 1) // UPLOAD_CHUNK_SIZE  # Ceiling division
+            total_chunks = (
+                file_size + UPLOAD_CHUNK_SIZE - 1
+            ) // UPLOAD_CHUNK_SIZE  # Ceiling division
 
             for response in self.client.STUB.PostPipelineStepVersionsUpload(
                 self._pipeline_step_version_upload_iterator(file_path)
@@ -280,13 +276,12 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                     percent_completed = min(100, int((uploaded_bytes / file_size) * 100))
 
                 chunk_count += 1
-                details = response.status.details
 
                 print(
-                    f"Status: {response.status.description}, Progress: {percent_completed}% - {details}",
+                    f"Status: {response.status.description}, Upload Progress: {percent_completed}%, Details: {response.status.details}",
                     f"request_id: {response.status.req_id}",
                     end='\r',
-                    flush=True
+                    flush=True,
                 )
 
             if response.status.code != status_code_pb2.PIPELINE_STEP_BUILDING:
@@ -371,9 +366,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
         input_params = []
         if "pipeline_step_input_params" in self.config:
             for param_config in self.config["pipeline_step_input_params"]:
-                param = resources_pb2.PipelineStepInputParam(
-                    name=param_config["name"]
-                )
+                param = resources_pb2.PipelineStepInputParam(name=param_config["name"])
                 if "default" in param_config:
                     param.default_value = param_config["default"]
                 if "description" in param_config:
@@ -388,7 +381,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
             id=version_id,
             description="Pipeline step version",
             pipeline_step_input_params=input_params,
-            pipeline_step_compute_info=self.pipeline_step_compute_info
+            pipeline_step_compute_info=self.pipeline_step_compute_info,
         )
 
         return service_pb2.PostPipelineStepVersionsUploadRequest(
@@ -397,7 +390,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                 pipeline_step_id=self.pipeline_step_id,
                 pipeline_step_version=pipeline_step_version,
                 total_size=file_size,
-                storage_request_size=storage_request_size
+                storage_request_size=storage_request_size,
             )
         )
 
@@ -415,9 +408,9 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
 
         for _ in range(max_checks):
             print(
-                f"Pipeline Step is building... (elapsed {time.time() - st:.1f}s)", 
-                end='\r', 
-                flush=True
+                f"Pipeline Step is building... (elapsed {time.time() - st:.1f}s)",
+                end='\r',
+                flush=True,
             )
 
             try:
@@ -441,8 +434,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                     per_page=50,
                 )
                 logs = self.client.STUB.ListLogEntries(
-                    logs_request, 
-                    metadata=self.client.auth_helper.metadata
+                    logs_request, metadata=self.client.auth_helper.metadata
                 )
 
                 for log_entry in logs.log_entries:
@@ -471,6 +463,11 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                             f"\nPipeline step build failed with status: {response.pipeline_step_version.status}"
                         )
                         return False
+                elif status != status_code_pb2.StatusCode.PIPELINE_STEP_BUILDING:
+                    logger.error(
+                        f"\nUnexpected status during pipeline step build: {response.pipeline_step_version.status}"
+                    )
+                    return False
 
                 time.sleep(interval_sec)
 
