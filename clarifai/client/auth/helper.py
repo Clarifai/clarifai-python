@@ -1,7 +1,6 @@
 import os
 import urllib.request
 from typing import Any, Dict
-from urllib.parse import urlparse
 
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2_grpc
@@ -13,7 +12,6 @@ from clarifai.utils.constants import (
     DEFAULT_BASE,
     DEFAULT_UI,
 )
-from clarifai.utils.logging import logger
 
 REQUEST_ID_PREFIX_HEADER = "x-clarifai-request-id-prefix"
 REQUEST_ID_PREFIX = f"sdk-python-{__version__}"
@@ -43,32 +41,31 @@ def https_cache(cache: dict, url: str) -> str:
     elif url.startswith("http://"):
         url = url.replace("http://", "")
         cache[url] = HTTP
-    elif url not in cache:
+    elif url.endswith(":443"):
+        # If it ends with :443 then we know it's https.
+        # trim it off the right
+        url = url[:-4]
+        cache[url] = HTTPS
+    elif url.find('.clarifai.com') >= 0:
         # We know our endpoints are https.
-        host_name = urlparse(url).hostname
-        if host_name and (
-            host_name.endswith(".clarifai.com") or host_name.endswith(".clarifai.com:443")
-        ):
-            cache[url] = HTTPS
-        else:  # need to test it.
-            try:  # make request to https endpoint.
-                urllib.request.urlopen("https://%s/v2/auth/methods" % url, timeout=5)
-                cache[url] = HTTPS  # cache it.
-            except Exception as e:
-                if "SSL" in str(e):  # if ssl error then we know it's http.
-                    cache[url] = HTTP
-                    # For http urls we need host:port format.
-                    if ":" not in url:
-                        raise Exception(
-                            "When providing an insecure url it must have both host:port format"
-                        )
-                else:
-                    logger.exception(
-                        "Could not get a valid response from url: %s, is the API running there?"
-                        % url
+        cache[url] = HTTPS
+    elif url not in cache:
+        # need to test ones that we don't have in the cache yet.
+        try:  # make request to https endpoint.
+            urllib.request.urlopen("https://%s/v2/auth/methods" % url, timeout=5)
+            cache[url] = HTTPS  # cache it.
+        except Exception as e:
+            if "SSL" in str(e):  # if ssl error then we know it's http.
+                cache[url] = HTTP
+                # For http urls we need host:port format.
+                if ":" not in url:
+                    raise Exception(
+                        "When providing an insecure url it must have both host:port format"
                     )
-                    logger.info("Going to assume HTTPS by default for base %s", url)
-                    cache[url] = HTTPS
+            else:
+                raise Exception(
+                    "Could not get a valid response from url: %s, is the API running there?" % url
+                ) from e
     return url
 
 
