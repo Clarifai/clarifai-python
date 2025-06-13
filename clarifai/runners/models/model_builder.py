@@ -64,7 +64,12 @@ def is_related(object_class, main_class):
 class ModelBuilder:
     DEFAULT_CHECKPOINT_SIZE = 50 * 1024**3  # 50 GiB
 
-    def __init__(self, folder: str, validate_api_ids: bool = True, download_validation_only=False):
+    def __init__(
+        self,
+        folder: str,
+        validate_api_ids: bool = True,
+        download_validation_only: bool = False,
+    ):
         """
         :param folder: The folder containing the model.py, config.yaml, requirements.txt and
         checkpoints.
@@ -592,7 +597,7 @@ class ModelBuilder:
         if result.returncode != 0:
             logger.error(f"Error validating requirements.txt file: {result.stderr}")
             logger.error(
-                "Failed to validate the requirements.txt file, please check the file for errors"
+                "Failed to validate the requirements.txt file, please check the file for errors. Note this can happen if the machine you're upload from has different python version, accelerator, etc. from the desired machine you want to upload to."
             )
             logger.error("Output: " + result.stdout)
             # If we have an error, raise an exception.
