@@ -1,3 +1,12 @@
+## [[11.5.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.1) - [PyPI](https://pypi.org/project/clarifai/11.5.1/) - 2025-06-13
+
+### Changed
+- use uv in the build process [(626)](https://github.com/Clarifai/clarifai-python/pull/626)
+
+### Fixed
+- Proactively check code and requirements before upload [(625)](https://github.com/Clarifai/clarifai-python/pull/625)
+- fix amd and circular imports [(628)](https://github.com/Clarifai/clarifai-python/pull/628)
+
 ## [[11.5.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.0) - [PyPI](https://pypi.org/project/clarifai/11.5.0/) - 2025-06-10
 
 ### Changed
