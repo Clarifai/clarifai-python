@@ -100,11 +100,10 @@ def launch_server_cmd(command: str, host: str = "0.0.0.0", port: int = None):
     """
     if port is None and '--port' not in command:
         port, lock_socket = reserve_port(host)
+        command = f"{command} --port {port}"
     else:
         lock_socket = None
-
-    full_command = f"{command} --port {port}"
-    process = execute_shell_command(full_command)
+    process = execute_shell_command(command)
 
     if lock_socket is not None:
         _process_socket_map[process] = lock_socket
