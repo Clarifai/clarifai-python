@@ -2,13 +2,15 @@ import os
 import tempfile
 import pytest
 import yaml
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
+from click.testing import CliRunner
 
 from clarifai.runners.pipelines.pipeline_builder import (
     PipelineBuilder,
     PipelineConfigValidator,
     upload_pipeline
 )
+from clarifai.cli.pipeline import upload
 
 
 class TestPipelineConfigValidator:
@@ -383,6 +385,252 @@ spec:
         result = builder.create_pipeline()
         
         assert result is False
+
+
+class TestPipelineCLIIntegration:
+    """Integration tests for the pipeline CLI command."""
+    
+    def test_cli_upload_help(self):
+        """Test the CLI help output."""
+        runner = CliRunner()
+        result = runner.invoke(upload, ['--help'])
+        
+        assert result.exit_code == 0
+        assert "Upload a pipeline with associated pipeline steps" in result.output
+        assert "CONFIG_PATH" in result.output
+    
+    def test_cli_upload_missing_config(self):
+        """Test CLI upload with missing config file."""
+        runner = CliRunner()
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = os.path.join(temp_dir, "nonexistent.yaml")
+            result = runner.invoke(upload, [config_path])
+            
+            assert result.exit_code != 0  # Should fail
+            # Should fail due to missing file
+    
+    def test_cli_upload_invalid_config(self):
+        """Test CLI upload with invalid config file."""
+        runner = CliRunner()
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = os.path.join(temp_dir, "invalid.yaml")
+            
+            # Create invalid config
+            invalid_config = {"invalid": "config"}
+            with open(config_path, 'w') as f:
+                yaml.dump(invalid_config, f)
+            
+            result = runner.invoke(upload, [config_path])
+            
+            assert result.exit_code == 1
+            # Should fail due to invalid config structure
+
+
+class TestPipelineConfigValidatorEdgeCases:
+    """Additional edge case tests for PipelineConfigValidator."""
+    
+    def test_validate_config_step_directories_not_list(self):
+        """Test validation when step_directories is not a list."""
+        config = {
+            "pipeline": {
+                "id": "test-pipeline",
+                "user_id": "test-user",
+                "app_id": "test-app",
+                "step_directories": "not-a-list",
+                "orchestration_spec": {
+                    "argo_orchestration_spec": """
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates: []
+                    """
+                }
+            }
+        }
+        
+        with pytest.raises(ValueError, match="'step_directories' must be a list"):
+            PipelineConfigValidator.validate_config(config)
+    
+    def test_validate_argo_workflow_missing_required_fields(self):
+        """Test Argo workflow validation with missing required fields."""
+        config = {
+            "pipeline": {
+                "id": "test-pipeline",
+                "user_id": "test-user",
+                "app_id": "test-app",
+                "orchestration_spec": {
+                    "argo_orchestration_spec": """
+kind: Workflow
+spec:
+  templates: []
+                    """
+                }
+            }
+        }
+        
+        with pytest.raises(ValueError, match="'apiVersion' not found in argo_orchestration_spec"):
+            PipelineConfigValidator.validate_config(config)
+    
+    def test_validate_argo_workflow_wrong_api_version(self):
+        """Test Argo workflow validation with wrong API version."""
+        config = {
+            "pipeline": {
+                "id": "test-pipeline",
+                "user_id": "test-user",
+                "app_id": "test-app",
+                "orchestration_spec": {
+                    "argo_orchestration_spec": """
+apiVersion: v1
+kind: Workflow
+spec:
+  templates: []
+                    """
+                }
+            }
+        }
+        
+        with pytest.raises(ValueError, match="argo_orchestration_spec must have apiVersion 'argoproj.io/v1alpha1'"):
+            PipelineConfigValidator.validate_config(config)
+    
+    def test_validate_argo_workflow_wrong_kind(self):
+        """Test Argo workflow validation with wrong kind."""
+        config = {
+            "pipeline": {
+                "id": "test-pipeline",
+                "user_id": "test-user",
+                "app_id": "test-app",
+                "orchestration_spec": {
+                    "argo_orchestration_spec": """
+apiVersion: argoproj.io/v1alpha1
+kind: Pod
+spec:
+  templates: []
+                    """
+                }
+            }
+        }
+        
+        with pytest.raises(ValueError, match="argo_orchestration_spec must have kind 'Workflow'"):
+            PipelineConfigValidator.validate_config(config)
+    
+    def test_validate_template_ref_missing_fields(self):
+        """Test template ref validation with missing fields."""
+        config = {
+            "pipeline": {
+                "id": "test-pipeline",
+                "user_id": "test-user",
+                "app_id": "test-app",
+                "orchestration_spec": {
+                    "argo_orchestration_spec": """
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates:
+  - name: sequence
+    steps:
+    - - name: step1
+        templateRef:
+          name: users/test-user/apps/test-app/pipeline-steps/stepA
+                    """
+                }
+            }
+        }
+        
+        with pytest.raises(ValueError, match="templateRef must have both 'name' and 'template' fields"):
+            PipelineConfigValidator.validate_config(config)
+    
+    def test_get_pipeline_steps_without_versions_empty(self):
+        """Test getting pipeline steps when all have versions."""
+        config = {
+            "pipeline": {
+                "id": "test-pipeline",
+                "user_id": "test-user",
+                "app_id": "test-app",
+                "orchestration_spec": {
+                    "argo_orchestration_spec": """
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates:
+  - name: sequence
+    steps:
+    - - name: step1
+        templateRef:
+          name: users/test-user/apps/test-app/pipeline-steps/stepA/versions/123
+          template: users/test-user/apps/test-app/pipeline-steps/stepA/versions/123
+                    """
+                }
+            }
+        }
+        
+        steps = PipelineConfigValidator.get_pipeline_steps_without_versions(config)
+        assert steps == []
+
+
+class TestPipelineBuilderEdgeCases:
+    """Additional edge case tests for PipelineBuilder."""
+    
+    @pytest.fixture
+    def config_without_step_directories(self):
+        """Config without step_directories field."""
+        return {
+            "pipeline": {
+                "id": "test-pipeline",
+                "user_id": "test-user",
+                "app_id": "test-app",
+                "orchestration_spec": {
+                    "argo_orchestration_spec": """
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: test-workflow
+spec:
+  entrypoint: sequence
+  templates:
+  - name: sequence
+    steps:
+    - - name: step1
+        templateRef:
+          name: users/test-user/apps/test-app/pipeline-steps/stepA/versions/123
+          template: users/test-user/apps/test-app/pipeline-steps/stepA/versions/123
+                    """
+                }
+            }
+        }
+    
+    @pytest.fixture
+    def temp_config_file_no_dirs(self, config_without_step_directories):
+        """Create a temporary config file without step directories."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            yaml.dump(config_without_step_directories, f)
+            temp_path = f.name
+        
+        yield temp_path
+        
+        # Cleanup
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+    
+    def test_pipeline_builder_no_step_directories(self, temp_config_file_no_dirs):
+        """Test PipelineBuilder with config that has no step_directories."""
+        builder = PipelineBuilder(temp_config_file_no_dirs)
+        
+        # Should handle missing step_directories gracefully
+        result = builder.upload_pipeline_steps()
+        assert result is True
+        assert builder.uploaded_step_versions == {}
+    
+    def test_update_config_with_no_versions(self, temp_config_file_no_dirs):
+        """Test updating config when no versions were uploaded."""
+        builder = PipelineBuilder(temp_config_file_no_dirs)
+        
+        # Should handle no uploaded versions gracefully
+        builder.update_config_with_versions()
+        
+        # Config should be unchanged
+        assert "step_directories" not in builder.config["pipeline"]
 
 
 class TestUploadPipeline:
