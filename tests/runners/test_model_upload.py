@@ -109,7 +109,8 @@ def model_builder(dummy_models_path):
     return ModelBuilder(folder=dummy_models_path, validate_api_ids=False)
 
 
-def test_init_valid_folder(model_builder):
+@pytest.mark.asyncio
+async def test_init_valid_folder(model_builder):
     """
     Ensure that creating a ModelBuilder with a valid folder
     does not raise any exceptions and sets up the object correctly.
@@ -118,7 +119,8 @@ def test_init_valid_folder(model_builder):
     assert "config.yaml" in os.listdir(model_builder.folder)
 
 
-def test_model_uploader_flow(dummy_models_path):
+@pytest.mark.asyncio
+async def test_model_uploader_flow(dummy_models_path):
     """
     End-to-end test that:
     1. Initializes the ModelBuilder on the dummy_runner_models folder

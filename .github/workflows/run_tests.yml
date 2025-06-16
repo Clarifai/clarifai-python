@@ -50,7 +50,7 @@ jobs:
         uv pip install -r requirements.txt -r tests/requirements.txt genbadge[coverage]
     - name: Increase file descriptor limit
       if: runner.os != 'Windows'
-      run: ulimit -n 65535
+      run: ulimit -n 1048576
       shell: bash
     - name: Run static analysis lint
       uses: pre-commit/action@v3.0.0
