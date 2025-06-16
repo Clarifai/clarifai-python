@@ -54,7 +54,7 @@ def create_app():
 @pytest.fixture(scope="module")
 def clarifai_app():
     """
-    Fixture to create and clean up a Clarifai app before/after running the tests.
+    Fixture to create and clean up a Clarifai app before/after running the test.
     """
     app_id, user = create_app()
     yield app_id  # Provide the app_id to the tests
