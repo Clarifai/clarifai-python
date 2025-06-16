@@ -1,4 +1,6 @@
 """Conftest for OpenAI tests."""
+import asyncio
+import pytest
 
 import sys
 from unittest import mock
@@ -19,3 +21,16 @@ sys.modules['fastmcp'] = mock_fastmcp
 sys.modules['mcp'] = mock_mcp
 sys.modules['mcp.shared'] = mock_mcp.shared
 sys.modules['mcp.shared.exceptions'] = mock_mcp.shared.exceptions
+
+
+
+@pytest.fixture(scope="session", autouse=True)
+def event_loop():
+    """
+    Override pytest’s default loop to ensure asyncio.get_event_loop()
+    always returns a running loop on the main thread.
+    """
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    yield loop
+    loop.close()
