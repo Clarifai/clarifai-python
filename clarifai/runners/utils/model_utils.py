@@ -1,5 +1,6 @@
 import os
 import random
+import shlex
 import signal
 import socket
 import subprocess
@@ -138,7 +139,7 @@ def execute_shell_command(
         raise ValueError("command must be a non-empty string")
 
     command = command.replace("\\\n", " ").replace("\\", " ")
-    parts = command.split()
+    parts = shlex.split(command)
 
     try:
         process = subprocess.Popen(parts, text=True, stderr=subprocess.STDOUT)
