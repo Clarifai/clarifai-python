@@ -1,9 +1,10 @@
 """Conftest for OpenAI tests."""
-import asyncio
-import pytest
 
+import asyncio
 import sys
 from unittest import mock
+
+import pytest
 
 # Create mock modules
 mock_fastmcp = mock.MagicMock()
@@ -21,7 +22,6 @@ sys.modules['fastmcp'] = mock_fastmcp
 sys.modules['mcp'] = mock_mcp
 sys.modules['mcp.shared'] = mock_mcp.shared
 sys.modules['mcp.shared.exceptions'] = mock_mcp.shared.exceptions
-
 
 
 @pytest.fixture(scope="session", autouse=True)
