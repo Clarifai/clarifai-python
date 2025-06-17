@@ -15,7 +15,6 @@ from google.protobuf.struct_pb2 import Struct, Value
 from requests.adapters import HTTPAdapter, Retry
 from tqdm import tqdm
 
-from clarifai.client.auth import create_stub
 from clarifai.client.base import BaseClient
 from clarifai.client.dataset import Dataset
 from clarifai.client.deployment import Deployment
@@ -505,9 +504,8 @@ class Model(Lister, BaseClient):
                 model=self.model_info,
                 runner_selector=self._runner_selector,
             )
-            astub = create_stub(self.auth_helper, is_async=True)
             self._client = ModelClient(
-                stub=self.STUB, async_stub=astub, request_template=request_template
+                stub=self.STUB, async_stub=self.async_stub, request_template=request_template
             )
         return self._client
 
