@@ -104,11 +104,6 @@ class Model(Lister, BaseClient):
         self.input_types = None
         self._client = None
         self._added_methods = False
-        self._set_runner_selector(
-            compute_cluster_id=compute_cluster_id,
-            nodepool_id=nodepool_id,
-            deployment_id=deployment_id,
-        )
         BaseClient.__init__(
             self,
             user_id=self.user_id,
@@ -119,6 +114,12 @@ class Model(Lister, BaseClient):
             root_certificates_path=root_certificates_path,
         )
         Lister.__init__(self)
+
+        self._set_runner_selector(
+            compute_cluster_id=compute_cluster_id,
+            nodepool_id=nodepool_id,
+            deployment_id=deployment_id,
+        )
 
     @classmethod
     def from_current_context(cls, **kwargs) -> 'Model':
@@ -603,7 +604,11 @@ class Model(Lister, BaseClient):
         if any([deployment_id, nodepool_id, compute_cluster_id]):
             from clarifai.client.user import User
 
-            user_id = User().get_user_info(user_id='me').user.id
+            user_id = (
+                User(pat=self.auth_helper.pat, token=self.auth_helper._token)
+                .get_user_info(user_id='me')
+                .user.id
+            )
 
         runner_selector = None
         if deployment_id and (compute_cluster_id or nodepool_id):
