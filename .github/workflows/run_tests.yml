@@ -39,19 +39,12 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    - name: print Macos version
-      if: runner.os == 'macOS'
-      run: sw_vers
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install uv
         uv venv
         uv pip install -r requirements.txt -r tests/requirements.txt genbadge[coverage]
-    - name: Increase file descriptor limit
-      if: runner.os != 'Windows'
-      run: ulimit -n 65535
-      shell: bash
     - name: Run static analysis lint
       uses: pre-commit/action@v3.0.0
     - name: Check if Dockerfile.template changed
