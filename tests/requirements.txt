@@ -1,6 +1,8 @@
-pytest==7.1.2
+pytest>=8.3.5
 pytest-cov==5.0.0
 pytest-xdist==2.5.0
+pytest-asyncio
+py
 llama-index-core==0.12.33
 huggingface_hub[hf_transfer]==0.27.1
 pypdf==3.17.4

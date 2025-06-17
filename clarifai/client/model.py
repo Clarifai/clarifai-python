@@ -503,7 +503,9 @@ class Model(Lister, BaseClient):
                 model=self.model_info,
                 runner_selector=self._runner_selector,
             )
-            self._client = ModelClient(self.STUB, request_template=request_template)
+            self._client = ModelClient(
+                stub=self.STUB, async_stub=self.async_stub, request_template=request_template
+            )
         return self._client
 
     def predict(self, *args, **kwargs):
@@ -530,6 +532,35 @@ class Model(Lister, BaseClient):
             )
 
         return self.client.predict(*args, **kwargs)
+
+    async def async_predict(self, *args, **kwargs):
+        """
+        Calls the model's async predict() method with the given arguments.
+
+        If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+        protos directly for compatibility with previous versions of the SDK.
+        """
+        inputs = None
+        if 'inputs' in kwargs:
+            inputs = kwargs['inputs']
+        elif args:
+            inputs = args[0]
+        if inputs and isinstance(inputs, list) and isinstance(inputs[0], resources_pb2.Input):
+            assert len(args) <= 1, (
+                "Cannot pass in raw protos and additional arguments at the same time."
+            )
+            inference_params = kwargs.get('inference_params', {})
+            output_config = kwargs.get('output_config', {})
+            return await self.client._async_predict_by_proto(
+                inputs=inputs, inference_params=inference_params, output_config=output_config
+            )
+
+        # Adding try-except, since the await works differently with jupyter kernels and in regular python scripts.
+        try:
+            return await self.client.predict(*args, **kwargs)
+        except TypeError:
+            # In jupyter, it returns a str object instead of a co-routine.
+            return self.client.predict(*args, **kwargs)
 
     def __getattr__(self, name):
         try:
@@ -766,6 +797,30 @@ class Model(Lister, BaseClient):
 
         return self.client.generate(*args, **kwargs)
 
+    async def async_generate(self, *args, **kwargs):
+        """
+        Calls the model's async generate() method with the given arguments.
+
+        If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+        protos directly for compatibility with previous versions of the SDK.
+        """
+        inputs = None
+        if 'inputs' in kwargs:
+            inputs = kwargs['inputs']
+        elif args:
+            inputs = args[0]
+        if inputs and isinstance(inputs, list) and isinstance(inputs[0], resources_pb2.Input):
+            assert len(args) <= 1, (
+                "Cannot pass in raw protos and additional arguments at the same time."
+            )
+            inference_params = kwargs.get('inference_params', {})
+            output_config = kwargs.get('output_config', {})
+            return self.client._async_generate_by_proto(
+                inputs=inputs, inference_params=inference_params, output_config=output_config
+            )
+
+        return self.client.generate(*args, **kwargs)
+
     def generate_by_filepath(
         self,
         filepath: str,
@@ -930,6 +985,50 @@ class Model(Lister, BaseClient):
             )
 
         return self.client.stream(*args, **kwargs)
+
+    async def async_stream(self, *args, **kwargs):
+        """
+        Calls the model's async stream() method with the given arguments.
+
+        If passed in request_pb2.PostModelOutputsRequest values, will send the model the raw
+        protos directly for compatibility with previous versions of the SDK.
+        """
+
+        use_proto_call = False
+        inputs = None
+        if 'inputs' in kwargs:
+            inputs = kwargs['inputs']
+        elif args:
+            inputs = args[0]
+        if inputs and isinstance(inputs, Iterable):
+            inputs_iter = inputs
+            try:
+                peek = next(inputs_iter)
+            except StopIteration:
+                pass
+            else:
+                use_proto_call = (
+                    peek and isinstance(peek, list) and isinstance(peek[0], resources_pb2.Input)
+                )
+                # put back the peeked value
+                if inputs_iter is inputs:
+                    inputs = itertools.chain([peek], inputs_iter)
+                    if 'inputs' in kwargs:
+                        kwargs['inputs'] = inputs
+                    else:
+                        args = (inputs,) + args[1:]
+
+            if use_proto_call:
+                assert len(args) <= 1, (
+                    "Cannot pass in raw protos and additional arguments at the same time."
+                )
+                inference_params = kwargs.get('inference_params', {})
+                output_config = kwargs.get('output_config', {})
+                return self.client._async_stream_by_proto(
+                    inputs=inputs, inference_params=inference_params, output_config=output_config
+                )
+
+            return self.client.async_stream(*args, **kwargs)
 
     def stream_by_filepath(
         self,

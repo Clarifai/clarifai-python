@@ -52,12 +52,21 @@ class BaseClient:
 
         self.auth_helper = ClarifaiAuthHelper(**kwargs, validate=False)
         self.STUB = create_stub(self.auth_helper)
+        self._async_stub = None
         self.metadata = self.auth_helper.metadata
         self.pat = self.auth_helper.pat
         self.token = self.auth_helper._token
         self.user_app_id = self.auth_helper.get_user_app_id_proto()
         self.base = self.auth_helper.base
         self.root_certificates_path = self.auth_helper._root_certificates_path
+
+    @property
+    def async_stub(self):
+        """Returns the asynchronous gRPC stub for the API interaction.
+        Lazy initialization of async stub"""
+        if self._async_stub is None:
+            self._async_stub = create_stub(self.auth_helper, is_async=True)
+        return self._async_stub
 
     @classmethod
     def from_env(cls, validate: bool = False):
