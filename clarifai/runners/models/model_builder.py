@@ -414,8 +414,8 @@ class ModelBuilder:
         Returns the method signatures for the model class in YAML format.
         """
         model_class = self.load_model_class(mocking=True)
-        method_info = model_class._get_method_info()
-        signatures = {method.name: method.signature for method in method_info.values()}
+        method_infos = model_class._get_method_infos()
+        signatures = {method.name: method.signature for method in method_infos.values()}
         return signatures_to_yaml(signatures)
 
     def get_method_signatures(self, mocking=True):
@@ -429,8 +429,8 @@ class ModelBuilder:
           list: A list of method signatures for the model class.
         """
         model_class = self.load_model_class(mocking=mocking)
-        method_info = model_class._get_method_info()
-        signatures = [method.signature for method in method_info.values()]
+        method_infos = model_class._get_method_infos()
+        signatures = [method.signature for method in method_infos.values()]
         return signatures
 
     @property
