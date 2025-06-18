@@ -165,3 +165,76 @@ def test_model_uploader_flow(dummy_models_path):
     assert builder.model_version_id is not None, "Model version upload failed to initialize"
 
     print(f"Test completed successfully with model_version_id={builder.model_version_id}")
+
+
+@pytest.fixture
+def my_tmp_path(tmp_path):
+    return tmp_path
+
+
+def test_model_uploader_missing_app_action(my_tmp_path, monkeypatch):
+    tests_dir = Path(__file__).parent.resolve()
+    original_dummy_path = tests_dir / "dummy_runner_models"
+
+    if not original_dummy_path.exists():
+        # Adjust or raise an error if you cannot locate the dummy_runner_models folder
+        raise FileNotFoundError(
+            f"Could not find dummy_runner_models at {original_dummy_path}. "
+            "Adjust path or ensure it exists."
+        )
+
+    # Copy the entire folder to tmp_path
+    target_folder = my_tmp_path / "dummy_runner_models"
+    shutil.copytree(original_dummy_path, target_folder)
+
+    config_yaml_path = target_folder / "config.yaml"
+    with config_yaml_path.open("r") as f:
+        config = yaml.safe_load(f)
+
+    # Update the config.yaml to override the app_id with the ephemeral one
+    NOW = uuid.uuid4().hex[:10]
+    user_id = config["model"]["user_id"]
+    user = User(user_id=user_id)
+    # Change app id to non existing one.
+    new_app_id = config["model"]["app_id"] + NOW
+    config["model"]["app_id"] = new_app_id
+
+    # Rewrite config.yaml
+    with config_yaml_path.open("w") as f:
+        yaml.dump(config, f, sort_keys=False)
+
+    # ensure app not existing
+    with pytest.raises(Exception):
+        user.app(app_id=new_app_id)
+
+    # ----- Start testing ----- #
+
+    # With prompt
+    # Not create app
+    monkeypatch.setattr("builtins.input", lambda _: "n")
+    with pytest.raises(SystemExit) as exc_info:
+        ModelBuilder(target_folder, app_not_found_action="prompt")
+
+    # Create app
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+    ModelBuilder(target_folder, app_not_found_action="prompt")
+    # app must exist
+    user.app(app_id=new_app_id)
+    user.delete_app(app_id=new_app_id)
+
+    # Without prompt
+
+    # Not go through as app not existing
+    with pytest.raises(SystemExit) as exc_info:
+        ModelBuilder(target_folder, app_not_found_action="error")
+    with pytest.raises(Exception):
+        user.app(app_id=new_app_id)
+
+    # Go through
+    ModelBuilder(target_folder, app_not_found_action="auto_create")
+    user.app(app_id=new_app_id)
+    user.delete_app(app_id=new_app_id)
+
+    # Test non supported action
+    with pytest.raises(AssertionError):
+        ModelBuilder(target_folder, app_not_found_action="a")

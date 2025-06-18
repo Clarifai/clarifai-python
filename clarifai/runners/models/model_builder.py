@@ -10,6 +10,7 @@ import tarfile
 import time
 import webbrowser
 from string import Template
+from typing import Literal
 from unittest.mock import MagicMock
 
 import yaml
@@ -69,6 +70,7 @@ class ModelBuilder:
         folder: str,
         validate_api_ids: bool = True,
         download_validation_only: bool = False,
+        app_not_found_action: Literal["auto_create", "prompt", "error"] = "error",
     ):
         """
         :param folder: The folder containing the model.py, config.yaml, requirements.txt and
@@ -77,7 +79,11 @@ class ModelBuilder:
         deprecate in favor of download_validation_only.
         :param download_validation_only: Whether to skip the API config validation. Set to True if
         just downloading a checkpoint.
+        :param app_not_found_action: Defines how to handle the case when the app is not found.
+        Options: 'auto_create' - create automatically, 'prompt' - ask user, 'error' - raise exception.
         """
+        assert app_not_found_action in ["auto_create", "prompt", "error"]
+        self.app_not_found_action = app_not_found_action
         self._client = None
         if not validate_api_ids:  # for backwards compatibility
             download_validation_only = True
@@ -304,13 +310,46 @@ class ModelBuilder:
                 f"Invalid PAT provided for user {self.client.user_app_id.user_id}. Please check your PAT and try again."
             )
             return False
-        logger.error(
-            f"Error checking API {self._base_api} for user app {self.client.user_app_id.user_id}/{self.client.user_app_id.app_id}. Error code: {resp.status.code}"
-        )
-        logger.error(
-            f"App {self.client.user_app_id.app_id} not found for user {self.client.user_app_id.user_id}. Please create the app first and try again."
-        )
-        return False
+
+        user_id = self.client.user_app_id.user_id
+        app_id = self.client.user_app_id.app_id
+
+        if self.app_not_found_action == "error":
+            logger.error(
+                f"Error checking API {self._base_api} for user app `{user_id}/{app_id}`. Error code: {resp.status.code}"
+            )
+            logger.error(
+                f"App `{app_id}` not found for user `{user_id}`. Please create the app first and try again."
+            )
+            return False
+        else:
+            user = User(
+                user_id=user_id,
+                pat=self.client.pat,
+                token=self.client.token,
+                base_url=self.client.base,
+            )
+
+            def create_app():
+                logger.info(f"Creating App `{app_id}` user `{user_id}`.")
+                user.create_app(app_id=app_id)
+
+            logger.info(f"App {app_id} not found for user {user_id}.")
+
+            if self.app_not_found_action == "prompt":
+                create_app_prompt = input(f"Do you want to create App `{app_id}`? (y/n): ")
+                if create_app_prompt.lower() == 'y':
+                    create_app()
+                    return True
+                else:
+                    logger.error(
+                        f"App `{app_id}` has not been created for user `{user_id}`. Please create the app first or switch to an existing one, then try again."
+                    )
+                    return False
+
+            elif self.app_not_found_action == "auto_create":
+                create_app()
+                return True
 
     def _validate_config_model(self):
         assert "model" in self.config, "model section not found in the config file"
@@ -1186,7 +1225,7 @@ def upload_model(folder, stage, skip_dockerfile):
     :param stage: The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.
     :param skip_dockerfile: If True, will not create a Dockerfile.
     """
-    builder = ModelBuilder(folder)
+    builder = ModelBuilder(folder, app_not_found_action="prompt")
     builder.download_checkpoints(stage=stage)
     if not skip_dockerfile:
         builder.create_dockerfile()
