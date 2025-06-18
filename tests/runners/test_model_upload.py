@@ -192,11 +192,13 @@ def test_model_uploader_missing_app_action(my_tmp_path, monkeypatch):
         config = yaml.safe_load(f)
 
     # Update the config.yaml to override the app_id with the ephemeral one
-    NOW = uuid.uuid4().hex[:10]
-    user_id = config["model"]["user_id"]
+    NOW = uuid.uuid4().hex[:8]
+    user_id = CLARIFAI_USER_ID
+    config["model"]["user_id"] = user_id
     user = User(user_id=user_id)
     # Change app id to non existing one.
-    new_app_id = config["model"]["app_id"] + NOW
+
+    new_app_id = "ci_test_model_upload" + NOW
     config["model"]["app_id"] = new_app_id
 
     # Rewrite config.yaml
