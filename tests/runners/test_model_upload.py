@@ -172,7 +172,7 @@ def my_tmp_path(tmp_path):
     return tmp_path
 
 
-def test_model_uploader_missing_app_action(my_tmp_path, monkeypatch):
+def test_model_uploader_missing_app_action(tmp_path, monkeypatch):
     tests_dir = Path(__file__).parent.resolve()
     original_dummy_path = tests_dir / "dummy_runner_models"
 
@@ -184,7 +184,7 @@ def test_model_uploader_missing_app_action(my_tmp_path, monkeypatch):
         )
 
     # Copy the entire folder to tmp_path
-    target_folder = my_tmp_path / "dummy_runner_models"
+    target_folder = tmp_path / "dummy_runner_models"
     shutil.copytree(original_dummy_path, target_folder)
 
     config_yaml_path = target_folder / "config.yaml"

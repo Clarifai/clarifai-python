@@ -82,7 +82,9 @@ class ModelBuilder:
         :param app_not_found_action: Defines how to handle the case when the app is not found.
         Options: 'auto_create' - create automatically, 'prompt' - ask user, 'error' - raise exception.
         """
-        assert app_not_found_action in ["auto_create", "prompt", "error"]
+        assert app_not_found_action in ["auto_create", "prompt", "error"], ValueError(
+            f"Expected one of {['auto_create', 'prompt', 'error']}, got {app_not_found_action=}"
+        )
         self.app_not_found_action = app_not_found_action
         self._client = None
         if not validate_api_ids:  # for backwards compatibility
