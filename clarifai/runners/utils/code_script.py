@@ -18,7 +18,9 @@ def has_signature_method(
     :param method_signatures: List of MethodSignature objects to search in.
     :return: True if a method with the given name exists, False otherwise.
     """
-    return any(method_signature.name == name for method_signature in method_signatures)
+    return any(
+        method_signature.name == name for method_signature in method_signatures if method_signature
+    )
 
 
 def generate_client_script(
@@ -125,6 +127,8 @@ model = Model("{model_ui_url}",
     # Generate method signatures
     method_signatures_str = []
     for method_signature in method_signatures:
+        if method_signature is None:
+            continue
         method_name = method_signature.name
         client_script_str = f'response = model.{method_name}('
         annotations = _get_annotations_source(method_signature)

@@ -288,8 +288,8 @@ class TestModelCalls(unittest.TestCase):
             def g(self, x: str) -> int:
                 return len(x)
 
-        assert len(MyModel._get_method_info()) == 2
-        assert MyModel._get_method_info().keys() == {'f', 'g'}
+        assert len(MyModel._get_method_infos()) == 2
+        assert MyModel._get_method_infos().keys() == {'f', 'g'}
 
         # test calls
         client = _get_servicer_client(MyModel())
@@ -333,7 +333,7 @@ class TestModelCalls(unittest.TestCase):
             def f(self, x: int = 5) -> int:
                 return x + 1
 
-        MyModel._get_method_info('f').signature
+        MyModel._get_method_infos('f').signature
 
         # test call
         client = _get_servicer_client(MyModel())
@@ -356,7 +356,7 @@ class TestModelCalls(unittest.TestCase):
             def f(self, x: str = 'abc') -> str:
                 return x[::-1]
 
-        MyModel._get_method_info('f').signature
+        MyModel._get_method_infos('f').signature
 
         # test call
         client = _get_servicer_client(MyModel())
@@ -391,7 +391,7 @@ class TestModelCalls(unittest.TestCase):
             def f(self, x: str = 'abc', y: int = 5) -> str:
                 return x + str(y)
 
-        MyModel._get_method_info('f').signature
+        MyModel._get_method_infos('f').signature
         # self.assertEqual(sig)
 
         # test call
@@ -435,7 +435,7 @@ class TestModelCalls(unittest.TestCase):
             def f(self, x: np.ndarray = np.array([1, 2, 3])) -> np.ndarray:
                 return x * 2
 
-        pprint(MyModel._get_method_info('f').signature)
+        pprint(MyModel._get_method_infos('f').signature)
 
         # test call
         client = _get_servicer_client(MyModel())
@@ -533,20 +533,20 @@ class TestModelCalls(unittest.TestCase):
                 for i, input in enumerate(stream):
                     yield NamedFields(xout=input.x + str(i), yout=input.y + str(n))
 
-        pprint(MyModel._get_method_info())
+        pprint(MyModel._get_method_infos())
 
         self.assertEqual(
-            MyModel._get_method_info('f').signature.description, 'This is a test function.'
+            MyModel._get_method_infos('f').signature.description, 'This is a test function.'
         )
         self.assertEqual(
-            MyModel._get_method_info('g').signature.description, 'This is another test function.'
+            MyModel._get_method_infos('g').signature.description, 'This is another test function.'
         )
         self.assertEqual(
-            MyModel._get_method_info('generate').signature.description,
+            MyModel._get_method_infos('generate').signature.description,
             'This is a generate test function.',
         )
         self.assertEqual(
-            MyModel._get_method_info('stream').signature.description,
+            MyModel._get_method_infos('stream').signature.description,
             'This is a stream test function.',
         )
 
@@ -1678,7 +1678,7 @@ class TestSerialization(unittest.TestCase):
 
         _get_servicer_client(MyModel())
 
-        signature = MyModel._get_method_info('f').signature
+        signature = MyModel._get_method_infos('f').signature
 
         kwargs = {'x': 5}
         proto = resources_pb2.Data()
@@ -1694,7 +1694,7 @@ class TestSerialization(unittest.TestCase):
 
         _get_servicer_client(MyModel())
 
-        signature = MyModel._get_method_info('f').signature
+        signature = MyModel._get_method_infos('f').signature
 
         kwargs = {'x': [Concept('testconcept', 0.9), Concept('testconcept2', 0.8)]}
 

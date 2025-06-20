@@ -1,3 +1,4 @@
+import inspect
 import os
 import shlex
 import signal
@@ -8,6 +9,7 @@ import time
 
 import psutil
 import requests
+from clarifai_grpc.grpc.api import service_pb2
 
 from clarifai.utils.logging import logger
 
@@ -133,3 +135,50 @@ def wait_for_server(base_url: str, timeout: int = None) -> None:
                 raise TimeoutError("Server did not become ready within timeout period")
         except requests.exceptions.RequestException:
             time.sleep(1)
+
+
+def is_proto_style_method(method):
+    """
+    Determines if the given method is likely an old-style proto method:
+    - Has a 'request' parameter after 'self'
+    - Optionally, returns a known proto response type
+    """
+    try:
+        sig = inspect.signature(method)
+        params = list(sig.parameters.values())
+
+        # Must have at least 'self' and one argument
+        if len(params) < 2:
+            return False
+
+        # First parameter should be 'self'
+        if params[0].name != 'self':
+            return False
+        # Second param typically should be named 'request'
+        request_param = params[1]
+        if request_param.name != 'request':
+            return False
+        # Optionally: check annotation is a proto type
+        # (If signature is incomplete, this part will gracefully fall through)
+        return_annotation = sig.return_annotation
+        # If type annotation is available, check it's PostModelOutputsRequest
+        if (
+            request_param.annotation != inspect.Parameter.empty
+            and request_param.annotation != service_pb2.PostModelOutputsRequest
+        ):
+            return False
+        # If return annotation is available, check it's MultiOutputResponse
+        if (
+            return_annotation != inspect.Signature.empty
+            and return_annotation != service_pb2.MultiOutputResponse
+        ):
+            return False
+        if (
+            request_param.annotation is inspect.Parameter.empty
+            and return_annotation is inspect.Signature.empty
+        ):
+            return True  # signature OK, even if signature is empty
+        return True
+
+    except (ValueError, TypeError):
+        return False
