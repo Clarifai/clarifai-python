@@ -19,6 +19,7 @@ from clarifai.runners.utils.method_signatures import (
     serialize,
     signatures_to_json,
 )
+from clarifai.runners.utils.model_utils import is_proto_style_method
 from clarifai.utils.logging import logger
 
 _METHOD_INFO_ATTR = '_cf_method_info'
@@ -397,9 +398,12 @@ class ModelClass(ABC):
         # check for generic predict(request) -> response, etc. methods
         # older models never had generate or stream so don't bother with them.
         for name in ['predict']:  # , 'generate', 'stream'):
-            if hasattr(cls, name):
+            if hasattr(cls, name) and name not in methods:
                 method = getattr(cls, name)
-                if name not in methods:  # not already put in registry
+                if not callable(method):
+                    continue
+                if is_proto_style_method(method):
+                    # If this is a proto-style method, we can add it to the registry as a special case.
                     methods[name] = _MethodInfo(method, proto_method=True)
         # set method table for this class in the registry
         return methods
