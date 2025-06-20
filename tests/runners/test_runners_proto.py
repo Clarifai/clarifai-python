@@ -159,6 +159,8 @@ class TestRunnerServer:
             model_version={'id': cls.MODEL_VERSION_ID},
             base_url=cls.AUTH.base,
             pat=cls.AUTH.pat,
+            compute_cluster_id=cls.COMPUTE_CLUSTER_ID,
+            nodepool_id=cls.NODEPOOL_ID,
         )
 
         cls.runner_model = _get_model_instance(cls.MODEL_PATH)
@@ -271,7 +273,9 @@ class TestRunnerServer:
 
         # Test predict
         inputs, runner_selector = self._format_client_request(text)
-        res = self.model.predict(inputs=inputs, runner_selector=runner_selector)
+        res = self.model.predict(
+            inputs=inputs,
+        )
         self._validate_response(res, expected)
 
     def test_client_predict_by_bytes(self):
@@ -280,8 +284,6 @@ class TestRunnerServer:
         res = self.model.predict_by_bytes(
             text.encode("utf-8"),
             "text",
-            compute_cluster_id=self.COMPUTE_CLUSTER_ID,
-            nodepool_id=self.NODEPOOL_ID,
         )
         self._validate_response(res, expected)
 
@@ -289,8 +291,6 @@ class TestRunnerServer:
         res = self.model.predict_by_url(
             TEXT_URL,
             "text",
-            compute_cluster_id=self.COMPUTE_CLUSTER_ID,
-            nodepool_id=self.NODEPOOL_ID,
         )
         expected = "He doesn't have to commute to work.Hello World"
         self._validate_response(res, expected)
@@ -299,8 +299,6 @@ class TestRunnerServer:
         res = self.model.predict_by_filepath(
             TEXT_FILE_PATH,
             "text",
-            compute_cluster_id=self.COMPUTE_CLUSTER_ID,
-            nodepool_id=self.NODEPOOL_ID,
         )
 
         with open(TEXT_FILE_PATH, "r") as f:
