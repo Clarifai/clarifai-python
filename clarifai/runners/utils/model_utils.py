@@ -166,13 +166,13 @@ def is_proto_style_method(method):
             request_param.annotation != inspect.Parameter.empty
             and request_param.annotation != service_pb2.PostModelOutputsRequest
         ):
-            False
+            return False
         # If return annotation is available, check it's MultiOutputResponse
         if (
             return_annotation != inspect.Signature.empty
             and return_annotation != service_pb2.MultiOutputResponse
         ):
-            False
+            return False
         if (
             request_param.annotation is inspect.Parameter.empty
             and return_annotation is inspect.Signature.empty
