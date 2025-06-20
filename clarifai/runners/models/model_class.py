@@ -71,7 +71,11 @@ class ModelClass(ABC):
 
     def _handle_get_signatures_request(self) -> service_pb2.MultiOutputResponse:
         methods = self._get_method_infos()
-        signatures = {method.name: method.signature for method in methods.values()}
+        signatures = {
+            method.name: method.signature
+            for method in methods.values()
+            if method.signature is not None
+        }
         resp = service_pb2.MultiOutputResponse(
             status=status_pb2.Status(code=status_code_pb2.SUCCESS)
         )
