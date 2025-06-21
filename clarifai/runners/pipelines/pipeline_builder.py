@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import sys
@@ -357,7 +358,7 @@ class PipelineBuilder:
             # Create Argo orchestration spec proto
             argo_orchestration_spec_proto = resources_pb2.ArgoOrchestrationSpec()
             argo_orchestration_spec_proto.api_version = api_version
-            argo_orchestration_spec_proto.spec_json = argo_spec_str
+            argo_orchestration_spec_proto.spec_json = json.dumps(argo_spec)
 
             orchestration_spec_proto.argo_orchestration_spec.CopyFrom(argo_orchestration_spec_proto)
             pipeline_version.orchestration_spec.CopyFrom(orchestration_spec_proto)
