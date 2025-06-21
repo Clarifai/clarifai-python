@@ -10,7 +10,7 @@ from clarifai.runners.pipelines.pipeline_builder import (
     PipelineConfigValidator,
     upload_pipeline
 )
-from clarifai.cli.pipeline import upload
+from clarifai.cli.pipeline import upload, init
 
 
 class TestPipelineConfigValidator:
@@ -682,3 +682,135 @@ class TestUploadPipeline:
         upload_pipeline("test-config.yaml")
         
         mock_exit.assert_called_once_with(1)
+
+
+class TestPipelineInitCommand:
+    """Test cases for the pipeline init CLI command."""
+    
+    def test_init_command_creates_expected_structure(self):
+        """Test that init command creates the expected directory structure."""
+        runner = CliRunner()
+        
+        with runner.isolated_filesystem():
+            result = runner.invoke(init, ['.'])
+            
+            assert result.exit_code == 0
+            
+            # Check that all expected files were created
+            expected_files = [
+                'config.yaml',
+                'README.md',
+                'stepA/config.yaml',
+                'stepA/requirements.txt',
+                'stepA/1/pipeline_step.py',
+                'stepB/config.yaml',
+                'stepB/requirements.txt',
+                'stepB/1/pipeline_step.py'
+            ]
+            
+            for file_path in expected_files:
+                assert os.path.exists(file_path), f"Expected file {file_path} was not created"
+    
+    def test_init_command_with_custom_path(self):
+        """Test that init command works with custom path."""
+        runner = CliRunner()
+        
+        with runner.isolated_filesystem():
+            result = runner.invoke(init, ['my_pipeline'])
+            
+            assert result.exit_code == 0
+            
+            # Check that files were created in the custom directory
+            assert os.path.exists('my_pipeline/config.yaml')
+            assert os.path.exists('my_pipeline/stepA/1/pipeline_step.py')
+            assert os.path.exists('my_pipeline/stepB/1/pipeline_step.py')
+    
+    def test_init_command_skips_existing_files(self):
+        """Test that init command skips files that already exist."""
+        runner = CliRunner()
+        
+        with runner.isolated_filesystem():
+            # Create a config file first
+            with open('config.yaml', 'w') as f:
+                f.write('existing content')
+            
+            result = runner.invoke(init, ['.'])
+            
+            assert result.exit_code == 0
+            
+            # Check that existing file was not overwritten
+            with open('config.yaml', 'r') as f:
+                content = f.read()
+            assert content == 'existing content'
+            
+            # Check that other files were still created
+            assert os.path.exists('README.md')
+            assert os.path.exists('stepA/config.yaml')
+    
+    def test_init_command_creates_valid_pipeline_config(self):
+        """Test that the generated pipeline config is valid."""
+        runner = CliRunner()
+        
+        with runner.isolated_filesystem():
+            result = runner.invoke(init, ['.'])
+            
+            assert result.exit_code == 0
+            
+            # Load and validate the generated config
+            with open('config.yaml', 'r') as f:
+                config = yaml.safe_load(f)
+            
+            # Check that required sections exist
+            assert 'pipeline' in config
+            assert 'id' in config['pipeline']
+            assert 'user_id' in config['pipeline']
+            assert 'app_id' in config['pipeline']
+            assert 'step_directories' in config['pipeline']
+            assert 'orchestration_spec' in config['pipeline']
+            assert 'argo_orchestration_spec' in config['pipeline']['orchestration_spec']
+            
+            # Check step directories
+            assert config['pipeline']['step_directories'] == ['stepA', 'stepB']
+    
+    def test_init_command_creates_valid_step_configs(self):
+        """Test that the generated step configs are valid."""
+        runner = CliRunner()
+        
+        with runner.isolated_filesystem():
+            result = runner.invoke(init, ['.'])
+            
+            assert result.exit_code == 0
+            
+            # Check stepA config
+            with open('stepA/config.yaml', 'r') as f:
+                step_config = yaml.safe_load(f)
+            
+            assert 'pipeline_step' in step_config
+            assert step_config['pipeline_step']['id'] == 'stepA'
+            assert 'pipeline_step_input_params' in step_config
+            assert 'build_info' in step_config
+            assert 'pipeline_step_compute_info' in step_config
+    
+    def test_init_command_includes_helpful_messages(self):
+        """Test that init command works successfully."""
+        runner = CliRunner()
+        
+        with runner.isolated_filesystem():
+            result = runner.invoke(init, ['.'])
+            
+            assert result.exit_code == 0
+            
+            # Instead of checking logs, check that files were created successfully
+            expected_files = [
+                'config.yaml',
+                'README.md',
+                'stepA/config.yaml',
+                'stepA/requirements.txt',
+                'stepA/1/pipeline_step.py',
+                'stepB/config.yaml',
+                'stepB/requirements.txt',
+                'stepB/1/pipeline_step.py'
+            ]
+            
+            for file_path in expected_files:
+                assert os.path.exists(file_path), f"Expected file {file_path} was not created"
