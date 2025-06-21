@@ -12,6 +12,18 @@ from clarifai.client.base import BaseClient
 from clarifai.utils.logging import logger
 
 
+class LiteralBlockDumper(yaml.SafeDumper):
+    """Custom YAML dumper that uses literal block style for multi-line strings."""
+
+    def represent_str(self, data):
+        if '\n' in data:
+            return self.represent_scalar('tag:yaml.org,2002:str', data, style='|')
+        return self.represent_scalar('tag:yaml.org,2002:str', data)
+
+
+LiteralBlockDumper.add_representer(str, LiteralBlockDumper.represent_str)
+
+
 class PipelineConfigValidator:
     """Validator for pipeline configuration files."""
 
@@ -202,7 +214,7 @@ class PipelineBuilder:
         """Save the updated configuration back to the file."""
         try:
             with open(self.config_path, 'w') as file:
-                yaml.safe_dump(self.config, file, default_flow_style=False, sort_keys=False)
+                yaml.dump(self.config, file, Dumper=LiteralBlockDumper, default_flow_style=False, sort_keys=False)
         except Exception as e:
             raise ValueError(f"Error saving config file {self.config_path}: {e}")
 
@@ -289,7 +301,7 @@ class PipelineBuilder:
         self._update_template_refs_with_versions(argo_spec)
 
         # Update the config
-        orchestration_spec["argo_orchestration_spec"] = yaml.dump(argo_spec, default_flow_style=False)
+        orchestration_spec["argo_orchestration_spec"] = yaml.dump(argo_spec, Dumper=LiteralBlockDumper, default_flow_style=False)
 
         # Remove uploaded directories from step_directories
         remaining_dirs = []
