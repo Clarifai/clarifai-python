@@ -397,7 +397,7 @@ class TestPipelineCLIIntegration:
         
         assert result.exit_code == 0
         assert "Upload a pipeline with associated pipeline steps" in result.output
-        assert "CONFIG_PATH" in result.output
+        assert "PATH" in result.output
     
     def test_cli_upload_missing_config(self):
         """Test CLI upload with missing config file."""
@@ -637,6 +637,60 @@ class TestUploadPipeline:
     """Test cases for the upload_pipeline function."""
     
     @patch('clarifai.runners.pipelines.pipeline_builder.PipelineBuilder')
+    def test_upload_pipeline_with_file_path_success(self, mock_builder_class):
+        """Test successful pipeline upload with file path."""
+        mock_builder = Mock()
+        mock_builder_class.return_value = mock_builder
+        
+        mock_builder.upload_pipeline_steps.return_value = True
+        mock_builder.create_pipeline.return_value = True
+        
+        # Should not raise any exception
+        upload_pipeline("test-config.yaml")
+        
+        mock_builder_class.assert_called_once_with("test-config.yaml")
+        mock_builder.upload_pipeline_steps.assert_called_once()
+        mock_builder.update_config_with_versions.assert_called_once()
+        mock_builder.create_pipeline.assert_called_once()
+    
+    @patch('clarifai.runners.pipelines.pipeline_builder.PipelineBuilder')
+    @patch('os.path.isdir')
+    @patch('os.path.exists')
+    def test_upload_pipeline_with_directory_path_success(self, mock_exists, mock_isdir, mock_builder_class):
+        """Test successful pipeline upload with directory path."""
+        mock_builder = Mock()
+        mock_builder_class.return_value = mock_builder
+        mock_isdir.return_value = True
+        mock_exists.return_value = True  # config.yaml exists in directory
+        
+        mock_builder.upload_pipeline_steps.return_value = True
+        mock_builder.create_pipeline.return_value = True
+        
+        # Should not raise any exception
+        upload_pipeline("/path/to/directory")
+        
+        # Should call PipelineBuilder with /path/to/directory/config.yaml
+        expected_config_path = "/path/to/directory/config.yaml"
+        mock_builder_class.assert_called_once_with(expected_config_path)
+        mock_builder.upload_pipeline_steps.assert_called_once()
+        mock_builder.update_config_with_versions.assert_called_once()
+        mock_builder.create_pipeline.assert_called_once()
+    
+    @patch('os.path.isdir')
+    @patch('os.path.exists')
+    @patch('sys.exit')
+    def test_upload_pipeline_directory_without_config(self, mock_exit, mock_exists, mock_isdir):
+        """Test pipeline upload with directory path but no config.yaml."""
+        mock_isdir.return_value = True
+        mock_exists.return_value = False  # config.yaml does not exist in directory
+        mock_exit.side_effect = SystemExit(1)
+        
+        with pytest.raises(SystemExit):
+            upload_pipeline("/path/to/directory")
+        
+        mock_exit.assert_called_once_with(1)
+    
+    @patch('clarifai.runners.pipelines.pipeline_builder.PipelineBuilder')
     def test_upload_pipeline_success(self, mock_builder_class):
         """Test successful pipeline upload."""
         mock_builder = Mock()
@@ -682,6 +736,93 @@ class TestUploadPipeline:
         upload_pipeline("test-config.yaml")
         
         mock_exit.assert_called_once_with(1)
+
+
+class TestUploadPipelineCLIIntegration:
+    """Integration tests for CLI with new path handling."""
+    
+    def test_cli_upload_with_directory_path(self):
+        """Test CLI upload with directory path containing config.yaml."""
+        runner = CliRunner()
+        
+        with runner.isolated_filesystem():
+            # Create a directory with config.yaml
+            os.makedirs("pipeline_dir")
+            config_content = {
+                "pipeline": {
+                    "id": "test-pipeline",
+                    "user_id": "test-user",
+                    "app_id": "test-app",
+                    "orchestration_spec": {
+                        "argo_orchestration_spec": """
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates: []
+                        """
+                    }
+                }
+            }
+            
+            with open("pipeline_dir/config.yaml", 'w') as f:
+                yaml.dump(config_content, f)
+            
+            # Mock the pipeline upload to avoid actual API calls
+            with patch('clarifai.runners.pipelines.pipeline_builder.PipelineBuilder') as mock_builder_class:
+                mock_builder = Mock()
+                mock_builder_class.return_value = mock_builder
+                mock_builder.upload_pipeline_steps.return_value = True
+                mock_builder.create_pipeline.return_value = True
+                
+                result = runner.invoke(upload, ['pipeline_dir'])
+                
+                # Should succeed
+                assert result.exit_code == 0
+                
+                # Should have called PipelineBuilder with the config.yaml path
+                expected_config_path = "pipeline_dir/config.yaml"
+                mock_builder_class.assert_called_once_with(expected_config_path)
+    
+    def test_cli_upload_with_file_path(self):
+        """Test CLI upload with direct config.yaml file path."""
+        runner = CliRunner()
+        
+        with runner.isolated_filesystem():
+            # Create a config.yaml file
+            config_content = {
+                "pipeline": {
+                    "id": "test-pipeline",
+                    "user_id": "test-user",
+                    "app_id": "test-app",
+                    "orchestration_spec": {
+                        "argo_orchestration_spec": """
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  templates: []
+                        """
+                    }
+                }
+            }
+            
+            with open("my-config.yaml", 'w') as f:
+                yaml.dump(config_content, f)
+            
+            # Mock the pipeline upload to avoid actual API calls
+            with patch('clarifai.runners.pipelines.pipeline_builder.PipelineBuilder') as mock_builder_class:
+                mock_builder = Mock()
+                mock_builder_class.return_value = mock_builder
+                mock_builder.upload_pipeline_steps.return_value = True
+                mock_builder.create_pipeline.return_value = True
+                
+                result = runner.invoke(upload, ['my-config.yaml'])
+                
+                # Should succeed
+                assert result.exit_code == 0
+                
+                # Should have called PipelineBuilder with the file path
+                expected_config_path = "my-config.yaml"
+                mock_builder_class.assert_called_once_with(expected_config_path)
 
 
 class TestPipelineInitCommand:

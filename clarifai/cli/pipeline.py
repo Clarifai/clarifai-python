@@ -16,15 +16,15 @@ def pipeline():
 
 
 @pipeline.command()
-@click.argument("config_path", type=click.Path(exists=True), required=False, default="config.yaml")
-def upload(config_path):
+@click.argument("path", type=click.Path(exists=True), required=False, default=".")
+def upload(path):
     """Upload a pipeline with associated pipeline steps to Clarifai.
 
-    CONFIG_PATH: Path to the pipeline configuration file. If not specified, 'config.yaml' in the current directory is used by default.
+    PATH: Path to the pipeline configuration file or directory containing config.yaml. If not specified, the current directory is used by default.
     """
     from clarifai.runners.pipelines.pipeline_builder import upload_pipeline
 
-    upload_pipeline(config_path)
+    upload_pipeline(path)
 
 
 @pipeline.command()
