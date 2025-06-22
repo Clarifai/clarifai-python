@@ -350,6 +350,15 @@ spec:
         # Mock successful response
         mock_response = Mock()
         mock_response.status.code = 10000  # SUCCESS status code
+        
+        # Mock pipeline in response for logging
+        mock_pipeline = Mock()
+        mock_pipeline.id = "test-pipeline"
+        mock_pipeline_version = Mock()
+        mock_pipeline_version.id = "version-123"
+        mock_pipeline.pipeline_version = mock_pipeline_version
+        mock_response.pipelines = [mock_pipeline]
+        
         mock_client_instance.STUB.PostPipelines.return_value = mock_response
         
         # Mock user_app_id properly

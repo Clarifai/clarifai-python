@@ -387,6 +387,14 @@ class PipelineBuilder:
 
             if response.status.code == status_code_pb2.SUCCESS:
                 logger.info(f"Successfully created pipeline {self.pipeline_id}")
+
+                # Log pipeline and version IDs if available in response
+                if response.pipelines:
+                    created_pipeline = response.pipelines[0]
+                    logger.info(f"Pipeline ID: {created_pipeline.id}")
+                    if created_pipeline.pipeline_version and created_pipeline.pipeline_version.id:
+                        logger.info(f"Pipeline version ID: {created_pipeline.pipeline_version.id}")
+
                 return True
             else:
                 logger.error(f"Failed to create pipeline: {response.status.description}")
