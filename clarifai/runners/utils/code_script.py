@@ -128,14 +128,19 @@ model = Model("{model_ui_url}",
         method_name = method_signature.name
         client_script_str = f'response = model.{method_name}('
         annotations = _get_annotations_source(method_signature)
-        for param_name, (param_type, default_value, required) in annotations.items():
+        for idx, (param_name, (param_type, default_value, required)) in enumerate(
+            annotations.items()
+        ):
             if param_name == "return":
                 continue
             if default_value is None and required:
                 default_value = _set_default_value(param_type)
+            if not default_value and idx == 0:
+                default_value = _set_default_value(param_type)
             if param_type == "str" and default_value is not None:
                 default_value = json.dumps(default_value)
-            client_script_str += f"{param_name}={default_value}, "
+            if default_value is not None:
+                client_script_str += f"{param_name}={default_value}, "
         client_script_str = client_script_str.rstrip(", ") + ")"
         if method_signature.method_type == resources_pb2.RunnerMethodType.UNARY_UNARY:
             client_script_str += "\nprint(response)"
@@ -229,7 +234,7 @@ def _map_default_value(field_type):
     default_value = None
 
     if field_type == "str":
-        default_value = repr('What is the future of AI?')
+        default_value = 'What is the future of AI?'
     elif field_type == "bytes":
         default_value = b""
     elif field_type == "int":
