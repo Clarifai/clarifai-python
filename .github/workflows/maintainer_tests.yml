@@ -37,7 +37,7 @@ jobs:
           uv venv
           uv pip install -r requirements.txt -r tests/requirements.txt
 
-      - name: Set up environment
+      - name: Run maintainer tests
         env:
           CLARIFAI_USER_EMAIL_SECURE_HOSTING: ${{ secrets.CLARIFAI_USER_EMAIL_SECURE_HOSTING }}
           CLARIFAI_USER_EMAIL: ${{ secrets.INTERNAL_USER_EMAIL }}
@@ -46,6 +46,4 @@ jobs:
           export PYTHONPATH=.
           export CLARIFAI_USER_ID="$(uv run python scripts/key_for_tests.py --get-userid)"
           export CLARIFAI_PAT="$(uv run python scripts/key_for_tests.py --create-pat)"
-
-      - name: Run maintainer tests
-        run: uv run pytest -v -m maintainer_approval
+          uv run pytest -v -m maintainer_approval
