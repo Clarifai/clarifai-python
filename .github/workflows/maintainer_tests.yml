@@ -1,4 +1,6 @@
 name: Maintainer Tests
+permissions:
+    contents: read
 on:
   workflow_dispatch:
     inputs:
