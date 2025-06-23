@@ -130,6 +130,8 @@ def init(pipeline_path):
     logger.info("Next steps:")
     logger.info("1. Search for '# TODO: please fill in' comments in the generated files")
     logger.info("2. Update your user_id and app_id in all config.yaml files")
-    logger.info("3. Implement your pipeline step logic in stepA/1/pipeline_step.py and stepB/1/pipeline_step.py")
+    logger.info(
+        "3. Implement your pipeline step logic in stepA/1/pipeline_step.py and stepB/1/pipeline_step.py"
+    )
     logger.info("4. Add dependencies to requirements.txt files as needed")
     logger.info("5. Run 'clarifai pipeline upload config.yaml' to upload your pipeline")

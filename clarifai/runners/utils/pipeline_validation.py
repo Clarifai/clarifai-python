@@ -114,8 +114,10 @@ class PipelineConfigValidator:
             raise ValueError(f"templateRef name '{name}' must match template '{template}'")
 
         # Check if it matches either pattern
-        if not (cls.TEMPLATE_REF_WITH_VERSION_PATTERN.match(name) or 
-                cls.TEMPLATE_REF_WITHOUT_VERSION_PATTERN.match(name)):
+        if not (
+            cls.TEMPLATE_REF_WITH_VERSION_PATTERN.match(name)
+            or cls.TEMPLATE_REF_WITHOUT_VERSION_PATTERN.match(name)
+        ):
             raise ValueError(
                 f"templateRef name '{name}' must match either pattern:\n"
                 f"  - users/{{user_id}}/apps/{{app_id}}/pipeline-steps/{{step_id}}\n"

@@ -69,7 +69,13 @@ class PipelineBuilder:
         """Save the updated configuration back to the file."""
         try:
             with open(self.config_path, 'w') as file:
-                yaml.dump(self.config, file, Dumper=LiteralBlockDumper, default_flow_style=False, sort_keys=False)
+                yaml.dump(
+                    self.config,
+                    file,
+                    Dumper=LiteralBlockDumper,
+                    default_flow_style=False,
+                    sort_keys=False,
+                )
         except Exception as e:
             raise ValueError(f"Error saving config file {self.config_path}: {e}")
 
@@ -103,7 +109,9 @@ class PipelineBuilder:
 
             # Store the version ID for later use
             self.uploaded_step_versions[step_dir] = version_id
-            logger.info(f"Successfully uploaded pipeline step {step_dir} with version {version_id}")
+            logger.info(
+                f"Successfully uploaded pipeline step {step_dir} with version {version_id}"
+            )
 
         return True
 
@@ -121,7 +129,9 @@ class PipelineBuilder:
             # Check if step exists
             exists = builder.check_pipeline_step_exists()
             if exists:
-                logger.info(f"Pipeline step {builder.pipeline_step_id} already exists, creating new version")
+                logger.info(
+                    f"Pipeline step {builder.pipeline_step_id} already exists, creating new version"
+                )
             else:
                 logger.info(f"Creating new pipeline step {builder.pipeline_step_id}")
 
@@ -156,7 +166,9 @@ class PipelineBuilder:
         self._update_template_refs_with_versions(argo_spec)
 
         # Update the config
-        orchestration_spec["argo_orchestration_spec"] = yaml.dump(argo_spec, Dumper=LiteralBlockDumper, default_flow_style=False)
+        orchestration_spec["argo_orchestration_spec"] = yaml.dump(
+            argo_spec, Dumper=LiteralBlockDumper, default_flow_style=False
+        )
 
         # Remove uploaded directories from step_directories
         remaining_dirs = []
@@ -194,7 +206,9 @@ class PipelineBuilder:
                                         new_name = f"{name}/versions/{version_id}"
                                         template_ref["name"] = new_name
                                         template_ref["template"] = new_name
-                                        logger.info(f"Updated templateRef from {name} to {new_name}")
+                                        logger.info(
+                                            f"Updated templateRef from {name} to {new_name}"
+                                        )
                                         break
 
     def create_pipeline(self) -> bool:
@@ -204,9 +218,7 @@ class PipelineBuilder:
         try:
             # Create pipeline proto
             pipeline = resources_pb2.Pipeline(
-                id=self.pipeline_id,
-                user_id=self.user_id,
-                app_id=self.app_id
+                id=self.pipeline_id, user_id=self.user_id, app_id=self.app_id
             )
 
             # Add orchestration spec
@@ -227,7 +239,9 @@ class PipelineBuilder:
             argo_orchestration_spec_proto.api_version = api_version
             argo_orchestration_spec_proto.spec_json = json.dumps(argo_spec)
 
-            orchestration_spec_proto.argo_orchestration_spec.CopyFrom(argo_orchestration_spec_proto)
+            orchestration_spec_proto.argo_orchestration_spec.CopyFrom(
+                argo_orchestration_spec_proto
+            )
             pipeline_version.orchestration_spec.CopyFrom(orchestration_spec_proto)
 
             pipeline.pipeline_version.CopyFrom(pipeline_version)
@@ -235,8 +249,7 @@ class PipelineBuilder:
             # Make the RPC call
             response = self.client.STUB.PostPipelines(
                 service_pb2.PostPipelinesRequest(
-                    user_app_id=self.client.user_app_id,
-                    pipelines=[pipeline]
+                    user_app_id=self.client.user_app_id, pipelines=[pipeline]
                 )
             )
 

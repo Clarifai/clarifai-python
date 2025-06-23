@@ -139,7 +139,7 @@ This will:
 ### stepA
 TODO: Describe what stepA does
 
-### stepB 
+### stepB
 TODO: Describe what stepB does
 
 ## Customization
