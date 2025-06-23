@@ -6,11 +6,6 @@ permissions:
 
 on:
   workflow_dispatch:
-    inputs:
-      run_tests:
-        description: 'Run maintainer-only tests?'
-        required: true
-        type: boolean
   pull_request:
     types: [opened, synchronize, reopened, labeled]
 
