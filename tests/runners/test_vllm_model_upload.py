@@ -11,7 +11,6 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from clarifai.client import User
 from clarifai.runners.models.model_builder import ModelBuilder
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "dummy_vllm_models")
 CLARIFAI_USER_ID = os.environ["CLARIFAI_USER_ID"]
 CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
 NOW = uuid.uuid4().hex[:10]
@@ -19,8 +18,6 @@ CREATE_APP_ID = f"pytest-model-upload-test-{NOW}"
 
 # Set up logging
 logger = logging.getLogger(__name__)
-
-pytest.mark.maintainer_approval = pytest.mark.maintainer_approval
 
 
 def check_app_exists():
@@ -148,10 +145,6 @@ def test_model_uploader_flow(dummy_models_path, caplog):
     # The app_id should be updated to the newly created ephemeral one
     assert builder.config["model"]["app_id"] == CREATE_APP_ID
 
-    # # Validate that the model doesn't exist yet
-    # # Because we are using a new ephemeral app, it's unlikely to exist
-    # assert builder.check_model_exists() is False, "Model should not exist on new ephemeral app"
-
     # Create the model (on Clarifai side)
     create_resp = builder.maybe_create_model()
 
@@ -183,8 +176,3 @@ def test_model_uploader_flow(dummy_models_path, caplog):
         raise
 
     logger.info(f"Test completed successfully with model_version_id={builder.model_version_id}")
-
-
-@pytest.fixture
-def my_tmp_path(tmp_path):
-    return tmp_path
