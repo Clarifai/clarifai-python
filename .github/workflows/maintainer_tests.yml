@@ -1,0 +1,23 @@
+name: Maintainer Tests
+on:
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: 'Run maintainer-only tests?'
+        required: true
+        type: boolean
+
+jobs:
+  run:
+    if: ${{ github.event.inputs.run_tests == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r tests/requirements.txt
+      - name: Run maintainer tests
+        run: uv run pytest -m maintainer_approval
