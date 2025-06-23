@@ -13,12 +13,14 @@ jobs:
   run:
     name: Maintainer Approval Tests
     if: |
-      github.event_name == 'workflow_dispatch' && github.event.inputs.run_tests == 'true' ||
+      github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'maintainer-approved'))
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for accurate blame and diff
 
       - name: Setup Python
         uses: actions/setup-python@v4
