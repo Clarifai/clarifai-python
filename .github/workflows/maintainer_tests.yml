@@ -19,7 +19,7 @@ jobs:
     name: Maintainer Approval Tests
     if: |
       github.event_name == 'workflow_dispatch' && github.event.inputs.run_tests == 'true' ||
-      github.event_name == 'pull_request'
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'maintainer-approved'))
     runs-on: ubuntu-latest
 
     steps:
