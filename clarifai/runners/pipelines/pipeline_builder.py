@@ -68,7 +68,7 @@ class PipelineBuilder:
     def _save_config(self) -> None:
         """Save the updated configuration back to the file."""
         try:
-            with open(self.config_path, 'w') as file:
+            with open(self.config_path, 'w', encoding="utf-8") as file:
                 yaml.dump(
                     self.config,
                     file,

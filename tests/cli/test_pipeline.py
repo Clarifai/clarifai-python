@@ -677,11 +677,11 @@ class TestUploadPipeline:
         mock_builder.create_pipeline.return_value = True
 
         # Should not raise any exception
-        upload_pipeline("/path/to/directory")
+        path_to_dir = "/path/to/directory"
+        upload_pipeline(path_to_dir)
 
-        # Should call PipelineBuilder with /path/to/directory/config.yaml
-        expected_config_path = "/path/to/directory/config.yaml"
-        mock_builder_class.assert_called_once_with(expected_config_path)
+        # Should call PipelineBuilder with the config.yaml path
+        mock_builder_class.assert_called_once_with(os.path.join(path_to_dir, "config.yaml"))
         mock_builder.upload_pipeline_steps.assert_called_once()
         mock_builder.update_config_with_versions.assert_called_once()
         mock_builder.create_pipeline.assert_called_once()
@@ -786,13 +786,14 @@ spec:
                 mock_builder.upload_pipeline_steps.return_value = True
                 mock_builder.create_pipeline.return_value = True
 
-                result = runner.invoke(upload, ['pipeline_dir'])
+                pipeline_dir_path = 'pipeline_dir'
+                result = runner.invoke(upload, [pipeline_dir_path])
 
                 # Should succeed
                 assert result.exit_code == 0
 
                 # Should have called PipelineBuilder with the config.yaml path
-                expected_config_path = "pipeline_dir/config.yaml"
+                expected_config_path = os.path.join(pipeline_dir_path, "config.yaml")
                 mock_builder_class.assert_called_once_with(expected_config_path)
 
     def test_cli_upload_with_file_path(self):
@@ -844,7 +845,7 @@ class TestPipelineInitCommand:
 
     def test_init_command_creates_expected_structure(self):
         """Test that init command creates the expected directory structure."""
-        runner = CliRunner()
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
             result = runner.invoke(init, ['.'])
@@ -868,7 +869,7 @@ class TestPipelineInitCommand:
 
     def test_init_command_with_custom_path(self):
         """Test that init command works with custom path."""
-        runner = CliRunner()
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
             result = runner.invoke(init, ['my_pipeline'])
@@ -882,7 +883,7 @@ class TestPipelineInitCommand:
 
     def test_init_command_skips_existing_files(self):
         """Test that init command skips files that already exist."""
-        runner = CliRunner()
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
             # Create a config file first
@@ -904,7 +905,7 @@ class TestPipelineInitCommand:
 
     def test_init_command_creates_valid_pipeline_config(self):
         """Test that the generated pipeline config is valid."""
-        runner = CliRunner()
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
             result = runner.invoke(init, ['.'])
@@ -929,7 +930,7 @@ class TestPipelineInitCommand:
 
     def test_init_command_creates_valid_step_configs(self):
         """Test that the generated step configs are valid."""
-        runner = CliRunner()
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
             result = runner.invoke(init, ['.'])
@@ -948,7 +949,7 @@ class TestPipelineInitCommand:
 
     def test_init_command_includes_helpful_messages(self):
         """Test that init command works successfully."""
-        runner = CliRunner()
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
             result = runner.invoke(init, ['.'])

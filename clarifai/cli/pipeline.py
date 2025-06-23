@@ -73,7 +73,7 @@ def init(pipeline_path):
         logger.warning(f"File {config_path} already exists, skipping...")
     else:
         config_template = get_pipeline_config_template()
-        with open(config_path, 'w') as f:
+        with open(config_path, 'w', encoding='utf-8') as f:
             f.write(config_template)
         logger.info(f"Created {config_path}")
 
@@ -83,7 +83,7 @@ def init(pipeline_path):
         logger.warning(f"File {readme_path} already exists, skipping...")
     else:
         readme_template = get_readme_template()
-        with open(readme_path, 'w') as f:
+        with open(readme_path, 'w', encoding='utf-8') as f:
             f.write(readme_template)
         logger.info(f"Created {readme_path}")
 
@@ -102,7 +102,7 @@ def init(pipeline_path):
             logger.warning(f"File {step_config_path} already exists, skipping...")
         else:
             step_config_template = get_pipeline_step_config_template(step_id)
-            with open(step_config_path, 'w') as f:
+            with open(step_config_path, 'w', encoding='utf-8') as f:
                 f.write(step_config_template)
             logger.info(f"Created {step_config_path}")
 
@@ -112,7 +112,7 @@ def init(pipeline_path):
             logger.warning(f"File {step_requirements_path} already exists, skipping...")
         else:
             step_requirements_template = get_pipeline_step_requirements_template()
-            with open(step_requirements_path, 'w') as f:
+            with open(step_requirements_path, 'w', encoding='utf-8') as f:
                 f.write(step_requirements_template)
             logger.info(f"Created {step_requirements_path}")
 
@@ -122,7 +122,7 @@ def init(pipeline_path):
             logger.warning(f"File {step_py_path} already exists, skipping...")
         else:
             step_py_template = get_pipeline_step_template(step_id)
-            with open(step_py_path, 'w') as f:
+            with open(step_py_path, 'w', encoding='utf-8') as f:
                 f.write(step_py_template)
             logger.info(f"Created {step_py_path}")
 
