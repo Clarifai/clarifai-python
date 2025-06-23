@@ -39,6 +39,7 @@ jobs:
 
       - name: Set up environment
         env:
+          CLARIFAI_USER_EMAIL_SECURE_HOSTING: ${{ secrets.CLARIFAI_USER_EMAIL_SECURE_HOSTING }}
           CLARIFAI_USER_EMAIL: ${{ secrets.INTERNAL_USER_EMAIL }}
           CLARIFAI_USER_PASSWORD: ${{ secrets.INTERNAL_USER_PASSWORD }}
         run: |
@@ -47,20 +48,4 @@ jobs:
           export CLARIFAI_PAT="$(uv run python scripts/key_for_tests.py --create-pat)"
 
       - name: Run maintainer tests
-        run: uv run pytest -v -m maintainer_approval --cov=. --cov-report=xml:coverage/coverage.cobertura.xml
-
-      - name: Generate coverage report
-        if: success()
-        uses: irongut/CodeCoverageSummary@v1.3.0
-        with:
-          filename: coverage/**/coverage.cobertura.xml
-          badge: true
-          format: markdown
-          output: both
-
-      - name: Add Coverage PR Comment
-        if: github.event_name == 'pull_request'
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          recreate: true
-          path: code-coverage-results.md
+        run: uv run pytest -v -m maintainer_approval
