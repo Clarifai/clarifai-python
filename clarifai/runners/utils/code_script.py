@@ -28,6 +28,8 @@ def generate_client_script(
     model_id,
     base_url: str = None,
     deployment_id: str = None,
+    compute_cluster_id: str = None,
+    nodepool_id: str = None,
     use_ctx: bool = False,
 ) -> str:
     url_helper = ClarifaiUrlHelper()
@@ -96,14 +98,43 @@ from clarifai.client import Model
 from clarifai.runners.utils import data_types
 {model_section}
     """
+    if deployment_id and (compute_cluster_id or nodepool_id):
+        raise ValueError(
+            "You can only specify one of deployment_id or compute_cluster_id and nodepool_id."
+        )
+    if compute_cluster_id and nodepool_id:
+        deployment_id = None
+    else:
+        deployment_id = (
+            "os.environ['CLARIFAI_DEPLOYMENT_ID']"
+            if deployment_id is None
+            else repr(deployment_id)
+        )
 
-    deployment_id = (
-        "os.environ['CLARIFAI_DEPLOYMENT_ID']" if deployment_id is None else deployment_id
+    deployment_line = (
+        f'deployment_id = {deployment_id}, # Only needed for dedicated deployed models'
+        if deployment_id is not None
+        else ""
+    )
+    compute_cluster_line = (
+        f'compute_cluster_id = "{compute_cluster_id}",' if compute_cluster_id is not None else ""
+    )
+    nodepool_line = (
+        f'nodepool_id = "{nodepool_id}", # Only needed for dedicated nodepool'
+        if nodepool_id is not None
+        else ""
     )
 
     base_url_str = ""
     if base_url is not None:
         base_url_str = f"base_url={base_url},"
+
+    # Join all non-empty lines
+    optional_lines = "\n    ".join(
+        line
+        for line in [deployment_line, compute_cluster_line, nodepool_line, base_url_str]
+        if line
+    )
 
     if use_ctx:
         model_section = """
@@ -112,8 +143,7 @@ model = Model.from_current_context()"""
         model_ui_url = url_helper.clarifai_url(user_id, app_id, "models", model_id)
         model_section = f"""
 model = Model("{model_ui_url}",
-               deployment_id = {deployment_id}, # Only needed for dedicated deployed models
-               {base_url_str}
+    {optional_lines}
  )
 """
 

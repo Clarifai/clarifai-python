@@ -291,7 +291,14 @@ class ModelClient:
             self.fetch()
         return method_signatures.get_method_signature(self._method_signatures[method_name])
 
-    def generate_client_script(self) -> str:
+    def generate_client_script(
+        self,
+        base_url: str = None,
+        deployment_id: str = None,
+        compute_cluster_id: str = None,
+        nodepool_id: str = None,
+        use_ctx: bool = False,
+    ) -> str:
         """Generate a client script for this model.
 
         Returns:
@@ -307,6 +314,11 @@ class ModelClient:
             user_id=self.request_template.user_app_id.user_id,
             app_id=self.request_template.user_app_id.app_id,
             model_id=self.request_template.model_id,
+            base_url=base_url,
+            deployment_id=deployment_id,
+            compute_cluster_id=compute_cluster_id,
+            nodepool_id=nodepool_id,
+            use_ctx=use_ctx,
         )
 
     def _define_compatability_functions(self):

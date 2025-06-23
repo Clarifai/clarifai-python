@@ -441,6 +441,18 @@ class TestRunnerServer:
         for i, res in enumerate(model_response):
             self._validate_response(res, text + out.format(i=i))
 
+    def test_client_code_script(self):
+        client_script = self.model.generate_client_script(
+            compute_cluster_id=self.COMPUTE_CLUSTER_ID, nodepool_id=self.NODEPOOL_ID
+        )
+
+        assert client_script is not None, "Client script should not be None"
+
+        assert isinstance(client_script, str), "Client script should be a string"
+
+        # execute the generated client script
+        exec(client_script, globals())
+
     # @pytest.mark.skip(reason="added after the bug is fixed")
     def test_client_stream_by_filepath(self):
         with open(TEXT_FILE_PATH, "r") as f:
