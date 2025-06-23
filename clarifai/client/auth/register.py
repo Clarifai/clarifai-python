@@ -18,6 +18,11 @@ def _register_classes():
     for name in dir(grpc):
         if name.endswith('Callable'):
             RpcCallable.register(getattr(grpc, name))
+    # add grpc aio classes as subclasses of the abcs, so they also succeed in isinstance calls
+    # This is needed for calling AuthorizedRPCCallable in the async stub with metadata headers
+    for name in dir(grpc.aio):
+        if name.endswith('Callable'):
+            RpcCallable.register(getattr(grpc.aio, name))
 
 
 _register_classes()
