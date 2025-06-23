@@ -25,12 +25,12 @@ def get_pipeline_config_template():
           steps:
           - - name: step-a
               templateRef:
-                name: users/your_user_id/apps/your_app_id/pipeline-steps/stepA
-                template: users/your_user_id/apps/your_app_id/pipeline-steps/stepA
+                name: users/your_user_id/apps/your_app_id/pipeline-steps/stepA  # TODO: please fill in
+                template: users/your_user_id/apps/your_app_id/pipeline-steps/stepA  # TODO: please fill in
           - - name: step-b
               templateRef:
-                name: users/your_user_id/apps/your_app_id/pipeline-steps/stepB
-                template: users/your_user_id/apps/your_app_id/pipeline-steps/stepB
+                name: users/your_user_id/apps/your_app_id/pipeline-steps/stepB  # TODO: please fill in
+                template: users/your_user_id/apps/your_app_id/pipeline-steps/stepB  # TODO: please fill in
 """
 
 

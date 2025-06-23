@@ -53,7 +53,7 @@ def init(pipeline_path):
 
     PIPELINE_PATH: Path where to create the pipeline project structure. If not specified, the current directory is used by default.
     """
-    from clarifai.cli.pipeline_templates import (
+    from clarifai.cli.templates.pipeline_templates import (
         get_pipeline_config_template,
         get_pipeline_step_config_template,
         get_pipeline_step_requirements_template,

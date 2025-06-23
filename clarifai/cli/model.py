@@ -49,7 +49,7 @@ def init(model_path, model_type_id):
 
     MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
     """
-    from clarifai.cli.model_templates import (
+    from clarifai.cli.templates.model_templates import (
         get_config_template,
         get_model_template,
         get_requirements_template,

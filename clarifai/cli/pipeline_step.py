@@ -50,7 +50,7 @@ def init(pipeline_step_path):
 
     PIPELINE_STEP_PATH: Path where to create the pipeline step directory structure. If not specified, the current directory is used by default.
     """
-    from clarifai.cli.pipeline_step_templates import (
+    from clarifai.cli.templates.pipeline_step_templates import (
         get_config_template,
         get_pipeline_step_template,
         get_requirements_template,
