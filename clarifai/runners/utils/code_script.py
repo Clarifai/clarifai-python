@@ -106,22 +106,20 @@ from clarifai.runners.utils import data_types
         deployment_id = None
     else:
         deployment_id = (
-            "os.environ['CLARIFAI_DEPLOYMENT_ID']"
-            if deployment_id is None
-            else repr(deployment_id)
+            "os.environ['CLARIFAI_DEPLOYMENT_ID']" if not deployment_id else repr(deployment_id)
         )
 
     deployment_line = (
         f'deployment_id = {deployment_id}, # Only needed for dedicated deployed models'
-        if deployment_id is not None
+        if deployment_id
         else ""
     )
     compute_cluster_line = (
-        f'compute_cluster_id = "{compute_cluster_id}",' if compute_cluster_id is not None else ""
+        f'compute_cluster_id = "{compute_cluster_id}",' if compute_cluster_id else ""
     )
     nodepool_line = (
         f'nodepool_id = "{nodepool_id}", # Only needed for dedicated nodepool'
-        if nodepool_id is not None
+        if nodepool_id
         else ""
     )
 

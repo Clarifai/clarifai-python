@@ -294,9 +294,6 @@ class ModelClient:
     def generate_client_script(
         self,
         base_url: str = None,
-        deployment_id: str = None,
-        compute_cluster_id: str = None,
-        nodepool_id: str = None,
         use_ctx: bool = False,
     ) -> str:
         """Generate a client script for this model.
@@ -315,9 +312,9 @@ class ModelClient:
             app_id=self.request_template.user_app_id.app_id,
             model_id=self.request_template.model_id,
             base_url=base_url,
-            deployment_id=deployment_id,
-            compute_cluster_id=compute_cluster_id,
-            nodepool_id=nodepool_id,
+            deployment_id=self.request_template.runner_selector.deployment.id,
+            compute_cluster_id=self.request_template.runner_selector.nodepool.compute_cluster.id,
+            nodepool_id=self.request_template.runner_selector.nodepool.id,
             use_ctx=use_ctx,
         )
 
