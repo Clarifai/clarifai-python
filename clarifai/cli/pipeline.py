@@ -70,7 +70,7 @@ def run(
     from clarifai.utils.cli import from_yaml, validate_context
 
     validate_context(ctx)
-    
+
     if config:
         config_data = from_yaml(config)
         pipeline_id = config_data.get('pipeline_id', pipeline_id)

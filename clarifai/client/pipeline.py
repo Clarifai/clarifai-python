@@ -161,7 +161,7 @@ class Pipeline(Lister, BaseClient):
                     if hasattr(orch_status, 'status') and orch_status.status:
                         status_code = orch_status.status.code
                         logger.info(f"Pipeline run status: {status_code}")
-                        
+
                         # For now, we'll consider SUCCESS as completion
                         # The actual pipeline run status codes might be different
                         if status_code == status_code_pb2.StatusCode.SUCCESS:
