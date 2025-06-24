@@ -23,6 +23,7 @@ from clarifai.client.user import User
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.const import (
     AMD_PYTHON_BASE_IMAGE,
+    AMD_TORCH_BASE_IMAGE,
     AMD_VLLM_BASE_IMAGE,
     AVAILABLE_PYTHON_IMAGES,
     AVAILABLE_TORCH_IMAGES,
@@ -46,6 +47,7 @@ from clarifai.versions import CLIENT_VERSION
 dependencies = [
     'torch',
     'clarifai',
+    'vllm',
 ]
 
 
@@ -800,7 +802,7 @@ class ModelBuilder:
                     )
                 python_version = DEFAULT_PYTHON_VERSION
                 gpu_version = DEFAULT_AMD_GPU_VERSION
-                final_image = TORCH_BASE_IMAGE.format(
+                final_image = AMD_TORCH_BASE_IMAGE.format(
                     torch_version=torch_version,
                     python_version=python_version,
                     gpu_version=gpu_version,
