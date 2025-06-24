@@ -442,9 +442,7 @@ class TestRunnerServer:
             self._validate_response(res, text + out.format(i=i))
 
     def test_client_code_script(self):
-        client_script = self.model.generate_client_script(
-            compute_cluster_id=self.COMPUTE_CLUSTER_ID, nodepool_id=self.NODEPOOL_ID
-        )
+        client_script = self.model.generate_client_script()
 
         assert client_script is not None, "Client script should not be None"
 
