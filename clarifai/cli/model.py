@@ -819,3 +819,35 @@ def predict(
             output_config=output_config,
         )  ## TO DO: Add support for input_id
     click.echo(model_prediction)
+
+
+@model.command(name="list")
+@click.argument(
+    "user_id",
+    required=False,
+    default=None,
+)
+@click.option(
+    '--app_id',
+    '-a',
+    type=str,
+    default=None,
+    show_default=True,
+    help="Get all models of an app",
+)
+@click.pass_context
+def list_model(ctx, user_id, app_id):
+    """List models of user/community
+
+    USER_ID: User id. If not specified, the current user is used by default. Set "all" to get all public models in Clarifai platform.
+    """
+    from clarifai.client import User
+
+    try:
+        pat = ctx.obj.contexts["default"]["env"]["CLARIFAI_PAT"]
+    except Exception as e:
+        pat = None
+
+    User(pat=pat).list_models(
+        user_id=user_id, app_id=app_id, show=True, return_clarifai_model=False
+    )

@@ -456,3 +456,84 @@ class User(Lister, BaseClient):
             if hasattr(self.user_info, param)
         ]
         return f"Clarifai User Details: \n{', '.join(attribute_strings)}\n"
+
+    def list_models(
+        self,
+        user_id: str = None,
+        app_id: str = None,
+        show: bool = True,
+        return_clarifai_model: bool = False,
+        **kwargs,
+    ):
+        if user_id == "all":
+            params = {}
+        elif user_id:
+            user_app_id = resources_pb2.UserAppIDSet(user_id=user_id, app_id=app_id)
+            params = {"user_app_id": user_app_id}
+        elif not user_id:
+            user_app_id = resources_pb2.UserAppIDSet(
+                user_id=self.user_app_id.user_id, app_id=app_id
+            )
+            params = {"user_app_id": user_app_id}
+
+        params.update(**kwargs)
+        models = self.list_pages_generator(
+            self.STUB.ListModels, service_pb2.ListModelsRequest, request_data=params
+        )
+        all_data = []
+        for model in models:
+            url = (
+                f"https://clarifai.com/{model['user_id']}/{model['app_id']}/models/{model['name']}"
+            )
+            data = dict(
+                user_id=model["user_id"],
+                app_id=model["app_id"],
+                id=model["model_id"],
+                model_type=model["model_type_id"],
+                url=url,
+            )
+            method_types_data = dict(
+                supported_openai_client=False,
+                UNARY_UNARY={"predict"},
+                UNARY_STREAMING=set(),
+                STREAMING_STREAMING=set(),
+            )
+            for each_method in model.get("model_version", {}).get("method_signatures", []):
+                name = each_method["name"]
+                method_type = each_method["method_type"]
+                method_types_data[method_type].add(name)
+            if (
+                "openai_transport" in method_types_data["UNARY_UNARY"]
+                and "openai_stream_transport" in method_types_data["UNARY_STREAMING"]
+            ):
+                method_types_data["supported_openai_client"] = True
+                method_types_data["UNARY_UNARY"].remove("openai_transport")
+                method_types_data["UNARY_STREAMING"].remove("openai_stream_transport")
+            for k, v in method_types_data.items():
+                if k != "supported_openai_client":
+                    if not v:
+                        method_types_data[k] = None
+                    else:
+                        method_types_data[k] = list(v)
+
+            data.update(method_types_data)
+            all_data.append(data)
+
+        if show:
+            from tabulate import tabulate
+
+            print(tabulate(all_data, headers="keys"))
+
+        if return_clarifai_model:
+            from clarifai.client import Model
+
+            models = []
+            for each_data in all_data:
+                model = Model.from_auth_helper(
+                    self.auth_helper,
+                    url=each_data["url"],
+                )
+                models.append(model)
+            return models
+        else:
+            return all_data
