@@ -6,7 +6,7 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
-from clarifai.cli.pipeline import init, upload
+from clarifai.cli.pipeline import init, run, upload
 from clarifai.runners.pipelines.pipeline_builder import (
     PipelineBuilder,
     PipelineConfigValidator,
@@ -970,3 +970,93 @@ class TestPipelineInitCommand:
 
             for file_path in expected_files:
                 assert os.path.exists(file_path), f"Expected file {file_path} was not created"
+
+
+class TestPipelineRunCommand:
+    """Test cases for the pipeline run CLI command."""
+
+    @patch('clarifai.client.pipeline.Pipeline')
+    @patch('clarifai.utils.cli.validate_context')
+    def test_run_command_with_pipeline_id(self, mock_validate_context, mock_pipeline_class):
+        """Test that run command works with pipeline_id, user_id, and app_id."""
+        # Mock the pipeline instance
+        mock_pipeline = Mock()
+        mock_pipeline.run.return_value = {'status': 'success', 'run_id': 'test-run-123'}
+        mock_pipeline_class.return_value = mock_pipeline
+
+        runner = CliRunner()
+        
+        # Create a minimal context
+        ctx_obj = {'pat': 'test-pat', 'base_url': 'https://api.clarifai.com'}
+        
+        with runner.isolated_filesystem():
+            result = runner.invoke(
+                run,
+                [
+                    '--pipeline_id', 'test-pipeline',
+                    '--user_id', 'test-user',
+                    '--app_id', 'test-app',
+                    '--timeout', '300',
+                    '--monitor_interval', '5'
+                ],
+                obj=ctx_obj
+            )
+
+            assert result.exit_code == 0
+            mock_pipeline_class.assert_called_once_with(
+                pipeline_id='test-pipeline',
+                pipeline_version_id=None,
+                user_id='test-user',
+                app_id='test-app',
+                pat='test-pat',
+                base_url='https://api.clarifai.com'
+            )
+            mock_pipeline.run.assert_called_once_with(timeout=300, monitor_interval=5)
+
+    @patch('clarifai.client.pipeline.Pipeline') 
+    @patch('clarifai.utils.cli.validate_context')
+    def test_run_command_with_pipeline_url(self, mock_validate_context, mock_pipeline_class):
+        """Test that run command works with pipeline_url."""
+        # Mock the pipeline instance
+        mock_pipeline = Mock()
+        mock_pipeline.run.return_value = {'status': 'success', 'run_id': 'test-run-456'}
+        mock_pipeline_class.return_value = mock_pipeline
+
+        runner = CliRunner()
+        
+        # Create a minimal context
+        ctx_obj = {'pat': 'test-pat', 'base_url': 'https://api.clarifai.com'}
+        
+        with runner.isolated_filesystem():
+            result = runner.invoke(
+                run,
+                ['--pipeline_url', 'https://clarifai.com/user/app/pipelines/test-pipeline'],
+                obj=ctx_obj
+            )
+
+            assert result.exit_code == 0
+            mock_pipeline_class.assert_called_once_with(
+                url='https://clarifai.com/user/app/pipelines/test-pipeline',
+                pat='test-pat',
+                base_url='https://api.clarifai.com'
+            )
+            mock_pipeline.run.assert_called_once_with(timeout=3600, monitor_interval=10)
+
+    def test_run_command_missing_required_args(self):
+        """Test that run command fails when required arguments are missing."""
+        runner = CliRunner()
+        
+        # Create a minimal context
+        ctx_obj = {'pat': 'test-pat', 'base_url': 'https://api.clarifai.com'}
+        
+        with runner.isolated_filesystem():
+            result = runner.invoke(
+                run,
+                ['--pipeline_id', 'test-pipeline'],  # Missing user_id and app_id
+                obj=ctx_obj
+            )
+
+            assert result.exit_code != 0
+            assert result.exception is not None
+            assert 'Either --pipeline_id & --user_id & --app_id or --pipeline_url must be provided' in str(result.exception)
+
