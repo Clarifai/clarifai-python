@@ -612,7 +612,6 @@ class ModelBuilder:
                 if dependency is None:
                     continue
                 dependencies_version[dependency] = version if version else None
-        print(f"Parsed dependencies from requirements.txt: {dependencies_version}")
         return dependencies_version
 
     def _validate_requirements(self, python_version):
