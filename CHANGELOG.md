@@ -1,3 +1,16 @@
+## [[11.5.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.3) - [PyPI](https://pypi.org/project/clarifai/11.5.3/) - 2025-06-24
+
+### Changed
+- Fixes AMD-related configuration by updating image versioning, introducing an AMD-specific Torch image  [(#641)] (https://github.com/Clarifai/clarifai-python/pull/641)
+- Fix code snippets and Added code snippet test  [(#638)] (https://github.com/Clarifai/clarifai-python/pull/638)
+- Add CLI command for pipeline upload with orchestration and validation  [(#634)] (https://github.com/Clarifai/clarifai-python/pull/634)
+- Add list models information in CLI and method [(#640)] (https://github.com/Clarifai/clarifai-python/pull/640)
+- Show a terminal prompt asking users if they want to create a new app when the specified app does not exist  [(#637)] (https://github.com/Clarifai/clarifai-python/pull/637)
+- Asyncify predict endpoints v2  [(#588)] (https://github.com/Clarifai/clarifai-python/pull/588)
+- Added Model Utils in SDK [(#631)] (https://github.com/Clarifai/clarifai-python/pull/631)
+- Use model auth to set runner  [(#632)] (https://github.com/Clarifai/clarifai-python/pull/632)
+- Add support for Clarifai Pipeline Steps Upload similar to Model Upload  [(#621)] (https://github.com/Clarifai/clarifai-python/pull/621)
+
 ## [[11.5.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.2) - [PyPI](https://pypi.org/project/clarifai/11.5.2/) - 2025-06-13
 
 ### Changed
