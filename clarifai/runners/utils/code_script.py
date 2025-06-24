@@ -28,6 +28,8 @@ def generate_client_script(
     model_id,
     base_url: str = None,
     deployment_id: str = None,
+    compute_cluster_id: str = None,
+    nodepool_id: str = None,
     use_ctx: bool = False,
 ) -> str:
     url_helper = ClarifaiUrlHelper()
@@ -96,14 +98,41 @@ from clarifai.client import Model
 from clarifai.runners.utils import data_types
 {model_section}
     """
+    if deployment_id and (compute_cluster_id or nodepool_id):
+        raise ValueError(
+            "You can only specify one of deployment_id or compute_cluster_id and nodepool_id."
+        )
+    if compute_cluster_id and nodepool_id:
+        deployment_id = None
+    else:
+        deployment_id = (
+            "os.environ['CLARIFAI_DEPLOYMENT_ID']" if not deployment_id else repr(deployment_id)
+        )
 
-    deployment_id = (
-        "os.environ['CLARIFAI_DEPLOYMENT_ID']" if deployment_id is None else deployment_id
+    deployment_line = (
+        f'deployment_id = {deployment_id}, # Only needed for dedicated deployed models'
+        if deployment_id
+        else ""
+    )
+    compute_cluster_line = (
+        f'compute_cluster_id = "{compute_cluster_id}",' if compute_cluster_id else ""
+    )
+    nodepool_line = (
+        f'nodepool_id = "{nodepool_id}", # Only needed for dedicated nodepool'
+        if nodepool_id
+        else ""
     )
 
     base_url_str = ""
     if base_url is not None:
         base_url_str = f"base_url={base_url},"
+
+    # Join all non-empty lines
+    optional_lines = "\n    ".join(
+        line
+        for line in [deployment_line, compute_cluster_line, nodepool_line, base_url_str]
+        if line
+    )
 
     if use_ctx:
         model_section = """
@@ -112,8 +141,7 @@ model = Model.from_current_context()"""
         model_ui_url = url_helper.clarifai_url(user_id, app_id, "models", model_id)
         model_section = f"""
 model = Model("{model_ui_url}",
-               deployment_id = {deployment_id}, # Only needed for dedicated deployed models
-               {base_url_str}
+    {optional_lines}
  )
 """
 
@@ -128,14 +156,19 @@ model = Model("{model_ui_url}",
         method_name = method_signature.name
         client_script_str = f'response = model.{method_name}('
         annotations = _get_annotations_source(method_signature)
-        for param_name, (param_type, default_value, required) in annotations.items():
+        for idx, (param_name, (param_type, default_value, required)) in enumerate(
+            annotations.items()
+        ):
             if param_name == "return":
                 continue
             if default_value is None and required:
                 default_value = _set_default_value(param_type)
+            if not default_value and idx == 0:
+                default_value = _set_default_value(param_type)
             if param_type == "str" and default_value is not None:
                 default_value = json.dumps(default_value)
-            client_script_str += f"{param_name}={default_value}, "
+            if default_value is not None:
+                client_script_str += f"{param_name}={default_value}, "
         client_script_str = client_script_str.rstrip(", ") + ")"
         if method_signature.method_type == resources_pb2.RunnerMethodType.UNARY_UNARY:
             client_script_str += "\nprint(response)"
@@ -229,7 +262,7 @@ def _map_default_value(field_type):
     default_value = None
 
     if field_type == "str":
-        default_value = repr('What is the future of AI?')
+        default_value = 'What is the future of AI?'
     elif field_type == "bytes":
         default_value = b""
     elif field_type == "int":
