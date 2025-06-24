@@ -775,8 +775,13 @@ class ModelBuilder:
                         torch_version = DEFAULT_AMD_TORCH_VERSION
                     if torch_version not in [DEFAULT_AMD_TORCH_VERSION]:
                         raise Exception(
-                            f"torch version {torch_version} not supported, please use one of the following versions: {DEFAULT_AMD_TORCH_VERSION} in your requirements.txt"
+                            f"Setup: torch version {torch_version} not supported, please use one of the following versions: {DEFAULT_AMD_TORCH_VERSION} in your requirements.txt"
                         )
+                else:
+                    logger.info(
+                        f"`torch` not found in requirements.txt, using the default torch=={DEFAULT_AMD_TORCH_VERSION}"
+                    )
+                    torch_version = DEFAULT_AMD_TORCH_VERSION
                 python_version = DEFAULT_PYTHON_VERSION
                 gpu_version = DEFAULT_AMD_GPU_VERSION
                 final_image = AMD_VLLM_BASE_IMAGE.format(
@@ -785,21 +790,17 @@ class ModelBuilder:
                     gpu_version=gpu_version,
                 )
                 logger.info("Setup: Using vLLM base image to build the Docker image")
-            elif 'torch' in dependencies:
+            elif (
+                'torch' in dependencies
+                and (dependencies['torch'] in [None, DEFAULT_AMD_TORCH_VERSION])
+                and python_version == DEFAULT_PYTHON_VERSION
+            ):
                 torch_version = dependencies['torch']
-                if python_version != DEFAULT_PYTHON_VERSION:
-                    raise Exception(
-                        f"torch is not supported with Python version {python_version}, please use Python version {DEFAULT_PYTHON_VERSION} in your config.yaml"
-                    )
                 if not torch_version:
                     logger.info(
                         f"torch version not found in requirements.txt, using the default version {DEFAULT_AMD_TORCH_VERSION}"
                     )
                     torch_version = DEFAULT_AMD_TORCH_VERSION
-                if torch_version not in [DEFAULT_AMD_TORCH_VERSION]:
-                    raise Exception(
-                        f"torch version {torch_version} not supported, please use one of the following versions: {DEFAULT_AMD_TORCH_VERSION} in your requirements.txt"
-                    )
                 python_version = DEFAULT_PYTHON_VERSION
                 gpu_version = DEFAULT_AMD_GPU_VERSION
                 final_image = AMD_TORCH_BASE_IMAGE.format(
