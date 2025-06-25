@@ -39,10 +39,7 @@ def test_url_fetcher():
 def test_get_auth_kwargs_with_pat():
     """Test _get_auth_kwargs function with PAT authentication"""
     auth_helper = ClarifaiAuthHelper(
-        user_id="test_user",
-        app_id="test_app",
-        pat="test_pat_token",
-        validate=False
+        user_id="test_user", app_id="test_app", pat="test_pat_token", validate=False
     )
 
     auth_kwargs = _get_auth_kwargs(auth_helper)
@@ -56,10 +53,7 @@ def test_get_auth_kwargs_with_pat():
 def test_get_auth_kwargs_with_session_token():
     """Test _get_auth_kwargs function with session token authentication"""
     auth_helper = ClarifaiAuthHelper(
-        user_id="test_user",
-        app_id="test_app",
-        token="test_session_token",
-        validate=False
+        user_id="test_user", app_id="test_app", token="test_session_token", validate=False
     )
 
     auth_kwargs = _get_auth_kwargs(auth_helper)
@@ -67,7 +61,9 @@ def test_get_auth_kwargs_with_session_token():
     assert 'client_kwargs' in auth_kwargs
     assert 'headers' in auth_kwargs['client_kwargs']
     assert 'x-clarifai-session-token' in auth_kwargs['client_kwargs']['headers']
-    assert auth_kwargs['client_kwargs']['headers']['x-clarifai-session-token'] == 'test_session_token'
+    assert (
+        auth_kwargs['client_kwargs']['headers']['x-clarifai-session-token'] == 'test_session_token'
+    )
 
 
 def test_get_auth_kwargs_with_none():
@@ -85,7 +81,9 @@ def test_ensure_urls_downloaded_with_auth_backward_compatibility():
         inputs=[
             resources_pb2.Input(
                 data=resources_pb2.Data(
-                    image=resources_pb2.Image(url="https://httpbin.org/status/404"),  # Use a URL that will fail gracefully
+                    image=resources_pb2.Image(
+                        url="https://httpbin.org/status/404"
+                    ),  # Use a URL that will fail gracefully
                 ),
             ),
         ],
@@ -99,10 +97,7 @@ def test_ensure_urls_downloaded_with_auth_backward_compatibility():
 
     # Test with auth_helper (new functionality)
     auth_helper = ClarifaiAuthHelper(
-        user_id="test_user",
-        app_id="test_app",
-        pat="test_pat",
-        validate=False
+        user_id="test_user", app_id="test_app", pat="test_pat", validate=False
     )
 
     try:

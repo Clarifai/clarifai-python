@@ -68,11 +68,7 @@ def _get_auth_kwargs(auth_helper):
                 headers[key] = value
 
         # Return fsspec-compatible kwargs
-        return {
-            'client_kwargs': {
-                'headers': headers
-            }
-        }
+        return {'client_kwargs': {'headers': headers}}
     except Exception as e:
         logger.warning(f"Failed to get authentication headers: {e}")
         return {}
