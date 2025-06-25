@@ -120,14 +120,16 @@ def init(model_path, model_type_id):
     is_flag=True,
     help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile.',
 )
-def upload(model_path, stage, skip_dockerfile):
+@click.pass_context
+def upload(ctx, model_path, stage, skip_dockerfile):
     """Upload a model to Clarifai.
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
     """
     from clarifai.runners.models.model_builder import upload_model
 
-    upload_model(model_path, stage, skip_dockerfile)
+    validate_context(ctx)
+    upload_model(model_path, stage, skip_dockerfile, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
 
 
 @model.command()
