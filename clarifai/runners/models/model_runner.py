@@ -5,6 +5,8 @@ from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from clarifai_protocol import BaseRunner
 from clarifai_protocol.utils.health import HealthProbeRequestHandler
 
+from clarifai.client.auth.helper import ClarifaiAuthHelper
+
 from ..utils.url_fetcher import ensure_urls_downloaded
 from .model_class import ModelClass
 
@@ -41,6 +43,28 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
             **kwargs,
         )
         self.model = model
+
+        # Store authentication parameters for URL fetching
+        self._user_id = user_id
+        self._pat = pat
+        self._token = token
+        self._base_url = base_url
+
+        # Create auth helper if we have sufficient authentication information
+        self._auth_helper = None
+        if self._user_id and (self._pat or self._token):
+            try:
+                self._auth_helper = ClarifaiAuthHelper(
+                    user_id=self._user_id,
+                    app_id="",  # app_id not needed for URL fetching
+                    pat=self._pat or "",
+                    token=self._token or "",
+                    base=self._base_url,
+                    validate=False,  # Don't validate since app_id is empty
+                )
+            except Exception:
+                # If auth helper creation fails, proceed without authentication
+                self._auth_helper = None
 
         # After model load successfully set the health probe to ready and startup
         HealthProbeRequestHandler.is_ready = True
@@ -81,7 +105,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
-        ensure_urls_downloaded(request)
+        ensure_urls_downloaded(request, auth_helper=self._auth_helper)
 
         resp = self.model.predict_wrapper(request)
         if resp.status.code != status_code_pb2.SUCCESS:
@@ -114,7 +138,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
-        ensure_urls_downloaded(request)
+        ensure_urls_downloaded(request, auth_helper=self._auth_helper)
 
         for resp in self.model.generate_wrapper(request):
             if resp.status.code != status_code_pb2.SUCCESS:
@@ -150,7 +174,9 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         self, runner_item_iterator: Iterator[service_pb2.RunnerItem]
     ) -> Iterator[service_pb2.RunnerItemOutput]:
         # Call the generate() method the underlying model implements.
-        for resp in self.model.stream_wrapper(pmo_iterator(runner_item_iterator)):
+        for resp in self.model.stream_wrapper(
+            pmo_iterator(runner_item_iterator, self._auth_helper)
+        ):
             if resp.status.code != status_code_pb2.SUCCESS:
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
                 continue
@@ -181,9 +207,9 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
             yield service_pb2.RunnerItemOutput(multi_output_response=resp)
 
 
-def pmo_iterator(runner_item_iterator):
+def pmo_iterator(runner_item_iterator, auth_helper=None):
     for runner_item in runner_item_iterator:
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
-        ensure_urls_downloaded(runner_item.post_model_outputs_request)
+        ensure_urls_downloaded(runner_item.post_model_outputs_request, auth_helper=auth_helper)
         yield runner_item.post_model_outputs_request
