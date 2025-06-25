@@ -1,3 +1,8 @@
+## [[11.5.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.4) - [PyPI](https://pypi.org/project/clarifai/11.5.4/) - 2025-06-25
+
+### Fixed
+- Added authentication support to URL fetcher for SDH-protected URLs [(#647)] (https://github.com/Clarifai/clarifai-python/pull/647)
+
 ## [[11.5.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.3) - [PyPI](https://pypi.org/project/clarifai/11.5.3/) - 2025-06-24
 
 ### Changed
