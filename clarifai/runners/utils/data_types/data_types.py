@@ -207,6 +207,7 @@ class Region(MessageData):
         track_id: str = None,
         text: str = None,
         id: str = None,
+        value: float = None,
     ):
         if proto_region is None:
             self.proto = RegionProto()
@@ -223,6 +224,8 @@ class Region(MessageData):
                 self.track_id = track_id
             if text:
                 self.text = text
+            if value:
+                self.value = value
             self.id = id if id is not None else uuid.uuid4().hex
         elif isinstance(proto_region, RegionProto):
             self.proto = proto_region
@@ -322,8 +325,19 @@ class Region(MessageData):
         point_proto = PointProto(col=x, row=y, z=z)
         self.proto.region_info.point.CopyFrom(point_proto)
 
+    @property
+    def value(self) -> float:
+        """Value of the region, typically used for confidence scores."""
+        return self.proto.value
+
+    @value.setter
+    def value(self, value: float):
+        if not isinstance(value, (int, float)):
+            raise TypeError(f"Expected int or float for value, got {type(value).__name__}")
+        self.proto.value = float(value)
+
     def __repr__(self) -> str:
-        return f"Region(id={self.id},box={self.box or []}, concepts={self.concepts or None}, point={self.point or None}, mask={self.mask or None}, track_id={self.track_id or None})"
+        return f"Region(id={self.id},box={self.box or []}, concepts={self.concepts or None}, point={self.point or None}, mask={self.mask or None}, track_id={self.track_id or None}, value={self.value or None})"
 
     def to_proto(self) -> RegionProto:
         return self.proto
