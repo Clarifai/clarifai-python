@@ -239,7 +239,12 @@ class TestRunnerServer:
             version_id=self.MODEL_VERSION_ID,
             user_app_id=self.AUTH.get_user_app_id_proto(),
             inputs=[
-                resources_pb2.Input(data=resources_pb2.Data(text=resources_pb2.Text(raw=text))),
+                resources_pb2.Input(
+                    data=resources_pb2.Data(
+                        text=resources_pb2.Text(raw=text),
+                        metadata={'_method_name': 'PostModelOutputs'},
+                    )
+                ),
             ],
             runner_selector=runner_selector,
         )

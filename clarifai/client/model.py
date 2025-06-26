@@ -528,7 +528,10 @@ class Model(Lister, BaseClient):
             inference_params = kwargs.get('inference_params', {})
             output_config = kwargs.get('output_config', {})
             return self.client._predict_by_proto(
-                inputs=inputs, inference_params=inference_params, output_config=output_config
+                inputs=inputs,
+                method_name="PostModelOutputs",
+                inference_params=inference_params,
+                output_config=output_config,
             )
 
         return self.client.predict(*args, **kwargs)

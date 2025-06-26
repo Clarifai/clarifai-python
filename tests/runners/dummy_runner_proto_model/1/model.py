@@ -11,7 +11,7 @@ class MyModel(ModelClass):
     def load_model(self):
         """Load the model here."""
 
-    def predict(
+    def PostModelOutputs(
         self, request: service_pb2.PostModelOutputsRequest
     ) -> service_pb2.MultiOutputResponse:
         """This is the method that will be called when the runner is run. It takes in an input and

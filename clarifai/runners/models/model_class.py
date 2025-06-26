@@ -401,7 +401,7 @@ class ModelClass(ABC):
                 methods[name] = method_info
         # check for generic predict(request) -> response, etc. methods
         # older models never had generate or stream so don't bother with them.
-        for name in ['predict']:  # , 'generate', 'stream'):
+        for name in ['PostModelOutputs']:  # , 'GenerateModelOutputs', 'StreamModelOutputs'):
             if hasattr(cls, name) and name not in methods:
                 method = getattr(cls, name)
                 if not callable(method):
