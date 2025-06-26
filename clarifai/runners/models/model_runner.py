@@ -84,9 +84,19 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         ensure_urls_downloaded(request)
 
         resp = self.model.predict_wrapper(request)
-        if resp.status.code != status_code_pb2.SUCCESS:
+        # if we have any non-successful code already it's an error we can return.
+        if (
+            resp.status.code != status_code_pb2.SUCCESS
+            and resp.status.code != status_code_pb2.ZERO
+        ):
             return service_pb2.RunnerItemOutput(multi_output_response=resp)
-        successes = [o.status.code == status_code_pb2.SUCCESS for o in resp.outputs]
+        successes = []
+        for output in resp.outputs:
+            if not output.HasField('status') or not output.status.code:
+                raise Exception(
+                    "Output must have a status code, please check the model implementation."
+                )
+            successes.append(output.status.code == status_code_pb2.SUCCESS)
         if all(successes):
             status = status_pb2.Status(
                 code=status_code_pb2.SUCCESS,
@@ -117,7 +127,11 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         ensure_urls_downloaded(request)
 
         for resp in self.model.generate_wrapper(request):
-            if resp.status.code != status_code_pb2.SUCCESS:
+            # if we have any non-successful code already it's an error we can return.
+            if (
+                resp.status.code != status_code_pb2.SUCCESS
+                and resp.status.code != status_code_pb2.ZERO
+            ):
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
                 continue
             successes = []
@@ -151,7 +165,11 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
     ) -> Iterator[service_pb2.RunnerItemOutput]:
         # Call the generate() method the underlying model implements.
         for resp in self.model.stream_wrapper(pmo_iterator(runner_item_iterator)):
-            if resp.status.code != status_code_pb2.SUCCESS:
+            # if we have any non-successful code already it's an error we can return.
+            if (
+                resp.status.code != status_code_pb2.SUCCESS
+                and resp.status.code != status_code_pb2.ZERO
+            ):
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
                 continue
             successes = []
