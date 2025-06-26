@@ -104,9 +104,19 @@ class ModelClass(ABC):
         outputs = []
         try:
             # TODO add method name field to proto
-            method_name = 'predict'
+            # to support old callers who might not pass in the method name we have a few defaults.
+            # first we look for a PostModelOutputs method that is implemented as protos and use that
+            # if it exists.
+            # if not we default to 'predict'.
+            method_name = None
             if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
                 method_name = request.inputs[0].data.metadata['_method_name']
+            if method_name is None and 'PostModelOutputs' in self._get_method_infos():
+                _info = self._get_method_info('PostModelOutputs')
+                if _info.proto_method:
+                    method_name = 'PostModelOutputs'
+            if method_name is None:
+                method_name = 'predict'
             if (
                 method_name == '_GET_SIGNATURES'
             ):  # special case to fetch signatures, TODO add endpoint for this
