@@ -80,7 +80,7 @@ class Pipeline(Lister, BaseClient):
             root_certificates_path=root_certificates_path,
         )
         Lister.__init__(self)
-        
+
         # Set up runner selector if compute cluster and nodepool are provided
         self._runner_selector = None
         if self.compute_cluster_id and self.nodepool_id:
@@ -105,13 +105,24 @@ class Pipeline(Lister, BaseClient):
         # Create a new pipeline version run
         pipeline_version_run = resources_pb2.PipelineVersionRun()
         pipeline_version_run.id = self.pipeline_version_run_id
-        
+
+        # Set nodepools if nodepool information is available
+        if self.nodepool_id and self.compute_cluster_id:
+            nodepool = resources_pb2.Nodepool(
+                id=self.nodepool_id,
+                compute_cluster=resources_pb2.ComputeCluster(
+                    id=self.compute_cluster_id,
+                    user_id=self.user_id
+                )
+            )
+            pipeline_version_run.nodepools.extend([nodepool])
+
         run_request = service_pb2.PostPipelineVersionRunsRequest()
         run_request.user_app_id.CopyFrom(self.user_app_id)
         run_request.pipeline_id = self.pipeline_id
         run_request.pipeline_version_id = self.pipeline_version_id or ""
         run_request.pipeline_version_runs.append(pipeline_version_run)
-        
+
         # Add runner selector if available
         if self._runner_selector:
             run_request.runner_selector.CopyFrom(self._runner_selector)
