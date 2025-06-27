@@ -551,7 +551,9 @@ class ModelBuilder:
         )
         inference_compute_info = self.config.get('inference_compute_info')
         # Ensure cpu_limit is a string if it exists and is an int
-        if 'cpu_limit' in inference_compute_info and isinstance(inference_compute_info['cpu_limit'], int):
+        if 'cpu_limit' in inference_compute_info and isinstance(
+            inference_compute_info['cpu_limit'], int
+        ):
             inference_compute_info['cpu_limit'] = str(inference_compute_info['cpu_limit'])
         return json_format.ParseDict(inference_compute_info, resources_pb2.ComputeInfo())
 
