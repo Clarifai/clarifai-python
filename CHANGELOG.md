@@ -1,3 +1,8 @@
+## [[11.5.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.5) - [PyPI](https://pypi.org/project/clarifai/11.5.5/) - 2025-06-27
+
+### Fixed
+- fix legacy proto support [(#636)] (https://github.com/Clarifai/clarifai-python/pull/636)
+
 ## [[11.5.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.4) - [PyPI](https://pypi.org/project/clarifai/11.5.4/) - 2025-06-25
 
 ### Fixed
