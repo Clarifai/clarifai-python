@@ -90,6 +90,12 @@ def run(
         timeout = config_data.get('timeout', timeout)
         monitor_interval = config_data.get('monitor_interval', monitor_interval)
 
+    # compute_cluster_id and nodepool_id are mandatory regardless of whether pipeline_url is provided
+    if not compute_cluster_id or not nodepool_id:
+        raise ValueError(
+            "--compute_cluster_id and --nodepool_id are mandatory parameters."
+        )
+    
     if pipeline_url:
         # When using pipeline_url, other parameters are optional (will be parsed from URL)
         required_params_provided = True

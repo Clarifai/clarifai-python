@@ -193,15 +193,31 @@ class Pipeline(Lister, BaseClient):
                         status_code = orch_status.status.code
                         logger.info(f"Pipeline run status: {status_code}")
 
-                        # For now, we'll consider SUCCESS as completion
-                        # The actual pipeline run status codes might be different
-                        if status_code == status_code_pb2.StatusCode.SUCCESS:
+                        # Success codes that allow continuation: JOB_RUNNING, JOB_QUEUED
+                        if status_code in [
+                            status_code_pb2.StatusCode.JOB_RUNNING,
+                            status_code_pb2.StatusCode.JOB_QUEUED,
+                        ]:
+                            logger.info(f"Pipeline run in progress: {status_code}")
+                            # Continue monitoring
+                        # Successful terminal state: JOB_COMPLETED
+                        elif status_code == status_code_pb2.StatusCode.JOB_COMPLETED:
+                            logger.info("Pipeline run completed successfully!")
+                            return {"status": "success", "pipeline_version_run": pipeline_run}
+                        # Failure terminal states: JOB_UNEXPECTED_ERROR, JOB_FAILED
+                        elif status_code in [
+                            status_code_pb2.StatusCode.JOB_UNEXPECTED_ERROR,
+                            status_code_pb2.StatusCode.JOB_FAILED,
+                        ]:
+                            logger.error(f"Pipeline run failed with status: {status_code}")
+                            return {"status": "failed", "pipeline_version_run": pipeline_run}
+                        # Handle legacy SUCCESS status for backward compatibility
+                        elif status_code == status_code_pb2.StatusCode.SUCCESS:
                             logger.info("Pipeline run completed successfully!")
                             return {"status": "success", "pipeline_version_run": pipeline_run}
                         elif status_code != status_code_pb2.StatusCode.MIXED_STATUS:
-                            # Any non-success, non-mixed status is considered failed for now
-                            logger.error(f"Pipeline run failed with status: {status_code}")
-                            return {"status": "failed", "pipeline_version_run": pipeline_run}
+                            # Log other unexpected statuses but continue monitoring
+                            logger.warning(f"Unexpected pipeline run status: {status_code}. Continuing to monitor...")
 
             except Exception as e:
                 logger.error(f"Error monitoring pipeline run: {e}")

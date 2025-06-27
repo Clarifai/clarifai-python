@@ -1006,6 +1006,8 @@ class TestPipelineRunCommand:
                     '--pipeline_version_id', 'test-version-123',
                     '--user_id', 'test-user',
                     '--app_id', 'test-app',
+                    '--nodepool_id', 'test-nodepool',
+                    '--compute_cluster_id', 'test-cluster',
                     '--timeout', '300',
                     '--monitor_interval', '5'
                 ],
@@ -1019,8 +1021,8 @@ class TestPipelineRunCommand:
                 pipeline_version_run_id=None,
                 user_id='test-user',
                 app_id='test-app',
-                nodepool_id=None,
-                compute_cluster_id=None,
+                nodepool_id='test-nodepool',
+                compute_cluster_id='test-cluster',
                 pat='test-pat',
                 base_url='https://api.clarifai.com'
             )
@@ -1052,7 +1054,11 @@ class TestPipelineRunCommand:
         with runner.isolated_filesystem():
             result = runner.invoke(
                 run,
-                ['--pipeline_url', 'https://clarifai.com/user/app/pipelines/test-pipeline'],
+                [
+                    '--pipeline_url', 'https://clarifai.com/user/app/pipelines/test-pipeline',
+                    '--nodepool_id', 'test-nodepool',
+                    '--compute_cluster_id', 'test-cluster'
+                ],
                 obj=ctx_obj
             )
 
@@ -1062,8 +1068,8 @@ class TestPipelineRunCommand:
                 pat='test-pat',
                 base_url='https://api.clarifai.com',
                 pipeline_version_run_id=None,
-                nodepool_id=None,
-                compute_cluster_id=None
+                nodepool_id='test-nodepool',
+                compute_cluster_id='test-cluster'
             )
             mock_pipeline.run.assert_called_once_with(timeout=3600, monitor_interval=10)
 
@@ -1092,7 +1098,7 @@ class TestPipelineRunCommand:
 
             assert result.exit_code != 0
             assert result.exception is not None
-            assert 'Either --user_id & --app_id & --pipeline_id & --pipeline_version_id or --pipeline_url must be provided' in str(result.exception)
+            assert '--compute_cluster_id and --nodepool_id are mandatory parameters' in str(result.exception)
 
     @patch('clarifai.client.pipeline.Pipeline')
     @patch('clarifai.utils.cli.validate_context')
