@@ -26,6 +26,9 @@ _METHOD_INFO_ATTR = '_cf_method_info'
 
 _RAISE_EXCEPTIONS = os.getenv("RAISE_EXCEPTIONS", "false").lower() in ("true", "1")
 
+FALLBACK_METHOD_PROTO = 'PostModelOutputs'
+FALLBACK_METHOD_PYTHON = 'predict'
+
 
 class ModelClass(ABC):
     '''
@@ -104,9 +107,19 @@ class ModelClass(ABC):
         outputs = []
         try:
             # TODO add method name field to proto
-            method_name = 'predict'
+            # to support old callers who might not pass in the method name we have a few defaults.
+            # first we look for a PostModelOutputs method that is implemented as protos and use that
+            # if it exists.
+            # if not we default to 'predict'.
+            method_name = None
             if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
                 method_name = request.inputs[0].data.metadata['_method_name']
+            if method_name is None and FALLBACK_METHOD_PROTO in self._get_method_infos():
+                _info = self._get_method_info(FALLBACK_METHOD_PROTO)
+                if _info.proto_method:
+                    method_name = FALLBACK_METHOD_PROTO
+            if method_name is None:
+                method_name = FALLBACK_METHOD_PYTHON
             if (
                 method_name == '_GET_SIGNATURES'
             ):  # special case to fetch signatures, TODO add endpoint for this
@@ -126,30 +139,28 @@ class ModelClass(ABC):
                 if out_proto.status.code != status_code_pb2.ZERO:
                     return out_proto
 
-                success = all(
+                successes = [
                     out.status.code == status_code_pb2.SUCCESS for out in out_proto.outputs
-                )
-                if success:
+                ]
+                if all(successes):
                     # If all outputs are successful, we can return the response.
-                    return service_pb2.MultiOutputResponse(
-                        outputs=out_proto.outputs,
-                        status=status_pb2.Status(code=status_code_pb2.SUCCESS),
+                    out_proto.status.CopyFrom(
+                        status_pb2.Status(code=status_code_pb2.SUCCESS, description='Success')
                     )
-                mixed = (
-                    any(out.status.code == status_code_pb2.SUCCESS for out in out_proto.outputs)
-                    and not success
-                )
-                if mixed:
+                    return out_proto
+                if any(successes):
                     # If some outputs are successful and some are not, we return a mixed status.
-                    return service_pb2.MultiOutputResponse(
-                        outputs=out_proto.outputs,
-                        status=status_pb2.Status(code=status_code_pb2.MIXED_STATUS),
+                    out_proto.status.CopyFrom(
+                        status_pb2.Status(
+                            code=status_code_pb2.MIXED_STATUS, description='Mixed Status'
+                        )
                     )
+                    return out_proto
                 # If all outputs are failures, we return a failure status.
-                return service_pb2.MultiOutputResponse(
-                    outputs=out_proto.outputs,
-                    status=status_pb2.Status(code=status_code_pb2.FAILURE),
+                out_proto.status.CopyFrom(
+                    status_pb2.Status(code=status_code_pb2.FAILURE, description='Failed')
                 )
+                return out_proto
 
             python_param_types = method_info.python_param_types
             for input in request.inputs:
@@ -401,7 +412,7 @@ class ModelClass(ABC):
                 methods[name] = method_info
         # check for generic predict(request) -> response, etc. methods
         # older models never had generate or stream so don't bother with them.
-        for name in ['PostModelOutputs']:  # , 'GenerateModelOutputs', 'StreamModelOutputs'):
+        for name in [FALLBACK_METHOD_PROTO]:  # , 'GenerateModelOutputs', 'StreamModelOutputs'):
             if hasattr(cls, name) and name not in methods:
                 method = getattr(cls, name)
                 if not callable(method):
