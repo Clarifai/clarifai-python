@@ -1003,6 +1003,7 @@ class TestPipelineRunCommand:
                 run,
                 [
                     '--pipeline_id', 'test-pipeline',
+                    '--pipeline_version_id', 'test-version-123',
                     '--user_id', 'test-user',
                     '--app_id', 'test-app',
                     '--timeout', '300',
@@ -1014,7 +1015,8 @@ class TestPipelineRunCommand:
             assert result.exit_code == 0
             mock_pipeline_class.assert_called_once_with(
                 pipeline_id='test-pipeline',
-                pipeline_version_id=None,
+                pipeline_version_id='test-version-123',
+                pipeline_version_run_id=None,
                 user_id='test-user',
                 app_id='test-app',
                 pat='test-pat',
@@ -1055,6 +1057,7 @@ class TestPipelineRunCommand:
             assert result.exit_code == 0
             mock_pipeline_class.assert_called_once_with(
                 url='https://clarifai.com/user/app/pipelines/test-pipeline',
+                pipeline_version_run_id=None,
                 pat='test-pat',
                 base_url='https://api.clarifai.com'
             )
@@ -1079,11 +1082,11 @@ class TestPipelineRunCommand:
         with runner.isolated_filesystem():
             result = runner.invoke(
                 run,
-                ['--pipeline_id', 'test-pipeline'],  # Missing user_id and app_id
+                ['--pipeline_id', 'test-pipeline'],  # Missing user_id, app_id, and pipeline_version_id
                 obj=ctx_obj
             )
 
             assert result.exit_code != 0
             assert result.exception is not None
-            assert 'Either --pipeline_id & --user_id & --app_id or --pipeline_url must be provided' in str(result.exception)
+            assert 'Either --user_id & --app_id & --pipeline_id & --pipeline_version_id or --pipeline_url must be provided' in str(result.exception)
 

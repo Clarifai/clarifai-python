@@ -1,4 +1,5 @@
 import time
+import uuid
 from typing import Dict, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -20,6 +21,7 @@ class Pipeline(Lister, BaseClient):
         url: str = None,
         pipeline_id: str = None,
         pipeline_version_id: str = None,
+        pipeline_version_run_id: str = None,
         user_id: str = None,
         app_id: str = None,
         base_url: str = DEFAULT_BASE,
@@ -34,6 +36,7 @@ class Pipeline(Lister, BaseClient):
             url (str): The URL to initialize the pipeline object.
             pipeline_id (str): The Pipeline ID to interact with.  
             pipeline_version_id (str): The Pipeline Version ID to interact with.
+            pipeline_version_run_id (str): The Pipeline Version Run ID. If not provided, a UUID will be generated.
             user_id (str): The User ID that owns the pipeline.
             app_id (str): The App ID that contains the pipeline.
             base_url (str): Base API url. Default "https://api.clarifai.com"
@@ -57,6 +60,7 @@ class Pipeline(Lister, BaseClient):
 
         self.pipeline_id = pipeline_id
         self.pipeline_version_id = pipeline_version_id
+        self.pipeline_version_run_id = pipeline_version_run_id or str(uuid.uuid4())
         self.user_id = user_id
         self.app_id = app_id
 
@@ -83,18 +87,14 @@ class Pipeline(Lister, BaseClient):
             Dict: The pipeline run result.
         """
         # Create a new pipeline version run
-        run_request = service_pb2.PostPipelineVersionRunsRequest(
-            user_app_id=self.user_app_id,
-            pipeline_id=self.pipeline_id,
-            pipeline_version_id=self.pipeline_version_id or "",
-            pipeline_version_runs=[
-                resources_pb2.PipelineVersionRun(
-                    pipeline_version=resources_pb2.PipelineVersion(
-                        id=self.pipeline_version_id or ""
-                    )
-                )
-            ]
-        )
+        pipeline_version_run = resources_pb2.PipelineVersionRun()
+        pipeline_version_run.id = self.pipeline_version_run_id
+        
+        run_request = service_pb2.PostPipelineVersionRunsRequest()
+        run_request.user_app_id.CopyFrom(self.user_app_id)
+        run_request.pipeline_id = self.pipeline_id
+        run_request.pipeline_version_id = self.pipeline_version_id or ""
+        run_request.pipeline_version_runs.append(pipeline_version_run)
 
         logger.info(f"Starting pipeline run for pipeline {self.pipeline_id}")
         response = self.STUB.PostPipelineVersionRuns(
@@ -108,7 +108,7 @@ class Pipeline(Lister, BaseClient):
             raise UserError("No pipeline version run was created")
 
         pipeline_version_run = response.pipeline_version_runs[0]
-        run_id = pipeline_version_run.id
+        run_id = pipeline_version_run.id or self.pipeline_version_run_id
 
         logger.info(f"Pipeline version run created with ID: {run_id}")
 
@@ -131,11 +131,11 @@ class Pipeline(Lister, BaseClient):
 
         while time.time() - start_time < timeout:
             # Get run status
-            get_run_request = service_pb2.GetPipelineVersionRunRequest(
-                user_app_id=self.user_app_id,
-                pipeline_id=self.pipeline_id,
-                pipeline_version_run_id=run_id
-            )
+            get_run_request = service_pb2.GetPipelineVersionRunRequest()
+            get_run_request.user_app_id.CopyFrom(self.user_app_id)
+            get_run_request.pipeline_id = self.pipeline_id
+            get_run_request.pipeline_version_id = self.pipeline_version_id or ""
+            get_run_request.pipeline_version_run_id = run_id
 
             try:
                 run_response = self.STUB.GetPipelineVersionRun(
@@ -188,14 +188,13 @@ class Pipeline(Lister, BaseClient):
             seen_logs (set): Set of already seen log entry IDs.
         """
         try:
-            logs_request = service_pb2.ListLogEntriesRequest(
-                user_app_id=self.user_app_id,
-                pipeline_id=self.pipeline_id,
-                pipeline_version_id=self.pipeline_version_id,
-                pipeline_version_run_id=run_id,
-                page=1,
-                per_page=50,
-            )
+            logs_request = service_pb2.ListLogEntriesRequest()
+            logs_request.user_app_id.CopyFrom(self.user_app_id)
+            logs_request.pipeline_id = self.pipeline_id
+            logs_request.pipeline_version_id = self.pipeline_version_id or ""
+            logs_request.pipeline_version_run_id = run_id
+            logs_request.page = 1
+            logs_request.per_page = 50
 
             logs_response = self.STUB.ListLogEntries(
                 logs_request, metadata=self.auth_helper.metadata

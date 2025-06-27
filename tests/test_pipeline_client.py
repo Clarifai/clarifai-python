@@ -60,13 +60,15 @@ class TestPipelineClient:
         
         pipeline = Pipeline(
             pipeline_id='test-pipeline',
-            user_id='test-user', 
+            pipeline_version_id='test-version-123',
+            user_id='test-user',
             app_id='test-app',
             pat='test-pat'
         )
         
         # Mock the required attributes
-        pipeline.user_app_id = Mock()
+        from clarifai_grpc.grpc.api import resources_pb2
+        pipeline.user_app_id = resources_pb2.UserAppIDSet(user_id="test-user", app_id="test-app")
         pipeline.STUB = Mock()
         pipeline.auth_helper = Mock()
         pipeline.auth_helper.metadata = []
@@ -98,13 +100,15 @@ class TestPipelineClient:
         
         pipeline = Pipeline(
             pipeline_id='test-pipeline',
+            pipeline_version_id='test-version-123',
             user_id='test-user',
             app_id='test-app',
             pat='test-pat'
         )
         
         # Mock the required attributes
-        pipeline.user_app_id = Mock()
+        from clarifai_grpc.grpc.api import resources_pb2
+        pipeline.user_app_id = resources_pb2.UserAppIDSet(user_id="test-user", app_id="test-app")
         pipeline.STUB = Mock()
         pipeline.auth_helper = Mock()
         pipeline.auth_helper.metadata = []
@@ -125,17 +129,20 @@ class TestPipelineClient:
     def test_monitor_pipeline_run_success(self, mock_sleep, mock_time, mock_init):
         """Test successful pipeline run monitoring."""
         mock_init.return_value = None
-        mock_time.side_effect = [0, 10, 20]  # Simulate time progression
+        # Provide enough time values for the test including logging calls
+        mock_time.side_effect = [0] + [10] * 20  # Start at 0, then always return 10
         
         pipeline = Pipeline(
             pipeline_id='test-pipeline',
+            pipeline_version_id='test-version-123',
             user_id='test-user',
             app_id='test-app',
             pat='test-pat'
         )
         
         # Mock the required attributes
-        pipeline.user_app_id = Mock()
+        from clarifai_grpc.grpc.api import resources_pb2
+        pipeline.user_app_id = resources_pb2.UserAppIDSet(user_id="test-user", app_id="test-app")
         pipeline.STUB = Mock()
         pipeline.auth_helper = Mock()
         pipeline.auth_helper.metadata = []
@@ -171,17 +178,20 @@ class TestPipelineClient:
     def test_monitor_pipeline_run_timeout(self, mock_sleep, mock_time, mock_init):
         """Test pipeline run monitoring timeout."""
         mock_init.return_value = None
-        mock_time.side_effect = [0, 3700]  # Simulate timeout after 1 hour+
+        # Provide timeout after 1 hour+ but enough values for logging
+        mock_time.side_effect = [0] + [3700] * 20
         
         pipeline = Pipeline(
             pipeline_id='test-pipeline',
+            pipeline_version_id='test-version-123',
             user_id='test-user',
             app_id='test-app',
             pat='test-pat'
         )
         
         # Mock the required attributes
-        pipeline.user_app_id = Mock()
+        from clarifai_grpc.grpc.api import resources_pb2
+        pipeline.user_app_id = resources_pb2.UserAppIDSet(user_id="test-user", app_id="test-app")
         pipeline.STUB = Mock()
         pipeline.auth_helper = Mock()
         pipeline.auth_helper.metadata = []

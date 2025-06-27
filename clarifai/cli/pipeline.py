@@ -36,6 +36,7 @@ def upload(path):
 )
 @click.option('--pipeline_id', required=False, help='Pipeline ID to run.')
 @click.option('--pipeline_version_id', required=False, help='Pipeline Version ID to run.')
+@click.option('--pipeline_version_run_id', required=False, help='Pipeline Version Run ID. If not provided, a UUID will be generated.')
 @click.option('--user_id', required=False, help='User ID of the pipeline.')
 @click.option('--app_id', required=False, help='App ID that contains the pipeline.')
 @click.option('--pipeline_url', required=False, help='Pipeline URL to run.')
@@ -57,6 +58,7 @@ def run(
     config,
     pipeline_id,
     pipeline_version_id,
+    pipeline_version_run_id,
     user_id,
     app_id,
     pipeline_url,
@@ -75,24 +77,23 @@ def run(
         config_data = from_yaml(config)
         pipeline_id = config_data.get('pipeline_id', pipeline_id)
         pipeline_version_id = config_data.get('pipeline_version_id', pipeline_version_id)
+        pipeline_version_run_id = config_data.get('pipeline_version_run_id', pipeline_version_run_id)
         user_id = config_data.get('user_id', user_id)
         app_id = config_data.get('app_id', app_id)
         pipeline_url = config_data.get('pipeline_url', pipeline_url)
         timeout = config_data.get('timeout', timeout)
         monitor_interval = config_data.get('monitor_interval', monitor_interval)
 
-    if (
-        sum(
-            [
-                opt[1]
-                for opt in [(pipeline_id, 1), (user_id, 1), (app_id, 1), (pipeline_url, 3)]
-                if opt[0]
-            ]
-        )
-        != 3
-    ):
+    if pipeline_url:
+        # When using pipeline_url, other parameters are optional (will be parsed from URL)
+        required_params_provided = True
+    else:
+        # When not using pipeline_url, all individual parameters are required
+        required_params_provided = all([pipeline_id, user_id, app_id, pipeline_version_id])
+    
+    if not required_params_provided:
         raise ValueError(
-            "Either --pipeline_id & --user_id & --app_id or --pipeline_url must be provided."
+            "Either --user_id & --app_id & --pipeline_id & --pipeline_version_id or --pipeline_url must be provided."
         )
 
     if pipeline_url:
@@ -100,11 +101,13 @@ def run(
             url=pipeline_url,
             pat=ctx.obj.current.pat,
             base_url=ctx.obj.current.api_base,
+            pipeline_version_run_id=pipeline_version_run_id,
         )
     else:
         pipeline = Pipeline(
             pipeline_id=pipeline_id,
             pipeline_version_id=pipeline_version_id,
+            pipeline_version_run_id=pipeline_version_run_id,
             user_id=user_id,
             app_id=app_id,
             pat=ctx.obj.current.pat,
