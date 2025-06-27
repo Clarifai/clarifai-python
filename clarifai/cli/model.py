@@ -129,7 +129,13 @@ def upload(ctx, model_path, stage, skip_dockerfile):
     from clarifai.runners.models.model_builder import upload_model
 
     validate_context(ctx)
-    upload_model(model_path, stage, skip_dockerfile, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
+    upload_model(
+        model_path,
+        stage,
+        skip_dockerfile,
+        pat=ctx.obj.current.pat,
+        base_url=ctx.obj.current.api_base,
+    )
 
 
 @model.command()

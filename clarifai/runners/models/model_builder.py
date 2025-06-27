@@ -494,13 +494,19 @@ class ModelBuilder:
             app_id = model.get('app_id')
 
             # Use context parameters if provided, otherwise fall back to environment variables
-            base_url = self._base_url if self._base_url else os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
-            
+            self._base_api = (
+                self._base_url
+                if self._base_url
+                else os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
+            )
+
             # Create BaseClient with explicit pat parameter if provided
             if self._pat:
-                self._client = BaseClient(user_id=user_id, app_id=app_id, base=base_url, pat=self._pat)
+                self._client = BaseClient(
+                    user_id=user_id, app_id=app_id, base=self._base_api, pat=self._pat
+                )
             else:
-                self._client = BaseClient(user_id=user_id, app_id=app_id, base=base_url)
+                self._client = BaseClient(user_id=user_id, app_id=app_id, base=self._base_api)
 
         return self._client
 
