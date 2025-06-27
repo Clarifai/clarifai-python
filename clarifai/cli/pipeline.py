@@ -39,6 +39,8 @@ def upload(path):
 @click.option('--pipeline_version_run_id', required=False, help='Pipeline Version Run ID. If not provided, a UUID will be generated.')
 @click.option('--user_id', required=False, help='User ID of the pipeline.')
 @click.option('--app_id', required=False, help='App ID that contains the pipeline.')
+@click.option('--nodepool_id', required=False, help='Nodepool ID to run the pipeline on.')
+@click.option('--compute_cluster_id', required=False, help='Compute Cluster ID to run the pipeline on.')
 @click.option('--pipeline_url', required=False, help='Pipeline URL to run.')
 @click.option(
     '--timeout',
@@ -61,6 +63,8 @@ def run(
     pipeline_version_run_id,
     user_id,
     app_id,
+    nodepool_id,
+    compute_cluster_id,
     pipeline_url,
     timeout,
     monitor_interval,
@@ -80,6 +84,8 @@ def run(
         pipeline_version_run_id = config_data.get('pipeline_version_run_id', pipeline_version_run_id)
         user_id = config_data.get('user_id', user_id)
         app_id = config_data.get('app_id', app_id)
+        nodepool_id = config_data.get('nodepool_id', nodepool_id)
+        compute_cluster_id = config_data.get('compute_cluster_id', compute_cluster_id)
         pipeline_url = config_data.get('pipeline_url', pipeline_url)
         timeout = config_data.get('timeout', timeout)
         monitor_interval = config_data.get('monitor_interval', monitor_interval)
@@ -102,6 +108,8 @@ def run(
             pat=ctx.obj.current.pat,
             base_url=ctx.obj.current.api_base,
             pipeline_version_run_id=pipeline_version_run_id,
+            nodepool_id=nodepool_id,
+            compute_cluster_id=compute_cluster_id,
         )
     else:
         pipeline = Pipeline(
@@ -110,6 +118,8 @@ def run(
             pipeline_version_run_id=pipeline_version_run_id,
             user_id=user_id,
             app_id=app_id,
+            nodepool_id=nodepool_id,
+            compute_cluster_id=compute_cluster_id,
             pat=ctx.obj.current.pat,
             base_url=ctx.obj.current.api_base,
         )

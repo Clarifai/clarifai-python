@@ -1019,6 +1019,8 @@ class TestPipelineRunCommand:
                 pipeline_version_run_id=None,
                 user_id='test-user',
                 app_id='test-app',
+                nodepool_id=None,
+                compute_cluster_id=None,
                 pat='test-pat',
                 base_url='https://api.clarifai.com'
             )
@@ -1057,9 +1059,11 @@ class TestPipelineRunCommand:
             assert result.exit_code == 0
             mock_pipeline_class.assert_called_once_with(
                 url='https://clarifai.com/user/app/pipelines/test-pipeline',
-                pipeline_version_run_id=None,
                 pat='test-pat',
-                base_url='https://api.clarifai.com'
+                base_url='https://api.clarifai.com',
+                pipeline_version_run_id=None,
+                nodepool_id=None,
+                compute_cluster_id=None
             )
             mock_pipeline.run.assert_called_once_with(timeout=3600, monitor_interval=10)
 
@@ -1089,4 +1093,54 @@ class TestPipelineRunCommand:
             assert result.exit_code != 0
             assert result.exception is not None
             assert 'Either --user_id & --app_id & --pipeline_id & --pipeline_version_id or --pipeline_url must be provided' in str(result.exception)
+
+    @patch('clarifai.client.pipeline.Pipeline')
+    @patch('clarifai.utils.cli.validate_context')
+    def test_run_command_with_nodepool_and_compute_cluster(self, mock_validate_context, mock_pipeline_class):
+        """Test that run command works with nodepool_id and compute_cluster_id."""
+        mock_pipeline = Mock()
+        mock_pipeline.run.return_value = {'status': 'success'}
+        mock_pipeline_class.return_value = mock_pipeline
+        
+        runner = CliRunner()
+        
+        # Create a proper context with current attribute like the actual Config class
+        class MockContext:
+            def __init__(self):
+                self.pat = 'test-pat'
+                self.api_base = 'https://api.clarifai.com'
+
+        class MockConfig:
+            def __init__(self):
+                self.current = MockContext()
+
+        ctx_obj = MockConfig()
+        
+        with runner.isolated_filesystem():
+            result = runner.invoke(
+                run,
+                [
+                    '--pipeline_id', 'test-pipeline',
+                    '--pipeline_version_id', 'test-version-123',
+                    '--user_id', 'test-user',
+                    '--app_id', 'test-app',
+                    '--nodepool_id', 'test-nodepool',
+                    '--compute_cluster_id', 'test-cluster'
+                ],
+                obj=ctx_obj
+            )
+
+            assert result.exit_code == 0
+            mock_pipeline_class.assert_called_once_with(
+                pipeline_id='test-pipeline',
+                pipeline_version_id='test-version-123',
+                pipeline_version_run_id=None,
+                user_id='test-user',
+                app_id='test-app',
+                nodepool_id='test-nodepool',
+                compute_cluster_id='test-cluster',
+                pat='test-pat',
+                base_url='https://api.clarifai.com'
+            )
+            mock_pipeline.run.assert_called_once_with(timeout=3600, monitor_interval=10)
 

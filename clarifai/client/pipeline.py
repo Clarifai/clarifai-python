@@ -24,6 +24,8 @@ class Pipeline(Lister, BaseClient):
         pipeline_version_run_id: str = None,
         user_id: str = None,
         app_id: str = None,
+        nodepool_id: str = None,
+        compute_cluster_id: str = None,
         base_url: str = DEFAULT_BASE,
         pat: str = None,
         token: str = None,
@@ -39,6 +41,8 @@ class Pipeline(Lister, BaseClient):
             pipeline_version_run_id (str): The Pipeline Version Run ID. If not provided, a UUID will be generated.
             user_id (str): The User ID that owns the pipeline.
             app_id (str): The App ID that contains the pipeline.
+            nodepool_id (str): The Nodepool ID to run the pipeline on.
+            compute_cluster_id (str): The Compute Cluster ID to run the pipeline on.
             base_url (str): Base API url. Default "https://api.clarifai.com"
             pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
             token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
@@ -63,6 +67,8 @@ class Pipeline(Lister, BaseClient):
         self.pipeline_version_run_id = pipeline_version_run_id or str(uuid.uuid4())
         self.user_id = user_id
         self.app_id = app_id
+        self.nodepool_id = nodepool_id
+        self.compute_cluster_id = compute_cluster_id
 
         BaseClient.__init__(
             self,
@@ -74,6 +80,16 @@ class Pipeline(Lister, BaseClient):
             root_certificates_path=root_certificates_path,
         )
         Lister.__init__(self)
+        
+        # Set up runner selector if compute cluster and nodepool are provided
+        self._runner_selector = None
+        if self.compute_cluster_id and self.nodepool_id:
+            from clarifai.client.nodepool import Nodepool
+            self._runner_selector = Nodepool.get_runner_selector(
+                user_id=self.user_id,
+                compute_cluster_id=self.compute_cluster_id,
+                nodepool_id=self.nodepool_id,
+            )
 
     def run(self, inputs: List = None, timeout: int = 3600, monitor_interval: int = 10) -> Dict:
         """Run the pipeline and monitor its progress.
@@ -95,6 +111,10 @@ class Pipeline(Lister, BaseClient):
         run_request.pipeline_id = self.pipeline_id
         run_request.pipeline_version_id = self.pipeline_version_id or ""
         run_request.pipeline_version_runs.append(pipeline_version_run)
+        
+        # Add runner selector if available
+        if self._runner_selector:
+            run_request.runner_selector.CopyFrom(self._runner_selector)
 
         logger.info(f"Starting pipeline run for pipeline {self.pipeline_id}")
         response = self.STUB.PostPipelineVersionRuns(
@@ -102,7 +122,7 @@ class Pipeline(Lister, BaseClient):
         )
 
         if response.status.code != status_code_pb2.StatusCode.SUCCESS:
-            raise UserError(f"Failed to start pipeline run: {response.status.description}")
+            raise UserError(f"Failed to start pipeline run: {response.status.description}. Details: {response.status.details}")
 
         if not response.pipeline_version_runs:
             raise UserError("No pipeline version run was created")
