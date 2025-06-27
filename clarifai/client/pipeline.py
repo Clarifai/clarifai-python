@@ -64,7 +64,7 @@ class Pipeline(Lister, BaseClient):
             self,
             user_id=user_id,
             app_id=app_id,
-            base_url=base_url,
+            base=base_url,
             pat=pat,
             token=token,
             root_certificates_path=root_certificates_path,

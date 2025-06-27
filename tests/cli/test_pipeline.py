@@ -986,8 +986,17 @@ class TestPipelineRunCommand:
 
         runner = CliRunner()
         
-        # Create a minimal context
-        ctx_obj = {'pat': 'test-pat', 'base_url': 'https://api.clarifai.com'}
+        # Create a proper context with current attribute like the actual Config class
+        class MockContext:
+            def __init__(self):
+                self.pat = 'test-pat'
+                self.api_base = 'https://api.clarifai.com'
+
+        class MockConfig:
+            def __init__(self):
+                self.current = MockContext()
+
+        ctx_obj = MockConfig()
         
         with runner.isolated_filesystem():
             result = runner.invoke(
@@ -1024,8 +1033,17 @@ class TestPipelineRunCommand:
 
         runner = CliRunner()
         
-        # Create a minimal context
-        ctx_obj = {'pat': 'test-pat', 'base_url': 'https://api.clarifai.com'}
+        # Create a proper context with current attribute like the actual Config class
+        class MockContext:
+            def __init__(self):
+                self.pat = 'test-pat'
+                self.api_base = 'https://api.clarifai.com'
+
+        class MockConfig:
+            def __init__(self):
+                self.current = MockContext()
+
+        ctx_obj = MockConfig()
         
         with runner.isolated_filesystem():
             result = runner.invoke(
@@ -1046,8 +1064,17 @@ class TestPipelineRunCommand:
         """Test that run command fails when required arguments are missing."""
         runner = CliRunner()
         
-        # Create a minimal context
-        ctx_obj = {'pat': 'test-pat', 'base_url': 'https://api.clarifai.com'}
+        # Create a proper context with current attribute like the actual Config class
+        class MockContext:
+            def __init__(self):
+                self.pat = 'test-pat'
+                self.api_base = 'https://api.clarifai.com'
+
+        class MockConfig:
+            def __init__(self):
+                self.current = MockContext()
+
+        ctx_obj = MockConfig()
         
         with runner.isolated_filesystem():
             result = runner.invoke(

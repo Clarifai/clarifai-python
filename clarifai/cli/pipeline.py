@@ -98,8 +98,8 @@ def run(
     if pipeline_url:
         pipeline = Pipeline(
             url=pipeline_url,
-            pat=ctx.obj['pat'],
-            base_url=ctx.obj['base_url'],
+            pat=ctx.obj.current.pat,
+            base_url=ctx.obj.current.api_base,
         )
     else:
         pipeline = Pipeline(
@@ -107,8 +107,8 @@ def run(
             pipeline_version_id=pipeline_version_id,
             user_id=user_id,
             app_id=app_id,
-            pat=ctx.obj['pat'],
-            base_url=ctx.obj['base_url'],
+            pat=ctx.obj.current.pat,
+            base_url=ctx.obj.current.api_base,
         )
 
     result = pipeline.run(timeout=timeout, monitor_interval=monitor_interval)
