@@ -1024,7 +1024,8 @@ class TestPipelineRunCommand:
                 nodepool_id='test-nodepool',
                 compute_cluster_id='test-cluster',
                 pat='test-pat',
-                base_url='https://api.clarifai.com'
+                base_url='https://api.clarifai.com',
+                log_file=None
             )
             mock_pipeline.run.assert_called_once_with(timeout=300, monitor_interval=5)
 
@@ -1069,7 +1070,8 @@ class TestPipelineRunCommand:
                 base_url='https://api.clarifai.com',
                 pipeline_version_run_id=None,
                 nodepool_id='test-nodepool',
-                compute_cluster_id='test-cluster'
+                compute_cluster_id='test-cluster',
+                log_file=None
             )
             mock_pipeline.run.assert_called_once_with(timeout=3600, monitor_interval=10)
 
@@ -1146,7 +1148,9 @@ class TestPipelineRunCommand:
                 nodepool_id='test-nodepool',
                 compute_cluster_id='test-cluster',
                 pat='test-pat',
-                base_url='https://api.clarifai.com'
+                base_url='https://api.clarifai.com',
+                log_file=None
             )
+            mock_pipeline.run.assert_called_once_with(timeout=3600, monitor_interval=10)
             mock_pipeline.run.assert_called_once_with(timeout=3600, monitor_interval=10)
 

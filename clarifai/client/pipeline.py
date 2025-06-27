@@ -13,6 +13,22 @@ from clarifai.utils.constants import DEFAULT_BASE
 from clarifai.utils.logging import logger
 
 
+def _get_status_name(status_code: int) -> str:
+    """Get the human-readable name for a status code."""
+    status_mapping = {
+        # Job status codes (these are the actual values based on the error message showing 64001)
+        64001: "JOB_QUEUED",
+        64002: "JOB_RUNNING", 
+        64003: "JOB_COMPLETED",
+        64004: "JOB_FAILED",
+        64005: "JOB_UNEXPECTED_ERROR",
+        # Standard status codes
+        10000: "SUCCESS",
+        10010: "MIXED_STATUS",
+    }
+    return status_mapping.get(status_code, f"UNKNOWN_STATUS_{status_code}")
+
+
 class Pipeline(Lister, BaseClient):
     """Pipeline is a class that provides access to Clarifai API endpoints related to Pipeline information."""
 
@@ -26,6 +42,7 @@ class Pipeline(Lister, BaseClient):
         app_id: str = None,
         nodepool_id: str = None,
         compute_cluster_id: str = None,
+        log_file: str = None,
         base_url: str = DEFAULT_BASE,
         pat: str = None,
         token: str = None,
@@ -43,6 +60,7 @@ class Pipeline(Lister, BaseClient):
             app_id (str): The App ID that contains the pipeline.
             nodepool_id (str): The Nodepool ID to run the pipeline on.
             compute_cluster_id (str): The Compute Cluster ID to run the pipeline on.
+            log_file (str): Path to file where logs should be written. If not provided, logs are displayed on console.
             base_url (str): Base API url. Default "https://api.clarifai.com"
             pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
             token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
@@ -69,6 +87,7 @@ class Pipeline(Lister, BaseClient):
         self.app_id = app_id
         self.nodepool_id = nodepool_id
         self.compute_cluster_id = compute_cluster_id
+        self.log_file = log_file
 
         BaseClient.__init__(
             self,
@@ -191,25 +210,24 @@ class Pipeline(Lister, BaseClient):
                     orch_status = pipeline_run.orchestration_status
                     if hasattr(orch_status, 'status') and orch_status.status:
                         status_code = orch_status.status.code
-                        logger.info(f"Pipeline run status: {status_code}")
+                        status_name = _get_status_name(status_code)
+                        logger.info(f"Pipeline run status: {status_code} ({status_name})")
+                        
+                        # Display orchestration status details if available
+                        if hasattr(orch_status, 'description') and orch_status.description:
+                            logger.info(f"Orchestration status: {orch_status.description}")
 
                         # Success codes that allow continuation: JOB_RUNNING, JOB_QUEUED
-                        if status_code in [
-                            status_code_pb2.StatusCode.JOB_RUNNING,
-                            status_code_pb2.StatusCode.JOB_QUEUED,
-                        ]:
-                            logger.info(f"Pipeline run in progress: {status_code}")
+                        if status_code in [64001, 64002]:  # JOB_QUEUED, JOB_RUNNING
+                            logger.info(f"Pipeline run in progress: {status_code} ({status_name})")
                             # Continue monitoring
                         # Successful terminal state: JOB_COMPLETED
-                        elif status_code == status_code_pb2.StatusCode.JOB_COMPLETED:
+                        elif status_code == 64003:  # JOB_COMPLETED
                             logger.info("Pipeline run completed successfully!")
                             return {"status": "success", "pipeline_version_run": pipeline_run}
                         # Failure terminal states: JOB_UNEXPECTED_ERROR, JOB_FAILED
-                        elif status_code in [
-                            status_code_pb2.StatusCode.JOB_UNEXPECTED_ERROR,
-                            status_code_pb2.StatusCode.JOB_FAILED,
-                        ]:
-                            logger.error(f"Pipeline run failed with status: {status_code}")
+                        elif status_code in [64004, 64005]:  # JOB_FAILED, JOB_UNEXPECTED_ERROR
+                            logger.error(f"Pipeline run failed with status: {status_code} ({status_name})")
                             return {"status": "failed", "pipeline_version_run": pipeline_run}
                         # Handle legacy SUCCESS status for backward compatibility
                         elif status_code == status_code_pb2.StatusCode.SUCCESS:
@@ -217,7 +235,7 @@ class Pipeline(Lister, BaseClient):
                             return {"status": "success", "pipeline_version_run": pipeline_run}
                         elif status_code != status_code_pb2.StatusCode.MIXED_STATUS:
                             # Log other unexpected statuses but continue monitoring
-                            logger.warning(f"Unexpected pipeline run status: {status_code}. Continuing to monitor...")
+                            logger.warning(f"Unexpected pipeline run status: {status_code} ({status_name}). Continuing to monitor...")
 
             except Exception as e:
                 logger.error(f"Error monitoring pipeline run: {e}")
@@ -240,6 +258,7 @@ class Pipeline(Lister, BaseClient):
             logs_request.pipeline_id = self.pipeline_id
             logs_request.pipeline_version_id = self.pipeline_version_id or ""
             logs_request.pipeline_version_run_id = run_id
+            logs_request.log_type = "pipeline.version.run"  # Set required log type
             logs_request.page = 1
             logs_request.per_page = 50
 
@@ -253,7 +272,14 @@ class Pipeline(Lister, BaseClient):
                     log_id = log_entry.url or f"{log_entry.created_at.seconds}_{log_entry.message}"
                     if log_id not in seen_logs:
                         seen_logs.add(log_id)
-                        logger.info(f"[LOG] {log_entry.message.strip()}")
+                        log_message = f"[LOG] {log_entry.message.strip()}"
+                        
+                        # Write to file if log_file is specified, otherwise log to console
+                        if self.log_file:
+                            with open(self.log_file, 'a', encoding='utf-8') as f:
+                                f.write(log_message + '\n')
+                        else:
+                            logger.info(log_message)
 
         except Exception as e:
             logger.debug(f"Error fetching logs: {e}")
