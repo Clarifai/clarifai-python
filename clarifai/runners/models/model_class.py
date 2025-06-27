@@ -115,7 +115,7 @@ class ModelClass(ABC):
             if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
                 method_name = request.inputs[0].data.metadata['_method_name']
             if method_name is None and FALLBACK_METHOD_PROTO in self._get_method_infos():
-                _info = self._get_method_info(FALLBACK_METHOD_PROTO)
+                _info = self._get_method_infos(FALLBACK_METHOD_PROTO)
                 if _info.proto_method:
                     method_name = FALLBACK_METHOD_PROTO
             if method_name is None:
