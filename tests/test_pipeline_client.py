@@ -217,3 +217,48 @@ class TestPipelineClient:
         
         # Verify timeout result
         assert result["status"] == "timeout"
+
+    @patch('clarifai.client.pipeline.BaseClient.__init__')
+    def test_monitor_only_success(self, mock_init):
+        """Test successful monitor_only method."""
+        mock_init.return_value = None
+        
+        pipeline = Pipeline(
+            pipeline_id='test-pipeline',
+            pipeline_version_id='test-version-123',
+            pipeline_version_run_id='test-run-456',
+            user_id='test-user',
+            app_id='test-app',
+            pat='test-pat'
+        )
+        
+        # Mock the monitoring method
+        expected_result = {"status": "success", "pipeline_version_run": Mock()}
+        pipeline._monitor_pipeline_run = Mock(return_value=expected_result)
+        
+        # Execute monitor_only
+        result = pipeline.monitor_only(timeout=1800, monitor_interval=5)
+        
+        # Verify the result
+        assert result == expected_result
+        pipeline._monitor_pipeline_run.assert_called_once_with('test-run-456', 1800, 5)
+
+    @patch('clarifai.client.pipeline.BaseClient.__init__')
+    def test_monitor_only_missing_run_id(self, mock_init):
+        """Test monitor_only method fails when pipeline_version_run_id is missing."""
+        mock_init.return_value = None
+        
+        pipeline = Pipeline(
+            pipeline_id='test-pipeline',
+            pipeline_version_id='test-version-123',
+            user_id='test-user',
+            app_id='test-app',
+            pat='test-pat'
+        )
+        
+        # Explicitly set pipeline_version_run_id to None to test the validation
+        pipeline.pipeline_version_run_id = None
+        
+        # Execute monitor_only without pipeline_version_run_id and expect failure
+        with pytest.raises(UserError, match="pipeline_version_run_id is required for monitoring existing runs"):
+            pipeline.monitor_only()

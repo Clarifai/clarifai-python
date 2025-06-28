@@ -60,6 +60,12 @@ def upload(path):
     required=False,
     help='Path to file where logs should be written. If not provided, logs are displayed on console.',
 )
+@click.option(
+    '--monitor',
+    is_flag=True,
+    default=False,
+    help='Monitor an existing pipeline run instead of starting a new one. Requires pipeline_version_run_id.',
+)
 @click.pass_context
 def run(
     ctx,
@@ -75,6 +81,7 @@ def run(
     timeout,
     monitor_interval,
     log_file,
+    monitor,
 ):
     """Run a pipeline and monitor its progress."""
     import json
@@ -97,20 +104,27 @@ def run(
         timeout = config_data.get('timeout', timeout)
         monitor_interval = config_data.get('monitor_interval', monitor_interval)
         log_file = config_data.get('log_file', log_file)
+        monitor = config_data.get('monitor', monitor)
 
     # compute_cluster_id and nodepool_id are mandatory regardless of whether pipeline_url is provided
     if not compute_cluster_id or not nodepool_id:
         raise ValueError(
             "--compute_cluster_id and --nodepool_id are mandatory parameters."
         )
-    
+
+    # When monitor flag is used, pipeline_version_run_id is mandatory
+    if monitor and not pipeline_version_run_id:
+        raise ValueError(
+            "--pipeline_version_run_id is required when using --monitor flag."
+        )
+
     if pipeline_url:
         # When using pipeline_url, other parameters are optional (will be parsed from URL)
         required_params_provided = True
     else:
         # When not using pipeline_url, all individual parameters are required
         required_params_provided = all([pipeline_id, user_id, app_id, pipeline_version_id])
-    
+
     if not required_params_provided:
         raise ValueError(
             "Either --user_id & --app_id & --pipeline_id & --pipeline_version_id or --pipeline_url must be provided."
@@ -140,7 +154,12 @@ def run(
             log_file=log_file,
         )
 
-    result = pipeline.run(timeout=timeout, monitor_interval=monitor_interval)
+    if monitor:
+        # Monitor existing pipeline run instead of starting new one
+        result = pipeline.monitor_only(timeout=timeout, monitor_interval=monitor_interval)
+    else:
+        # Start new pipeline run and monitor it
+        result = pipeline.run(timeout=timeout, monitor_interval=monitor_interval)
     click.echo(json.dumps(result, indent=2, default=str))
 
 

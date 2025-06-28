@@ -165,6 +165,24 @@ class Pipeline(Lister, BaseClient):
         # Monitor the run
         return self._monitor_pipeline_run(run_id, timeout, monitor_interval)
 
+    def monitor_only(self, timeout: int = 3600, monitor_interval: int = 10) -> Dict:
+        """Monitor an existing pipeline run without starting a new one.
+
+        Args:
+            timeout (int): Maximum time to wait for completion in seconds. Default 3600 (1 hour).
+            monitor_interval (int): Interval between status checks in seconds. Default 10.
+
+        Returns:
+            Dict: The pipeline run result.
+        """
+        if not self.pipeline_version_run_id:
+            raise UserError("pipeline_version_run_id is required for monitoring existing runs")
+
+        logger.info(f"Monitoring existing pipeline run with ID: {self.pipeline_version_run_id}")
+
+        # Monitor the existing run
+        return self._monitor_pipeline_run(self.pipeline_version_run_id, timeout, monitor_interval)
+
     def _monitor_pipeline_run(self, run_id: str, timeout: int, monitor_interval: int) -> Dict:
         """Monitor a pipeline version run until completion.
 
@@ -212,7 +230,7 @@ class Pipeline(Lister, BaseClient):
                         status_code = orch_status.status.code
                         status_name = _get_status_name(status_code)
                         logger.info(f"Pipeline run status: {status_code} ({status_name})")
-                        
+
                         # Display orchestration status details if available
                         if hasattr(orch_status, 'description') and orch_status.description:
                             logger.info(f"Orchestration status: {orch_status.description}")
@@ -273,7 +291,7 @@ class Pipeline(Lister, BaseClient):
                     if log_id not in seen_logs:
                         seen_logs.add(log_id)
                         log_message = f"[LOG] {log_entry.message.strip()}"
-                        
+
                         # Write to file if log_file is specified, otherwise log to console
                         if self.log_file:
                             with open(self.log_file, 'a', encoding='utf-8') as f:
