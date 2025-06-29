@@ -393,7 +393,19 @@ class Image(MessageData):
     def to_pil(self) -> PILImage.Image:
         if not self.proto.base64:
             raise ValueError("Image has no bytes")
-        return PILImage.open(io.BytesIO(self.proto.base64))
+        try:
+            return PILImage.open(io.BytesIO(self.proto.base64))
+        except Exception as e:
+            if "cannot identify image file" in str(e):
+                raise ValueError(
+                    "Invalid image data: The image bytes cannot be decoded as a valid image format. "
+                    "Please ensure the image is in a supported format (JPEG, PNG, GIF, BMP, etc.) "
+                    "and the data is not corrupted. "
+                    f"Original error: {type(e).__name__}: {e}"
+                ) from e
+            else:
+                # Re-raise other exceptions as-is
+                raise
 
     def to_base64_str(self) -> str:
         if not self.proto.base64:
