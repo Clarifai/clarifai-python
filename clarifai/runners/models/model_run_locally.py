@@ -14,6 +14,7 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 
 from clarifai.runners.models.model_builder import ModelBuilder
 from clarifai.utils.logging import logger
+from clarifai.versions import PYTHON_VERSION, OS_VER
 
 
 class ModelRunLocally:
@@ -276,6 +277,87 @@ class ModelRunLocally:
         """
         return shutil.which("nvidia-smi") is not None
 
+    def _validate_test_environment(self):
+        """
+        Validate that the current environment supports model testing.
+        Provides immediate feedback for unsupported configurations.
+        """
+        errors = []
+        warnings = []
+        
+        # Check Python version compatibility
+        current_python = sys.version_info[:2]
+        if current_python < (3, 8):
+            errors.append(
+                f"Python {current_python[0]}.{current_python[1]} is not supported. "
+                "Please use Python 3.8 or higher for model testing."
+            )
+        elif current_python < (3, 9):
+            warnings.append(
+                f"Python {current_python[0]}.{current_python[1]} may have limited support. "
+                "Consider upgrading to Python 3.9 or higher for optimal compatibility."
+            )
+            
+        # Check for GPU-related configurations on unsupported platforms
+        current_platform = platform.system().lower()
+        if current_platform == 'darwin':  # macOS
+            if not self._gpu_is_available():
+                # Check if model requires GPU acceleration
+                requires_gpu = False
+                if hasattr(self, 'config') and self.config:
+                    inference_compute_info = self.config.get('inference_compute_info', {})
+                    accelerator_types = inference_compute_info.get('accelerator_type', [])
+                    requires_gpu = any('nvidia' in acc.lower() or 'gpu' in acc.lower() 
+                                     for acc in accelerator_types)
+                
+                if requires_gpu:
+                    errors.append(
+                        "macOS does not support NVIDIA GPU acceleration for model testing. "
+                        "Your model configuration requires GPU support. "
+                        "Please test on a Linux system with NVIDIA GPU support, "
+                        "or modify your model configuration to use CPU-only inference."
+                    )
+                else:
+                    warnings.append(
+                        "Running on macOS without GPU support. "
+                        "If your model requires GPU acceleration, testing may fail. "
+                        "Consider testing on a Linux system with NVIDIA GPU support."
+                    )
+        
+        # Check for Docker availability when needed
+        if hasattr(self, 'config') and self.config:
+            # This is not a hard requirement but good to warn about
+            if not shutil.which("docker"):
+                warnings.append(
+                    "Docker is not available. Container-based testing will not work. "
+                    "Install Docker if you plan to test in containers."
+                )
+        
+        # Log warnings
+        for warning in warnings:
+            logger.warning(f"Environment Warning: {warning}")
+            
+        # Handle errors - exit immediately with clear feedback
+        if errors:
+            logger.error("❌ Environment validation failed:")
+            for i, error in enumerate(errors, 1):
+                logger.error(f"  {i}. {error}")
+            logger.error(
+                "\n💡 To resolve these issues:\n"
+                "   • Update your Python version if needed\n"  
+                "   • Use a Linux system with NVIDIA drivers for GPU models\n"
+                "   • Modify your model configuration for CPU-only inference\n"
+                "   • Check the Clarifai documentation for supported environments"
+            )
+            sys.exit(1)
+        
+        if warnings:
+            logger.info("✅ Environment validation passed with warnings.")
+        else:
+            logger.info("✅ Environment validation passed.")
+        
+        return True
+
     def run_docker_container(
         self, image_name, container_name="clarifai-model-container", port=8080, env_vars=None
     ):
@@ -440,6 +522,11 @@ def main(
     skip_dockerfile: bool = False,
 ):
     manager = ModelRunLocally(model_path)
+    
+    # Validate test environment early to provide immediate feedback
+    logger.info("Validating test environment...")
+    manager._validate_test_environment()
+    
     # get whatever stage is in config.yaml to force download now
     # also always write to where upload/build wants to, not the /tmp folder that runtime stage uses
     if inside_container:
