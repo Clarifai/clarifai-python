@@ -76,7 +76,33 @@ class ModelClient:
     def __getattr__(self, name):
         if not self._defined:
             self.fetch()
-        return self.__getattribute__(name)
+        try:
+            return self.__getattribute__(name)
+        except AttributeError as e:
+            # Provide helpful error message with available methods
+            available_methods = []
+            if self._method_signatures:
+                available_methods = list(self._method_signatures.keys())
+            
+            error_msg = f"'{self.__class__.__name__}' object has no attribute '{name}'"
+            
+            if available_methods:
+                # Check for common mistakes
+                suggestions = []
+                if name == 'predict' and '_predict' not in available_methods:
+                    suggestions.append("The model may not have a 'predict' method")
+                elif name.startswith('_') and name[1:] in available_methods:
+                    suggestions.append(f"Did you mean '{name[1:]}' instead of '{name}'?")
+                elif not name.startswith('_') and f'_{name}' in available_methods:
+                    suggestions.append(f"Did you mean '_{name}' instead of '{name}'?")
+                
+                error_msg += f". Available methods: {available_methods}"
+                if suggestions:
+                    error_msg += f". {' '.join(suggestions)}"
+            else:
+                error_msg += ". No methods are available (model may not be properly initialized)"
+            
+            raise AttributeError(error_msg) from e
 
     def _fetch_signatures(self):
         '''
