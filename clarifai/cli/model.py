@@ -1,5 +1,6 @@
 import os
 import shutil
+import json
 
 import click
 
@@ -16,6 +17,125 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_DEV_NODEPOOL_ID,
 )
 from clarifai.utils.logging import logger
+
+
+def _predict_pythonic_model(model, model_path, method, inputs, inference_params, output_config):
+    """Handle prediction for pythonic models with method signatures."""
+    from clarifai.client.model_client import ModelClient
+    
+    if not inputs:
+        raise ValueError("--inputs is required for pythonic model predictions.")
+    
+    try:
+        inputs_dict = json.loads(inputs)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in --inputs parameter: {e}")
+    
+    if not method:
+        method = "predict"  # Default method
+    
+    # Validate inputs against model signatures if model_path is provided
+    if model_path:
+        _validate_inputs_against_signature(model_path, method, inputs_dict)
+    
+    # Create a model client and call the pythonic method
+    try:
+        # Use ModelClient to call pythonic methods
+        client = ModelClient(model._get_model_stub())
+        
+        # Call the specified method
+        if hasattr(client, method):
+            method_func = getattr(client, method)
+            result = method_func(**inputs_dict)
+            
+            # Handle streaming results
+            if hasattr(result, '__iter__') and not isinstance(result, (str, bytes)):
+                try:
+                    # If it's a generator/iterator, collect results
+                    results = list(result)
+                    click.echo(f"Streaming results ({len(results)} items):")
+                    for i, item in enumerate(results):
+                        click.echo(f"[{i}] {item}")
+                except Exception:
+                    # If iteration fails, just print the result
+                    click.echo(result)
+            else:
+                click.echo(result)
+        else:
+            raise ValueError(f"Method '{method}' not found in model client.")
+            
+    except Exception as e:
+        logger.error(f"Error calling pythonic model method '{method}': {e}")
+        # Fallback to traditional prediction if possible
+        if method == "predict" and len(inputs_dict) == 1:
+            # Try to extract a single input for traditional prediction
+            input_value = next(iter(inputs_dict.values()))
+            if isinstance(input_value, str):
+                logger.info("Falling back to traditional text prediction...")
+                result = model.predict_by_bytes(
+                    input_bytes=input_value.encode(),
+                    input_type='text',
+                    inference_params=inference_params,
+                    output_config=output_config,
+                )
+                click.echo(result)
+                return
+        raise
+
+
+def _validate_inputs_against_signature(model_path, method, inputs_dict):
+    """Validate input parameters against model method signature."""
+    try:
+        from clarifai.runners.models.model_builder import ModelBuilder
+        
+        builder = ModelBuilder(model_path, download_validation_only=True)
+        signatures = builder.get_method_signatures(mocking=True)
+        
+        # Find the signature for the specified method
+        method_signature = None
+        for sig in signatures:
+            if sig.name == method:
+                method_signature = sig
+                break
+        
+        if not method_signature:
+            available_methods = [sig.name for sig in signatures]
+            raise ValueError(f"Method '{method}' not found in model. Available methods: {available_methods}")
+        
+        # Validate required parameters
+        required_params = [field.name for field in method_signature.input_fields if field.required]
+        missing_params = [param for param in required_params if param not in inputs_dict]
+        
+        if missing_params:
+            raise ValueError(f"Missing required parameters for method '{method}': {missing_params}")
+        
+        # Validate parameter types (basic validation)
+        for field in method_signature.input_fields:
+            if field.name in inputs_dict:
+                value = inputs_dict[field.name]
+                _validate_parameter_type(field, value)
+        
+        logger.info(f"Input validation passed for method '{method}'")
+        
+    except ImportError:
+        logger.warning("Model signature validation skipped - ModelBuilder not available")
+        raise
+    except Exception as e:
+        logger.warning(f"Input validation failed: {e}")
+        raise
+
+
+def _validate_parameter_type(field, value):
+    """Basic type validation for input parameters."""
+    # This is a simplified validation - in practice, you'd want more comprehensive type checking
+    if field.type == "STR" and not isinstance(value, str):
+        raise ValueError(f"Parameter '{field.name}' expects string, got {type(value).__name__}")
+    elif field.type == "INT" and not isinstance(value, int):
+        raise ValueError(f"Parameter '{field.name}' expects integer, got {type(value).__name__}")
+    elif field.type == "FLOAT" and not isinstance(value, (int, float)):
+        raise ValueError(f"Parameter '{field.name}' expects float, got {type(value).__name__}")
+    elif field.type == "LIST" and not isinstance(value, list):
+        raise ValueError(f"Parameter '{field.name}' expects list, got {type(value).__name__}")
 
 
 @cli.group(
@@ -666,6 +786,8 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 @click.option('--user_id', required=False, help='User ID of the model used to predict.')
 @click.option('--app_id', required=False, help='App ID of the model used to predict.')
 @click.option('--model_url', required=False, help='Model URL of the model used to predict.')
+@click.option('--model_path', required=False, help='Path to local pythonic model directory for signature validation.')
+@click.option('--method', required=False, help='Method name to call for pythonic models (e.g., predict, generate, stream).')
 @click.option('--file_path', required=False, help='File path of file for the model to predict')
 @click.option('--url', required=False, help='URL to the file for the model to predict')
 @click.option('--bytes', required=False, help='Bytes to the file for the model to predict')
@@ -684,6 +806,11 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     '--inference_params', required=False, default='{}', help='Inference parameters to override'
 )
 @click.option('--output_config', required=False, default='{}', help='Output config to override')
+@click.option(
+    '--inputs', 
+    required=False, 
+    help='JSON string of input parameters for pythonic models (e.g., \'{"prompt": "Hello", "max_tokens": 100}\')'
+)
 @click.pass_context
 def predict(
     ctx,
@@ -692,6 +819,8 @@ def predict(
     user_id,
     app_id,
     model_url,
+    model_path,
+    method,
     file_path,
     url,
     bytes,
@@ -701,8 +830,24 @@ def predict(
     deployment_id,
     inference_params,
     output_config,
+    inputs,
 ):
-    """Predict using the given model"""
+    """Predict using the given model.
+    
+    This command supports both traditional models and new pythonic models:
+    
+    \b
+    Traditional models (use --file_path, --url, or --bytes):
+      clarifai model predict --model_url <url> --file_path image.jpg
+      
+    \b
+    Pythonic models (use --inputs with optional --method and --model_path):
+      clarifai model predict --model_url <url> --inputs '{"prompt": "Hello world"}'
+      clarifai model predict --model_url <url> --method generate --inputs '{"prompt": "Tell me a story", "max_tokens": 100}'
+      
+    \b
+    For pythonic models, use --model_path to enable input validation against model signatures.
+    """
     import json
 
     from clarifai.client.model import Model
@@ -796,6 +941,18 @@ def predict(
     if output_config:
         output_config = json.loads(output_config)
 
+    # Check if this is a pythonic model prediction
+    if model_path or method or inputs:
+        return _predict_pythonic_model(
+            model,
+            model_path,
+            method,
+            inputs,
+            inference_params,
+            output_config,
+        )
+    
+    # Traditional model prediction
     if file_path:
         model_prediction = model.predict_by_filepath(
             filepath=file_path,
@@ -818,6 +975,9 @@ def predict(
             inference_params=inference_params,
             output_config=output_config,
         )  ## TO DO: Add support for input_id
+    else:
+        raise ValueError("Must provide either --file_path, --url, --bytes, or --inputs for pythonic models.")
+    
     click.echo(model_prediction)
 
 
