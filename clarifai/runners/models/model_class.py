@@ -401,12 +401,6 @@ class ModelClass(ABC):
             # If this was the last, clean up
             if len(token_contexts) == 0:
                 del self._thread_local.token_contexts
-        else:
-            # fallback to single context for backward compatibility
-            prompt_tokens = getattr(self._thread_local, 'prompt_tokens', None)
-            completion_tokens = getattr(self._thread_local, 'completion_tokens', None)
-            self._thread_local.prompt_tokens = None
-            self._thread_local.completion_tokens = None
         if prompt_tokens is not None:
             proto.prompt_tokens = prompt_tokens
         if completion_tokens is not None:
