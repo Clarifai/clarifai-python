@@ -28,7 +28,7 @@ def main():
     parser.add_argument(
         '--pool_size',
         type=int,
-        default=32,
+        default=os.environ.get('CLARIFAI_NUM_THREADS', 32),
         help="The number of threads to use for the gRPC server.",
         choices=range(1, 129),
     )  # pylint: disable=range-builtin-not-iterating
