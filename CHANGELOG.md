@@ -1,3 +1,17 @@
+## [[11.5.6]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.6) - [PyPI](https://pypi.org/project/clarifai/11.5.6/) - 2025-06-30
+
+### Added
+- Per-output token context tracking for batch operations
+- New `set_output_context()` method for models to specify token usage per output
+
+### Changed
+- Improved token usage tracking in ModelClass with thread-local storage
+- Enhanced batch processing support with ordered token context queue
+
+### Fixed
+- Token context ordering in batch operations using FIFO queue approach
+- Temporarily disabled `test_client_batch_generate` while implementing token tracking features
+
 ## [[11.5.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.5) - [PyPI](https://pypi.org/project/clarifai/11.5.5/) - 2025-06-27
 
 ### Fixed
