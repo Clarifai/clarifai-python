@@ -221,6 +221,7 @@ class ModelClass(ABC):
         self, request: service_pb2.PostModelOutputsRequest
     ) -> Iterator[service_pb2.MultiOutputResponse]:
         try:
+            assert len(request.inputs) == 1, "Generate requires exactly one input"
             method_name = 'generate'
             if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
                 method_name = request.inputs[0].data.metadata['_method_name']
