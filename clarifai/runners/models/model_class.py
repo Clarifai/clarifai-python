@@ -1,6 +1,7 @@
 import inspect
 import itertools
 import os
+import threading
 import traceback
 from abc import ABC
 from collections import abc
@@ -59,6 +60,10 @@ class ModelClass(ABC):
             yield item.x + ' ' + str(item.y)
     '''
 
+    def __init__(self):
+        super().__init__()
+        self._thread_local = threading.local()
+
     @staticmethod
     def method(func):
         setattr(func, _METHOD_INFO_ATTR, _MethodInfo(func))
@@ -66,8 +71,8 @@ class ModelClass(ABC):
 
     def set_output_context(self, prompt_tokens=None, completion_tokens=None):
         """This is used to set the prompt and completion tokens in the Output proto"""
-        self._prompt_tokens = prompt_tokens
-        self._completion_tokens = completion_tokens
+        self._thread_local.prompt_tokens = prompt_tokens
+        self._thread_local.completion_tokens = completion_tokens
 
     def load_model(self):
         """Load the model."""
@@ -385,12 +390,15 @@ class ModelClass(ABC):
             data = DataConverter.convert_output_data_to_old_format(proto.data)
             proto.data.CopyFrom(data)
         proto.status.code = status_code_pb2.SUCCESS
-        if hasattr(self, "_prompt_tokens") and self._prompt_tokens is not None:
-            proto.prompt_tokens = self._prompt_tokens
-        if hasattr(self, "_completion_tokens") and self._completion_tokens is not None:
-            proto.completion_tokens = self._completion_tokens
-        self._prompt_tokens = None
-        self._completion_tokens = None
+        prompt_tokens = getattr(self._thread_local, 'prompt_tokens', None)
+        completion_tokens = getattr(self._thread_local, 'completion_tokens', None)
+        if prompt_tokens is not None:
+            proto.prompt_tokens = prompt_tokens
+        if completion_tokens is not None:
+            proto.completion_tokens = completion_tokens
+        # Clear after use to avoid leaking to next request
+        self._thread_local.prompt_tokens = None
+        self._thread_local.completion_tokens = None
         return proto
 
     @classmethod
