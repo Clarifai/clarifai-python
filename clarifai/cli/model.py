@@ -641,7 +641,7 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 """)
     logger.info(snippet)
 
-    logger.info("Reminder: The Community Plan has a limit of 2 runner hours per month. Upgrade to the Developer Plan for unlimited runner hours.")
+    logger.info("Reminder: The Community Plan has a limit of 2 runner hours per month. The Developer Plan has unlimited runner hours.")
     logger.info("Now starting the local dev runner...")
 
     # This reads the config.yaml from the model_path so we alter it above first.
