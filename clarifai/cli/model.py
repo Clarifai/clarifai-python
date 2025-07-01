@@ -22,7 +22,9 @@ from clarifai.utils.logging import logger
     ['model'], context_settings={'max_content_width': shutil.get_terminal_size().columns - 10}
 )
 def model():
-    """Manage models: upload, test, local dev, predict, etc"""
+    """Manage & Develop Models: init, download-checkpoints, signatures, upload \n
+       Run & Test Models Locally: local-runner, local-grpc, local-test \n
+       Model Inference: list, predict"""
 
 
 @model.command()
@@ -105,7 +107,7 @@ def init(model_path, model_type_id):
     logger.info("4. Implement your model logic in 1/model.py")
 
 
-@model.command()
+@model.command(help="Upload a trained model.")
 @click.argument("model_path", type=click.Path(exists=True), required=False, default=".")
 @click.option(
     '--stage',
@@ -138,7 +140,7 @@ def upload(ctx, model_path, stage, skip_dockerfile):
     )
 
 
-@model.command()
+@model.command(help="Download model checkpoint files.")
 @click.argument(
     "model_path",
     type=click.Path(exists=True),
@@ -172,7 +174,7 @@ def download_checkpoints(model_path, out_path, stage):
     builder.download_checkpoints(stage=stage, checkpoint_path_override=out_path)
 
 
-@model.command()
+@model.command(help="Generate model method signatures.")
 @click.argument(
     "model_path",
     type=click.Path(exists=True),
@@ -203,7 +205,7 @@ def signatures(model_path, out_path):
         click.echo(signatures)
 
 
-@model.command()
+@model.command(name="local-test", help="Execute all model unit tests locally.")
 @click.argument(
     "model_path",
     type=click.Path(exists=True),
@@ -262,7 +264,7 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_
         click.echo(f"Failed to test model locally: {e}", err=True)
 
 
-@model.command()
+@model.command(name="local-grpc", help="Run the model locally via a gRPC server.")
 @click.argument(
     "model_path",
     type=click.Path(exists=True),
@@ -330,7 +332,7 @@ def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=Fa
         click.echo(f"Failed to starts model server locally: {e}", err=True)
 
 
-@model.command()
+@model.command(name="local-runner", help="Run the model locally for dev, debug, or local compute.")
 @click.argument(
     "model_path",
     type=click.Path(exists=True),
@@ -663,7 +665,7 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     )
 
 
-@model.command()
+@model.command(help="Perform a prediction using the model.")
 @click.option(
     '--config',
     type=click.Path(exists=True),
@@ -845,7 +847,7 @@ def predict(
 )
 @click.pass_context
 def list_model(ctx, user_id, app_id):
-    """List models of user/community
+    """List models of user/community.
 
     USER_ID: User id. If not specified, the current user is used by default. Set "all" to get all public models in Clarifai platform.
     """
