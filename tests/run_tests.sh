@@ -8,6 +8,7 @@ set -e
 # eval $(clarifai config env) to source the variables into your shell and run_test.sh afterwards.
 # This allows you to hit different deployments of the Clarifai platform and using your own account.
 
+echo "Creating a new app and keys, so the test run is completely isolated from test runs."
 # if CLARIFAI_USER_ID does not exist, create it
 if [ -z "$CLARIFAI_USER_ID" ]; then
     # you need to have CLARIFAI_USER_EMAIL and CLARIFAI_USER_PASSWORD set in your environment
@@ -38,6 +39,17 @@ fi
 # First run the linter tests to make sure those pass.
 uv run pre-commit run --all-files
 
+
+echo "Running all the tests"
 # See .github/workflows/run_tests.yml as there are more combinations of tests that can be run but
 # this should cover the basics.
-uv run pytest -s --cov=. --cov-report=xml:coverage/coverage.cobertura.xml --ignore=tests/runners/test_model_run_locally-container.py
+uv run pytest -s tests/ -v -n auto --durations=5 --timeout=1800 --ignore=tests/runners/test_model_run_locally-container.py
+
+
+# TODO: cleanup better from these tests capturing the exit code first.
+# test_result=$?
+# echo "Running single test"
+# python3 -m pytest tests/ -vvv -s -k "test_predict_image_url_with_min_value"
+# echo "Deleting the created application"
+# python3 scripts/app_and_key_for_tests.py --delete-app ${CLARIFAI_APP_ID}
+# exit $test_result
