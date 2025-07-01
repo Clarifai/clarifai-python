@@ -1,10 +1,10 @@
 compute_cluster:
-  id: "test-aws-cluster"
-  description: "My AWS cluster"
   cloud_provider:
-      id: "aws"
-  region: "us-east-1"
-  managed_by: "clarifai"
-  cluster_type: "dedicated"
+    id: aws
+  cluster_type: dedicated
+  description: My AWS cluster
+  id: ci_test_cc_a4046969-a50c-40cd-b999-e28ec97d1405
+  managed_by: clarifai
+  region: us-east-1
   visibility:
     gettable: 10
