@@ -10,6 +10,5 @@ jobs:
     uses: Clarifai/clarifai-python/.github/workflows/run_tests.yml@master
     with:
       PERIODIC_CHECKS: "true"
-      CLARIFAI_ENV: "prod"
       CLARIFAI_GRPC_BASE: "api.clarifai.com"
     secrets: inherit

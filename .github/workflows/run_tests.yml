@@ -13,10 +13,6 @@ on:
         description: "Boolean flag to diferentiate periodic checks"
         required: true
         type: string
-      CLARIFAI_ENV:
-        description: "Set the environment to run the tests"
-        required: true
-        type: string
       CLARIFAI_GRPC_BASE:
         description: "gRPC Base URL"
         required: true
@@ -67,11 +63,9 @@ jobs:
       shell: bash
       run: |
         if [ "${{ inputs.PERIODIC_CHECKS }}" = "true" ]; then
-          export CLARIFAI_ENV="${{ inputs.CLARIFAI_ENV }}"
           export CLARIFAI_GRPC_BASE="${{ inputs.CLARIFAI_GRPC_BASE }}"
           export CLARIFAI_API_BASE="https://${{ inputs.CLARIFAI_GRPC_BASE }}" # CLARIFAI_GRPC_BASE is used by the gRPC channel
         else
-          export CLARIFAI_ENV="prod"
           export CLARIFAI_GRPC_BASE="api.clarifai.com"
           export CLARIFAI_API_BASE="https://api.clarifai.com" # CLARIFAI_GRPC_BASE is used by the gRPC channel
         fi
