@@ -198,6 +198,95 @@ class App(Lister, BaseClient):
                     continue
             yield Workflow.from_auth_helper(auth=self.auth_helper, **workflow_info)
 
+    def list_pipelines(
+        self,
+        filter_by: Dict[str, Any] = {},
+        only_in_app: bool = True,
+        page_no: int = None,
+        per_page: int = None,
+    ) -> Generator[dict, None, None]:
+        """Lists all the pipelines for the user.
+        
+        Args:
+            filter_by (dict): A dictionary of filters to apply to the list of pipelines.
+            only_in_app (bool): If True, only return pipelines that are in the app.
+            page_no (int): The page number to list.
+            per_page (int): The number of items per page.
+            
+        Yields:
+            Dict: Dictionaries containing information about the pipelines.
+            
+        Example:
+            >>> from clarifai.client.app import App
+            >>> app = App(app_id="app_id", user_id="user_id")
+            >>> all_pipelines = list(app.list_pipelines())
+            
+        Note:
+            Defaults to 16 per page if page_no is specified and per_page is not specified.
+            If both page_no and per_page are None, then lists all the resources.
+        """
+        request_data = dict(user_app_id=self.user_app_id, **filter_by)
+        all_pipelines_info = self.list_pages_generator(
+            self.STUB.ListPipelines,
+            service_pb2.ListPipelinesRequest,
+            request_data,
+            per_page=per_page,
+            page_no=page_no,
+        )
+        
+        for pipeline_info in all_pipelines_info:
+            if only_in_app:
+                if pipeline_info.get('app_id') != self.id:
+                    continue
+            yield pipeline_info
+
+    def list_pipeline_steps(
+        self,
+        pipeline_id: str = None,
+        filter_by: Dict[str, Any] = {},
+        only_in_app: bool = True,
+        page_no: int = None,
+        per_page: int = None,
+    ) -> Generator[dict, None, None]:
+        """Lists all the pipeline steps for the user.
+        
+        Args:
+            pipeline_id (str): If provided, only list pipeline steps from this pipeline.
+            filter_by (dict): A dictionary of filters to apply to the list of pipeline steps.
+            only_in_app (bool): If True, only return pipeline steps that are in the app.
+            page_no (int): The page number to list.
+            per_page (int): The number of items per page.
+            
+        Yields:
+            Dict: Dictionaries containing information about the pipeline steps.
+            
+        Example:
+            >>> from clarifai.client.app import App
+            >>> app = App(app_id="app_id", user_id="user_id")
+            >>> all_pipeline_steps = list(app.list_pipeline_steps())
+            
+        Note:
+            Defaults to 16 per page if page_no is specified and per_page is not specified.
+            If both page_no and per_page are None, then lists all the resources.
+        """
+        request_data = dict(user_app_id=self.user_app_id, **filter_by)
+        if pipeline_id:
+            request_data['pipeline_id'] = pipeline_id
+            
+        all_pipeline_steps_info = self.list_pages_generator(
+            self.STUB.ListPipelineSteps,
+            service_pb2.ListPipelineStepsRequest,
+            request_data,
+            per_page=per_page,
+            page_no=page_no,
+        )
+        
+        for pipeline_step_info in all_pipeline_steps_info:
+            if only_in_app:
+                if pipeline_step_info.get('app_id') != self.id:
+                    continue
+            yield pipeline_step_info
+
     def list_modules(
         self,
         filter_by: Dict[str, Any] = {},

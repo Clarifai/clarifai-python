@@ -4,15 +4,19 @@ import shutil
 import click
 
 from clarifai.cli.base import cli
+from clarifai.client.app import App
+from clarifai.client.user import User
+from clarifai.utils.cli import AliasedGroup, display_co_resources, validate_context
 from clarifai.utils.logging import logger
 
 
 @cli.group(
     ['pipeline', 'pl'],
+    cls=AliasedGroup,
     context_settings={'max_content_width': shutil.get_terminal_size().columns - 10},
 )
 def pipeline():
-    """Manage pipelines: upload, init, etc"""
+    """Manage pipelines: upload, init, list, etc"""
 
 
 @pipeline.command()
@@ -275,3 +279,39 @@ def init(pipeline_path):
     )
     logger.info("4. Add dependencies to requirements.txt files as needed")
     logger.info("5. Run 'clarifai pipeline upload config.yaml' to upload your pipeline")
+
+
+@pipeline.command(['ls'])
+@click.option('--page_no', required=False, help='Page number to list.', default=1)
+@click.option('--per_page', required=False, help='Number of items per page.', default=16)
+@click.option('--app_id', required=False, help='App ID to list pipelines from. If not provided, lists across all apps.')
+@click.pass_context
+def list(ctx, page_no, per_page, app_id):
+    """List all pipelines for the user."""
+    validate_context(ctx)
+
+    if app_id:
+        app = App(
+            app_id=app_id,
+            user_id=ctx.obj.current.user_id,
+            pat=ctx.obj.current.pat,
+            base_url=ctx.obj.current.api_base,
+        )
+        response = app.list_pipelines(page_no=page_no, per_page=per_page)
+    else:
+        user = User(
+            user_id=ctx.obj.current.user_id,
+            pat=ctx.obj.current.pat,
+            base_url=ctx.obj.current.api_base,
+        )
+        response = user.list_pipelines(page_no=page_no, per_page=per_page)
+
+    display_co_resources(
+        response,
+        custom_columns={
+            'ID': lambda p: p.get('id', ''),
+            'USER_ID': lambda p: p.get('user_id', ''),
+            'APP_ID': lambda p: p.get('app_id', ''),
+            'DESCRIPTION': lambda p: p.get('description', ''),
+        },
+    )
