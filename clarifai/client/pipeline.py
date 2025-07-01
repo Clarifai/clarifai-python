@@ -18,7 +18,7 @@ def _get_status_name(status_code: int) -> str:
     status_mapping = {
         # Job status codes (these are the actual values based on the error message showing 64001)
         64001: "JOB_QUEUED",
-        64002: "JOB_RUNNING", 
+        64002: "JOB_RUNNING",
         64003: "JOB_COMPLETED",
         64004: "JOB_FAILED",
         64005: "JOB_UNEXPECTED_ERROR",
@@ -53,7 +53,7 @@ class Pipeline(Lister, BaseClient):
 
         Args:
             url (str): The URL to initialize the pipeline object.
-            pipeline_id (str): The Pipeline ID to interact with.  
+            pipeline_id (str): The Pipeline ID to interact with.
             pipeline_version_id (str): The Pipeline Version ID to interact with.
             pipeline_version_run_id (str): The Pipeline Version Run ID. If not provided, a UUID will be generated.
             user_id (str): The User ID that owns the pipeline.
@@ -72,8 +72,8 @@ class Pipeline(Lister, BaseClient):
         if not url and not pipeline_id:
             raise UserError("You must specify one of url or pipeline_id.")
         if url:
-            parsed_user_id, parsed_app_id, _, parsed_pipeline_id, parsed_version_id = ClarifaiUrlHelper.split_clarifai_url(
-                url
+            parsed_user_id, parsed_app_id, _, parsed_pipeline_id, parsed_version_id = (
+                ClarifaiUrlHelper.split_clarifai_url(url)
             )
             user_id = user_id or parsed_user_id
             app_id = app_id or parsed_app_id
@@ -104,6 +104,7 @@ class Pipeline(Lister, BaseClient):
         self._runner_selector = None
         if self.compute_cluster_id and self.nodepool_id:
             from clarifai.client.nodepool import Nodepool
+
             self._runner_selector = Nodepool.get_runner_selector(
                 user_id=self.user_id,
                 compute_cluster_id=self.compute_cluster_id,
@@ -130,9 +131,8 @@ class Pipeline(Lister, BaseClient):
             nodepool = resources_pb2.Nodepool(
                 id=self.nodepool_id,
                 compute_cluster=resources_pb2.ComputeCluster(
-                    id=self.compute_cluster_id,
-                    user_id=self.user_id
-                )
+                    id=self.compute_cluster_id, user_id=self.user_id
+                ),
             )
             pipeline_version_run.nodepools.extend([nodepool])
 
@@ -152,7 +152,9 @@ class Pipeline(Lister, BaseClient):
         )
 
         if response.status.code != status_code_pb2.StatusCode.SUCCESS:
-            raise UserError(f"Failed to start pipeline run: {response.status.description}. Details: {response.status.details}")
+            raise UserError(
+                f"Failed to start pipeline run: {response.status.description}. Details: {response.status.details}"
+            )
 
         if not response.pipeline_version_runs:
             raise UserError("No pipeline version run was created")
@@ -224,7 +226,10 @@ class Pipeline(Lister, BaseClient):
                 logger.info(f"Pipeline run monitoring... (elapsed {elapsed_time:.1f}s)")
 
                 # Check if we have orchestration status
-                if hasattr(pipeline_run, 'orchestration_status') and pipeline_run.orchestration_status:
+                if (
+                    hasattr(pipeline_run, 'orchestration_status')
+                    and pipeline_run.orchestration_status
+                ):
                     orch_status = pipeline_run.orchestration_status
                     if hasattr(orch_status, 'status') and orch_status.status:
                         status_code = orch_status.status.code
@@ -245,7 +250,9 @@ class Pipeline(Lister, BaseClient):
                             return {"status": "success", "pipeline_version_run": pipeline_run}
                         # Failure terminal states: JOB_UNEXPECTED_ERROR, JOB_FAILED
                         elif status_code in [64004, 64005]:  # JOB_FAILED, JOB_UNEXPECTED_ERROR
-                            logger.error(f"Pipeline run failed with status: {status_code} ({status_name})")
+                            logger.error(
+                                f"Pipeline run failed with status: {status_code} ({status_name})"
+                            )
                             return {"status": "failed", "pipeline_version_run": pipeline_run}
                         # Handle legacy SUCCESS status for backward compatibility
                         elif status_code == status_code_pb2.StatusCode.SUCCESS:
@@ -253,7 +260,9 @@ class Pipeline(Lister, BaseClient):
                             return {"status": "success", "pipeline_version_run": pipeline_run}
                         elif status_code != status_code_pb2.StatusCode.MIXED_STATUS:
                             # Log other unexpected statuses but continue monitoring
-                            logger.warning(f"Unexpected pipeline run status: {status_code} ({status_name}). Continuing to monitor...")
+                            logger.warning(
+                                f"Unexpected pipeline run status: {status_code} ({status_name}). Continuing to monitor..."
+                            )
 
             except Exception as e:
                 logger.error(f"Error monitoring pipeline run: {e}")

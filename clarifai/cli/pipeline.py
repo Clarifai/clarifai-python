@@ -36,11 +36,17 @@ def upload(path):
 )
 @click.option('--pipeline_id', required=False, help='Pipeline ID to run.')
 @click.option('--pipeline_version_id', required=False, help='Pipeline Version ID to run.')
-@click.option('--pipeline_version_run_id', required=False, help='Pipeline Version Run ID. If not provided, a UUID will be generated.')
+@click.option(
+    '--pipeline_version_run_id',
+    required=False,
+    help='Pipeline Version Run ID. If not provided, a UUID will be generated.',
+)
 @click.option('--user_id', required=False, help='User ID of the pipeline.')
 @click.option('--app_id', required=False, help='App ID that contains the pipeline.')
 @click.option('--nodepool_id', required=False, help='Nodepool ID to run the pipeline on.')
-@click.option('--compute_cluster_id', required=False, help='Compute Cluster ID to run the pipeline on.')
+@click.option(
+    '--compute_cluster_id', required=False, help='Compute Cluster ID to run the pipeline on.'
+)
 @click.option('--pipeline_url', required=False, help='Pipeline URL to run.')
 @click.option(
     '--timeout',
@@ -95,7 +101,9 @@ def run(
         config_data = from_yaml(config)
         pipeline_id = config_data.get('pipeline_id', pipeline_id)
         pipeline_version_id = config_data.get('pipeline_version_id', pipeline_version_id)
-        pipeline_version_run_id = config_data.get('pipeline_version_run_id', pipeline_version_run_id)
+        pipeline_version_run_id = config_data.get(
+            'pipeline_version_run_id', pipeline_version_run_id
+        )
         user_id = config_data.get('user_id', user_id)
         app_id = config_data.get('app_id', app_id)
         nodepool_id = config_data.get('nodepool_id', nodepool_id)
@@ -108,15 +116,11 @@ def run(
 
     # compute_cluster_id and nodepool_id are mandatory regardless of whether pipeline_url is provided
     if not compute_cluster_id or not nodepool_id:
-        raise ValueError(
-            "--compute_cluster_id and --nodepool_id are mandatory parameters."
-        )
+        raise ValueError("--compute_cluster_id and --nodepool_id are mandatory parameters.")
 
     # When monitor flag is used, pipeline_version_run_id is mandatory
     if monitor and not pipeline_version_run_id:
-        raise ValueError(
-            "--pipeline_version_run_id is required when using --monitor flag."
-        )
+        raise ValueError("--pipeline_version_run_id is required when using --monitor flag.")
 
     if pipeline_url:
         # When using pipeline_url, other parameters are optional (will be parsed from URL)
