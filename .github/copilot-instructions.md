@@ -10,7 +10,7 @@ guidelines when contributing:
 
 ### Development Flow
 - Install dependencies: `(curl -LsSf https://astral.sh/uv/install.sh | sh) && uv venv && uv pip install -r requirements.txt -r tests/requirements.txt && pre-commit install`
-- Test: `export PYTHONPATH=. && export CLARIFAI_USER_ID="$(uv run python scripts/key_for_tests.py --get-userid)" && export CLARIFAI_PAT="$(uv run python scripts/key_for_tests.py --create-pat)" && uv run pytest --cov=. --cov-report=xml:coverage/coverage.cobertura.xml --ignore=tests/runners/test_model_run_locally-container.py`
+- Test: `./tests/run_tests.sh`
 
 ## Repository Structure
 - `tests/`: Where all the tests are
