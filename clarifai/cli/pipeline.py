@@ -284,7 +284,11 @@ def init(pipeline_path):
 @pipeline.command(['ls'])
 @click.option('--page_no', required=False, help='Page number to list.', default=1)
 @click.option('--per_page', required=False, help='Number of items per page.', default=16)
-@click.option('--app_id', required=False, help='App ID to list pipelines from. If not provided, lists across all apps.')
+@click.option(
+    '--app_id',
+    required=False,
+    help='App ID to list pipelines from. If not provided, lists across all apps.',
+)
 @click.pass_context
 def list(ctx, page_no, per_page, app_id):
     """List all pipelines for the user."""

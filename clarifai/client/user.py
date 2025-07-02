@@ -157,19 +157,19 @@ class User(Lister, BaseClient):
         self, page_no: int = None, per_page: int = None
     ) -> Generator[dict, None, None]:
         """List all pipelines for the user across all apps
-        
+
         Args:
             page_no (int): The page number to list.
             per_page (int): The number of items per page.
-            
+
         Yields:
             Dict: Dictionaries containing information about the pipelines.
-            
+
         Example:
             >>> from clarifai.client.user import User
             >>> client = User(user_id="user_id")
             >>> all_pipelines = list(client.list_pipelines())
-            
+
         Note:
             Defaults to 16 per page if page_no is specified and per_page is not specified.
             If both page_no and per_page are None, then lists all the resources.
@@ -182,7 +182,7 @@ class User(Lister, BaseClient):
             per_page=per_page,
             page_no=page_no,
         )
-        
+
         for pipeline_info in all_pipelines_info:
             yield pipeline_info
 
@@ -190,19 +190,19 @@ class User(Lister, BaseClient):
         self, page_no: int = None, per_page: int = None
     ) -> Generator[dict, None, None]:
         """List all pipeline steps for the user across all apps
-        
+
         Args:
             page_no (int): The page number to list.
             per_page (int): The number of items per page.
-            
+
         Yields:
             Dict: Dictionaries containing information about the pipeline steps.
-            
+
         Example:
             >>> from clarifai.client.user import User
             >>> client = User(user_id="user_id")
             >>> all_pipeline_steps = list(client.list_pipeline_steps())
-            
+
         Note:
             Defaults to 16 per page if page_no is specified and per_page is not specified.
             If both page_no and per_page are None, then lists all the resources.
@@ -215,7 +215,7 @@ class User(Lister, BaseClient):
             per_page=per_page,
             page_no=page_no,
         )
-        
+
         for pipeline_step_info in all_pipeline_steps_info:
             yield pipeline_step_info
 
