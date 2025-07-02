@@ -8,7 +8,7 @@ from clarifai.utils.logging import logger
 
 
 @cli.group(
-    ['pipelinestep'],
+    ['pipelinestep', 'ps'],
     context_settings={'max_content_width': shutil.get_terminal_size().columns - 10},
 )
 def pipeline_step():
