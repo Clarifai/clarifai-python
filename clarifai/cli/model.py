@@ -24,8 +24,7 @@ def _predict_pythonic_model(model, inputs, inference_params, output_config):
     Handle prediction for pythonic models.
     
     This function processes JSON input parameters for pythonic models and performs
-    prediction using the 'predict' method. It includes fallback logic to attempt
-    traditional prediction methods when possible.
+    prediction using the 'predict' method directly rather than traditional methods.
     
     Args:
         model: The model instance to use for prediction
@@ -45,60 +44,24 @@ def _predict_pythonic_model(model, inputs, inference_params, output_config):
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON in --inputs parameter: {e}")
     
-    # For now, display a helpful message about what would be called
-    # TODO: Implement actual pythonic model prediction once the infrastructure is ready
-    click.echo(f"Pythonic model prediction:")
-    click.echo(f"  Method: predict")
-    click.echo(f"  Inputs: {json.dumps(inputs_dict, indent=2)}")
-    click.echo(f"  Model: {model}")
-    
-    if inference_params:
-        click.echo(f"  Inference params: {json.dumps(inference_params, indent=2)}")
-    if output_config:
-        click.echo(f"  Output config: {json.dumps(output_config, indent=2)}")
-    
-    click.echo("\nNote: Pythonic model prediction is ready.")
-    click.echo("Actual prediction execution requires model deployment infrastructure.")
-    
-    # For demonstration, try fallback to traditional prediction if it's a simple text case
-    if "prompt" in inputs_dict and len(inputs_dict) == 1:
-        prompt = inputs_dict["prompt"]
-        if isinstance(prompt, str):
-            click.echo(f"\nFallback: Attempting traditional text prediction with prompt: '{prompt}'")
-            try:
-                result = model.predict_by_bytes(
-                    input_bytes=prompt.encode(),
-                    input_type='text',
-                    inference_params=inference_params,
-                    output_config=output_config,
-                )
-                click.echo(f"Traditional prediction result: {result}")
-            except Exception as e:
-                click.echo(f"Traditional prediction failed: {e}")
-    elif "prompt" in inputs_dict:
-        # Handle case with additional parameters
-        prompt = inputs_dict["prompt"]
-        other_params = {k: v for k, v in inputs_dict.items() if k != "prompt"}
-        if isinstance(prompt, str):
-            click.echo(f"\nFallback: Attempting traditional text prediction with prompt: '{prompt}'")
-            click.echo(f"Additional parameters (will be used as inference_params): {other_params}")
-            
-            # Merge additional parameters into inference_params
-            merged_inference_params = inference_params.copy() if inference_params else {}
-            merged_inference_params.update(other_params)
-            
-            try:
-                result = model.predict_by_bytes(
-                    input_bytes=prompt.encode(),
-                    input_type='text',
-                    inference_params=merged_inference_params,
-                    output_config=output_config,
-                )
-                click.echo(f"Traditional prediction result: {result}")
-            except Exception as e:
-                click.echo(f"Traditional prediction failed: {e}")
-    else:
-        click.echo(f"No fallback available for inputs: {list(inputs_dict.keys())}")
+    # Use the predict method for pythonic models
+    try:
+        result = model.predict(
+            inputs=inputs_dict,
+            inference_params=inference_params,
+            output_config=output_config,
+        )
+        click.echo(f"Pythonic model prediction result: {result}")
+    except Exception as e:
+        click.echo(f"Pythonic model prediction failed: {e}")
+        # Display debug information
+        click.echo(f"Attempted predict with:")
+        click.echo(f"  Method: predict")
+        click.echo(f"  Inputs: {json.dumps(inputs_dict, indent=2)}")
+        if inference_params:
+            click.echo(f"  Inference params: {json.dumps(inference_params, indent=2)}")
+        if output_config:
+            click.echo(f"  Output config: {json.dumps(output_config, indent=2)}")
 
 
 
