@@ -1299,8 +1299,18 @@ class TestPipelineListCommand:
         mock_user_instance = Mock()
         mock_user_class.return_value = mock_user_instance
         mock_user_instance.list_pipelines.return_value = [
-            {'id': 'pipeline1', 'user_id': 'user1', 'app_id': 'app1', 'description': 'Test pipeline 1'},
-            {'id': 'pipeline2', 'user_id': 'user1', 'app_id': 'app2', 'description': 'Test pipeline 2'},
+            {
+                'id': 'pipeline1',
+                'user_id': 'user1',
+                'app_id': 'app1',
+                'description': 'Test pipeline 1',
+            },
+            {
+                'id': 'pipeline2',
+                'user_id': 'user1',
+                'app_id': 'app2',
+                'description': 'Test pipeline 2',
+            },
         ]
 
         # Setup context
@@ -1322,9 +1332,7 @@ class TestPipelineListCommand:
         assert result.exit_code == 0
         mock_validate.assert_called_once()
         mock_user_class.assert_called_once_with(
-            user_id='test-user',
-            pat='test-pat',
-            base_url='https://api.clarifai.com'
+            user_id='test-user', pat='test-pat', base_url='https://api.clarifai.com'
         )
         mock_user_instance.list_pipelines.assert_called_once_with(page_no=1, per_page=10)
         mock_display.assert_called_once()
@@ -1339,7 +1347,12 @@ class TestPipelineListCommand:
         mock_app_instance = Mock()
         mock_app_class.return_value = mock_app_instance
         mock_app_instance.list_pipelines.return_value = [
-            {'id': 'pipeline1', 'user_id': 'user1', 'app_id': 'app1', 'description': 'Test pipeline 1'},
+            {
+                'id': 'pipeline1',
+                'user_id': 'user1',
+                'app_id': 'app1',
+                'description': 'Test pipeline 1',
+            },
         ]
 
         # Setup context
@@ -1364,7 +1377,7 @@ class TestPipelineListCommand:
             app_id='test-app',
             user_id='test-user',
             pat='test-pat',
-            base_url='https://api.clarifai.com'
+            base_url='https://api.clarifai.com',
         )
         mock_app_instance.list_pipelines.assert_called_once_with(page_no=1, per_page=5)
         mock_display.assert_called_once()
@@ -1410,8 +1423,20 @@ class TestPipelineStepListCommand:
         mock_user_instance = Mock()
         mock_user_class.return_value = mock_user_instance
         mock_user_instance.list_pipeline_steps.return_value = [
-            {'id': 'step1', 'user_id': 'user1', 'app_id': 'app1', 'pipeline_id': 'pipe1', 'description': 'Test step 1'},
-            {'id': 'step2', 'user_id': 'user1', 'app_id': 'app2', 'pipeline_id': 'pipe2', 'description': 'Test step 2'},
+            {
+                'id': 'step1',
+                'user_id': 'user1',
+                'app_id': 'app1',
+                'pipeline_id': 'pipe1',
+                'description': 'Test step 1',
+            },
+            {
+                'id': 'step2',
+                'user_id': 'user1',
+                'app_id': 'app2',
+                'pipeline_id': 'pipe2',
+                'description': 'Test step 2',
+            },
         ]
 
         # Setup context
@@ -1433,9 +1458,7 @@ class TestPipelineStepListCommand:
         assert result.exit_code == 0
         mock_validate.assert_called_once()
         mock_user_class.assert_called_once_with(
-            user_id='test-user',
-            pat='test-pat',
-            base_url='https://api.clarifai.com'
+            user_id='test-user', pat='test-pat', base_url='https://api.clarifai.com'
         )
         mock_user_instance.list_pipeline_steps.assert_called_once_with(page_no=1, per_page=10)
         mock_display.assert_called_once()
@@ -1450,7 +1473,13 @@ class TestPipelineStepListCommand:
         mock_app_instance = Mock()
         mock_app_class.return_value = mock_app_instance
         mock_app_instance.list_pipeline_steps.return_value = [
-            {'id': 'step1', 'user_id': 'user1', 'app_id': 'app1', 'pipeline_id': 'pipe1', 'description': 'Test step 1'},
+            {
+                'id': 'step1',
+                'user_id': 'user1',
+                'app_id': 'app1',
+                'pipeline_id': 'pipe1',
+                'description': 'Test step 1',
+            },
         ]
 
         # Setup context
@@ -1475,7 +1504,7 @@ class TestPipelineStepListCommand:
             app_id='test-app',
             user_id='test-user',
             pat='test-pat',
-            base_url='https://api.clarifai.com'
+            base_url='https://api.clarifai.com',
         )
         mock_app_instance.list_pipeline_steps.assert_called_once_with(
             pipeline_id=None, page_no=1, per_page=5
@@ -1485,14 +1514,22 @@ class TestPipelineStepListCommand:
     @patch('clarifai.cli.pipeline_step.validate_context')
     @patch('clarifai.cli.pipeline_step.App')
     @patch('clarifai.cli.pipeline_step.display_co_resources')
-    def test_list_command_success_with_pipeline_id(self, mock_display, mock_app_class, mock_validate):
+    def test_list_command_success_with_pipeline_id(
+        self, mock_display, mock_app_class, mock_validate
+    ):
         """Test that list command works with both app_id and pipeline_id."""
         # Setup mocks
         mock_validate.return_value = None
         mock_app_instance = Mock()
         mock_app_class.return_value = mock_app_instance
         mock_app_instance.list_pipeline_steps.return_value = [
-            {'id': 'step1', 'user_id': 'user1', 'app_id': 'app1', 'pipeline_id': 'pipe1', 'description': 'Test step 1'},
+            {
+                'id': 'step1',
+                'user_id': 'user1',
+                'app_id': 'app1',
+                'pipeline_id': 'pipe1',
+                'description': 'Test step 1',
+            },
         ]
 
         # Setup context
@@ -1517,7 +1554,7 @@ class TestPipelineStepListCommand:
             app_id='test-app',
             user_id='test-user',
             pat='test-pat',
-            base_url='https://api.clarifai.com'
+            base_url='https://api.clarifai.com',
         )
         mock_app_instance.list_pipeline_steps.assert_called_once_with(
             pipeline_id='test-pipeline', page_no=1, per_page=16

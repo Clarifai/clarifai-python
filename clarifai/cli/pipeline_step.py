@@ -111,13 +111,21 @@ def init(pipeline_step_path):
 @pipeline_step.command(['ls'])
 @click.option('--page_no', required=False, help='Page number to list.', default=1)
 @click.option('--per_page', required=False, help='Number of items per page.', default=16)
-@click.option('--app_id', required=False, help='App ID to list pipeline steps from. If not provided, lists across all apps.')
-@click.option('--pipeline_id', required=False, help='Pipeline ID to list pipeline steps from. Must be used with --app_id.')
+@click.option(
+    '--app_id',
+    required=False,
+    help='App ID to list pipeline steps from. If not provided, lists across all apps.',
+)
+@click.option(
+    '--pipeline_id',
+    required=False,
+    help='Pipeline ID to list pipeline steps from. Must be used with --app_id.',
+)
 @click.pass_context
 def list(ctx, page_no, per_page, app_id, pipeline_id):
     """List all pipeline steps for the user."""
     validate_context(ctx)
-    
+
     if pipeline_id and not app_id:
         raise click.UsageError("--pipeline_id must be used together with --app_id")
 
@@ -129,9 +137,7 @@ def list(ctx, page_no, per_page, app_id, pipeline_id):
             base_url=ctx.obj.current.api_base,
         )
         response = app.list_pipeline_steps(
-            pipeline_id=pipeline_id, 
-            page_no=page_no, 
-            per_page=per_page
+            pipeline_id=pipeline_id, page_no=page_no, per_page=per_page
         )
     else:
         user = User(
