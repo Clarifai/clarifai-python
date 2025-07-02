@@ -26,27 +26,21 @@ class TestPipelineStepBuilder:
     def valid_config(self):
         """Return a valid configuration for testing."""
         return {
-            "pipeline_step": {
-                "id": "test-step",
-                "user_id": "test-user",
-                "app_id": "test-app"
-            },
+            "pipeline_step": {"id": "test-step", "user_id": "test-user", "app_id": "test-app"},
             "pipeline_step_compute_info": {
                 "cpu_limit": "1000m",
                 "cpu_memory": "1Gi",
-                "num_accelerators": 1
+                "num_accelerators": 1,
             },
             "pipeline_step_input_params": [
                 {
                     "name": "test_param",
                     "default": "default_value",
                     "description": "Test parameter",
-                    "accepted_values": ["value1", "value2"]
+                    "accepted_values": ["value1", "value2"],
                 }
             ],
-            "build_info": {
-                "python_version": "3.12"
-            }
+            "build_info": {"python_version": "3.12"},
         }
 
     @pytest.fixture
@@ -92,7 +86,9 @@ class TestPipelineStepBuilder:
         with open(config_path, 'w') as f:
             yaml.dump(valid_config, f)
 
-        with pytest.raises(FileNotFoundError, match="Required file '1/pipeline_step.py' not found"):
+        with pytest.raises(
+            FileNotFoundError, match="Required file '1/pipeline_step.py' not found"
+        ):
             PipelineStepBuilder(temp_dir)
 
     def test_validate_config_missing_pipeline_step_section(self, mock_base_client, temp_dir):
@@ -118,7 +114,7 @@ class TestPipelineStepBuilder:
                 "id": "test-step"
                 # Missing user_id and app_id
             },
-            "pipeline_step_compute_info": {}
+            "pipeline_step_compute_info": {},
         }
         config_path = os.path.join(temp_dir, "config.yaml")
         with open(config_path, 'w') as f:
@@ -139,9 +135,9 @@ class TestPipelineStepBuilder:
             "pipeline_step": {
                 "id": "",  # Empty id
                 "user_id": "test-user",
-                "app_id": "test-app"
+                "app_id": "test-app",
             },
-            "pipeline_step_compute_info": {}
+            "pipeline_step_compute_info": {},
         }
         config_path = os.path.join(temp_dir, "config.yaml")
         with open(config_path, 'w') as f:
@@ -159,11 +155,7 @@ class TestPipelineStepBuilder:
     def test_validate_config_missing_compute_info(self, mock_base_client, temp_dir):
         """Test validation fails with missing pipeline_step_compute_info section."""
         config = {
-            "pipeline_step": {
-                "id": "test-step",
-                "user_id": "test-user",
-                "app_id": "test-app"
-            }
+            "pipeline_step": {"id": "test-step", "user_id": "test-user", "app_id": "test-app"}
             # Missing pipeline_step_compute_info
         }
         config_path = os.path.join(temp_dir, "config.yaml")
@@ -204,7 +196,9 @@ class TestPipelineStepBuilder:
 
         assert "clarifai==" in content
 
-    def test_ensure_clarifai_requirement_already_present(self, mock_base_client, setup_test_folder):
+    def test_ensure_clarifai_requirement_already_present(
+        self, mock_base_client, setup_test_folder
+    ):
         """Test that clarifai is not duplicated if already present."""
         builder = PipelineStepBuilder(setup_test_folder)
 
@@ -292,12 +286,8 @@ class TestUploadPipelineStep:
     def valid_config(self):
         """Return a valid configuration for testing."""
         return {
-            "pipeline_step": {
-                "id": "test-step",
-                "user_id": "test-user",
-                "app_id": "test-app"
-            },
-            "pipeline_step_compute_info": {}
+            "pipeline_step": {"id": "test-step", "user_id": "test-user", "app_id": "test-app"},
+            "pipeline_step_compute_info": {},
         }
 
     @pytest.fixture
@@ -335,7 +325,9 @@ class TestUploadPipelineStep:
         mock_builder.create_dockerfile.assert_not_called()  # skip_dockerfile=True
 
     @patch('builtins.input', return_value='')  # Mock user input
-    def test_upload_pipeline_step_with_dockerfile(self, mock_input, mock_builder_class, setup_test_folder):
+    def test_upload_pipeline_step_with_dockerfile(
+        self, mock_input, mock_builder_class, setup_test_folder
+    ):
         """Test pipeline step upload with dockerfile creation."""
         # Mock builder instance
         mock_builder = Mock()
@@ -352,7 +344,9 @@ class TestUploadPipelineStep:
 
     @patch('builtins.input', return_value='')  # Mock user input
     @patch('sys.exit')
-    def test_upload_pipeline_step_failure(self, mock_exit, mock_input, mock_builder_class, setup_test_folder):
+    def test_upload_pipeline_step_failure(
+        self, mock_exit, mock_input, mock_builder_class, setup_test_folder
+    ):
         """Test pipeline step upload failure."""
         # Mock builder instance
         mock_builder = Mock()
@@ -368,7 +362,9 @@ class TestUploadPipelineStep:
         mock_exit.assert_called_once_with(1)
 
     @patch('builtins.input', return_value='')  # Mock user input
-    def test_upload_pipeline_step_existing(self, mock_input, mock_builder_class, setup_test_folder):
+    def test_upload_pipeline_step_existing(
+        self, mock_input, mock_builder_class, setup_test_folder
+    ):
         """Test pipeline step upload when step already exists."""
         # Mock builder instance
         mock_builder = Mock()
