@@ -19,52 +19,6 @@ from clarifai.utils.constants import (
 from clarifai.utils.logging import logger
 
 
-def _predict_pythonic_model(model, inputs, inference_params, output_config):
-    """
-    Handle prediction for pythonic models.
-    
-    This function processes JSON input parameters for pythonic models and performs
-    prediction using the 'predict' method directly rather than traditional methods.
-    
-    Args:
-        model: The model instance to use for prediction
-        inputs: JSON string containing input parameters
-        inference_params: Additional inference parameters
-        output_config: Output configuration settings
-    
-    Raises:
-        ValueError: If inputs is not provided or contains invalid JSON
-    """
-    
-    if not inputs:
-        raise ValueError("--inputs is required for pythonic model predictions.")
-    
-    try:
-        inputs_dict = json.loads(inputs)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON in --inputs parameter: {e}")
-    
-    # Use the predict method for pythonic models
-    try:
-        result = model.predict(
-            inputs=inputs_dict,
-            inference_params=inference_params,
-            output_config=output_config,
-        )
-        click.echo(f"Pythonic model prediction result: {result}")
-    except Exception as e:
-        click.echo(f"Pythonic model prediction failed: {e}")
-        # Display debug information
-        click.echo(f"Attempted predict with:")
-        click.echo(f"  Method: predict")
-        click.echo(f"  Inputs: {json.dumps(inputs_dict, indent=2)}")
-        if inference_params:
-            click.echo(f"  Inference params: {json.dumps(inference_params, indent=2)}")
-        if output_config:
-            click.echo(f"  Output config: {json.dumps(output_config, indent=2)}")
-
-
-
 @cli.group(
     ['model'], context_settings={'max_content_width': shutil.get_terminal_size().columns - 10}
 )
@@ -770,6 +724,7 @@ def predict(
     import json
 
     from clarifai.client.model import Model
+    from clarifai.runners.utils.data_types import Audio, Image, Video
     from clarifai.urls.helper import ClarifaiUrlHelper
     from clarifai.utils.cli import from_yaml, validate_context
 
@@ -846,22 +801,33 @@ def predict(
         deployment_id=deployment_id,
     )
 
+    if inputs:
+        inputs_dict = json.loads(inputs)
+        for key, value in list(inputs_dict.items()):
+            if value.startswith("http://") or value.startswith("https://"):
+                if "image" in key:
+                    inputs_dict[key] = Image(url=value)
+                elif "video" in key:
+                    inputs_dict[key] = Video(url=value)
+                elif "audio" in key:
+                    inputs_dict[key] = Audio(url=value)
+            elif os.path.isfile(value):
+                with open(value, "rb") as f:
+                    file_bytes = f.read()
+                if "image" in key:
+                    inputs_dict[key] = Image(bytes=file_bytes)
+                elif "video" in key:
+                    inputs_dict[key] = Video(bytes=file_bytes)
+                elif "audio" in key:
+                    inputs_dict[key] = Audio(bytes=file_bytes)
     if inference_params:
         inference_params = json.loads(inference_params)
     if output_config:
         output_config = json.loads(output_config)
 
-    # Check if this is a pythonic model prediction
-    if inputs:
-        return _predict_pythonic_model(
-            model,
-            inputs,
-            inference_params,
-            output_config,
-        )
-    
-    # Traditional model prediction
-    if file_path:
+    if inputs_dict:
+        model_prediction = model.predict(**inputs_dict, **inference_params)
+    elif file_path:
         model_prediction = model.predict_by_filepath(
             filepath=file_path,
             input_type=input_type,
