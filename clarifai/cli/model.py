@@ -861,6 +861,7 @@ def predict(
     import json
 
     from clarifai.client.model import Model
+    from clarifai.urls.helper import ClarifaiUrlHelper
     from clarifai.utils.cli import from_yaml, validate_context
 
     validate_context(ctx)
@@ -925,26 +926,16 @@ def predict(
             raise ValueError(
                 "Either --compute_cluster_id & --nodepool_id or --deployment_id must be provided."
             )
-    if model_url:
-        model = Model(
-            url=model_url,
-            pat=ctx.obj['pat'],
-            base_url=ctx.obj['base_url'],
-            compute_cluster_id=compute_cluster_id,
-            nodepool_id=nodepool_id,
-            deployment_id=deployment_id,
-        )
-    else:
-        model = Model(
-            model_id=model_id,
-            user_id=user_id,
-            app_id=app_id,
-            pat=ctx.obj['pat'],
-            base_url=ctx.obj['base_url'],
-            compute_cluster_id=compute_cluster_id,
-            nodepool_id=nodepool_id,
-            deployment_id=deployment_id,
-        )
+    if not model_url:
+        model_url = ClarifaiUrlHelper.clarifai_url(user_id=user_id, app_id=app_id, resource_type="models", resource_id=model_id)
+    model = Model(
+        url=model_url,
+        pat=ctx.obj.current.pat,
+        base_url=ctx.obj.current.api_base,
+        compute_cluster_id=compute_cluster_id,
+        nodepool_id=nodepool_id,
+        deployment_id=deployment_id,
+    )
 
     if inference_params:
         inference_params = json.loads(inference_params)
