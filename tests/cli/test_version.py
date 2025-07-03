@@ -1,5 +1,4 @@
 """Test version functionality for the CLI."""
-import pytest
 from click.testing import CliRunner
 
 from clarifai import __version__
@@ -13,7 +12,7 @@ class TestVersionCommand:
         """Test that --version flag displays the correct version."""
         runner = CliRunner()
         result = runner.invoke(cli, ['--version'])
-        
+
         assert result.exit_code == 0
         assert __version__ in result.output
 
@@ -21,6 +20,6 @@ class TestVersionCommand:
         """Test that --version appears in the help text."""
         runner = CliRunner()
         result = runner.invoke(cli, ['--help'])
-        
+
         assert result.exit_code == 0
         assert '--version' in result.output
