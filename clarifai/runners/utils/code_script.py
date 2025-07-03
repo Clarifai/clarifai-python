@@ -127,7 +127,7 @@ from clarifai.runners.utils import data_types
 
     base_url_str = ""
     if base_url is not None:
-        base_url_str = f"base_url={base_url},"
+        base_url_str = f"base_url='{base_url}',"
 
     # Join all non-empty lines
     optional_lines = "\n    ".join(
@@ -321,7 +321,10 @@ def _set_default_value(field_type):
         default_value = f"{{{', '.join([str(et) for et in element_type_defaults])}}}"
 
     if is_iterator:
-        default_value = f'iter([{default_value}])'
+        if field_type == "str":
+            default_value = f"iter(['{default_value}'])"
+        else:
+            default_value = f"iter([{default_value}])"
     return default_value
 
 
