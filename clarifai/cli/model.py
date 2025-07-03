@@ -1,5 +1,8 @@
 import os
 import shutil
+import subprocess
+import tempfile
+import urllib.parse
 
 import click
 
@@ -16,6 +19,115 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_DEV_NODEPOOL_ID,
 )
 from clarifai.utils.logging import logger
+
+
+def _normalize_github_repo_url(github_repo):
+    """Normalize GitHub repository URL to a standard format."""
+    if github_repo.startswith('http'):
+        return github_repo
+    elif '/' in github_repo and not github_repo.startswith('git@'):
+        # Handle "user/repo" format
+        return f"https://github.com/{github_repo}.git"
+    else:
+        return github_repo
+
+
+def _clone_github_repo(repo_url, target_dir, pat=None):
+    """Clone a GitHub repository with optional PAT authentication."""
+    # Handle local file paths - just copy instead of cloning
+    if os.path.exists(repo_url):
+        try:
+            shutil.copytree(repo_url, target_dir, ignore=shutil.ignore_patterns('.git'))
+            logger.info(f"Successfully copied local repository from {repo_url}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to copy local repository: {e}")
+            return False
+    
+    cmd = ["git", "clone"]
+    
+    # Handle authentication with PAT
+    if pat and repo_url.startswith('https://github.com'):
+        # Insert PAT into the URL for authentication
+        parsed_url = urllib.parse.urlparse(repo_url)
+        authenticated_url = f"https://{pat}@{parsed_url.netloc}{parsed_url.path}"
+        cmd.append(authenticated_url)
+    else:
+        cmd.append(repo_url)
+    
+    cmd.append(target_dir)
+    
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        logger.info(f"Successfully cloned repository from {repo_url}")
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to clone repository: {e.stderr}")
+        return False
+
+
+def _find_model_structure(repo_dir):
+    """Find a valid model structure in the cloned repository."""
+    # Look for directories that contain model.py and config.yaml
+    for root, dirs, files in os.walk(repo_dir):
+        # Skip .git directory
+        if '.git' in root:
+            continue
+            
+        # Check if this directory has model structure
+        has_model_py = False
+        has_config_yaml = False
+        has_version_dir = False
+        
+        # Check for model.py in subdirectories (like 1/model.py)
+        for d in dirs:
+            if d.isdigit():  # Version directory like "1"
+                version_dir = os.path.join(root, d)
+                if os.path.exists(os.path.join(version_dir, "model.py")):
+                    has_model_py = True
+                    has_version_dir = True
+                    break
+        
+        # Check for config.yaml in the current directory
+        if "config.yaml" in files:
+            has_config_yaml = True
+            
+        if has_model_py and has_config_yaml and has_version_dir:
+            return root
+    
+    return None
+
+
+def _copy_model_structure(source_dir, target_dir):
+    """Copy model structure from source to target directory."""
+    # Copy all relevant files and directories
+    for item in os.listdir(source_dir):
+        if item == '.git':
+            continue
+            
+        source_path = os.path.join(source_dir, item)
+        target_path = os.path.join(target_dir, item)
+        
+        if os.path.isdir(source_path):
+            shutil.copytree(source_path, target_path, dirs_exist_ok=True)
+        else:
+            shutil.copy2(source_path, target_path)
+    
+    logger.info(f"Copied model structure from {source_dir} to {target_dir}")
+
+
+def _install_requirements(requirements_path):
+    """Install requirements from requirements.txt if it exists."""
+    if os.path.exists(requirements_path):
+        try:
+            cmd = ["python", "-m", "pip", "install", "-r", requirements_path]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            logger.info("Successfully installed requirements from the GitHub repository")
+            return True
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"Failed to install requirements: {e.stderr}")
+            return False
+    return False
 
 
 @cli.group(
@@ -40,7 +152,17 @@ def model():
     required=False,
     help='Model type: "mcp" for MCPModelClass, "openai" for OpenAIModelClass, or leave empty for default ModelClass.',
 )
-def init(model_path, model_type_id):
+@click.option(
+    '--pat',
+    required=False,
+    help='Personal Access Token for GitHub authentication when cloning private repositories.',
+)
+@click.option(
+    '--github-repo',
+    required=False,
+    help='GitHub repository URL or "user/repo" format to clone an example model from. If provided, the model structure will be copied from this repo instead of using default templates.',
+)
+def init(model_path, model_type_id, pat, github_repo):
     """Initialize a new model directory structure.
 
     Creates the following structure in the specified directory:
@@ -51,60 +173,104 @@ def init(model_path, model_type_id):
 
     MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
     """
-    from clarifai.cli.templates.model_templates import (
-        get_config_template,
-        get_model_template,
-        get_requirements_template,
-    )
-
     # Resolve the absolute path
     model_path = os.path.abspath(model_path)
 
     # Create the model directory if it doesn't exist
     os.makedirs(model_path, exist_ok=True)
 
-    # Create the 1/ subdirectory
-    model_version_dir = os.path.join(model_path, "1")
-    os.makedirs(model_version_dir, exist_ok=True)
+    # Handle GitHub repository cloning if provided
+    if github_repo:
+        logger.info(f"Initializing model from GitHub repository: {github_repo}")
+        
+        # Check if it's a local path or normalize the GitHub repo URL
+        if os.path.exists(github_repo):
+            repo_url = github_repo
+        else:
+            repo_url = _normalize_github_repo_url(github_repo)
+        
+        # Create a temporary directory for cloning
+        with tempfile.TemporaryDirectory() as temp_dir:
+            clone_dir = os.path.join(temp_dir, "repo")
+            
+            # Clone the repository
+            if not _clone_github_repo(repo_url, clone_dir, pat):
+                logger.error("Failed to clone repository. Falling back to template-based initialization.")
+                github_repo = None  # Fall back to template mode
+            else:
+                # Find model structure in the cloned repo
+                model_structure_dir = _find_model_structure(clone_dir)
+                
+                if model_structure_dir:
+                    # Copy the model structure to target directory
+                    _copy_model_structure(model_structure_dir, model_path)
+                    
+                    # Try to install requirements if they exist
+                    requirements_path = os.path.join(model_path, "requirements.txt")
+                    if _install_requirements(requirements_path):
+                        logger.info("Model initialization complete with GitHub repository and dependencies installed")
+                    else:
+                        logger.info("Model initialization complete with GitHub repository (dependencies not installed)")
+                    
+                    logger.info("Next steps:")
+                    logger.info("1. Review the model configuration in config.yaml")
+                    logger.info("2. Update any model-specific settings as needed")
+                    logger.info("3. Test the model locally using 'clarifai model local-test'")
+                    return
+                else:
+                    logger.error("No valid model structure found in the repository. Falling back to template-based initialization.")
+                    github_repo = None  # Fall back to template mode
 
-    # Create model.py
-    model_py_path = os.path.join(model_version_dir, "model.py")
-    if os.path.exists(model_py_path):
-        logger.warning(f"File {model_py_path} already exists, skipping...")
-    else:
-        model_template = get_model_template(model_type_id)
-        with open(model_py_path, 'w') as f:
-            f.write(model_template)
-        logger.info(f"Created {model_py_path}")
+    # Fall back to template-based initialization if no GitHub repo or if GitHub repo failed
+    if not github_repo:
+        from clarifai.cli.templates.model_templates import (
+            get_config_template,
+            get_model_template,
+            get_requirements_template,
+        )
 
-    # Create requirements.txt
-    requirements_path = os.path.join(model_path, "requirements.txt")
-    if os.path.exists(requirements_path):
-        logger.warning(f"File {requirements_path} already exists, skipping...")
-    else:
-        requirements_template = get_requirements_template(model_type_id)
-        with open(requirements_path, 'w') as f:
-            f.write(requirements_template)
-        logger.info(f"Created {requirements_path}")
+        # Create the 1/ subdirectory
+        model_version_dir = os.path.join(model_path, "1")
+        os.makedirs(model_version_dir, exist_ok=True)
 
-    # Create config.yaml
-    config_path = os.path.join(model_path, "config.yaml")
-    if os.path.exists(config_path):
-        logger.warning(f"File {config_path} already exists, skipping...")
-    else:
-        config_model_type_id = "text-to-text"  # default
+        # Create model.py
+        model_py_path = os.path.join(model_version_dir, "model.py")
+        if os.path.exists(model_py_path):
+            logger.warning(f"File {model_py_path} already exists, skipping...")
+        else:
+            model_template = get_model_template(model_type_id)
+            with open(model_py_path, 'w') as f:
+                f.write(model_template)
+            logger.info(f"Created {model_py_path}")
 
-        config_template = get_config_template(config_model_type_id)
-        with open(config_path, 'w') as f:
-            f.write(config_template)
-        logger.info(f"Created {config_path}")
+        # Create requirements.txt
+        requirements_path = os.path.join(model_path, "requirements.txt")
+        if os.path.exists(requirements_path):
+            logger.warning(f"File {requirements_path} already exists, skipping...")
+        else:
+            requirements_template = get_requirements_template(model_type_id)
+            with open(requirements_path, 'w') as f:
+                f.write(requirements_template)
+            logger.info(f"Created {requirements_path}")
 
-    logger.info(f"Model initialization complete in {model_path}")
-    logger.info("Next steps:")
-    logger.info("1. Search for '# TODO: please fill in' comments in the generated files")
-    logger.info("2. Update the model configuration in config.yaml")
-    logger.info("3. Add your model dependencies to requirements.txt")
-    logger.info("4. Implement your model logic in 1/model.py")
+        # Create config.yaml
+        config_path = os.path.join(model_path, "config.yaml")
+        if os.path.exists(config_path):
+            logger.warning(f"File {config_path} already exists, skipping...")
+        else:
+            config_model_type_id = "text-to-text"  # default
+
+            config_template = get_config_template(config_model_type_id)
+            with open(config_path, 'w') as f:
+                f.write(config_template)
+            logger.info(f"Created {config_path}")
+
+        logger.info(f"Model initialization complete in {model_path}")
+        logger.info("Next steps:")
+        logger.info("1. Search for '# TODO: please fill in' comments in the generated files")
+        logger.info("2. Update the model configuration in config.yaml")
+        logger.info("3. Add your model dependencies to requirements.txt")
+        logger.info("4. Implement your model logic in 1/model.py")
 
 
 @model.command(help="Upload a trained model.")
