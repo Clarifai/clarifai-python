@@ -4,9 +4,9 @@ import uuid
 from typing import Any, Dict, List
 
 from clarifai_grpc.grpc.api.status import status_code_pb2
-from constants import HOME_PATH
 
 from clarifai.errors import UserError
+from clarifai.utils.constants import HOME_PATH
 
 RETRYABLE_CODES = [
     status_code_pb2.MODEL_DEPLOYING,
