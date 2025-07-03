@@ -47,11 +47,16 @@ def _clone_github_repo(repo_url, target_dir, pat=None):
     cmd = ["git", "clone"]
     
     # Handle authentication with PAT
-    if pat and repo_url.startswith('https://github.com'):
-        # Insert PAT into the URL for authentication
+    if pat:
+        # Parse the URL and validate the hostname
         parsed_url = urllib.parse.urlparse(repo_url)
-        authenticated_url = f"https://{pat}@{parsed_url.netloc}{parsed_url.path}"
-        cmd.append(authenticated_url)
+        if parsed_url.hostname == "github.com":
+            # Insert PAT into the URL for authentication
+            authenticated_url = f"https://{pat}@{parsed_url.netloc}{parsed_url.path}"
+            cmd.append(authenticated_url)
+        else:
+            logger.error(f"Invalid repository URL: {repo_url}")
+            return False
     else:
         cmd.append(repo_url)
     
