@@ -23,8 +23,8 @@ from clarifai.utils.logging import logger
 )
 def model():
     """Manage & Develop Models: init, download-checkpoints, signatures, upload\n
-Run & Test Models Locally: local-runner, local-grpc, local-test\n
-Model Inference: list, predict"""
+    Run & Test Models Locally: local-runner, local-grpc, local-test\n
+    Model Inference: list, predict"""
 
 
 @model.command()
