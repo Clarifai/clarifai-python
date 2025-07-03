@@ -1,8 +1,6 @@
 import os
 import shutil
-import subprocess
 import tempfile
-import urllib.parse
 
 import click
 
@@ -87,35 +85,37 @@ def init(model_path, model_type_id, pat, github_repo, branch):
     # Handle GitHub repository cloning if provided
     if github_repo:
         logger.info(f"Initializing model from GitHub repository: {github_repo}")
-        
+
         # Check if it's a local path or normalize the GitHub repo URL
         if os.path.exists(github_repo):
             repo_url = github_repo
         else:
             repo_url = normalize_github_repo_url(github_repo)
-        
+
         # Create a temporary directory for cloning
         with tempfile.TemporaryDirectory() as temp_dir:
             clone_dir = os.path.join(temp_dir, "repo")
-            
+
             # Clone the repository
             if not clone_github_repo(repo_url, clone_dir, pat, branch):
-                logger.error("Failed to clone repository. Falling back to template-based initialization.")
+                logger.error(
+                    "Failed to clone repository. Falling back to template-based initialization."
+                )
                 github_repo = None  # Fall back to template mode
             else:
                 # Copy the entire repository content to target directory (excluding .git)
                 for item in os.listdir(clone_dir):
                     if item == '.git':
                         continue
-                        
+
                     source_path = os.path.join(clone_dir, item)
                     target_path = os.path.join(model_path, item)
-                    
+
                     if os.path.isdir(source_path):
                         shutil.copytree(source_path, target_path, dirs_exist_ok=True)
                     else:
                         shutil.copy2(source_path, target_path)
-                
+
                 logger.info("Model initialization complete with GitHub repository")
                 logger.info("Next steps:")
                 logger.info("1. Review the model configuration")

@@ -2,7 +2,6 @@ import os
 import re
 import shutil
 import subprocess
-import tempfile
 import urllib.parse
 import uuid
 from typing import Any, Dict, List
@@ -134,13 +133,13 @@ def clone_github_repo(repo_url, target_dir, pat=None, branch=None):
         except Exception as e:
             logger.error(f"Failed to copy local repository: {e}")
             return False
-    
+
     cmd = ["git", "clone"]
-    
+
     # Add branch specification if provided
     if branch:
         cmd.extend(["-b", branch])
-    
+
     # Handle authentication with PAT
     if pat:
         # Parse the URL and validate the hostname
@@ -154,9 +153,9 @@ def clone_github_repo(repo_url, target_dir, pat=None, branch=None):
             return False
     else:
         cmd.append(repo_url)
-    
+
     cmd.append(target_dir)
-    
+
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         if branch:
