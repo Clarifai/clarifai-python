@@ -324,7 +324,7 @@ def _set_default_value(field_type):
         if field_type == "str":
             default_value = f"iter(['{default_value}'])"
         else:
-            default_value = f'iter([{default_value}])'
+            default_value = f"iter([{default_value}])"
     return default_value
 
 
