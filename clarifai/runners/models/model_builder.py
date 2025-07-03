@@ -73,6 +73,8 @@ class ModelBuilder:
         validate_api_ids: bool = True,
         download_validation_only: bool = False,
         app_not_found_action: Literal["auto_create", "prompt", "error"] = "error",
+        pat: str = None,
+        base_url: str = None,
     ):
         """
         :param folder: The folder containing the model.py, config.yaml, requirements.txt and
@@ -83,12 +85,16 @@ class ModelBuilder:
         just downloading a checkpoint.
         :param app_not_found_action: Defines how to handle the case when the app is not found.
         Options: 'auto_create' - create automatically, 'prompt' - ask user, 'error' - raise exception.
+        :param pat: Personal access token for authentication. If None, will use environment variables.
+        :param base_url: Base URL for the API. If None, will use environment variables.
         """
         assert app_not_found_action in ["auto_create", "prompt", "error"], ValueError(
             f"Expected one of {['auto_create', 'prompt', 'error']}, got {app_not_found_action=}"
         )
         self.app_not_found_action = app_not_found_action
         self._client = None
+        self._pat = pat
+        self._base_url = base_url
         if not validate_api_ids:  # for backwards compatibility
             download_validation_only = True
         self.download_validation_only = download_validation_only
@@ -487,8 +493,20 @@ class ModelBuilder:
             user_id = model.get('user_id')
             app_id = model.get('app_id')
 
-            self._base_api = os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
-            self._client = BaseClient(user_id=user_id, app_id=app_id, base=self._base_api)
+            # Use context parameters if provided, otherwise fall back to environment variables
+            self._base_api = (
+                self._base_url
+                if self._base_url
+                else os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
+            )
+
+            # Create BaseClient with explicit pat parameter if provided
+            if self._pat:
+                self._client = BaseClient(
+                    user_id=user_id, app_id=app_id, base=self._base_api, pat=self._pat
+                )
+            else:
+                self._client = BaseClient(user_id=user_id, app_id=app_id, base=self._base_api)
 
         return self._client
 
@@ -550,6 +568,11 @@ class ModelBuilder:
             "inference_compute_info not found in the config file"
         )
         inference_compute_info = self.config.get('inference_compute_info')
+        # Ensure cpu_limit is a string if it exists and is an int
+        if 'cpu_limit' in inference_compute_info and isinstance(
+            inference_compute_info['cpu_limit'], int
+        ):
+            inference_compute_info['cpu_limit'] = str(inference_compute_info['cpu_limit'])
         return json_format.ParseDict(inference_compute_info, resources_pb2.ComputeInfo())
 
     def check_model_exists(self):
@@ -1221,15 +1244,17 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                 return False
 
 
-def upload_model(folder, stage, skip_dockerfile):
+def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
     """
     Uploads a model to Clarifai.
 
     :param folder: The folder containing the model files.
     :param stage: The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.
     :param skip_dockerfile: If True, will not create a Dockerfile.
+    :param pat: Personal access token for authentication. If None, will use environment variables.
+    :param base_url: Base URL for the API. If None, will use environment variables.
     """
-    builder = ModelBuilder(folder, app_not_found_action="prompt")
+    builder = ModelBuilder(folder, app_not_found_action="prompt", pat=pat, base_url=base_url)
     builder.download_checkpoints(stage=stage)
     if not skip_dockerfile:
         builder.create_dockerfile()
