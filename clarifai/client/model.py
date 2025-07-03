@@ -66,7 +66,7 @@ class Model(Lister, BaseClient):
         compute_cluster_id: str = None,
         nodepool_id: str = None,
         deployment_id: str = None,
-        deployment_user_id: str = None,  # <-- new argument
+        deployment_user_id: str = None,
         **kwargs,
     ):
         """Initializes a Model object.
