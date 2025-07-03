@@ -171,6 +171,10 @@ def init(model_path, model_type_id, pat, github_repo):
     ├── requirements.txt
     └── config.yaml
 
+    If --github-repo is provided, the model structure will be copied from the specified
+    GitHub repository instead of using default templates. The --pat option can be used
+    for authentication when cloning private repositories.
+
     MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
     """
     # Resolve the absolute path
