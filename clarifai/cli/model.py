@@ -60,7 +60,12 @@ def model():
     required=False,
     help='GitHub repository URL or "user/repo" format to clone an example model from. If provided, the model structure will be copied from this repo instead of using default templates.',
 )
-def init(model_path, model_type_id, pat, github_repo):
+@click.option(
+    '--branch',
+    required=False,
+    help='Git branch to clone from the GitHub repository. If not specified, the default branch will be used.',
+)
+def init(model_path, model_type_id, pat, github_repo, branch):
     """Initialize a new model directory structure.
 
     Creates the following structure in the specified directory:
@@ -71,7 +76,8 @@ def init(model_path, model_type_id, pat, github_repo):
 
     If --github-repo is provided, the model structure will be copied from the specified
     GitHub repository instead of using default templates. The --pat option can be used
-    for authentication when cloning private repositories.
+    for authentication when cloning private repositories. The --branch option can be used
+    to specify a specific branch to clone from.
 
     MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
     """
@@ -96,7 +102,7 @@ def init(model_path, model_type_id, pat, github_repo):
             clone_dir = os.path.join(temp_dir, "repo")
             
             # Clone the repository
-            if not clone_github_repo(repo_url, clone_dir, pat):
+            if not clone_github_repo(repo_url, clone_dir, pat, branch):
                 logger.error("Failed to clone repository. Falling back to template-based initialization.")
                 github_repo = None  # Fall back to template mode
             else:

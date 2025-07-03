@@ -239,5 +239,90 @@ class TestModelInit:
         assert result.exit_code == 0
         assert "--pat" in result.output
         assert "--github-repo" in result.output
+        assert "--branch" in result.output
         assert "Personal Access Token" in result.output
         assert "GitHub repository URL" in result.output
+        assert "Git branch to clone from" in result.output
+
+    @patch('subprocess.run')
+    def test_init_with_github_repo_and_branch(self, mock_run):
+        """Test model initialization with GitHub URL and specific branch."""
+        runner = CliRunner()
+        
+        # Mock git clone with branch
+        def mock_subprocess(cmd, **kwargs):
+            if cmd[0] == 'git' and cmd[1] == 'clone':
+                # Verify branch is specified in the command
+                assert '-b' in cmd
+                assert 'feature-branch' in cmd
+                
+                # Create a fake cloned repository
+                target_dir = cmd[-1]
+                os.makedirs(os.path.join(target_dir, "1"))
+                
+                with open(os.path.join(target_dir, "1", "model.py"), 'w') as f:
+                    f.write('# Test model from GitHub feature branch')
+                
+                with open(os.path.join(target_dir, "config.yaml"), 'w') as f:
+                    f.write('model:\n  id: "branch-model"')
+                
+                with open(os.path.join(target_dir, "requirements.txt"), 'w') as f:
+                    f.write('branch-requirement>=1.0.0')
+                
+                return MagicMock(returncode=0, stdout="", stderr="")
+            elif cmd[0] == 'python' and 'pip' in cmd:
+                return MagicMock(returncode=0, stdout="", stderr="")
+            return MagicMock(returncode=1, stdout="", stderr="Command not found")
+        
+        mock_run.side_effect = mock_subprocess
+        
+        with tempfile.TemporaryDirectory() as target_dir:
+            result = runner.invoke(cli, ['model', 'init', target_dir, '--github-repo', 'user/repo', '--branch', 'feature-branch'])
+            
+            assert result.exit_code == 0
+            # Check that files were created from the GitHub repo
+            assert os.path.exists(os.path.join(target_dir, "1", "model.py"))
+            assert os.path.exists(os.path.join(target_dir, "config.yaml"))
+            
+            # Check content
+            with open(os.path.join(target_dir, "1", "model.py"), 'r') as f:
+                assert "Test model from GitHub feature branch" in f.read()
+
+    @patch('subprocess.run')
+    def test_init_with_github_repo_branch_and_pat(self, mock_run):
+        """Test model initialization with GitHub URL, specific branch, and PAT."""
+        runner = CliRunner()
+        
+        # Mock git clone with branch and PAT
+        def mock_subprocess(cmd, **kwargs):
+            if cmd[0] == 'git' and cmd[1] == 'clone':
+                # Verify branch is specified in the command
+                assert '-b' in cmd
+                assert 'dev-branch' in cmd
+                # Verify PAT is in the URL
+                assert 'test_pat@github.com' in cmd[4]  # URL should be at index 4 after -b branch
+                
+                # Create a fake cloned repository
+                target_dir = cmd[-1]
+                os.makedirs(os.path.join(target_dir, "1"))
+                
+                with open(os.path.join(target_dir, "1", "model.py"), 'w') as f:
+                    f.write('# Test model from private GitHub dev branch')
+                
+                with open(os.path.join(target_dir, "config.yaml"), 'w') as f:
+                    f.write('model:\n  id: "private-branch-model"')
+                
+                return MagicMock(returncode=0, stdout="", stderr="")
+            elif cmd[0] == 'python' and 'pip' in cmd:
+                return MagicMock(returncode=0, stdout="", stderr="")
+            return MagicMock(returncode=1, stdout="", stderr="Command not found")
+        
+        mock_run.side_effect = mock_subprocess
+        
+        with tempfile.TemporaryDirectory() as target_dir:
+            result = runner.invoke(cli, ['model', 'init', target_dir, '--github-repo', 'user/private-repo', '--branch', 'dev-branch', '--pat', 'test_pat'])
+            
+            assert result.exit_code == 0
+            # Check that files were created
+            assert os.path.exists(os.path.join(target_dir, "1", "model.py"))
+            assert os.path.exists(os.path.join(target_dir, "config.yaml"))

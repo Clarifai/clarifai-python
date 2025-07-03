@@ -123,8 +123,8 @@ def normalize_github_repo_url(github_repo):
         return github_repo
 
 
-def clone_github_repo(repo_url, target_dir, pat=None):
-    """Clone a GitHub repository with optional PAT authentication."""
+def clone_github_repo(repo_url, target_dir, pat=None, branch=None):
+    """Clone a GitHub repository with optional PAT authentication and branch specification."""
     # Handle local file paths - just copy instead of cloning
     if os.path.exists(repo_url):
         try:
@@ -136,6 +136,10 @@ def clone_github_repo(repo_url, target_dir, pat=None):
             return False
     
     cmd = ["git", "clone"]
+    
+    # Add branch specification if provided
+    if branch:
+        cmd.extend(["-b", branch])
     
     # Handle authentication with PAT
     if pat:
@@ -155,7 +159,10 @@ def clone_github_repo(repo_url, target_dir, pat=None):
     
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        logger.info(f"Successfully cloned repository from {repo_url}")
+        if branch:
+            logger.info(f"Successfully cloned repository from {repo_url} (branch: {branch})")
+        else:
+            logger.info(f"Successfully cloned repository from {repo_url}")
         return True
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to clone repository: {e.stderr}")
