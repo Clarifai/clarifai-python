@@ -122,8 +122,8 @@ def format_github_repo_url(github_repo):
         return github_repo
 
 
-def clone_github_repo(repo_url, target_dir, pat=None, branch=None):
-    """Clone a GitHub repository with optional PAT authentication and branch specification."""
+def clone_github_repo(repo_url, target_dir, github_pat=None, branch=None):
+    """Clone a GitHub repository with optional GitHub PAT authentication and branch specification."""
     # Handle local file paths - just copy instead of cloning
     if os.path.exists(repo_url):
         try:
@@ -140,13 +140,13 @@ def clone_github_repo(repo_url, target_dir, pat=None, branch=None):
     if branch:
         cmd.extend(["-b", branch])
 
-    # Handle authentication with PAT
-    if pat:
+    # Handle authentication with GitHub PAT
+    if github_pat:
         # Parse the URL and validate the hostname
         parsed_url = urllib.parse.urlparse(repo_url)
         if parsed_url.hostname == "github.com":
-            # Insert PAT into the URL for authentication
-            authenticated_url = f"https://{pat}@{parsed_url.netloc}{parsed_url.path}"
+            # Insert GitHub PAT into the URL for authentication
+            authenticated_url = f"https://{github_pat}@{parsed_url.netloc}{parsed_url.path}"
             cmd.append(authenticated_url)
         else:
             logger.error(f"Invalid repository URL: {repo_url}")

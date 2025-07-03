@@ -46,9 +46,9 @@ def model():
     help='Model type: "mcp" for MCPModelClass, "openai" for OpenAIModelClass, or leave empty for default ModelClass.',
 )
 @click.option(
-    '--pat',
+    '--github-pat',
     required=False,
-    help='Personal Access Token for GitHub authentication when cloning private repositories.',
+    help='GitHub Personal Access Token for authentication when cloning private repositories.',
 )
 @click.option(
     '--github-repo',
@@ -60,7 +60,7 @@ def model():
     required=False,
     help='Git branch to clone from the GitHub repository. If not specified, the default branch will be used.',
 )
-def init(model_path, model_type_id, pat, github_repo, branch):
+def init(model_path, model_type_id, github_pat, github_repo, branch):
     """Initialize a new model directory structure.
 
     Creates the following structure in the specified directory:
@@ -70,7 +70,7 @@ def init(model_path, model_type_id, pat, github_repo, branch):
     └── config.yaml
 
     If --github-repo is provided, the entire repository contents will be copied to the target
-    directory instead of using default templates. The --pat option can be used for authentication
+    directory instead of using default templates. The --github-pat option can be used for authentication
     when cloning private repositories. The --branch option can be used to specify a specific
     branch to clone from.
 
@@ -97,7 +97,7 @@ def init(model_path, model_type_id, pat, github_repo, branch):
             clone_dir = os.path.join(temp_dir, "repo")
 
             # Clone the repository
-            if not clone_github_repo(repo_url, clone_dir, pat, branch):
+            if not clone_github_repo(repo_url, clone_dir, github_pat, branch):
                 logger.error(
                     "Failed to clone repository. Falling back to template-based initialization."
                 )
