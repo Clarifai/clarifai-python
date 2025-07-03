@@ -111,8 +111,8 @@ def clean_input_id(input_id: str) -> str:
     return input_id
 
 
-def normalize_github_repo_url(github_repo):
-    """Normalize GitHub repository URL to a standard format."""
+def format_github_repo_url(github_repo):
+    """Format GitHub repository URL to a standard format."""
     if github_repo.startswith('http'):
         return github_repo
     elif '/' in github_repo and not github_repo.startswith('git@'):

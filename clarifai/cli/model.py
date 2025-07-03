@@ -19,7 +19,7 @@ from clarifai.utils.constants import (
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import (
     clone_github_repo,
-    normalize_github_repo_url,
+    format_github_repo_url,
 )
 
 
@@ -90,7 +90,7 @@ def init(model_path, model_type_id, pat, github_repo, branch):
         if os.path.exists(github_repo):
             repo_url = github_repo
         else:
-            repo_url = normalize_github_repo_url(github_repo)
+            repo_url = format_github_repo_url(github_repo)
 
         # Create a temporary directory for cloning
         with tempfile.TemporaryDirectory() as temp_dir:
