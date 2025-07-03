@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
 from clarifai.errors import UserError
+from clarifai.utils.constants import HOME_PATH
 
 RETRYABLE_CODES = [
     status_code_pb2.MODEL_DEPLOYING,
@@ -13,7 +14,7 @@ RETRYABLE_CODES = [
     status_code_pb2.MODEL_BUSY_PLEASE_RETRY,
 ]
 
-DEFAULT_CONFIG = f'{os.environ["HOME"]}/.config/clarifai/config'
+DEFAULT_CONFIG = HOME_PATH / '.config/clarifai/config'
 
 
 def status_is_retryable(status_code: int) -> bool:
