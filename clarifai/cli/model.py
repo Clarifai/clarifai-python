@@ -21,9 +21,6 @@ from clarifai.utils.constants import (
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import (
     clone_github_repo,
-    copy_model_structure,
-    find_model_structure,
-    install_requirements,
     normalize_github_repo_url,
 )
 
@@ -58,7 +55,7 @@ def model():
 @click.option(
     '--github-repo',
     required=False,
-    help='GitHub repository URL or "user/repo" format to clone an example model from. If provided, the model structure will be copied from this repo instead of using default templates.',
+    help='GitHub repository URL or "user/repo" format to clone a repository from. If provided, the entire repository contents will be copied to the target directory instead of using default templates.',
 )
 @click.option(
     '--branch',
@@ -74,10 +71,10 @@ def init(model_path, model_type_id, pat, github_repo, branch):
     ├── requirements.txt
     └── config.yaml
 
-    If --github-repo is provided, the model structure will be copied from the specified
-    GitHub repository instead of using default templates. The --pat option can be used
-    for authentication when cloning private repositories. The --branch option can be used
-    to specify a specific branch to clone from.
+    If --github-repo is provided, the entire repository contents will be copied to the target
+    directory instead of using default templates. The --pat option can be used for authentication
+    when cloning private repositories. The --branch option can be used to specify a specific
+    branch to clone from.
 
     MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
     """
@@ -106,28 +103,25 @@ def init(model_path, model_type_id, pat, github_repo, branch):
                 logger.error("Failed to clone repository. Falling back to template-based initialization.")
                 github_repo = None  # Fall back to template mode
             else:
-                # Find model structure in the cloned repo
-                model_structure_dir = find_model_structure(clone_dir)
-                
-                if model_structure_dir:
-                    # Copy the model structure to target directory
-                    copy_model_structure(model_structure_dir, model_path)
+                # Copy the entire repository content to target directory (excluding .git)
+                for item in os.listdir(clone_dir):
+                    if item == '.git':
+                        continue
+                        
+                    source_path = os.path.join(clone_dir, item)
+                    target_path = os.path.join(model_path, item)
                     
-                    # Try to install requirements if they exist
-                    requirements_path = os.path.join(model_path, "requirements.txt")
-                    if install_requirements(requirements_path):
-                        logger.info("Model initialization complete with GitHub repository and dependencies installed")
+                    if os.path.isdir(source_path):
+                        shutil.copytree(source_path, target_path, dirs_exist_ok=True)
                     else:
-                        logger.info("Model initialization complete with GitHub repository (dependencies not installed)")
-                    
-                    logger.info("Next steps:")
-                    logger.info("1. Review the model configuration in config.yaml")
-                    logger.info("2. Update any model-specific settings as needed")
-                    logger.info("3. Test the model locally using 'clarifai model local-test'")
-                    return
-                else:
-                    logger.error("No valid model structure found in the repository. Falling back to template-based initialization.")
-                    github_repo = None  # Fall back to template mode
+                        shutil.copy2(source_path, target_path)
+                
+                logger.info("Model initialization complete with GitHub repository")
+                logger.info("Next steps:")
+                logger.info("1. Review the model configuration")
+                logger.info("2. Install any required dependencies manually")
+                logger.info("3. Test the model locally using 'clarifai model local-test'")
+                return
 
     # Fall back to template-based initialization if no GitHub repo or if GitHub repo failed
     if not github_repo:
