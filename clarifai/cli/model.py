@@ -19,120 +19,13 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_DEV_NODEPOOL_ID,
 )
 from clarifai.utils.logging import logger
-
-
-def _normalize_github_repo_url(github_repo):
-    """Normalize GitHub repository URL to a standard format."""
-    if github_repo.startswith('http'):
-        return github_repo
-    elif '/' in github_repo and not github_repo.startswith('git@'):
-        # Handle "user/repo" format
-        return f"https://github.com/{github_repo}.git"
-    else:
-        return github_repo
-
-
-def _clone_github_repo(repo_url, target_dir, pat=None):
-    """Clone a GitHub repository with optional PAT authentication."""
-    # Handle local file paths - just copy instead of cloning
-    if os.path.exists(repo_url):
-        try:
-            shutil.copytree(repo_url, target_dir, ignore=shutil.ignore_patterns('.git'))
-            logger.info(f"Successfully copied local repository from {repo_url}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to copy local repository: {e}")
-            return False
-    
-    cmd = ["git", "clone"]
-    
-    # Handle authentication with PAT
-    if pat:
-        # Parse the URL and validate the hostname
-        parsed_url = urllib.parse.urlparse(repo_url)
-        if parsed_url.hostname == "github.com":
-            # Insert PAT into the URL for authentication
-            authenticated_url = f"https://{pat}@{parsed_url.netloc}{parsed_url.path}"
-            cmd.append(authenticated_url)
-        else:
-            logger.error(f"Invalid repository URL: {repo_url}")
-            return False
-    else:
-        cmd.append(repo_url)
-    
-    cmd.append(target_dir)
-    
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        logger.info(f"Successfully cloned repository from {repo_url}")
-        return True
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to clone repository: {e.stderr}")
-        return False
-
-
-def _find_model_structure(repo_dir):
-    """Find a valid model structure in the cloned repository."""
-    # Look for directories that contain model.py and config.yaml
-    for root, dirs, files in os.walk(repo_dir):
-        # Skip .git directory
-        if '.git' in root:
-            continue
-            
-        # Check if this directory has model structure
-        has_model_py = False
-        has_config_yaml = False
-        has_version_dir = False
-        
-        # Check for model.py in subdirectories (like 1/model.py)
-        for d in dirs:
-            if d.isdigit():  # Version directory like "1"
-                version_dir = os.path.join(root, d)
-                if os.path.exists(os.path.join(version_dir, "model.py")):
-                    has_model_py = True
-                    has_version_dir = True
-                    break
-        
-        # Check for config.yaml in the current directory
-        if "config.yaml" in files:
-            has_config_yaml = True
-            
-        if has_model_py and has_config_yaml and has_version_dir:
-            return root
-    
-    return None
-
-
-def _copy_model_structure(source_dir, target_dir):
-    """Copy model structure from source to target directory."""
-    # Copy all relevant files and directories
-    for item in os.listdir(source_dir):
-        if item == '.git':
-            continue
-            
-        source_path = os.path.join(source_dir, item)
-        target_path = os.path.join(target_dir, item)
-        
-        if os.path.isdir(source_path):
-            shutil.copytree(source_path, target_path, dirs_exist_ok=True)
-        else:
-            shutil.copy2(source_path, target_path)
-    
-    logger.info(f"Copied model structure from {source_dir} to {target_dir}")
-
-
-def _install_requirements(requirements_path):
-    """Install requirements from requirements.txt if it exists."""
-    if os.path.exists(requirements_path):
-        try:
-            cmd = ["python", "-m", "pip", "install", "-r", requirements_path]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            logger.info("Successfully installed requirements from the GitHub repository")
-            return True
-        except subprocess.CalledProcessError as e:
-            logger.warning(f"Failed to install requirements: {e.stderr}")
-            return False
-    return False
+from clarifai.utils.misc import (
+    clone_github_repo,
+    copy_model_structure,
+    find_model_structure,
+    install_requirements,
+    normalize_github_repo_url,
+)
 
 
 @cli.group(
@@ -196,27 +89,27 @@ def init(model_path, model_type_id, pat, github_repo):
         if os.path.exists(github_repo):
             repo_url = github_repo
         else:
-            repo_url = _normalize_github_repo_url(github_repo)
+            repo_url = normalize_github_repo_url(github_repo)
         
         # Create a temporary directory for cloning
         with tempfile.TemporaryDirectory() as temp_dir:
             clone_dir = os.path.join(temp_dir, "repo")
             
             # Clone the repository
-            if not _clone_github_repo(repo_url, clone_dir, pat):
+            if not clone_github_repo(repo_url, clone_dir, pat):
                 logger.error("Failed to clone repository. Falling back to template-based initialization.")
                 github_repo = None  # Fall back to template mode
             else:
                 # Find model structure in the cloned repo
-                model_structure_dir = _find_model_structure(clone_dir)
+                model_structure_dir = find_model_structure(clone_dir)
                 
                 if model_structure_dir:
                     # Copy the model structure to target directory
-                    _copy_model_structure(model_structure_dir, model_path)
+                    copy_model_structure(model_structure_dir, model_path)
                     
                     # Try to install requirements if they exist
                     requirements_path = os.path.join(model_path, "requirements.txt")
-                    if _install_requirements(requirements_path):
+                    if install_requirements(requirements_path):
                         logger.info("Model initialization complete with GitHub repository and dependencies installed")
                     else:
                         logger.info("Model initialization complete with GitHub repository (dependencies not installed)")
