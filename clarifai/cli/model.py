@@ -22,9 +22,9 @@ from clarifai.utils.logging import logger
     ['model'], context_settings={'max_content_width': shutil.get_terminal_size().columns - 10}
 )
 def model():
-    """Manage & Develop Models: init, download-checkpoints, signatures, upload \n
-    Run & Test Models Locally: local-runner, local-grpc, local-test \n
-    Model Inference: list, predict"""
+    """Manage & Develop Models: init, download-checkpoints, signatures, upload\n
+Run & Test Models Locally: local-runner, local-grpc, local-test\n
+Model Inference: list, predict"""
 
 
 @model.command()
