@@ -18,7 +18,9 @@ def has_signature_method(
     :param method_signatures: List of MethodSignature objects to search in.
     :return: True if a method with the given name exists, False otherwise.
     """
-    return any(method_signature.name == name for method_signature in method_signatures)
+    return any(
+        method_signature.name == name for method_signature in method_signatures if method_signature
+    )
 
 
 def generate_client_script(
@@ -125,7 +127,7 @@ from clarifai.runners.utils import data_types
 
     base_url_str = ""
     if base_url is not None:
-        base_url_str = f"base_url={base_url},"
+        base_url_str = f"base_url='{base_url}',"
 
     # Join all non-empty lines
     optional_lines = "\n    ".join(
@@ -153,6 +155,8 @@ model = Model("{model_ui_url}",
     # Generate method signatures
     method_signatures_str = []
     for method_signature in method_signatures:
+        if method_signature is None:
+            continue
         method_name = method_signature.name
         client_script_str = f'response = model.{method_name}('
         annotations = _get_annotations_source(method_signature)
@@ -317,7 +321,10 @@ def _set_default_value(field_type):
         default_value = f"{{{', '.join([str(et) for et in element_type_defaults])}}}"
 
     if is_iterator:
-        default_value = f'iter([{default_value}])'
+        if field_type == "str":
+            default_value = f"iter(['{default_value}'])"
+        else:
+            default_value = f"iter([{default_value}])"
     return default_value
 
 

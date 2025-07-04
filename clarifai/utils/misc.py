@@ -1,11 +1,16 @@
 import os
 import re
+import shutil
+import subprocess
+import urllib.parse
 import uuid
 from typing import Any, Dict, List
 
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
 from clarifai.errors import UserError
+from clarifai.utils.constants import HOME_PATH
+from clarifai.utils.logging import logger
 
 RETRYABLE_CODES = [
     status_code_pb2.MODEL_DEPLOYING,
@@ -13,7 +18,7 @@ RETRYABLE_CODES = [
     status_code_pb2.MODEL_BUSY_PLEASE_RETRY,
 ]
 
-DEFAULT_CONFIG = f'{os.environ["HOME"]}/.config/clarifai/config'
+DEFAULT_CONFIG = HOME_PATH / '.config/clarifai/config'
 
 
 def status_is_retryable(status_code: int) -> bool:
@@ -104,3 +109,60 @@ def clean_input_id(input_id: str) -> str:
     input_id = input_id.lower().strip('_-')
     input_id = re.sub('[^a-z0-9-_]+', '', input_id)
     return input_id
+
+
+def format_github_repo_url(github_repo):
+    """Format GitHub repository URL to a standard format."""
+    if github_repo.startswith('http'):
+        return github_repo
+    elif '/' in github_repo and not github_repo.startswith('git@'):
+        # Handle "user/repo" format
+        return f"https://github.com/{github_repo}.git"
+    else:
+        return github_repo
+
+
+def clone_github_repo(repo_url, target_dir, github_pat=None, branch=None):
+    """Clone a GitHub repository with optional GitHub PAT authentication and branch specification."""
+    # Handle local file paths - just copy instead of cloning
+    if os.path.exists(repo_url):
+        try:
+            shutil.copytree(repo_url, target_dir, ignore=shutil.ignore_patterns('.git'))
+            logger.info(f"Successfully copied local repository from {repo_url}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to copy local repository: {e}")
+            return False
+
+    cmd = ["git", "clone"]
+
+    # Add branch specification if provided
+    if branch:
+        cmd.extend(["-b", branch])
+
+    # Handle authentication with GitHub PAT
+    if github_pat:
+        # Parse the URL and validate the hostname
+        parsed_url = urllib.parse.urlparse(repo_url)
+        if parsed_url.hostname == "github.com":
+            # Insert GitHub PAT into the URL for authentication
+            authenticated_url = f"https://{github_pat}@{parsed_url.netloc}{parsed_url.path}"
+            cmd.append(authenticated_url)
+        else:
+            logger.error(f"Invalid repository URL: {repo_url}")
+            return False
+    else:
+        cmd.append(repo_url)
+
+    cmd.append(target_dir)
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        if branch:
+            logger.info(f"Successfully cloned repository from {repo_url} (branch: {branch})")
+        else:
+            logger.info(f"Successfully cloned repository from {repo_url}")
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to clone repository: {e.stderr}")
+        return False

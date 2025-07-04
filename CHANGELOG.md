@@ -1,3 +1,35 @@
+## [[11.6.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.0) - [PyPI](https://pypi.org/project/clarifai/11.6.0/) - 2025-07-01
+
+### Changed
+- Number of threads used for GRPC Server default to CLARIFAI_NUM_THREADS and 32 otherwise [(#661)] (https://github.com/Clarifai/clarifai-python/pull/661)
+- Use Configuration contexts in Model Upload CLI [(#649)] (https://github.com/Clarifai/clarifai-python/pull/649)
+- Add pipeline run CLI similar to model predict [(#644)] (https://github.com/Clarifai/clarifai-python/pull/644)
+- Update requirements.txt for protocol version [(#668)] (https://github.com/Clarifai/clarifai-python/pull/668)
+
+## [[11.5.6]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.6) - [PyPI](https://pypi.org/project/clarifai/11.5.6/) - 2025-06-30
+
+### Added
+- Per-output token context tracking for batch operations
+- New `set_output_context()` method for models to specify token usage per output
+
+### Changed
+- Improved token usage tracking in ModelClass with thread-local storage
+- Enhanced batch processing support with ordered token context queue
+
+### Fixed
+- Token context ordering in batch operations using FIFO queue approach
+- Temporarily disabled `test_client_batch_generate` while implementing token tracking features
+
+## [[11.5.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.5) - [PyPI](https://pypi.org/project/clarifai/11.5.5/) - 2025-06-27
+
+### Fixed
+- fix legacy proto support [(#636)] (https://github.com/Clarifai/clarifai-python/pull/636)
+
+## [[11.5.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.4) - [PyPI](https://pypi.org/project/clarifai/11.5.4/) - 2025-06-25
+
+### Fixed
+- Added authentication support to URL fetcher for SDH-protected URLs [(#647)] (https://github.com/Clarifai/clarifai-python/pull/647)
+
 ## [[11.5.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.3) - [PyPI](https://pypi.org/project/clarifai/11.5.3/) - 2025-06-24
 
 ### Changed

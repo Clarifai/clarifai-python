@@ -1,7 +1,7 @@
 import inspect
 import itertools
-import logging
 import os
+import threading
 import traceback
 from abc import ABC
 from collections import abc
@@ -20,10 +20,15 @@ from clarifai.runners.utils.method_signatures import (
     serialize,
     signatures_to_json,
 )
+from clarifai.runners.utils.model_utils import is_proto_style_method
+from clarifai.utils.logging import logger
 
 _METHOD_INFO_ATTR = '_cf_method_info'
 
 _RAISE_EXCEPTIONS = os.getenv("RAISE_EXCEPTIONS", "false").lower() in ("true", "1")
+
+FALLBACK_METHOD_PROTO = 'PostModelOutputs'
+FALLBACK_METHOD_PYTHON = 'predict'
 
 
 class ModelClass(ABC):
@@ -55,22 +60,33 @@ class ModelClass(ABC):
             yield item.x + ' ' + str(item.y)
     '''
 
+    def __init__(self):
+        super().__init__()
+        self._thread_local = threading.local()
+
     @staticmethod
     def method(func):
         setattr(func, _METHOD_INFO_ATTR, _MethodInfo(func))
         return func
 
     def set_output_context(self, prompt_tokens=None, completion_tokens=None):
-        """This is used to set the prompt and completion tokens in the Output proto"""
-        self._prompt_tokens = prompt_tokens
-        self._completion_tokens = completion_tokens
+        """Set the prompt and completion tokens for the Output proto.
+        In batch mode, call this once per output, in order, before returning each output.
+        """
+        if not hasattr(self._thread_local, 'token_contexts'):
+            self._thread_local.token_contexts = []
+        self._thread_local.token_contexts.append((prompt_tokens, completion_tokens))
 
     def load_model(self):
         """Load the model."""
 
     def _handle_get_signatures_request(self) -> service_pb2.MultiOutputResponse:
-        methods = self._get_method_info()
-        signatures = {method.name: method.signature for method in methods.values()}
+        methods = self._get_method_infos()
+        signatures = {
+            method.name: method.signature
+            for method in methods.values()
+            if method.signature is not None
+        }
         resp = service_pb2.MultiOutputResponse(
             status=status_pb2.Status(code=status_code_pb2.SUCCESS)
         )
@@ -99,18 +115,61 @@ class ModelClass(ABC):
         outputs = []
         try:
             # TODO add method name field to proto
-            method_name = 'predict'
+            # to support old callers who might not pass in the method name we have a few defaults.
+            # first we look for a PostModelOutputs method that is implemented as protos and use that
+            # if it exists.
+            # if not we default to 'predict'.
+            method_name = None
             if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
                 method_name = request.inputs[0].data.metadata['_method_name']
+            if method_name is None and FALLBACK_METHOD_PROTO in self._get_method_infos():
+                _info = self._get_method_infos(FALLBACK_METHOD_PROTO)
+                if _info.proto_method:
+                    method_name = FALLBACK_METHOD_PROTO
+            if method_name is None:
+                method_name = FALLBACK_METHOD_PYTHON
             if (
                 method_name == '_GET_SIGNATURES'
             ):  # special case to fetch signatures, TODO add endpoint for this
                 return self._handle_get_signatures_request()
-            if method_name not in self._get_method_info():
+            if method_name not in self._get_method_infos():
                 raise ValueError(f"Method {method_name} not found in model class")
             method = getattr(self, method_name)
-            method_info = method._cf_method_info
+            method_info = self._get_method_infos(method_name)
             signature = method_info.signature
+            proto_method = method_info.proto_method
+
+            # If this is an old predict(proto) -> proto method, just call it and return
+            # the response.
+            if proto_method:
+                out_proto = method(request)
+                # if we already have out_proto.status.code set then return
+                if out_proto.status.code != status_code_pb2.ZERO:
+                    return out_proto
+
+                successes = [
+                    out.status.code == status_code_pb2.SUCCESS for out in out_proto.outputs
+                ]
+                if all(successes):
+                    # If all outputs are successful, we can return the response.
+                    out_proto.status.CopyFrom(
+                        status_pb2.Status(code=status_code_pb2.SUCCESS, description='Success')
+                    )
+                    return out_proto
+                if any(successes):
+                    # If some outputs are successful and some are not, we return a mixed status.
+                    out_proto.status.CopyFrom(
+                        status_pb2.Status(
+                            code=status_code_pb2.MIXED_STATUS, description='Mixed Status'
+                        )
+                    )
+                    return out_proto
+                # If all outputs are failures, we return a failure status.
+                out_proto.status.CopyFrom(
+                    status_pb2.Status(code=status_code_pb2.FAILURE, description='Failed')
+                )
+                return out_proto
+
             python_param_types = method_info.python_param_types
             for input in request.inputs:
                 # check if input is in old format
@@ -121,6 +180,7 @@ class ModelClass(ABC):
                         input.data, signature.input_fields
                     )
                     input.data.CopyFrom(new_data)
+
             # convert inputs to python types
             inputs = self._convert_input_protos_to_python(
                 request.inputs, signature.input_fields, python_param_types
@@ -148,7 +208,7 @@ class ModelClass(ABC):
         except Exception as e:
             if _RAISE_EXCEPTIONS:
                 raise
-            logging.exception("Error in predict")
+            logger.exception("Error in predict")
             return service_pb2.MultiOutputResponse(
                 status=status_pb2.Status(
                     code=status_code_pb2.FAILURE,
@@ -161,11 +221,12 @@ class ModelClass(ABC):
         self, request: service_pb2.PostModelOutputsRequest
     ) -> Iterator[service_pb2.MultiOutputResponse]:
         try:
+            assert len(request.inputs) == 1, "Generate requires exactly one input"
             method_name = 'generate'
             if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
                 method_name = request.inputs[0].data.metadata['_method_name']
             method = getattr(self, method_name)
-            method_info = method._cf_method_info
+            method_info = self._get_method_infos(method_name)
             signature = method_info.signature
             python_param_types = method_info.python_param_types
             for input in request.inputs:
@@ -207,7 +268,7 @@ class ModelClass(ABC):
         except Exception as e:
             if _RAISE_EXCEPTIONS:
                 raise
-            logging.exception("Error in generate")
+            logger.exception("Error in generate")
             yield service_pb2.MultiOutputResponse(
                 status=status_pb2.Status(
                     code=status_code_pb2.FAILURE,
@@ -227,7 +288,7 @@ class ModelClass(ABC):
             if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
                 method_name = request.inputs[0].data.metadata['_method_name']
             method = getattr(self, method_name)
-            method_info = method._cf_method_info
+            method_info = self._get_method_infos(method_name)
             signature = method_info.signature
             python_param_types = method_info.python_param_types
 
@@ -282,7 +343,7 @@ class ModelClass(ABC):
         except Exception as e:
             if _RAISE_EXCEPTIONS:
                 raise
-            logging.exception("Error in stream")
+            logger.exception("Error in stream")
             yield service_pb2.MultiOutputResponse(
                 status=status_pb2.Status(
                     code=status_code_pb2.FAILURE,
@@ -333,12 +394,18 @@ class ModelClass(ABC):
             data = DataConverter.convert_output_data_to_old_format(proto.data)
             proto.data.CopyFrom(data)
         proto.status.code = status_code_pb2.SUCCESS
-        if hasattr(self, "_prompt_tokens") and self._prompt_tokens is not None:
-            proto.prompt_tokens = self._prompt_tokens
-        if hasattr(self, "_completion_tokens") and self._completion_tokens is not None:
-            proto.completion_tokens = self._completion_tokens
-        self._prompt_tokens = None
-        self._completion_tokens = None
+        # Per-output token context support
+        token_contexts = getattr(self._thread_local, 'token_contexts', None)
+        prompt_tokens = completion_tokens = None
+        if token_contexts and len(token_contexts) > 0:
+            prompt_tokens, completion_tokens = token_contexts.pop(0)
+            # If this was the last, clean up
+            if len(token_contexts) == 0:
+                del self._thread_local.token_contexts
+        if prompt_tokens is not None:
+            proto.prompt_tokens = prompt_tokens
+        if completion_tokens is not None:
+            proto.completion_tokens = completion_tokens
         return proto
 
     @classmethod
@@ -359,28 +426,44 @@ class ModelClass(ABC):
                     continue
                 methods[name] = method_info
         # check for generic predict(request) -> response, etc. methods
-        # for name in ('predict', 'generate', 'stream'):
-        #  if hasattr(cls, name):
-        #    method = getattr(cls, name)
-        #    if not hasattr(method, _METHOD_INFO_ATTR):  # not already put in registry
-        #      methods[name] = _MethodInfo(method)
+        # older models never had generate or stream so don't bother with them.
+        for name in [FALLBACK_METHOD_PROTO]:  # , 'GenerateModelOutputs', 'StreamModelOutputs'):
+            if hasattr(cls, name) and name not in methods:
+                method = getattr(cls, name)
+                if not callable(method):
+                    continue
+                if is_proto_style_method(method):
+                    # If this is a proto-style method, we can add it to the registry as a special case.
+                    methods[name] = _MethodInfo(method, proto_method=True)
         # set method table for this class in the registry
         return methods
 
     @classmethod
-    def _get_method_info(cls, func_name=None):
+    def _get_method_infos(cls, func_name=None):
+        # FIXME: this is a re-use of the _METHOD_INFO_ATTR attribute to store the method info
+        # for all methods on the class. Should use a different attribute name to avoid confusion.
         if not hasattr(cls, _METHOD_INFO_ATTR):
             setattr(cls, _METHOD_INFO_ATTR, cls._register_model_methods())
-        method_info = getattr(cls, _METHOD_INFO_ATTR)
+        method_infos = getattr(cls, _METHOD_INFO_ATTR)
         if func_name:
-            return method_info[func_name]
-        return method_info
+            return method_infos[func_name]
+        return method_infos
 
 
 class _MethodInfo:
-    def __init__(self, method):
+    def __init__(self, method, proto_method=False):
+        """Initialize a MethodInfo instance.
+
+        Args:
+            method: The method to wrap.
+            old_method: If True, this is an old proto-style method that returns a proto directly.
+        """
         self.name = method.__name__
-        self.signature = build_function_signature(method)
+        self.proto_method = proto_method
+        if not proto_method:
+            self.signature = build_function_signature(method)
+        else:
+            self.signature = None
         self.python_param_types = {
             p.name: p.annotation
             for p in inspect.signature(method).parameters.values()

@@ -28,6 +28,146 @@ def upload(path):
 
 
 @pipeline.command()
+@click.option(
+    '--config',
+    type=click.Path(exists=True),
+    required=False,
+    help='Path to the pipeline run config file.',
+)
+@click.option('--pipeline_id', required=False, help='Pipeline ID to run.')
+@click.option('--pipeline_version_id', required=False, help='Pipeline Version ID to run.')
+@click.option(
+    '--pipeline_version_run_id',
+    required=False,
+    help='Pipeline Version Run ID. If not provided, a UUID will be generated.',
+)
+@click.option('--user_id', required=False, help='User ID of the pipeline.')
+@click.option('--app_id', required=False, help='App ID that contains the pipeline.')
+@click.option('--nodepool_id', required=False, help='Nodepool ID to run the pipeline on.')
+@click.option(
+    '--compute_cluster_id', required=False, help='Compute Cluster ID to run the pipeline on.'
+)
+@click.option('--pipeline_url', required=False, help='Pipeline URL to run.')
+@click.option(
+    '--timeout',
+    type=int,
+    default=3600,
+    help='Maximum time to wait for completion in seconds. Default 3600 (1 hour).',
+)
+@click.option(
+    '--monitor_interval',
+    type=int,
+    default=10,
+    help='Interval between status checks in seconds. Default 10.',
+)
+@click.option(
+    '--log_file',
+    type=click.Path(),
+    required=False,
+    help='Path to file where logs should be written. If not provided, logs are displayed on console.',
+)
+@click.option(
+    '--monitor',
+    is_flag=True,
+    default=False,
+    help='Monitor an existing pipeline run instead of starting a new one. Requires pipeline_version_run_id.',
+)
+@click.pass_context
+def run(
+    ctx,
+    config,
+    pipeline_id,
+    pipeline_version_id,
+    pipeline_version_run_id,
+    user_id,
+    app_id,
+    nodepool_id,
+    compute_cluster_id,
+    pipeline_url,
+    timeout,
+    monitor_interval,
+    log_file,
+    monitor,
+):
+    """Run a pipeline and monitor its progress."""
+    import json
+
+    from clarifai.client.pipeline import Pipeline
+    from clarifai.utils.cli import from_yaml, validate_context
+
+    validate_context(ctx)
+
+    if config:
+        config_data = from_yaml(config)
+        pipeline_id = config_data.get('pipeline_id', pipeline_id)
+        pipeline_version_id = config_data.get('pipeline_version_id', pipeline_version_id)
+        pipeline_version_run_id = config_data.get(
+            'pipeline_version_run_id', pipeline_version_run_id
+        )
+        user_id = config_data.get('user_id', user_id)
+        app_id = config_data.get('app_id', app_id)
+        nodepool_id = config_data.get('nodepool_id', nodepool_id)
+        compute_cluster_id = config_data.get('compute_cluster_id', compute_cluster_id)
+        pipeline_url = config_data.get('pipeline_url', pipeline_url)
+        timeout = config_data.get('timeout', timeout)
+        monitor_interval = config_data.get('monitor_interval', monitor_interval)
+        log_file = config_data.get('log_file', log_file)
+        monitor = config_data.get('monitor', monitor)
+
+    # compute_cluster_id and nodepool_id are mandatory regardless of whether pipeline_url is provided
+    if not compute_cluster_id or not nodepool_id:
+        raise ValueError("--compute_cluster_id and --nodepool_id are mandatory parameters.")
+
+    # When monitor flag is used, pipeline_version_run_id is mandatory
+    if monitor and not pipeline_version_run_id:
+        raise ValueError("--pipeline_version_run_id is required when using --monitor flag.")
+
+    if pipeline_url:
+        # When using pipeline_url, other parameters are optional (will be parsed from URL)
+        required_params_provided = True
+    else:
+        # When not using pipeline_url, all individual parameters are required
+        required_params_provided = all([pipeline_id, user_id, app_id, pipeline_version_id])
+
+    if not required_params_provided:
+        raise ValueError(
+            "Either --user_id & --app_id & --pipeline_id & --pipeline_version_id or --pipeline_url must be provided."
+        )
+
+    if pipeline_url:
+        pipeline = Pipeline(
+            url=pipeline_url,
+            pat=ctx.obj.current.pat,
+            base_url=ctx.obj.current.api_base,
+            pipeline_version_run_id=pipeline_version_run_id,
+            nodepool_id=nodepool_id,
+            compute_cluster_id=compute_cluster_id,
+            log_file=log_file,
+        )
+    else:
+        pipeline = Pipeline(
+            pipeline_id=pipeline_id,
+            pipeline_version_id=pipeline_version_id,
+            pipeline_version_run_id=pipeline_version_run_id,
+            user_id=user_id,
+            app_id=app_id,
+            nodepool_id=nodepool_id,
+            compute_cluster_id=compute_cluster_id,
+            pat=ctx.obj.current.pat,
+            base_url=ctx.obj.current.api_base,
+            log_file=log_file,
+        )
+
+    if monitor:
+        # Monitor existing pipeline run instead of starting new one
+        result = pipeline.monitor_only(timeout=timeout, monitor_interval=monitor_interval)
+    else:
+        # Start new pipeline run and monitor it
+        result = pipeline.run(timeout=timeout, monitor_interval=monitor_interval)
+    click.echo(json.dumps(result, indent=2, default=str))
+
+
+@pipeline.command()
 @click.argument(
     "pipeline_path",
     type=click.Path(),

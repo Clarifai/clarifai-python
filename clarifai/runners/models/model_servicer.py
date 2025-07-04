@@ -5,6 +5,8 @@ from typing import Iterator
 from clarifai_grpc.grpc.api import service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
+from clarifai.client.auth.helper import ClarifaiAuthHelper
+
 from ..utils.url_fetcher import ensure_urls_downloaded
 
 _RAISE_EXCEPTIONS = os.getenv("RAISE_EXCEPTIONS", "false").lower() in ("true", "1")
@@ -23,6 +25,27 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
         """
         self.model = model
 
+        # Try to create auth helper from environment variables if available
+        self._auth_helper = None
+        try:
+            user_id = os.environ.get("CLARIFAI_USER_ID")
+            pat = os.environ.get("CLARIFAI_PAT")
+            token = os.environ.get("CLARIFAI_SESSION_TOKEN")
+            base_url = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
+
+            if user_id and (pat or token):
+                self._auth_helper = ClarifaiAuthHelper(
+                    user_id=user_id,
+                    app_id="",  # app_id not needed for URL fetching
+                    pat=pat or "",
+                    token=token or "",
+                    base=base_url,
+                    validate=False,  # Don't validate since app_id is empty
+                )
+        except Exception:
+            # If auth helper creation fails, proceed without authentication
+            self._auth_helper = None
+
     def PostModelOutputs(
         self, request: service_pb2.PostModelOutputsRequest, context=None
     ) -> service_pb2.MultiOutputResponse:
@@ -32,7 +55,7 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
         """
 
         # Download any urls that are not already bytes.
-        ensure_urls_downloaded(request)
+        ensure_urls_downloaded(request, auth_helper=self._auth_helper)
 
         try:
             return self.model.predict_wrapper(request)
@@ -56,7 +79,7 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
         returns an output.
         """
         # Download any urls that are not already bytes.
-        ensure_urls_downloaded(request)
+        ensure_urls_downloaded(request, auth_helper=self._auth_helper)
 
         try:
             yield from self.model.generate_wrapper(request)
@@ -84,7 +107,7 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
 
         # Download any urls that are not already bytes.
         for req in request:
-            ensure_urls_downloaded(req)
+            ensure_urls_downloaded(req, auth_helper=self._auth_helper)
 
         try:
             yield from self.model.stream_wrapper(request_copy)

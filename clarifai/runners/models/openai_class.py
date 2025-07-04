@@ -34,6 +34,7 @@ class OpenAIModelClass(ModelClass):
     model = None
 
     def __init__(self) -> None:
+        super().__init__()
         if self.client is None:
             raise NotImplementedError("Subclasses must set the 'client' class attribute")
         if self.model is None:
