@@ -178,7 +178,7 @@ class MyModel(OpenAIModelClass):
 '''
 
 
-def get_config_template(model_type_id: str = "text-to-text") -> str:
+def get_config_template(model_type_id: str = "any-to-any") -> str:
     """Return the template for config.yaml."""
     return f'''# Configuration file for your Clarifai model
 
