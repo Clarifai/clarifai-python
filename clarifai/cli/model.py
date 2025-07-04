@@ -564,7 +564,13 @@ def local_dev(ctx, model_path):
         )
         if y.lower() != 'y':
             raise click.Abort()
-        model = app.create_model(model_id, model_type_id=DEFAULT_LOCAL_DEV_MODEL_TYPE)
+        try:
+            model_type_id = ctx.obj.current.model_type_id
+        except AttributeError:
+            model_type_id = DEFAULT_LOCAL_DEV_MODEL_TYPE
+
+        model = app.create_model(model_id, model_type_id=model_type_id)
+        ctx.obj.current.CLARIFAI_MODEL_TYPE_ID = model_type_id
         ctx.obj.current.CLARIFAI_MODEL_ID = model_id
         ctx.obj.to_yaml()  # save to yaml file.
 
@@ -683,6 +689,7 @@ def local_dev(ctx, model_path):
             f"config.yaml not found in {model_path}. Please ensure you are passing the correct directory."
         )
     config = ModelBuilder._load_config(config_file)
+    model_type_id = config.get('model', {}).get('model_type_id', DEFAULT_LOCAL_DEV_MODEL_TYPE)
     # The config.yaml doens't match what we created above.
     if 'model' in config and model_id != config['model'].get('id'):
         logger.info(f"Current model section of config.yaml: {config.get('model', {})}")
@@ -692,7 +699,7 @@ def local_dev(ctx, model_path):
         if y.lower() != 'y':
             raise click.Abort()
         config = ModelBuilder._set_local_dev_model(
-            config, user_id, app_id, model_id, DEFAULT_LOCAL_DEV_MODEL_TYPE
+            config, user_id, app_id, model_id, model_type_id
         )
         ModelBuilder._backup_config(config_file)
         ModelBuilder._save_config(config_file, config)
