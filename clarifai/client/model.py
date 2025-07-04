@@ -66,6 +66,7 @@ class Model(Lister, BaseClient):
         compute_cluster_id: str = None,
         nodepool_id: str = None,
         deployment_id: str = None,
+        deployment_user_id: str = None,
         **kwargs,
     ):
         """Initializes a Model object.
@@ -78,6 +79,10 @@ class Model(Lister, BaseClient):
             pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
             token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
             root_certificates_path (str): Path to the SSL root certificates file, used to establish secure gRPC connections.
+            compute_cluster_id (str): Compute cluster ID for runner selector.
+            nodepool_id (str): Nodepool ID for runner selector.
+            deployment_id (str): Deployment ID for runner selector.
+            deployment_user_id (str): User ID to use for runner selector (organization or user). If not provided, defaults to PAT owner user_id.
             **kwargs: Additional keyword arguments to be passed to the Model.
         """
         if url and model_id:
@@ -115,10 +120,13 @@ class Model(Lister, BaseClient):
         )
         Lister.__init__(self)
 
+        self.deployment_user_id = deployment_user_id
+
         self._set_runner_selector(
             compute_cluster_id=compute_cluster_id,
             nodepool_id=nodepool_id,
             deployment_id=deployment_id,
+            deployment_user_id=deployment_user_id,
         )
 
     @classmethod
@@ -633,9 +641,13 @@ class Model(Lister, BaseClient):
         compute_cluster_id: str = None,
         nodepool_id: str = None,
         deployment_id: str = None,
+        deployment_user_id: str = None,
     ):
-        # Get UserID
-        if any([deployment_id, nodepool_id, compute_cluster_id]):
+        # Get UserID for runner selector
+        user_id = None
+        if deployment_user_id:
+            user_id = deployment_user_id
+        elif any([deployment_id, nodepool_id, compute_cluster_id]):
             from clarifai.client.user import User
 
             user_id = (
@@ -643,13 +655,11 @@ class Model(Lister, BaseClient):
                 .get_user_info(user_id='me')
                 .user.id
             )
-
         runner_selector = None
         if deployment_id and (compute_cluster_id or nodepool_id):
             raise UserError(
                 "You can only specify one of deployment_id or compute_cluster_id and nodepool_id."
             )
-
         if deployment_id:
             runner_selector = Deployment.get_runner_selector(
                 user_id=user_id, deployment_id=deployment_id
@@ -658,7 +668,6 @@ class Model(Lister, BaseClient):
             runner_selector = Nodepool.get_runner_selector(
                 user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id
             )
-
         # set the runner selector
         self._runner_selector = runner_selector
 

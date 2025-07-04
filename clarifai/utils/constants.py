@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 DEFAULT_UI = os.environ.get("CLARIFAI_UI", "https://clarifai.com")
 DEFAULT_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
@@ -10,7 +11,8 @@ CLARIFAI_PAT_ENV_VAR = "CLARIFAI_PAT"
 CLARIFAI_SESSION_TOKEN_ENV_VAR = "CLARIFAI_SESSION_TOKEN"
 CLARIFAI_USER_ID_ENV_VAR = "CLARIFAI_USER_ID"
 
-DEFAULT_CONFIG = f'{os.environ["HOME"]}/.config/clarifai/config'
+HOME_PATH = Path.home()
+DEFAULT_CONFIG = HOME_PATH / '.config/clarifai/config'
 
 # Default clusters, etc. for local dev runner easy setup
 DEFAULT_LOCAL_DEV_COMPUTE_CLUSTER_ID = "local-dev-compute-cluster"

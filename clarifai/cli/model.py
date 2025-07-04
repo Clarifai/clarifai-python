@@ -1,5 +1,6 @@
 import os
 import shutil
+import tempfile
 
 import click
 
@@ -16,6 +17,10 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_DEV_NODEPOOL_ID,
 )
 from clarifai.utils.logging import logger
+from clarifai.utils.misc import (
+    clone_github_repo,
+    format_github_repo_url,
+)
 
 
 @cli.group(
@@ -40,7 +45,22 @@ def model():
     required=False,
     help='Model type: "mcp" for MCPModelClass, "openai" for OpenAIModelClass, or leave empty for default ModelClass.',
 )
-def init(model_path, model_type_id):
+@click.option(
+    '--github-pat',
+    required=False,
+    help='GitHub Personal Access Token for authentication when cloning private repositories.',
+)
+@click.option(
+    '--github-repo',
+    required=False,
+    help='GitHub repository URL or "user/repo" format to clone a repository from. If provided, the entire repository contents will be copied to the target directory instead of using default templates.',
+)
+@click.option(
+    '--branch',
+    required=False,
+    help='Git branch to clone from the GitHub repository. If not specified, the default branch will be used.',
+)
+def init(model_path, model_type_id, github_pat, github_repo, branch):
     """Initialize a new model directory structure.
 
     Creates the following structure in the specified directory:
@@ -49,62 +69,110 @@ def init(model_path, model_type_id):
     ├── requirements.txt
     └── config.yaml
 
+    If --github-repo is provided, the entire repository contents will be copied to the target
+    directory instead of using default templates. The --github-pat option can be used for authentication
+    when cloning private repositories. The --branch option can be used to specify a specific
+    branch to clone from.
+
     MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
     """
-    from clarifai.cli.templates.model_templates import (
-        get_config_template,
-        get_model_template,
-        get_requirements_template,
-    )
-
     # Resolve the absolute path
     model_path = os.path.abspath(model_path)
 
     # Create the model directory if it doesn't exist
     os.makedirs(model_path, exist_ok=True)
 
-    # Create the 1/ subdirectory
-    model_version_dir = os.path.join(model_path, "1")
-    os.makedirs(model_version_dir, exist_ok=True)
+    # Handle GitHub repository cloning if provided
+    if github_repo:
+        logger.info(f"Initializing model from GitHub repository: {github_repo}")
 
-    # Create model.py
-    model_py_path = os.path.join(model_version_dir, "model.py")
-    if os.path.exists(model_py_path):
-        logger.warning(f"File {model_py_path} already exists, skipping...")
-    else:
-        model_template = get_model_template(model_type_id)
-        with open(model_py_path, 'w') as f:
-            f.write(model_template)
-        logger.info(f"Created {model_py_path}")
+        # Check if it's a local path or normalize the GitHub repo URL
+        if os.path.exists(github_repo):
+            repo_url = github_repo
+        else:
+            repo_url = format_github_repo_url(github_repo)
 
-    # Create requirements.txt
-    requirements_path = os.path.join(model_path, "requirements.txt")
-    if os.path.exists(requirements_path):
-        logger.warning(f"File {requirements_path} already exists, skipping...")
-    else:
-        requirements_template = get_requirements_template(model_type_id)
-        with open(requirements_path, 'w') as f:
-            f.write(requirements_template)
-        logger.info(f"Created {requirements_path}")
+        # Create a temporary directory for cloning
+        with tempfile.TemporaryDirectory() as temp_dir:
+            clone_dir = os.path.join(temp_dir, "repo")
 
-    # Create config.yaml
-    config_path = os.path.join(model_path, "config.yaml")
-    if os.path.exists(config_path):
-        logger.warning(f"File {config_path} already exists, skipping...")
-    else:
-        config_model_type_id = "text-to-text"  # default
+            # Clone the repository
+            if not clone_github_repo(repo_url, clone_dir, github_pat, branch):
+                logger.error(
+                    "Failed to clone repository. Falling back to template-based initialization."
+                )
+                github_repo = None  # Fall back to template mode
+            else:
+                # Copy the entire repository content to target directory (excluding .git)
+                for item in os.listdir(clone_dir):
+                    if item == '.git':
+                        continue
 
-        config_template = get_config_template(config_model_type_id)
-        with open(config_path, 'w') as f:
-            f.write(config_template)
-        logger.info(f"Created {config_path}")
+                    source_path = os.path.join(clone_dir, item)
+                    target_path = os.path.join(model_path, item)
 
-    logger.info(f"Model initialization complete in {model_path}")
-    logger.info("Next steps:")
-    logger.info("1. Search for '# TODO: please fill in' comments in the generated files")
-    logger.info("2. Update the model configuration in config.yaml")
-    logger.info("3. Add your model dependencies to requirements.txt")
-    logger.info("4. Implement your model logic in 1/model.py")
+                    if os.path.isdir(source_path):
+                        shutil.copytree(source_path, target_path, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(source_path, target_path)
+
+                logger.info("Model initialization complete with GitHub repository")
+                logger.info("Next steps:")
+                logger.info("1. Review the model configuration")
+                logger.info("2. Install any required dependencies manually")
+                logger.info("3. Test the model locally using 'clarifai model local-test'")
+                return
+
+    # Fall back to template-based initialization if no GitHub repo or if GitHub repo failed
+    if not github_repo:
+        from clarifai.cli.templates.model_templates import (
+            get_config_template,
+            get_model_template,
+            get_requirements_template,
+        )
+
+        # Create the 1/ subdirectory
+        model_version_dir = os.path.join(model_path, "1")
+        os.makedirs(model_version_dir, exist_ok=True)
+
+        # Create model.py
+        model_py_path = os.path.join(model_version_dir, "model.py")
+        if os.path.exists(model_py_path):
+            logger.warning(f"File {model_py_path} already exists, skipping...")
+        else:
+            model_template = get_model_template(model_type_id)
+            with open(model_py_path, 'w') as f:
+                f.write(model_template)
+            logger.info(f"Created {model_py_path}")
+
+        # Create requirements.txt
+        requirements_path = os.path.join(model_path, "requirements.txt")
+        if os.path.exists(requirements_path):
+            logger.warning(f"File {requirements_path} already exists, skipping...")
+        else:
+            requirements_template = get_requirements_template(model_type_id)
+            with open(requirements_path, 'w') as f:
+                f.write(requirements_template)
+            logger.info(f"Created {requirements_path}")
+
+        # Create config.yaml
+        config_path = os.path.join(model_path, "config.yaml")
+        if os.path.exists(config_path):
+            logger.warning(f"File {config_path} already exists, skipping...")
+        else:
+            config_model_type_id = "text-to-text"  # default
+
+            config_template = get_config_template(config_model_type_id)
+            with open(config_path, 'w') as f:
+                f.write(config_template)
+            logger.info(f"Created {config_path}")
+
+        logger.info(f"Model initialization complete in {model_path}")
+        logger.info("Next steps:")
+        logger.info("1. Search for '# TODO: please fill in' comments in the generated files")
+        logger.info("2. Update the model configuration in config.yaml")
+        logger.info("3. Add your model dependencies to requirements.txt")
+        logger.info("4. Implement your model logic in 1/model.py")
 
 
 @model.command(help="Upload a trained model.")
@@ -496,7 +564,13 @@ def local_dev(ctx, model_path):
         )
         if y.lower() != 'y':
             raise click.Abort()
-        model = app.create_model(model_id, model_type_id=DEFAULT_LOCAL_DEV_MODEL_TYPE)
+        try:
+            model_type_id = ctx.obj.current.model_type_id
+        except AttributeError:
+            model_type_id = DEFAULT_LOCAL_DEV_MODEL_TYPE
+
+        model = app.create_model(model_id, model_type_id=model_type_id)
+        ctx.obj.current.CLARIFAI_MODEL_TYPE_ID = model_type_id
         ctx.obj.current.CLARIFAI_MODEL_ID = model_id
         ctx.obj.to_yaml()  # save to yaml file.
 
@@ -615,6 +689,7 @@ def local_dev(ctx, model_path):
             f"config.yaml not found in {model_path}. Please ensure you are passing the correct directory."
         )
     config = ModelBuilder._load_config(config_file)
+    model_type_id = config.get('model', {}).get('model_type_id', DEFAULT_LOCAL_DEV_MODEL_TYPE)
     # The config.yaml doens't match what we created above.
     if 'model' in config and model_id != config['model'].get('id'):
         logger.info(f"Current model section of config.yaml: {config.get('model', {})}")
@@ -624,7 +699,7 @@ def local_dev(ctx, model_path):
         if y.lower() != 'y':
             raise click.Abort()
         config = ModelBuilder._set_local_dev_model(
-            config, user_id, app_id, model_id, DEFAULT_LOCAL_DEV_MODEL_TYPE
+            config, user_id, app_id, model_id, model_type_id
         )
         ModelBuilder._backup_config(config_file)
         ModelBuilder._save_config(config_file, config)
