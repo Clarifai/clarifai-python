@@ -773,10 +773,6 @@ class ModelBuilder:
                             f"Setup: torch version not found in requirements.txt, using the default version {DEFAULT_AMD_TORCH_VERSION}"
                         )
                         torch_version = DEFAULT_AMD_TORCH_VERSION
-                    if torch_version not in [DEFAULT_AMD_TORCH_VERSION]:
-                        raise Exception(
-                            f"Setup: torch version {torch_version} not supported, please use one of the following versions: {DEFAULT_AMD_TORCH_VERSION} in your requirements.txt"
-                        )
                 else:
                     logger.info(
                         f"`torch` not found in requirements.txt, using the default torch=={DEFAULT_AMD_TORCH_VERSION}"
