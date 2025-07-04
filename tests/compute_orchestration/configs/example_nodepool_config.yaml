@@ -1,19 +1,19 @@
 nodepool:
-  id: "test-nodepool-6"
   compute_cluster:
-    id: "test-aws-cluster"
-  description: "First nodepool in AWS in a proper compute cluster"
+    id: test-aws-cluster
+  description: First nodepool in AWS in a proper compute cluster
+  id: ci_test_np_a4046969-a50c-40cd-b999-e28ec97d1405
   instance_types:
-    - id: "g5.xlarge"
-      compute_info:
-        cpu_limit: "8"
-        cpu_memory: "16Gi"
-        accelerator_type:
-          - "a10"
-        num_accelerators: 1
-        accelerator_memory: "40Gi"
-  node_capacity_type:
-    capacity_types:
-      - 1
+  - compute_info:
+      accelerator_memory: 40Gi
+      accelerator_type:
+      - a10
+      cpu_limit: '8'
+      cpu_memory: 16Gi
+      num_accelerators: 1
+    id: g5.xlarge
   max_instances: 1
   min_instances: 0
+  node_capacity_type:
+    capacity_types:
+    - 1

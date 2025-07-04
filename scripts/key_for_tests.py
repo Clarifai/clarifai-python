@@ -48,7 +48,15 @@ def _request(method, url, payload={}, headers={}):
 def login():
     url = "/login"
     payload = {"email": EMAIL, "password": PASSWORD}
-    data = _request(method="POST", url=url, payload=payload)
+    data = _request(
+        method="POST",
+        url=url,
+        payload=payload,
+        headers={
+            "Content-Type": "application/json",
+            "X-Clarifai-Client": "key_for_tests",
+        },
+    )
     _assert_response_success(data)
 
     assert "v2_user_id" in data, f"Invalid response {data}"
@@ -63,7 +71,11 @@ def login():
 
 
 def _auth_headers(session_token):
-    headers = {"Content-Type": "application/json", "X-Clarifai-Session-Token": session_token}
+    headers = {
+        "Content-Type": "application/json",
+        "X-Clarifai-Session-Token": session_token,
+        "X-Clarifai-Client": "key_for_tests",
+    }
     return headers
 
 
