@@ -169,6 +169,7 @@ class TestRunnerServer:
             pat=cls.AUTH.pat,
             compute_cluster_id=cls.COMPUTE_CLUSTER_ID,
             nodepool_id=cls.NODEPOOL_ID,
+            deployment_user_id=cls.AUTH.user_id,
         )
 
         cls.runner_model = _get_model_instance(cls.MODEL_PATH)
