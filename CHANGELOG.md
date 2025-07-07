@@ -1,3 +1,15 @@
+## [[11.6.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.1) - [PyPI](https://pypi.org/project/clarifai/11.6.1/) - 2025-07-07
+
+### Changed
+- Added `--version` flag support to the Clarifai CLI [(#678)] (https://github.com/Clarifai/clarifai-python/pull/678)
+- Ensured better handling of `model_type_id` and improved configuration management [(#676)] (https://github.com/Clarifai/clarifai-python/pull/676)
+- Added support for specifying a `deployment_user_id` in the Model class to enhance runner selection functionality [(#675)] (https://github.com/Clarifai/clarifai-python/pull/675)
+- Added functionality to initialize a model directory from a GitHub repository, enhancing flexibility and usability in `model init` command [(#674)] (https://github.com/Clarifai/clarifai-python/pull/674)
+- Fixed CLI PATH for Windows [(#672)] (https://github.com/Clarifai/clarifai-python/pull/672)
+- Fixed code generation script [(#671)] (https://github.com/Clarifai/clarifai-python/pull/671)
+- Added an alias for the pipelinestep CLI command and significantly improved test coverage for the `clarifai.runners.pipeline_steps` module [(#665)] (https://github.com/Clarifai/clarifai-python/pull/665)
+- Improved CLI documentation and added descriptive help messages for various model-related commands [(#663)] (https://github.com/Clarifai/clarifai-python/pull/663)
+
 ## [[11.6.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.0) - [PyPI](https://pypi.org/project/clarifai/11.6.0/) - 2025-07-01
 
 ### Changed
