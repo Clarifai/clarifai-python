@@ -1,4 +1,3 @@
-"""Test version functionality for the CLI."""
 from click.testing import CliRunner
 
 from clarifai import __version__
