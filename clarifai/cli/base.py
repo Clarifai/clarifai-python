@@ -11,15 +11,18 @@ from clarifai.utils.cli import AliasedGroup, TableFormatter, load_command_module
 from clarifai.utils.config import Config, Context
 from clarifai.utils.constants import DEFAULT_BASE, DEFAULT_CONFIG, DEFAULT_UI
 from clarifai.utils.logging import logger
+from clarifai.versions import validate_python_version
 
 
-# @click.group(cls=CustomMultiGroup)
 @click.group(cls=AliasedGroup)
 @click.version_option(version=__version__)
 @click.option('--config', default=DEFAULT_CONFIG)
 @click.pass_context
 def cli(ctx, config):
     """Clarifai CLI"""
+    # Validate Python version before proceeding
+    validate_python_version()
+    
     ctx.ensure_object(dict)
     if os.path.exists(config):
         cfg = Config.from_yaml(filename=config)
