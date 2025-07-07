@@ -78,7 +78,7 @@ def process_video(video: Video) -> Dict:
         video_base64_str = base64.b64encode(response.content).decode('utf-8')
         video = {
             "type": "video_url",
-            "video_url": {"url": video_base64_str},
+            "video_url": {"url": "data:video/mp4;base64," + video_base64_str},
         }
     else:
         raise ValueError("Video must contain either bytes or URL")

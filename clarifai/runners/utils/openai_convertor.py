@@ -201,7 +201,7 @@ def build_openai_messages(
         openai_messages.extend(messages)
 
     content = []
-    if prompt.strip():
+    if prompt is not None and prompt.strip():
         # Build content array for current message
         content.append({'type': 'text', 'text': prompt})
     # Add single image if present
