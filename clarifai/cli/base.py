@@ -6,6 +6,7 @@ import sys
 import click
 import yaml
 
+from clarifai import __version__
 from clarifai.utils.cli import AliasedGroup, TableFormatter, load_command_modules
 from clarifai.utils.config import Config, Context
 from clarifai.utils.constants import DEFAULT_BASE, DEFAULT_CONFIG, DEFAULT_UI
@@ -14,6 +15,7 @@ from clarifai.utils.logging import logger
 
 # @click.group(cls=CustomMultiGroup)
 @click.group(cls=AliasedGroup)
+@click.version_option(version=__version__)
 @click.option('--config', default=DEFAULT_CONFIG)
 @click.pass_context
 def cli(ctx, config):
