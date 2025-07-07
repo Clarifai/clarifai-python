@@ -1,6 +1,6 @@
 import sys
 
-__version__ = "11.6.0"
+__version__ = "11.6.1"
 
 # Validate Python version when package is imported
 MINIMUM_PYTHON_VERSION = (3, 8)
