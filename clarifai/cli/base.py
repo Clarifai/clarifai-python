@@ -180,6 +180,9 @@ def login(ctx, api_url, user_id):
     ctx.obj.contexts[context.name] = context
     ctx.obj.current_context = context.name
 
+    # Export the context variables to the local environment
+    context.set_to_env()
+
     ctx.obj.to_yaml()
 
 
