@@ -1,3 +1,8 @@
+## [[11.6.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.2) - [PyPI](https://pypi.org/project/clarifai/11.6.2/) - 2025-07-08
+
+### Changed
+- Updated local-runner constants [(#684)] (https://github.com/Clarifai/clarifai-python/pull/684)
+
 ## [[11.6.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.1) - [PyPI](https://pypi.org/project/clarifai/11.6.1/) - 2025-07-07
 
 ### Changed
