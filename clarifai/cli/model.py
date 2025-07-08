@@ -730,6 +730,8 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
     # This reads the config.yaml from the model_path so we alter it above first.
     serve(
+        pool_size=1, # limit 1 for local dev runner
+        num_threads=1, # limit 1 for local dev runner
         model_path,
         user_id=user_id,
         compute_cluster_id=compute_cluster_id,
