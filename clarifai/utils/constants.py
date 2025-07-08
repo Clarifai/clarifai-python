@@ -20,6 +20,7 @@ DEFAULT_LOCAL_DEV_NODEPOOL_ID = "local-dev-nodepool"
 DEFAULT_LOCAL_DEV_DEPLOYMENT_ID = "local-dev-deployment"
 DEFAULT_LOCAL_DEV_MODEL_ID = "local-dev-model"
 DEFAULT_LOCAL_DEV_APP_ID = "local-dev-runner-app"
+DEFAULT_LOCAL_DEV_POOL_SIZE = 1
 
 # FIXME: should have any-to-any for these cases.
 DEFAULT_LOCAL_DEV_MODEL_TYPE = "text-to-text"

@@ -15,6 +15,7 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_DEV_MODEL_TYPE,
     DEFAULT_LOCAL_DEV_NODEPOOL_CONFIG,
     DEFAULT_LOCAL_DEV_NODEPOOL_ID,
+    DEFAULT_LOCAL_DEV_POOL_SIZE,
 )
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import (
@@ -737,6 +738,7 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
         runner_id=runner_id,
         base_url=ctx.obj.current.api_base,
         pat=ctx.obj.current.pat,
+        pool_size=DEFAULT_LOCAL_DEV_POOL_SIZE,
     )
 
 
