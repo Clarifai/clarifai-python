@@ -47,7 +47,7 @@ DEFAULT_LOCAL_DEV_NODEPOOL_CONFIG = {
         },
         "instance_types": [
             {
-                "id": "local-cpu",
+                "id": "local",
                 "compute_info": {
                     "cpu_limit": str(os.cpu_count()),
                     "cpu_memory": "16Gi",  # made up as we don't schedule based on this for local dev.
