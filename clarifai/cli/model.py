@@ -41,9 +41,9 @@ def model():
 )
 @click.option(
     '--model-type-id',
-    type=click.Choice(['mcp', 'openai'], case_sensitive=False),
+    type=click.Choice(['mcp', 'openai', 'ollama'], case_sensitive=False),
     required=False,
-    help='Model type: "mcp" for MCPModelClass, "openai" for OpenAIModelClass, or leave empty for default ModelClass.',
+    help='Model type: "mcp" for MCPModelClass, "openai" for OpenAIModelClass, "ollama" for Ollama models, or leave empty for default ModelClass.',
 )
 @click.option(
     '--github-pat',

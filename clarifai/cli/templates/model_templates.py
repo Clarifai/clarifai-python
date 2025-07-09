@@ -178,6 +178,86 @@ class MyModel(OpenAIModelClass):
 '''
 
 
+def get_ollama_model_class_template() -> str:
+    """Return the template for an Ollama-based model."""
+    return '''from typing import List
+from openai import OpenAI
+from clarifai.runners.models.openai_class import OpenAIModelClass
+from clarifai.runners.utils.data_utils import Param
+from clarifai.runners.utils.openai_convertor import build_openai_messages
+
+class MyModel(OpenAIModelClass):
+    """A custom model implementation using OpenAIModelClass for Ollama."""
+
+    # TODO: please fill in
+    # Configure your Ollama client (uses OpenAI-compatible API)
+    client = OpenAI(
+        api_key="ollama",  # TODO: please fill in - Ollama doesn't require real API key but some value is needed
+        base_url="http://localhost:11434/v1",  # TODO: please fill in - your Ollama server endpoint
+    )
+
+    # TODO: please fill in
+    # Specify the Ollama model name to use
+    model = "llama3.2"  # TODO: please fill in - replace with your Ollama model name (e.g., llama3.2, mistral, etc.)
+
+    def load_model(self):
+        """Optional: Add any additional model loading logic here."""
+        # TODO: please fill in (optional)
+        # Add any initialization logic if needed
+        # Note: Ollama models are typically loaded when first accessed
+        pass
+
+    @OpenAIModelClass.method
+    def predict(
+        self,
+        prompt: str = "",
+        chat_history: List[dict] = None,
+        max_tokens: int = Param(default=256, description="The maximum number of tokens to generate. Shorter token lengths will provide faster performance."),
+        temperature: float = Param(default=1.0, description="A decimal number that determines the degree of randomness in the response"),
+        top_p: float = Param(default=1.0, description="An alternative to sampling with temperature, where the model considers the results of the tokens with top_p probability mass."),
+    ) -> str:
+        """Run a single prompt completion using the Ollama client."""
+        # TODO: please fill in
+        # Implement your prediction logic here
+        messages = build_openai_messages(prompt, chat_history)
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            max_completion_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+        )
+        return response.choices[0].message.content
+
+    @OpenAIModelClass.method
+    def generate(
+        self,
+        prompt: str = "",
+        chat_history: List[dict] = None,
+        max_tokens: int = Param(default=256, description="The maximum number of tokens to generate. Shorter token lengths will provide faster performance."),
+        temperature: float = Param(default=1.0, description="A decimal number that determines the degree of randomness in the response"),
+        top_p: float = Param(default=1.0, description="An alternative to sampling with temperature, where the model considers the results of the tokens with top_p probability mass."),
+    ):
+        """Stream a completion response using the Ollama client."""
+        # TODO: please fill in
+        # Implement your streaming logic here
+        messages = build_openai_messages(prompt, chat_history)
+        stream = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            max_completion_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            stream=True,
+        )
+        for chunk in stream:
+            if chunk.choices:
+                text = (chunk.choices[0].delta.content
+                        if (chunk and chunk.choices[0].delta.content) is not None else '')
+                yield text
+'''
+
+
 def get_config_template(model_type_id: str = "text-to-text") -> str:
     """Return the template for config.yaml."""
     return f'''# Configuration file for your Clarifai model
@@ -218,6 +298,8 @@ clarifai>={__version__}
         requirements += "fastmcp\n"
     elif model_type_id == "openai":
         requirements += "openai\n"
+    elif model_type_id == "ollama":
+        requirements += "openai\n"  # Ollama uses OpenAI-compatible API
     requirements += '''
 # TODO: please fill in - add your model's dependencies here
 # Examples:
@@ -233,6 +315,7 @@ clarifai>={__version__}
 MODEL_TYPE_TEMPLATES = {
     "mcp": get_mcp_model_class_template,
     "openai": get_openai_model_class_template,
+    "ollama": get_ollama_model_class_template,
 }
 
 
