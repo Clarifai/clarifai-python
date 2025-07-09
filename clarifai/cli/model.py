@@ -7,14 +7,14 @@ import click
 from clarifai.cli.base import cli
 from clarifai.utils.cli import validate_context
 from clarifai.utils.constants import (
-    DEFAULT_LOCAL_DEV_APP_ID,
-    DEFAULT_LOCAL_DEV_COMPUTE_CLUSTER_CONFIG,
-    DEFAULT_LOCAL_DEV_COMPUTE_CLUSTER_ID,
-    DEFAULT_LOCAL_DEV_DEPLOYMENT_ID,
-    DEFAULT_LOCAL_DEV_MODEL_ID,
-    DEFAULT_LOCAL_DEV_MODEL_TYPE,
-    DEFAULT_LOCAL_DEV_NODEPOOL_CONFIG,
-    DEFAULT_LOCAL_DEV_NODEPOOL_ID,
+    DEFAULT_LOCAL_RUNNER_APP_ID,
+    DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG,
+    DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_ID,
+    DEFAULT_LOCAL_RUNNER_DEPLOYMENT_ID,
+    DEFAULT_LOCAL_RUNNER_MODEL_ID,
+    DEFAULT_LOCAL_RUNNER_MODEL_TYPE,
+    DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG,
+    DEFAULT_LOCAL_RUNNER_NODEPOOL_ID,
 )
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import clone_github_repo, format_github_repo_url
@@ -422,16 +422,16 @@ def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=Fa
     "--pool_size",
     type=int,
     is_flag=True,
-    default=1,  # default to 1 thread for local dev runner to avoid rapid depletion of compute time.
+    default=1,  # default to 1 thread for local runner to avoid rapid depletion of compute time.
     show_default=True,
     help="The number of threads to use. On community plan, the compute time allocation is drained at a rate proportional to the number of threads.",
 )  # pylint: disable=range-builtin-not-iterating
 @click.pass_context
-def local_dev(ctx, model_path, pool_size):
-    """Run the model as a local dev runner to help debug your model connected to the API or to
+def local_runner(ctx, model_path, pool_size):
+    """Run the model as a local runner to help debug your model connected to the API or to
     leverage local compute resources manually. This relies on many variables being present in the env
     of the currently selected context. If they are not present then default values will be used to
-    ease the setup of a local dev runner and your context yaml will be updated in place. The required
+    ease the setup of a local runner and your context yaml will be updated in place. The required
     env vars are:
 
     \b
@@ -445,7 +445,7 @@ def local_dev(ctx, model_path, pool_size):
       CLARIFAI_MODEL_ID:
 
     \b
-      # for where the local dev runner should be in a compute cluser
+      # for where the local runner should be in a compute cluser
       # note the user_id of the compute cluster is the same as the user_id of the model.
 
     \b
@@ -460,7 +460,7 @@ def local_dev(ctx, model_path, pool_size):
     Additionally using the provided model path, if the config.yaml file does not contain the model
     information that matches the above CLARIFAI_USER_ID, CLARIFAI_APP_ID, CLARIFAI_MODEL_ID then the
     config.yaml will be updated to include the model information. This is to ensure that the model
-    that starts up in the local dev runner is the same as the one you intend to call in the API.
+    that starts up in the local runner is the same as the one you intend to call in the API.
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
     """
@@ -469,25 +469,25 @@ def local_dev(ctx, model_path, pool_size):
     from clarifai.runners.server import serve
 
     validate_context(ctx)
-    logger.info("Checking setup for local development runner...")
+    logger.info("Checking setup for local runner...")
     logger.info(f"Current context: {ctx.obj.current.name}")
     user_id = ctx.obj.current.user_id
     user = User(user_id=user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
     logger.info(f"Current user_id: {user_id}")
-    logger.debug("Checking if a local dev compute cluster exists...")
+    logger.debug("Checking if a local runner compute cluster exists...")
 
     # see if ctx has CLARIFAI_COMPUTE_CLUSTER_ID, if not use default
     try:
         compute_cluster_id = ctx.obj.current.compute_cluster_id
     except AttributeError:
-        compute_cluster_id = DEFAULT_LOCAL_DEV_COMPUTE_CLUSTER_ID
+        compute_cluster_id = DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_ID
     logger.info(f"Current compute_cluster_id: {compute_cluster_id}")
 
     try:
         compute_cluster = user.compute_cluster(compute_cluster_id)
-        if compute_cluster.cluster_type != 'local-dev':
+        if compute_cluster.cluster_type != 'local-runner':
             raise ValueError(
-                f"Compute cluster {user_id}/{compute_cluster_id} is not a local-dev compute cluster. Please create a local-dev compute cluster."
+                f"Compute cluster {user_id}/{compute_cluster_id} is not a local-runner compute cluster. Please create a local-runner compute cluster."
             )
         try:
             compute_cluster_id = ctx.obj.current.compute_cluster_id
@@ -503,10 +503,10 @@ def local_dev(ctx, model_path, pool_size):
         )
         if y.lower() != 'y':
             raise click.Abort()
-        # Create a compute cluster with default configuration for local dev.
+        # Create a compute cluster with default configuration for local runner.
         compute_cluster = user.create_compute_cluster(
             compute_cluster_id=compute_cluster_id,
-            compute_cluster_config=DEFAULT_LOCAL_DEV_COMPUTE_CLUSTER_CONFIG,
+            compute_cluster_config=DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG,
         )
         ctx.obj.current.CLARIFAI_COMPUTE_CLUSTER_ID = compute_cluster_id
         ctx.obj.to_yaml()  # save to yaml file.
@@ -515,7 +515,7 @@ def local_dev(ctx, model_path, pool_size):
     try:
         nodepool_id = ctx.obj.current.nodepool_id
     except AttributeError:
-        nodepool_id = DEFAULT_LOCAL_DEV_NODEPOOL_ID
+        nodepool_id = DEFAULT_LOCAL_RUNNER_NODEPOOL_ID
     logger.info(f"Current nodepool_id: {nodepool_id}")
 
     try:
@@ -533,7 +533,7 @@ def local_dev(ctx, model_path, pool_size):
         if y.lower() != 'y':
             raise click.Abort()
         nodepool = compute_cluster.create_nodepool(
-            nodepool_config=DEFAULT_LOCAL_DEV_NODEPOOL_CONFIG, nodepool_id=nodepool_id
+            nodepool_config=DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG, nodepool_id=nodepool_id
         )
         ctx.obj.current.CLARIFAI_NODEPOOL_ID = nodepool_id
         ctx.obj.to_yaml()  # save to yaml file.
@@ -543,7 +543,7 @@ def local_dev(ctx, model_path, pool_size):
     try:
         app_id = ctx.obj.current.app_id
     except AttributeError:
-        app_id = DEFAULT_LOCAL_DEV_APP_ID
+        app_id = DEFAULT_LOCAL_RUNNER_APP_ID
     logger.info(f"Current app_id: {app_id}")
 
     try:
@@ -562,11 +562,11 @@ def local_dev(ctx, model_path, pool_size):
         ctx.obj.current.CLARIFAI_APP_ID = app_id
         ctx.obj.to_yaml()  # save to yaml file.
 
-    # Within this app we now need a model to call as the local dev runner.
+    # Within this app we now need a model to call as the local runner.
     try:
         model_id = ctx.obj.current.model_id
     except AttributeError:
-        model_id = DEFAULT_LOCAL_DEV_MODEL_ID
+        model_id = DEFAULT_LOCAL_RUNNER_MODEL_ID
     logger.info(f"Current model_id: {model_id}")
 
     try:
@@ -586,7 +586,7 @@ def local_dev(ctx, model_path, pool_size):
         try:
             model_type_id = ctx.obj.current.model_type_id
         except AttributeError:
-            model_type_id = DEFAULT_LOCAL_DEV_MODEL_TYPE
+            model_type_id = DEFAULT_LOCAL_RUNNER_MODEL_TYPE
 
         model = app.create_model(model_id, model_type_id=model_type_id)
         ctx.obj.current.CLARIFAI_MODEL_TYPE_ID = model_type_id
@@ -594,10 +594,10 @@ def local_dev(ctx, model_path, pool_size):
         ctx.obj.to_yaml()  # save to yaml file.
 
     # Now we need to create a version for the model if no version exists. Only need one version that
-    # mentions it's a local dev runner.
+    # mentions it's a local runner.
     model_versions = [v for v in model.list_versions()]
     if len(model_versions) == 0:
-        logger.info("No model versions found. Creating a new version for local dev runner.")
+        logger.info("No model versions found. Creating a new version for local runner.")
         version = model.create_version(pretrained_model_config={"local_dev": True}).model_version
         logger.info(f"Created model version {version.id}")
     else:
@@ -631,12 +631,12 @@ def local_dev(ctx, model_path, pool_size):
             raise AttributeError("Runner not found in nodepool.") from e
     except AttributeError:
         logger.info(
-            f"Create the local dev runner tying this\n  {user_id}/{app_id}/models/{model.id} model (version: {version.id}) to the\n  {user_id}/{compute_cluster_id}/{nodepool_id} nodepool."
+            f"Create the local runner tying this\n  {user_id}/{app_id}/models/{model.id} model (version: {version.id}) to the\n  {user_id}/{compute_cluster_id}/{nodepool_id} nodepool."
         )
         runner = nodepool.create_runner(
             runner_config={
                 "runner": {
-                    "description": "Local dev runner for model testing",
+                    "description": "local runner for model testing",
                     "worker": worker,
                     "num_replicas": 1,
                 }
@@ -653,7 +653,7 @@ def local_dev(ctx, model_path, pool_size):
     try:
         deployment_id = ctx.obj.current.deployment_id
     except AttributeError:
-        deployment_id = DEFAULT_LOCAL_DEV_DEPLOYMENT_ID
+        deployment_id = DEFAULT_LOCAL_RUNNER_DEPLOYMENT_ID
     try:
         deployment = nodepool.deployment(deployment_id)
         # ensure the deployment is using the latest version.
@@ -708,7 +708,7 @@ def local_dev(ctx, model_path, pool_size):
             f"config.yaml not found in {model_path}. Please ensure you are passing the correct directory."
         )
     config = ModelBuilder._load_config(config_file)
-    model_type_id = config.get('model', {}).get('model_type_id', DEFAULT_LOCAL_DEV_MODEL_TYPE)
+    model_type_id = config.get('model', {}).get('model_type_id', DEFAULT_LOCAL_RUNNER_MODEL_TYPE)
     # The config.yaml doens't match what we created above.
     if 'model' in config and model_id != config['model'].get('id'):
         logger.info(f"Current model section of config.yaml: {config.get('model', {})}")
@@ -717,14 +717,14 @@ def local_dev(ctx, model_path, pool_size):
         )
         if y.lower() != 'y':
             raise click.Abort()
-        config = ModelBuilder._set_local_dev_model(
+        config = ModelBuilder._set_local_runner_model(
             config, user_id, app_id, model_id, model_type_id
         )
         ModelBuilder._backup_config(config_file)
         ModelBuilder._save_config(config_file, config)
 
     builder = ModelBuilder(model_path, download_validation_only=True)
-    # don't mock for local dev since you need the dependencies to run the code anyways.
+    # don't mock for local runner since you need the dependencies to run the code anyways.
     method_signatures = builder.get_method_signatures(mocking=False)
 
     from clarifai.runners.utils import code_script
@@ -740,12 +740,12 @@ def local_dev(ctx, model_path, pool_size):
 
     logger.info("""\n
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-# About to start up the local dev runner in this terminal...
+# About to start up the local runner in this terminal...
 # Here is a code snippet to call this model once it start from another terminal:
 """)
     logger.info(snippet)
 
-    logger.info("Now starting the local dev runner...")
+    logger.info("Now starting the local runner...")
 
     # This reads the config.yaml from the model_path so we alter it above first.
     serve(

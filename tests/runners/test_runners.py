@@ -66,7 +66,7 @@ def init_components(
         cloud_provider=resources_pb2.CloudProvider(id="local", name="Colo 1"),
         region="us-east-1",
         user_id=auth.user_id,
-        cluster_type="local-dev",
+        cluster_type="local-runner",
         managed_by="user",
         key=resources_pb2.Key(id=os.environ["CLARIFAI_PAT"]),
     )
