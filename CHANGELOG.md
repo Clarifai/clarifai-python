@@ -1,3 +1,9 @@
+## [[11.6.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.3) - [PyPI](https://pypi.org/project/clarifai/11.6.3/) - 2025-07-10
+
+### Changed
+- Fixed base model template import & return issues [(#690)] (https://github.com/Clarifai/clarifai-python/pull/690)
+- Add `pool_size` flag default to 1 for local dev runner threads [(#689)] (https://github.com/Clarifai/clarifai-python/pull/689)
+
 ## [[11.6.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.2) - [PyPI](https://pypi.org/project/clarifai/11.6.2/) - 2025-07-08
 
 ### Changed
