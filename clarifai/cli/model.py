@@ -445,7 +445,7 @@ def local_runner(ctx, model_path, pool_size):
       CLARIFAI_MODEL_ID:
 
     \b
-      # for where the local runner should be in a compute cluser
+      # for where the local runner should be in a compute cluster
       # note the user_id of the compute cluster is the same as the user_id of the model.
 
     \b
