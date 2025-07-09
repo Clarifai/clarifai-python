@@ -485,7 +485,7 @@ def local_runner(ctx, model_path, pool_size):
 
     try:
         compute_cluster = user.compute_cluster(compute_cluster_id)
-        if compute_cluster.cluster_type != 'local-runner':
+        if compute_cluster.cluster_type != 'local-dev':
             raise ValueError(
                 f"Compute cluster {user_id}/{compute_cluster_id} is not a local-runner compute cluster. Please create a local-runner compute cluster."
             )

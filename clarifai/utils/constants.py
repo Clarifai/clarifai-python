@@ -33,7 +33,7 @@ DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG = {
         },
         "region": "na",
         "managed_by": "user",
-        "cluster_type": "local-runner",
+        "cluster_type": "local-dev",
     }
 }
 
