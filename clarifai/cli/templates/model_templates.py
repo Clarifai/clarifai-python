@@ -7,7 +7,7 @@ def get_model_class_template() -> str:
     """Return the template for a basic ModelClass-based model."""
     return '''from typing import Iterator, List
 from clarifai.runners.models.model_class import ModelClass
-from clarifai.runners.util.data_utils import Param
+from clarifai.runners.utils.data_utils import Param
 
 class MyModel(ModelClass):
     """A custom model implementation using ModelClass."""

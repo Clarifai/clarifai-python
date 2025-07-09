@@ -407,8 +407,16 @@ def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=Fa
     required=False,
     default=".",
 )
+@click.option(
+    "--pool_size",
+    type=int,
+    is_flag=True,
+    default=1,  # default to 1 thread for local dev runner to avoid rapid depletion of compute time.
+    show_default=True,
+    help="The number of threads to use. On community plan, the compute time allocation is drained at a rate proportional to the number of threads.",
+)  # pylint: disable=range-builtin-not-iterating
 @click.pass_context
-def local_dev(ctx, model_path):
+def local_dev(ctx, model_path, pool_size):
     """Run the model as a local dev runner to help debug your model connected to the API or to
     leverage local compute resources manually. This relies on many variables being present in the env
     of the currently selected context. If they are not present then default values will be used to
@@ -731,6 +739,8 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     # This reads the config.yaml from the model_path so we alter it above first.
     serve(
         model_path,
+        pool_size=pool_size,
+        num_threads=pool_size,
         user_id=user_id,
         compute_cluster_id=compute_cluster_id,
         nodepool_id=nodepool_id,
