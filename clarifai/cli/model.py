@@ -41,9 +41,9 @@ def model():
 )
 @click.option(
     '--model-type-id',
-    type=click.Choice(['mcp', 'openai', 'ollama'], case_sensitive=False),
+    type=click.Choice(['mcp', 'openai'], case_sensitive=False),
     required=False,
-    help='Model type: "mcp" for MCPModelClass, "openai" for OpenAIModelClass, "ollama" for Ollama models, or leave empty for default ModelClass.',
+    help='Model type: "mcp" for MCPModelClass, "openai" for OpenAIModelClass, or leave empty for default ModelClass.',
 )
 @click.option(
     '--github-pat',
@@ -63,7 +63,7 @@ def model():
 @click.option(
     '--local-ollama-model',
     is_flag=True,
-    help='Create an Ollama model template. This is equivalent to --model-type-id ollama.',
+    help='Create an Ollama model template by cloning from GitHub repository.',
 )
 def init(model_path, model_type_id, github_pat, github_repo, branch, local_ollama_model):
     """Initialize a new model directory structure.
@@ -83,9 +83,10 @@ def init(model_path, model_type_id, github_pat, github_repo, branch, local_ollam
     """
     # Handle the --local-ollama-model flag
     if local_ollama_model:
-        if model_type_id:
-            raise click.ClickException("Cannot specify both --local-ollama-model and --model-type-id")
-        model_type_id = "ollama"
+        if github_repo or branch:
+            raise click.ClickException("Cannot specify both --local-ollama-model and --github-repo/--branch")
+        github_repo = "https://github.com/Clarifai/runners-examples"
+        branch = "ollama"
     
     # Resolve the absolute path
     model_path = os.path.abspath(model_path)
