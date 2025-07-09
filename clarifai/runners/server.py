@@ -81,6 +81,7 @@ def serve(
     model_path,
     port=8000,
     pool_size=32,
+    num_threads=0,
     max_queue_size=10,
     max_msg_length=1024 * 1024 * 1024,
     enable_tls=False,
@@ -98,7 +99,8 @@ def serve(
 
     # `num_threads` can be set in config.yaml or via the environment variable CLARIFAI_NUM_THREADS="<integer>".
     # Note: The value in config.yaml takes precedence over the environment variable.
-    num_threads = builder.config.get("num_threads")
+    if num_threads == 0:
+        num_threads = builder.config.get("num_threads")
     # Setup the grpc server for local development.
     if grpc:
         # initialize the servicer with the runner so that it gets the predict(), generate(), stream() classes.
