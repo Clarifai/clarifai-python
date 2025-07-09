@@ -17,10 +17,7 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_DEV_NODEPOOL_ID,
 )
 from clarifai.utils.logging import logger
-from clarifai.utils.misc import (
-    clone_github_repo,
-    format_github_repo_url,
-)
+from clarifai.utils.misc import clone_github_repo, format_github_repo_url
 
 
 @cli.group(
@@ -60,7 +57,12 @@ def model():
     required=False,
     help='Git branch to clone from the GitHub repository. If not specified, the default branch will be used.',
 )
-def init(model_path, model_type_id, github_pat, github_repo, branch):
+@click.option(
+    '--local-ollama-model',
+    is_flag=True,
+    help='Create an Ollama model template by cloning from GitHub repository.',
+)
+def init(model_path, model_type_id, github_pat, github_repo, branch, local_ollama_model):
     """Initialize a new model directory structure.
 
     Creates the following structure in the specified directory:
@@ -76,6 +78,15 @@ def init(model_path, model_type_id, github_pat, github_repo, branch):
 
     MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
     """
+    # Handle the --local-ollama-model flag
+    if local_ollama_model:
+        if github_repo or branch:
+            raise click.ClickException(
+                "Cannot specify both --local-ollama-model and --github-repo/--branch"
+            )
+        github_repo = "https://github.com/Clarifai/runners-examples"
+        branch = "ollama"
+
     # Resolve the absolute path
     model_path = os.path.abspath(model_path)
 
