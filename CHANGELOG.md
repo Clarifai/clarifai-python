@@ -1,4 +1,4 @@
-## [[11.6.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.3) - [PyPI](https://pypi.org/project/clarifai/11.6.3/) - 2025-07-10
+## [[11.6.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.3) - [PyPI](https://pypi.org/project/clarifai/11.6.3/) - 2025-07-09
 
 ### Changed
 - Fixed base model template import & return issues [(#690)] (https://github.com/Clarifai/clarifai-python/pull/690)
