@@ -1,6 +1,8 @@
 ## [[11.6.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.3) - [PyPI](https://pypi.org/project/clarifai/11.6.3/) - 2025-07-09
 
 ### Changed
+- Added default template for ollama models in the local-runner ising `model init` command [(#693)] (https://github.com/Clarifai/clarifai-python/pull/693)
+- Fixed `pipelinestep upload` command to parse all compute-info params and preserve user Dockerfile
 - Fixed base model template import & return issues [(#690)] (https://github.com/Clarifai/clarifai-python/pull/690)
 - Add `pool_size` flag default to 1 for local dev runner threads [(#689)] (https://github.com/Clarifai/clarifai-python/pull/689)
 
