@@ -154,7 +154,7 @@ def env(ctx_obj):
 
 
 @cli.command()
-@click.argument('api_url', default="https://api.clarifai.com")
+@click.argument('api_url', default=DEFAULT_BASE)
 @click.option('--user_id', required=False, help='User ID')
 @click.pass_context
 def login(ctx, api_url, user_id):
@@ -172,7 +172,7 @@ def login(ctx, api_url, user_id):
     if pat != "ENVVAR":
         print("Validating PAT token...")
         is_valid, error_message = validate_pat_token(pat, user_id, api_url)
-        
+
         if not is_valid:
             print(f"❌ PAT token validation failed: {error_message}")
             print("Please check your token and try again.")
@@ -226,7 +226,7 @@ def create(
 ):
     """Create a new context"""
     from clarifai.utils.cli import validate_pat_token
-    
+
     if name in ctx.obj.contexts:
         print(f'{name} already exists')
         sys.exit(1)
@@ -246,7 +246,7 @@ def create(
     if pat != "ENVVAR":
         print("Validating PAT token...")
         is_valid, error_message = validate_pat_token(pat, user_id, base_url)
-        
+
         if not is_valid:
             print(f"❌ PAT token validation failed: {error_message}")
             print("Please check your token and try again.")

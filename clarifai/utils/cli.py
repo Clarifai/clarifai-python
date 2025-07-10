@@ -177,45 +177,39 @@ def validate_context(ctx):
 def validate_pat_token(pat: str, user_id: str, api_base: str = None) -> Tuple[bool, str]:
     """
     Validate a Personal Access Token (PAT) by making a test API call.
-    
+
     Args:
         pat (str): The Personal Access Token to validate
         user_id (str): The user ID associated with the token
         api_base (str): The API base URL. Defaults to None (uses default).
-    
+
     Returns:
         tuple[bool, str]: A tuple of (is_valid, error_message)
                          If valid: (True, "")
                          If invalid: (False, error_description)
     """
     try:
-        from clarifai.client.auth.helper import ClarifaiAuthHelper
-        from clarifai.client.user import User
         from clarifai_grpc.grpc.api.status import status_code_pb2
-        
-        # Create auth helper and user client for validation
-        auth_kwargs = {
-            'user_id': user_id,
-            'pat': pat,
-            'validate': False  # Skip auth helper validation since we want to test the token
-        }
+
+        from clarifai.client.user import User
+
+        # Create user client for validation
         if api_base:
-            auth_kwargs['base'] = api_base
-            
-        auth_helper = ClarifaiAuthHelper(**auth_kwargs)
-        user_client = User.from_auth_helper(auth_helper)
-        
+            user_client = User(user_id=user_id, pat=pat, base_url=api_base)
+        else:
+            user_client = User(user_id=user_id, pat=pat)
+
         # Try to get user info as a test API call
         response = user_client.get_user_info()
-        
+
         if response.status.code == status_code_pb2.SUCCESS:
             return True, ""
         else:
             return False, f"Authentication failed: {response.status.description}"
-            
+
     except Exception as e:
         error_msg = str(e)
-        
+
         # Check for common authentication errors and provide user-friendly messages
         if "PERMISSION_DENIED" in error_msg or "Unauthorized" in error_msg:
             return False, "Invalid PAT token or insufficient permissions"
