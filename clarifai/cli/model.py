@@ -473,7 +473,9 @@ def local_runner(ctx, model_path, pool_size):
     user_id = ctx.obj.current.user_id
     logger.info(f"Current user_id: {user_id}")
     if not user_id:
-        raise ValueError(f"User with ID '{user_id}' not found. Use 'clarifai login' to setup context.")
+        raise ValueError(
+            f"User with ID '{user_id}' not found. Use 'clarifai login' to setup context."
+        )
     user = User(user_id=user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
     logger.debug("Checking if a local runner compute cluster exists...")
 
