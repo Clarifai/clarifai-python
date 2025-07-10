@@ -383,7 +383,7 @@ class ModelBuilder:
             sys.exit(1)
 
     @staticmethod
-    def _set_local_dev_model(config, user_id, app_id, model_id, model_type_id):
+    def _set_local_runner_model(config, user_id, app_id, model_id, model_type_id):
         """
         Sets the model configuration for local development.
         This is used when running the model locally without uploading it to Clarifai.

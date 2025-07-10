@@ -280,7 +280,7 @@ class Nodepool(Lister, BaseClient):
     def create_runner(
         self, config_filepath: str = None, runner_config: Dict[str, Any] = None
     ) -> Runner:
-        """Creates a runner for the nodepool. Only needed for local dev runners.
+        """Creates a runner for the nodepool. Only needed for local runners.
 
         Args:
             config_filepath (str): The path to the runner config file.
