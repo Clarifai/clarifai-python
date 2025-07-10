@@ -421,7 +421,6 @@ def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=Fa
 @click.option(
     "--pool_size",
     type=int,
-    is_flag=True,
     default=1,  # default to 1 thread for local runner to avoid rapid depletion of compute time.
     show_default=True,
     help="The number of threads to use. On community plan, the compute time allocation is drained at a rate proportional to the number of threads.",
@@ -473,6 +472,8 @@ def local_runner(ctx, model_path, pool_size):
     logger.info(f"Current context: {ctx.obj.current.name}")
     user_id = ctx.obj.current.user_id
     user = User(user_id=user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
+    if not user:
+        logger.error(f"User '{user_id}' not found. Use 'clarifai login' to setup context.")
     logger.info(f"Current user_id: {user_id}")
     logger.debug("Checking if a local runner compute cluster exists...")
 
