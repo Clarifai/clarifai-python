@@ -20,6 +20,47 @@ from clarifai.utils.logging import logger
 from clarifai.utils.misc import clone_github_repo, format_github_repo_url
 
 
+def customize_ollama_model_name(model_path, model_name):
+    """
+    Customize the Ollama model name in the cloned template files.
+
+    Args:
+        model_path: Path to the cloned model directory
+        model_name: The model name to set (e.g., 'llama3.1', 'mistral')
+    """
+    model_py_path = os.path.join(model_path, "1", "model.py")
+
+    if not os.path.exists(model_py_path):
+        logger.warning(f"Model file {model_py_path} not found, skipping model name customization")
+        return
+
+    try:
+        # Read the file
+        with open(model_py_path, 'r') as f:
+            content = f.read()
+
+        # Replace the default model name in the run_ollama_server function
+        content = content.replace(
+            "def run_ollama_server(model_name: str = 'llama3.2'):",
+            f"def run_ollama_server(model_name: str = '{model_name}'):"
+        )
+
+        # Replace the default model name in the load_model method
+        content = content.replace(
+            'self.model = os.environ.get("OLLAMA_MODEL_NAME", \'llama3.2\')',
+            f'self.model = os.environ.get("OLLAMA_MODEL_NAME", \'{model_name}\')'
+        )
+
+        # Write the updated content back
+        with open(model_py_path, 'w') as f:
+            f.write(content)
+
+        logger.info(f"Customized Ollama model name to '{model_name}' in {model_py_path}")
+
+    except Exception as e:
+        logger.error(f"Failed to customize model name in {model_py_path}: {e}")
+
+
 @cli.group(
     ['model'], context_settings={'max_content_width': shutil.get_terminal_size().columns - 10}
 )
@@ -62,7 +103,18 @@ def model():
     is_flag=True,
     help='Create an Ollama model template by cloning from GitHub repository.',
 )
-def init(model_path, model_type_id, github_pat, github_repo, branch, local_ollama_model):
+@click.option(
+    '--toolkit',
+    type=click.Choice(['ollama'], case_sensitive=False),
+    required=False,
+    help='Toolkit to use for model initialization. Currently supports "ollama".',
+)
+@click.option(
+    '--model-name',
+    required=False,
+    help='Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.).',
+)
+def init(model_path, model_type_id, github_pat, github_repo, branch, local_ollama_model, toolkit, model_name):
     """Initialize a new model directory structure.
 
     Creates the following structure in the specified directory:
@@ -76,8 +128,39 @@ def init(model_path, model_type_id, github_pat, github_repo, branch, local_ollam
     when cloning private repositories. The --branch option can be used to specify a specific
     branch to clone from.
 
+    The --toolkit option can be used to initialize from predefined toolkit templates:
+    - "ollama": Creates an Ollama model template (equivalent to --local-ollama-model)
+
+    When using --toolkit, you can specify --model-name to customize the model configuration:
+    - For ollama toolkit: sets the Ollama model name (e.g., "llama3.1", "mistral", "codellama")
+
     MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
     """
+    # Validate option combinations
+    if model_name and not (toolkit or local_ollama_model):
+        raise click.ClickException(
+            "--model-name can only be used with --toolkit or --local-ollama-model"
+        )
+
+    if toolkit and local_ollama_model:
+        raise click.ClickException(
+            "Cannot specify both --toolkit and --local-ollama-model"
+        )
+
+    if toolkit and (github_repo or branch):
+        raise click.ClickException(
+            "Cannot specify both --toolkit and --github-repo/--branch"
+        )
+
+    # Handle the --toolkit option
+    if toolkit == 'ollama':
+        if github_repo or branch:
+            raise click.ClickException(
+                "Cannot specify both --toolkit ollama and --github-repo/--branch"
+            )
+        github_repo = "https://github.com/Clarifai/runners-examples"
+        branch = "ollama"
+
     # Handle the --local-ollama-model flag
     if local_ollama_model:
         if github_repo or branch:
@@ -126,6 +209,10 @@ def init(model_path, model_type_id, github_pat, github_repo, branch, local_ollam
                         shutil.copytree(source_path, target_path, dirs_exist_ok=True)
                     else:
                         shutil.copy2(source_path, target_path)
+
+                # Customize model name if provided and this is an ollama toolkit
+                if model_name and (toolkit == 'ollama' or local_ollama_model):
+                    customize_ollama_model_name(model_path, model_name)
 
                 logger.info("Model initialization complete with GitHub repository")
                 logger.info("Next steps:")
