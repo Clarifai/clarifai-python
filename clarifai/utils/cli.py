@@ -4,7 +4,7 @@ import pkgutil
 import sys
 import typing as t
 from collections import defaultdict
-from typing import OrderedDict
+from typing import OrderedDict, Tuple
 
 import click
 import yaml
@@ -172,3 +172,52 @@ def validate_context(ctx):
     if ctx.obj == {}:
         logger.error("CLI config file missing. Run `clarifai login` to set up the CLI config.")
         sys.exit(1)
+
+
+def validate_pat_token(pat: str, user_id: str, api_base: str = None) -> Tuple[bool, str]:
+    """
+    Validate a Personal Access Token (PAT) by making a test API call.
+
+    Args:
+        pat (str): The Personal Access Token to validate
+        user_id (str): The user ID associated with the token
+        api_base (str): The API base URL. Defaults to None (uses default).
+
+    Returns:
+        tuple[bool, str]: A tuple of (is_valid, error_message)
+                         If valid: (True, "")
+                         If invalid: (False, error_description)
+    """
+    try:
+        from clarifai_grpc.grpc.api.status import status_code_pb2
+
+        from clarifai.client.user import User
+
+        # Create user client for validation
+        if api_base:
+            user_client = User(user_id=user_id, pat=pat, base_url=api_base)
+        else:
+            user_client = User(user_id=user_id, pat=pat)
+
+        # Try to get user info as a test API call
+        response = user_client.get_user_info()
+
+        if response.status.code == status_code_pb2.SUCCESS:
+            return True, ""
+        else:
+            return False, f"Authentication failed: {response.status.description}"
+
+    except Exception as e:
+        error_msg = str(e)
+
+        # Check for common authentication errors and provide user-friendly messages
+        if "PERMISSION_DENIED" in error_msg or "Unauthorized" in error_msg:
+            return False, "Invalid PAT token or insufficient permissions"
+        elif "UNAUTHENTICATED" in error_msg:
+            return False, "Invalid PAT token"
+        elif "SSL" in error_msg or "certificate" in error_msg:
+            return False, f"SSL/Certificate error: {error_msg}"
+        elif "Connection" in error_msg or "timeout" in error_msg:
+            return False, f"Network connection error: {error_msg}"
+        else:
+            return False, f"Validation error: {error_msg}"
