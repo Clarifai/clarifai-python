@@ -193,7 +193,7 @@ class GitHubDownloader:
 
     def expected_folder_structure(self) -> List[Dict[str, Any]]:
         return [
-            {"name": "1", "type": "dir"},
+            {"name": "1", "type": "dir", "children": [{"name": "model.py", "type": "file"}]},
             {"name": "config.yaml", "type": "file"},
             {"name": "requirements.txt", "type": "file"},
         ]
