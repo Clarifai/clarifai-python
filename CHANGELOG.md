@@ -1,3 +1,10 @@
+## [[11.6.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.4) - [PyPI](https://pypi.org/project/clarifai/11.6.4/) - 2025-07-11
+
+### Changed
+- Fixed flag for local runner threads, add user validation error [(#698)] (https://github.com/Clarifai/clarifai-python/pull/698)
+- Added PAT token validation during clarifai login command [(#697)] (https://github.com/Clarifai/clarifai-python/pull/697)
+- Fixed Local Runners Name across SDK [(#695)] (https://github.com/Clarifai/clarifai-python/pull/695)
+
 ## [[11.6.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.3) - [PyPI](https://pypi.org/project/clarifai/11.6.3/) - 2025-07-09
 
 ### Changed
