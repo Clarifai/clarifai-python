@@ -17,7 +17,7 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_RUNNER_NODEPOOL_ID,
 )
 from clarifai.utils.logging import logger
-from clarifai.utils.misc import clone_github_repo, format_github_repo_url
+from clarifai.utils.misc import GitHubDownloader, clone_github_repo, format_github_repo_url
 
 
 @cli.group(
@@ -53,16 +53,11 @@ def model():
     help='GitHub repository URL or "user/repo" format to clone a repository from. If provided, the entire repository contents will be copied to the target directory instead of using default templates.',
 )
 @click.option(
-    '--branch',
-    required=False,
-    help='Git branch to clone from the GitHub repository. If not specified, the default branch will be used.',
-)
-@click.option(
     '--local-ollama-model',
     is_flag=True,
     help='Create an Ollama model template by cloning from GitHub repository.',
 )
-def init(model_path, model_type_id, github_pat, github_repo, branch, local_ollama_model):
+def init(model_path, model_type_id, github_pat, github_repo, local_ollama_model):
     """Initialize a new model directory structure.
 
     Creates the following structure in the specified directory:
@@ -78,20 +73,30 @@ def init(model_path, model_type_id, github_pat, github_repo, branch, local_ollam
 
     MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
     """
-    # Handle the --local-ollama-model flag
-    if local_ollama_model:
-        if github_repo or branch:
-            raise click.ClickException(
-                "Cannot specify both --local-ollama-model and --github-repo/--branch"
-            )
-        github_repo = "https://github.com/Clarifai/runners-examples"
-        branch = "ollama"
-
     # Resolve the absolute path
     model_path = os.path.abspath(model_path)
 
     # Create the model directory if it doesn't exist
     os.makedirs(model_path, exist_ok=True)
+
+    # Handle the --local-ollama-model flag
+    if local_ollama_model:
+        github_repo = "https://github.com/Clarifai/runners-examples"
+        branch = "ollama"
+
+    if github_repo and not local_ollama_model:
+        _, _, branch, folder_path = GitHubDownloader().parse_github_url(url=github_repo)
+
+        if folder_path != "":
+            downloader = GitHubDownloader(
+                max_retries=3,
+            )
+            downloader.download_github_folder(
+                url=github_repo,
+                output_dir=model_path,
+                github_token=github_pat,
+            )
+            return
 
     # Handle GitHub repository cloning if provided
     if github_repo:
