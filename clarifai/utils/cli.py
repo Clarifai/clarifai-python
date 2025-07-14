@@ -4,7 +4,7 @@ import pkgutil
 import sys
 import typing as t
 from collections import defaultdict
-from typing import OrderedDict, Tuple
+from typing import OrderedDict
 
 import click
 import yaml
@@ -176,7 +176,7 @@ def validate_context(ctx):
         sys.exit(1)
 
 
-def validate_context_auth(pat: str, user_id: str, api_base: str = None) -> Tuple[bool, str]:
+def validate_context_auth(pat: str, user_id: str, api_base: str = None):
     """
     Validate a Personal Access Token (PAT) by making a test API call.
 
