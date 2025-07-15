@@ -4,7 +4,7 @@ import tempfile
 
 import click
 
-from clarifai.cli.base import cli
+from clarifai.cli.base import cli, pat_display
 from clarifai.utils.cli import validate_context
 from clarifai.utils.constants import (
     DEFAULT_LOCAL_RUNNER_APP_ID,
@@ -473,9 +473,16 @@ def local_runner(ctx, model_path, pool_size):
     user_id = ctx.obj.current.user_id
     logger.info(f"Current user_id: {user_id}")
     if not user_id:
-        raise ValueError(
-            f"User with ID '{user_id}' not found. Use 'clarifai login' to setup context."
+        logger.error(f"User with ID '{user_id}' not found. Use 'clarifai login' to setup context.")
+        raise click.Abort()
+    pat = ctx.obj.current.pat
+    display_pat = pat_display(pat) if pat else ""
+    logger.info(f"Current PAT: {display_pat}")
+    if not pat:
+        logger.error(
+            "Personal Access Token (PAT) not found. Use 'clarifai login' to setup context."
         )
+        raise click.Abort()
     user = User(user_id=user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
     logger.debug("Checking if a local runner compute cluster exists...")
 

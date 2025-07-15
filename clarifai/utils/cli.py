@@ -4,11 +4,13 @@ import pkgutil
 import sys
 import typing as t
 from collections import defaultdict
-from typing import OrderedDict, Tuple
+from typing import OrderedDict
 
 import click
 import yaml
 from tabulate import tabulate
+
+from clarifai.utils.logging import logger
 
 
 def from_yaml(filename: str):
@@ -174,7 +176,7 @@ def validate_context(ctx):
         sys.exit(1)
 
 
-def validate_pat_token(pat: str, user_id: str, api_base: str = None) -> Tuple[bool, str]:
+def validate_context_auth(pat: str, user_id: str, api_base: str = None):
     """
     Validate a Personal Access Token (PAT) by making a test API call.
 
@@ -182,16 +184,13 @@ def validate_pat_token(pat: str, user_id: str, api_base: str = None) -> Tuple[bo
         pat (str): The Personal Access Token to validate
         user_id (str): The user ID associated with the token
         api_base (str): The API base URL. Defaults to None (uses default).
-
-    Returns:
-        tuple[bool, str]: A tuple of (is_valid, error_message)
-                         If valid: (True, "")
-                         If invalid: (False, error_description)
     """
     try:
         from clarifai_grpc.grpc.api.status import status_code_pb2
 
         from clarifai.client.user import User
+
+        logger.info("Validating the Context Credentials...")
 
         # Create user client for validation
         if api_base:
@@ -203,21 +202,21 @@ def validate_pat_token(pat: str, user_id: str, api_base: str = None) -> Tuple[bo
         response = user_client.get_user_info()
 
         if response.status.code == status_code_pb2.SUCCESS:
-            return True, ""
-        else:
-            return False, f"Authentication failed: {response.status.description}"
+            logger.info("✅ Context is valid")
 
     except Exception as e:
         error_msg = str(e)
 
         # Check for common authentication errors and provide user-friendly messages
         if "PERMISSION_DENIED" in error_msg or "Unauthorized" in error_msg:
-            return False, "Invalid PAT token or insufficient permissions"
+            logger.error(f"Invalid PAT token or incorrect user ID '{user_id}': {error_msg}")
         elif "UNAUTHENTICATED" in error_msg:
-            return False, "Invalid PAT token"
+            logger.error(f"Invalid PAT token or user ID: {error_msg}")
         elif "SSL" in error_msg or "certificate" in error_msg:
-            return False, f"SSL/Certificate error: {error_msg}"
+            logger.error(f"SSL/Certificate error: {error_msg}")
         elif "Connection" in error_msg or "timeout" in error_msg:
-            return False, f"Network connection error: {error_msg}"
+            logger.error(f"Network connection error: {error_msg}")
         else:
-            return False, f"Validation error: {error_msg}"
+            logger.error(f"❌ Validation failed: \n{error_msg}")
+            logger.error("Please check your credentials and try again.")
+        raise click.Abort()  # Exit without saving the configuration
