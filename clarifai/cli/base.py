@@ -185,7 +185,9 @@ def login(ctx, api_url, user_id):
     ctx.obj.current_context = context.name
 
     ctx.obj.to_yaml()
-    logger.info(f"Configuration saved successfully for context '{context.name}'")
+    logger.info(
+        f"Login successful and Configuration saved successfully for context '{context.name}'"
+    )
 
 
 @cli.group(cls=AliasedGroup)

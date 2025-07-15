@@ -209,9 +209,7 @@ def validate_context_auth(pat: str, user_id: str, api_base: str = None):
 
         # Check for common authentication errors and provide user-friendly messages
         if "PERMISSION_DENIED" in error_msg or "Unauthorized" in error_msg:
-            logger.error(
-                f"Invalid PAT token or insufficient permissions for user ID '{user_id}': {error_msg}"
-            )
+            logger.error(f"Invalid PAT token or incorrect user ID '{user_id}': {error_msg}")
         elif "UNAUTHENTICATED" in error_msg:
             logger.error(f"Invalid PAT token or user ID: {error_msg}")
         elif "SSL" in error_msg or "certificate" in error_msg:
