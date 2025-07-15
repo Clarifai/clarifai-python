@@ -159,7 +159,7 @@ def env(ctx_obj):
 @click.pass_context
 def login(ctx, api_url, user_id):
     """Login command to set PAT and other configurations."""
-    from clarifai.utils.cli import validate_pat_token
+    from clarifai.utils.cli import validate_context_auth
 
     name = input('context name (default: "default"): ')
     user_id = user_id if user_id is not None else input('user id: ')
@@ -168,17 +168,8 @@ def login(ctx, api_url, user_id):
         'ENVVAR',
     )
 
-    # Validate the PAT token if it's not "ENVVAR"
-    if pat != "ENVVAR":
-        print("Validating PAT token...")
-        is_valid, error_message = validate_pat_token(pat, user_id, api_url)
-
-        if not is_valid:
-            print(f"❌ PAT token validation failed: {error_message}")
-            print("Please check your token and try again.")
-            return  # Exit without saving the configuration
-        else:
-            print("✓ PAT token is valid")
+    # Validate the Context Credentials
+    validate_context_auth(pat, user_id, api_url)
 
     context = Context(
         name,
@@ -194,7 +185,9 @@ def login(ctx, api_url, user_id):
     ctx.obj.current_context = context.name
 
     ctx.obj.to_yaml()
-    print(f"✓ Configuration saved successfully for context '{context.name}'")
+    logger.info(
+        f"Login successful and Configuration saved successfully for context '{context.name}'"
+    )
 
 
 @cli.group(cls=AliasedGroup)
@@ -225,10 +218,10 @@ def create(
     pat=None,
 ):
     """Create a new context"""
-    from clarifai.utils.cli import validate_pat_token
+    from clarifai.utils.cli import validate_context_auth
 
     if name in ctx.obj.contexts:
-        print(f'{name} already exists')
+        logger.info(f'"{name}" context already exists')
         sys.exit(1)
     if not user_id:
         user_id = input('user id: ')
@@ -242,22 +235,13 @@ def create(
             'ENVVAR',
         )
 
-    # Validate the PAT token if it's not "ENVVAR"
-    if pat != "ENVVAR":
-        print("Validating PAT token...")
-        is_valid, error_message = validate_pat_token(pat, user_id, base_url)
-
-        if not is_valid:
-            print(f"❌ PAT token validation failed: {error_message}")
-            print("Please check your token and try again.")
-            return  # Exit without saving the configuration
-        else:
-            print("✓ PAT token is valid")
+    # Validate the Context Credentials
+    validate_context_auth(pat, user_id, base_url)
 
     context = Context(name, CLARIFAI_USER_ID=user_id, CLARIFAI_API_BASE=base_url, CLARIFAI_PAT=pat)
     ctx.obj.contexts[context.name] = context
     ctx.obj.to_yaml()
-    print(f"✓ Context '{name}' created successfully")
+    logger.info(f"Context '{name}' created successfully")
 
 
 # write a click command to delete a context
