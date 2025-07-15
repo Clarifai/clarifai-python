@@ -1,6 +1,5 @@
 import os
 import shutil
-import sys
 import tempfile
 
 import click
@@ -475,7 +474,7 @@ def local_runner(ctx, model_path, pool_size):
     logger.info(f"Current user_id: {user_id}")
     if not user_id:
         logger.error(f"User with ID '{user_id}' not found. Use 'clarifai login' to setup context.")
-        sys.exit(1)
+        raise click.Abort()
     pat = ctx.obj.current.pat
     display_pat = pat_display(pat) if pat else ""
     logger.info(f"Current PAT: {display_pat}")
@@ -483,7 +482,7 @@ def local_runner(ctx, model_path, pool_size):
         logger.error(
             "Personal Access Token (PAT) not found. Use 'clarifai login' to setup context."
         )
-        sys.exit(1)
+        raise click.Abort()
     user = User(user_id=user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
     logger.debug("Checking if a local runner compute cluster exists...")
 

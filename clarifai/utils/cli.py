@@ -221,4 +221,4 @@ def validate_context_auth(pat: str, user_id: str, api_base: str = None):
         else:
             logger.error(f"❌ Validation failed: \n{error_msg}")
             logger.error("Please check your credentials and try again.")
-        sys.exit(1)  # Exit without saving the configuration
+        raise click.Abort()  # Exit without saving the configuration
