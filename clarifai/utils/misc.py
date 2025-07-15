@@ -175,8 +175,11 @@ def clone_github_repo(repo_url, target_dir, github_pat=None, branch=None):
 
 
 class GitHubDownloader:
-    def __init__(self, max_retries: int = 3, backoff_factor: float = 0.3):
+    def __init__(
+        self, max_retries: int = 3, backoff_factor: float = 0.3, github_token: str = None
+    ):
         self.session = requests.Session()
+        self.github_token = github_token
 
         retry_strategy = Retry(
             total=max_retries,
@@ -190,6 +193,9 @@ class GitHubDownloader:
         self.session.mount("https://", adapter)
 
         self.session.headers.update({'User-Agent': 'GitHub-Folder-Downloader/1.0'})
+
+        if self.github_token:
+            self.session.headers.update({'Authorization': f'token {self.github_token}'})
 
     def expected_folder_structure(self) -> List[Dict[str, Any]]:
         return [
