@@ -62,3 +62,5 @@ DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG = {
         "max_instances": 1,
     }
 }
+DEFAULT_OLLAMA_MODEL_REPO = "https://github.com/Clarifai/runners-examples"
+DEFAULT_OLLAMA_MODEL_REPO_BRANCH = "ollama"
