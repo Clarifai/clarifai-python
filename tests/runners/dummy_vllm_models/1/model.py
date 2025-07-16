@@ -26,6 +26,7 @@ def vllm_openai_server(checkpoints, **kwargs):
         'vllm.entrypoints.openai.api_server',
         '--model',
         checkpoints,
+        '--enforce-eager',
     ]
     # Add all parameters from kwargs to the command
     for key, value in kwargs.items():
