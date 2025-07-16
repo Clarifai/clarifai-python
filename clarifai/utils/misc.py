@@ -488,7 +488,7 @@ class GitHubDownloader:
                     # Print the expected structure in a nice format
                     tree_view = self._format_expected_structure()
                     logger.info("\nThe repository must have the following structure:")
-                    print(tree_view)
+                    logger.info(tree_view)
 
                     logger.error(
                         "Download cancelled: Repository structure does not match the expected format."
@@ -498,7 +498,7 @@ class GitHubDownloader:
                     logger.info("Remote structure validation passed!")
 
             os.makedirs(output_dir, exist_ok=True)
-            print(f"Created output directory: {output_dir}")
+            logger.info(f"Created output directory: {output_dir}")
 
             logger.info("\nStarting download...")
             start_time = time.time()
@@ -510,7 +510,7 @@ class GitHubDownloader:
                 logger.info(f"Files saved to: {os.path.abspath(output_dir)}")
 
                 if validate_structure and expected_structure:
-                    print("\nValidating downloaded folder structure...")
+                    logger.info("\nValidating downloaded folder structure...")
                     validation_result = self.validate_folder_structure(
                         output_dir, expected_structure
                     )
@@ -541,8 +541,8 @@ class GitHubDownloader:
                 sys.exit(1)
 
         except ValueError as e:
-            print(f"Error: {e}")
+            logger.error(f"Error: {e}")
             sys.exit(1)
         except Exception as e:
-            print(f"Unexpected error: {e}")
+            logger.error(f"Unexpected error: {e}")
             sys.exit(1)
