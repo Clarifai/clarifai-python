@@ -177,7 +177,7 @@ class User(Lister, BaseClient):
         response = self._grpc_request(self.STUB.PostApps, request)
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
-        self.logger.info("\nApp created\n%s", response.status)
+        self.logger.info(f"App with ID '{app_id}' is created:\n{response.status}")
         return App.from_auth_helper(auth=self.auth_helper, app_id=app_id)
 
     def _process_compute_cluster_config(
@@ -255,7 +255,9 @@ class User(Lister, BaseClient):
         response = self._grpc_request(self.STUB.PostComputeClusters, request)
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
-        self.logger.info("\nCompute Cluster created\n%s", response.status)
+        self.logger.info(
+            f"Compute Cluster with ID '{compute_cluster_id}' is created:\n{response.status}"
+        )
         return ComputeCluster.from_auth_helper(
             auth=self.auth_helper, compute_cluster_id=compute_cluster_id
         )
