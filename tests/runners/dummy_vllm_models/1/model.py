@@ -52,7 +52,6 @@ def vllm_openai_server(checkpoints, **kwargs):
 
     try:
         server.process = execute_shell_command(" ".join(cmds))
-        logger.info("Waiting for " + f"http://{server.host}:{server.port}")
         wait_for_server(f"http://{server.host}:{server.port}")
         logger.info("Server started successfully at " + f"http://{server.host}:{server.port}")
     except Exception as e:
