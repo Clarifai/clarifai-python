@@ -244,6 +244,7 @@ def init(
     if (model_name or port or context_length) and (toolkit == 'ollama'):
         customize_ollama_model(model_path, model_name, port, context_length)
 
+    if github_url:
         logger.info("Model initialization complete with GitHub repository")
         logger.info("Next steps:")
         logger.info("1. Review the model configuration")
@@ -752,11 +753,10 @@ def local_runner(ctx, model_path, pool_size):
             if runner.worker.model.model_version.id != version.id:
                 nodepool.delete_runners([runner_id])
                 logger.warning("Deleted runner that was for an old model version ID.")
-                raise AttributeError
+                raise AttributeError("Runner deleted because it was associated with an outdated model version.")
         except Exception as e:
-            # raise AttributeError("Runner not found in nodepool.") from e
             logger.warning(f"Failed to get runner with ID '{runner_id}':\n{e}")
-            raise AttributeError
+            raise AttributeError("Runner not found in nodepool.")
     except AttributeError:
         logger.info(
             f"Creating the local runner tying this '{user_id}/{app_id}/models/{model.id}' model (version: {version.id}) to the '{user_id}/{compute_cluster_id}/{nodepool_id}' nodepool."
@@ -788,7 +788,7 @@ def local_runner(ctx, model_path, pool_size):
         if deployment.worker.model.model_version.id != version.id:
             nodepool.delete_deployments([deployment_id])
             logger.warning("Deleted deployment that was for an old model version ID.")
-            raise Exception
+            raise Exception("Deployment deleted because it was associated with an outdated model version.")
         try:
             deployment_id = ctx.obj.current.deployment_id
         except AttributeError:  # doesn't exist in context but does in API then update the context.
@@ -872,7 +872,6 @@ def local_runner(ctx, model_path, pool_size):
 # About to start up the local runner in this terminal...
 # Here is a code snippet to call this model once it start from another terminal:{snippet}
 """)
-    # logger.info(snippet)
 
     logger.info("Now starting the local runner...")
 
