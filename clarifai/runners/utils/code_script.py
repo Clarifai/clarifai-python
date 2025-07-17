@@ -147,9 +147,9 @@ model = Model.from_current_context()
     else:
         model_ui_url = url_helper.clarifai_url(user_id, app_id, "models", model_id)
         if optional_lines:
-            model_args = f'"{model_ui_url}",\n    {optional_lines}\n'
+            model_args = f'"{model_ui_url}",\n    {optional_lines}'
         else:
-            model_args = f'"{model_ui_url}"\n'
+            model_args = f'"{model_ui_url}"'
         model_section = f"model = Model(\n    {model_args}\n)"
 
     client_template = _CLIENT_TEMPLATE.format(model_section=model_section.strip("\n"))
