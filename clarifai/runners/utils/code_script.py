@@ -149,7 +149,7 @@ model = Model.from_current_context()
         if optional_lines:
             model_args = f'"{model_ui_url}",\n    {optional_lines}\n'
         else:
-            model_args = f'"{model_ui_url}"\n)'
+            model_args = f'"{model_ui_url}"\n'
         model_section = f"model = Model(\n    {model_args}\n)"
 
     client_template = _CLIENT_TEMPLATE.format(model_section=model_section.strip("\n"))
