@@ -15,9 +15,54 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_RUNNER_MODEL_TYPE,
     DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG,
     DEFAULT_LOCAL_RUNNER_NODEPOOL_ID,
+    DEFAULT_OLLAMA_MODEL_REPO,
+    DEFAULT_OLLAMA_MODEL_REPO_BRANCH,
 )
 from clarifai.utils.logging import logger
-from clarifai.utils.misc import clone_github_repo, format_github_repo_url
+from clarifai.utils.misc import GitHubDownloader, clone_github_repo, format_github_repo_url
+
+
+def customize_ollama_model(model_path, model_name, port, context_length):
+    """Customize the Ollama model name in the cloned template files.
+    Args:
+     model_path: Path to the cloned model directory
+     model_name: The model name to set (e.g., 'llama3.1', 'mistral')
+
+    """
+    model_py_path = os.path.join(model_path, "1", "model.py")
+
+    if not os.path.exists(model_py_path):
+        logger.warning(f"Model file {model_py_path} not found, skipping model name customization")
+        return
+
+    try:
+        # Read the model.py file
+        with open(model_py_path, 'r') as file:
+            content = file.read()
+        if model_name:
+            # Replace the default model name in the load_model method
+            content = content.replace(
+                'self.model = os.environ.get("OLLAMA_MODEL_NAME", \'llama3.2\')',
+                f'self.model = os.environ.get("OLLAMA_MODEL_NAME", \'{model_name}\')',
+            )
+
+        if port:
+            # Replace the default port variable in the model.py file
+            content = content.replace("PORT = '23333'", f"PORT = '{port}'")
+
+        if context_length:
+            # Replace the default context length variable in the model.py file
+            content = content.replace(
+                "context_length = '8192'", f"context_length = '{context_length}'"
+            )
+
+        # Write the modified content back to model.py
+        with open(model_py_path, 'w') as file:
+            file.write(content)
+
+    except Exception as e:
+        logger.error(f"Failed to customize Ollama model name in {model_py_path}: {e}")
+        raise
 
 
 @cli.group(
@@ -48,21 +93,36 @@ def model():
     help='GitHub Personal Access Token for authentication when cloning private repositories.',
 )
 @click.option(
-    '--github-repo',
+    '--github-url',
     required=False,
     help='GitHub repository URL or "user/repo" format to clone a repository from. If provided, the entire repository contents will be copied to the target directory instead of using default templates.',
 )
 @click.option(
-    '--branch',
+    '--toolkit',
+    type=click.Choice(['ollama'], case_sensitive=False),
     required=False,
-    help='Git branch to clone from the GitHub repository. If not specified, the default branch will be used.',
+    help='Toolkit to use for model initialization. Currently supports "ollama".',
 )
 @click.option(
-    '--local-ollama-model',
-    is_flag=True,
-    help='Create an Ollama model template by cloning from GitHub repository.',
+    '--model-name',
+    required=False,
+    help='Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.).',
 )
-def init(model_path, model_type_id, github_pat, github_repo, branch, local_ollama_model):
+@click.option(
+    '--port',
+    type=str,
+    help='Port to run the Ollama server on. Defaults to 23333.',
+    required=False,
+)
+@click.option(
+    '--context-length',
+    type=str,
+    help='Context length for the Ollama model. Defaults to 8192.',
+    required=False,
+)
+def init(
+    model_path, model_type_id, github_pat, github_url, toolkit, model_name, port, context_length
+):
     """Initialize a new model directory structure.
 
     Creates the following structure in the specified directory:
@@ -77,42 +137,99 @@ def init(model_path, model_type_id, github_pat, github_repo, branch, local_ollam
     branch to clone from.
 
     MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
+    model_type_id: Type of model to initialize. Options are 'mcp' for MCPModelClass or 'openai' for OpenAIModelClass.
+    github_pat: GitHub Personal Access Token for cloning private repositories.
+    github_url: GitHub repository URL or "user/repo" format or the github folder URL to clone a model files from. If provided, the entire contents of repo/folder will be copied to the target directory instead of using default templates.
+    toolkit: Toolkit to use for model initialization. Currently supports 'ollama'.
+    model_name: Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., 'llama3.1', 'mistral', etc.).
+    port: Port to run the Ollama server on. Defaults to 23333.
+    context_length: Context length for the Ollama model. Defaults to 8192.
     """
-    # Handle the --local-ollama-model flag
-    if local_ollama_model:
-        if github_repo or branch:
-            raise click.ClickException(
-                "Cannot specify both --local-ollama-model and --github-repo/--branch"
-            )
-        github_repo = "https://github.com/Clarifai/runners-examples"
-        branch = "ollama"
-
     # Resolve the absolute path
     model_path = os.path.abspath(model_path)
 
     # Create the model directory if it doesn't exist
     os.makedirs(model_path, exist_ok=True)
 
-    # Handle GitHub repository cloning if provided
-    if github_repo:
-        logger.info(f"Initializing model from GitHub repository: {github_repo}")
+    # Validate parameters
+    if port and not port.isdigit():
+        logger.error("Invalid value: --port must be a number")
+        raise click.Abort()
+
+    if context_length and not context_length.isdigit():
+        logger.error("Invalid value: --context-length must be a number")
+        raise click.Abort()
+
+    # Validate option combinations
+    if model_name and not (toolkit):
+        logger.error("--model-name can only be used with --toolkit")
+        raise click.Abort()
+
+    if toolkit and (github_url):
+        logger.error("Cannot specify both --toolkit and --github-repo")
+        raise click.Abort()
+
+    # --toolkit option
+    if toolkit == 'ollama':
+        github_url = DEFAULT_OLLAMA_MODEL_REPO
+        branch = DEFAULT_OLLAMA_MODEL_REPO_BRANCH
+
+    if github_url:
+        if not toolkit:
+            owner, repo, branch, folder_path = GitHubDownloader().parse_github_url(url=github_url)
+            logger.info(
+                f"Parsed GitHub repository: owner={owner}, repo={repo}, branch={branch}, folder_path={folder_path}"
+            )
+            if folder_path != "":
+                downloader = GitHubDownloader(
+                    max_retries=3,
+                    github_token=github_pat,
+                )
+                try:
+                    downloader.download_github_folder(
+                        url=github_url,
+                        output_dir=model_path,
+                        github_token=github_pat,
+                    )
+                    logger.info(f"Successfully downloaded folder contents to {model_path}")
+                    logger.info("Model initialization complete with GitHub folder download")
+                    return
+
+                except Exception as e:
+                    logger.error(f"Failed to download GitHub folder: {e}")
+                    # Continue with the rest of the initialization process
+                    github_url = None  # Fall back to template mode
+
+            elif branch and folder_path == "":
+                # When we have a branch but no specific folder path
+                logger.info(
+                    f"Initializing model from GitHub repository: {github_url} (branch: {branch})"
+                )
+
+                # Check if it's a local path or normalize the GitHub repo URL
+                if os.path.exists(github_url):
+                    repo_url = github_url
+                else:
+                    repo_url = format_github_repo_url(github_url)
+                    repo_url = f"https://github.com/{owner}/{repo}"
+
+    if toolkit:
+        logger.info(f"Initializing model from GitHub repository: {github_url}")
 
         # Check if it's a local path or normalize the GitHub repo URL
-        if os.path.exists(github_repo):
-            repo_url = github_repo
+        if os.path.exists(github_url):
+            repo_url = github_url
         else:
-            repo_url = format_github_repo_url(github_repo)
+            repo_url = format_github_repo_url(github_url)
 
+    try:
         # Create a temporary directory for cloning
-        with tempfile.TemporaryDirectory() as temp_dir:
-            clone_dir = os.path.join(temp_dir, "repo")
-
-            # Clone the repository
+        with tempfile.TemporaryDirectory(prefix="clarifai_model_") as clone_dir:
+            # Clone the repository with explicit branch parameter
             if not clone_github_repo(repo_url, clone_dir, github_pat, branch):
-                logger.error(
-                    "Failed to clone repository. Falling back to template-based initialization."
-                )
-                github_repo = None  # Fall back to template mode
+                logger.error(f"Failed to clone repository from {repo_url}")
+                github_url = None  # Fall back to template mode
+
             else:
                 # Copy the entire repository content to target directory (excluding .git)
                 for item in os.listdir(clone_dir):
@@ -127,15 +244,21 @@ def init(model_path, model_type_id, github_pat, github_repo, branch, local_ollam
                     else:
                         shutil.copy2(source_path, target_path)
 
-                logger.info("Model initialization complete with GitHub repository")
-                logger.info("Next steps:")
-                logger.info("1. Review the model configuration")
-                logger.info("2. Install any required dependencies manually")
-                logger.info("3. Test the model locally using 'clarifai model local-test'")
-                return
+    except Exception as e:
+        logger.error(f"Failed to clone GitHub repository: {e}")
+        github_url = None
+
+    if (model_name or port or context_length) and (toolkit == 'ollama'):
+        customize_ollama_model(model_path, model_name, port, context_length)
+
+    logger.info("Model initialization complete with GitHub repository")
+    logger.info("Next steps:")
+    logger.info("1. Review the model configuration")
+    logger.info("2. Install any required dependencies manually")
+    logger.info("3. Test the model locally using 'clarifai model local-test'")
 
     # Fall back to template-based initialization if no GitHub repo or if GitHub repo failed
-    if not github_repo:
+    if not github_url:
         from clarifai.cli.templates.model_templates import (
             get_config_template,
             get_model_template,
