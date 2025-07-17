@@ -445,7 +445,9 @@ class Model(Lister, BaseClient):
         response = self._grpc_request(self.STUB.PostModelVersions, request)
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
-        self.logger.info("\nModel Version created\n%s", response.status)
+        self.logger.info(
+            f"Model Version with ID '{response.model.model_version.id}' is created:\n{response.status}"
+        )
 
         kwargs.update({'app_id': self.app_id, 'user_id': self.user_id})
         dict_response = MessageToDict(response, preserving_proto_field_name=True)
