@@ -243,6 +243,7 @@ class GitHubDownloader:
 
         except Exception as e:
             logger.error(f"Failed to parse GitHub URL: {e}")
+            sys.exit(1)
 
     def get_folder_contents(self, owner: str, repo: str, path: str, branch: str = 'main') -> list:
         api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
