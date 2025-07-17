@@ -139,7 +139,7 @@ def init(
     MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
     model_type_id: Type of model to initialize. Options are 'mcp' for MCPModelClass or 'openai' for OpenAIModelClass.
     github_pat: GitHub Personal Access Token for cloning private repositories.
-    github_url: GitHub repository URL or "user/repo" format to clone a repository from. If provided, the entire repository contents will be copied to the target directory instead of using default templates.
+    github_url: GitHub repository URL or "user/repo" format or the github folder URL to clone a model files from. If provided, the entire contents of repo/folder will be copied to the target directory instead of using default templates.
     toolkit: Toolkit to use for model initialization. Currently supports 'ollama'.
     model_name: Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., 'llama3.1', 'mistral', etc.).
     port: Port to run the Ollama server on. Defaults to 23333.

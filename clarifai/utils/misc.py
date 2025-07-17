@@ -242,7 +242,7 @@ class GitHubDownloader:
             return owner, repo, branch, folder_path
 
         except Exception as e:
-            raise ValueError(f"Failed to parse GitHub URL: {e}")
+            logger.error(f"Failed to parse GitHub URL: {e}")
 
     def get_folder_contents(self, owner: str, repo: str, path: str, branch: str = 'main') -> list:
         api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
