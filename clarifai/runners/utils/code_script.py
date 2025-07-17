@@ -46,12 +46,10 @@ def generate_client_script(
 
         _CLIENT_TEMPLATE = f"""
 import asyncio
-
 import os
 
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
-
 
 transport = StreamableHttpTransport(
     url="{mcp_url}",
@@ -79,7 +77,6 @@ import os
 
 from openai import OpenAI
 
-
 client = OpenAI(
     base_url="{openai_api_base}",
     api_key=os.environ['CLARIFAI_PAT'],
@@ -104,7 +101,7 @@ print(response)
     _CLIENT_TEMPLATE = (
         "import os\n\n"
         "from clarifai.client import Model\n"
-        "from clarifai.runners.utils import data_types\n\n\n"
+        "from clarifai.runners.utils import data_types\n\n"
         "{model_section}\n"
     )
     if deployment_id and (compute_cluster_id or nodepool_id):
@@ -115,26 +112,26 @@ print(response)
         deployment_id = None
     else:
         deployment_id = (
-            "os.environ['CLARIFAI_DEPLOYMENT_ID']" if not deployment_id else repr(deployment_id)
+            'os.environ["CLARIFAI_DEPLOYMENT_ID"]' if not deployment_id else repr(deployment_id)
         )
 
     deployment_line = (
-        f'deployment_id = {deployment_id}, # Only needed for dedicated deployed models'
+        f'deployment_id={deployment_id},  # Only needed for dedicated deployed models'
         if deployment_id
         else ""
     )
     compute_cluster_line = (
-        f'compute_cluster_id = "{compute_cluster_id}",' if compute_cluster_id else ""
+        f'compute_cluster_id="{compute_cluster_id}",' if compute_cluster_id else ""
     )
     nodepool_line = (
-        f'nodepool_id = "{nodepool_id}", # Only needed for dedicated nodepool'
+        f'nodepool_id="{nodepool_id}",  # Only needed for dedicated nodepool'
         if nodepool_id
         else ""
     )
 
     base_url_str = ""
     if base_url is not None:
-        base_url_str = f"base_url='{base_url}',"
+        base_url_str = f'base_url="{base_url}",'
 
     # Join all non-empty lines
     optional_lines = "\n    ".join(
@@ -150,7 +147,7 @@ model = Model.from_current_context()
     else:
         model_ui_url = url_helper.clarifai_url(user_id, app_id, "models", model_id)
         if optional_lines:
-            model_args = f'"{model_ui_url}",\n    {optional_lines}\n)'
+            model_args = f'"{model_ui_url}",\n    {optional_lines}\n'
         else:
             model_args = f'"{model_ui_url}"\n)'
         model_section = f"model = Model(\n    {model_args}\n)"
