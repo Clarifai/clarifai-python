@@ -445,7 +445,7 @@ class App(Lister, BaseClient):
         response = self._grpc_request(self.STUB.PostModels, request)
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
-        self.logger.info("\nModel created\n%s", response.status)
+        self.logger.info(f"Model with ID '{model_id}' is created:\n{response.status}")
         kwargs.update(
             {
                 'model_id': model_id,
