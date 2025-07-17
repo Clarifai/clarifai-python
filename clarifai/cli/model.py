@@ -3,6 +3,7 @@ import shutil
 import tempfile
 
 import click
+import logging
 
 from clarifai.cli.base import cli, pat_display
 from clarifai.utils.cli import validate_context
@@ -125,11 +126,11 @@ def init(
 ):
     """Initialize a new model directory structure.
 
-    Creates the following structure in the specified directory:
-    ├── 1/
-    │   └── model.py
-    ├── requirements.txt
-    └── config.yaml
+    Creates the following structure in the specified directory:\n
+    ├── 1/\n
+    │   └── model.py\n
+    ├── requirements.txt\n
+    └── config.yaml\n
 
     If --github-repo is provided, the entire repository contents will be copied to the target
     directory instead of using default templates. The --github-pat option can be used for authentication
@@ -137,13 +138,6 @@ def init(
     branch to clone from.
 
     MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
-    model_type_id: Type of model to initialize. Options are 'mcp' for MCPModelClass or 'openai' for OpenAIModelClass.
-    github_pat: GitHub Personal Access Token for cloning private repositories.
-    github_url: GitHub repository URL or "user/repo" format or the github folder URL to clone a model files from. If provided, the entire contents of repo/folder will be copied to the target directory instead of using default templates.
-    toolkit: Toolkit to use for model initialization. Currently supports 'ollama'.
-    model_name: Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., 'llama3.1', 'mistral', etc.).
-    port: Port to run the Ollama server on. Defaults to 23333.
-    context_length: Context length for the Ollama model. Defaults to 8192.
     """
     # Resolve the absolute path
     model_path = os.path.abspath(model_path)
@@ -251,11 +245,11 @@ def init(
     if (model_name or port or context_length) and (toolkit == 'ollama'):
         customize_ollama_model(model_path, model_name, port, context_length)
 
-    logger.info("Model initialization complete with GitHub repository")
-    logger.info("Next steps:")
-    logger.info("1. Review the model configuration")
-    logger.info("2. Install any required dependencies manually")
-    logger.info("3. Test the model locally using 'clarifai model local-test'")
+        logger.info("Model initialization complete with GitHub repository")
+        logger.info("Next steps:")
+        logger.info("1. Review the model configuration")
+        logger.info("2. Install any required dependencies manually")
+        logger.info("3. Test the model locally using 'clarifai model local-test'")
 
     # Fall back to template-based initialization if no GitHub repo or if GitHub repo failed
     if not github_url:
@@ -620,7 +614,7 @@ def local_runner(ctx, model_path, pool_size):
         compute_cluster = user.compute_cluster(compute_cluster_id)
         if compute_cluster.cluster_type != 'local-dev':
             raise ValueError(
-                f"Compute cluster {user_id}/{compute_cluster_id} is not a local-runner compute cluster. Please create a local-runner compute cluster."
+                f"Compute cluster {user_id}/{compute_cluster_id} is not a compute cluster of type 'local-dev'. Please use a compute cluster of type 'local-dev'."
             )
         try:
             compute_cluster_id = ctx.obj.current.compute_cluster_id
@@ -630,7 +624,7 @@ def local_runner(ctx, model_path, pool_size):
     except ValueError:
         raise
     except Exception as e:
-        logger.info(f"Failed to get compute cluster with ID {compute_cluster_id}: {e}")
+        logger.warning(f"Failed to get compute cluster with ID '{compute_cluster_id}':\n{e}")
         y = input(
             f"Compute cluster not found. Do you want to create a new compute cluster {user_id}/{compute_cluster_id}? (y/n): "
         )
@@ -659,7 +653,7 @@ def local_runner(ctx, model_path, pool_size):
             ctx.obj.current.CLARIFAI_NODEPOOL_ID = nodepool.id
             ctx.obj.to_yaml()  # save to yaml file.
     except Exception as e:
-        logger.info(f"Failed to get nodepool with ID {nodepool_id}: {e}")
+        logger.warning(f"Failed to get nodepool with ID '{nodepool_id}':\n{e}")
         y = input(
             f"Nodepool not found. Do you want to create a new nodepool {user_id}/{compute_cluster_id}/{nodepool_id}? (y/n): "
         )
@@ -687,7 +681,7 @@ def local_runner(ctx, model_path, pool_size):
             ctx.obj.current.CLARIFAI_APP_ID = app.id
             ctx.obj.to_yaml()  # save to yaml file.
     except Exception as e:
-        logger.info(f"Failed to get app with ID {app_id}: {e}")
+        logger.warning(f"Failed to get app with ID '{app_id}':\n{e}")
         y = input(f"App not found. Do you want to create a new app {user_id}/{app_id}? (y/n): ")
         if y.lower() != 'y':
             raise click.Abort()
@@ -710,7 +704,7 @@ def local_runner(ctx, model_path, pool_size):
             ctx.obj.current.CLARIFAI_MODEL_ID = model.id
             ctx.obj.to_yaml()  # save to yaml file.
     except Exception as e:
-        logger.info(f"Failed to get model with ID {model_id}: {e}")
+        logger.warning(f"Failed to get model with ID '{model_id}':\n{e}")
         y = input(
             f"Model not found. Do you want to create a new model {user_id}/{app_id}/models/{model_id}? (y/n): "
         )
@@ -730,9 +724,8 @@ def local_runner(ctx, model_path, pool_size):
     # mentions it's a local runner.
     model_versions = [v for v in model.list_versions()]
     if len(model_versions) == 0:
-        logger.info("No model versions found. Creating a new version for local runner.")
+        logger.warning("No model versions found. Creating a new version for local runner.")
         version = model.create_version(pretrained_model_config={"local_dev": True}).model_version
-        logger.info(f"Created model version {version.id}")
     else:
         version = model_versions[0].model_version
 
@@ -759,12 +752,15 @@ def local_runner(ctx, model_path, pool_size):
             # ensure the deployment is using the latest version.
             if runner.worker.model.model_version.id != version.id:
                 nodepool.delete_runners([runner_id])
-                raise AttributeError("Deleted runner that was for an old model version ID.")
+                logger.warning("Deleted runner that was for an old model version ID.")
+                raise AttributeError
         except Exception as e:
-            raise AttributeError("Runner not found in nodepool.") from e
+            # raise AttributeError("Runner not found in nodepool.") from e
+            logger.warning(f"Failed to get runner with ID '{runner_id}':\n{e}")
+            raise AttributeError
     except AttributeError:
         logger.info(
-            f"Create the local runner tying this\n  {user_id}/{app_id}/models/{model.id} model (version: {version.id}) to the\n  {user_id}/{compute_cluster_id}/{nodepool_id} nodepool."
+            f"Creating the local runner tying this '{user_id}/{app_id}/models/{model.id}' model (version: {version.id}) to the '{user_id}/{compute_cluster_id}/{nodepool_id}' nodepool."
         )
         runner = nodepool.create_runner(
             runner_config={
@@ -792,14 +788,15 @@ def local_runner(ctx, model_path, pool_size):
         # ensure the deployment is using the latest version.
         if deployment.worker.model.model_version.id != version.id:
             nodepool.delete_deployments([deployment_id])
-            raise Exception("Deleted deployment that was for an old model version ID.")
+            logger.warning("Deleted deployment that was for an old model version ID.")
+            raise
         try:
             deployment_id = ctx.obj.current.deployment_id
         except AttributeError:  # doesn't exist in context but does in API then update the context.
             ctx.obj.current.CLARIFAI_DEPLOYMENT_ID = deployment.id
             ctx.obj.to_yaml()  # save to yaml file.
     except Exception as e:
-        logger.info(f"Failed to get deployment with ID {deployment_id}: {e}")
+        logger.warning(f"Failed to get deployment with ID {deployment_id}:\n{e}")
         y = input(
             f"Deployment not found. Do you want to create a new deployment {user_id}/{compute_cluster_id}/{nodepool_id}/{deployment_id}? (y/n): "
         )
@@ -830,16 +827,17 @@ def local_runner(ctx, model_path, pool_size):
     logger.info(f"Current deployment_id: {deployment_id}")
 
     logger.info(
-        f"Full url for the model: {ctx.obj.current.ui}/users/{user_id}/apps/{app_id}/models/{model.id}/versions/{version.id}"
+        f"Full url for the model:\n{ctx.obj.current.ui}/users/{user_id}/apps/{app_id}/models/{model.id}/versions/{version.id}"
     )
 
     # Now that we have all the context in ctx.obj, we need to update the config.yaml in
     # the model_path directory with the model object containing user_id, app_id, model_id, version_id
     config_file = os.path.join(model_path, 'config.yaml')
     if not os.path.exists(config_file):
-        raise ValueError(
+        logger.error(
             f"config.yaml not found in {model_path}. Please ensure you are passing the correct directory."
         )
+        raise click.Abort()
     config = ModelBuilder._load_config(config_file)
     model_type_id = config.get('model', {}).get('model_type_id', DEFAULT_LOCAL_RUNNER_MODEL_TYPE)
     # The config.yaml doens't match what we created above.
@@ -871,12 +869,11 @@ def local_runner(ctx, model_path, pool_size):
         base_url=ctx.obj.current.api_base,
     )
 
-    logger.info("""\n
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    logger.info(f"""\nXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 # About to start up the local runner in this terminal...
-# Here is a code snippet to call this model once it start from another terminal:
+# Here is a code snippet to call this model once it start from another terminal:{snippet}
 """)
-    logger.info(snippet)
+    # logger.info(snippet)
 
     logger.info("Now starting the local runner...")
 
