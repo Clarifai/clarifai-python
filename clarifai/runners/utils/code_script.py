@@ -44,62 +44,66 @@ def generate_client_script(
             model_id,
         )
 
-        _CLIENT_TEMPLATE = """
+        _CLIENT_TEMPLATE = f"""
 import asyncio
 import os
+
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
-transport = StreamableHttpTransport(url="%s",
-                                    headers={"Authorization": "Bearer " + os.environ["CLARIFAI_PAT"]})
+transport = StreamableHttpTransport(
+    url="{mcp_url}",
+    headers={{"Authorization": "Bearer " + os.environ["CLARIFAI_PAT"]}},
+)
 
 async def main():
-  async with Client(transport) as client:
-    tools = await client.list_tools()
-    print(f"Available tools: {tools}")
-    # TODO: update the dictionary of arguments passed to call_tool to make sense for your MCP.
-    result = await client.call_tool(tools[0].name, {"a": 5, "b": 3})
-    print(f"Result: {result[0].text}")
+    async with Client(transport) as client:
+        tools = await client.list_tools()
+        print(f"Available tools: {{tools}}")
+        # TODO: update the dictionary of arguments passed to call_tool to make sense for your MCP.
+        result = await client.call_tool(tools[0].name, {{"a": 5, "b": 3}})
+        print(f"Result: {{result[0].text}}")
 
 if __name__ == "__main__":
-  asyncio.run(main())
+    asyncio.run(main())
 """
-        return _CLIENT_TEMPLATE % mcp_url
+        return _CLIENT_TEMPLATE
 
     if has_signature_method(OPENAI_TRANSPORT_NAME, method_signatures):
         openai_api_base = url_helper.openai_api_url()
         model_ui_url = url_helper.clarifai_url(user_id, app_id, "models", model_id)
-        _CLIENT_TEMPLATE = """
+        _CLIENT_TEMPLATE = f"""
 import os
+
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="%s",
+    base_url="{openai_api_base}",
     api_key=os.environ['CLARIFAI_PAT'],
 )
+
 response = client.chat.completions.create(
-    model="%s",
+    model="{model_ui_url}",
     messages=[
-        {"role": "system", "content": "Talk like a pirate."},
-        {
+        {{"role": "system", "content": "Talk like a pirate."}},
+        {{
             "role": "user",
             "content": "How do I check if a Python object is an instance of a class?",
-        },
+        }},
     ],
     temperature=0.7,
-    stream=False, # stream=True also works, just iterator over the response
+    stream=False,  # stream=True also works, just iterator over the response
 )
 print(response)
 """
-        return _CLIENT_TEMPLATE % (openai_api_base, model_ui_url)
-
-    _CLIENT_TEMPLATE = """\
-import os
-
-from clarifai.client import Model
-from clarifai.runners.utils import data_types
-{model_section}
-    """
+        return _CLIENT_TEMPLATE
+    # Generate client template
+    _CLIENT_TEMPLATE = (
+        "import os\n\n"
+        "from clarifai.client import Model\n"
+        "from clarifai.runners.utils import data_types\n\n"
+        "{model_section}\n"
+    )
     if deployment_id and (compute_cluster_id or nodepool_id):
         raise ValueError(
             "You can only specify one of deployment_id or compute_cluster_id and nodepool_id."
@@ -108,26 +112,26 @@ from clarifai.runners.utils import data_types
         deployment_id = None
     else:
         deployment_id = (
-            "os.environ['CLARIFAI_DEPLOYMENT_ID']" if not deployment_id else repr(deployment_id)
+            'os.environ["CLARIFAI_DEPLOYMENT_ID"]' if not deployment_id else repr(deployment_id)
         )
 
     deployment_line = (
-        f'deployment_id = {deployment_id}, # Only needed for dedicated deployed models'
+        f'deployment_id={deployment_id},  # Only needed for dedicated deployed models'
         if deployment_id
         else ""
     )
     compute_cluster_line = (
-        f'compute_cluster_id = "{compute_cluster_id}",' if compute_cluster_id else ""
+        f'compute_cluster_id="{compute_cluster_id}",' if compute_cluster_id else ""
     )
     nodepool_line = (
-        f'nodepool_id = "{nodepool_id}", # Only needed for dedicated nodepool'
+        f'nodepool_id="{nodepool_id}",  # Only needed for dedicated nodepool'
         if nodepool_id
         else ""
     )
 
     base_url_str = ""
     if base_url is not None:
-        base_url_str = f"base_url='{base_url}',"
+        base_url_str = f'base_url="{base_url}",'
 
     # Join all non-empty lines
     optional_lines = "\n    ".join(
@@ -138,19 +142,17 @@ from clarifai.runners.utils import data_types
 
     if use_ctx:
         model_section = """
-model = Model.from_current_context()"""
+model = Model.from_current_context()
+"""
     else:
         model_ui_url = url_helper.clarifai_url(user_id, app_id, "models", model_id)
-        model_section = f"""
-model = Model("{model_ui_url}",
-    {optional_lines}
- )
-"""
+        if optional_lines:
+            model_args = f'"{model_ui_url}",\n    {optional_lines}'
+        else:
+            model_args = f'"{model_ui_url}"'
+        model_section = f"model = Model(\n    {model_args}\n)"
 
-    # Generate client template
-    client_template = _CLIENT_TEMPLATE.format(
-        model_section=model_section,
-    )
+    client_template = _CLIENT_TEMPLATE.format(model_section=model_section.strip("\n"))
 
     # Generate method signatures
     method_signatures_str = []
@@ -158,8 +160,9 @@ model = Model("{model_ui_url}",
         if method_signature is None:
             continue
         method_name = method_signature.name
-        client_script_str = f'response = model.{method_name}('
+        client_script_str = f"response = model.{method_name}("
         annotations = _get_annotations_source(method_signature)
+        param_lines = []
         for idx, (param_name, (param_type, default_value, required)) in enumerate(
             annotations.items()
         ):
@@ -172,8 +175,11 @@ model = Model("{model_ui_url}",
             if param_type == "str" and default_value is not None:
                 default_value = json.dumps(default_value)
             if default_value is not None:
-                client_script_str += f"{param_name}={default_value}, "
-        client_script_str = client_script_str.rstrip(", ") + ")"
+                param_lines.append(f"    {param_name}={default_value},")
+        if param_lines:
+            client_script_str += "\n" + "\n".join(param_lines) + "\n)"
+        else:
+            client_script_str += ")"
         if method_signature.method_type == resources_pb2.RunnerMethodType.UNARY_UNARY:
             client_script_str += "\nprint(response)"
         elif method_signature.method_type == resources_pb2.RunnerMethodType.UNARY_STREAMING:
@@ -191,7 +197,7 @@ model = Model("{model_ui_url}",
         )
     script_lines.append("# Example usage:")
     script_lines.append(client_template)
-    script_lines.append("# Example model prediction from different model methods: \n")
+    script_lines.append("# Example model prediction from different model methods:\n")
     script_lines.append(method_signatures_str)
     script_lines.append("")
     script = "\n".join(script_lines)
