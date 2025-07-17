@@ -753,7 +753,9 @@ def local_runner(ctx, model_path, pool_size):
             if runner.worker.model.model_version.id != version.id:
                 nodepool.delete_runners([runner_id])
                 logger.warning("Deleted runner that was for an old model version ID.")
-                raise AttributeError("Runner deleted because it was associated with an outdated model version.")
+                raise AttributeError(
+                    "Runner deleted because it was associated with an outdated model version."
+                )
         except Exception as e:
             logger.warning(f"Failed to get runner with ID '{runner_id}':\n{e}")
             raise AttributeError("Runner not found in nodepool.")
@@ -788,7 +790,9 @@ def local_runner(ctx, model_path, pool_size):
         if deployment.worker.model.model_version.id != version.id:
             nodepool.delete_deployments([deployment_id])
             logger.warning("Deleted deployment that was for an old model version ID.")
-            raise Exception("Deployment deleted because it was associated with an outdated model version.")
+            raise Exception(
+                "Deployment deleted because it was associated with an outdated model version."
+            )
         try:
             deployment_id = ctx.obj.current.deployment_id
         except AttributeError:  # doesn't exist in context but does in API then update the context.
