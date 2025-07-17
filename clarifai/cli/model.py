@@ -3,7 +3,6 @@ import shutil
 import tempfile
 
 import click
-import logging
 
 from clarifai.cli.base import cli, pat_display
 from clarifai.utils.cli import validate_context
@@ -789,7 +788,7 @@ def local_runner(ctx, model_path, pool_size):
         if deployment.worker.model.model_version.id != version.id:
             nodepool.delete_deployments([deployment_id])
             logger.warning("Deleted deployment that was for an old model version ID.")
-            raise
+            raise Exception
         try:
             deployment_id = ctx.obj.current.deployment_id
         except AttributeError:  # doesn't exist in context but does in API then update the context.

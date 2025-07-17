@@ -195,7 +195,9 @@ class Nodepool(Lister, BaseClient):
         response = self._grpc_request(self.STUB.PostDeployments, request)
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
-        self.logger.info(f"Deployment with ID '{response.deployments[0].id}' is created:\n{response.status}")
+        self.logger.info(
+            f"Deployment with ID '{response.deployments[0].id}' is created:\n{response.status}"
+        )
 
         dict_response = MessageToDict(
             response.deployments[0], preserving_proto_field_name=True, use_integers_for_enums=True
@@ -323,7 +325,9 @@ class Nodepool(Lister, BaseClient):
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
-        self.logger.info(f"Runner with ID '{response.runners[0].id}' is created:\n{response.status}")
+        self.logger.info(
+            f"Runner with ID '{response.runners[0].id}' is created:\n{response.status}"
+        )
 
         dict_response = MessageToDict(response.runners[0], preserving_proto_field_name=True)
         kwargs = self.process_response_keys(dict_response, 'runner')
