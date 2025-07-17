@@ -133,6 +133,8 @@ def serve(
             pat=pat,
             num_parallel_polls=num_threads,
         )
+        logger.info("Runner started successfully!")
+        logger.info("Waiting for work from the API...")
         runner.start()  # start the runner to fetch work from the API.
 
 

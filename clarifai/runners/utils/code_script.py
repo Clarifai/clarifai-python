@@ -69,28 +69,27 @@ if __name__ == "__main__":
     if has_signature_method(OPENAI_TRANSPORT_NAME, method_signatures):
         openai_api_base = url_helper.openai_api_url()
         model_ui_url = url_helper.clarifai_url(user_id, app_id, "models", model_id)
-        _CLIENT_TEMPLATE = """
-import os
-from openai import OpenAI
-
-client = OpenAI(
-    base_url="%s",
-    api_key=os.environ['CLARIFAI_PAT'],
-)
-response = client.chat.completions.create(
-    model="%s",
-    messages=[
-        {"role": "system", "content": "Talk like a pirate."},
-        {
-            "role": "user",
-            "content": "How do I check if a Python object is an instance of a class?",
-        },
-    ],
-    temperature=0.7,
-    stream=False, # stream=True also works, just iterator over the response
-)
-print(response)
-"""
+        _CLIENT_TEMPLATE = (
+            "import os\n\n"
+            "from openai import OpenAI\n\n\n"
+            "client = OpenAI(\n"
+            "    base_url=\"%s\",\n"
+            "    api_key=os.environ['CLARIFAI_PAT'],\n"
+            ")\n\n"
+            "response = client.chat.completions.create(\n"
+            "    model=\"%s\",\n"
+            "    messages=[\n"
+            "        {\"role\": \"system\", \"content\": \"Talk like a pirate.\"},\n"
+            "        {\n"
+            "            \"role\": \"user\",\n"
+            "            \"content\": \"How do I check if a Python object is an instance of a class?\",\n"
+            "        },\n"
+            "    ],\n"
+            "    temperature=0.7,\n"
+            "    stream=False,  # stream=True also works, just iterator over the response\n"
+            ")\n"
+            "print(response)\n"
+        )
         return _CLIENT_TEMPLATE % (openai_api_base, model_ui_url)
 
     _CLIENT_TEMPLATE = """\
@@ -138,19 +137,24 @@ from clarifai.runners.utils import data_types
 
     if use_ctx:
         model_section = """
-model = Model.from_current_context()"""
+model = Model.from_current_context()
+"""
     else:
         model_ui_url = url_helper.clarifai_url(user_id, app_id, "models", model_id)
-        model_section = f"""
-model = Model("{model_ui_url}",
-    {optional_lines}
- )
-"""
+        if optional_lines:
+            model_args = f'"{model_ui_url}",\n    {optional_lines}\n)'
+        else:
+            model_args = f'"{model_ui_url}"\n)'
+        model_section = f"model = Model(\n    {model_args}\n)"
 
     # Generate client template
-    client_template = _CLIENT_TEMPLATE.format(
-        model_section=model_section,
+    _CLIENT_TEMPLATE = (
+        "import os\n\n"
+        "from clarifai.client import Model\n"
+        "from clarifai.runners.utils import data_types\n\n\n"
+        "{model_section}\n"
     )
+    client_template = _CLIENT_TEMPLATE.format(model_section=model_section.strip("\n"))
 
     # Generate method signatures
     method_signatures_str = []
@@ -158,8 +162,9 @@ model = Model("{model_ui_url}",
         if method_signature is None:
             continue
         method_name = method_signature.name
-        client_script_str = f'response = model.{method_name}('
+        client_script_str = f"response = model.{method_name}("
         annotations = _get_annotations_source(method_signature)
+        param_lines = []
         for idx, (param_name, (param_type, default_value, required)) in enumerate(
             annotations.items()
         ):
@@ -172,8 +177,11 @@ model = Model("{model_ui_url}",
             if param_type == "str" and default_value is not None:
                 default_value = json.dumps(default_value)
             if default_value is not None:
-                client_script_str += f"{param_name}={default_value}, "
-        client_script_str = client_script_str.rstrip(", ") + ")"
+                param_lines.append(f"    {param_name}={default_value},")
+        if param_lines:
+            client_script_str += "\n" + "\n".join(param_lines) + "\n)"
+        else:
+            client_script_str += ")"
         if method_signature.method_type == resources_pb2.RunnerMethodType.UNARY_UNARY:
             client_script_str += "\nprint(response)"
         elif method_signature.method_type == resources_pb2.RunnerMethodType.UNARY_STREAMING:
@@ -191,7 +199,7 @@ model = Model("{model_ui_url}",
         )
     script_lines.append("# Example usage:")
     script_lines.append(client_template)
-    script_lines.append("# Example model prediction from different model methods: \n")
+    script_lines.append("# Example model prediction from different model methods:\n")
     script_lines.append(method_signatures_str)
     script_lines.append("")
     script = "\n".join(script_lines)
