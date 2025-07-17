@@ -44,61 +44,69 @@ def generate_client_script(
             model_id,
         )
 
-        _CLIENT_TEMPLATE = """
+        _CLIENT_TEMPLATE = f"""
 import asyncio
+
 import os
+
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
-transport = StreamableHttpTransport(url="%s",
-                                    headers={"Authorization": "Bearer " + os.environ["CLARIFAI_PAT"]})
+
+transport = StreamableHttpTransport(
+    url="{mcp_url}",
+    headers={{"Authorization": "Bearer " + os.environ["CLARIFAI_PAT"]}},
+)
 
 async def main():
-  async with Client(transport) as client:
-    tools = await client.list_tools()
-    print(f"Available tools: {tools}")
-    # TODO: update the dictionary of arguments passed to call_tool to make sense for your MCP.
-    result = await client.call_tool(tools[0].name, {"a": 5, "b": 3})
-    print(f"Result: {result[0].text}")
+    async with Client(transport) as client:
+        tools = await client.list_tools()
+        print(f"Available tools: {{tools}}")
+        # TODO: update the dictionary of arguments passed to call_tool to make sense for your MCP.
+        result = await client.call_tool(tools[0].name, {{"a": 5, "b": 3}})
+        print(f"Result: {{result[0].text}}")
 
 if __name__ == "__main__":
-  asyncio.run(main())
+    asyncio.run(main())
 """
-        return _CLIENT_TEMPLATE % mcp_url
+        return _CLIENT_TEMPLATE
 
     if has_signature_method(OPENAI_TRANSPORT_NAME, method_signatures):
         openai_api_base = url_helper.openai_api_url()
         model_ui_url = url_helper.clarifai_url(user_id, app_id, "models", model_id)
-        _CLIENT_TEMPLATE = (
-            "import os\n\n"
-            "from openai import OpenAI\n\n\n"
-            "client = OpenAI(\n"
-            "    base_url=\"%s\",\n"
-            "    api_key=os.environ['CLARIFAI_PAT'],\n"
-            ")\n\n"
-            "response = client.chat.completions.create(\n"
-            "    model=\"%s\",\n"
-            "    messages=[\n"
-            "        {\"role\": \"system\", \"content\": \"Talk like a pirate.\"},\n"
-            "        {\n"
-            "            \"role\": \"user\",\n"
-            "            \"content\": \"How do I check if a Python object is an instance of a class?\",\n"
-            "        },\n"
-            "    ],\n"
-            "    temperature=0.7,\n"
-            "    stream=False,  # stream=True also works, just iterator over the response\n"
-            ")\n"
-            "print(response)\n"
-        )
-        return _CLIENT_TEMPLATE % (openai_api_base, model_ui_url)
-
-    _CLIENT_TEMPLATE = """\
+        _CLIENT_TEMPLATE = f"""
 import os
 
-from clarifai.client import Model
-from clarifai.runners.utils import data_types
-{model_section}
-    """
+from openai import OpenAI
+
+
+client = OpenAI(
+    base_url="{openai_api_base}",
+    api_key=os.environ['CLARIFAI_PAT'],
+)
+
+response = client.chat.completions.create(
+    model="{model_ui_url}",
+    messages=[
+        {{"role": "system", "content": "Talk like a pirate."}},
+        {{
+            "role": "user",
+            "content": "How do I check if a Python object is an instance of a class?",
+        }},
+    ],
+    temperature=0.7,
+    stream=False,  # stream=True also works, just iterator over the response
+)
+print(response)
+"""
+        return _CLIENT_TEMPLATE
+    # Generate client template
+    _CLIENT_TEMPLATE = (
+        "import os\n\n"
+        "from clarifai.client import Model\n"
+        "from clarifai.runners.utils import data_types\n\n\n"
+        "{model_section}\n"
+    )
     if deployment_id and (compute_cluster_id or nodepool_id):
         raise ValueError(
             "You can only specify one of deployment_id or compute_cluster_id and nodepool_id."
@@ -147,13 +155,6 @@ model = Model.from_current_context()
             model_args = f'"{model_ui_url}"\n)'
         model_section = f"model = Model(\n    {model_args}\n)"
 
-    # Generate client template
-    _CLIENT_TEMPLATE = (
-        "import os\n\n"
-        "from clarifai.client import Model\n"
-        "from clarifai.runners.utils import data_types\n\n\n"
-        "{model_section}\n"
-    )
     client_template = _CLIENT_TEMPLATE.format(model_section=model_section.strip("\n"))
 
     # Generate method signatures
