@@ -1,0 +1,46 @@
+name: Maintainer Tests
+
+permissions:
+    contents: read
+    pull-requests: write  # Added to allow commenting on PRs
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+jobs:
+  run:
+    name: Maintainer Approval Tests
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'maintainer-approved'))
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for accurate blame and diff
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv
+          uv venv
+          uv pip install -r requirements.txt -r tests/requirements.txt
+
+      - name: Run maintainer tests
+        env:
+          CLARIFAI_USER_EMAIL_SECURE_HOSTING: ${{ secrets.CLARIFAI_USER_EMAIL_SECURE_HOSTING }}
+          CLARIFAI_USER_EMAIL: ${{ secrets.INTERNAL_USER_EMAIL }}
+          CLARIFAI_USER_PASSWORD: ${{ secrets.INTERNAL_USER_PASSWORD }}
+        run: |
+          export PYTHONPATH=.
+          export CLARIFAI_USER_ID="$(uv run python scripts/key_for_tests.py --get-userid)"
+          export CLARIFAI_PAT="$(uv run python scripts/key_for_tests.py --create-pat)"
+          uv run pytest -v -m maintainer_approval
