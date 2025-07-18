@@ -65,6 +65,43 @@ def context():
     """
 
 
+@cli.command()
+@click.argument('api_url', default=DEFAULT_BASE)
+@click.option('--user_id', required=False, help='User ID')
+@click.pass_context
+def login(ctx, api_url, user_id):
+    """Login command to set PAT and other configurations."""
+    from clarifai.utils.cli import validate_context_auth
+
+    name = input('context name (default: "default"): ')
+    user_id = user_id if user_id is not None else input('user id: ')
+    pat = input_or_default(
+        'personal access token value (default: "ENVVAR" to get our of env var rather than config): ',
+        'ENVVAR',
+    )
+
+    # Validate the Context Credentials
+    validate_context_auth(pat, user_id, api_url)
+
+    context = Context(
+        name,
+        CLARIFAI_API_BASE=api_url,
+        CLARIFAI_USER_ID=user_id,
+        CLARIFAI_PAT=pat,
+    )
+
+    if context.name == '':
+        context.name = 'default'
+
+    ctx.obj.contexts[context.name] = context
+    ctx.obj.current_context = context.name
+
+    ctx.obj.to_yaml()
+    logger.info(
+        f"Login successful and Configuration saved successfully for context '{context.name}'"
+    )
+
+
 def pat_display(pat):
     return pat[:5] + "****"
 
