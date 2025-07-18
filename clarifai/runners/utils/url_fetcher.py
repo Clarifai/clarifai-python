@@ -1,6 +1,7 @@
 import concurrent.futures
 
 import fsspec
+import requests
 
 from clarifai.utils.logging import logger
 
@@ -25,30 +26,106 @@ def _download_input_data(input_data, auth_helper=None):
     if auth_helper is not None:
         auth_kwargs = _get_auth_kwargs(auth_helper)
 
+    exceptions = (IOError, OSError, requests.RequestException)
+    fsspec_exceptions = (
+        getattr(fsspec.exceptions, 'FSTimeoutError', Exception),
+        getattr(fsspec.exceptions, 'BlocksizeMismatchError', Exception),
+    )
+
     if input_data.image.url and not input_data.image.base64:
         try:
             with fsspec.open(input_data.image.url, 'rb', **auth_kwargs) as f:
                 input_data.image.base64 = f.read()
+        except fsspec_exceptions as e:
+            logger.error(f"FSSpec error downloading image from {input_data.image.url}: {e}")
+            raise RuntimeError(
+                f"FSSpec error downloading image from {input_data.image.url}: {e}"
+            ) from e
+        except requests.RequestException as e:
+            logger.error(f"Requests error downloading image from {input_data.image.url}: {e}")
+            raise RuntimeError(
+                f"Requests error downloading image from {input_data.image.url}: {e}"
+            ) from e
+        except (IOError, OSError) as e:
+            logger.error(f"IO error downloading image from {input_data.image.url}: {e}")
+            raise RuntimeError(
+                f"IO error downloading image from {input_data.image.url}: {e}"
+            ) from e
         except Exception as e:
-            logger.error(f"Failed to download image from {input_data.image.url}: {e}")
+            logger.error(f"Unexpected error downloading image from {input_data.image.url}: {e}")
+            raise RuntimeError(
+                f"Unexpected error downloading image from {input_data.image.url}: {e}"
+            ) from e
     if input_data.video.url and not input_data.video.base64:
         try:
             with fsspec.open(input_data.video.url, 'rb', **auth_kwargs) as f:
                 input_data.video.base64 = f.read()
+        except fsspec_exceptions as e:
+            logger.error(f"FSSpec error downloading video from {input_data.video.url}: {e}")
+            raise RuntimeError(
+                f"FSSpec error downloading video from {input_data.video.url}: {e}"
+            ) from e
+        except requests.RequestException as e:
+            logger.error(f"Requests error downloading video from {input_data.video.url}: {e}")
+            raise RuntimeError(
+                f"Requests error downloading video from {input_data.video.url}: {e}"
+            ) from e
+        except (IOError, OSError) as e:
+            logger.error(f"IO error downloading video from {input_data.video.url}: {e}")
+            raise RuntimeError(
+                f"IO error downloading video from {input_data.video.url}: {e}"
+            ) from e
         except Exception as e:
-            logger.error(f"Failed to download video from {input_data.video.url}: {e}")
+            logger.error(f"Unexpected error downloading video from {input_data.video.url}: {e}")
+            raise RuntimeError(
+                f"Unexpected error downloading video from {input_data.video.url}: {e}"
+            ) from e
     if input_data.audio.url and not input_data.audio.base64:
         try:
             with fsspec.open(input_data.audio.url, 'rb', **auth_kwargs) as f:
                 input_data.audio.base64 = f.read()
+        except fsspec_exceptions as e:
+            logger.error(f"FSSpec error downloading audio from {input_data.audio.url}: {e}")
+            raise RuntimeError(
+                f"FSSpec error downloading audio from {input_data.audio.url}: {e}"
+            ) from e
+        except requests.RequestException as e:
+            logger.error(f"Requests error downloading audio from {input_data.audio.url}: {e}")
+            raise RuntimeError(
+                f"Requests error downloading audio from {input_data.audio.url}: {e}"
+            ) from e
+        except (IOError, OSError) as e:
+            logger.error(f"IO error downloading audio from {input_data.audio.url}: {e}")
+            raise RuntimeError(
+                f"IO error downloading audio from {input_data.audio.url}: {e}"
+            ) from e
         except Exception as e:
-            logger.error(f"Failed to download audio from {input_data.audio.url}: {e}")
+            logger.error(f"Unexpected error downloading audio from {input_data.audio.url}: {e}")
+            raise RuntimeError(
+                f"Unexpected error downloading audio from {input_data.audio.url}: {e}"
+            ) from e
     if input_data.text.url and not input_data.text.raw:
         try:
             with fsspec.open(input_data.text.url, 'r', **auth_kwargs) as f:
                 input_data.text.raw = f.read()
+        except fsspec_exceptions as e:
+            logger.error(f"FSSpec error downloading text from {input_data.text.url}: {e}")
+            raise RuntimeError(
+                f"FSSpec error downloading text from {input_data.text.url}: {e}"
+            ) from e
+        except requests.RequestException as e:
+            logger.error(f"Requests error downloading text from {input_data.text.url}: {e}")
+            raise RuntimeError(
+                f"Requests error downloading text from {input_data.text.url}: {e}"
+            ) from e
+        except (IOError, OSError) as e:
+            logger.error(f"IO error downloading text from {input_data.text.url}: {e}")
+            raise RuntimeError(f"IO error downloading text from {input_data.text.url}: {e}") from e
         except Exception as e:
-            logger.error(f"Failed to download text from {input_data.text.url}: {e}")
+            logger.error(f"Unexpected error downloading text from {input_data.text.url}: {e}")
+            raise RuntimeError(
+                f"Unexpected error downloading text from {input_data.text.url}: {e}"
+            ) from e
 
 
 def _get_auth_kwargs(auth_helper):
