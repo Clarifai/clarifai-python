@@ -26,21 +26,29 @@ def _download_input_data(input_data, auth_helper=None):
         auth_kwargs = _get_auth_kwargs(auth_helper)
 
     if input_data.image.url and not input_data.image.base64:
-        # Download the image
-        with fsspec.open(input_data.image.url, 'rb', **auth_kwargs) as f:
-            input_data.image.base64 = f.read()
+        try:
+            with fsspec.open(input_data.image.url, 'rb', **auth_kwargs) as f:
+                input_data.image.base64 = f.read()
+        except Exception as e:
+            logger.error(f"Failed to download image from {input_data.image.url}: {e}")
     if input_data.video.url and not input_data.video.base64:
-        # Download the video
-        with fsspec.open(input_data.video.url, 'rb', **auth_kwargs) as f:
-            input_data.video.base64 = f.read()
+        try:
+            with fsspec.open(input_data.video.url, 'rb', **auth_kwargs) as f:
+                input_data.video.base64 = f.read()
+        except Exception as e:
+            logger.error(f"Failed to download video from {input_data.video.url}: {e}")
     if input_data.audio.url and not input_data.audio.base64:
-        # Download the audio
-        with fsspec.open(input_data.audio.url, 'rb', **auth_kwargs) as f:
-            input_data.audio.base64 = f.read()
+        try:
+            with fsspec.open(input_data.audio.url, 'rb', **auth_kwargs) as f:
+                input_data.audio.base64 = f.read()
+        except Exception as e:
+            logger.error(f"Failed to download audio from {input_data.audio.url}: {e}")
     if input_data.text.url and not input_data.text.raw:
-        # Download the text
-        with fsspec.open(input_data.text.url, 'r', **auth_kwargs) as f:
-            input_data.text.raw = f.read()
+        try:
+            with fsspec.open(input_data.text.url, 'r', **auth_kwargs) as f:
+                input_data.text.raw = f.read()
+        except Exception as e:
+            logger.error(f"Failed to download text from {input_data.text.url}: {e}")
 
 
 def _get_auth_kwargs(auth_helper):
