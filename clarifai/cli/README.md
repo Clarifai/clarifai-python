@@ -8,6 +8,45 @@ Clarifai offers a user-friendly interface for deploying your local model into pr
 * Easy implementation and testing in Python
 * No need for MLops expertise.
 
+## Context Management
+
+Manage CLI contexts for authentication and environment configuration:
+
+### List all contexts
+```bash
+clarifai context list
+```
+
+### Show the active context
+```bash
+clarifai context show
+```
+
+### Set the active context
+```bash
+clarifai context use <name>
+```
+
+### Create a new context
+```bash
+clarifai context create <name> --user-id <user_id> --base-url <base_url> --pat <token>
+```
+
+### Edit the config file
+```bash
+clarifai context edit
+```
+
+### Delete a context
+```bash
+clarifai context delete <name>
+```
+
+### Print environment variables for the active context
+```bash
+clarifai context env
+```
+
 ## Compute Orchestration
 
 Quick example for deploying a `visual-classifier` model

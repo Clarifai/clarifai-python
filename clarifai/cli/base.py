@@ -1,6 +1,5 @@
 import json
 import os
-import shutil
 import sys
 
 import click
@@ -54,42 +53,34 @@ def shell_completion(shell):
     os.system(f"_CLARIFAI_COMPLETE={shell}_source clarifai")
 
 
-@cli.group(
-    ['cfg'],
-    cls=AliasedGroup,
-    context_settings={'max_content_width': shutil.get_terminal_size().columns - 10},
-)
-def config():
-    """Manage CLI configuration"""
+@cli.group(cls=AliasedGroup)
+def context():
+    """
+    Manage multiple configuration profiles (contexts).
+
+    Authentication Precedence:
+      1. Environment variables (e.g., `CLARIFAI_PAT`) are used first if set.
+      2. The settings from the active context are used if no environment
+         variables are provided.
+    """
 
 
-@config.command(['e'])
-@click.pass_context
-def edit(ctx):
-    """Edit the configuration file"""
-    os.system(f'{os.environ.get("EDITOR", "vi")} {ctx.obj.filename}')
+def pat_display(pat):
+    return pat[:5] + "****"
 
 
-@config.command(['current'])
-@click.option('-o', '--output-format', default='name', type=click.Choice(['name', 'json', 'yaml']))
-@click.pass_context
-def current_context(ctx, output_format):
-    """Get the current context"""
-    if output_format == 'name':
-        print(ctx.obj.current_context)
-    elif output_format == 'json':
-        print(json.dumps(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
-    else:
-        print(yaml.safe_dump(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
+def input_or_default(prompt, default):
+    value = input(prompt)
+    return value if value else default
 
 
-@config.command(['list', 'ls'])
+@context.command('list', aliases=['ls'])
 @click.option(
     '-o', '--output-format', default='wide', type=click.Choice(['wide', 'name', 'json', 'yaml'])
 )
 @click.pass_context
-def get_contexts(ctx, output_format):
-    """Get all contexts"""
+def list_contexts(ctx, output_format):
+    """List all available contexts."""
     if output_format == 'wide':
         columns = {
             '': lambda c: '*' if c.name == ctx.obj.current_context else '',
@@ -106,7 +97,6 @@ def get_contexts(ctx, output_format):
                         additional_columns.add(key)
         for key in sorted(additional_columns):
             columns[key] = lambda c, k=key: getattr(c, k) if hasattr(c, k) else ""
-
         formatter = TableFormatter(
             custom_columns=columns,
         )
@@ -123,88 +113,32 @@ def get_contexts(ctx, output_format):
             print(yaml.safe_dump(dicts))
 
 
-@config.command(['use'])
-@click.argument('context-name', type=str)
+@context.command('use')
+@click.argument('name', type=str)
 @click.pass_context
-def use_context(ctx, context_name):
-    """Set the current context"""
-    if context_name not in ctx.obj.contexts:
+def use(ctx, name):
+    """Set the active context."""
+    if name not in ctx.obj.contexts:
         raise click.UsageError('Context not found')
-    ctx.obj.current_context = context_name
+    ctx.obj.current_context = name
     ctx.obj.to_yaml()
-    print(f'Set {context_name} as the current context')
+    print(f'Set {name} as the current context')
 
 
-@config.command(['cat'])
-@click.option('-o', '--output-format', default='yaml', type=click.Choice(['yaml', 'json']))
-@click.pass_obj
-def dump(ctx_obj, output_format):
-    """Dump the configuration to stdout"""
-    if output_format == 'yaml':
-        yaml.safe_dump(ctx_obj.to_dict(), sys.stdout)
-    else:
-        json.dump(ctx_obj.to_dict(), sys.stdout, indent=2)
-
-
-@config.command(['cat'])
-@click.pass_obj
-def env(ctx_obj):
-    """Print env vars. Use: eval "$(clarifai config env)" """
-    ctx_obj.current.print_env_vars()
-
-
-@cli.command()
-@click.argument('api_url', default=DEFAULT_BASE)
-@click.option('--user_id', required=False, help='User ID')
+@context.command('show')
+@click.option('-o', '--output-format', default='name', type=click.Choice(['name', 'json', 'yaml']))
 @click.pass_context
-def login(ctx, api_url, user_id):
-    """Login command to set PAT and other configurations."""
-    from clarifai.utils.cli import validate_context_auth
-
-    name = input('context name (default: "default"): ')
-    user_id = user_id if user_id is not None else input('user id: ')
-    pat = input_or_default(
-        'personal access token value (default: "ENVVAR" to get our of env var rather than config): ',
-        'ENVVAR',
-    )
-
-    # Validate the Context Credentials
-    validate_context_auth(pat, user_id, api_url)
-
-    context = Context(
-        name,
-        CLARIFAI_API_BASE=api_url,
-        CLARIFAI_USER_ID=user_id,
-        CLARIFAI_PAT=pat,
-    )
-
-    if context.name == '':
-        context.name = 'default'
-
-    ctx.obj.contexts[context.name] = context
-    ctx.obj.current_context = context.name
-
-    ctx.obj.to_yaml()
-    logger.info(
-        f"Login successful and Configuration saved successfully for context '{context.name}'"
-    )
+def show(ctx, output_format):
+    """Show the active context's details."""
+    if output_format == 'name':
+        print(ctx.obj.current_context)
+    elif output_format == 'json':
+        print(json.dumps(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
+    else:
+        print(yaml.safe_dump(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
 
 
-@cli.group(cls=AliasedGroup)
-def context():
-    """Manage contexts"""
-
-
-def pat_display(pat):
-    return pat[:5] + "****"
-
-
-def input_or_default(prompt, default):
-    value = input(prompt)
-    return value if value else default
-
-
-@context.command()
+@context.command('create')
 @click.argument('name')
 @click.option('--user-id', required=False, help='User ID')
 @click.option('--base-url', required=False, help='Base URL')
@@ -217,7 +151,7 @@ def create(
     base_url=None,
     pat=None,
 ):
-    """Create a new context"""
+    """Create a new context."""
     from clarifai.utils.cli import validate_context_auth
 
     if name in ctx.obj.contexts:
@@ -234,22 +168,27 @@ def create(
             'personal access token value (default: "ENVVAR" to get our of env var rather than config): ',
             'ENVVAR',
         )
-
-    # Validate the Context Credentials
     validate_context_auth(pat, user_id, base_url)
-
     context = Context(name, CLARIFAI_USER_ID=user_id, CLARIFAI_API_BASE=base_url, CLARIFAI_PAT=pat)
     ctx.obj.contexts[context.name] = context
     ctx.obj.to_yaml()
     logger.info(f"Context '{name}' created successfully")
 
 
-# write a click command to delete a context
-@context.command(['rm'])
+@context.command('edit')
+@click.argument('name', required=False)
+@click.pass_context
+def edit_context(ctx, name=None):
+    """Open the config file for a context."""
+    # For now, just open the config file (not per-context)
+    os.system(f'{os.environ.get("EDITOR", "vi")} {ctx.obj.filename}')
+
+
+@context.command('delete', aliases=['rm'])
 @click.argument('name')
 @click.pass_context
 def delete(ctx, name):
-    """Delete a context"""
+    """Delete a context."""
     if name not in ctx.obj.contexts:
         print(f'{name} is not a valid context')
         sys.exit(1)
@@ -258,16 +197,11 @@ def delete(ctx, name):
     print(f'{name} deleted')
 
 
-@context.command()
-@click.argument('name', type=str)
+@context.command('env')
 @click.pass_context
-def use(ctx, name):
-    """Set the current context"""
-    if name not in ctx.obj.contexts:
-        raise click.UsageError('Context not found')
-    ctx.obj.current_context = name
-    ctx.obj.to_yaml()
-    print(f'Set {name} as the current context')
+def env(ctx):
+    """Print env vars for the active context."""
+    ctx.obj.current.print_env_vars()
 
 
 @cli.command()
