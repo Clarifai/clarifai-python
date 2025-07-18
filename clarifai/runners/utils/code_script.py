@@ -2,6 +2,9 @@ import json
 from typing import List
 
 from clarifai_grpc.grpc.api import resources_pb2
+from pygments import highlight
+from pygments.formatters import TerminalFormatter
+from pygments.lexers import PythonLexer
 
 from clarifai.runners.utils import data_utils
 from clarifai.urls.helper import ClarifaiUrlHelper
@@ -201,6 +204,8 @@ model = Model.from_current_context()
     script_lines.append(method_signatures_str)
     script_lines.append("")
     script = "\n".join(script_lines)
+
+    script = highlight(script, PythonLexer(), TerminalFormatter())
     return script
 
 
