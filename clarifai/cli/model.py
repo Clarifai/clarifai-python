@@ -875,7 +875,12 @@ def local_runner(ctx, model_path, pool_size):
     logger.info(f"""\nXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 # About to start up the local runner in this terminal...
 # Here is a code snippet to call this model once it start from another terminal:{snippet}
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 """)
+
+    logger.info(
+        f"Playground: To chat with your model, visit:\n{ctx.obj.current.ui}/playground?model={model.id}__{version.id}&user_id={user_id}&app_id={app_id}"
+    )
 
     logger.info("Now starting the local runner...")
 
