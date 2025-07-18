@@ -58,10 +58,9 @@ def context():
     """
     Manage multiple configuration profiles (contexts).
 
-    Authentication Precedence:
+    Authentication Precedence:\n
       1. Environment variables (e.g., `CLARIFAI_PAT`) are used first if set.
-      2. The settings from the active context are used if no environment
-         variables are provided.
+      2. The settings from the active context are used if no environment variables are provided.\n
     """
 
 
@@ -116,7 +115,7 @@ def input_or_default(prompt, default):
     '-o', '--output-format', default='wide', type=click.Choice(['wide', 'name', 'json', 'yaml'])
 )
 @click.pass_context
-def list_contexts(ctx, output_format):
+def list(ctx, output_format):
     """List all available contexts."""
     if output_format == 'wide':
         columns = {
@@ -150,7 +149,7 @@ def list_contexts(ctx, output_format):
             print(yaml.safe_dump(dicts))
 
 
-@context.command('use')
+@context.command()
 @click.argument('name', type=str)
 @click.pass_context
 def use(ctx, name):
@@ -162,7 +161,7 @@ def use(ctx, name):
     print(f'Set {name} as the current context')
 
 
-@context.command('show')
+@context.command()
 @click.option('-o', '--output-format', default='name', type=click.Choice(['name', 'json', 'yaml']))
 @click.pass_context
 def show(ctx, output_format):
@@ -175,7 +174,7 @@ def show(ctx, output_format):
         print(yaml.safe_dump(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
 
 
-@context.command('create')
+@context.command()
 @click.argument('name')
 @click.option('--user-id', required=False, help='User ID')
 @click.option('--base-url', required=False, help='Base URL')
@@ -235,7 +234,7 @@ def delete(ctx, name):
     print(f'{name} deleted')
 
 
-@context.command('env')
+@context.command()
 @click.pass_context
 def env(ctx):
     """Print env vars for the active context."""
