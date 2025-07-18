@@ -76,7 +76,7 @@ def login(ctx, api_url, user_id):
     name = input('context name (default: "default"): ')
     user_id = user_id if user_id is not None else input('user id: ')
     pat = input_or_default(
-        'personal access token value (default: "ENVVAR" to get our of env var rather than config): ',
+        'personal access token value (default: "ENVVAR" to get out of env var rather than config): ',
         'ENVVAR',
     )
 
@@ -111,7 +111,7 @@ def input_or_default(prompt, default):
     return value if value else default
 
 
-@context.command('list', aliases=['ls'])
+@context.command(aliases=['ls'])
 @click.option(
     '-o', '--output-format', default='wide', type=click.Choice(['wide', 'name', 'json', 'yaml'])
 )
@@ -212,16 +212,17 @@ def create(
     logger.info(f"Context '{name}' created successfully")
 
 
-@context.command('edit')
-@click.argument('name', required=False)
+@context.command(aliases=['e'])
 @click.pass_context
-def edit_context(ctx, name=None):
-    """Open the config file for a context."""
+def edit(
+    ctx,
+):
+    """Open the configuration file for editing."""
     # For now, just open the config file (not per-context)
     os.system(f'{os.environ.get("EDITOR", "vi")} {ctx.obj.filename}')
 
 
-@context.command('delete', aliases=['rm'])
+@context.command(aliases=['rm'])
 @click.argument('name')
 @click.pass_context
 def delete(ctx, name):
