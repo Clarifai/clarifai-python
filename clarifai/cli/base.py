@@ -153,7 +153,7 @@ def list(ctx, output_format):
 @click.argument('name', type=str)
 @click.pass_context
 def use(ctx, name):
-    """Set the active context."""
+    """Set the current context."""
     if name not in ctx.obj.contexts:
         raise click.UsageError('Context not found')
     ctx.obj.current_context = name
@@ -165,7 +165,7 @@ def use(ctx, name):
 @click.option('-o', '--output-format', default='name', type=click.Choice(['name', 'json', 'yaml']))
 @click.pass_context
 def show(ctx, output_format):
-    """Show the active context's details."""
+    """Show the current context's details."""
     if output_format == 'name':
         print(ctx.obj.current_context)
     elif output_format == 'json':
