@@ -220,3 +220,128 @@ def validate_context_auth(pat: str, user_id: str, api_base: str = None):
             logger.error(f"❌ Validation failed: \n{error_msg}")
             logger.error("Please check your credentials and try again.")
         raise click.Abort()  # Exit without saving the configuration
+
+
+def customize_ollama_model(model_path, model_name, port, context_length):
+    """Customize the Ollama model name in the cloned template files.
+    Args:
+     model_path: Path to the cloned model directory
+     model_name: The model name to set (e.g., 'llama3.1', 'mistral')
+
+    """
+    model_py_path = os.path.join(model_path, "1", "model.py")
+
+    if not os.path.exists(model_py_path):
+        logger.warning(f"Model file {model_py_path} not found, skipping model name customization")
+        return
+
+    try:
+        # Read the model.py file
+        with open(model_py_path, 'r') as file:
+            content = file.read()
+        if model_name:
+            # Replace the default model name in the load_model method
+            content = content.replace(
+                'self.model = os.environ.get("OLLAMA_MODEL_NAME", \'llama3.2\')',
+                f'self.model = os.environ.get("OLLAMA_MODEL_NAME", \'{model_name}\')',
+            )
+
+        if port:
+            # Replace the default port variable in the model.py file
+            content = content.replace("PORT = '23333'", f"PORT = '{port}'")
+
+        if context_length:
+            # Replace the default context length variable in the model.py file
+            content = content.replace(
+                "context_length = '8192'", f"context_length = '{context_length}'"
+            )
+
+        # Write the modified content back to model.py
+        with open(model_py_path, 'w') as file:
+            file.write(content)
+
+    except Exception as e:
+        logger.error(f"Failed to customize Ollama model name in {model_py_path}: {e}")
+        raise
+
+
+def check_ollama_installed():
+    """Check if the Ollama CLI is installed."""
+    try:
+        import subprocess
+
+        result = subprocess.run(
+            ['ollama', '--version'], capture_output=True, text=True, check=False
+        )
+        if result.returncode == 0:
+            return True
+        else:
+            return False
+    except FileNotFoundError:
+        return False
+
+
+def _is_package_installed(package_name):
+    """Helper function to check if a single package in requirements.txt is installed."""
+    import importlib.metadata
+
+    try:
+        importlib.metadata.distribution(package_name)
+        logger.debug(f"✅ {package_name} - installed")
+        return True
+    except importlib.metadata.PackageNotFoundError:
+        logger.debug(f"❌ {package_name} - not installed")
+        return False
+    except Exception as e:
+        logger.warning(f"Error checking {package_name}: {e}")
+        return False
+
+
+def check_requirements_installed(model_path):
+    """Check if all dependencies in requirements.txt are installed."""
+    import re
+    from pathlib import Path
+
+    requirements_path = Path(model_path) / "requirements.txt"
+
+    if not requirements_path.exists():
+        logger.warning(f"requirements.txt not found at {requirements_path}")
+        return True
+
+    try:
+        package_pattern = re.compile(r'^([a-zA-Z0-9_-]+)')
+
+        # Getting package name and version (for logging)
+        requirements = [
+            (match.group(1), pack)
+            for line in requirements_path.read_text().splitlines()
+            if (pack := line.strip())
+            and not line.startswith('#')
+            and (match := package_pattern.match(line))
+        ]
+
+        if not requirements:
+            logger.info("No dependencies found in requirements.txt")
+            return True
+
+        logger.info(f"Checking {len(requirements)} dependencies...")
+
+        missing = [
+            full_req
+            for package_name, full_req in requirements
+            if not _is_package_installed(package_name)
+        ]
+
+        if not missing:
+            logger.info(f"✅ All {len(requirements)} dependencies are installed!")
+            return True
+
+        # Report missing packages
+        logger.error(f"❌ {len(missing)} out of {len(requirements)} dependencies are missing:")
+        logger.error("\n".join(f"  - {pkg}" for pkg in missing))
+        logger.warning(f"To install: pip install -r {requirements_path}")
+        return False
+
+    except Exception as e:
+        logger.error(f"Failed to check requirements: {e}")
+        return False
