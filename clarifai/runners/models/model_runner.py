@@ -1,3 +1,4 @@
+import time
 from typing import Iterator
 
 from clarifai_grpc.grpc.api import service_pb2
@@ -6,6 +7,7 @@ from clarifai_protocol import BaseRunner
 from clarifai_protocol.utils.health import HealthProbeRequestHandler
 
 from clarifai.client.auth.helper import ClarifaiAuthHelper
+from clarifai.utils.logging import logger
 
 from ..utils.url_fetcher import ensure_urls_downloaded
 from .model_class import ModelClass
@@ -107,12 +109,23 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         request = runner_item.post_model_outputs_request
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
 
+        start_time = time.time()
+        # Try to extract req_id from request or generate one
+        req_id = None
+        # Endpoint is always POST /v2/.../outputs for this runner
+        endpoint = "POST /v2/.../outputs"
+
         resp = self.model.predict_wrapper(request)
+        if req_id is None and resp.HasField('req_id') and resp.req_id:
+            req_id = resp.req_id
         # if we have any non-successful code already it's an error we can return.
         if (
             resp.status.code != status_code_pb2.SUCCESS
             and resp.status.code != status_code_pb2.ZERO
         ):
+            status_str = f"{resp.status.code} ERROR"
+            duration_ms = (time.time() - start_time) * 1000
+            logger.info(f"req_id={req_id} - {endpoint} - {status_str} - {duration_ms:.2f} ms")
             return service_pb2.RunnerItemOutput(multi_output_response=resp)
         successes = []
         for output in resp.outputs:
@@ -126,18 +139,23 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
                 code=status_code_pb2.SUCCESS,
                 description="Success",
             )
+            status_str = "200 OK"
         elif any(successes):
             status = status_pb2.Status(
                 code=status_code_pb2.MIXED_STATUS,
                 description="Mixed Status",
             )
+            status_str = "207 MIXED"
         else:
             status = status_pb2.Status(
                 code=status_code_pb2.FAILURE,
                 description="Failed",
             )
+            status_str = "500 FAIL"
 
         resp.status.CopyFrom(status)
+        duration_ms = (time.time() - start_time) * 1000
+        logger.info(f"req_id={req_id} - {endpoint} - {status_str} - {duration_ms:.2f} ms")
         return service_pb2.RunnerItemOutput(multi_output_response=resp)
 
     def runner_item_generate(
@@ -150,12 +168,25 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         request = runner_item.post_model_outputs_request
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
 
+        # --- Live logging additions ---
+        start_time = time.time()
+        # Try to extract req_id from request or generate one
+        req_id = None
+        endpoint = "POST /v2/.../outputs/generate"
+        logger.info(f"{endpoint} - STREAM START - 0.00 ms")
+        # --- End live logging setup ---
+
         for resp in self.model.generate_wrapper(request):
+            if req_id is None and resp.HasField('req_id') and resp.req_id:
+                req_id = resp.req_id
             # if we have any non-successful code already it's an error we can return.
             if (
                 resp.status.code != status_code_pb2.SUCCESS
                 and resp.status.code != status_code_pb2.ZERO
             ):
+                status_str = f"{resp.status.code} ERROR"
+                duration_ms = (time.time() - start_time) * 1000
+                logger.info(f"req_id={req_id} - {endpoint} - {status_str} - {duration_ms:.2f} ms")
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
                 continue
             successes = []
@@ -170,30 +201,46 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
                     code=status_code_pb2.SUCCESS,
                     description="Success",
                 )
+                status_str = "200 OK"
             elif any(successes):
                 status = status_pb2.Status(
                     code=status_code_pb2.MIXED_STATUS,
                     description="Mixed Status",
                 )
+                status_str = "207 MIXED"
             else:
                 status = status_pb2.Status(
                     code=status_code_pb2.FAILURE,
                     description="Failed",
                 )
+                status_str = "500 FAIL"
             resp.status.CopyFrom(status)
 
             yield service_pb2.RunnerItemOutput(multi_output_response=resp)
+
+        duration_ms = (time.time() - start_time) * 1000
+        logger.info(f"req_id={req_id} - {endpoint} - {status_str} - {duration_ms:.2f} ms")
 
     def runner_item_stream(
         self, runner_item_iterator: Iterator[service_pb2.RunnerItem]
     ) -> Iterator[service_pb2.RunnerItemOutput]:
         # Call the generate() method the underlying model implements.
+        start_time = time.time()
+        req_id = None
+        endpoint = "POST /v2/.../outputs/stream"
+        logger.info(f"{endpoint} - STREAM START - 0.00 ms")
+
         for resp in self.model.stream_wrapper(pmo_iterator(runner_item_iterator)):
             # if we have any non-successful code already it's an error we can return.
+            if req_id is None and resp.HasField('req_id') and resp.req_id:
+                req_id = resp.req_id
             if (
                 resp.status.code != status_code_pb2.SUCCESS
                 and resp.status.code != status_code_pb2.ZERO
             ):
+                status_str = f"{resp.status.code} ERROR"
+                duration_ms = (time.time() - start_time) * 1000
+                logger.info(f"req_id={req_id} - {endpoint} - {status_str} - {duration_ms:.2f} ms")
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
                 continue
             successes = []
@@ -208,19 +255,25 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
                     code=status_code_pb2.SUCCESS,
                     description="Success",
                 )
+                status_str = "200 OK"
             elif any(successes):
                 status = status_pb2.Status(
                     code=status_code_pb2.MIXED_STATUS,
                     description="Mixed Status",
                 )
+                status_str = "207 MIXED"
             else:
                 status = status_pb2.Status(
                     code=status_code_pb2.FAILURE,
                     description="Failed",
                 )
+                status_str = "500 FAIL"
             resp.status.CopyFrom(status)
 
             yield service_pb2.RunnerItemOutput(multi_output_response=resp)
+
+        duration_ms = (time.time() - start_time) * 1000
+        logger.info(f"req_id={req_id} - {endpoint} - {status_str} - {duration_ms:.2f} ms")
 
 
 def pmo_iterator(runner_item_iterator, auth_helper=None):
