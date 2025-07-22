@@ -110,6 +110,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
         start_time = time.time()
         req_id = get_req_id_from_context()
+        status_str = "UNKNOWN"
         # Endpoint is always POST /v2/.../outputs for this runner
         endpoint = "POST /v2/.../outputs         "
 
@@ -167,6 +168,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         # --- Live logging additions ---
         start_time = time.time()
         req_id = get_req_id_from_context()
+        status_str = "UNKNOWN"
         endpoint = "POST /v2/.../outputs/generate"
 
         for resp in self.model.generate_wrapper(request):
@@ -218,6 +220,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         # Call the generate() method the underlying model implements.
         start_time = time.time()
         req_id = get_req_id_from_context()
+        status_str = "UNKNOWN"
         endpoint = "POST /v2/.../outputs/stream  "
 
         for resp in self.model.stream_wrapper(pmo_iterator(runner_item_iterator)):
