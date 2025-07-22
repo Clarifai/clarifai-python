@@ -114,6 +114,15 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         # Endpoint is always POST /v2/.../outputs for this runner
         endpoint = "POST /v2/.../outputs         "
 
+        # if method_name == '_GET_SIGNATURES' then the request is for getting signatures and we don't want to log it.
+        # This is a workaround to avoid logging the _GET_SIGNATURES method call.
+        method_name = None
+        logging = True
+        if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
+            method_name = request.inputs[0].data.metadata['_method_name']
+        if method_name == '_GET_SIGNATURES':
+            logging = False
+
         resp = self.model.predict_wrapper(request)
         # if we have any non-successful code already it's an error we can return.
         if (
@@ -151,8 +160,9 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
             status_str = "500 FAIL"
 
         resp.status.CopyFrom(status)
-        duration_ms = (time.time() - start_time) * 1000
-        logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
+        if logging:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
         return service_pb2.RunnerItemOutput(multi_output_response=resp)
 
     def runner_item_generate(
