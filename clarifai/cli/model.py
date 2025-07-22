@@ -722,8 +722,8 @@ def local_runner(ctx, model_path, pool_size):
     # Now we need to create a version for the model if no version exists. Only need one version that
     # mentions it's a local runner.
     model_versions = [v for v in model.list_versions()]
+    signatures = builder.get_method_signatures()
     if len(model_versions) == 0:
-        signatures = builder.get_method_signatures()
         logger.warning("No model versions found. Creating a new version for local runner.")
         version = model.create_version(
             pretrained_model_config={"local_dev": True},
@@ -731,8 +731,6 @@ def local_runner(ctx, model_path, pool_size):
         ).model_version
     else:
         version = model_versions[0].model_version
-        signatures = (builder.get_method_signatures(),)
-        logger.info(f"builder.get_method_signatures(): {signatures}")
 
         model.patch_version(
             version.id,

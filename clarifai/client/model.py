@@ -2128,5 +2128,4 @@ class Model(Lister, BaseClient):
         response = self._grpc_request(self.STUB.PatchModelVersions, request)
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
-        self.logger.info(f"Patched model version response: {response}")
         self.logger.info(f"\nModel Version {version_id} patched successfully\n{response.status}")
