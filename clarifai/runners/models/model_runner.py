@@ -7,7 +7,7 @@ from clarifai_protocol import BaseRunner
 from clarifai_protocol.utils.health import HealthProbeRequestHandler
 
 from clarifai.client.auth.helper import ClarifaiAuthHelper
-from clarifai.utils.logging import logger
+from clarifai.utils.logging import get_req_id_from_context, logger
 
 from ..utils.url_fetcher import ensure_urls_downloaded
 from .model_class import ModelClass
@@ -108,16 +108,12 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
-
         start_time = time.time()
-        # Try to extract req_id from request or generate one
-        req_id = None
+        req_id = get_req_id_from_context()
         # Endpoint is always POST /v2/.../outputs for this runner
         endpoint = "POST /v2/.../outputs"
 
         resp = self.model.predict_wrapper(request)
-        if req_id is None and resp.HasField('req_id') and resp.req_id:
-            req_id = resp.req_id
         # if we have any non-successful code already it's an error we can return.
         if (
             resp.status.code != status_code_pb2.SUCCESS
@@ -170,15 +166,10 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
 
         # --- Live logging additions ---
         start_time = time.time()
-        # Try to extract req_id from request or generate one
-        req_id = None
+        req_id = get_req_id_from_context()
         endpoint = "POST /v2/.../outputs/generate"
-        logger.info(f"{endpoint} - STREAM START - 0.00 ms")
-        # --- End live logging setup ---
 
         for resp in self.model.generate_wrapper(request):
-            if req_id is None and resp.HasField('req_id') and resp.req_id:
-                req_id = resp.req_id
             # if we have any non-successful code already it's an error we can return.
             if (
                 resp.status.code != status_code_pb2.SUCCESS
@@ -226,14 +217,11 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
     ) -> Iterator[service_pb2.RunnerItemOutput]:
         # Call the generate() method the underlying model implements.
         start_time = time.time()
-        req_id = None
+        req_id = get_req_id_from_context()
         endpoint = "POST /v2/.../outputs/stream"
-        logger.info(f"{endpoint} - STREAM START - 0.00 ms")
 
         for resp in self.model.stream_wrapper(pmo_iterator(runner_item_iterator)):
             # if we have any non-successful code already it's an error we can return.
-            if req_id is None and resp.HasField('req_id') and resp.req_id:
-                req_id = resp.req_id
             if (
                 resp.status.code != status_code_pb2.SUCCESS
                 and resp.status.code != status_code_pb2.ZERO
