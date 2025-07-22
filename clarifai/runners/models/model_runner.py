@@ -7,6 +7,7 @@ from clarifai_protocol import BaseRunner
 from clarifai_protocol.utils.health import HealthProbeRequestHandler
 
 from clarifai.client.auth.helper import ClarifaiAuthHelper
+from clarifai.utils.constants import STATUS_FAIL, STATUS_MIXED, STATUS_OK, STATUS_UNKNOWN
 from clarifai.utils.logging import get_req_id_from_context, logger
 
 from ..utils.url_fetcher import ensure_urls_downloaded
@@ -110,7 +111,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
         start_time = time.time()
         req_id = get_req_id_from_context()
-        status_str = "UNKNOWN"
+        status_str = STATUS_UNKNOWN
         # Endpoint is always POST /v2/.../outputs for this runner
         endpoint = "POST /v2/.../outputs         "
 
@@ -145,19 +146,19 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
                 code=status_code_pb2.SUCCESS,
                 description="Success",
             )
-            status_str = "200 OK"
+            status_str = STATUS_OK
         elif any(successes):
             status = status_pb2.Status(
                 code=status_code_pb2.MIXED_STATUS,
                 description="Mixed Status",
             )
-            status_str = "207 MIXED"
+            status_str = STATUS_MIXED
         else:
             status = status_pb2.Status(
                 code=status_code_pb2.FAILURE,
                 description="Failed",
             )
-            status_str = "500 FAIL"
+            status_str = STATUS_FAIL
 
         resp.status.CopyFrom(status)
         if logging:
@@ -178,7 +179,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         # --- Live logging additions ---
         start_time = time.time()
         req_id = get_req_id_from_context()
-        status_str = "UNKNOWN"
+        status_str = STATUS_UNKNOWN
         endpoint = "POST /v2/.../outputs/generate"
 
         for resp in self.model.generate_wrapper(request):
@@ -204,19 +205,19 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
                     code=status_code_pb2.SUCCESS,
                     description="Success",
                 )
-                status_str = "200 OK"
+                status_str = STATUS_OK
             elif any(successes):
                 status = status_pb2.Status(
                     code=status_code_pb2.MIXED_STATUS,
                     description="Mixed Status",
                 )
-                status_str = "207 MIXED"
+                status_str = STATUS_MIXED
             else:
                 status = status_pb2.Status(
                     code=status_code_pb2.FAILURE,
                     description="Failed",
                 )
-                status_str = "500 FAIL"
+                status_str = STATUS_FAIL
             resp.status.CopyFrom(status)
 
             yield service_pb2.RunnerItemOutput(multi_output_response=resp)
@@ -230,7 +231,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         # Call the generate() method the underlying model implements.
         start_time = time.time()
         req_id = get_req_id_from_context()
-        status_str = "UNKNOWN"
+        status_str = STATUS_UNKNOWN
         endpoint = "POST /v2/.../outputs/stream  "
 
         for resp in self.model.stream_wrapper(pmo_iterator(runner_item_iterator)):
@@ -256,19 +257,19 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
                     code=status_code_pb2.SUCCESS,
                     description="Success",
                 )
-                status_str = "200 OK"
+                status_str = STATUS_OK
             elif any(successes):
                 status = status_pb2.Status(
                     code=status_code_pb2.MIXED_STATUS,
                     description="Mixed Status",
                 )
-                status_str = "207 MIXED"
+                status_str = STATUS_MIXED
             else:
                 status = status_pb2.Status(
                     code=status_code_pb2.FAILURE,
                     description="Failed",
                 )
-                status_str = "500 FAIL"
+                status_str = STATUS_FAIL
             resp.status.CopyFrom(status)
 
             yield service_pb2.RunnerItemOutput(multi_output_response=resp)
