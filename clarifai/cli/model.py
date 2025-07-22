@@ -602,6 +602,7 @@ def local_runner(ctx, model_path, pool_size):
         raise click.Abort()
     user = User(user_id=user_id, pat=ctx.obj.current.pat, base_url=ctx.obj.current.api_base)
     logger.debug("Checking if a local runner compute cluster exists...")
+
     # see if ctx has CLARIFAI_COMPUTE_CLUSTER_ID, if not use default
     try:
         compute_cluster_id = ctx.obj.current.compute_cluster_id
@@ -694,7 +695,7 @@ def local_runner(ctx, model_path, pool_size):
     except AttributeError:
         model_id = DEFAULT_LOCAL_RUNNER_MODEL_ID
     logger.info(f"Current model_id: {model_id}")
-    builder = ModelBuilder(model_path, download_validation_only=True)
+
     try:
         model = app.model(model_id)
         try:
@@ -722,21 +723,11 @@ def local_runner(ctx, model_path, pool_size):
     # Now we need to create a version for the model if no version exists. Only need one version that
     # mentions it's a local runner.
     model_versions = [v for v in model.list_versions()]
-    signatures = builder.get_method_signatures()
     if len(model_versions) == 0:
         logger.warning("No model versions found. Creating a new version for local runner.")
-        version = model.create_version(
-            pretrained_model_config={"local_dev": True},
-            method_signatures=signatures,
-        ).model_version
+        version = model.create_version(pretrained_model_config={"local_dev": True}).model_version
     else:
         version = model_versions[0].model_version
-
-        model.patch_version(
-            version.id,
-            pretrained_model_config={"local_dev": True},
-            method_signatures=signatures,
-        )
 
     logger.info(f"Current model version {version.id}")
 
@@ -866,6 +857,7 @@ def local_runner(ctx, model_path, pool_size):
         ModelBuilder._backup_config(config_file)
         ModelBuilder._save_config(config_file, config)
 
+    builder = ModelBuilder(model_path, download_validation_only=True)
     # don't mock for local runner since you need the dependencies to run the code anyways.
     method_signatures = builder.get_method_signatures(mocking=False)
 

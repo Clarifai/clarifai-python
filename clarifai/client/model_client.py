@@ -110,9 +110,6 @@ class ModelClient:
                 self._fetch_signatures_backup()
         except Exception:
             # try to fetch from the model
-            logger.info(
-                f'Failed to fetch method signatures from model {self.request_template.model_id}, trying backup method'
-            )
             self._fetch_signatures_backup()
             if not self._method_signatures:
                 raise ValueError("Failed to fetch method signatures from model and backup method")
