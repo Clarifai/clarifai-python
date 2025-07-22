@@ -5,7 +5,12 @@ import tempfile
 import click
 
 from clarifai.cli.base import cli, pat_display
-from clarifai.utils.cli import validate_context
+from clarifai.utils.cli import (
+    check_ollama_installed,
+    check_requirements_installed,
+    customize_ollama_model,
+    validate_context,
+)
 from clarifai.utils.constants import (
     DEFAULT_LOCAL_RUNNER_APP_ID,
     DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG,
@@ -20,49 +25,6 @@ from clarifai.utils.constants import (
 )
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import GitHubDownloader, clone_github_repo, format_github_repo_url
-
-
-def customize_ollama_model(model_path, model_name, port, context_length):
-    """Customize the Ollama model name in the cloned template files.
-    Args:
-     model_path: Path to the cloned model directory
-     model_name: The model name to set (e.g., 'llama3.1', 'mistral')
-
-    """
-    model_py_path = os.path.join(model_path, "1", "model.py")
-
-    if not os.path.exists(model_py_path):
-        logger.warning(f"Model file {model_py_path} not found, skipping model name customization")
-        return
-
-    try:
-        # Read the model.py file
-        with open(model_py_path, 'r') as file:
-            content = file.read()
-        if model_name:
-            # Replace the default model name in the load_model method
-            content = content.replace(
-                'self.model = os.environ.get("OLLAMA_MODEL_NAME", \'llama3.2\')',
-                f'self.model = os.environ.get("OLLAMA_MODEL_NAME", \'{model_name}\')',
-            )
-
-        if port:
-            # Replace the default port variable in the model.py file
-            content = content.replace("PORT = '23333'", f"PORT = '{port}'")
-
-        if context_length:
-            # Replace the default context length variable in the model.py file
-            content = content.replace(
-                "context_length = '8192'", f"context_length = '{context_length}'"
-            )
-
-        # Write the modified content back to model.py
-        with open(model_py_path, 'w') as file:
-            file.write(content)
-
-    except Exception as e:
-        logger.error(f"Failed to customize Ollama model name in {model_py_path}: {e}")
-        raise
 
 
 @cli.group(
@@ -164,6 +126,11 @@ def init(
 
     # --toolkit option
     if toolkit == 'ollama':
+        if not check_ollama_installed():
+            logger.error(
+                "Ollama is not installed. Please install it from `https://ollama.com/` to use the Ollama toolkit."
+            )
+            raise click.Abort()
         github_url = DEFAULT_OLLAMA_MODEL_REPO
         branch = DEFAULT_OLLAMA_MODEL_REPO_BRANCH
 
@@ -858,6 +825,18 @@ def local_runner(ctx, model_path, pool_size):
         ModelBuilder._save_config(config_file, config)
 
     builder = ModelBuilder(model_path, download_validation_only=True)
+    if not check_requirements_installed(model_path):
+        logger.error(f"Requirements not installed for model at {model_path}.")
+        raise click.Abort()
+
+    # Post check while running `clarifai model local-runner` we check if the toolkit is ollama
+    if builder.config.get('toolkit', {}).get('provider') == 'ollama':
+        if not check_ollama_installed():
+            logger.error(
+                "Ollama is not installed. Please install it from `https://ollama.com/` to use the Ollama toolkit."
+            )
+            raise click.Abort()
+
     # don't mock for local runner since you need the dependencies to run the code anyways.
     method_signatures = builder.get_method_signatures(mocking=False)
 
