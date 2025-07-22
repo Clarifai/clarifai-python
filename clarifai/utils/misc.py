@@ -112,8 +112,10 @@ def get_from_dict_env_or_config(key: str, env_key: str, **data) -> str:
 
     # If all methods fail, raise an error suggesting clarifai login
     raise UserError(
-        f"Did not find `{key}`. Please set the environment variable `{env_key}`, "
-        f"pass `{key}` as a named parameter, or run `clarifai login` to set up CLI configuration."
+        f"Configuration Required. Could not find '{key}'. Please provide it in one of the following ways:\n\n"
+        f"- Pass '{key}' as a named parameter to your function.\n"
+        f"- Set the {env_key} environment variable in your environment.\n"
+        f"- Run `clarifai login` in your terminal to configure CLI authentication."
     )
 
 

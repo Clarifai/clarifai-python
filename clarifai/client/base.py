@@ -50,9 +50,10 @@ class BaseClient:
         finally:
             if not (token or pat):
                 raise UserError(
-                    "Authentication required: Please provide 'pat' or 'token' as arguments, "
-                    "or set CLARIFAI_PAT or CLARIFAI_SESSION_TOKEN environment variables, "
-                    "or run `clarifai login` to set up CLI configuration."
+                    "Authentication Required. Please authenticate in one of the following ways:\n\n"
+                    "- Pass your Personal Access Token ('pat') or session token ('token') as arguments to your function.\n"
+                    "- Set the CLARIFAI_PAT or CLARIFAI_SESSION_TOKEN environment variables in your environment.\n"
+                    "- Run `clarifai login` in your terminal to configure CLI authentication."
                 )
 
         # Also try to get user_id and base from CLI config if not provided
