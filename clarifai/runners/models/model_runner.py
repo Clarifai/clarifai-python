@@ -111,7 +111,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         start_time = time.time()
         req_id = get_req_id_from_context()
         # Endpoint is always POST /v2/.../outputs for this runner
-        endpoint = "POST /v2/.../outputs"
+        endpoint = "POST /v2/.../outputs         "
 
         resp = self.model.predict_wrapper(request)
         # if we have any non-successful code already it's an error we can return.
@@ -121,7 +121,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         ):
             status_str = f"{resp.status.code} ERROR"
             duration_ms = (time.time() - start_time) * 1000
-            logger.info(f"req_id={req_id} - {endpoint} - {status_str} - {duration_ms:.2f} ms")
+            logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
             return service_pb2.RunnerItemOutput(multi_output_response=resp)
         successes = []
         for output in resp.outputs:
@@ -151,7 +151,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
 
         resp.status.CopyFrom(status)
         duration_ms = (time.time() - start_time) * 1000
-        logger.info(f"req_id={req_id} - {endpoint} - {status_str} - {duration_ms:.2f} ms")
+        logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
         return service_pb2.RunnerItemOutput(multi_output_response=resp)
 
     def runner_item_generate(
@@ -177,7 +177,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
             ):
                 status_str = f"{resp.status.code} ERROR"
                 duration_ms = (time.time() - start_time) * 1000
-                logger.info(f"req_id={req_id} - {endpoint} - {status_str} - {duration_ms:.2f} ms")
+                logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
                 continue
             successes = []
@@ -210,7 +210,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
             yield service_pb2.RunnerItemOutput(multi_output_response=resp)
 
         duration_ms = (time.time() - start_time) * 1000
-        logger.info(f"req_id={req_id} - {endpoint} - {status_str} - {duration_ms:.2f} ms")
+        logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
 
     def runner_item_stream(
         self, runner_item_iterator: Iterator[service_pb2.RunnerItem]
@@ -218,7 +218,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         # Call the generate() method the underlying model implements.
         start_time = time.time()
         req_id = get_req_id_from_context()
-        endpoint = "POST /v2/.../outputs/stream"
+        endpoint = "POST /v2/.../outputs/stream  "
 
         for resp in self.model.stream_wrapper(pmo_iterator(runner_item_iterator)):
             # if we have any non-successful code already it's an error we can return.
@@ -228,7 +228,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
             ):
                 status_str = f"{resp.status.code} ERROR"
                 duration_ms = (time.time() - start_time) * 1000
-                logger.info(f"req_id={req_id} - {endpoint} - {status_str} - {duration_ms:.2f} ms")
+                logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
                 continue
             successes = []
@@ -261,7 +261,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
             yield service_pb2.RunnerItemOutput(multi_output_response=resp)
 
         duration_ms = (time.time() - start_time) * 1000
-        logger.info(f"req_id={req_id} - {endpoint} - {status_str} - {duration_ms:.2f} ms")
+        logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
 
 
 def pmo_iterator(runner_item_iterator, auth_helper=None):
