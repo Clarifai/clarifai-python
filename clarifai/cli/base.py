@@ -12,7 +12,6 @@ from clarifai.utils.constants import DEFAULT_BASE, DEFAULT_CONFIG, DEFAULT_UI
 from clarifai.utils.logging import logger
 
 
-# @click.group(cls=CustomMultiGroup)
 @click.group(cls=AliasedGroup)
 @click.version_option(version=__version__)
 @click.option('--config', default=DEFAULT_CONFIG)
@@ -54,7 +53,7 @@ def shell_completion(shell):
 
 
 @cli.group(cls=AliasedGroup)
-def context():
+def config():
     """
     Manage multiple configuration profiles (contexts).
 
@@ -110,12 +109,13 @@ def input_or_default(prompt, default):
     return value if value else default
 
 
-@context.command(aliases=['ls'])
+# Context management commands under config group
+@config.command(aliases=['get-contexts', 'list-contexts'])
 @click.option(
     '-o', '--output-format', default='wide', type=click.Choice(['wide', 'name', 'json', 'yaml'])
 )
 @click.pass_context
-def list(ctx, output_format):
+def get_contexts(ctx, output_format):
     """List all available contexts."""
     if output_format == 'wide':
         columns = {
@@ -149,10 +149,10 @@ def list(ctx, output_format):
             print(yaml.safe_dump(dicts))
 
 
-@context.command()
+@config.command(aliases=['use-context'])
 @click.argument('name', type=str)
 @click.pass_context
-def use(ctx, name):
+def use_context(ctx, name):
     """Set the current context."""
     if name not in ctx.obj.contexts:
         raise click.UsageError('Context not found')
@@ -161,10 +161,10 @@ def use(ctx, name):
     print(f'Set {name} as the current context')
 
 
-@context.command()
+@config.command(aliases=['current-context'])
 @click.option('-o', '--output-format', default='name', type=click.Choice(['name', 'json', 'yaml']))
 @click.pass_context
-def show(ctx, output_format):
+def current_context(ctx, output_format):
     """Show the current context's details."""
     if output_format == 'name':
         print(ctx.obj.current_context)
@@ -174,13 +174,13 @@ def show(ctx, output_format):
         print(yaml.safe_dump(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
 
 
-@context.command()
+@config.command(aliases=['create-context'])
 @click.argument('name')
 @click.option('--user-id', required=False, help='User ID')
 @click.option('--base-url', required=False, help='Base URL')
 @click.option('--pat', required=False, help='Personal access token')
 @click.pass_context
-def create(
+def create_context(
     ctx,
     name,
     user_id=None,
@@ -211,7 +211,7 @@ def create(
     logger.info(f"Context '{name}' created successfully")
 
 
-@context.command(aliases=['e'])
+@config.command(aliases=['e'])
 @click.pass_context
 def edit(
     ctx,
@@ -221,10 +221,10 @@ def edit(
     os.system(f'{os.environ.get("EDITOR", "vi")} {ctx.obj.filename}')
 
 
-@context.command(aliases=['rm'])
+@config.command(aliases=['delete-context'])
 @click.argument('name')
 @click.pass_context
-def delete(ctx, name):
+def delete_context(ctx, name):
     """Delete a context."""
     if name not in ctx.obj.contexts:
         print(f'{name} is not a valid context')
@@ -234,11 +234,29 @@ def delete(ctx, name):
     print(f'{name} deleted')
 
 
-@context.command()
+@config.command(aliases=['get-env'])
 @click.pass_context
 def env(ctx):
     """Print env vars for the active context."""
     ctx.obj.current.print_env_vars()
+
+
+@config.command(aliases=['show'])
+@click.option('-o', '--output-format', default='yaml', type=click.Choice(['json', 'yaml']))
+@click.pass_context
+def view(ctx, output_format):
+    """Display the current configuration."""
+    config_dict = {
+        'current-context': ctx.obj.current_context,
+        'contexts': {
+            name: context.to_serializable_dict() for name, context in ctx.obj.contexts.items()
+        },
+    }
+
+    if output_format == 'json':
+        print(json.dumps(config_dict, indent=2))
+    else:
+        print(yaml.safe_dump(config_dict, default_flow_style=False))
 
 
 @cli.command()
