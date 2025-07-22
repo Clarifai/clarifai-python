@@ -829,6 +829,14 @@ def local_runner(ctx, model_path, pool_size):
         logger.error(f"Requirements not installed for model at {model_path}.")
         raise click.Abort()
 
+    # Post check while running `clarifai model local-runner` we check if the toolkit is ollama
+    if builder.config.get('toolkit', {}).get('provider') == 'ollama':
+        if not check_ollama_installed():
+            logger.error(
+                "Ollama is not installed. Please install it from `https://ollama.com/` to use the Ollama toolkit."
+            )
+            raise click.Abort()
+
     # don't mock for local runner since you need the dependencies to run the code anyways.
     method_signatures = builder.get_method_signatures(mocking=False)
 

@@ -337,7 +337,9 @@ def check_requirements_installed(model_path):
             return True
 
         # Report missing packages
-        logger.error(f"❌ {len(missing)} out of {len(requirements)} dependencies are missing:")
+        logger.error(
+            f"❌ {len(missing)} of {len(requirements)} required packages are missing in the current environment"
+        )
         logger.error("\n".join(f"  - {pkg}" for pkg in missing))
         logger.warning(f"To install: pip install -r {requirements_path}")
         return False
