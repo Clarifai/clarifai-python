@@ -11,7 +11,7 @@ from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.constants.base import COMPUTE_ORCHESTRATION_RESOURCES
 from clarifai.errors import ApiError, UserError
 from clarifai.utils.constants import CLARIFAI_PAT_ENV_VAR, CLARIFAI_SESSION_TOKEN_ENV_VAR
-from clarifai.utils.misc import get_from_dict_or_env, get_from_dict_env_or_config
+from clarifai.utils.misc import get_from_dict_env_or_config
 
 
 class BaseClient:
@@ -45,36 +45,35 @@ class BaseClient:
                 token = get_from_dict_env_or_config(
                     key="token", env_key=CLARIFAI_SESSION_TOKEN_ENV_VAR, **kwargs
                 )
-            except UserError as e:
-                # Update error message to suggest clarifai login
-                error_msg = str(e).replace(
-                    "run `clarifai login` to set up CLI configuration.",
-                    "run `clarifai login` to set up CLI configuration."
-                )
-                raise UserError(error_msg)
+            except UserError:
+                pass
         finally:
             if not (token or pat):
                 raise UserError(
                     "Authentication required: Please provide 'pat' or 'token' as arguments, "
-                    "set CLARIFAI_PAT or CLARIFAI_SESSION_TOKEN environment variables, "
+                    "or set CLARIFAI_PAT or CLARIFAI_SESSION_TOKEN environment variables, "
                     "or run `clarifai login` to set up CLI configuration."
                 )
-        
+
         # Also try to get user_id and base from CLI config if not provided
         if not kwargs.get('user_id'):
             try:
-                user_id = get_from_dict_env_or_config(key="user_id", env_key="CLARIFAI_USER_ID", **kwargs)
+                user_id = get_from_dict_env_or_config(
+                    key="user_id", env_key="CLARIFAI_USER_ID", **kwargs
+                )
                 kwargs['user_id'] = user_id
             except UserError:
                 pass  # user_id is optional for some use cases
-        
+
         if not kwargs.get('base'):
             try:
-                base = get_from_dict_env_or_config(key="base", env_key="CLARIFAI_API_BASE", **kwargs)
+                base = get_from_dict_env_or_config(
+                    key="base", env_key="CLARIFAI_API_BASE", **kwargs
+                )
                 kwargs['base'] = base
             except UserError:
                 pass  # base has a default value
-        
+
         kwargs.update({'token': token, 'pat': pat})
 
         self.auth_helper = ClarifaiAuthHelper(**kwargs, validate=False)

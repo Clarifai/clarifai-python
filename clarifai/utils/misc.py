@@ -77,18 +77,19 @@ def get_from_dict_env_or_config(key: str, env_key: str, **data) -> str:
     # First try the provided data/kwargs
     if key in data and data[key]:
         return data[key]
-    
+
     # Then try environment variables
     if env_key in os.environ and os.environ[env_key]:
         return os.environ[env_key]
-    
+
     # Finally try CLI config context as fallback
     try:
         from clarifai.utils.config import Config
         from clarifai.utils.constants import DEFAULT_CONFIG
+
         config = Config.from_yaml(filename=DEFAULT_CONFIG)
         current_context = config.current
-        
+
         # Convert env_key to the attribute name expected by Context
         # e.g., CLARIFAI_PAT -> pat, CLARIFAI_USER_ID -> user_id, CLARIFAI_API_BASE -> api_base
         if env_key == "CLARIFAI_PAT":
@@ -100,7 +101,7 @@ def get_from_dict_env_or_config(key: str, env_key: str, **data) -> str:
         else:
             # For other cases, convert CLARIFAI_SOMETHING to something
             attr_name = env_key.replace("CLARIFAI_", "").lower()
-        
+
         if hasattr(current_context, attr_name):
             value = getattr(current_context, attr_name)
             if value:
@@ -108,7 +109,7 @@ def get_from_dict_env_or_config(key: str, env_key: str, **data) -> str:
     except Exception:
         # If CLI config loading fails, fall through to raise error
         pass
-    
+
     # If all methods fail, raise an error suggesting clarifai login
     raise UserError(
         f"Did not find `{key}`. Please set the environment variable `{env_key}`, "
