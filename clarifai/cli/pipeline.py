@@ -313,9 +313,10 @@ def list(ctx, page_no, per_page, app_id):
     display_co_resources(
         response,
         custom_columns={
-            'ID': lambda p: p.get('id', ''),
-            'USER_ID': lambda p: p.get('user_id', ''),
-            'APP_ID': lambda p: p.get('app_id', ''),
-            'DESCRIPTION': lambda p: p.get('description', ''),
+            'ID': lambda p: getattr(p, 'pipeline_id', ''),
+            'USER_ID': lambda p: getattr(p, 'user_id', ''),
+            'APP_ID': lambda p: getattr(p, 'app_id', ''),
+            'VERSION_ID': lambda p: getattr(p, 'pipeline_version_id', ''),
+            'DESCRIPTION': lambda p: getattr(p, 'description', ''),
         },
     )

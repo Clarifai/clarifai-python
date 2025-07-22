@@ -14,6 +14,8 @@ from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
 from clarifai.client.model import Model
 from clarifai.client.module import Module
+from clarifai.client.pipeline import Pipeline
+from clarifai.client.pipeline_step import PipelineStep
 from clarifai.client.search import Search
 from clarifai.client.workflow import Workflow
 from clarifai.constants.model import TRAINABLE_MODEL_TYPES
@@ -238,7 +240,11 @@ class App(Lister, BaseClient):
             if only_in_app:
                 if pipeline_info.get('app_id') != self.id:
                     continue
-            yield pipeline_info
+            # Map API field names to constructor parameter names
+            pipeline_kwargs = pipeline_info.copy()
+            if 'id' in pipeline_kwargs:
+                pipeline_kwargs['pipeline_id'] = pipeline_kwargs.pop('id')
+            yield Pipeline.from_auth_helper(auth=self.auth_helper, **pipeline_kwargs)
 
     def list_pipeline_steps(
         self,
@@ -274,8 +280,8 @@ class App(Lister, BaseClient):
             request_data['pipeline_id'] = pipeline_id
 
         all_pipeline_steps_info = self.list_pages_generator(
-            self.STUB.ListPipelineSteps,
-            service_pb2.ListPipelineStepsRequest,
+            self.STUB.ListPipelineStepVersions,
+            service_pb2.ListPipelineStepVersionsRequest,
             request_data,
             per_page=per_page,
             page_no=page_no,
@@ -285,7 +291,11 @@ class App(Lister, BaseClient):
             if only_in_app:
                 if pipeline_step_info.get('app_id') != self.id:
                     continue
-            yield pipeline_step_info
+            # Map API field names to constructor parameter names
+            step_kwargs = pipeline_step_info.copy()
+            if 'id' in step_kwargs:
+                step_kwargs['pipeline_step_id'] = step_kwargs.pop('id')
+            yield PipelineStep.from_auth_helper(auth=self.auth_helper, **step_kwargs)
 
     def list_modules(
         self,

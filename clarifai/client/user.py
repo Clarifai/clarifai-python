@@ -11,6 +11,8 @@ from clarifai.client.app import App
 from clarifai.client.base import BaseClient
 from clarifai.client.compute_cluster import ComputeCluster
 from clarifai.client.lister import Lister
+from clarifai.client.pipeline import Pipeline
+from clarifai.client.pipeline_step import PipelineStep
 from clarifai.errors import UserError
 from clarifai.utils.constants import DEFAULT_BASE
 from clarifai.utils.logging import logger
@@ -184,7 +186,11 @@ class User(Lister, BaseClient):
         )
 
         for pipeline_info in all_pipelines_info:
-            yield pipeline_info
+            # Map API field names to constructor parameter names
+            pipeline_kwargs = pipeline_info.copy()
+            if 'id' in pipeline_kwargs:
+                pipeline_kwargs['pipeline_id'] = pipeline_kwargs.pop('id')
+            yield Pipeline.from_auth_helper(auth=self.auth_helper, **pipeline_kwargs)
 
     def list_pipeline_steps(
         self, page_no: int = None, per_page: int = None
@@ -209,15 +215,19 @@ class User(Lister, BaseClient):
         """
         request_data = dict(user_app_id=self.user_app_id)
         all_pipeline_steps_info = self.list_pages_generator(
-            self.STUB.ListPipelineSteps,
-            service_pb2.ListPipelineStepsRequest,
+            self.STUB.ListPipelineStepVersions,
+            service_pb2.ListPipelineStepVersionsRequest,
             request_data,
             per_page=per_page,
             page_no=page_no,
         )
 
         for pipeline_step_info in all_pipeline_steps_info:
-            yield pipeline_step_info
+            # Map API field names to constructor parameter names
+            step_kwargs = pipeline_step_info.copy()
+            if 'id' in step_kwargs:
+                step_kwargs['pipeline_step_id'] = step_kwargs.pop('id')
+            yield PipelineStep.from_auth_helper(auth=self.auth_helper, **step_kwargs)
 
     def create_app(self, app_id: str, base_workflow: str = 'Empty', **kwargs) -> App:
         """Creates an app for the user.

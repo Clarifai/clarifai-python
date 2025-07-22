@@ -89,6 +89,10 @@ class Pipeline(Lister, BaseClient):
         self.compute_cluster_id = compute_cluster_id
         self.log_file = log_file
 
+        # Store all kwargs as attributes for API data
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
         BaseClient.__init__(
             self,
             user_id=user_id,

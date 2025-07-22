@@ -150,10 +150,10 @@ def list(ctx, page_no, per_page, app_id, pipeline_id):
     display_co_resources(
         response,
         custom_columns={
-            'ID': lambda ps: ps.get('id', ''),
-            'USER_ID': lambda ps: ps.get('user_id', ''),
-            'APP_ID': lambda ps: ps.get('app_id', ''),
-            'PIPELINE_ID': lambda ps: ps.get('pipeline_id', ''),
-            'DESCRIPTION': lambda ps: ps.get('description', ''),
+            'PIPELINE_STEP_ID': lambda ps: getattr(ps, 'pipeline_step_id', ''),
+            'USER_ID': lambda ps: getattr(ps, 'user_id', ''),
+            'APP_ID': lambda ps: getattr(ps, 'app_id', ''),
+            'VERSION_ID': lambda ps: getattr(ps, 'pipeline_step_version_id', ''),
+            'DESCRIPTION': lambda ps: getattr(ps, 'description', ''),
         },
     )
