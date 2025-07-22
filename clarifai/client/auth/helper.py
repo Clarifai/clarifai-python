@@ -1,8 +1,8 @@
 import os
 import urllib.request
 from typing import Any, Dict
-import grpc
 
+import grpc
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2_grpc
 
