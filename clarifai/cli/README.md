@@ -11,35 +11,35 @@ Clarifai offers a user-friendly interface for deploying your local model into pr
 ## Context Management
 
 Manage CLI contexts for authentication and environment configuration:
-
-### List all contexts
+# List all contexts
 ```bash
-clarifai context list
+clarifai config get-contexts
 ```
 
-### Show the active context
+# Switch context
 ```bash
-clarifai context show
+clarifai config use-context production
+```
+# Show current context
+```bash
+clarifai config get-current-context
 ```
 
-### Set the active context
+# Create new context
 ```bash
-clarifai context use <name>
+clarifai config create-context staging --user-id myuser --base-url https://staging.clarifai.com
 ```
-
-### Create a new context
+# View entire configuration
 ```bash
-clarifai context create <name> --user-id <user_id> --base-url <base_url> --pat <token>
+clarifai config view
 ```
-
-### Edit the config file
+# Delete a context
 ```bash
-clarifai context edit
+clarifai config delete-context old-context
 ```
-
-### Delete a context
+# Edit configuration file
 ```bash
-clarifai context delete <name>
+clarifai config edit
 ```
 
 ### Print environment variables for the active context
