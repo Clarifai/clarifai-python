@@ -22,7 +22,7 @@ clarifai config use-context production
 ```
 # Show current context
 ```bash
-clarifai config get-current-context
+clarifai config current-context
 ```
 
 # Create new context
