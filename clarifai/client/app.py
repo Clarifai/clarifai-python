@@ -293,8 +293,9 @@ class App(Lister, BaseClient):
                     continue
             # Map API field names to constructor parameter names
             step_kwargs = pipeline_step_info.copy()
-            if 'id' in step_kwargs:
-                step_kwargs['pipeline_step_id'] = step_kwargs.pop('id')
+            if 'pipeline_step' in step_kwargs:
+                pipeline_step = step_kwargs.pop('pipeline_step')
+                step_kwargs['pipeline_step_id'] = pipeline_step.get('id', '')
             yield PipelineStep.from_auth_helper(auth=self.auth_helper, **step_kwargs)
 
     def list_modules(

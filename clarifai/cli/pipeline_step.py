@@ -6,7 +6,12 @@ import click
 from clarifai.cli.base import cli
 from clarifai.client.app import App
 from clarifai.client.user import User
-from clarifai.utils.cli import AliasedGroup, display_co_resources, validate_context
+from clarifai.utils.cli import (
+    AliasedGroup,
+    convert_timestamp_to_string,
+    display_co_resources,
+    validate_context,
+)
 from clarifai.utils.logging import logger
 
 
@@ -155,5 +160,11 @@ def list(ctx, page_no, per_page, app_id, pipeline_id):
             'APP_ID': lambda ps: getattr(ps, 'app_id', ''),
             'VERSION_ID': lambda ps: getattr(ps, 'pipeline_step_version_id', ''),
             'DESCRIPTION': lambda ps: getattr(ps, 'description', ''),
+            'CREATED_AT': lambda ps: convert_timestamp_to_string(getattr(ps, 'created_at', '')),
+            'MODIFIED_AT': lambda ps: convert_timestamp_to_string(getattr(ps, 'modified_at', '')),
         },
+        sort_by_columns=[
+            ('CREATED_AT', 'desc'),
+            ('PIPELINE_STEP_ID', 'asc'),
+        ],
     )
