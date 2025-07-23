@@ -27,7 +27,7 @@ clarifai config current-context
 
 # Create new context
 ```bash
-clarifai config create-context staging --user-id myuser --base-url https://staging.clarifai.com
+clarifai config create-context staging --user-id myuser --pat 678***
 ```
 # View entire configuration
 ```bash
