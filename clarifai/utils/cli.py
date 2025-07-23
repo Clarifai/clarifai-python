@@ -222,7 +222,7 @@ def validate_context_auth(pat: str, user_id: str, api_base: str = None):
         raise click.Abort()  # Exit without saving the configuration
 
 
-def customize_ollama_model(model_path, model_name, port, context_length):
+def customize_ollama_model(model_path, model_name, port, context_length, verbose):
     """Customize the Ollama model name in the cloned template files.
     Args:
      model_path: Path to the cloned model directory
@@ -254,6 +254,29 @@ def customize_ollama_model(model_path, model_name, port, context_length):
             # Replace the default context length variable in the model.py file
             content = content.replace(
                 "context_length = '8192'", f"context_length = '{context_length}'"
+            )
+
+        # Set verbose flag in environment variable
+        verbose_setting = 'True' if verbose else 'False'
+        content = content.replace(
+            "os.environ[\"VERBOSE_OLLAMA\"] = 'False'",
+            f"os.environ[\"VERBOSE_OLLAMA\"] = '{verbose_setting}'",
+        )
+
+        if not verbose:
+            # Replace execute_shell_command calls with verbose-aware versions
+            content = content.replace(
+                'start_process = execute_shell_command("ollama serve")',
+                '''start_process = execute_shell_command("ollama serve",
+                                                      stdout=subprocess.DEVNULL if not VERBOSE_OLLAMA else None,
+                                                      stderr=subprocess.DEVNULL if not VERBOSE_OLLAMA else None)''',
+            )
+
+            content = content.replace(
+                'pull_model=execute_shell_command(f"ollama pull {model_name}")',
+                '''pull_model=execute_shell_command(f"ollama pull {model_name}",
+                                                 stdout=subprocess.DEVNULL if not VERBOSE_OLLAMA else None,
+                                                 stderr=subprocess.DEVNULL if not VERBOSE_OLLAMA else None)''',
             )
 
         # Write the modified content back to model.py

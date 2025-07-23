@@ -82,8 +82,21 @@ def model():
     help='Context length for the Ollama model. Defaults to 8192.',
     required=False,
 )
+@click.option(
+    '--verbose',
+    is_flag=True,
+    help='Show detailed logs including Ollama server output. By default, Ollama logs are suppressed.',
+)
 def init(
-    model_path, model_type_id, github_pat, github_url, toolkit, model_name, port, context_length
+    model_path,
+    model_type_id,
+    github_pat,
+    github_url,
+    toolkit,
+    model_name,
+    port,
+    context_length,
+    verbose,
 ):
     """Initialize a new model directory structure.
 
@@ -208,8 +221,8 @@ def init(
         logger.error(f"Failed to clone GitHub repository: {e}")
         github_url = None
 
-    if (model_name or port or context_length) and (toolkit == 'ollama'):
-        customize_ollama_model(model_path, model_name, port, context_length)
+    if (model_name or port or context_length or verbose) and (toolkit == 'ollama'):
+        customize_ollama_model(model_path, model_name, port, context_length, verbose)
 
     if github_url:
         logger.info("Model initialization complete with GitHub repository")
