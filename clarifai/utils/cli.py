@@ -262,22 +262,20 @@ def customize_ollama_model(model_path, model_name, port, context_length, verbose
             "os.environ[\"VERBOSE_OLLAMA\"] = 'False'",
             f"os.environ[\"VERBOSE_OLLAMA\"] = '{verbose_setting}'",
         )
+        # Modify the start_process command to handle verbose logging
+        content = content.replace(
+            'start_process = execute_shell_command("ollama serve")',
+            '''start_process = execute_shell_command("ollama serve",
+                                                  stdout=None if VERBOSE_OLLAMA else subprocess.DEVNULL,
+                                                  stderr=None if VERBOSE_OLLAMA else subprocess.DEVNULL)''',
+        )
 
-        if not verbose:
-            # Replace execute_shell_command calls with verbose-aware versions
-            content = content.replace(
-                'start_process = execute_shell_command("ollama serve")',
-                '''start_process = execute_shell_command("ollama serve",
-                                                      stdout=subprocess.DEVNULL if not VERBOSE_OLLAMA else None,
-                                                      stderr=subprocess.DEVNULL if not VERBOSE_OLLAMA else None)''',
-            )
-
-            content = content.replace(
-                'pull_model=execute_shell_command(f"ollama pull {model_name}")',
-                '''pull_model=execute_shell_command(f"ollama pull {model_name}",
-                                                 stdout=subprocess.DEVNULL if not VERBOSE_OLLAMA else None,
-                                                 stderr=subprocess.DEVNULL if not VERBOSE_OLLAMA else None)''',
-            )
+        content = content.replace(
+            'pull_model=execute_shell_command(f"ollama pull {model_name}")',
+            '''pull_model=execute_shell_command(f"ollama pull {model_name}",
+                                             stdout=None if VERBOSE_OLLAMA else subprocess.DEVNULL,
+                                             stderr=None if VERBOSE_OLLAMA else subprocess.DEVNULL)''',
+        )
 
         # Write the modified content back to model.py
         with open(model_py_path, 'w') as file:
