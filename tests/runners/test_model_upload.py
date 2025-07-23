@@ -240,3 +240,108 @@ def test_model_uploader_missing_app_action(tmp_path, monkeypatch):
     # Test non supported action
     with pytest.raises(AssertionError):
         ModelBuilder(target_folder, app_not_found_action="a")
+
+
+def test_dockerfile_overwrite_prevention(tmp_path, monkeypatch):
+    """Test that Dockerfile overwrite prevention works correctly."""
+    import tempfile
+    from unittest.mock import patch
+    
+    # Setup test directory structure
+    tests_dir = Path(__file__).parent.resolve()
+    original_dummy_path = tests_dir / "dummy_runner_models"
+    
+    if not original_dummy_path.exists():
+        pytest.skip(f"Could not find dummy_runner_models at {original_dummy_path}")
+    
+    # Copy the entire folder to tmp_path
+    target_folder = tmp_path / "dummy_runner_models"
+    shutil.copytree(original_dummy_path, target_folder)
+    
+    # Update config to use valid values for testing
+    config_yaml_path = target_folder / "config.yaml"
+    with config_yaml_path.open("r") as f:
+        config = yaml.safe_load(f)
+    
+    config["model"]["user_id"] = CLARIFAI_USER_ID
+    config["model"]["app_id"] = f"test-dockerfile-{uuid.uuid4().hex[:8]}"
+    
+    with config_yaml_path.open("w") as f:
+        yaml.dump(config, f, sort_keys=False)
+    
+    dockerfile_path = target_folder / "Dockerfile"
+    
+    # Test 1: No existing Dockerfile (should create)
+    with patch('subprocess.run') as mock_subprocess, \
+         patch('shutil.which', return_value='/usr/bin/ruff'):
+        
+        mock_subprocess.return_value.returncode = 0
+        mock_subprocess.return_value.stdout = ""
+        mock_subprocess.return_value.stderr = ""
+        
+        builder = ModelBuilder(str(target_folder), download_validation_only=True)
+        builder.create_dockerfile()
+        
+        assert dockerfile_path.exists(), "Dockerfile should be created when none exists"
+        
+        # Read the generated content for later tests
+        with open(dockerfile_path, 'r') as f:
+            generated_content = f.read()
+    
+    # Test 2: Existing identical Dockerfile (should skip)
+    with patch('subprocess.run') as mock_subprocess, \
+         patch('shutil.which', return_value='/usr/bin/ruff'):
+        
+        mock_subprocess.return_value.returncode = 0
+        mock_subprocess.return_value.stdout = ""
+        mock_subprocess.return_value.stderr = ""
+        
+        builder = ModelBuilder(str(target_folder), download_validation_only=True)
+        builder.create_dockerfile()
+        
+        # Content should remain the same
+        with open(dockerfile_path, 'r') as f:
+            current_content = f.read()
+        assert current_content == generated_content, "Identical Dockerfile should not be modified"
+    
+    # Test 3: Different Dockerfile with 'n' response (should keep existing)
+    custom_content = "# Custom Dockerfile\nFROM custom:image\n"
+    with open(dockerfile_path, 'w') as f:
+        f.write(custom_content)
+    
+    with patch('subprocess.run') as mock_subprocess, \
+         patch('shutil.which', return_value='/usr/bin/ruff'), \
+         patch('builtins.input', return_value='n'):
+        
+        mock_subprocess.return_value.returncode = 0
+        mock_subprocess.return_value.stdout = ""
+        mock_subprocess.return_value.stderr = ""
+        
+        builder = ModelBuilder(str(target_folder), download_validation_only=True)
+        builder.create_dockerfile()
+        
+        # Custom content should be preserved
+        with open(dockerfile_path, 'r') as f:
+            current_content = f.read()
+        assert current_content == custom_content, "Custom Dockerfile should be preserved when user says 'n'"
+    
+    # Test 4: Different Dockerfile with 'y' response (should overwrite)
+    with open(dockerfile_path, 'w') as f:
+        f.write(custom_content)
+    
+    with patch('subprocess.run') as mock_subprocess, \
+         patch('shutil.which', return_value='/usr/bin/ruff'), \
+         patch('builtins.input', return_value='y'):
+        
+        mock_subprocess.return_value.returncode = 0
+        mock_subprocess.return_value.stdout = ""
+        mock_subprocess.return_value.stderr = ""
+        
+        builder = ModelBuilder(str(target_folder), download_validation_only=True)
+        builder.create_dockerfile()
+        
+        # Content should be overwritten with generated content
+        with open(dockerfile_path, 'r') as f:
+            current_content = f.read()
+        assert current_content != custom_content, "Custom Dockerfile should be overwritten when user says 'y'"
+        assert "# Custom Dockerfile" not in current_content, "Custom content should be gone"

@@ -885,8 +885,30 @@ class ModelBuilder:
             CLARIFAI_VERSION=clarifai_version,  # for clarifai
         )
 
+        # Check if Dockerfile already exists and handle accordingly
+        dockerfile_path = os.path.join(self.folder, 'Dockerfile')
+        if os.path.exists(dockerfile_path):
+            # Read existing Dockerfile content
+            with open(dockerfile_path, 'r') as existing_dockerfile:
+                existing_content = existing_dockerfile.read()
+            
+            # Compare content (normalize whitespace for comparison)
+            if existing_content.strip() == dockerfile_content.strip():
+                logger.info("Dockerfile already exists with identical content, skipping creation.")
+                return
+            else:
+                logger.info("Dockerfile already exists with different content.")
+                response = input(
+                    "A different Dockerfile already exists. Do you want to overwrite it with the generated one? "
+                    "Type 'y' to overwrite, 'n' to keep your custom Dockerfile: "
+                )
+                if response.lower() != 'y':
+                    logger.info("Keeping existing custom Dockerfile.")
+                    return
+                logger.info("Overwriting existing Dockerfile with generated content.")
+
         # Write Dockerfile
-        with open(os.path.join(self.folder, 'Dockerfile'), 'w') as dockerfile:
+        with open(dockerfile_path, 'w') as dockerfile:
             dockerfile.write(dockerfile_content)
 
     @property
