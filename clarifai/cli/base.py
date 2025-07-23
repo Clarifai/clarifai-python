@@ -174,7 +174,7 @@ def current_context(ctx, output_format):
         print(yaml.safe_dump(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
 
 
-@config.command(aliases=['create-context'])
+@config.command(aliases=['create-context', 'set-context'])
 @click.argument('name')
 @click.option('--user-id', required=False, help='User ID')
 @click.option('--base-url', required=False, help='Base URL')
