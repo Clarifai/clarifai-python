@@ -2102,7 +2102,7 @@ class Model(Lister, BaseClient):
             model_version=dict(id=response.model.model_version.id),
         )
 
-    def patch_version(self, version_id: str, **kwargs) -> None:
+    def patch_version(self, version_id: str, **kwargs) -> 'Model':
         """Patch the model version with the given version ID.
         Args:
             version_id (str): The version ID to patch.
