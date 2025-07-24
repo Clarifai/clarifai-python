@@ -18,8 +18,6 @@ class PipelineStep(Lister, BaseClient):
         pat: str = None,
         token: str = None,
         root_certificates_path: str = None,
-        created_at: str = None,
-        modified_at: str = None,
         **kwargs,
     ):
         """Initializes a PipelineStep object.
@@ -69,8 +67,6 @@ class PipelineStep(Lister, BaseClient):
         self.pipeline_id = pipeline_id
         self.user_id = user_id
         self.app_id = app_id
-        self.created_at = created_at
-        self.modified_at = modified_at
 
     def _parse_url(self, url: str):
         """Parse PipelineStep URL to extract user_id, app_id, pipeline_id, and pipeline_step_id."""

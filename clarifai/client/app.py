@@ -244,6 +244,10 @@ class App(Lister, BaseClient):
             pipeline_kwargs = pipeline_info.copy()
             if 'id' in pipeline_kwargs:
                 pipeline_kwargs['pipeline_id'] = pipeline_kwargs.pop('id')
+            if 'pipeline_version' in pipeline_kwargs:
+                pipeline_version = pipeline_kwargs.pop('pipeline_version')
+                pipeline_kwargs['pipeline_version_id'] = pipeline_version.get('id', '')
+                
             yield Pipeline.from_auth_helper(auth=self.auth_helper, **pipeline_kwargs)
 
     def list_pipeline_steps(
