@@ -736,7 +736,11 @@ class ModelBuilder:
         else:
             logger.info("Setup: Python code linted successfully, no errors found.")
 
-    def create_dockerfile(self):
+    def _generate_dockerfile_content(self):
+        """
+        Generate the Dockerfile content based on the model configuration.
+        This is a helper method that returns the content without writing to file.
+        """
         dockerfile_template = os.path.join(
             os.path.dirname(os.path.dirname(__file__)),
             'dockerfile_template',
@@ -884,30 +888,18 @@ class ModelBuilder:
             DOWNLOADER_IMAGE=downloader_image,  # for downloading checkpoints
             CLARIFAI_VERSION=clarifai_version,  # for clarifai
         )
+        
+        return dockerfile_content
 
-        # Check if Dockerfile already exists and handle accordingly
-        dockerfile_path = os.path.join(self.folder, 'Dockerfile')
-        if os.path.exists(dockerfile_path):
-            # Read existing Dockerfile content
-            with open(dockerfile_path, 'r') as existing_dockerfile:
-                existing_content = existing_dockerfile.read()
-            
-            # Compare content (normalize whitespace for comparison)
-            if existing_content.strip() == dockerfile_content.strip():
-                logger.info("Dockerfile already exists with identical content, skipping creation.")
-                return
-            else:
-                logger.info("Dockerfile already exists with different content.")
-                response = input(
-                    "A different Dockerfile already exists. Do you want to overwrite it with the generated one? "
-                    "Type 'y' to overwrite, 'n' to keep your custom Dockerfile: "
-                )
-                if response.lower() != 'y':
-                    logger.info("Keeping existing custom Dockerfile.")
-                    return
-                logger.info("Overwriting existing Dockerfile with generated content.")
-
+    def create_dockerfile(self):
+        """
+        Create a Dockerfile for the model based on its configuration.
+        This method now simply generates and writes the Dockerfile without user interaction.
+        """
+        dockerfile_content = self._generate_dockerfile_content()
+        
         # Write Dockerfile
+        dockerfile_path = os.path.join(self.folder, 'Dockerfile')
         with open(dockerfile_path, 'w') as dockerfile:
             dockerfile.write(dockerfile_content)
 
@@ -1278,8 +1270,44 @@ def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
     """
     builder = ModelBuilder(folder, app_not_found_action="prompt", pat=pat, base_url=base_url)
     builder.download_checkpoints(stage=stage)
+    
     if not skip_dockerfile:
-        builder.create_dockerfile()
+        # Check if Dockerfile already exists and handle accordingly
+        dockerfile_path = os.path.join(builder.folder, 'Dockerfile')
+        should_create_dockerfile = True
+        
+        if os.path.exists(dockerfile_path):
+            # Read existing Dockerfile content
+            with open(dockerfile_path, 'r') as existing_dockerfile:
+                existing_content = existing_dockerfile.read()
+            
+            # Generate what the new Dockerfile content would be
+            try:
+                generated_content = builder._generate_dockerfile_content()
+            except Exception as e:
+                logger.error(f"Failed to generate Dockerfile content: {e}")
+                # If we can't generate content, skip Dockerfile creation
+                should_create_dockerfile = False
+            else:
+                # Compare content (normalize whitespace for comparison)
+                if existing_content.strip() == generated_content.strip():
+                    logger.info("Dockerfile already exists with identical content, skipping creation.")
+                    should_create_dockerfile = False
+                else:
+                    logger.info("Dockerfile already exists with different content.")
+                    response = input(
+                        "A different Dockerfile already exists. Do you want to overwrite it with the generated one? "
+                        "Type 'y' to overwrite, 'n' to keep your custom Dockerfile: "
+                    )
+                    if response.lower() != 'y':
+                        logger.info("Keeping existing custom Dockerfile.")
+                        should_create_dockerfile = False
+                    else:
+                        logger.info("Overwriting existing Dockerfile with generated content.")
+        
+        if should_create_dockerfile:
+            builder.create_dockerfile()
+    
     exists = builder.check_model_exists()
     if exists:
         logger.info(

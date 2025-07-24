@@ -243,9 +243,9 @@ def test_model_uploader_missing_app_action(tmp_path, monkeypatch):
 
 
 def test_dockerfile_overwrite_prevention(tmp_path, monkeypatch):
-    """Test that Dockerfile overwrite prevention works correctly."""
+    """Test that Dockerfile overwrite prevention works correctly at CLI level."""
     import tempfile
-    from unittest.mock import patch
+    from unittest.mock import patch, MagicMock
     
     # Setup test directory structure
     tests_dir = Path(__file__).parent.resolve()
@@ -271,16 +271,31 @@ def test_dockerfile_overwrite_prevention(tmp_path, monkeypatch):
     
     dockerfile_path = target_folder / "Dockerfile"
     
-    # Test 1: No existing Dockerfile (should create)
+    # Create a mock client
+    mock_client = MagicMock()
+    mock_client.user_app_id.user_id = CLARIFAI_USER_ID
+    mock_client.user_app_id.app_id = config["model"]["app_id"]
+    
+    # Test 1: No existing Dockerfile (should create via upload_model function)
     with patch('subprocess.run') as mock_subprocess, \
-         patch('shutil.which', return_value='/usr/bin/ruff'):
+         patch('shutil.which', return_value='/usr/bin/ruff'), \
+         patch('builtins.input', side_effect=["", "n"]) as mock_input:  # Enter to continue, 'n' for no deployment
         
         mock_subprocess.return_value.returncode = 0
         mock_subprocess.return_value.stdout = ""
         mock_subprocess.return_value.stderr = ""
         
-        builder = ModelBuilder(str(target_folder), download_validation_only=True)
-        builder.create_dockerfile()
+        # Mock all the external dependencies and network calls
+        with patch('clarifai.runners.models.model_builder.ModelBuilder._check_app_exists', return_value=True), \
+             patch('clarifai.runners.models.model_builder.ModelBuilder.check_model_exists', return_value=True), \
+             patch('clarifai.runners.models.model_builder.ModelBuilder.upload_model_version'), \
+             patch('clarifai.runners.models.model_builder.setup_deployment_for_model'), \
+             patch('clarifai.runners.utils.loader.HuggingFaceLoader.validate_hf_repo_access', return_value=True), \
+             patch.object(ModelBuilder, 'client', new_callable=lambda: mock_client), \
+             patch.object(ModelBuilder, 'model_ui_url', 'https://clarifai.com/test/app/models/test'):
+            
+            from clarifai.runners.models.model_builder import upload_model
+            upload_model(str(target_folder), "upload", skip_dockerfile=False)
         
         assert dockerfile_path.exists(), "Dockerfile should be created when none exists"
         
@@ -288,16 +303,26 @@ def test_dockerfile_overwrite_prevention(tmp_path, monkeypatch):
         with open(dockerfile_path, 'r') as f:
             generated_content = f.read()
     
-    # Test 2: Existing identical Dockerfile (should skip)
+    # Test 2: Existing identical Dockerfile (should skip via upload_model function)
     with patch('subprocess.run') as mock_subprocess, \
-         patch('shutil.which', return_value='/usr/bin/ruff'):
+         patch('shutil.which', return_value='/usr/bin/ruff'), \
+         patch('builtins.input', side_effect=["", "n"]) as mock_input:  # Enter to continue, 'n' for no deployment
         
         mock_subprocess.return_value.returncode = 0
         mock_subprocess.return_value.stdout = ""
         mock_subprocess.return_value.stderr = ""
         
-        builder = ModelBuilder(str(target_folder), download_validation_only=True)
-        builder.create_dockerfile()
+        # Mock all the external dependencies and network calls
+        with patch('clarifai.runners.models.model_builder.ModelBuilder._check_app_exists', return_value=True), \
+             patch('clarifai.runners.models.model_builder.ModelBuilder.check_model_exists', return_value=True), \
+             patch('clarifai.runners.models.model_builder.ModelBuilder.upload_model_version'), \
+             patch('clarifai.runners.models.model_builder.setup_deployment_for_model'), \
+             patch('clarifai.runners.utils.loader.HuggingFaceLoader.validate_hf_repo_access', return_value=True), \
+             patch.object(ModelBuilder, 'client', new_callable=lambda: mock_client), \
+             patch.object(ModelBuilder, 'model_ui_url', 'https://clarifai.com/test/app/models/test'):
+            
+            from clarifai.runners.models.model_builder import upload_model
+            upload_model(str(target_folder), "upload", skip_dockerfile=False)
         
         # Content should remain the same
         with open(dockerfile_path, 'r') as f:
@@ -311,14 +336,23 @@ def test_dockerfile_overwrite_prevention(tmp_path, monkeypatch):
     
     with patch('subprocess.run') as mock_subprocess, \
          patch('shutil.which', return_value='/usr/bin/ruff'), \
-         patch('builtins.input', return_value='n'):
+         patch('builtins.input', side_effect=["n", "", "n"]) as mock_input:  # 'n' for dockerfile, Enter to continue, 'n' for no deployment
         
         mock_subprocess.return_value.returncode = 0
         mock_subprocess.return_value.stdout = ""
         mock_subprocess.return_value.stderr = ""
         
-        builder = ModelBuilder(str(target_folder), download_validation_only=True)
-        builder.create_dockerfile()
+        # Mock all the external dependencies and network calls
+        with patch('clarifai.runners.models.model_builder.ModelBuilder._check_app_exists', return_value=True), \
+             patch('clarifai.runners.models.model_builder.ModelBuilder.check_model_exists', return_value=True), \
+             patch('clarifai.runners.models.model_builder.ModelBuilder.upload_model_version'), \
+             patch('clarifai.runners.models.model_builder.setup_deployment_for_model'), \
+             patch('clarifai.runners.utils.loader.HuggingFaceLoader.validate_hf_repo_access', return_value=True), \
+             patch.object(ModelBuilder, 'client', new_callable=lambda: mock_client), \
+             patch.object(ModelBuilder, 'model_ui_url', 'https://clarifai.com/test/app/models/test'):
+            
+            from clarifai.runners.models.model_builder import upload_model
+            upload_model(str(target_folder), "upload", skip_dockerfile=False)
         
         # Custom content should be preserved
         with open(dockerfile_path, 'r') as f:
@@ -331,17 +365,51 @@ def test_dockerfile_overwrite_prevention(tmp_path, monkeypatch):
     
     with patch('subprocess.run') as mock_subprocess, \
          patch('shutil.which', return_value='/usr/bin/ruff'), \
-         patch('builtins.input', return_value='y'):
+         patch('builtins.input', side_effect=["y", "", "n"]) as mock_input:  # 'y' for dockerfile, Enter to continue, 'n' for no deployment
         
         mock_subprocess.return_value.returncode = 0
         mock_subprocess.return_value.stdout = ""
         mock_subprocess.return_value.stderr = ""
         
-        builder = ModelBuilder(str(target_folder), download_validation_only=True)
-        builder.create_dockerfile()
+        # Mock all the external dependencies and network calls
+        with patch('clarifai.runners.models.model_builder.ModelBuilder._check_app_exists', return_value=True), \
+             patch('clarifai.runners.models.model_builder.ModelBuilder.check_model_exists', return_value=True), \
+             patch('clarifai.runners.models.model_builder.ModelBuilder.upload_model_version'), \
+             patch('clarifai.runners.models.model_builder.setup_deployment_for_model'), \
+             patch('clarifai.runners.utils.loader.HuggingFaceLoader.validate_hf_repo_access', return_value=True), \
+             patch.object(ModelBuilder, 'client', new_callable=lambda: mock_client), \
+             patch.object(ModelBuilder, 'model_ui_url', 'https://clarifai.com/test/app/models/test'):
+            
+            from clarifai.runners.models.model_builder import upload_model
+            upload_model(str(target_folder), "upload", skip_dockerfile=False)
         
         # Content should be overwritten with generated content
         with open(dockerfile_path, 'r') as f:
             current_content = f.read()
         assert current_content != custom_content, "Custom Dockerfile should be overwritten when user says 'y'"
         assert "# Custom Dockerfile" not in current_content, "Custom content should be gone"
+
+    # Test 5: Test skip_dockerfile parameter
+    os.remove(dockerfile_path)  # Remove dockerfile to test skip functionality
+    
+    with patch('subprocess.run') as mock_subprocess, \
+         patch('shutil.which', return_value='/usr/bin/ruff'), \
+         patch('builtins.input', side_effect=["", "n"]) as mock_input:  # Enter to continue, 'n' for no deployment
+        
+        mock_subprocess.return_value.returncode = 0
+        mock_subprocess.return_value.stdout = ""
+        mock_subprocess.return_value.stderr = ""
+        
+        # Mock all the external dependencies and network calls
+        with patch('clarifai.runners.models.model_builder.ModelBuilder._check_app_exists', return_value=True), \
+             patch('clarifai.runners.models.model_builder.ModelBuilder.check_model_exists', return_value=True), \
+             patch('clarifai.runners.models.model_builder.ModelBuilder.upload_model_version'), \
+             patch('clarifai.runners.models.model_builder.setup_deployment_for_model'), \
+             patch('clarifai.runners.utils.loader.HuggingFaceLoader.validate_hf_repo_access', return_value=True), \
+             patch.object(ModelBuilder, 'client', new_callable=lambda: mock_client), \
+             patch.object(ModelBuilder, 'model_ui_url', 'https://clarifai.com/test/app/models/test'):
+            
+            from clarifai.runners.models.model_builder import upload_model
+            upload_model(str(target_folder), "upload", skip_dockerfile=True)
+        
+        assert not dockerfile_path.exists(), "Dockerfile should not be created when skip_dockerfile=True"
