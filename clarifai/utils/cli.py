@@ -8,6 +8,7 @@ from typing import OrderedDict
 
 import click
 import yaml
+from google.protobuf.timestamp_pb2 import Timestamp
 from tabulate import tabulate
 
 from clarifai.utils.logging import logger
@@ -46,8 +47,24 @@ def display_co_resources(
         'USER_ID': lambda c: c.user_id,
         'DESCRIPTION': lambda c: c.description,
     },
+    sort_by_columns=None,
 ):
-    """Display compute orchestration resources listing results using rich."""
+    """
+    Display compute orchestration resources listing results using rich.
+
+    :param response: Iterable of resource objects to display.
+    :param custom_columns: A dictionary mapping column names to extractor functions.
+                           Defaults to ID, USER_ID, and DESCRIPTION.
+    :param sort_by_columns: Optional list of (column_name, order) tuples specifying sort order.
+                            Only column names present in `custom_columns` are considered.
+                            Order should be 'asc' or 'desc'.
+    :return: None. Prints the formatted table.
+    """
+    if sort_by_columns:
+        for column, order in reversed(sort_by_columns):  # reversed for stable multi-level sort
+            if column in custom_columns:
+                reverse = order.lower() == 'desc'
+                response = sorted(response, key=custom_columns[column], reverse=reverse)
 
     formatter = TableFormatter(custom_columns)
     print(formatter.format(list(response), fmt="plain"))
@@ -347,3 +364,20 @@ def check_requirements_installed(model_path):
     except Exception as e:
         logger.error(f"Failed to check requirements: {e}")
         return False
+
+
+def convert_timestamp_to_string(timestamp: Timestamp) -> str:
+    """Converts a Timestamp object to a string.
+
+    Args:
+        timestamp (Timestamp): The Timestamp object to convert.
+
+    Returns:
+        str: The converted string in ISO 8601 format.
+    """
+    if not timestamp:
+        return ""
+
+    datetime_obj = timestamp.ToDatetime()
+
+    return datetime_obj.strftime('%Y-%m-%dT%H:%M:%SZ')
