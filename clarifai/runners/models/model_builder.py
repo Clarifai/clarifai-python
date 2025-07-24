@@ -1258,55 +1258,53 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                 return False
 
 
-def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
+def upload_model(folder, stage, pat=None, base_url=None):
     """
     Uploads a model to Clarifai.
 
     :param folder: The folder containing the model files.
     :param stage: The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.
-    :param skip_dockerfile: If True, will not create a Dockerfile.
     :param pat: Personal access token for authentication. If None, will use environment variables.
     :param base_url: Base URL for the API. If None, will use environment variables.
     """
     builder = ModelBuilder(folder, app_not_found_action="prompt", pat=pat, base_url=base_url)
     builder.download_checkpoints(stage=stage)
     
-    if not skip_dockerfile:
-        # Check if Dockerfile already exists and handle accordingly
-        dockerfile_path = os.path.join(builder.folder, 'Dockerfile')
-        should_create_dockerfile = True
+    # Always handle Dockerfile creation with user interaction when content differs
+    dockerfile_path = os.path.join(builder.folder, 'Dockerfile')
+    should_create_dockerfile = True
+    
+    if os.path.exists(dockerfile_path):
+        # Read existing Dockerfile content
+        with open(dockerfile_path, 'r') as existing_dockerfile:
+            existing_content = existing_dockerfile.read()
         
-        if os.path.exists(dockerfile_path):
-            # Read existing Dockerfile content
-            with open(dockerfile_path, 'r') as existing_dockerfile:
-                existing_content = existing_dockerfile.read()
-            
-            # Generate what the new Dockerfile content would be
-            try:
-                generated_content = builder._generate_dockerfile_content()
-            except Exception as e:
-                logger.error(f"Failed to generate Dockerfile content: {e}")
-                # If we can't generate content, skip Dockerfile creation
+        # Generate what the new Dockerfile content would be
+        try:
+            generated_content = builder._generate_dockerfile_content()
+        except Exception as e:
+            logger.error(f"Failed to generate Dockerfile content: {e}")
+            # If we can't generate content, skip Dockerfile creation
+            should_create_dockerfile = False
+        else:
+            # Compare content (normalize whitespace for comparison)
+            if existing_content.strip() == generated_content.strip():
+                logger.info("Dockerfile already exists with identical content, skipping creation.")
                 should_create_dockerfile = False
             else:
-                # Compare content (normalize whitespace for comparison)
-                if existing_content.strip() == generated_content.strip():
-                    logger.info("Dockerfile already exists with identical content, skipping creation.")
+                logger.info("Dockerfile already exists with different content.")
+                response = input(
+                    "A different Dockerfile already exists. Do you want to overwrite it with the generated one? "
+                    "Type 'y' to overwrite, 'n' to keep your custom Dockerfile: "
+                )
+                if response.lower() != 'y':
+                    logger.info("Keeping existing custom Dockerfile.")
                     should_create_dockerfile = False
                 else:
-                    logger.info("Dockerfile already exists with different content.")
-                    response = input(
-                        "A different Dockerfile already exists. Do you want to overwrite it with the generated one? "
-                        "Type 'y' to overwrite, 'n' to keep your custom Dockerfile: "
-                    )
-                    if response.lower() != 'y':
-                        logger.info("Keeping existing custom Dockerfile.")
-                        should_create_dockerfile = False
-                    else:
-                        logger.info("Overwriting existing Dockerfile with generated content.")
-        
-        if should_create_dockerfile:
-            builder.create_dockerfile()
+                    logger.info("Overwriting existing Dockerfile with generated content.")
+    
+    if should_create_dockerfile:
+        builder.create_dockerfile()
     
     exists = builder.check_model_exists()
     if exists:
