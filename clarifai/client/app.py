@@ -237,18 +237,65 @@ class App(Lister, BaseClient):
         )
 
         for pipeline_info in all_pipelines_info:
-            if only_in_app:
-                if pipeline_info.get('app_id') != self.id:
-                    continue
-            # Map API field names to constructor parameter names
-            pipeline_kwargs = pipeline_info.copy()
-            if 'id' in pipeline_kwargs:
-                pipeline_kwargs['pipeline_id'] = pipeline_kwargs.pop('id')
-            if 'pipeline_version' in pipeline_kwargs:
-                pipeline_version = pipeline_kwargs.pop('pipeline_version')
-                pipeline_kwargs['pipeline_version_id'] = pipeline_version.get('id', '')
-                
-            yield Pipeline.from_auth_helper(auth=self.auth_helper, **pipeline_kwargs)
+            pipeline = self._process_pipeline_info(
+                pipeline_info, self.auth_helper, self.id, only_in_app
+            )
+            if pipeline is not None:
+                yield pipeline
+
+    @staticmethod
+    def _process_pipeline_info(pipeline_info, auth_helper, app_id=None, only_in_app=False):
+        """Helper method to process pipeline info and create Pipeline objects.
+
+        Args:
+            pipeline_info: Raw pipeline info from API
+            auth_helper: Auth helper instance
+            app_id: App ID to filter by (if only_in_app is True)
+            only_in_app: Whether to filter by app_id
+
+        Returns:
+            Pipeline object or None if filtered out
+        """
+        if only_in_app and app_id:
+            if pipeline_info.get('app_id') != app_id:
+                return None
+
+        # Map API field names to constructor parameter names
+        pipeline_kwargs = pipeline_info.copy()
+        if 'id' in pipeline_kwargs:
+            pipeline_kwargs['pipeline_id'] = pipeline_kwargs.pop('id')
+        if 'pipeline_version' in pipeline_kwargs:
+            pipeline_version = pipeline_kwargs.pop('pipeline_version')
+            pipeline_kwargs['pipeline_version_id'] = pipeline_version.get('id', '')
+
+        return Pipeline.from_auth_helper(auth=auth_helper, **pipeline_kwargs)
+
+    @staticmethod
+    def _process_pipeline_step_info(
+        pipeline_step_info, auth_helper, app_id=None, only_in_app=False
+    ):
+        """Helper method to process pipeline step info and create PipelineStep objects.
+
+        Args:
+            pipeline_step_info: Raw pipeline step info from API
+            auth_helper: Auth helper instance
+            app_id: App ID to filter by (if only_in_app is True)
+            only_in_app: Whether to filter by app_id
+
+        Returns:
+            PipelineStep object or None if filtered out
+        """
+        if only_in_app and app_id:
+            if pipeline_step_info.get('app_id') != app_id:
+                return None
+
+        # Map API field names to constructor parameter names
+        step_kwargs = pipeline_step_info.copy()
+        if 'pipeline_step' in step_kwargs:
+            pipeline_step = step_kwargs.pop('pipeline_step')
+            step_kwargs['pipeline_step_id'] = pipeline_step.get('id', '')
+
+        return PipelineStep.from_auth_helper(auth=auth_helper, **step_kwargs)
 
     def list_pipeline_steps(
         self,
@@ -292,15 +339,11 @@ class App(Lister, BaseClient):
         )
 
         for pipeline_step_info in all_pipeline_steps_info:
-            if only_in_app:
-                if pipeline_step_info.get('app_id') != self.id:
-                    continue
-            # Map API field names to constructor parameter names
-            step_kwargs = pipeline_step_info.copy()
-            if 'pipeline_step' in step_kwargs:
-                pipeline_step = step_kwargs.pop('pipeline_step')
-                step_kwargs['pipeline_step_id'] = pipeline_step.get('id', '')
-            yield PipelineStep.from_auth_helper(auth=self.auth_helper, **step_kwargs)
+            pipeline_step = self._process_pipeline_step_info(
+                pipeline_step_info, self.auth_helper, self.id, only_in_app
+            )
+            if pipeline_step is not None:
+                yield pipeline_step
 
     def list_modules(
         self,
