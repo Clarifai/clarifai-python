@@ -134,7 +134,6 @@ def serve(
             pat=pat,
             num_parallel_polls=num_threads,
         )
-        builder = ModelBuilder(model_path, download_validation_only=True)
         method_signatures = builder.get_method_signatures(mocking=False)
         from clarifai.runners.utils import code_script
 

@@ -323,10 +323,8 @@ def parse_requirements(model_path: str):
 
 def check_requirements_installed(model_path):
     """Check if all dependencies in requirements.txt are installed."""
-    import re
 
     try:
-        package_pattern = re.compile(r'^([a-zA-Z0-9_-]+)')
         # Getting package name and version (for logging)
         requirements = parse_requirements(model_path)
 
