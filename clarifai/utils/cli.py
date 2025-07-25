@@ -4,6 +4,7 @@ import pkgutil
 import sys
 import typing as t
 from collections import defaultdict
+from pathlib import Path
 from typing import OrderedDict
 
 import click
@@ -297,28 +298,37 @@ def _is_package_installed(package_name):
         return False
 
 
-def check_requirements_installed(model_path):
-    """Check if all dependencies in requirements.txt are installed."""
-    import re
-    from pathlib import Path
+def parse_requirements(model_path: str):
+    """Parse requirements.txt in the model directory and return a dictionary of dependencies."""
+    from packaging.requirements import Requirement
 
     requirements_path = Path(model_path) / "requirements.txt"
 
     if not requirements_path.exists():
         logger.warning(f"requirements.txt not found at {requirements_path}")
-        return True
+        return []
+
+    deps = {}
+    for line in requirements_path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        try:
+            req = Requirement(line)
+            deps[req.name] = str(req.specifier) or None
+        except Exception as e:
+            logger.warning(f"⚠️ Could not parse line: {line!r} — {e}")
+    return deps
+
+
+def check_requirements_installed(model_path):
+    """Check if all dependencies in requirements.txt are installed."""
+    import re
 
     try:
         package_pattern = re.compile(r'^([a-zA-Z0-9_-]+)')
-
         # Getting package name and version (for logging)
-        requirements = [
-            (match.group(1), pack)
-            for line in requirements_path.read_text().splitlines()
-            if (pack := line.strip())
-            and not line.startswith('#')
-            and (match := package_pattern.match(line))
-        ]
+        requirements = parse_requirements(model_path)
 
         if not requirements:
             logger.info("No dependencies found in requirements.txt")
@@ -328,7 +338,7 @@ def check_requirements_installed(model_path):
 
         missing = [
             full_req
-            for package_name, full_req in requirements
+            for package_name, full_req in requirements.items()
             if not _is_package_installed(package_name)
         ]
 
@@ -341,6 +351,7 @@ def check_requirements_installed(model_path):
             f"❌ {len(missing)} of {len(requirements)} required packages are missing in the current environment"
         )
         logger.error("\n".join(f"  - {pkg}" for pkg in missing))
+        requirements_path = Path(model_path) / "requirements.txt"
         logger.warning(f"To install: pip install -r {requirements_path}")
         return False
 
