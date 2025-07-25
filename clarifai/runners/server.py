@@ -92,7 +92,7 @@ def serve(
     runner_id: str = os.environ.get("CLARIFAI_RUNNER_ID", None),
     base_url: str = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com"),
     pat: str = os.environ.get("CLARIFAI_PAT", None),
-    context: dict[str, str] = None,
+    context=None,  # This is the current context object that contains user_id, app_id, model_id, etc.
 ):
     builder = ModelBuilder(model_path, download_validation_only=True)
 

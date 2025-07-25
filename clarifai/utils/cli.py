@@ -315,7 +315,7 @@ def parse_requirements(model_path: str):
             continue
         try:
             req = Requirement(line)
-            deps[req.name] = str(req.specifier) or None
+            deps[req.name] = str(req.specifier) if req.specifier else None
         except Exception as e:
             logger.warning(f"⚠️ Could not parse line: {line!r} — {e}")
     return deps
