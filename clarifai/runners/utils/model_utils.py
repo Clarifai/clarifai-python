@@ -68,7 +68,7 @@ def kill_process_tree(parent_pid, include_parent: bool = True, skip_pid: int = N
             logger.warning(f"Failed to kill parent process {parent_pid}: {e}")
 
 
-def execute_shell_command(command: str, stdout=None, stderr=None) -> subprocess.Popen:
+def execute_shell_command(command: str, stdout=None, stderr=subprocess.STDOUT) -> subprocess.Popen:
     """Execute a shell command and return its process handle.
 
     Args:

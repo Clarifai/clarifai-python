@@ -82,11 +82,6 @@ def model():
     help='Context length for the Ollama model. Defaults to 8192.',
     required=False,
 )
-@click.option(
-    '--verbose',
-    is_flag=True,
-    help='Show detailed logs including Ollama server output. By default, Ollama logs are suppressed.',
-)
 def init(
     model_path,
     model_type_id,
@@ -96,7 +91,6 @@ def init(
     model_name,
     port,
     context_length,
-    verbose,
 ):
     """Initialize a new model directory structure.
 
@@ -112,6 +106,13 @@ def init(
     branch to clone from.
 
     MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
+    MODEL_TYPE_ID: Type of model to create. If not specified, defaults to "text-to-text" for text models.
+    GITHUB_PAT: GitHub Personal Access Token for authentication when cloning private repositories.
+    GITHUB_URL: GitHub repository URL or "repo" format to clone a repository from. If provided, the entire repository contents will be copied to the target directory instead of using default templates.
+    TOOLKIT: Toolkit to use for model initialization. Currently supports "ollama".
+    MODEL_NAME: Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.).
+    PORT: Port to run the Ollama server on. Defaults to 23333.
+    CONTEXT_LENGTH: Context length for the Ollama model. Defaults to 8192.
     """
     # Resolve the absolute path
     model_path = os.path.abspath(model_path)
@@ -221,8 +222,8 @@ def init(
         logger.error(f"Failed to clone GitHub repository: {e}")
         github_url = None
 
-    if (model_name or port or context_length or verbose) and (toolkit == 'ollama'):
-        customize_ollama_model(model_path, model_name, port, context_length, verbose)
+    if (model_name or port or context_length) and (toolkit == 'ollama'):
+        customize_ollama_model(model_path, model_name, port, context_length)
 
     if github_url:
         logger.info("Model initialization complete with GitHub repository")
@@ -522,8 +523,13 @@ def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=Fa
     show_default=True,
     help="The number of threads to use. On community plan, the compute time allocation is drained at a rate proportional to the number of threads.",
 )  # pylint: disable=range-builtin-not-iterating
+@click.option(
+    '--verbose',
+    is_flag=True,
+    help='Show detailed logs including Ollama server output. By default, Ollama logs are suppressed.',
+)
 @click.pass_context
-def local_runner(ctx, model_path, pool_size):
+def local_runner(ctx, model_path, pool_size, verbose):
     """Run the model as a local runner to help debug your model connected to the API or to
     leverage local compute resources manually. This relies on many variables being present in the env
     of the currently selected context. If they are not present then default values will be used to
@@ -848,6 +854,16 @@ def local_runner(ctx, model_path, pool_size):
             logger.error(
                 "Ollama is not installed. Please install it from `https://ollama.com/` to use the Ollama toolkit."
             )
+            raise click.Abort()
+
+        try:
+            logger.info("Customizing Ollama model with provided parameters...")
+            customize_ollama_model(
+                model_path=model_path,
+                verbose=True if verbose else False,
+            )
+        except Exception as e:
+            logger.error(f"Failed to customize Ollama model: {e}")
             raise click.Abort()
 
     # don't mock for local runner since you need the dependencies to run the code anyways.
