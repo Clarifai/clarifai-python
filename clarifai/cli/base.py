@@ -70,6 +70,8 @@ def config():
 @click.pass_context
 def login(ctx, api_url, user_id):
     """Login command to set PAT and other configurations."""
+    from clarifai.utils.cli import validate_context_auth
+
     click.echo('> To authenticate, you\'ll need a Personal Access Token (PAT).')
     click.echo(
         '> You can create one from your account settings: https://clarifai.com/settings/security\n'
@@ -84,13 +86,7 @@ def login(ctx, api_url, user_id):
 
     # Progress indicator
     click.echo('\n> Verifying token...')
-    try:
-        from clarifai.utils.cli import validate_context_auth
-
-        validate_context_auth(pat, user_id, api_url)
-    except Exception as e:
-        logger.error(f"Login failed for user '{user_id}': {str(e)}")
-        sys.exit(1)
+    validate_context_auth(pat, user_id, api_url)
 
     # Context naming
     default_context_name = 'default'
