@@ -205,20 +205,8 @@ def validate_context_auth(pat: str, user_id: str, api_base: str = None):
             logger.info("✅ Context is valid")
 
     except Exception as e:
-        error_msg = str(e)
-
         # Check for common authentication errors and provide user-friendly messages
-        if "PERMISSION_DENIED" in error_msg or "Unauthorized" in error_msg:
-            logger.error(f"Invalid PAT token or incorrect user ID '{user_id}': {error_msg}")
-        elif "UNAUTHENTICATED" in error_msg:
-            logger.error(f"Invalid PAT token or user ID: {error_msg}")
-        elif "SSL" in error_msg or "certificate" in error_msg:
-            logger.error(f"SSL/Certificate error: {error_msg}")
-        elif "Connection" in error_msg or "timeout" in error_msg:
-            logger.error(f"Network connection error: {error_msg}")
-        else:
-            logger.error(f"❌ Validation failed: \n{error_msg}")
-            logger.error("Please check your credentials and try again.")
+        logger.error("❌ Authentication failed. Please check your token and user ID.")
         raise click.Abort()  # Exit without saving the configuration
 
 

@@ -1,3 +1,4 @@
+import getpass
 import json
 import os
 import sys
@@ -71,33 +72,44 @@ def login(ctx, api_url, user_id):
     """Login command to set PAT and other configurations."""
     from clarifai.utils.cli import validate_context_auth
 
-    name = input('context name (default: "default"): ')
-    user_id = user_id if user_id is not None else input('user id: ')
-    pat = input_or_default(
-        'personal access token value (default: "ENVVAR" to get out of env var rather than config): ',
-        'ENVVAR',
+    click.echo('> To authenticate, you\'ll need a Personal Access Token (PAT).')
+    click.echo(
+        '> You can create one from your account settings: https://clarifai.com/settings/security\n'
     )
 
-    # Validate the Context Credentials
+    # Securely input PAT
+    pat = getpass.getpass('Enter your Personal Access Token: ')
+
+    # Input user_id if not supplied
+    if not user_id:
+        user_id = click.prompt('Enter your Clarifai user ID', type=str)
+
+    # Progress indicator
+    click.echo('\n> Verifying token...')
     validate_context_auth(pat, user_id, api_url)
 
+    # Context naming
+    default_context_name = 'default'
+    click.echo('\n> Let\'s save these credentials to a new context.')
+    click.echo('> You can have multiple contexts to easily switch between accounts or projects.\n')
+    context_name = click.prompt("Enter a name for this context", default=default_context_name)
+
+    # Save context
     context = Context(
-        name,
+        context_name,
         CLARIFAI_API_BASE=api_url,
         CLARIFAI_USER_ID=user_id,
         CLARIFAI_PAT=pat,
     )
 
-    if context.name == '':
-        context.name = 'default'
-
-    ctx.obj.contexts[context.name] = context
-    ctx.obj.current_context = context.name
-
+    ctx.obj.contexts[context_name] = context
+    ctx.obj.current_context = context_name
     ctx.obj.to_yaml()
-    logger.info(
-        f"Login successful and Configuration saved successfully for context '{context.name}'"
-    )
+    click.secho('✅ Success! You are now logged in.', fg='green')
+    click.echo(f'Credentials saved to the \'{context_name}\' context.\n')
+    click.echo('💡 To switch contexts later, use `clarifai config use-context <name>`.')
+
+    logger.info(f"Login successful for user '{user_id}' in context '{context_name}'")
 
 
 def pat_display(pat):
