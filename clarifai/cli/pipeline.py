@@ -6,7 +6,12 @@ import click
 from clarifai.cli.base import cli
 from clarifai.client.app import App
 from clarifai.client.user import User
-from clarifai.utils.cli import AliasedGroup, convert_timestamp_to_string, display_co_resources, validate_context
+from clarifai.utils.cli import (
+    AliasedGroup,
+    convert_timestamp_to_string,
+    display_co_resources,
+    validate_context,
+)
 from clarifai.utils.logging import logger
 
 
