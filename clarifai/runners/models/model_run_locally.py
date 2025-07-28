@@ -437,7 +437,6 @@ def main(
     port=8080,
     keep_env=False,
     keep_image=False,
-    skip_dockerfile: bool = False,
 ):
     manager = ModelRunLocally(model_path)
     # get whatever stage is in config.yaml to force download now
@@ -445,8 +444,7 @@ def main(
     if inside_container:
         if not manager.is_docker_installed():
             sys.exit(1)
-        if not skip_dockerfile:
-            manager.builder.create_dockerfile()
+        manager.builder.create_dockerfile()
         image_tag = manager._docker_hash()
         model_id = manager.config['model']['id'].lower()
         # must be in lowercase
