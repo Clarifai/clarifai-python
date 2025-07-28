@@ -736,6 +736,21 @@ class ModelBuilder:
         else:
             logger.info("Setup: Python code linted successfully, no errors found.")
 
+    def _normalize_dockerfile_content(self, content):
+        """
+        Normalize Dockerfile content for comparison by standardizing whitespace and indentation.
+        This handles differences in spacing, indentation, and line endings.
+        """
+        lines = []
+        for line in content.splitlines():
+            # Strip leading/trailing whitespace from each line
+            normalized_line = line.strip()
+            # Skip empty lines for comparison
+            if normalized_line:
+                lines.append(normalized_line)
+        # Join with consistent line endings
+        return '\n'.join(lines)
+
     def _generate_dockerfile_content(self):
         """
         Generate the Dockerfile content based on the model configuration.
@@ -909,8 +924,8 @@ class ModelBuilder:
                 with open(dockerfile_path, 'r') as existing_dockerfile:
                     existing_content = existing_dockerfile.read()
 
-                # Compare content (normalize whitespace for comparison)
-                if existing_content.strip() == generated_content.strip():
+                # Compare content (normalize for robust comparison that handles indentation differences)
+                if self._normalize_dockerfile_content(existing_content) == self._normalize_dockerfile_content(generated_content):
                     logger.info(
                         "Dockerfile already exists with identical content, skipping creation."
                     )
@@ -1288,19 +1303,21 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                 return False
 
 
-def upload_model(folder, stage, pat=None, base_url=None):
+def upload_model(folder, stage, skip_dockerfile=False, pat=None, base_url=None):
     """
     Uploads a model to Clarifai.
 
     :param folder: The folder containing the model files.
     :param stage: The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.
+    :param skip_dockerfile: If True, skip Dockerfile creation entirely. If False or not provided, intelligently handle existing Dockerfiles with user confirmation.
     :param pat: Personal access token for authentication. If None, will use environment variables.
     :param base_url: Base URL for the API. If None, will use environment variables.
     """
     builder = ModelBuilder(folder, app_not_found_action="prompt", pat=pat, base_url=base_url)
     builder.download_checkpoints(stage=stage)
 
-    builder.create_dockerfile()
+    if not skip_dockerfile:
+        builder.create_dockerfile()
 
     exists = builder.check_model_exists()
     if exists:

@@ -280,8 +280,13 @@ def init(
     show_default=True,
     help='The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.',
 )
+@click.option(
+    '--skip_dockerfile',
+    is_flag=True,
+    help='Skip Dockerfile creation entirely. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
+)
 @click.pass_context
-def upload(ctx, model_path, stage):
+def upload(ctx, model_path, stage, skip_dockerfile):
     """Upload a model to Clarifai.
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
@@ -292,6 +297,7 @@ def upload(ctx, model_path, stage):
     upload_model(
         model_path,
         stage,
+        skip_dockerfile=skip_dockerfile,
         pat=ctx.obj.current.pat,
         base_url=ctx.obj.current.api_base,
     )
