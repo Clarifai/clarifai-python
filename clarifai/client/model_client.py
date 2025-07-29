@@ -163,6 +163,10 @@ class ModelClient:
             self._define_compatability_functions()
             return
         if response.status.code != status_code_pb2.SUCCESS:
+            if response.outputs[0].status.description.startswith("cannot identify image file"):
+                raise Exception(
+                    "Failed to fetch method signatures from model and backup method. This model is a non-pythonic model. Please use the old inference methods i.e. predict_by_url, predict_by_bytes, etc."
+                )
             raise Exception(f"Model failed with response {response!r}")
         self._method_signatures = signatures_from_json(response.outputs[0].data.text.raw)
 
