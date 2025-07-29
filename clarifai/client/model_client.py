@@ -88,10 +88,10 @@ class ModelClient:
 
             if available_methods:
                 error_msg += f". Available methods: {available_methods}"
+                raise AttributeError(error_msg) from e
             else:
                 error_msg += ". This model is a non-pythonic model. Please use the old inference methods i.e. predict_by_url, predict_by_bytes, etc."
-
-            raise Exception(error_msg) from e
+                raise Exception(error_msg) from e
 
     def _fetch_signatures(self):
         '''
