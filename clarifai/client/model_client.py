@@ -76,7 +76,22 @@ class ModelClient:
     def __getattr__(self, name):
         if not self._defined:
             self.fetch()
-        return self.__getattribute__(name)
+        try:
+            return self.__getattribute__(name)
+        except AttributeError as e:
+            # Provide helpful error message with available methods
+            available_methods = []
+            if self._method_signatures:
+                available_methods = list(self._method_signatures.keys())
+
+            error_msg = f"'{self.__class__.__name__}' object has no attribute '{name}'"
+
+            if available_methods:
+                error_msg += f". Available methods: {available_methods}"
+            else:
+                error_msg += ". This model is a non-pythonic model. Please use the old inference methods i.e. predict_by_url, predict_by_bytes, etc."
+
+            raise Exception(error_msg) from e
 
     def _fetch_signatures(self):
         '''
