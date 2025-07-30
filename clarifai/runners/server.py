@@ -92,6 +92,7 @@ def serve(
     runner_id: str = os.environ.get("CLARIFAI_RUNNER_ID", None),
     base_url: str = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com"),
     pat: str = os.environ.get("CLARIFAI_PAT", None),
+    context=None,  # This is the current context object that contains user_id, app_id, model_id, etc.
 ):
     builder = ModelBuilder(model_path, download_validation_only=True)
 
@@ -133,7 +134,28 @@ def serve(
             pat=pat,
             num_parallel_polls=num_threads,
         )
-        logger.info("Runner started successfully and is waiting for work from the API...\n")
+        method_signatures = builder.get_method_signatures(mocking=False)
+        from clarifai.runners.utils import code_script
+
+        snippet = code_script.generate_client_script(
+            method_signatures,
+            user_id=context.user_id,
+            app_id=context.app_id,
+            model_id=context.model_id,
+            deployment_id=context.deployment_id,
+            base_url=context.api_base,
+        )
+        logger.info("✅ Your model is running locally and is ready for requests from the API...\n")
+        logger.info(
+            f"> Code Snippet: To call your model via the API, use this code snippet:\n{snippet}"
+        )
+        logger.info(
+            f"> Playground:   To chat with your model, visit: {context.ui}/playground?model={context.model_id}__{context.model_version_id}&user_id={context.user_id}&app_id={context.app_id}\n"
+        )
+        logger.info(
+            f"> API URL:      To call your model via the API, use this model URL: {context.ui}/users/{context.user_id}/apps/{context.app_id}/models/{context.model_id}\n"
+        )
+        logger.info("Press CTRL+C to stop the runner.\n")
         runner.start()  # start the runner to fetch work from the API.
 
 

@@ -9,6 +9,7 @@ from clarifai.utils.cli import (
     check_ollama_installed,
     check_requirements_installed,
     customize_ollama_model,
+    parse_requirements,
     validate_context,
 )
 from clarifai.utils.constants import (
@@ -571,7 +572,23 @@ def local_runner(ctx, model_path, pool_size, verbose):
     from clarifai.runners.server import serve
 
     validate_context(ctx)
-    logger.info("Checking setup for local runner...")
+    builder = ModelBuilder(model_path, download_validation_only=True)
+    logger.info("> Checking local runner requirements...")
+    if not check_requirements_installed(model_path):
+        logger.error(f"Requirements not installed for model at {model_path}.")
+        raise click.Abort()
+
+    # Post check while running `clarifai model local-runner` we check if the toolkit is ollama
+    dependencies = parse_requirements(model_path)
+    if "ollama" in dependencies or builder.config.get('toolkit', {}).get('provider') == 'ollama':
+        logger.info("Verifying Ollama installation...")
+        if not check_ollama_installed():
+            logger.error(
+                "Ollama application is not installed. Please install it from `https://ollama.com/` to use the Ollama toolkit."
+            )
+            raise click.Abort()
+
+    logger.info("> Verifying local runner setup...")
     logger.info(f"Current context: {ctx.obj.current.name}")
     user_id = ctx.obj.current.user_id
     logger.info(f"Current user_id: {user_id}")
@@ -712,8 +729,12 @@ def local_runner(ctx, model_path, pool_size, verbose):
     if len(model_versions) == 0:
         logger.warning("No model versions found. Creating a new version for local runner.")
         version = model.create_version(pretrained_model_config={"local_dev": True}).model_version
+        ctx.obj.current.CLARIFAI_MODEL_VERSION_ID = version.id
+        ctx.obj.to_yaml()
     else:
         version = model_versions[0].model_version
+        ctx.obj.current.CLARIFAI_MODEL_VERSION_ID = version.id
+        ctx.obj.to_yaml()  # save to yaml file.
 
     logger.info(f"Current model version {version.id}")
 
@@ -815,10 +836,6 @@ def local_runner(ctx, model_path, pool_size, verbose):
 
     logger.info(f"Current deployment_id: {deployment_id}")
 
-    logger.info(
-        f"Full url for the model:\n{ctx.obj.current.ui}/users/{user_id}/apps/{app_id}/models/{model.id}/versions/{version.id}"
-    )
-
     # Now that we have all the context in ctx.obj, we need to update the config.yaml in
     # the model_path directory with the model object containing user_id, app_id, model_id, version_id
     config_file = os.path.join(model_path, 'config.yaml')
@@ -890,7 +907,7 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
         f"Playground: To chat with your model, visit:\n{ctx.obj.current.ui}/playground?model={model.id}__{version.id}&user_id={user_id}&app_id={app_id}"
     )
 
-    logger.info("Now starting the local runner...")
+    logger.info("✅ Starting local runner...")
 
     # This reads the config.yaml from the model_path so we alter it above first.
     serve(
@@ -903,6 +920,7 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
         runner_id=runner_id,
         base_url=ctx.obj.current.api_base,
         pat=ctx.obj.current.pat,
+        context=ctx.obj.current,
     )
 
 

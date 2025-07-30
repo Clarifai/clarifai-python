@@ -1,3 +1,19 @@
+## [[11.6.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.5) - [PyPI](https://pypi.org/project/clarifai/11.6.5/) - 2025-07-23
+
+### Changed
+- Add CLI config context support to BaseClient authentication [(#704)] (https://github.com/Clarifai/clarifai-python/pull/704)
+- live logging functionality for model runner [(#711)] (https://github.com/Clarifai/clarifai-python/pull/711)
+- Unify Context Management Under a Single config Command [(#709)] (https://github.com/Clarifai/clarifai-python/pull/709)
+- Add func to return both stub and channel [(#713)] (https://github.com/Clarifai/clarifai-python/pull/713)
+- Added local-runner requirements validation step [(#712)] (https://github.com/Clarifai/clarifai-python/pull/712)
+- Improve URL Download error handling [(#710)] (https://github.com/Clarifai/clarifai-python/pull/710)
+- Added Playground URL to Local-Runner Logs [(#708)] (https://github.com/Clarifai/clarifai-python/pull/708)
+- Unit tests for toolkits [(#639)] (https://github.com/Clarifai/clarifai-python/pull/639)
+- Improve Local-Runner CLI Logging [(#706)] (https://github.com/Clarifai/clarifai-python/pull/706)
+- Improve client script formatting (black linter formatting) [(#705)] (https://github.com/Clarifai/clarifai-python/pull/705)
+- Add github folder download support and toolkit option in model init [(#699)] (https://github.com/Clarifai/clarifai-python/pull/699)
+- Improve Handling for PAT and USER_ID [(#702)] (https://github.com/Clarifai/clarifai-python/pull/702)
+
 ## [[11.6.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.4) - [PyPI](https://pypi.org/project/clarifai/11.6.4/) - 2025-07-11
 
 ### Changed
