@@ -925,7 +925,9 @@ class ModelBuilder:
                     existing_content = existing_dockerfile.read()
 
                 # Compare content (normalize for robust comparison that handles indentation differences)
-                if self._normalize_dockerfile_content(existing_content) == self._normalize_dockerfile_content(generated_content):
+                if self._normalize_dockerfile_content(
+                    existing_content
+                ) == self._normalize_dockerfile_content(generated_content):
                     logger.info(
                         "Dockerfile already exists with identical content, skipping creation."
                     )
@@ -1303,13 +1305,13 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                 return False
 
 
-def upload_model(folder, stage, skip_dockerfile=False, pat=None, base_url=None):
+def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
     """
     Uploads a model to Clarifai.
 
     :param folder: The folder containing the model files.
     :param stage: The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.
-    :param skip_dockerfile: If True, skip Dockerfile creation entirely. If False or not provided, intelligently handle existing Dockerfiles with user confirmation.
+    :param skip_dockerfile: If True, will skip Dockerfile generation entirely. If False or not provided, intelligently handle existing Dockerfiles with user confirmation.
     :param pat: Personal access token for authentication. If None, will use environment variables.
     :param base_url: Base URL for the API. If None, will use environment variables.
     """

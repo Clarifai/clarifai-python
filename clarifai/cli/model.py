@@ -283,7 +283,7 @@ def init(
 @click.option(
     '--skip_dockerfile',
     is_flag=True,
-    help='Skip Dockerfile creation entirely. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
+    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
 @click.pass_context
 def upload(ctx, model_path, stage, skip_dockerfile):
@@ -297,7 +297,7 @@ def upload(ctx, model_path, stage, skip_dockerfile):
     upload_model(
         model_path,
         stage,
-        skip_dockerfile=skip_dockerfile,
+        skip_dockerfile,
         pat=ctx.obj.current.pat,
         base_url=ctx.obj.current.api_base,
     )
@@ -392,7 +392,12 @@ def signatures(model_path, out_path):
     is_flag=True,
     help='Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.',
 )
-def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
+@click.option(
+    '--skip_dockerfile',
+    is_flag=True,
+    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
+)
+def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_dockerfile=False):
     """Test model locally.
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
@@ -415,6 +420,7 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
                 inside_container=True,
                 run_model_server=False,
                 keep_image=keep_image,
+                skip_dockerfile=skip_dockerfile,
             )
         click.echo("Model tested successfully.")
     except Exception as e:
@@ -453,7 +459,12 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env'):
     is_flag=True,
     help='Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.',
 )
-def run_locally(model_path, port, mode, keep_env, keep_image):
+@click.option(
+    '--skip_dockerfile',
+    is_flag=True,
+    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
+)
+def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=False):
     """Run the model locally and start a gRPC server to serve the model.
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
@@ -477,6 +488,7 @@ def run_locally(model_path, port, mode, keep_env, keep_image):
                 run_model_server=True,
                 port=port,
                 keep_image=keep_image,
+                skip_dockerfile=skip_dockerfile,
             )
         click.echo(f"Model server started locally from {model_path} in {mode} mode.")
     except Exception as e:
