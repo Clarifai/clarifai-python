@@ -155,9 +155,7 @@ def serve(
         logger.info(
             f"> API URL:      To call your model via the API, use this model URL: {context.ui}/users/{context.user_id}/apps/{context.app_id}/models/{context.model_id}\n"
         )
-        logger.info(
-            "Press CTRL+C to stop the runner. For detailed logs, re-run with `--verbose`.\n"
-        )
+        logger.info("Press CTRL+C to stop the runner.\n")
         runner.start()  # start the runner to fetch work from the API.
 
 
