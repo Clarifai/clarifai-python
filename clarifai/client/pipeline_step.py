@@ -37,7 +37,9 @@ class PipelineStep(Lister, BaseClient):
             **kwargs: Additional keyword arguments to be passed to the BaseClient.
         """
         if url:
-            user_id, app_id, _, pipeline_step_id, pipeline_step_version_id = ClarifaiUrlHelper.split_clarifai_url(url)
+            user_id, app_id, _, pipeline_step_id, pipeline_step_version_id = (
+                ClarifaiUrlHelper.split_clarifai_url(url)
+            )
 
         # Store all kwargs as attributes for API data
         for key, value in kwargs.items():
