@@ -211,11 +211,16 @@ def validate_context_auth(pat: str, user_id: str, api_base: str = None):
         raise click.Abort()  # Exit without saving the configuration
 
 
-def customize_ollama_model(model_path, model_name, port, context_length):
+def customize_ollama_model(
+    model_path, model_name=None, port=None, context_length=None, verbose=False
+):
     """Customize the Ollama model name in the cloned template files.
     Args:
      model_path: Path to the cloned model directory
-     model_name: The model name to set (e.g., 'llama3.1', 'mistral')
+     model_name: The model name to set (e.g., 'llama3.1', 'mistral') - optional
+     port: Port for Ollama server - optional
+     context_length: Context length for the model - optional
+     verbose: Whether to enable verbose logging - optional (defaults to False)
 
     """
     model_py_path = os.path.join(model_path, "1", "model.py")
@@ -244,6 +249,12 @@ def customize_ollama_model(model_path, model_name, port, context_length):
             content = content.replace(
                 "context_length = '8192'", f"context_length = '{context_length}'"
             )
+
+        verbose_str = str(verbose)
+        if "VERBOSE_OLLAMA = True" in content:
+            content = content.replace("VERBOSE_OLLAMA = True", f"VERBOSE_OLLAMA = {verbose_str}")
+        elif "VERBOSE_OLLAMA = False" in content:
+            content = content.replace("VERBOSE_OLLAMA = False", f"VERBOSE_OLLAMA = {verbose_str}")
 
         # Write the modified content back to model.py
         with open(model_py_path, 'w') as file:
