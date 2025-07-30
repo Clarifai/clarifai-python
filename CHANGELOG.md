@@ -1,3 +1,14 @@
+## [[11.6.6]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.6) - [PyPI](https://pypi.org/project/clarifai/11.6.6/) - 2025-07-30
+
+### Changed
+- Add CLI config context support to BaseClient authentication [(#704)] (https://github.com/Clarifai/clarifai-python/pull/704)
+- live logging functionality for model runner [(#711)] (https://github.com/Clarifai/clarifai-python/pull/711)
+- Unify Context Management Under a Single config Command [(#709)] (https://github.com/Clarifai/clarifai-python/pull/709)
+- Add func to return both stub and channel [(#713)] (https://github.com/Clarifai/clarifai-python/pull/713)
+- Added local-runner requirements validation step [(#712)] (https://github.com/Clarifai/clarifai-python/pull/712)
+- Improve URL Download error handling [(#710)] (https://github.com/Clarifai/clarifai-python/pull/710)
+- Added Playground URL to Local-Runner Logs [(#708)] (https://github.com/Clarifai/clarifai-python/pull/708)
+
 ## [[11.6.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.5) - [PyPI](https://pypi.org/project/clarifai/11.6.5/) - 2025-07-23
 
 ### Changed
