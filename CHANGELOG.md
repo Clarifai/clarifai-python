@@ -1,3 +1,11 @@
+## [[11.6.6]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.6) - [PyPI](https://pypi.org/project/clarifai/11.6.6/) - 2025-07-30
+
+### Changed
+- Added support for verbose logging of Ollama [(#717)] (https://github.com/Clarifai/clarifai-python/pull/717)
+- Improve error messages with pythonic models [(#721)] (https://github.com/Clarifai/clarifai-python/pull/721)
+- Improve login logging experience [(#719)] (https://github.com/Clarifai/clarifai-python/pull/719)
+- Improve Local Runner Logging [(#720)] (https://github.com/Clarifai/clarifai-python/pull/720)
+
 ## [[11.6.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.5) - [PyPI](https://pypi.org/project/clarifai/11.6.5/) - 2025-07-23
 
 ### Changed
