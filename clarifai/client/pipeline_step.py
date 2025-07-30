@@ -1,5 +1,6 @@
 from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
+from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.constants import DEFAULT_BASE
 
 
@@ -36,7 +37,7 @@ class PipelineStep(Lister, BaseClient):
             **kwargs: Additional keyword arguments to be passed to the BaseClient.
         """
         if url:
-            user_id, app_id, pipeline_id, pipeline_step_id = self._parse_url(url)
+            user_id, app_id, _, pipeline_step_id, pipeline_step_version_id = ClarifaiUrlHelper.split_clarifai_url(url)
 
         # Store all kwargs as attributes for API data
         for key, value in kwargs.items():
@@ -67,9 +68,3 @@ class PipelineStep(Lister, BaseClient):
         self.pipeline_id = pipeline_id
         self.user_id = user_id
         self.app_id = app_id
-
-    def _parse_url(self, url: str):
-        """Parse PipelineStep URL to extract user_id, app_id, pipeline_id, and pipeline_step_id."""
-        # This would need to be implemented based on URL structure
-        # For now, return None values
-        return None, None, None, None
