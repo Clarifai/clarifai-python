@@ -15,6 +15,7 @@ def test_list_models():
     public_models = user.list_models(user_id="all", show=False)
     assert len(public_models) > 0
 
+    # Commenented out this for now, as it takes long time to run
     # list models of current user
     # models = user.list_models(show=False)
     # assert len(models) > 0
