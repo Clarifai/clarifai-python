@@ -158,7 +158,7 @@ def test_model_uploader_flow(dummy_models_path, caplog):
     assert builder.check_model_exists() is True, "Model should exist after creation"
 
     # Create the Dockerfile (not crucial for the actual build, but tested in the script)
-    builder.create_dockerfile()
+    builder.create_dockerfile(generate_dockerfile=True)
     dockerfile_path = Path(builder.folder) / "Dockerfile"
     assert dockerfile_path.exists(), "Dockerfile was not created."
 

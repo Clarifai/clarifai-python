@@ -298,7 +298,7 @@ def init(
 @click.option(
     '--skip_dockerfile',
     is_flag=True,
-    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile.',
+    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
 @click.pass_context
 def upload(ctx, model_path, stage, skip_dockerfile):
@@ -410,7 +410,7 @@ def signatures(model_path, out_path):
 @click.option(
     '--skip_dockerfile',
     is_flag=True,
-    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. Apply for `--mode conatainer`.',
+    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
 def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_dockerfile=False):
     """Test model locally.
@@ -477,7 +477,7 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_
 @click.option(
     '--skip_dockerfile',
     is_flag=True,
-    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. Apply for `--mode conatainer`.',
+    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
 def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=False):
     """Run the model locally and start a gRPC server to serve the model.
