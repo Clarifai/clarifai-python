@@ -72,17 +72,17 @@ def login(ctx, api_url, user_id):
     """Login command to set PAT and other configurations."""
     from clarifai.utils.cli import validate_context_auth
 
+    # Input user_id if not supplied
+    if not user_id:
+        user_id = click.prompt('Enter your Clarifai user ID', type=str)
+
     click.echo('> To authenticate, you\'ll need a Personal Access Token (PAT).')
     click.echo(
-        '> You can create one from your account settings: https://clarifai.com/settings/security\n'
+        f'> You can create one from your account settings: https://clarifai.com/{user_id}/settings/security\n'
     )
 
     # Securely input PAT
     pat = getpass.getpass('Enter your Personal Access Token: ')
-
-    # Input user_id if not supplied
-    if not user_id:
-        user_id = click.prompt('Enter your Clarifai user ID', type=str)
 
     # Progress indicator
     click.echo('\n> Verifying token...')
