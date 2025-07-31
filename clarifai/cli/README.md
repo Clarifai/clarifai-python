@@ -121,6 +121,57 @@ Delete existing Compute Clusters:
 $ clarifai computecluster delete --compute_cluster_id <compute-cluster-id>
 ```
 
+## Pipelines
+
+### List Pipelines
+
+List all pipelines for the user across all apps:
+
+```bash
+$ clarifai pipeline list
+```
+
+List pipelines within a specific app:
+
+```bash
+$ clarifai pipeline list --app_id <app-id>
+```
+
+List with pagination:
+
+```bash
+$ clarifai pipeline list --page_no 1 --per_page 10
+```
+
+### List Pipeline Steps
+
+List all pipeline steps for the user across all apps:
+
+```bash
+$ clarifai pipelinestep list
+```
+
+List pipeline steps within a specific app:
+
+```bash
+$ clarifai pipelinestep list --app_id <app-id>
+```
+
+List pipeline steps for a specific pipeline:
+
+```bash
+$ clarifai pipelinestep list --app_id <app-id> --pipeline_id <pipeline-id>
+```
+
+### Aliases
+
+Both commands support the `ls` alias for convenience:
+
+```bash
+$ clarifai pipeline ls
+$ clarifai pipelinestep ls
+```
+
 ## Learn More
 
 * [Example Configs](https://github.com/Clarifai/examples/tree/main/ComputeOrchestration/configs)

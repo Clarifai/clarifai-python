@@ -4,15 +4,24 @@ import shutil
 import click
 
 from clarifai.cli.base import cli
+from clarifai.client.app import App
+from clarifai.client.user import User
+from clarifai.utils.cli import (
+    AliasedGroup,
+    convert_timestamp_to_string,
+    display_co_resources,
+    validate_context,
+)
 from clarifai.utils.logging import logger
 
 
 @cli.group(
     ['pipelinestep', 'ps'],
+    cls=AliasedGroup,
     context_settings={'max_content_width': shutil.get_terminal_size().columns - 10},
 )
 def pipeline_step():
-    """Manage pipeline steps: upload, test, etc"""
+    """Manage pipeline steps: upload, test, list, etc"""
 
 
 @pipeline_step.command()
@@ -102,3 +111,60 @@ def init(pipeline_step_path):
     logger.info("2. Update the pipeline step configuration in config.yaml")
     logger.info("3. Add your pipeline step dependencies to requirements.txt")
     logger.info("4. Implement your pipeline step logic in 1/pipeline_step.py")
+
+
+@pipeline_step.command(['ls'])
+@click.option('--page_no', required=False, help='Page number to list.', default=1)
+@click.option('--per_page', required=False, help='Number of items per page.', default=16)
+@click.option(
+    '--app_id',
+    required=False,
+    help='App ID to list pipeline steps from. If not provided, lists across all apps.',
+)
+@click.option(
+    '--pipeline_id',
+    required=False,
+    help='Pipeline ID to list pipeline steps from. Must be used with --app_id.',
+)
+@click.pass_context
+def list(ctx, page_no, per_page, app_id, pipeline_id):
+    """List all pipeline steps for the user."""
+    validate_context(ctx)
+
+    if pipeline_id and not app_id:
+        raise click.UsageError("--pipeline_id must be used together with --app_id")
+
+    if app_id:
+        app = App(
+            app_id=app_id,
+            user_id=ctx.obj.current.user_id,
+            pat=ctx.obj.current.pat,
+            base_url=ctx.obj.current.api_base,
+        )
+        response = app.list_pipeline_steps(
+            pipeline_id=pipeline_id, page_no=page_no, per_page=per_page
+        )
+    else:
+        user = User(
+            user_id=ctx.obj.current.user_id,
+            pat=ctx.obj.current.pat,
+            base_url=ctx.obj.current.api_base,
+        )
+        response = user.list_pipeline_steps(page_no=page_no, per_page=per_page)
+
+    display_co_resources(
+        response,
+        custom_columns={
+            'PIPELINE_STEP_ID': lambda ps: getattr(ps, 'pipeline_step_id', ''),
+            'USER_ID': lambda ps: getattr(ps, 'user_id', ''),
+            'APP_ID': lambda ps: getattr(ps, 'app_id', ''),
+            'VERSION_ID': lambda ps: getattr(ps, 'pipeline_step_version_id', ''),
+            'DESCRIPTION': lambda ps: getattr(ps, 'description', ''),
+            'CREATED_AT': lambda ps: convert_timestamp_to_string(getattr(ps, 'created_at', '')),
+            'MODIFIED_AT': lambda ps: convert_timestamp_to_string(getattr(ps, 'modified_at', '')),
+        },
+        sort_by_columns=[
+            ('CREATED_AT', 'desc'),
+            ('PIPELINE_STEP_ID', 'asc'),
+        ],
+    )
