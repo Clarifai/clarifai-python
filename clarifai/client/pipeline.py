@@ -213,7 +213,9 @@ class Pipeline(Lister, BaseClient):
                     continue
 
                 pipeline_run = run_response.pipeline_version_run
-                pipeline_run_dict = json_format.MessageToDict(pipeline_run)
+                pipeline_run_dict = json_format.MessageToDict(
+                    pipeline_run, preserving_proto_field_name=True
+                )
 
                 # Display new log entries
                 self._display_new_logs(run_id, seen_logs)
