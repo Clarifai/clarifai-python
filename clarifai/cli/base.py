@@ -163,9 +163,14 @@ def get_contexts(ctx, output_format):
     elif output_format == 'name':
         print('\n'.join(ctx.obj.contexts))
     elif output_format in ('json', 'yaml'):
-        dicts = [v.__dict__ for c, v in ctx.obj.contexts.items()]
-        for d in dicts:
-            d.pop('pat')
+        dicts = []
+        for c, v in ctx.obj.contexts.items():
+            context_dict = {}
+            d = v.to_serializable_dict()
+            d.pop('CLARIFAI_PAT', None)
+            context_dict['name'] = c
+            context_dict['env'] = d
+            dicts.append(context_dict)
         if output_format == 'json':
             print(json.dumps(dicts))
         elif output_format == 'yaml':
