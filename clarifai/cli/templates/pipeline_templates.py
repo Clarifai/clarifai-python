@@ -60,7 +60,7 @@ def get_pipeline_step_template(step_id: str):
     return f'''import argparse
 
 import clarifai
-
+from clarifai.utils.logging import logger
 
 def main():
     parser = argparse.ArgumentParser(description='{step_id} processing step.')
@@ -68,10 +68,10 @@ def main():
 
     args = parser.parse_args()
 
-    print(clarifai.__version__)
+    logger.info(clarifai.__version__)
 
     # TODO: Implement your pipeline step logic here
-    print(f"{step_id} processed: {{args.input_text}}")
+    logger.info(f"{step_id} processed: {{args.input_text}}")
 
 
 if __name__ == "__main__":
