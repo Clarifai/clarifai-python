@@ -170,14 +170,6 @@ class PipelineBuilder:
             argo_spec, Dumper=LiteralBlockDumper, default_flow_style=False
         )
 
-        # Remove uploaded directories from step_directories
-        remaining_dirs = []
-        for step_dir in pipeline_config.get("step_directories", []):
-            if step_dir not in self.uploaded_step_versions:
-                remaining_dirs.append(step_dir)
-
-        pipeline_config["step_directories"] = remaining_dirs
-
         # Save the updated config
         self._save_config()
         logger.info("Updated config.yaml with pipeline step versions")
