@@ -992,6 +992,9 @@ class TestPipelineRunCommand:
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
 
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
         class MockConfig:
             def __init__(self):
                 self.current = MockContext()
@@ -1054,6 +1057,9 @@ class TestPipelineRunCommand:
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
 
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
         class MockConfig:
             def __init__(self):
                 self.current = MockContext()
@@ -1096,6 +1102,9 @@ class TestPipelineRunCommand:
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
 
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
         class MockConfig:
             def __init__(self):
                 self.current = MockContext()
@@ -1135,6 +1144,9 @@ class TestPipelineRunCommand:
             def __init__(self):
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
 
         class MockConfig:
             def __init__(self):
@@ -1196,6 +1208,9 @@ class TestPipelineRunCommand:
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
 
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
         class MockConfig:
             def __init__(self):
                 self.current = MockContext()
@@ -1251,6 +1266,9 @@ class TestPipelineRunCommand:
             def __init__(self):
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
 
         class MockConfig:
             def __init__(self):

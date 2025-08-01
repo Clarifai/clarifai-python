@@ -172,7 +172,6 @@ class PipelineBuilder:
 
         # Remove uploaded directories from step_directories
         remaining_dirs = []
-        breakpoint()
         for step_dir in pipeline_config.get("step_directories", []):
             if step_dir not in self.uploaded_step_versions:
                 remaining_dirs.append(step_dir)

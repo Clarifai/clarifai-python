@@ -124,17 +124,17 @@ def run(
         monitor = config_data.get('monitor', monitor)
     elif ctx.obj.current:
         if not user_id:
-            user_id = ctx.obj.current.user_id
+            user_id = ctx.obj.current.get('user_id', '')
         if not app_id:
-            app_id = ctx.obj.current.app_id
+            app_id = ctx.obj.current.get('app_id', '')
         if not pipeline_id:
-            pipeline_id = ctx.obj.current.pipeline_id
+            pipeline_id = ctx.obj.current.get('pipeline_id', '')
         if not pipeline_version_id:
-            pipeline_version_id = ctx.obj.current.pipeline_version_id
+            pipeline_version_id = ctx.obj.current.get('pipeline_version_id', '')
         if not nodepool_id:
-            nodepool_id = ctx.obj.current.nodepool_id
+            nodepool_id = ctx.obj.current.get('nodepool_id', '')
         if not compute_cluster_id:
-            compute_cluster_id = ctx.obj.current.compute_cluster_id
+            compute_cluster_id = ctx.obj.current.get('compute_cluster_id', '')
 
     # compute_cluster_id and nodepool_id are mandatory regardless of whether pipeline_url is provided
     if not compute_cluster_id or not nodepool_id:
