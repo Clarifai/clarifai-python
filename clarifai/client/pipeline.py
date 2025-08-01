@@ -13,22 +13,6 @@ from clarifai.utils.constants import DEFAULT_BASE
 from clarifai.utils.logging import logger
 
 
-def _get_status_name(status_code: int) -> str:
-    """Get the human-readable name for a status code."""
-    status_mapping = {
-        # Job status codes (these are the actual values based on the error message showing 64001)
-        64001: "JOB_QUEUED",
-        64002: "JOB_RUNNING",
-        64003: "JOB_COMPLETED",
-        64004: "JOB_FAILED",
-        64005: "JOB_UNEXPECTED_ERROR",
-        # Standard status codes
-        10000: "SUCCESS",
-        10010: "MIXED_STATUS",
-    }
-    return status_mapping.get(status_code, f"UNKNOWN_STATUS_{status_code}")
-
-
 class Pipeline(Lister, BaseClient):
     """Pipeline is a class that provides access to Clarifai API endpoints related to Pipeline information."""
 
@@ -237,7 +221,7 @@ class Pipeline(Lister, BaseClient):
                     orch_status = pipeline_run.orchestration_status
                     if hasattr(orch_status, 'status') and orch_status.status:
                         status_code = orch_status.status.code
-                        status_name = _get_status_name(status_code)
+                        status_name = status_code_pb2.StatusCode.Name(status_code)
                         logger.info(f"Pipeline run status: {status_code} ({status_name})")
 
                         # Display orchestration status details if available
@@ -245,15 +229,21 @@ class Pipeline(Lister, BaseClient):
                             logger.info(f"Orchestration status: {orch_status.description}")
 
                         # Success codes that allow continuation: JOB_RUNNING, JOB_QUEUED
-                        if status_code in [64001, 64002]:  # JOB_QUEUED, JOB_RUNNING
+                        if status_code in [
+                            status_code_pb2.JOB_QUEUED,
+                            status_code_pb2.JOB_RUNNING,
+                        ]:  # JOB_QUEUED, JOB_RUNNING
                             logger.info(f"Pipeline run in progress: {status_code} ({status_name})")
                             # Continue monitoring
                         # Successful terminal state: JOB_COMPLETED
-                        elif status_code == 64003:  # JOB_COMPLETED
+                        elif status_code == status_code_pb2.JOB_COMPLETED:  # JOB_COMPLETED
                             logger.info("Pipeline run completed successfully!")
                             return {"status": "success", "pipeline_version_run": pipeline_run}
                         # Failure terminal states: JOB_UNEXPECTED_ERROR, JOB_FAILED
-                        elif status_code in [64004, 64005]:  # JOB_FAILED, JOB_UNEXPECTED_ERROR
+                        elif status_code in [
+                            status_code_pb2.JOB_FAILED,
+                            status_code_pb2.JOB_UNEXPECTED_ERROR,
+                        ]:  # JOB_FAILED, JOB_UNEXPECTED_ERROR
                             logger.error(
                                 f"Pipeline run failed with status: {status_code} ({status_name})"
                             )
