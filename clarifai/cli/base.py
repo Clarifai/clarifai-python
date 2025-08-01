@@ -81,8 +81,9 @@ def login(ctx, api_url, user_id):
     )
 
     # Securely input PAT
-    pat = input(
-        'Enter your Personal Access Token (PAT) value (or type "ENVVAR" to use an environment variable): '
+    pat = input_or_default(
+        'Enter your Personal Access Token (PAT) value (or type "ENVVAR" to use an environment variable): ',
+        'ENVVAR',
     )
     if pat.lower() == 'envvar':
         pat = os.environ.get('CLARIFAI_PAT')
@@ -226,6 +227,16 @@ def create_context(
             'personal access token value (default: "ENVVAR" to get our of env var rather than config): ',
             'ENVVAR',
         )
+    if pat.lower() == 'envvar':
+        pat = os.environ.get('CLARIFAI_PAT')
+        if not pat:
+            logger.error(
+                'Environment variable "CLARIFAI_PAT" not set. Please set it in your terminal.'
+            )
+            click.echo(
+                'Aborting context creation. Please set the environment variable or provide a PAT value and try again.'
+            )
+            click.abort()
     validate_context_auth(pat, user_id, base_url)
     context = Context(name, CLARIFAI_USER_ID=user_id, CLARIFAI_API_BASE=base_url, CLARIFAI_PAT=pat)
     ctx.obj.contexts[context.name] = context
