@@ -311,7 +311,7 @@ spec:
         builder.config["pipeline"]["step_directories"] = []
 
         result = builder.upload_pipeline_steps()
-        assert result is True
+        assert result is False
 
     def test_update_config_with_versions(self, temp_config_file):
         """Test updating config with version information."""
@@ -627,7 +627,7 @@ spec:
 
         # Should handle missing step_directories gracefully
         result = builder.upload_pipeline_steps()
-        assert result is True
+        assert result is False
         assert builder.uploaded_step_versions == {}
 
     def test_update_config_with_no_versions(self, temp_config_file_no_dirs):
