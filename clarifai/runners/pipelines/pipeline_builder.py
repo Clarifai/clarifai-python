@@ -206,7 +206,7 @@ class PipelineBuilder:
                                     template_ref["template"] = new_name
                                     logger.info(f"Updated templateRef from {name} to {new_name}")
                             elif self.validator.TEMPLATE_REF_WITH_VERSION_PATTERN.match(name):
-                                # strip the /vestions/{version_id} from the end of name
+                                # strip the /versions/{version_id} from the end of name
                                 # to get the name like above
                                 orig_name = name
                                 name = orig_name.rsplit('/versions/', 1)[0]
