@@ -4,6 +4,7 @@ from typing import Dict, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
+from google.protobuf import json_format
 
 from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
@@ -140,9 +141,15 @@ class Pipeline(Lister, BaseClient):
         )
 
         if response.status.code != status_code_pb2.StatusCode.SUCCESS:
-            raise UserError(
-                f"Failed to start pipeline run: {response.status.description}. Details: {response.status.details}"
-            )
+            if response.status.code == status_code_pb2.StatusCode.CONN_DOES_NOT_EXIST:
+                logger.error(
+                    f"Pipeline {self.pipeline_id} does not exist, did you call 'clarifai pipeline upload' first? "
+                )
+                return json_format.MessageToDict(response, preserving_proto_field_name=True)
+            else:
+                raise UserError(
+                    f"Failed to start pipeline run: {response.status.description}. Details: {response.status.details}. Code: {status_code_pb2.StatusCode.Name(response.status.code)}."
+                )
 
         if not response.pipeline_version_runs:
             raise UserError("No pipeline version run was created")
@@ -206,6 +213,7 @@ class Pipeline(Lister, BaseClient):
                     continue
 
                 pipeline_run = run_response.pipeline_version_run
+                pipeline_run_dict = json_format.MessageToDict(pipeline_run)
 
                 # Display new log entries
                 self._display_new_logs(run_id, seen_logs)
@@ -238,7 +246,7 @@ class Pipeline(Lister, BaseClient):
                         # Successful terminal state: JOB_COMPLETED
                         elif status_code == status_code_pb2.JOB_COMPLETED:  # JOB_COMPLETED
                             logger.info("Pipeline run completed successfully!")
-                            return {"status": "success", "pipeline_version_run": pipeline_run}
+                            return {"status": "success", "pipeline_version_run": pipeline_run_dict}
                         # Failure terminal states: JOB_UNEXPECTED_ERROR, JOB_FAILED
                         elif status_code in [
                             status_code_pb2.JOB_FAILED,
@@ -247,11 +255,11 @@ class Pipeline(Lister, BaseClient):
                             logger.error(
                                 f"Pipeline run failed with status: {status_code} ({status_name})"
                             )
-                            return {"status": "failed", "pipeline_version_run": pipeline_run}
+                            return {"status": "failed", "pipeline_version_run": pipeline_run_dict}
                         # Handle legacy SUCCESS status for backward compatibility
                         elif status_code == status_code_pb2.StatusCode.SUCCESS:
                             logger.info("Pipeline run completed successfully!")
-                            return {"status": "success", "pipeline_version_run": pipeline_run}
+                            return {"status": "success", "pipeline_version_run": pipeline_run_dict}
                         elif status_code != status_code_pb2.StatusCode.MIXED_STATUS:
                             # Log other unexpected statuses but continue monitoring
                             logger.warning(
