@@ -153,6 +153,80 @@ class User(Lister, BaseClient):
         for compute_cluster_info in all_compute_clusters_info:
             yield ComputeCluster.from_auth_helper(self.auth_helper, **compute_cluster_info)
 
+    def list_pipelines(
+        self, page_no: int = None, per_page: int = None
+    ) -> Generator[dict, None, None]:
+        """List all pipelines for the user across all apps
+
+        Args:
+            page_no (int): The page number to list.
+            per_page (int): The number of items per page.
+
+        Yields:
+            Dict: Dictionaries containing information about the pipelines.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> all_pipelines = list(client.list_pipelines())
+
+        Note:
+            Defaults to 16 per page if page_no is specified and per_page is not specified.
+            If both page_no and per_page are None, then lists all the resources.
+        """
+        request_data = dict(user_app_id=self.user_app_id)
+        all_pipelines_info = self.list_pages_generator(
+            self.STUB.ListPipelines,
+            service_pb2.ListPipelinesRequest,
+            request_data,
+            per_page=per_page,
+            page_no=page_no,
+        )
+
+        for pipeline_info in all_pipelines_info:
+            pipeline = App._process_pipeline_info(
+                pipeline_info, self.auth_helper, only_in_app=False
+            )
+            if pipeline is not None:
+                yield pipeline
+
+    def list_pipeline_steps(
+        self, page_no: int = None, per_page: int = None
+    ) -> Generator[dict, None, None]:
+        """List all pipeline steps for the user across all apps
+
+        Args:
+            page_no (int): The page number to list.
+            per_page (int): The number of items per page.
+
+        Yields:
+            Dict: Dictionaries containing information about the pipeline steps.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> all_pipeline_steps = list(client.list_pipeline_steps())
+
+        Note:
+            Defaults to 16 per page if page_no is specified and per_page is not specified.
+            If both page_no and per_page are None, then lists all the resources.
+        """
+        request_data = dict(user_app_id=self.user_app_id)
+        all_pipeline_steps_info = self.list_pages_generator(
+            self.STUB.ListPipelineStepVersions,
+            service_pb2.ListPipelineStepVersionsRequest,
+            request_data,
+            per_page=per_page,
+            page_no=page_no,
+        )
+
+        for pipeline_step_info in all_pipeline_steps_info:
+            pipeline_step = App._process_pipeline_step_info(
+                pipeline_step_info, self.auth_helper, only_in_app=False
+            )
+            if pipeline_step is not None:
+                yield pipeline_step
+
     def create_app(self, app_id: str, base_workflow: str = 'Empty', **kwargs) -> App:
         """Creates an app for the user.
 
