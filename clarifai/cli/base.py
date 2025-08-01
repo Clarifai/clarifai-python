@@ -1,4 +1,3 @@
-import getpass
 import json
 import os
 import sys
@@ -82,8 +81,19 @@ def login(ctx, api_url, user_id):
     )
 
     # Securely input PAT
-    pat = getpass.getpass('Enter your Personal Access Token: ')
-
+    pat = input(
+        'Enter your Personal Access Token (PAT) value (or type "ENVVAR" to use an environment variable): '
+    )
+    if pat.lower() == 'envvar':
+        pat = os.environ.get('CLARIFAI_PAT')
+        if not pat:
+            logger.error(
+                'Environment variable "CLARIFAI_PAT" not set. Please set it in your terminal.'
+            )
+            click.echo(
+                'Aborting login. Please set the environment variable or provide a PAT value and try again.'
+            )
+            click.abort()
     # Progress indicator
     click.echo('\n> Verifying token...')
     validate_context_auth(pat, user_id, api_url)
