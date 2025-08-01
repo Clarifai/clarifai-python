@@ -86,7 +86,7 @@ class PipelineBuilder:
 
         if not step_directories:
             logger.info("No pipeline steps to upload (step_directories is empty)")
-            return True
+            return False  # treat this as an error.
 
         logger.info(f"Uploading {len(step_directories)} pipeline steps...")
 
@@ -191,25 +191,38 @@ class PipelineBuilder:
                         if "templateRef" in step:
                             template_ref = step["templateRef"]
                             name = template_ref["name"]
+                            # Extract step name
+                            parts = name.split('/')
 
                             # Check if this is a templateRef without version that we uploaded
                             if self.validator.TEMPLATE_REF_WITHOUT_VERSION_PATTERN.match(name):
-                                # Extract step name
-                                parts = name.split('/')
                                 step_name = parts[-1]
+                                # The step name should match the directory name or be derivable from it
+                                version_id = self.uploaded_step_versions.get(step_name, None)
+                                if version_id is not None:
+                                    # Update the templateRef to include version
+                                    new_name = f"{name}/versions/{version_id}"
+                                    template_ref["name"] = new_name
+                                    template_ref["template"] = new_name
+                                    logger.info(f"Updated templateRef from {name} to {new_name}")
+                            elif self.validator.TEMPLATE_REF_WITH_VERSION_PATTERN.match(name):
+                                # strip the /versions/{version_id} from the end of name
+                                # to get the name like above
+                                orig_name = name
+                                name = orig_name.rsplit('/versions/', 1)[0]
+                                step_name = parts[-3]  # Get the step name from the path
 
-                                # Find the corresponding directory and version
-                                for step_dir, version_id in self.uploaded_step_versions.items():
-                                    # The step name should match the directory name or be derivable from it
-                                    if step_name == step_dir:
-                                        # Update the templateRef to include version
-                                        new_name = f"{name}/versions/{version_id}"
-                                        template_ref["name"] = new_name
-                                        template_ref["template"] = new_name
-                                        logger.info(
-                                            f"Updated templateRef from {name} to {new_name}"
-                                        )
-                                        break
+                                # if it already has a version, make sure it matches the uploaded
+                                # version
+                                version_id = self.uploaded_step_versions.get(step_name, None)
+                                if version_id is not None:
+                                    # Update the templateRef to include version
+                                    new_name = f"{name}/versions/{version_id}"
+                                    template_ref["name"] = new_name
+                                    template_ref["template"] = new_name
+                                    logger.info(
+                                        f"Updated templateRef from {orig_name} to {new_name}"
+                                    )
 
     def create_pipeline(self) -> bool:
         """Create the pipeline using PostPipelines RPC."""

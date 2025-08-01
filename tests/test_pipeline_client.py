@@ -1,8 +1,9 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from clarifai_grpc.grpc.api import resources_pb2
-from clarifai_grpc.grpc.api.status import status_code_pb2
+from clarifai_grpc.grpc.api import resources_pb2, service_pb2
+from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
+from google.protobuf import json_format
 
 from clarifai.client.pipeline import Pipeline
 from clarifai.errors import UserError
@@ -145,17 +146,17 @@ class TestPipelineClient:
         pipeline.auth_helper.metadata = []
 
         # Mock successful GetPipelineVersionRun response
-        mock_get_response = Mock()
-        mock_get_response.status.code = status_code_pb2.StatusCode.SUCCESS
-        mock_run = Mock()
-        # Mock orchestration status with success
-        mock_orch_status = Mock()
-        mock_status = Mock()
-        mock_status.code = status_code_pb2.StatusCode.SUCCESS
-        mock_orch_status.status = mock_status
-        mock_run.orchestration_status = mock_orch_status
-        mock_get_response.pipeline_version_run = mock_run
-        pipeline.STUB.GetPipelineVersionRun.return_value = mock_get_response
+        # use real proto instead of mock for pipeline_version_run response
+        get_response = service_pb2.SinglePipelineVersionRunResponse(
+            status=status_pb2.Status(code=status_code_pb2.StatusCode.SUCCESS),
+            pipeline_version_run=resources_pb2.PipelineVersionRun(
+                id='test-run-123',
+                orchestration_status=resources_pb2.OrchestrationStatus(
+                    status=status_pb2.Status(code=status_code_pb2.StatusCode.SUCCESS)
+                ),
+            ),
+        )
+        pipeline.STUB.GetPipelineVersionRun.return_value = get_response
 
         # Mock log display
         pipeline._display_new_logs = Mock()
@@ -165,7 +166,9 @@ class TestPipelineClient:
 
         # Verify the result
         assert result["status"] == "success"
-        assert result["pipeline_version_run"] == mock_run
+        assert result["pipeline_version_run"] == json_format.MessageToDict(
+            get_response.pipeline_version_run, preserving_proto_field_name=True
+        )
         pipeline.STUB.GetPipelineVersionRun.assert_called_once()
         pipeline._display_new_logs.assert_called_once()
 
@@ -193,17 +196,17 @@ class TestPipelineClient:
         pipeline.auth_helper.metadata = []
 
         # Mock running GetPipelineVersionRun response
-        mock_get_response = Mock()
-        mock_get_response.status.code = status_code_pb2.StatusCode.SUCCESS
-        mock_run = Mock()
-        # Mock orchestration status with mixed status (running)
-        mock_orch_status = Mock()
-        mock_status = Mock()
-        mock_status.code = status_code_pb2.StatusCode.MIXED_STATUS
-        mock_orch_status.status = mock_status
-        mock_run.orchestration_status = mock_orch_status
-        mock_get_response.pipeline_version_run = mock_run
-        pipeline.STUB.GetPipelineVersionRun.return_value = mock_get_response
+        # use real proto instead of mock for pipeline_version_run response
+        get_response = service_pb2.SinglePipelineVersionRunResponse(
+            status=status_pb2.Status(code=status_code_pb2.StatusCode.SUCCESS),
+            pipeline_version_run=resources_pb2.PipelineVersionRun(
+                id='test-run-123',
+                orchestration_status=resources_pb2.OrchestrationStatus(
+                    status=status_pb2.Status(code=status_code_pb2.StatusCode.MIXED_STATUS)
+                ),
+            ),
+        )
+        pipeline.STUB.GetPipelineVersionRun.return_value = get_response
 
         # Mock log display
         pipeline._display_new_logs = Mock()
