@@ -82,7 +82,7 @@ class Pipeline(Lister, BaseClient):
 
         self.pipeline_id = pipeline_id
         self.pipeline_version_id = pipeline_version_id
-        self.pipeline_version_run_id = pipeline_version_run_id or str(uuid.uuid4())
+        self.pipeline_version_run_id = pipeline_version_run_id or str(uuid.uuid4().hex)
         self.user_id = user_id
         self.app_id = app_id
         self.nodepool_id = nodepool_id
