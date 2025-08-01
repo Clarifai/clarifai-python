@@ -883,30 +883,6 @@ def local_runner(ctx, model_path, pool_size, verbose):
             logger.error(f"Failed to customize Ollama model: {e}")
             raise click.Abort()
 
-    # don't mock for local runner since you need the dependencies to run the code anyways.
-    method_signatures = builder.get_method_signatures(mocking=False)
-
-    from clarifai.runners.utils import code_script
-
-    snippet = code_script.generate_client_script(
-        method_signatures,
-        user_id=user_id,
-        app_id=app_id,
-        model_id=model_id,
-        deployment_id=deployment_id,
-        base_url=ctx.obj.current.api_base,
-    )
-
-    logger.info(f"""\nXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-# About to start up the local runner in this terminal...
-# Here is a code snippet to call this model once it start from another terminal:{snippet}
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-""")
-
-    logger.info(
-        f"Playground: To chat with your model, visit:\n{ctx.obj.current.ui}/playground?model={model.id}__{version.id}&user_id={user_id}&app_id={app_id}"
-    )
-
     logger.info("✅ Starting local runner...")
 
     # This reads the config.yaml from the model_path so we alter it above first.

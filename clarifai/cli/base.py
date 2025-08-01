@@ -122,7 +122,7 @@ def input_or_default(prompt, default):
 
 
 # Context management commands under config group
-@config.command(aliases=['get-contexts', 'list-contexts'])
+@config.command(aliases=['get-contexts', 'list-contexts', 'list', 'ls'])
 @click.option(
     '-o', '--output-format', default='wide', type=click.Choice(['wide', 'name', 'json', 'yaml'])
 )
@@ -161,7 +161,7 @@ def get_contexts(ctx, output_format):
             print(yaml.safe_dump(dicts))
 
 
-@config.command(aliases=['use-context'])
+@config.command(aliases=['use-context', 'use'])
 @click.argument('name', type=str)
 @click.pass_context
 def use_context(ctx, name):
