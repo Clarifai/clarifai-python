@@ -143,7 +143,7 @@ def serve(
 
             snippet = code_script.generate_client_script(
                 method_signatures,
-                user_id=context.user_id if context else user_id,
+                user_id=context.user_id,
                 app_id=context.app_id,
                 model_id=context.model_id,
                 deployment_id=context.deployment_id,
