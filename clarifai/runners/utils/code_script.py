@@ -112,7 +112,9 @@ print(response)
         deployment_id = None
     else:
         deployment_id = (
-            'os.environ["CLARIFAI_DEPLOYMENT_ID"]' if not deployment_id else repr(deployment_id)
+            'os.environ.get("CLARIFAI_DEPLOYMENT_ID", None)'
+            if not deployment_id
+            else repr(deployment_id)
         )
 
     deployment_line = (
