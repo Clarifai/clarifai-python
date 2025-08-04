@@ -1,3 +1,14 @@
+## [[11.6.7]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.7) - [PyPI](https://pypi.org/project/clarifai/11.6.7/) - 2025-08-04
+
+### Changed
+- skip code generation when context is None [(#730)] (https://github.com/Clarifai/clarifai-python/pull/730)
+- pipeline_steps should be used in templates [(#728)] (https://github.com/Clarifai/clarifai-python/pull/728)
+- Fix nodepool creation [(#729)] (https://github.com/Clarifai/clarifai-python/pull/729)
+- Fix pipeline status code checks [(#727)] (https://github.com/Clarifai/clarifai-python/pull/727)
+- various fixes for pipelines [(#726)] (https://github.com/Clarifai/clarifai-python/pull/726)
+- Add list / ls CLI command for pipeline and pipelinestep [(#667)] (https://github.com/Clarifai/clarifai-python/pull/667)
+- Fix PAT account settings link [(#724)] (https://github.com/Clarifai/clarifai-python/pull/724)
+
 ## [[11.6.6]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.6) - [PyPI](https://pypi.org/project/clarifai/11.6.6/) - 2025-07-30
 
 ### Changed
