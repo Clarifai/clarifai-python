@@ -1,4 +1,3 @@
-import getpass
 import json
 import os
 import sys
@@ -82,8 +81,20 @@ def login(ctx, api_url, user_id):
     )
 
     # Securely input PAT
-    pat = getpass.getpass('Enter your Personal Access Token: ')
-
+    pat = input_or_default(
+        'Enter your Personal Access Token (PAT) value (or type "ENVVAR" to use an environment variable): ',
+        'ENVVAR',
+    )
+    if pat.lower() == 'envvar':
+        pat = os.environ.get('CLARIFAI_PAT')
+        if not pat:
+            logger.error(
+                'Environment variable "CLARIFAI_PAT" not set. Please set it in your terminal.'
+            )
+            click.echo(
+                'Aborting login. Please set the environment variable or provide a PAT value and try again.'
+            )
+            click.abort()
     # Progress indicator
     click.echo('\n> Verifying token...')
     validate_context_auth(pat, user_id, api_url)
@@ -152,9 +163,14 @@ def get_contexts(ctx, output_format):
     elif output_format == 'name':
         print('\n'.join(ctx.obj.contexts))
     elif output_format in ('json', 'yaml'):
-        dicts = [v.__dict__ for c, v in ctx.obj.contexts.items()]
-        for d in dicts:
-            d.pop('pat')
+        dicts = []
+        for c, v in ctx.obj.contexts.items():
+            context_dict = {}
+            d = v.to_serializable_dict()
+            d.pop('CLARIFAI_PAT', None)
+            context_dict['name'] = c
+            context_dict['env'] = d
+            dicts.append(context_dict)
         if output_format == 'json':
             print(json.dumps(dicts))
         elif output_format == 'yaml':
@@ -216,6 +232,16 @@ def create_context(
             'personal access token value (default: "ENVVAR" to get our of env var rather than config): ',
             'ENVVAR',
         )
+    if pat.lower() == 'envvar':
+        pat = os.environ.get('CLARIFAI_PAT')
+        if not pat:
+            logger.error(
+                'Environment variable "CLARIFAI_PAT" not set. Please set it in your terminal.'
+            )
+            click.echo(
+                'Aborting context creation. Please set the environment variable or provide a PAT value and try again.'
+            )
+            click.abort()
     validate_context_auth(pat, user_id, base_url)
     context = Context(name, CLARIFAI_USER_ID=user_id, CLARIFAI_API_BASE=base_url, CLARIFAI_PAT=pat)
     ctx.obj.contexts[context.name] = context
