@@ -133,7 +133,7 @@ def input_or_default(prompt, default):
 
 
 # Context management commands under config group
-@config.command(aliases=['get-contexts', 'list-contexts', 'list', 'ls'])
+@config.command(aliases=['get-contexts', 'list-contexts', 'ls'])
 @click.option(
     '-o', '--output-format', default='wide', type=click.Choice(['wide', 'name', 'json', 'yaml'])
 )
@@ -189,7 +189,7 @@ def use_context(ctx, name):
     print(f'Set {name} as the current context')
 
 
-@config.command(aliases=['current-context'])
+@config.command(aliases=['current-context', 'current'])
 @click.option('-o', '--output-format', default='name', type=click.Choice(['name', 'json', 'yaml']))
 @click.pass_context
 def current_context(ctx, output_format):
@@ -202,7 +202,7 @@ def current_context(ctx, output_format):
         print(yaml.safe_dump(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
 
 
-@config.command(aliases=['create-context', 'set-context'])
+@config.command(aliases=['create-context', 'create'])
 @click.argument('name')
 @click.option('--user-id', required=False, help='User ID')
 @click.option('--base-url', required=False, help='Base URL')
@@ -259,7 +259,7 @@ def edit(
     os.system(f'{os.environ.get("EDITOR", "vi")} {ctx.obj.filename}')
 
 
-@config.command(aliases=['delete-context'])
+@config.command(aliases=['delete-context', 'delete'])
 @click.argument('name')
 @click.pass_context
 def delete_context(ctx, name):

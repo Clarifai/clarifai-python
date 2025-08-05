@@ -134,7 +134,10 @@ def serve(
             pat=pat,
             num_parallel_polls=num_threads,
         )
-        if context:
+
+        if context is None:
+            logger.debug("Context is None. Skipping code snippet generation.")
+        else:
             method_signatures = builder.get_method_signatures(mocking=False)
             from clarifai.runners.utils import code_script
 

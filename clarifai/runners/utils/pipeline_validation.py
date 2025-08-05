@@ -11,10 +11,10 @@ class PipelineConfigValidator:
 
     # Regex patterns for templateRef validation
     TEMPLATE_REF_WITH_VERSION_PATTERN = re.compile(
-        r'^users/([^/]+)/apps/([^/]+)/pipeline-steps/([^/]+)/versions/([^/]+)$'
+        r'^users/([^/]+)/apps/([^/]+)/pipeline_steps/([^/]+)/versions/([^/]+)$'
     )
     TEMPLATE_REF_WITHOUT_VERSION_PATTERN = re.compile(
-        r'^users/([^/]+)/apps/([^/]+)/pipeline-steps/([^/]+)$'
+        r'^users/([^/]+)/apps/([^/]+)/pipeline_steps/([^/]+)$'
     )
 
     @classmethod
@@ -120,8 +120,8 @@ class PipelineConfigValidator:
         ):
             raise ValueError(
                 f"templateRef name '{name}' must match either pattern:\n"
-                f"  - users/{{user_id}}/apps/{{app_id}}/pipeline-steps/{{step_id}}\n"
-                f"  - users/{{user_id}}/apps/{{app_id}}/pipeline-steps/{{step_id}}/versions/{{version_id}}"
+                f"  - users/{{user_id}}/apps/{{app_id}}/pipeline_steps/{{step_id}}\n"
+                f"  - users/{{user_id}}/apps/{{app_id}}/pipeline_steps/{{step_id}}/versions/{{version_id}}"
             )
 
     @classmethod

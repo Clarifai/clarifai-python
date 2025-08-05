@@ -82,12 +82,12 @@ spec:
     steps:
     - - name: step1
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepA
-          template: users/test-user/apps/test-app/pipeline-steps/stepA
+          name: users/test-user/apps/test-app/pipeline_steps/stepA
+          template: users/test-user/apps/test-app/pipeline_steps/stepA
     - - name: step2
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepB/versions/123
-          template: users/test-user/apps/test-app/pipeline-steps/stepB/versions/123
+          name: users/test-user/apps/test-app/pipeline_steps/stepB/versions/123
+          template: users/test-user/apps/test-app/pipeline_steps/stepB/versions/123
                     """
                 },
             }
@@ -113,8 +113,8 @@ spec:
     steps:
     - - name: step1
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepA
-          template: users/test-user/apps/test-app/pipeline-steps/stepB
+          name: users/test-user/apps/test-app/pipeline_steps/stepA
+          template: users/test-user/apps/test-app/pipeline_steps/stepB
                     """
                 },
             }
@@ -167,12 +167,12 @@ spec:
     steps:
     - - name: step1
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepA
-          template: users/test-user/apps/test-app/pipeline-steps/stepA
+          name: users/test-user/apps/test-app/pipeline_steps/stepA
+          template: users/test-user/apps/test-app/pipeline_steps/stepA
     - - name: step2
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepB/versions/123
-          template: users/test-user/apps/test-app/pipeline-steps/stepB/versions/123
+          name: users/test-user/apps/test-app/pipeline_steps/stepB/versions/123
+          template: users/test-user/apps/test-app/pipeline_steps/stepB/versions/123
                     """
                 },
             }
@@ -207,8 +207,8 @@ spec:
     steps:
     - - name: step1
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepA
-          template: users/test-user/apps/test-app/pipeline-steps/stepA
+          name: users/test-user/apps/test-app/pipeline_steps/stepA
+          template: users/test-user/apps/test-app/pipeline_steps/stepA
                     """
                 },
             }
@@ -311,7 +311,7 @@ spec:
         builder.config["pipeline"]["step_directories"] = []
 
         result = builder.upload_pipeline_steps()
-        assert result is True
+        assert result is False
 
     def test_update_config_with_versions(self, temp_config_file):
         """Test updating config with version information."""
@@ -327,7 +327,7 @@ spec:
 
         # Check that templateRef was updated
         template_ref = argo_spec["spec"]["templates"][0]["steps"][0][0]["templateRef"]
-        expected_name = "users/test-user/apps/test-app/pipeline-steps/stepA/versions/version-123"
+        expected_name = "users/test-user/apps/test-app/pipeline_steps/stepA/versions/version-123"
         assert template_ref["name"] == expected_name
         assert template_ref["template"] == expected_name
 
@@ -538,7 +538,7 @@ spec:
     steps:
     - - name: step1
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepA
+          name: users/test-user/apps/test-app/pipeline_steps/stepA
                     """
                 },
             }
@@ -566,8 +566,8 @@ spec:
     steps:
     - - name: step1
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepA/versions/123
-          template: users/test-user/apps/test-app/pipeline-steps/stepA/versions/123
+          name: users/test-user/apps/test-app/pipeline_steps/stepA/versions/123
+          template: users/test-user/apps/test-app/pipeline_steps/stepA/versions/123
                     """
                 },
             }
@@ -601,8 +601,8 @@ spec:
     steps:
     - - name: step1
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepA/versions/123
-          template: users/test-user/apps/test-app/pipeline-steps/stepA/versions/123
+          name: users/test-user/apps/test-app/pipeline_steps/stepA/versions/123
+          template: users/test-user/apps/test-app/pipeline_steps/stepA/versions/123
                     """
                 },
             }
@@ -627,7 +627,7 @@ spec:
 
         # Should handle missing step_directories gracefully
         result = builder.upload_pipeline_steps()
-        assert result is True
+        assert result is False
         assert builder.uploaded_step_versions == {}
 
     def test_update_config_with_no_versions(self, temp_config_file_no_dirs):
@@ -992,6 +992,9 @@ class TestPipelineRunCommand:
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
 
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
         class MockConfig:
             def __init__(self):
                 self.current = MockContext()
@@ -1054,6 +1057,9 @@ class TestPipelineRunCommand:
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
 
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
         class MockConfig:
             def __init__(self):
                 self.current = MockContext()
@@ -1096,6 +1102,9 @@ class TestPipelineRunCommand:
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
 
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
         class MockConfig:
             def __init__(self):
                 self.current = MockContext()
@@ -1135,6 +1144,9 @@ class TestPipelineRunCommand:
             def __init__(self):
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
 
         class MockConfig:
             def __init__(self):
@@ -1196,6 +1208,9 @@ class TestPipelineRunCommand:
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
 
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
         class MockConfig:
             def __init__(self):
                 self.current = MockContext()
@@ -1251,6 +1266,9 @@ class TestPipelineRunCommand:
             def __init__(self):
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
 
         class MockConfig:
             def __init__(self):
