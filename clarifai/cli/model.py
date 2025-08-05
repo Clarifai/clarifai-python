@@ -728,7 +728,11 @@ def local_runner(ctx, model_path, pool_size, verbose):
     model_versions = [v for v in model.list_versions()]
     if len(model_versions) == 0:
         logger.warning("No model versions found. Creating a new version for local runner.")
-        version = model.create_version(pretrained_model_config={"local_dev": True}).model_version
+        # add the signatures for local runner on how to call it.
+        signatures = builder.get_method_signatures(mocking=True)
+        version = model.create_version(
+            pretrained_model_config={"local_dev": True}, method_signatures=signatures
+        ).model_version
         ctx.obj.current.CLARIFAI_MODEL_VERSION_ID = version.id
         ctx.obj.to_yaml()
     else:
