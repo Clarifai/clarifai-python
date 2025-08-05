@@ -1,3 +1,8 @@
+## [[11.6.8]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.8) - [PyPI](https://pypi.org/project/clarifai/11.6.8/) - 2025-08-05
+
+### Changed
+- quickfix for local runner signatures [(#732)] (https://github.com/Clarifai/clarifai-python/pull/732)
+
 ## [[11.6.7]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.7) - [PyPI](https://pypi.org/project/clarifai/11.6.7/) - 2025-08-04
 
 ### Changed
