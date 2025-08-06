@@ -71,33 +71,56 @@ def login(ctx, api_url, user_id):
     """Login command to set PAT and other configurations."""
     from clarifai.utils.cli import validate_context_auth
 
-    name = input('context name (default: "default"): ')
-    user_id = user_id if user_id is not None else input('user id: ')
-    pat = input_or_default(
-        'personal access token value (default: "ENVVAR" to get out of env var rather than config): ',
-        'ENVVAR',
+    # Input user_id if not supplied
+    if not user_id:
+        user_id = click.prompt('Enter your Clarifai user ID', type=str)
+
+    click.echo('> To authenticate, you\'ll need a Personal Access Token (PAT).')
+    click.echo(
+        f'> You can create one from your account settings: https://clarifai.com/{user_id}/settings/security\n'
     )
 
-    # Validate the Context Credentials
+    # Securely input PAT
+    pat = input_or_default(
+        'Enter your Personal Access Token (PAT) value (or type "ENVVAR" to use an environment variable): ',
+        'ENVVAR',
+    )
+    if pat.lower() == 'envvar':
+        pat = os.environ.get('CLARIFAI_PAT')
+        if not pat:
+            logger.error(
+                'Environment variable "CLARIFAI_PAT" not set. Please set it in your terminal.'
+            )
+            click.echo(
+                'Aborting login. Please set the environment variable or provide a PAT value and try again.'
+            )
+            click.abort()
+    # Progress indicator
+    click.echo('\n> Verifying token...')
     validate_context_auth(pat, user_id, api_url)
 
+    # Context naming
+    default_context_name = 'default'
+    click.echo('\n> Let\'s save these credentials to a new context.')
+    click.echo('> You can have multiple contexts to easily switch between accounts or projects.\n')
+    context_name = click.prompt("Enter a name for this context", default=default_context_name)
+
+    # Save context
     context = Context(
-        name,
+        context_name,
         CLARIFAI_API_BASE=api_url,
         CLARIFAI_USER_ID=user_id,
         CLARIFAI_PAT=pat,
     )
 
-    if context.name == '':
-        context.name = 'default'
-
-    ctx.obj.contexts[context.name] = context
-    ctx.obj.current_context = context.name
-
+    ctx.obj.contexts[context_name] = context
+    ctx.obj.current_context = context_name
     ctx.obj.to_yaml()
-    logger.info(
-        f"Login successful and Configuration saved successfully for context '{context.name}'"
-    )
+    click.secho('✅ Success! You are now logged in.', fg='green')
+    click.echo(f'Credentials saved to the \'{context_name}\' context.\n')
+    click.echo('💡 To switch contexts later, use `clarifai config use-context <name>`.')
+
+    logger.info(f"Login successful for user '{user_id}' in context '{context_name}'")
 
 
 def pat_display(pat):
@@ -110,7 +133,7 @@ def input_or_default(prompt, default):
 
 
 # Context management commands under config group
-@config.command(aliases=['get-contexts', 'list-contexts'])
+@config.command(aliases=['get-contexts', 'list-contexts', 'ls'])
 @click.option(
     '-o', '--output-format', default='wide', type=click.Choice(['wide', 'name', 'json', 'yaml'])
 )
@@ -140,16 +163,21 @@ def get_contexts(ctx, output_format):
     elif output_format == 'name':
         print('\n'.join(ctx.obj.contexts))
     elif output_format in ('json', 'yaml'):
-        dicts = [v.__dict__ for c, v in ctx.obj.contexts.items()]
-        for d in dicts:
-            d.pop('pat')
+        dicts = []
+        for c, v in ctx.obj.contexts.items():
+            context_dict = {}
+            d = v.to_serializable_dict()
+            d.pop('CLARIFAI_PAT', None)
+            context_dict['name'] = c
+            context_dict['env'] = d
+            dicts.append(context_dict)
         if output_format == 'json':
             print(json.dumps(dicts))
         elif output_format == 'yaml':
             print(yaml.safe_dump(dicts))
 
 
-@config.command(aliases=['use-context'])
+@config.command(aliases=['use-context', 'use'])
 @click.argument('name', type=str)
 @click.pass_context
 def use_context(ctx, name):
@@ -161,7 +189,7 @@ def use_context(ctx, name):
     print(f'Set {name} as the current context')
 
 
-@config.command(aliases=['current-context'])
+@config.command(aliases=['current-context', 'current'])
 @click.option('-o', '--output-format', default='name', type=click.Choice(['name', 'json', 'yaml']))
 @click.pass_context
 def current_context(ctx, output_format):
@@ -174,7 +202,7 @@ def current_context(ctx, output_format):
         print(yaml.safe_dump(ctx.obj.contexts[ctx.obj.current_context].to_serializable_dict()))
 
 
-@config.command(aliases=['create-context', 'set-context'])
+@config.command(aliases=['create-context', 'create'])
 @click.argument('name')
 @click.option('--user-id', required=False, help='User ID')
 @click.option('--base-url', required=False, help='Base URL')
@@ -204,6 +232,16 @@ def create_context(
             'personal access token value (default: "ENVVAR" to get our of env var rather than config): ',
             'ENVVAR',
         )
+    if pat.lower() == 'envvar':
+        pat = os.environ.get('CLARIFAI_PAT')
+        if not pat:
+            logger.error(
+                'Environment variable "CLARIFAI_PAT" not set. Please set it in your terminal.'
+            )
+            click.echo(
+                'Aborting context creation. Please set the environment variable or provide a PAT value and try again.'
+            )
+            click.abort()
     validate_context_auth(pat, user_id, base_url)
     context = Context(name, CLARIFAI_USER_ID=user_id, CLARIFAI_API_BASE=base_url, CLARIFAI_PAT=pat)
     ctx.obj.contexts[context.name] = context
@@ -221,7 +259,7 @@ def edit(
     os.system(f'{os.environ.get("EDITOR", "vi")} {ctx.obj.filename}')
 
 
-@config.command(aliases=['delete-context'])
+@config.command(aliases=['delete-context', 'delete'])
 @click.argument('name')
 @click.pass_context
 def delete_context(ctx, name):
