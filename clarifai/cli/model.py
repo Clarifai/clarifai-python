@@ -571,6 +571,8 @@ def local_runner(ctx, model_path, pool_size, verbose):
     from clarifai.runners.models.model_builder import ModelBuilder
     from clarifai.runners.server import serve
 
+    builder = ModelBuilder(model_path, download_validation_only=True)
+
     validate_context(ctx)
     builder = ModelBuilder(model_path, download_validation_only=True)
     logger.info("> Checking local runner requirements...")
@@ -726,16 +728,20 @@ def local_runner(ctx, model_path, pool_size, verbose):
     # Now we need to create a version for the model if no version exists. Only need one version that
     # mentions it's a local runner.
     model_versions = [v for v in model.list_versions()]
+    method_signatures = builder.get_method_signatures(mocking=False)
     if len(model_versions) == 0:
         logger.warning("No model versions found. Creating a new version for local runner.")
-        # add the signatures for local runner on how to call it.
-        signatures = builder.get_method_signatures(mocking=True)
         version = model.create_version(
-            pretrained_model_config={"local_dev": True}, method_signatures=signatures
+            pretrained_model_config={"local_dev": True}, method_signatures=method_signatures
         ).model_version
         ctx.obj.current.CLARIFAI_MODEL_VERSION_ID = version.id
         ctx.obj.to_yaml()
     else:
+        model.patch_version(
+            version_id=model_versions[0].model_version.id,
+            pretrained_model_config={"local_dev": True},
+            method_signatures=method_signatures,
+        )
         version = model_versions[0].model_version
         ctx.obj.current.CLARIFAI_MODEL_VERSION_ID = version.id
         ctx.obj.to_yaml()  # save to yaml file.
@@ -864,7 +870,6 @@ def local_runner(ctx, model_path, pool_size, verbose):
         ModelBuilder._backup_config(config_file)
         ModelBuilder._save_config(config_file, config)
 
-    builder = ModelBuilder(model_path, download_validation_only=True)
     if not check_requirements_installed(model_path):
         logger.error(f"Requirements not installed for model at {model_path}.")
         raise click.Abort()
