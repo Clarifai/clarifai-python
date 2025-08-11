@@ -81,10 +81,25 @@ git clone https://github.com/Clarifai/clarifai-python.git
 cd clarifai-python
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-python setup.py install
+pip install -e .
 ```
 
+#### Linting
+
+For developers, use the precommit hook `.pre-commit-config.yaml` to automate linting.
+
+```bash
+pip install -r requirements-dev.txt
+pre-commit install
+```
+
+Now every time you run `git commit` your code will be automatically linted and won't commit if it fails.
+
+You can also manually trigger linting using:
+
+```bash
+pre-commit run --all-files
+```
 
 
 ## :memo: Getting started

@@ -701,41 +701,6 @@ class ModelBuilder:
             )
         return is_amd_gpu
 
-    def _lint_python_code(self):
-        """
-        Lint the python code in the model.py file using flake8.
-        This will help catch any simple bugs in the code before uploading it to the API.
-        """
-        if not shutil.which('ruff'):
-            raise Exception("ruff command not found, please install ruff to lint the python code")
-        # List all the python files in the /1/ folder recursively and lint them.
-        python_files = []
-        for root, _, files in os.walk(os.path.join(self.folder, '1')):
-            for file in files:
-                if file.endswith('.py'):
-                    python_files.append(os.path.join(root, file))
-        if not python_files:
-            logger.info("No Python files found to lint, skipping linting step.")
-        else:
-            logger.info(f"Setup: Linting Python files: {python_files}")
-        # Run ruff to lint the python code.
-        command = "ruff check --select=F"
-        result = subprocess.run(
-            f"{command} {' '.join(python_files)}",
-            shell=True,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            logger.error(f"Error linting Python code: {result.stderr}")
-            logger.error("Output: " + result.stdout)
-            logger.error(
-                f"Failed to lint the Python code, please check the code for errors using '{command}' so you don't have simple errors in your code prior to upload."
-            )
-        else:
-            logger.info("Setup: Python code linted successfully, no errors found.")
-
     def _normalize_dockerfile_content(self, content):
         """
         Normalize Dockerfile content for comparison by standardizing whitespace and indentation.
@@ -788,9 +753,6 @@ class ModelBuilder:
         # Before we bother even picking the right base image, let's use uv to validate
         # that the requirements.txt file is valid and compatible.
         self._validate_requirements(python_version)
-
-        # Make sure any python code will not have simple bugs by linting it first.
-        self._lint_python_code()
 
         # Parse the requirements.txt file to determine the base image
         dependencies = self._parse_requirements()
