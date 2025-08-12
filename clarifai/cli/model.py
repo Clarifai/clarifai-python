@@ -159,7 +159,6 @@ def init(
             max_retries=3,
             github_token=github_pat,
         )
-        print(github_url)
         if toolkit:
             owner, repo, _, folder_path = downloader.parse_github_url(url=github_url)
         else:
