@@ -21,8 +21,9 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_RUNNER_MODEL_TYPE,
     DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG,
     DEFAULT_LOCAL_RUNNER_NODEPOOL_ID,
-    DEFAULT_OLLAMA_MODEL_REPO,
+    DEFAULT_TOOLKIT_MODEL_REPO,
     DEFAULT_OLLAMA_MODEL_REPO_BRANCH,
+    DEFAULT_HF_MODEL_REPO_BRANCH
 )
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import GitHubDownloader, clone_github_repo, format_github_repo_url
@@ -62,14 +63,14 @@ def model():
 )
 @click.option(
     '--toolkit',
-    type=click.Choice(['ollama'], case_sensitive=False),
+    type=click.Choice(['ollama', 'huggingface'], case_sensitive=False),
     required=False,
-    help='Toolkit to use for model initialization. Currently supports "ollama".',
+    help='Toolkit to use for model initialization. Currently supports "ollama" and "huggingface".',
 )
 @click.option(
     '--model-name',
     required=False,
-    help='Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.).',
+    help='Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "unsloth/Llama-3.2-1B-Instruct").',
 )
 @click.option(
     '--port',
@@ -110,8 +111,8 @@ def init(
     MODEL_TYPE_ID: Type of model to create. If not specified, defaults to "text-to-text" for text models.
     GITHUB_PAT: GitHub Personal Access Token for authentication when cloning private repositories.
     GITHUB_URL: GitHub repository URL or "repo" format to clone a repository from. If provided, the entire repository contents will be copied to the target directory instead of using default templates.
-    TOOLKIT: Toolkit to use for model initialization. Currently supports "ollama".
-    MODEL_NAME: Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.).
+    TOOLKIT: Toolkit to use for model initialization. Currently supports "ollama" and "huggingface".
+    MODEL_NAME: Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "Qwen/Qwen3-4B-Instruct-2507").
     PORT: Port to run the Ollama server on. Defaults to 23333.
     CONTEXT_LENGTH: Context length for the Ollama model. Defaults to 8192.
     """
@@ -146,8 +147,11 @@ def init(
                 "Ollama is not installed. Please install it from `https://ollama.com/` to use the Ollama toolkit."
             )
             raise click.Abort()
-        github_url = DEFAULT_OLLAMA_MODEL_REPO
+        github_url = DEFAULT_TOOLKIT_MODEL_REPO
         branch = DEFAULT_OLLAMA_MODEL_REPO_BRANCH
+    elif toolkit == 'huggingface':
+        github_url = DEFAULT_TOOLKIT_MODEL_REPO
+        branch = DEFAULT_HF_MODEL_REPO_BRANCH
 
     if github_url:
         if not toolkit:
@@ -225,6 +229,26 @@ def init(
 
     if (model_name or port or context_length) and (toolkit == 'ollama'):
         customize_ollama_model(model_path, model_name, port, context_length)
+    
+    if model_name and toolkit == 'huggingface':
+        # Update the config.yaml file with the provided model name
+        import yaml
+        config_path = os.path.join(model_path, 'config.yaml')
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+            
+            # Update the repo_id in checkpoints section
+            if 'checkpoints' not in config:
+                config['checkpoints'] = {}
+            config['checkpoints']['repo_id'] = model_name
+            
+            with open(config_path, 'w') as f:
+                yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+            
+            logger.info(f"Updated Hugging Face model repo_id to: {model_name}")
+        else:
+            logger.warning(f"config.yaml not found at {config_path}, skipping model configuration")
 
     if github_url:
         logger.info("Model initialization complete with GitHub repository")
