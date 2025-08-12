@@ -101,6 +101,7 @@ class ModelBuilder:
         self.folder = self._validate_folder(folder)
         self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
         self._validate_config()
+        self._validate_stream_options()
         self.model_proto = self._get_model_proto()
         self.model_id = self.model_proto.id
         self.model_version_id = None
@@ -439,6 +440,64 @@ class ModelBuilder:
         else:
             num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 16))
             self.config["num_threads"] = num_threads
+
+    def _validate_stream_options(self):
+        """
+        Validate OpenAI streaming configuration for Clarifai models.
+        """
+        if not self._is_clarifai_internal():
+            return  # Skip validation for non-clarifai models
+
+        # Parse all Python files once
+        all_python_content = self._get_all_python_content()
+
+        if self._uses_openai_chat_completions(all_python_content):
+            logger.info(
+                "Detected OpenAI chat completions for employee model - validating stream_options..."
+            )
+
+            if not self._check_include_usage_in_source(all_python_content):
+                raise Exception(
+                    "Missing 'include_usage': True in stream_options for OpenAI chat completion calls. "
+                    "Clarifai hosted models using chat.completions.create must include "
+                    "stream_options={'include_usage': True}."
+                )
+
+            logger.info("OpenAI stream_options configuration validated successfully.")
+
+    def _is_clarifai_internal(self):
+        """
+        Check if the current user is a Clarifai internal user.
+        """
+        # TODO: Implement actual employee PAT validation logic
+        return True  # Placeholder - replace with actual logic
+
+    def _get_all_python_content(self):
+        """
+        Parse and concatenate all Python files in the model's 1/ subfolder.
+        """
+        model_folder = os.path.join(self.folder, '1')
+        if not os.path.exists(model_folder):
+            return ""
+
+        all_content = ""
+        for root, _, files in os.walk(model_folder):
+            for file in files:
+                if file.endswith('.py'):
+                    file_path = os.path.join(root, file)
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            all_content += f.read() + "\n"
+                    except Exception:
+                        continue
+        return all_content
+
+    def _uses_openai_chat_completions(self, python_content):
+        return 'chat.completions.create' in python_content
+
+    def _check_include_usage_in_source(self, python_content):
+        include_usage_patterns = ["'include_usage': True", '"include_usage": True']
+        return any(pattern in python_content for pattern in include_usage_patterns)
 
     @staticmethod
     def _get_tar_file_content_size(tar_file_path):

@@ -240,3 +240,40 @@ def test_model_uploader_missing_app_action(tmp_path, monkeypatch):
     # Test non supported action
     with pytest.raises(AssertionError):
         ModelBuilder(target_folder, app_not_found_action="a")
+
+
+def test_openai_stream_options_validation(tmp_path):
+    """
+    Test that OpenAI models without proper stream_options configuration are rejected.
+    """
+    tests_dir = Path(__file__).parent.resolve()
+    original_dummy_path = tests_dir / "dummy_missing_stream_options_model"
+
+    if not original_dummy_path.exists():
+        pytest.skip(
+            "dummy_missing_stream_options_model not found, skipping OpenAI validation test"
+        )
+
+    # Copy the OpenAI model folder to tmp_path
+    target_folder = tmp_path / "dummy_missing_stream_options_model"
+    shutil.copytree(original_dummy_path, target_folder)
+
+    # Update config.yaml with test user/app info
+    config_yaml_path = target_folder / "config.yaml"
+    with config_yaml_path.open("r") as f:
+        config = yaml.safe_load(f)
+
+    NOW = uuid.uuid4().hex[:8]
+    config["model"]["user_id"] = CLARIFAI_USER_ID
+    config["model"]["app_id"] = "test-openai-validation" + NOW
+
+    with config_yaml_path.open("w") as f:
+        yaml.dump(config, f, sort_keys=False)
+
+    # Test that ModelBuilder raises exception for missing stream_options
+    with pytest.raises(Exception) as exc_info:
+        ModelBuilder(str(target_folder), validate_api_ids=False)
+
+    # Verify the exception message contains the expected validation error
+    assert "include_usage" in str(exc_info.value)
+    assert "stream_options" in str(exc_info.value)
