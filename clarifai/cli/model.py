@@ -8,11 +8,13 @@ from clarifai.cli.base import cli, pat_display
 from clarifai.utils.cli import (
     check_ollama_installed,
     check_requirements_installed,
+    customize_huggingface_model,
     customize_ollama_model,
     parse_requirements,
     validate_context,
 )
 from clarifai.utils.constants import (
+    DEFAULT_HF_MODEL_REPO_BRANCH,
     DEFAULT_LOCAL_RUNNER_APP_ID,
     DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG,
     DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_ID,
@@ -21,9 +23,8 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_RUNNER_MODEL_TYPE,
     DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG,
     DEFAULT_LOCAL_RUNNER_NODEPOOL_ID,
-    DEFAULT_TOOLKIT_MODEL_REPO,
     DEFAULT_OLLAMA_MODEL_REPO_BRANCH,
-    DEFAULT_HF_MODEL_REPO_BRANCH
+    DEFAULT_TOOLKIT_MODEL_REPO,
 )
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import GitHubDownloader, clone_github_repo, format_github_repo_url
@@ -229,26 +230,10 @@ def init(
 
     if (model_name or port or context_length) and (toolkit == 'ollama'):
         customize_ollama_model(model_path, model_name, port, context_length)
-    
+
     if model_name and toolkit == 'huggingface':
         # Update the config.yaml file with the provided model name
-        import yaml
-        config_path = os.path.join(model_path, 'config.yaml')
-        if os.path.exists(config_path):
-            with open(config_path, 'r') as f:
-                config = yaml.safe_load(f)
-            
-            # Update the repo_id in checkpoints section
-            if 'checkpoints' not in config:
-                config['checkpoints'] = {}
-            config['checkpoints']['repo_id'] = model_name
-            
-            with open(config_path, 'w') as f:
-                yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-            
-            logger.info(f"Updated Hugging Face model repo_id to: {model_name}")
-        else:
-            logger.warning(f"config.yaml not found at {config_path}, skipping model configuration")
+        customize_huggingface_model(model_path, model_name)
 
     if github_url:
         logger.info("Model initialization complete with GitHub repository")
