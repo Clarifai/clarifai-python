@@ -1522,7 +1522,7 @@ def setup_deployment_for_model(builder):
     # Step 3: Help create a new deployment by providing URL
     # Provide URL to create a new deployment
     url_helper = ClarifaiUrlHelper()
-    deployment_url = f"{url_helper.ui}/settings/compute/deployments/new?computeClusterId={compute_cluster.id}&nodePoolId={nodepool.id}"
+    deployment_url = f"{url_helper.ui}/compute/deployments/create?computeClusterId={compute_cluster.id}&nodePoolId={nodepool.id}"
     logger.info(f"Please create a new deployment by visiting: {deployment_url}")
 
     # Ask if they want to open the URL in browser
@@ -1536,4 +1536,3 @@ def setup_deployment_for_model(builder):
             logger.error(f"Failed to open browser: {e}")
 
     logger.info("After creating the deployment, your model will be ready for inference!")
-    logger.info(f"You can always return to view your deployments at: {deployment_url}")
