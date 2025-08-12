@@ -67,13 +67,13 @@ def main():
     parsed_args = parser.parse_args()
 
     serve(
-        parsed_args.model_path,
-        parsed_args.port,
-        parsed_args.pool_size,
-        parsed_args.max_queue_size,
-        parsed_args.max_msg_length,
-        parsed_args.enable_tls,
-        parsed_args.grpc,
+        model_path=parsed_args.model_path,
+        port=parsed_args.port,
+        pool_size=parsed_args.pool_size,
+        max_queue_size=parsed_args.max_queue_size,
+        max_msg_length=parsed_args.max_msg_length,
+        enable_tls=parsed_args.enable_tls,
+        grpc=parsed_args.grpc,
     )
 
 
