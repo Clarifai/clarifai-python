@@ -467,10 +467,33 @@ class ModelBuilder:
 
     def _is_clarifai_internal(self):
         """
-        Check if the current user is a Clarifai internal user.
+        Check if the current user is a Clarifai internal user based on email domain.
+
+        Returns:
+            bool: True if user is a Clarifai internal user, False otherwise
         """
-        # TODO: Implement actual employee PAT validation logic
-        return True  # Placeholder - replace with actual logic
+        try:
+            # Get user info from Clarifai API
+            user_client = User(
+                pat=self.client.pat, user_id=self.config.get('model').get('user_id')
+            )
+            user_response = user_client.get_user_info()
+
+            if user_response.status.code != status_code_pb2.SUCCESS:
+                logger.debug("Could not retrieve user info for employee validation")
+                return False
+
+            user = user_response.user
+
+            # Check primary email domain
+            if hasattr(user, 'primary_email') and user.primary_email:
+                return user.primary_email.endswith('@clarifai.com')
+
+            return False
+
+        except Exception as e:
+            logger.debug(f"Employee validation failed: {e}")
+            return False
 
     def _get_all_python_content(self):
         """
