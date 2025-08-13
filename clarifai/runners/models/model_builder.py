@@ -451,19 +451,19 @@ class ModelBuilder:
         # Parse all Python files once
         all_python_content = self._get_all_python_content()
 
-        if self._uses_openai_chat_completions(all_python_content):
+        if self._uses_openai_streaming(all_python_content):
             logger.info(
-                "Detected OpenAI chat completions for employee model - validating stream_options..."
+                "Detected OpenAI chat completions for Clarifai model streaming - validating stream_options..."
             )
 
             if not self._check_include_usage_in_source(all_python_content):
                 raise Exception(
                     "Missing 'include_usage': True in stream_options for OpenAI chat completion calls. "
-                    "Clarifai hosted models using chat.completions.create must include "
+                    "Clarifai models using chat.completions.create must include "
                     "stream_options={'include_usage': True}."
                 )
 
-            logger.info("OpenAI stream_options configuration validated successfully.")
+            logger.info("Clarifai model stream_options configuration validated successfully.")
 
     def _is_clarifai_internal(self):
         """
@@ -480,7 +480,7 @@ class ModelBuilder:
             user_response = user_client.get_user_info()
 
             if user_response.status.code != status_code_pb2.SUCCESS:
-                logger.debug("Could not retrieve user info for employee validation")
+                logger.debug("Could not retrieve user info for Clarifai internal user validation")
                 return False
 
             user = user_response.user
@@ -515,8 +515,8 @@ class ModelBuilder:
                         continue
         return all_content
 
-    def _uses_openai_chat_completions(self, python_content):
-        return 'chat.completions.create' in python_content
+    def _uses_openai_streaming(self, python_content):
+        return 'chat.completions.create' in python_content and 'generate(' in python_content
 
     def _check_include_usage_in_source(self, python_content):
         include_usage_patterns = ["'include_usage': True", '"include_usage": True']
