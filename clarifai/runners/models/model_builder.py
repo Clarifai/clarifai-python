@@ -457,14 +457,12 @@ class ModelBuilder:
             )
 
             if not self.has_proper_usage_tracking(all_python_content):
-                raise Exception(
+                logger.error(
                     "Missing configuration to track usage for OpenAI chat completion calls. "
-                    "Clarifai models using chat.completions.create must include both: "
-                    "1) stream_options={'include_usage': True} and "
-                    "2) set_output_context method call in the code."
+                    "Go to your model scripts and make sure to set both: "
+                    "1) stream_options={'include_usage': True}"
+                    "2) set_output_context"
                 )
-
-            logger.info("Clarifai model stream_options configuration validated successfully.")
 
     def _is_clarifai_internal(self):
         """

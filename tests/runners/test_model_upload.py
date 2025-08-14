@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 import uuid
@@ -244,9 +245,9 @@ def test_model_uploader_missing_app_action(tmp_path, monkeypatch):
 
 
 @patch('clarifai.runners.models.model_builder.ModelBuilder._is_clarifai_internal')
-def test_openai_stream_options_validation(mock_is_clarifai_internal, tmp_path):
+def test_openai_stream_options_validation(mock_is_clarifai_internal, tmp_path, caplog):
     """
-    Test that OpenAI models without proper stream_options configuration are rejected.
+    Test that OpenAI models without proper stream_options configuration log an error.
     """
     # Mock _is_clarifai_internal to return True to trigger validation
     mock_is_clarifai_internal.return_value = True
@@ -275,10 +276,10 @@ def test_openai_stream_options_validation(mock_is_clarifai_internal, tmp_path):
     with config_yaml_path.open("w") as f:
         yaml.dump(config, f, sort_keys=False)
 
-    # Test that ModelBuilder raises exception for missing stream_options
-    with pytest.raises(Exception) as exc_info:
+    # Test that ModelBuilder logs error for missing stream_options
+    with caplog.at_level(logging.ERROR):
         ModelBuilder(str(target_folder), validate_api_ids=False)
 
-    # Verify the exception message contains the expected validation error
-    assert "include_usage" in str(exc_info.value)
-    assert "set_output_context" in str(exc_info.value)
+    # Verify that the expected validation error message was logged
+    assert "include_usage" in caplog.text
+    assert "set_output_context" in caplog.text
