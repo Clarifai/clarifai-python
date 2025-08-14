@@ -456,11 +456,12 @@ class ModelBuilder:
                 "Detected OpenAI chat completions for Clarifai model streaming - validating stream_options..."
             )
 
-            if not self._check_include_usage_in_source(all_python_content):
+            if not self.has_proper_usage_tracking(all_python_content):
                 raise Exception(
-                    "Missing 'include_usage': True in stream_options for OpenAI chat completion calls. "
-                    "Clarifai models using chat.completions.create must include "
-                    "stream_options={'include_usage': True}."
+                    "Missing configuration to track usage for OpenAI chat completion calls. "
+                    "Clarifai models using chat.completions.create must include both: "
+                    "1) stream_options={'include_usage': True} and "
+                    "2) set_output_context method call in the code."
                 )
 
             logger.info("Clarifai model stream_options configuration validated successfully.")
@@ -518,9 +519,12 @@ class ModelBuilder:
     def _uses_openai_streaming(self, python_content):
         return 'chat.completions.create' in python_content and 'generate(' in python_content
 
-    def _check_include_usage_in_source(self, python_content):
+    def has_proper_usage_tracking(self, python_content):
         include_usage_patterns = ["'include_usage': True", '"include_usage": True']
-        return any(pattern in python_content for pattern in include_usage_patterns)
+        has_include_usage = any(pattern in python_content for pattern in include_usage_patterns)
+        has_set_output_context = 'set_output_context' in python_content
+
+        return has_include_usage and has_set_output_context
 
     @staticmethod
     def _get_tar_file_content_size(tar_file_path):

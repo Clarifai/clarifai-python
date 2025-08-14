@@ -281,4 +281,4 @@ def test_openai_stream_options_validation(mock_is_clarifai_internal, tmp_path):
 
     # Verify the exception message contains the expected validation error
     assert "include_usage" in str(exc_info.value)
-    assert "stream_options" in str(exc_info.value)
+    assert "set_output_context" in str(exc_info.value)
