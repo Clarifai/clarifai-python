@@ -2,6 +2,7 @@ import os
 import shutil
 import uuid
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -242,10 +243,14 @@ def test_model_uploader_missing_app_action(tmp_path, monkeypatch):
         ModelBuilder(target_folder, app_not_found_action="a")
 
 
-def test_openai_stream_options_validation(tmp_path):
+@patch('clarifai.runners.models.model_builder.ModelBuilder._is_clarifai_internal')
+def test_openai_stream_options_validation(mock_is_clarifai_internal, tmp_path):
     """
     Test that OpenAI models without proper stream_options configuration are rejected.
     """
+    # Mock _is_clarifai_internal to return True to trigger validation
+    mock_is_clarifai_internal.return_value = True
+
     tests_dir = Path(__file__).parent.resolve()
     original_dummy_path = tests_dir / "dummy_missing_stream_options_model"
 

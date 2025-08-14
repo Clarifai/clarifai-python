@@ -7,13 +7,10 @@ from clarifai.runners.utils.data_types import Text
 class MyOpenAIModel(ModelClass):
     """A model that uses OpenAI chat completions without proper stream_options."""
 
-    def load_model(self):
-        """Load the model here."""
-        pass
-
     @ModelClass.method
-    def predict(self, text1: Text = "") -> Text:
-        """This method uses OpenAI chat completions without proper stream_options."""
+    def generate(self, text1: Text = "") -> Text:
+        """This method does the streaming
+        using OpenAI chat completions without proper stream_options."""
 
         client = OpenAI()
 
