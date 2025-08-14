@@ -502,17 +502,17 @@ class ModelBuilder:
         if not os.path.exists(model_folder):
             return ""
 
-        all_content = ""
+        all_content = []
         for root, _, files in os.walk(model_folder):
             for file in files:
                 if file.endswith('.py'):
                     file_path = os.path.join(root, file)
                     try:
                         with open(file_path, 'r', encoding='utf-8') as f:
-                            all_content += f.read() + "\n"
+                            all_content.append(f.read())
                     except Exception:
                         continue
-        return all_content
+        return "\n".join(all_content)
 
     def _uses_openai_streaming(self, python_content):
         return 'chat.completions.create' in python_content and 'generate(' in python_content
