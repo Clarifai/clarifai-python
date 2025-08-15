@@ -131,6 +131,12 @@ class OpenAIModelClass(ModelClass):
             request_data['max_completion_tokens'] = request_data.pop('max_tokens')
         if 'top_p' in request_data:
             request_data['top_p'] = float(request_data['top_p'])
+        # Note(zeiler): temporary fix for our playground sending additional fields.
+        # FIXME: remove this once the playground is updated.
+        for m in request_data['messages']:
+            m.pop('id', None)
+            m.pop('file', None)
+            m.pop('panelId', None)
         return request_data
 
     @ModelClass.method
