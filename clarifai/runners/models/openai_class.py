@@ -4,6 +4,7 @@ import json
 from typing import Any, Dict, Iterator
 
 from clarifai_grpc.grpc.api.status import status_code_pb2
+from pydantic_core import from_json
 
 from clarifai.runners.models.model_class import ModelClass
 
@@ -118,30 +119,6 @@ class OpenAIModelClass(ModelClass):
 
         return handler(request_data)
 
-    @ModelClass.method
-    def openai_transport(self, msg: str) -> str:
-        """Process an OpenAI-compatible request and send it to the appropriate OpenAI endpoint.
-
-        Args:
-            msg: JSON string containing the request parameters including 'openai_endpoint'
-
-        Returns:
-            JSON string containing the response or error
-        """
-        try:
-            request_data = json.loads(msg)
-            request_data = self._update_old_fields(request_data)
-            endpoint = request_data.pop("openai_endpoint", self.DEFAULT_ENDPOINT)
-            response = self._route_request(endpoint, request_data)
-            return response.model_dump_json()
-        except Exception as e:
-            error_obj = {
-                "code": status_code_pb2.MODEL_PREDICTION_FAILED,
-                "description": "Model prediction failed",
-                "details": str(e),
-            }
-            return json.dumps(error_obj)
-
     def _update_old_fields(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """Update old fields in the request data to match current API expectations.
 
@@ -157,6 +134,30 @@ class OpenAIModelClass(ModelClass):
         return request_data
 
     @ModelClass.method
+    def openai_transport(self, msg: str) -> str:
+        """Process an OpenAI-compatible request and send it to the appropriate OpenAI endpoint.
+
+        Args:
+            msg: JSON string containing the request parameters including 'openai_endpoint'
+
+        Returns:
+            JSON string containing the response or error
+        """
+        try:
+            request_data = from_json(msg)
+            request_data = self._update_old_fields(request_data)
+            endpoint = request_data.pop("openai_endpoint", self.DEFAULT_ENDPOINT)
+            response = self._route_request(endpoint, request_data)
+            return response.model_dump_json()
+        except Exception as e:
+            error_obj = {
+                "code": status_code_pb2.MODEL_PREDICTION_FAILED,
+                "description": "Model prediction failed",
+                "details": str(e),
+            }
+            return json.dumps(error_obj)
+
+    @ModelClass.method
     def openai_stream_transport(self, msg: str) -> Iterator[str]:
         """Process an OpenAI-compatible request and return a streaming response iterator.
         This method is used when stream=True and returns an iterator of strings directly,
@@ -169,7 +170,7 @@ class OpenAIModelClass(ModelClass):
             Iterator[str]: An iterator yielding text chunks from the streaming response.
         """
         try:
-            request_data = json.loads(msg)
+            request_data = from_json(msg)
             request_data = self._update_old_fields(request_data)
             endpoint = request_data.pop("openai_endpoint", self.DEFAULT_ENDPOINT)
             if endpoint not in [self.ENDPOINT_CHAT_COMPLETIONS, self.ENDPOINT_RESPONSES]:
