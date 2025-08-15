@@ -8,7 +8,7 @@ dynamic = [
     "license",
     "optional-dependencies",
     "readme",  # For long_description
-    "scripts"
+    "scripts",
     "version",
 ]
 
