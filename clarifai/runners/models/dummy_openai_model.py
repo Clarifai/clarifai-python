@@ -88,6 +88,10 @@ class MockCompletion:
     def model_dump(self):
         return self.to_dict()
 
+    def model_dump_json(self):
+        """Return the completion as a JSON string."""
+        return json.dumps(self.to_dict())
+
 
 class MockCompletionStream:
     """Mock completion stream that mimics the OpenAI streaming response structure."""
@@ -152,6 +156,10 @@ class MockCompletionStream:
 
         def model_dump(self):
             return self.to_dict()
+
+        def model_dump_json(self):
+            """Return the chunk as a JSON string."""
+            return json.dumps(self.to_dict())
 
     def __init__(self, **kwargs):
         # Generate a simple response based on the last message

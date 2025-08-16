@@ -21,6 +21,7 @@ from google.protobuf import json_format
 from clarifai.client.base import BaseClient
 from clarifai.client.user import User
 from clarifai.runners.models.model_class import ModelClass
+from clarifai.runners.utils import code_script
 from clarifai.runners.utils.const import (
     AMD_PYTHON_BASE_IMAGE,
     AMD_TORCH_BASE_IMAGE,
@@ -1180,7 +1181,6 @@ class ModelBuilder:
             is_uploaded = self.monitor_model_build()
             if is_uploaded:
                 # python code to run the model.
-                from clarifai.runners.utils import code_script
 
                 method_signatures = self.get_method_signatures()
                 snippet = code_script.generate_client_script(
@@ -1258,7 +1258,6 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
             per_page=50,
         )
         response = self.client.STUB.ListLogEntries(logs_request)
-
         return response
 
     def monitor_model_build(self):
@@ -1335,13 +1334,14 @@ def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
     model_version = builder.upload_model_version()
 
     # Ask user if they want to deploy the model
-    deploy_model = input("Do you want to deploy the model? (y/n): ")
-    if deploy_model.lower() != 'y':
-        logger.info("Model uploaded successfully. Skipping deployment setup.")
-        return
+    if model_version is not None:  # if it comes back None then it failed.
+        deploy_model = input("Do you want to deploy the model? (y/n): ")
+        if deploy_model.lower() != 'y':
+            logger.info("Model uploaded successfully. Skipping deployment setup.")
+            return
 
-    # Setup deployment for the uploaded model
-    setup_deployment_for_model(builder)
+        # Setup deployment for the uploaded model
+        setup_deployment_for_model(builder)
 
 
 def setup_deployment_for_model(builder):
