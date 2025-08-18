@@ -1,3 +1,17 @@
+## [[11.7.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.0) - [PyPI](https://pypi.org/project/clarifai/11.7.0/) - 2025-08-18
+
+### Changed
+- add stream_options validation for internal streaming model upload [(#742)] (https://github.com/Clarifai/clarifai-python/pull/742)
+- add packaging dependency that was missing [(#743)] (https://github.com/Clarifai/clarifai-python/pull/743)
+- always return JSON errors on openAI calls [(#744)] (https://github.com/Clarifai/clarifai-python/pull/744)
+- use 32 threads by default [(#735)] (https://github.com/Clarifai/clarifai-python/pull/735)
+- [PR-754] Fix ruff and dependencies-related issues [(#737)] (https://github.com/Clarifai/clarifai-python/pull/737)
+- [PR-768]: Fix Model Upload Deployment [(#739)] (https://github.com/Clarifai/clarifai-python/pull/739)
+- [PR-765] Fix wrong url for python SDK in README [(#734)] (https://github.com/Clarifai/clarifai-python/pull/733)
+- [PR-734] Use Method signature for local-runner [(#718)] (https://github.com/Clarifai/clarifai-python/pull/718)
+- Prevent Dockerfile overwrite during model upload with user confirmation [(#715)] (https://github.com/Clarifai/clarifai-python/pull/715)
+
+
 ## [[11.6.8]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.8) - [PyPI](https://pypi.org/project/clarifai/11.6.8/) - 2025-08-05
 
 ### Changed
