@@ -7,6 +7,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from pydantic_core import from_json
 
 from clarifai.runners.models.model_class import ModelClass
+from clarifai.utils.logging import logger
 
 
 class OpenAIModelClass(ModelClass):
@@ -156,6 +157,7 @@ class OpenAIModelClass(ModelClass):
             response = self._route_request(endpoint, request_data)
             return response.model_dump_json()
         except Exception as e:
+            logger.exception(e)
             error_obj = {
                 "code": status_code_pb2.MODEL_PREDICTION_FAILED,
                 "description": "Model prediction failed",
@@ -195,6 +197,7 @@ class OpenAIModelClass(ModelClass):
                     yield chunk.model_dump_json()
 
         except Exception as e:
+            logger.exception(e)
             error_obj = {
                 "code": status_code_pb2.MODEL_PREDICTION_FAILED,
                 "description": "Model prediction failed",
