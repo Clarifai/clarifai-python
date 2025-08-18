@@ -194,6 +194,7 @@ class OpenAIModelClass(ModelClass):
                 # Handle responses endpoint
                 stream_response = self._route_request(endpoint, request_data)
                 for chunk in stream_response:
+                    self._set_usage(chunk)
                     yield chunk.model_dump_json()
             else:
                 completion_args = self._create_completion_args(request_data)
