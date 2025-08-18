@@ -204,8 +204,9 @@ inference_compute_info:
 # TODO: please fill in (optional) - add checkpoints section if needed
 # checkpoints:
 #   type: "huggingface"  # supported type
-#   repo_id: "your-model-repo"  # for huggingface
-#   when: "build"  # or "runtime", "upload"
+#   repo_id: "your-model-repo"  # for huggingface like openai/gpt-oss-20b
+#   # hf_token: "your-huggingface-token"  # if private repo
+#   when: "runtime"  # or "build", "upload"
 '''
 
 
