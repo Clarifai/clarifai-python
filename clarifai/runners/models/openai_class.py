@@ -1,10 +1,9 @@
 """Base class for creating OpenAI-compatible API server."""
 
-import json
 from typing import Any, Dict, Iterator
 
 from clarifai_grpc.grpc.api.status import status_code_pb2
-from pydantic_core import from_json
+from pydantic_core import from_json, to_json
 
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.utils.logging import logger
@@ -163,7 +162,7 @@ class OpenAIModelClass(ModelClass):
                 "description": "Model prediction failed",
                 "details": str(e),
             }
-            return json.dumps(error_obj)
+            return to_json(error_obj)
 
     @ModelClass.method
     def openai_stream_transport(self, msg: str) -> Iterator[str]:
@@ -188,7 +187,7 @@ class OpenAIModelClass(ModelClass):
                 # Handle responses endpoint
                 stream_response = self._route_request(endpoint, request_data)
                 for chunk in stream_response:
-                    yield json.dumps(chunk.model_dump())
+                    yield chunk.model_dump_json()
             else:
                 completion_args = self._create_completion_args(request_data)
                 stream_completion = self.client.chat.completions.create(**completion_args)
@@ -203,4 +202,4 @@ class OpenAIModelClass(ModelClass):
                 "description": "Model prediction failed",
                 "details": str(e),
             }
-            yield json.dumps(error_obj)
+            yield to_json(error_obj)
