@@ -52,7 +52,7 @@ class VisualClassifierClass(ModelClass):
 
     @staticmethod
     def process_concepts(
-        logits: torch.Tensor, threshold: float, model_labels: Dict[int, str]
+        logits: torch.Tensor, model_labels: Dict[int, str]
     ) -> List[List[Concept]]:
         """Convert model logits into a structured format of concepts.
 

@@ -22,6 +22,14 @@ def test_ui_default_url():
     (
         ("http://localhost:3002", "http://localhost:3002"),
         ("https://localhost:3002", "https://localhost:3002"),
+        ("https://localhost", "https://localhost"),
+        ("http://localhost", "http://localhost"),
+        ("http://10.4.5.6", "http://10.4.5.6"),
+        ("http://10.5.6.7", "http://10.5.6.7"),
+        ("10.5.6.7:443", "https://10.5.6.7"),
+        ("http://10.5.6.7:443", "http://10.5.6.7:443"),
+        ("something.clarifai.com", "https://something.clarifai.com"),
+        ("something.clarifai.com:443", "https://something.clarifai.com"),
         ("https://clarifai.com", "https://clarifai.com"),
     ),
 )
@@ -39,6 +47,15 @@ def test_passing_no_schema_url_use_https_when_server_is_running():
         assert helper.ui == "https://server"
 
 
+def test_passing_no_schema_url_detect_http_when_SSL_in_error():
+    def raise_exception():
+        return Mock(side_effect=Exception("Has SSL in error"))
+
+    with mock.patch('urllib.request.urlopen', new_callable=raise_exception):
+        helper = ClarifaiAuthHelper("clarifai", "main", "fake_pat", ui="localhost:3002")
+        assert helper.ui == "http://localhost:3002"
+
+
 def test_passing_no_schema_url_show_error_when_not_server_running():
     def raise_exception():
         return Mock(side_effect=Exception("http_exception"))
@@ -49,15 +66,6 @@ def test_passing_no_schema_url_show_error_when_not_server_running():
             match="Could not get a valid response from url: localhost:3002, is the API running there?",
         ):
             ClarifaiAuthHelper("clarifai", "main", "fake_pat", ui="localhost:3002")
-
-
-def test_passing_no_schema_url_detect_http_when_SSL_in_error():
-    def raise_exception():
-        return Mock(side_effect=Exception("Has SSL in error"))
-
-    with mock.patch('urllib.request.urlopen', new_callable=raise_exception):
-        helper = ClarifaiAuthHelper("clarifai", "main", "fake_pat", ui="localhost:3002")
-        assert helper.ui == "http://localhost:3002"
 
 
 def test_passing_no_schema_url_require_port():

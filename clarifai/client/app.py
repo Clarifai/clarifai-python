@@ -14,6 +14,8 @@ from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
 from clarifai.client.model import Model
 from clarifai.client.module import Module
+from clarifai.client.pipeline import Pipeline
+from clarifai.client.pipeline_step import PipelineStep
 from clarifai.client.search import Search
 from clarifai.client.workflow import Workflow
 from clarifai.constants.model import TRAINABLE_MODEL_TYPES
@@ -197,6 +199,151 @@ class App(Lister, BaseClient):
                 if workflow_info['app_id'] != self.id:
                     continue
             yield Workflow.from_auth_helper(auth=self.auth_helper, **workflow_info)
+
+    def list_pipelines(
+        self,
+        filter_by: Dict[str, Any] = {},
+        only_in_app: bool = True,
+        page_no: int = None,
+        per_page: int = None,
+    ) -> Generator[dict, None, None]:
+        """Lists all the pipelines for the user.
+
+        Args:
+            filter_by (dict): A dictionary of filters to apply to the list of pipelines.
+            only_in_app (bool): If True, only return pipelines that are in the app.
+            page_no (int): The page number to list.
+            per_page (int): The number of items per page.
+
+        Yields:
+            Dict: Dictionaries containing information about the pipelines.
+
+        Example:
+            >>> from clarifai.client.app import App
+            >>> app = App(app_id="app_id", user_id="user_id")
+            >>> all_pipelines = list(app.list_pipelines())
+
+        Note:
+            Defaults to 16 per page if page_no is specified and per_page is not specified.
+            If both page_no and per_page are None, then lists all the resources.
+        """
+        request_data = dict(user_app_id=self.user_app_id, **filter_by)
+        all_pipelines_info = self.list_pages_generator(
+            self.STUB.ListPipelines,
+            service_pb2.ListPipelinesRequest,
+            request_data,
+            per_page=per_page,
+            page_no=page_no,
+        )
+
+        for pipeline_info in all_pipelines_info:
+            pipeline = self._process_pipeline_info(
+                pipeline_info, self.auth_helper, self.id, only_in_app
+            )
+            if pipeline is not None:
+                yield pipeline
+
+    @staticmethod
+    def _process_pipeline_info(pipeline_info, auth_helper, app_id=None, only_in_app=False):
+        """Helper method to process pipeline info and create Pipeline objects.
+
+        Args:
+            pipeline_info: Raw pipeline info from API
+            auth_helper: Auth helper instance
+            app_id: App ID to filter by (if only_in_app is True)
+            only_in_app: Whether to filter by app_id
+
+        Returns:
+            Pipeline object or None if filtered out
+        """
+        if only_in_app and app_id:
+            if pipeline_info.get('app_id') != app_id:
+                return None
+
+        # Map API field names to constructor parameter names
+        pipeline_kwargs = pipeline_info.copy()
+        if 'id' in pipeline_kwargs:
+            pipeline_kwargs['pipeline_id'] = pipeline_kwargs.pop('id')
+        if 'pipeline_version' in pipeline_kwargs:
+            pipeline_version = pipeline_kwargs.pop('pipeline_version')
+            pipeline_kwargs['pipeline_version_id'] = pipeline_version.get('id', '')
+
+        return Pipeline.from_auth_helper(auth=auth_helper, **pipeline_kwargs)
+
+    @staticmethod
+    def _process_pipeline_step_info(
+        pipeline_step_info, auth_helper, app_id=None, only_in_app=False
+    ):
+        """Helper method to process pipeline step info and create PipelineStep objects.
+
+        Args:
+            pipeline_step_info: Raw pipeline step info from API
+            auth_helper: Auth helper instance
+            app_id: App ID to filter by (if only_in_app is True)
+            only_in_app: Whether to filter by app_id
+
+        Returns:
+            PipelineStep object or None if filtered out
+        """
+        if only_in_app and app_id:
+            if pipeline_step_info.get('app_id') != app_id:
+                return None
+
+        # Map API field names to constructor parameter names
+        step_kwargs = pipeline_step_info.copy()
+        if 'pipeline_step' in step_kwargs:
+            pipeline_step = step_kwargs.pop('pipeline_step')
+            step_kwargs['pipeline_step_id'] = pipeline_step.get('id', '')
+
+        return PipelineStep.from_auth_helper(auth=auth_helper, **step_kwargs)
+
+    def list_pipeline_steps(
+        self,
+        pipeline_id: str = None,
+        filter_by: Dict[str, Any] = {},
+        only_in_app: bool = True,
+        page_no: int = None,
+        per_page: int = None,
+    ) -> Generator[dict, None, None]:
+        """Lists all the pipeline steps for the user.
+
+        Args:
+            pipeline_id (str): If provided, only list pipeline steps from this pipeline.
+            filter_by (dict): A dictionary of filters to apply to the list of pipeline steps.
+            only_in_app (bool): If True, only return pipeline steps that are in the app.
+            page_no (int): The page number to list.
+            per_page (int): The number of items per page.
+
+        Yields:
+            Dict: Dictionaries containing information about the pipeline steps.
+
+        Example:
+            >>> from clarifai.client.app import App
+            >>> app = App(app_id="app_id", user_id="user_id")
+            >>> all_pipeline_steps = list(app.list_pipeline_steps())
+
+        Note:
+            Defaults to 16 per page if page_no is specified and per_page is not specified.
+            If both page_no and per_page are None, then lists all the resources.
+        """
+        request_data = dict(user_app_id=self.user_app_id, **filter_by)
+        if pipeline_id:
+            request_data['pipeline_id'] = pipeline_id
+
+        all_pipeline_steps_info = self.list_pages_generator(
+            self.STUB.ListPipelineStepVersions,
+            service_pb2.ListPipelineStepVersionsRequest,
+            request_data,
+            per_page=per_page,
+            page_no=page_no,
+        )
+
+        for pipeline_step_info in all_pipeline_steps_info:
+            pipeline_step = self._process_pipeline_step_info(
+                pipeline_step_info, self.auth_helper, self.id, only_in_app
+            )
+            if pipeline_step is not None:
+                yield pipeline_step
 
     def list_modules(
         self,
@@ -445,7 +592,7 @@ class App(Lister, BaseClient):
         response = self._grpc_request(self.STUB.PostModels, request)
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
-        self.logger.info("\nModel created\n%s", response.status)
+        self.logger.info(f"Model with ID '{model_id}' is created:\n{response.status}")
         kwargs.update(
             {
                 'model_id': model_id,
@@ -470,8 +617,8 @@ class App(Lister, BaseClient):
                 model = self.model(
                     model_id=node['model']['model_id'],
                     model_version={"id": node['model'].get('model_version_id', "")},
-                    user_id=node['model'].get('user_id', ""),
-                    app_id=node['model'].get('app_id', ""),
+                    user_id=node['model'].get('user_id', self.user_app_id.user_id),
+                    app_id=node['model'].get('app_id', self.user_app_id.app_id),
                 )
             except Exception as e:
                 if "Model does not exist" in str(e):

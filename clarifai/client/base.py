@@ -11,7 +11,7 @@ from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.constants.base import COMPUTE_ORCHESTRATION_RESOURCES
 from clarifai.errors import ApiError, UserError
 from clarifai.utils.constants import CLARIFAI_PAT_ENV_VAR, CLARIFAI_SESSION_TOKEN_ENV_VAR
-from clarifai.utils.misc import get_from_dict_or_env
+from clarifai.utils.misc import get_from_dict_env_or_config
 
 
 class BaseClient:
@@ -39,25 +39,61 @@ class BaseClient:
     def __init__(self, **kwargs):
         token, pat = "", ""
         try:
-            pat = get_from_dict_or_env(key="pat", env_key=CLARIFAI_PAT_ENV_VAR, **kwargs)
+            pat = get_from_dict_env_or_config(key="pat", env_key=CLARIFAI_PAT_ENV_VAR, **kwargs)
         except UserError:
-            token = get_from_dict_or_env(
-                key="token", env_key=CLARIFAI_SESSION_TOKEN_ENV_VAR, **kwargs
-            )
+            try:
+                token = get_from_dict_env_or_config(
+                    key="token", env_key=CLARIFAI_SESSION_TOKEN_ENV_VAR, **kwargs
+                )
+            except UserError:
+                pass
         finally:
-            assert token or pat, Exception(
-                "Need 'pat' or 'token' in args or use one of the CLARIFAI_PAT or CLARIFAI_SESSION_TOKEN env vars"
-            )
+            if not (token or pat):
+                raise UserError(
+                    "Authentication Required. Please authenticate in one of the following ways:\n\n"
+                    "- Pass your Personal Access Token ('pat') or session token ('token') as arguments to your function.\n"
+                    "- Set the CLARIFAI_PAT or CLARIFAI_SESSION_TOKEN environment variables in your environment.\n"
+                    "- Run `clarifai login` in your terminal to configure CLI authentication."
+                )
+
+        # Also try to get user_id and base from CLI config if not provided
+        if not kwargs.get('user_id'):
+            try:
+                user_id = get_from_dict_env_or_config(
+                    key="user_id", env_key="CLARIFAI_USER_ID", **kwargs
+                )
+                kwargs['user_id'] = user_id
+            except UserError:
+                pass  # user_id is optional for some use cases
+
+        if not kwargs.get('base'):
+            try:
+                base = get_from_dict_env_or_config(
+                    key="base", env_key="CLARIFAI_API_BASE", **kwargs
+                )
+                kwargs['base'] = base
+            except UserError:
+                pass  # base has a default value
+
         kwargs.update({'token': token, 'pat': pat})
 
         self.auth_helper = ClarifaiAuthHelper(**kwargs, validate=False)
         self.STUB = create_stub(self.auth_helper)
+        self._async_stub = None
         self.metadata = self.auth_helper.metadata
         self.pat = self.auth_helper.pat
         self.token = self.auth_helper._token
         self.user_app_id = self.auth_helper.get_user_app_id_proto()
         self.base = self.auth_helper.base
         self.root_certificates_path = self.auth_helper._root_certificates_path
+
+    @property
+    def async_stub(self):
+        """Returns the asynchronous gRPC stub for the API interaction.
+        Lazy initialization of async stub"""
+        if self._async_stub is None:
+            self._async_stub = create_stub(self.auth_helper, is_async=True)
+        return self._async_stub
 
     @classmethod
     def from_env(cls, validate: bool = False):

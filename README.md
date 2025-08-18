@@ -23,7 +23,7 @@ Clarifai Python SDK
 
 This is the official Python client for interacting with our powerful [API](https://docs.clarifai.com). The Clarifai Python SDK offers a comprehensive set of tools to integrate Clarifai's AI platform to leverage computer vision capabilities like classification , detection ,segementation and natural language capabilities like classification , summarisation , generation , Q&A ,etc into your applications. With just a few lines of code, you can leverage cutting-edge artificial intelligence to unlock valuable insights from visual and textual content.
 
-[Website](https://www.clarifai.com/) | [Schedule Demo](https://www.clarifai.com/company/schedule-demo) | [Signup for a Free Account](https://clarifai.com/signup) | [API Docs](https://docs.clarifai.com/) | [Clarifai Community](https://clarifai.com/explore) | [Python SDK Docs](https://docs.clarifai.com/python-sdk/api-reference) | [Examples](https://github.com/Clarifai/examples) | [Colab Notebooks](https://github.com/Clarifai/colab-notebooks) | [Discord](https://discord.gg/XAPE3Vtg)
+[Website](https://www.clarifai.com/) | [Schedule Demo](https://www.clarifai.com/company/schedule-demo) | [Signup for a Free Account](https://clarifai.com/signup) | [API Docs](https://docs.clarifai.com/) | [Clarifai Community](https://clarifai.com/explore) | [Python SDK Docs](https://docs.clarifai.com/resources/api-references/python) | [Examples](https://github.com/Clarifai/examples) | [Colab Notebooks](https://github.com/Clarifai/colab-notebooks) | [Discord](https://discord.gg/XAPE3Vtg)
 
 Give the repo a star ⭐
 ---
@@ -81,10 +81,25 @@ git clone https://github.com/Clarifai/clarifai-python.git
 cd clarifai-python
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-python setup.py install
+pip install -e .
 ```
 
+#### Linting
+
+For developers, use the precommit hook `.pre-commit-config.yaml` to automate linting.
+
+```bash
+pip install -r requirements-dev.txt
+pre-commit install
+```
+
+Now every time you run `git commit` your code will be automatically linted and won't commit if it fails.
+
+You can also manually trigger linting using:
+
+```bash
+pre-commit run --all-files
+```
 
 
 ## :memo: Getting started
@@ -561,3 +576,8 @@ rag_agent = RAG(workflow_url="WORKFLOW_URL")
 
 See many more code examples in this [repo](https://github.com/Clarifai/examples).
 Also see the official [Python SDK docs](https://clarifai-python.readthedocs.io/en/latest/index.html)
+
+## :open_file_folder: Model Upload
+
+Examples for uploading models and runners have been moved to this [repo](https://github.com/Clarifai/runners-examples).
+Find our official documentation at [docs.clarifai.com/compute/models/upload](https://docs.clarifai.com/compute/models/upload).

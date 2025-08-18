@@ -2,7 +2,7 @@ import os
 
 registry = os.environ.get('CLARIFAI_BASE_IMAGE_REGISTRY', 'public.ecr.aws/clarifai-models')
 
-GIT_SHA = "b8ae56bf3b7c95e686ca002b07ca83d259c716eb"
+GIT_SHA = "42938da8e33b0f37ee7db16b83631da94c2348b9"
 
 AMD_GIT_SHA = "81e942130173f54927e7c9a65aabc7e32780616d"
 
@@ -20,9 +20,9 @@ AMD_VLLM_BASE_IMAGE = (
 # List of available python base images
 AVAILABLE_PYTHON_IMAGES = ['3.11', '3.12']
 
-DEFAULT_PYTHON_VERSION = 3.12
+DEFAULT_PYTHON_VERSION = '3.12'
 
-DEFAULT_AMD_TORCH_VERSION = '2.8.0.dev20250511+rocm6.4'
+DEFAULT_AMD_TORCH_VERSION = '2.8.0.dev20250514'
 
 DEFAULT_AMD_GPU_VERSION = 'rocm6.4'
 

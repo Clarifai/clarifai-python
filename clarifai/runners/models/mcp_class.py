@@ -2,13 +2,12 @@
 
 import asyncio
 import json
-from typing import Any
-
-from fastmcp import Client, FastMCP  # use fastmcp v2 not the built in mcp
-from mcp import types
-from mcp.shared.exceptions import McpError
+from typing import TYPE_CHECKING, Any
 
 from clarifai.runners.models.model_class import ModelClass
+
+if TYPE_CHECKING:
+    from fastmcp import FastMCP
 
 
 class MCPModelClass(ModelClass):
@@ -19,10 +18,17 @@ class MCPModelClass(ModelClass):
     """
 
     def load_model(self):
+        try:
+            from fastmcp import Client
+        except ImportError:
+            raise ImportError(
+                "fastmcp package is required to use MCP functionality. "
+                "Install it with: pip install fastmcp"
+            )
         # in memory transport provided in fastmcp v2 so we can easily use the client functions.
         self.client = Client(self.get_server())
 
-    def get_server(self) -> FastMCP:
+    def get_server(self) -> 'FastMCP':
         """Required method for each subclass to implement to return the FastMCP server to use."""
         raise NotImplementedError("Subclasses must implement get_server() method")
 
@@ -32,6 +38,8 @@ class MCPModelClass(ModelClass):
         return it's response.
 
         """
+        from mcp import types
+        from mcp.shared.exceptions import McpError
 
         async def send_notification(client_message: types.ClientNotification) -> None:
             async with self.client:
@@ -102,13 +110,22 @@ class MCPModelClass(ModelClass):
         # If we have an id it's a JSONRPCRequest
         if not d.get('method', '').startswith("notifications/"):
             client_message = types.ClientRequest.model_validate(d)
+            # Note(zeiler): this response is the "result" field of the JSONRPCResponse.
+            # the API will fill in the "id" and "jsonrpc" fields.
             response = asyncio.run(send_request(client_message, id=id))
+            if response is None:
+                response = types.JSONRPCError(
+                    jsonrpc="2.0",
+                    id=id,
+                    error=types.ErrorData(
+                        code=types.INTERNAL_ERROR, message="Got empty response from MCP server."
+                    ),
+                )
+            # return as a serialized json string
+            res = response.model_dump_json(by_alias=True, exclude_none=True)
+            return res
         else:  # JSONRPCRequest
             client_message = types.ClientNotification.model_validate(d)
-            response = asyncio.run(send_notification(client_message))
-        if response is None:
-            response = types.JSONRPCError(
-                jsonrpc="2.0", id=id, error="Got empty response from MCP server."
-            )
-        # return as a serialized json string
-        return response.model_dump_json(by_alias=True, exclude_none=True)
+            # send_notification returns None always so nothing to return.
+            asyncio.run(send_notification(client_message))
+            return "{}"

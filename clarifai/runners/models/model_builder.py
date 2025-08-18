@@ -4,10 +4,13 @@ import inspect
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tarfile
 import time
+import webbrowser
 from string import Template
+from typing import Literal
 from unittest.mock import MagicMock
 
 import yaml
@@ -16,9 +19,12 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf import json_format
 
 from clarifai.client.base import BaseClient
+from clarifai.client.user import User
 from clarifai.runners.models.model_class import ModelClass
+from clarifai.runners.utils import code_script
 from clarifai.runners.utils.const import (
     AMD_PYTHON_BASE_IMAGE,
+    AMD_TORCH_BASE_IMAGE,
     AMD_VLLM_BASE_IMAGE,
     AVAILABLE_PYTHON_IMAGES,
     AVAILABLE_TORCH_IMAGES,
@@ -42,6 +48,7 @@ from clarifai.versions import CLIENT_VERSION
 dependencies = [
     'torch',
     'clarifai',
+    'vllm',
 ]
 
 
@@ -61,7 +68,15 @@ def is_related(object_class, main_class):
 class ModelBuilder:
     DEFAULT_CHECKPOINT_SIZE = 50 * 1024**3  # 50 GiB
 
-    def __init__(self, folder: str, validate_api_ids: bool = True, download_validation_only=False):
+    def __init__(
+        self,
+        folder: str,
+        validate_api_ids: bool = True,
+        download_validation_only: bool = False,
+        app_not_found_action: Literal["auto_create", "prompt", "error"] = "error",
+        pat: str = None,
+        base_url: str = None,
+    ):
         """
         :param folder: The folder containing the model.py, config.yaml, requirements.txt and
         checkpoints.
@@ -69,14 +84,25 @@ class ModelBuilder:
         deprecate in favor of download_validation_only.
         :param download_validation_only: Whether to skip the API config validation. Set to True if
         just downloading a checkpoint.
+        :param app_not_found_action: Defines how to handle the case when the app is not found.
+        Options: 'auto_create' - create automatically, 'prompt' - ask user, 'error' - raise exception.
+        :param pat: Personal access token for authentication. If None, will use environment variables.
+        :param base_url: Base URL for the API. If None, will use environment variables.
         """
+        assert app_not_found_action in ["auto_create", "prompt", "error"], ValueError(
+            f"Expected one of {['auto_create', 'prompt', 'error']}, got {app_not_found_action=}"
+        )
+        self.app_not_found_action = app_not_found_action
         self._client = None
+        self._pat = pat
+        self._base_url = base_url
         if not validate_api_ids:  # for backwards compatibility
             download_validation_only = True
         self.download_validation_only = download_validation_only
         self.folder = self._validate_folder(folder)
         self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
         self._validate_config()
+        self._validate_stream_options()
         self.model_proto = self._get_model_proto()
         self.model_id = self.model_proto.id
         self.model_version_id = None
@@ -296,13 +322,46 @@ class ModelBuilder:
                 f"Invalid PAT provided for user {self.client.user_app_id.user_id}. Please check your PAT and try again."
             )
             return False
-        logger.error(
-            f"Error checking API {self._base_api} for user app {self.client.user_app_id.user_id}/{self.client.user_app_id.app_id}. Error code: {resp.status.code}"
-        )
-        logger.error(
-            f"App {self.client.user_app_id.app_id} not found for user {self.client.user_app_id.user_id}. Please create the app first and try again."
-        )
-        return False
+
+        user_id = self.client.user_app_id.user_id
+        app_id = self.client.user_app_id.app_id
+
+        if self.app_not_found_action == "error":
+            logger.error(
+                f"Error checking API {self._base_api} for user app `{user_id}/{app_id}`. Error code: {resp.status.code}"
+            )
+            logger.error(
+                f"App `{app_id}` not found for user `{user_id}`. Please create the app first and try again."
+            )
+            return False
+        else:
+            user = User(
+                user_id=user_id,
+                pat=self.client.pat,
+                token=self.client.token,
+                base_url=self.client.base,
+            )
+
+            def create_app():
+                logger.info(f"Creating App `{app_id}` user `{user_id}`.")
+                user.create_app(app_id=app_id)
+
+            logger.info(f"App {app_id} not found for user {user_id}.")
+
+            if self.app_not_found_action == "prompt":
+                create_app_prompt = input(f"Do you want to create App `{app_id}`? (y/n): ")
+                if create_app_prompt.lower() == 'y':
+                    create_app()
+                    return True
+                else:
+                    logger.error(
+                        f"App `{app_id}` has not been created for user `{user_id}`. Please create the app first or switch to an existing one, then try again."
+                    )
+                    return False
+
+            elif self.app_not_found_action == "auto_create":
+                create_app()
+                return True
 
     def _validate_config_model(self):
         assert "model" in self.config, "model section not found in the config file"
@@ -326,7 +385,7 @@ class ModelBuilder:
             sys.exit(1)
 
     @staticmethod
-    def _set_local_dev_model(config, user_id, app_id, model_id, model_type_id):
+    def _set_local_runner_model(config, user_id, app_id, model_id, model_type_id):
         """
         Sets the model configuration for local development.
         This is used when running the model locally without uploading it to Clarifai.
@@ -383,6 +442,89 @@ class ModelBuilder:
             num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 16))
             self.config["num_threads"] = num_threads
 
+    def _validate_stream_options(self):
+        """
+        Validate OpenAI streaming configuration for Clarifai models.
+        """
+        if not self._is_clarifai_internal():
+            return  # Skip validation for non-clarifai models
+
+        # Parse all Python files once
+        all_python_content = self._get_all_python_content()
+
+        if self._uses_openai_streaming(all_python_content):
+            logger.info(
+                "Detected OpenAI chat completions for Clarifai model streaming - validating stream_options..."
+            )
+
+            if not self.has_proper_usage_tracking(all_python_content):
+                logger.error(
+                    "Missing configuration to track usage for OpenAI chat completion calls. "
+                    "Go to your model scripts and make sure to set both: "
+                    "1) stream_options={'include_usage': True}"
+                    "2) set_output_context"
+                )
+
+    def _is_clarifai_internal(self):
+        """
+        Check if the current user is a Clarifai internal user based on email domain.
+
+        Returns:
+            bool: True if user is a Clarifai internal user, False otherwise
+        """
+        try:
+            # Get user info from Clarifai API
+            user_client = User(
+                pat=self.client.pat, user_id=self.config.get('model').get('user_id')
+            )
+            user_response = user_client.get_user_info()
+
+            if user_response.status.code != status_code_pb2.SUCCESS:
+                logger.debug("Could not retrieve user info for Clarifai internal user validation")
+                return False
+
+            user = user_response.user
+
+            # Check primary email domain
+            if hasattr(user, 'primary_email') and user.primary_email:
+                return user.primary_email.endswith('@clarifai.com')
+
+            return False
+
+        except Exception as e:
+            logger.debug(f"Employee validation failed: {e}")
+            return False
+
+    def _get_all_python_content(self):
+        """
+        Parse and concatenate all Python files in the model's 1/ subfolder.
+        """
+        model_folder = os.path.join(self.folder, '1')
+        if not os.path.exists(model_folder):
+            return ""
+
+        all_content = []
+        for root, _, files in os.walk(model_folder):
+            for file in files:
+                if file.endswith('.py'):
+                    file_path = os.path.join(root, file)
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            all_content.append(f.read())
+                    except Exception:
+                        continue
+        return "\n".join(all_content)
+
+    def _uses_openai_streaming(self, python_content):
+        return 'chat.completions.create' in python_content and 'generate(' in python_content
+
+    def has_proper_usage_tracking(self, python_content):
+        include_usage_patterns = ["'include_usage': True", '"include_usage": True']
+        has_include_usage = any(pattern in python_content for pattern in include_usage_patterns)
+        has_set_output_context = 'set_output_context' in python_content
+
+        return has_include_usage and has_set_output_context
+
     @staticmethod
     def _get_tar_file_content_size(tar_file_path):
         """
@@ -406,8 +548,8 @@ class ModelBuilder:
         Returns the method signatures for the model class in YAML format.
         """
         model_class = self.load_model_class(mocking=True)
-        method_info = model_class._get_method_info()
-        signatures = {method.name: method.signature for method in method_info.values()}
+        method_infos = model_class._get_method_infos()
+        signatures = {method.name: method.signature for method in method_infos.values()}
         return signatures_to_yaml(signatures)
 
     def get_method_signatures(self, mocking=True):
@@ -421,8 +563,8 @@ class ModelBuilder:
           list: A list of method signatures for the model class.
         """
         model_class = self.load_model_class(mocking=mocking)
-        method_info = model_class._get_method_info()
-        signatures = [method.signature for method in method_info.values()]
+        method_infos = model_class._get_method_infos()
+        signatures = [method.signature for method in method_infos.values()]
         return signatures
 
     @property
@@ -436,8 +578,20 @@ class ModelBuilder:
             user_id = model.get('user_id')
             app_id = model.get('app_id')
 
-            self._base_api = os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
-            self._client = BaseClient(user_id=user_id, app_id=app_id, base=self._base_api)
+            # Use context parameters if provided, otherwise fall back to environment variables
+            self._base_api = (
+                self._base_url
+                if self._base_url
+                else os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com')
+            )
+
+            # Create BaseClient with explicit pat parameter if provided
+            if self._pat:
+                self._client = BaseClient(
+                    user_id=user_id, app_id=app_id, base=self._base_api, pat=self._pat
+                )
+            else:
+                self._client = BaseClient(user_id=user_id, app_id=app_id, base=self._base_api)
 
         return self._client
 
@@ -499,6 +653,11 @@ class ModelBuilder:
             "inference_compute_info not found in the config file"
         )
         inference_compute_info = self.config.get('inference_compute_info')
+        # Ensure cpu_limit is a string if it exists and is an int
+        if 'cpu_limit' in inference_compute_info and isinstance(
+            inference_compute_info['cpu_limit'], int
+        ):
+            inference_compute_info['cpu_limit'] = str(inference_compute_info['cpu_limit'])
         return json_format.ParseDict(inference_compute_info, resources_pb2.ComputeInfo())
 
     def check_model_exists(self):
@@ -563,6 +722,42 @@ class ModelBuilder:
                 dependencies_version[dependency] = version if version else None
         return dependencies_version
 
+    def _validate_requirements(self, python_version):
+        """here we use uv pip compile to validate the requirements.txt file
+        and ensure that the dependencies are compatible with each other prior to uploading
+        """
+        if not os.path.exists(os.path.join(self.folder, 'requirements.txt')):
+            raise FileNotFoundError(
+                "requirements.txt not found in the folder, please provide a valid requirements.txt file"
+            )
+        path = os.path.join(self.folder, 'requirements.txt')
+        # run the f"uv pip compile {path} --universal" command to validate the requirements.txt file
+        if not shutil.which('uv'):
+            raise Exception(
+                "uv command not found, please install uv to validate the requirements.txt file"
+            )
+        logger.info(f"Setup: Validating requirements.txt file at {path} using uv pip compile")
+        # Don't log the output of the comment unless it errors.
+        result = subprocess.run(
+            f"uv pip compile {path} --universal --python {python_version} --no-header  --no-emit-index-url",
+            shell=True,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            logger.error(f"Error validating requirements.txt file: {result.stderr}")
+            logger.error(
+                "Failed to validate the requirements.txt file, please check the file for errors. Note this can happen if the machine you're upload from has different python version, accelerator, etc. from the desired machine you want to upload to."
+            )
+            logger.error("Output: " + result.stdout)
+            # If we have an error, raise an exception.
+            return False
+        else:
+            logger.info("Setup: Requirements.txt file validated successfully")
+            # If we have no error, we can just return.
+            return True
+
     def _is_amd(self):
         """
         Check if the model is AMD or not.
@@ -582,12 +777,70 @@ class ModelBuilder:
                 "Both AMD and NVIDIA GPUs are specified in the config file, please use only one type of GPU."
             )
         if is_amd_gpu:
-            logger.info("Using AMD base image to build the Docker image and upload the model")
+            logger.info(
+                "Setup: Using AMD base image to build the Docker image and upload the model"
+            )
         elif is_nvidia_gpu:
-            logger.info("Using NVIDIA base image to build the Docker image and upload the model")
+            logger.info(
+                "Setup: Using NVIDIA base image to build the Docker image and upload the model"
+            )
         return is_amd_gpu
 
-    def create_dockerfile(self):
+    def _lint_python_code(self):
+        """
+        Lint the python code in the model.py file using flake8.
+        This will help catch any simple bugs in the code before uploading it to the API.
+        """
+        if not shutil.which('ruff'):
+            raise Exception("ruff command not found, please install ruff to lint the python code")
+        # List all the python files in the /1/ folder recursively and lint them.
+        python_files = []
+        for root, _, files in os.walk(os.path.join(self.folder, '1')):
+            for file in files:
+                if file.endswith('.py'):
+                    python_files.append(os.path.join(root, file))
+        if not python_files:
+            logger.info("No Python files found to lint, skipping linting step.")
+        else:
+            logger.info(f"Setup: Linting Python files: {python_files}")
+        # Run ruff to lint the python code.
+        command = "ruff check --select=F"
+        result = subprocess.run(
+            f"{command} {' '.join(python_files)}",
+            shell=True,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            logger.error(f"Error linting Python code: {result.stderr}")
+            logger.error("Output: " + result.stdout)
+            logger.error(
+                f"Failed to lint the Python code, please check the code for errors using '{command}' so you don't have simple errors in your code prior to upload."
+            )
+        else:
+            logger.info("Setup: Python code linted successfully, no errors found.")
+
+    def _normalize_dockerfile_content(self, content):
+        """
+        Normalize Dockerfile content for comparison by standardizing whitespace and indentation.
+        This handles differences in spacing, indentation, and line endings.
+        """
+        lines = []
+        for line in content.splitlines():
+            # Strip leading/trailing whitespace from each line
+            normalized_line = line.strip()
+            # Skip empty lines for comparison
+            if normalized_line:
+                lines.append(normalized_line)
+        # Join with consistent line endings
+        return '\n'.join(lines)
+
+    def _generate_dockerfile_content(self):
+        """
+        Generate the Dockerfile content based on the model configuration.
+        This is a helper method that returns the content without writing to file.
+        """
         dockerfile_template = os.path.join(
             os.path.dirname(os.path.dirname(__file__)),
             'dockerfile_template',
@@ -609,13 +862,20 @@ class ModelBuilder:
                 )
 
             logger.info(
-                f"Using Python version {python_version} from the config file to build the Dockerfile"
+                f"Setup: Using Python version {python_version} from the config file to build the Dockerfile"
             )
         else:
             logger.info(
-                f"Python version not found in the config file, using default Python version: {DEFAULT_PYTHON_VERSION}"
+                f"Setup: Python version not found in the config file, using default Python version: {DEFAULT_PYTHON_VERSION}"
             )
             python_version = DEFAULT_PYTHON_VERSION
+
+        # Before we bother even picking the right base image, let's use uv to validate
+        # that the requirements.txt file is valid and compatible.
+        self._validate_requirements(python_version)
+
+        # Make sure any python code will not have simple bugs by linting it first.
+        self._lint_python_code()
 
         # Parse the requirements.txt file to determine the base image
         dependencies = self._parse_requirements()
@@ -637,7 +897,7 @@ class ModelBuilder:
                         )
                     if not torch_version:
                         logger.info(
-                            f"torch version not found in requirements.txt, using the default version {DEFAULT_AMD_TORCH_VERSION}"
+                            f"Setup: torch version not found in requirements.txt, using the default version {DEFAULT_AMD_TORCH_VERSION}"
                         )
                         torch_version = DEFAULT_AMD_TORCH_VERSION
                     if torch_version not in [DEFAULT_AMD_TORCH_VERSION]:
@@ -651,7 +911,7 @@ class ModelBuilder:
                     python_version=python_version,
                     gpu_version=gpu_version,
                 )
-                logger.info("Using vLLM base image to build the Docker image")
+                logger.info("Setup: Using vLLM base image to build the Docker image")
             elif 'torch' in dependencies:
                 torch_version = dependencies['torch']
                 if python_version != DEFAULT_PYTHON_VERSION:
@@ -669,13 +929,13 @@ class ModelBuilder:
                     )
                 python_version = DEFAULT_PYTHON_VERSION
                 gpu_version = DEFAULT_AMD_GPU_VERSION
-                final_image = TORCH_BASE_IMAGE.format(
+                final_image = AMD_TORCH_BASE_IMAGE.format(
                     torch_version=torch_version,
                     python_version=python_version,
                     gpu_version=gpu_version,
                 )
                 logger.info(
-                    f"Using Torch version {torch_version} base image to build the Docker image"
+                    f"Setup: Using Torch version {torch_version} base image to build the Docker image"
                 )
         else:
             final_image = PYTHON_BASE_IMAGE.format(python_version=python_version)
@@ -684,6 +944,8 @@ class ModelBuilder:
                 torch_version = dependencies['torch']
                 # Sort in reverse so that newer cuda versions come first and are preferred.
                 for image in sorted(AVAILABLE_TORCH_IMAGES, reverse=True):
+                    if image.find('rocm') >= 0:
+                        continue  # skip ROCm images as those are handled above.
                     if torch_version in image and f'py{python_version}' in image:
                         # like cu124, rocm6.3, etc.
                         gpu_version = image.split('-')[-1]
@@ -693,7 +955,7 @@ class ModelBuilder:
                             gpu_version=gpu_version,
                         )
                         logger.info(
-                            f"Using Torch version {torch_version} base image to build the Docker image"
+                            f"Setup: Using Torch version {torch_version} base image to build the Docker image"
                         )
                         break
         if 'clarifai' not in dependencies:
@@ -727,9 +989,51 @@ class ModelBuilder:
             CLARIFAI_VERSION=clarifai_version,  # for clarifai
         )
 
-        # Write Dockerfile
-        with open(os.path.join(self.folder, 'Dockerfile'), 'w') as dockerfile:
-            dockerfile.write(dockerfile_content)
+        return dockerfile_content
+
+    def create_dockerfile(self, generate_dockerfile=False):
+        """
+        Create a Dockerfile for the model based on its configuration.
+        """
+        generated_content = self._generate_dockerfile_content()
+
+        if generate_dockerfile:
+            should_create_dockerfile = True
+        else:
+            # Always handle Dockerfile creation with user interaction when content differs
+            dockerfile_path = os.path.join(self.folder, 'Dockerfile')
+            should_create_dockerfile = True
+
+            if os.path.exists(dockerfile_path):
+                # Read existing Dockerfile content
+                with open(dockerfile_path, 'r') as existing_dockerfile:
+                    existing_content = existing_dockerfile.read()
+
+                # Compare content (normalize for robust comparison that handles indentation differences)
+                if self._normalize_dockerfile_content(
+                    existing_content
+                ) == self._normalize_dockerfile_content(generated_content):
+                    logger.info(
+                        "Dockerfile already exists with identical content, skipping creation."
+                    )
+                    should_create_dockerfile = False
+                else:
+                    logger.info("Dockerfile already exists with different content.")
+                    response = input(
+                        "A different Dockerfile already exists. Do you want to overwrite it with the generated one? "
+                        "Type 'y' to overwrite, 'n' to keep your custom Dockerfile: "
+                    )
+                    if response.lower() != 'y':
+                        logger.info("Keeping existing custom Dockerfile.")
+                        should_create_dockerfile = False
+                    else:
+                        logger.info("Overwriting existing Dockerfile with generated content.")
+
+        if should_create_dockerfile:
+            # Write Dockerfile
+            dockerfile_path = os.path.join(self.folder, 'Dockerfile')
+            with open(dockerfile_path, 'w') as dockerfile:
+                dockerfile.write(generated_content)
 
     @property
     def checkpoint_path(self):
@@ -961,7 +1265,6 @@ class ModelBuilder:
             is_uploaded = self.monitor_model_build()
             if is_uploaded:
                 # python code to run the model.
-                from clarifai.runners.utils import code_script
 
                 method_signatures = self.get_method_signatures()
                 snippet = code_script.generate_client_script(
@@ -1039,7 +1342,6 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
             per_page=50,
         )
         response = self.client.STUB.ListLogEntries(logs_request)
-
         return response
 
     def monitor_model_build(self):
@@ -1086,18 +1388,22 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                 return False
 
 
-def upload_model(folder, stage, skip_dockerfile):
+def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
     """
     Uploads a model to Clarifai.
 
     :param folder: The folder containing the model files.
     :param stage: The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.
-    :param skip_dockerfile: If True, will not create a Dockerfile.
+    :param skip_dockerfile: If True, will skip Dockerfile generation entirely. If False or not provided, intelligently handle existing Dockerfiles with user confirmation.
+    :param pat: Personal access token for authentication. If None, will use environment variables.
+    :param base_url: Base URL for the API. If None, will use environment variables.
     """
-    builder = ModelBuilder(folder)
+    builder = ModelBuilder(folder, app_not_found_action="prompt", pat=pat, base_url=base_url)
     builder.download_checkpoints(stage=stage)
+
     if not skip_dockerfile:
         builder.create_dockerfile()
+
     exists = builder.check_model_exists()
     if exists:
         logger.info(
@@ -1109,4 +1415,208 @@ def upload_model(folder, stage, skip_dockerfile):
         )
 
     input("Press Enter to continue...")
-    builder.upload_model_version()
+    model_version = builder.upload_model_version()
+
+    # Ask user if they want to deploy the model
+    if model_version is not None:  # if it comes back None then it failed.
+        deploy_model = input("Do you want to deploy the model? (y/n): ")
+        if deploy_model.lower() != 'y':
+            logger.info("Model uploaded successfully. Skipping deployment setup.")
+            return
+
+        # Setup deployment for the uploaded model
+        setup_deployment_for_model(builder)
+
+
+def setup_deployment_for_model(builder):
+    """
+    Set up deployment for a model after upload.
+
+    :param builder: The ModelBuilder instance that has uploaded the model.
+    """
+
+    model = builder.config.get('model')
+    user_id = model.get('user_id')
+    app_id = model.get('app_id')
+    model_id = model.get('id')
+
+    # Set up the API client with the user's credentials
+    user = User(user_id=user_id, pat=builder.client.pat, base_url=builder.client.base)
+
+    # Step 1: Check for available compute clusters and let user choose or create a new one
+    logger.info("Checking for available compute clusters...")
+    compute_clusters = list(user.list_compute_clusters())
+
+    compute_cluster = None
+    if compute_clusters:
+        logger.info("Available compute clusters:")
+        for i, cc in enumerate(compute_clusters):
+            logger.info(
+                f"{i + 1}. {cc.id} ({cc.description if hasattr(cc, 'description') else 'No description'})"
+            )
+
+        choice = input(
+            f"Choose a compute cluster (1-{len(compute_clusters)}) or 'n' to create a new one: "
+        )
+        if choice.lower() == 'n':
+            create_new_cc = True
+        else:
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(compute_clusters):
+                    compute_cluster = compute_clusters[idx]
+                    create_new_cc = False
+                else:
+                    logger.info("Invalid choice. Creating a new compute cluster.")
+                    create_new_cc = True
+            except ValueError:
+                logger.info("Invalid choice. Creating a new compute cluster.")
+                create_new_cc = True
+    else:
+        logger.info("No compute clusters found.")
+        create_new_cc = True
+
+    if create_new_cc:
+        # Provide URL to create a new compute cluster
+        url_helper = ClarifaiUrlHelper()
+        compute_cluster_url = f"{url_helper.ui}/settings/compute/new"
+        logger.info(f"Please create a new compute cluster by visiting: {compute_cluster_url}")
+
+        # Ask if they want to open the URL in browser
+        open_browser = input(
+            "Do you want to open the compute cluster creation page in your browser? (y/n): "
+        )
+        if open_browser.lower() == 'y':
+            try:
+                webbrowser.open(compute_cluster_url)
+            except Exception as e:
+                logger.error(f"Failed to open browser: {e}")
+
+        input("After creating the compute cluster, press Enter to continue...")
+
+        # Re-fetch the compute clusters list after user has created one
+        logger.info("Re-checking for available compute clusters...")
+        compute_clusters = list(user.list_compute_clusters())
+
+        if not compute_clusters:
+            logger.info(
+                "No compute clusters found. Please make sure you have created a compute cluster and try again."
+            )
+            return
+
+        # Show the updated list and let user choose
+        logger.info("Available compute clusters:")
+        for i, cc in enumerate(compute_clusters):
+            logger.info(
+                f"{i + 1}. {cc.id} ({cc.description if hasattr(cc, 'description') else 'No description'})"
+            )
+
+        choice = input(f"Choose a compute cluster (1-{len(compute_clusters)}): ")
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(compute_clusters):
+                compute_cluster = compute_clusters[idx]
+            else:
+                logger.info("Invalid choice. Aborting deployment setup.")
+                return
+        except ValueError:
+            logger.info("Invalid choice. Aborting deployment setup.")
+            return
+
+    # Step 2: Check for available nodepools and let user choose or create a new one
+    logger.info(f"Checking for available nodepools in compute cluster '{compute_cluster.id}'...")
+    nodepools = list(compute_cluster.list_nodepools())
+
+    nodepool = None
+    if nodepools:
+        logger.info("Available nodepools:")
+        for i, np in enumerate(nodepools):
+            logger.info(
+                f"{i + 1}. {np.id} ({np.description if hasattr(np, 'description') else 'No description'})"
+            )
+
+        choice = input(f"Choose a nodepool (1-{len(nodepools)}) or 'n' to create a new one: ")
+        if choice.lower() == 'n':
+            create_new_np = True
+        else:
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(nodepools):
+                    nodepool = nodepools[idx]
+                    create_new_np = False
+                else:
+                    logger.info("Invalid choice. Creating a new nodepool.")
+                    create_new_np = True
+            except ValueError:
+                logger.info("Invalid choice. Creating a new nodepool.")
+                create_new_np = True
+    else:
+        logger.info("No nodepools found in this compute cluster.")
+        create_new_np = True
+
+    if create_new_np:
+        # Provide URL to create a new nodepool
+        url_helper = ClarifaiUrlHelper()
+        nodepool_url = f"{url_helper.ui}/settings/compute/{compute_cluster.id}/nodepools/new"
+        logger.info(f"Please create a new nodepool by visiting: {nodepool_url}")
+
+        # Ask if they want to open the URL in browser
+        open_browser = input(
+            "Do you want to open the nodepool creation page in your browser? (y/n): "
+        )
+        if open_browser.lower() == 'y':
+            try:
+                webbrowser.open(nodepool_url)
+            except Exception as e:
+                logger.error(f"Failed to open browser: {e}")
+
+        input("After creating the nodepool, press Enter to continue...")
+
+        # Re-fetch the nodepools list after user has created one
+        logger.info(
+            f"Re-checking for available nodepools in compute cluster '{compute_cluster.id}'..."
+        )
+        nodepools = list(compute_cluster.list_nodepools())
+
+        if not nodepools:
+            logger.info(
+                "No nodepools found. Please make sure you have created a nodepool in the selected compute cluster and try again."
+            )
+            return
+
+        # Show the updated list and let user choose
+        logger.info("Available nodepools:")
+        for i, np in enumerate(nodepools):
+            logger.info(
+                f"{i + 1}. {np.id} ({np.description if hasattr(np, 'description') else 'No description'})"
+            )
+
+        choice = input(f"Choose a nodepool (1-{len(nodepools)}): ")
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(nodepools):
+                nodepool = nodepools[idx]
+            else:
+                logger.info("Invalid choice. Aborting deployment setup.")
+                return
+        except ValueError:
+            logger.info("Invalid choice. Aborting deployment setup.")
+            return
+
+    # Step 3: Help create a new deployment by providing URL
+    # Provide URL to create a new deployment
+    url_helper = ClarifaiUrlHelper()
+    deployment_url = f"{url_helper.ui}/compute/deployments/create?computeClusterId={compute_cluster.id}&nodePoolId={nodepool.id}"
+    logger.info(f"Please create a new deployment by visiting: {deployment_url}")
+
+    # Ask if they want to open the URL in browser
+    open_browser = input(
+        "Do you want to open the deployment creation page in your browser? (y/n): "
+    )
+    if open_browser.lower() == 'y':
+        try:
+            webbrowser.open(deployment_url)
+        except Exception as e:
+            logger.error(f"Failed to open browser: {e}")
+
+    logger.info("After creating the deployment, your model will be ready for inference!")

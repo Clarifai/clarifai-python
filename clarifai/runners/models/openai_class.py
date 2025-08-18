@@ -1,147 +1,205 @@
 """Base class for creating OpenAI-compatible API server."""
 
-import json
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator
+
+from clarifai_grpc.grpc.api.status import status_code_pb2
+from pydantic_core import from_json, to_json
 
 from clarifai.runners.models.model_class import ModelClass
-from clarifai.runners.utils.openai_convertor import openai_response
+from clarifai.utils.logging import logger
 
 
 class OpenAIModelClass(ModelClass):
     """Base class for wrapping OpenAI-compatible servers as a model running in Clarifai.
     This handles all the transport between the API and the OpenAI-compatible server.
-    Simply subclass this and implement the get_openai_client() method to return
-    the OpenAI-compatible client instance. The client is then used to handle all
-    the requests and responses.
+
+    To use this class, create a subclass and set the following class attributes:
+    - client: The OpenAI-compatible client instance
+    - model: The name of the model to use with the client
+
+    Example:
+        class MyOpenAIModel(OpenAIModelClass):
+            client = OpenAI(api_key="your-key")
+            model = "gpt-4"
     """
 
-    def load_model(self):
-        """Initialize the OpenAI client."""
-        self.client = self.get_openai_client()
+    # API Endpoints
+    ENDPOINT_CHAT_COMPLETIONS = "/chat/completions"
+    ENDPOINT_IMAGES_GENERATE = "/images/generations"
+    ENDPOINT_EMBEDDINGS = "/embeddings"
+    ENDPOINT_RESPONSES = "/responses"
 
-    def get_openai_client(self) -> Any:
-        """Required method for each subclass to implement to return the OpenAI-compatible client to use."""
-        raise NotImplementedError("Subclasses must implement get_openai_client() method")
+    # Default endpoint
+    DEFAULT_ENDPOINT = ENDPOINT_CHAT_COMPLETIONS
+
+    # These should be overridden in subclasses
+    client = None
+    model = None
+
+    def __init__(self) -> None:
+        super().__init__()
+        if self.client is None:
+            raise NotImplementedError("Subclasses must set the 'client' class attribute")
+        if self.model is None:
+            try:
+                self.model = self.client.models.list().data[0].id
+            except Exception as e:
+                raise NotImplementedError(
+                    "Subclasses must set the 'model' class attribute or ensure the client can list models"
+                ) from e
+
+    def _create_completion_args(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Create the completion arguments dictionary from parameters.
+
+        Args:
+            params: Dictionary of parameters extracted from request
+
+        Returns:
+            Dict containing the completion arguments
+        """
+        completion_args = {**params}
+        completion_args.update({"model": self.model})
+        stream = completion_args.pop("stream", False)
+        if stream:
+            # Force to use usage
+            stream_options = params.pop("stream_options", {})
+            stream_options.update({"include_usage": True})
+            completion_args["stream_options"] = stream_options
+        completion_args["stream"] = stream
+
+        return completion_args
+
+    def _set_usage(self, resp):
+        if resp.usage and resp.usage.prompt_tokens and resp.usage.completion_tokens:
+            self.set_output_context(
+                prompt_tokens=resp.usage.prompt_tokens,
+                completion_tokens=resp.usage.completion_tokens,
+            )
+
+    def _handle_chat_completions(self, request_data: Dict[str, Any]):
+        """Handle chat completion requests."""
+        completion_args = self._create_completion_args(request_data)
+        completion = self.client.chat.completions.create(**completion_args)
+        self._set_usage(completion)
+        return completion
+
+    def _handle_images_generate(self, request_data: Dict[str, Any]):
+        """Handle image generation requests."""
+        image_args = {**request_data}
+        image_args.update({"model": self.model})
+        response = self.client.images.generate(**image_args)
+        return response
+
+    def _handle_embeddings(self, request_data: Dict[str, Any]):
+        """Handle embedding requests."""
+        embedding_args = {**request_data}
+        embedding_args.update({"model": self.model})
+        response = self.client.embeddings.create(**embedding_args)
+        return response
+
+    def _handle_responses(self, request_data: Dict[str, Any]):
+        """Handle response requests."""
+        response_args = {**request_data}
+        response_args.update({"model": self.model})
+        response = self.client.responses.create(**response_args)
+        return response
+
+    def _route_request(self, endpoint: str, request_data: Dict[str, Any]):
+        """Route the request to appropriate handler based on endpoint."""
+        handlers = {
+            self.ENDPOINT_CHAT_COMPLETIONS: self._handle_chat_completions,
+            self.ENDPOINT_IMAGES_GENERATE: self._handle_images_generate,
+            self.ENDPOINT_EMBEDDINGS: self._handle_embeddings,
+            self.ENDPOINT_RESPONSES: self._handle_responses,
+        }
+
+        handler = handlers.get(endpoint)
+        if not handler:
+            raise ValueError(f"Unsupported endpoint: {endpoint}")
+
+        return handler(request_data)
+
+    def _update_old_fields(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update old fields in the request data to match current API expectations.
+
+        This is needed because API callers may have an old openAI client sending old fields
+        compared to the client within the model.
+
+        Note: this updates the request data in place and returns it.
+        """
+        if 'max_tokens' in request_data:
+            request_data['max_completion_tokens'] = request_data.pop('max_tokens')
+        if 'top_p' in request_data:
+            request_data['top_p'] = float(request_data['top_p'])
+        # Note(zeiler): temporary fix for our playground sending additional fields.
+        # FIXME: remove this once the playground is updated.
+        for m in request_data['messages']:
+            m.pop('id', None)
+            m.pop('file', None)
+            m.pop('panelId', None)
+        return request_data
 
     @ModelClass.method
     def openai_transport(self, msg: str) -> str:
-        """The single model method to get the OpenAI-compatible request and send it to the OpenAI server
-        then return its response.
-        """
-        # Parse the incoming message as JSON
-        request_data = json.loads(msg)
-
-        # Extract key parameters from the request
-        model = request_data.get("model", "")
-        messages = request_data.get("messages", [])
-        stream = request_data.get("stream", False)
-        temperature = request_data.get("temperature", 1.0)
-        max_tokens = request_data.get("max_tokens", None)
-
-        # Process the request using the provided OpenAI client
-        try:
-            if stream:
-                # For streaming responses
-                chunks = self._process_streaming_request(
-                    model=model, messages=messages, temperature=temperature, max_tokens=max_tokens
-                )
-                # Format the response as an OpenAI streaming response
-                response = openai_response(generated_text=chunks, model=model, stream=True)
-                # Since this is a generator, we need to convert it to a list for JSON serialization
-                response_list = list(response)
-                return json.dumps(response_list)
-            else:
-                # For non-streaming responses
-                completion = self._process_request(
-                    model=model, messages=messages, temperature=temperature, max_tokens=max_tokens
-                )
-
-                # Format the response as an OpenAI response
-                response = openai_response(generated_text=completion, model=model, stream=False)
-                return json.dumps(response)
-        except Exception as e:
-            error_response = {
-                "error": {
-                    "message": str(e),
-                    "type": "InvalidRequestError",
-                    "code": "invalid_request_error",
-                }
-            }
-            return json.dumps(error_response)
-
-    @ModelClass.method
-    def openai_stream_transport(self, req: str) -> Iterator[str]:
-        """Process an OpenAI-compatible request and return a streaming response iterator.
-
-        This method is used when stream=True and returns an iterator of strings directly,
-        without converting to a list or JSON serializing.
+        """Process an OpenAI-compatible request and send it to the appropriate OpenAI endpoint.
 
         Args:
-            req: The request as a JSON string.
+            msg: JSON string containing the request parameters including 'openai_endpoint'
+
+        Returns:
+            JSON string containing the response or error
+        """
+        try:
+            request_data = from_json(msg)
+            request_data = self._update_old_fields(request_data)
+            endpoint = request_data.pop("openai_endpoint", self.DEFAULT_ENDPOINT)
+            response = self._route_request(endpoint, request_data)
+            return response.model_dump_json()
+        except Exception as e:
+            logger.exception(e)
+            error_obj = {
+                "code": status_code_pb2.MODEL_PREDICTION_FAILED,
+                "description": "Model prediction failed",
+                "details": str(e),
+            }
+            return to_json(error_obj)
+
+    @ModelClass.method
+    def openai_stream_transport(self, msg: str) -> Iterator[str]:
+        """Process an OpenAI-compatible request and return a streaming response iterator.
+        This method is used when stream=True and returns an iterator of strings directly,
+        without converting to a list or JSON serializing. Supports chat completions and responses endpoints.
+
+        Args:
+            msg: The request as a JSON string.
 
         Returns:
             Iterator[str]: An iterator yielding text chunks from the streaming response.
         """
-        # Parse the incoming message
-        request_data = json.loads(req)
-
-        # Extract key parameters from the request
-        model = request_data.get("model", "")
-        messages = request_data.get("messages", [])
-        temperature = request_data.get("temperature", 1.0)
-        max_tokens = request_data.get("max_tokens", None)
-
-        # Process the streaming request and return the iterator directly
         try:
-            return self._process_streaming_request(
-                model=model, messages=messages, temperature=temperature, max_tokens=max_tokens
-            )
+            request_data = from_json(msg)
+            request_data = self._update_old_fields(request_data)
+            endpoint = request_data.pop("openai_endpoint", self.DEFAULT_ENDPOINT)
+            if endpoint not in [self.ENDPOINT_CHAT_COMPLETIONS, self.ENDPOINT_RESPONSES]:
+                raise ValueError("Streaming is only supported for chat completions and responses.")
+
+            if endpoint == self.ENDPOINT_RESPONSES:
+                # Handle responses endpoint
+                stream_response = self._route_request(endpoint, request_data)
+                for chunk in stream_response:
+                    yield chunk.model_dump_json()
+            else:
+                completion_args = self._create_completion_args(request_data)
+                stream_completion = self.client.chat.completions.create(**completion_args)
+                for chunk in stream_completion:
+                    self._set_usage(chunk)
+                    yield chunk.model_dump_json()
+
         except Exception as e:
-            # For errors, yield a single error message
-            yield f"Error: {str(e)}"
-
-    def _process_request(
-        self,
-        model: str,
-        messages: List[Dict[str, Any]],
-        temperature: float = 1.0,
-        max_tokens: Optional[int] = None,
-    ) -> str:
-        """Process a standard (non-streaming) request using the OpenAI client.
-
-        Override this method in your subclass if you need custom processing logic.
-        """
-        # Default implementation - subclasses should override with actual client interaction
-        completion_args = {"model": model, "messages": messages, "temperature": temperature}
-        if max_tokens is not None:
-            completion_args["max_tokens"] = max_tokens
-
-        completion = self.client.chat.completions.create(**completion_args)
-        return completion.choices[0].message.content
-
-    def _process_streaming_request(
-        self,
-        model: str,
-        messages: List[Dict[str, Any]],
-        temperature: float = 1.0,
-        max_tokens: Optional[int] = None,
-    ) -> Iterator[str]:
-        """Process a streaming request using the OpenAI client.
-
-        Override this method in your subclass if you need custom streaming logic.
-        """
-        # Default implementation - subclasses should override with actual client interaction
-        completion_args = {
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-            "stream": True,
-        }
-        if max_tokens is not None:
-            completion_args["max_tokens"] = max_tokens
-
-        completion_stream = self.client.chat.completions.create(**completion_args)
-        for chunk in completion_stream:
-            if hasattr(chunk.choices[0], 'delta') and hasattr(chunk.choices[0].delta, 'content'):
-                if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+            logger.exception(e)
+            error_obj = {
+                "code": status_code_pb2.MODEL_PREDICTION_FAILED,
+                "description": "Model prediction failed",
+                "details": str(e),
+            }
+            yield to_json(error_obj)

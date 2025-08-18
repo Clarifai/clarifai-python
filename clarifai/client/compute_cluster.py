@@ -165,7 +165,7 @@ class ComputeCluster(Lister, BaseClient):
         response = self._grpc_request(self.STUB.PostNodepools, request)
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
-        self.logger.info("\nNodepool created\n%s", response.status)
+        self.logger.info(f"Nodepool with ID '{nodepool_id}' is created:\n{response.status}")
 
         dict_response = MessageToDict(response.nodepools[0], preserving_proto_field_name=True)
         kwargs = self.process_response_keys(dict_response, 'nodepool')
