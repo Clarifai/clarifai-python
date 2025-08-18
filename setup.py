@@ -13,8 +13,6 @@ version = _search_version.group(1)
 
 with open("requirements.txt", "r", encoding="utf-8") as fh:
     install_requires = fh.read().split('\n')
-    # remove ruff as it doesn't work with setup.py
-    install_requires = [req for req in install_requires if not req.startswith('ruff')]
 
 if install_requires and install_requires[-1] == '':
     # Remove the last empty line

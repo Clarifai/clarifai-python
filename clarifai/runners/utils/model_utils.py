@@ -68,13 +68,13 @@ def kill_process_tree(parent_pid, include_parent: bool = True, skip_pid: int = N
             logger.warning(f"Failed to kill parent process {parent_pid}: {e}")
 
 
-def execute_shell_command(
-    command: str,
-) -> subprocess.Popen:
+def execute_shell_command(command: str, stdout=None, stderr=subprocess.STDOUT) -> subprocess.Popen:
     """Execute a shell command and return its process handle.
 
     Args:
         command (str): The shell command to execute.
+        stdout : Verbose logging control,
+        stderr : Verbose error logging control
 
     Returns:
         subprocess.Popen: Process handle for the executed command.
@@ -90,7 +90,7 @@ def execute_shell_command(
     parts = shlex.split(command)
 
     try:
-        process = subprocess.Popen(parts, text=True, stderr=subprocess.STDOUT)
+        process = subprocess.Popen(parts, text=True, stdout=stdout, stderr=stderr)
 
         return process
     except subprocess.SubprocessError as e:

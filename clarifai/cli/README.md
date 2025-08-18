@@ -8,6 +8,45 @@ Clarifai offers a user-friendly interface for deploying your local model into pr
 * Easy implementation and testing in Python
 * No need for MLops expertise.
 
+## Context Management
+
+Manage CLI contexts for authentication and environment configuration:
+### List all contexts
+```bash
+clarifai config get-contexts
+```
+
+### Switch context
+```bash
+clarifai config use-context production
+```
+### Show current context
+```bash
+clarifai config current-context
+```
+
+### Create new context
+```bash
+clarifai config create-context staging --user-id myuser --pat 678***
+```
+### View entire configuration
+```bash
+clarifai config view
+```
+### Delete a context
+```bash
+clarifai config delete-context old-context
+```
+### Edit configuration file
+```bash
+clarifai config edit
+```
+
+### Print environment variables for the active context
+```bash
+clarifai context env
+```
+
 ## Compute Orchestration
 
 Quick example for deploying a `visual-classifier` model
@@ -80,6 +119,57 @@ Delete existing Compute Clusters:
 
 ```bash
 $ clarifai computecluster delete --compute_cluster_id <compute-cluster-id>
+```
+
+## Pipelines
+
+### List Pipelines
+
+List all pipelines for the user across all apps:
+
+```bash
+$ clarifai pipeline list
+```
+
+List pipelines within a specific app:
+
+```bash
+$ clarifai pipeline list --app_id <app-id>
+```
+
+List with pagination:
+
+```bash
+$ clarifai pipeline list --page_no 1 --per_page 10
+```
+
+### List Pipeline Steps
+
+List all pipeline steps for the user across all apps:
+
+```bash
+$ clarifai pipelinestep list
+```
+
+List pipeline steps within a specific app:
+
+```bash
+$ clarifai pipelinestep list --app_id <app-id>
+```
+
+List pipeline steps for a specific pipeline:
+
+```bash
+$ clarifai pipelinestep list --app_id <app-id> --pipeline_id <pipeline-id>
+```
+
+### Aliases
+
+Both commands support the `ls` alias for convenience:
+
+```bash
+$ clarifai pipeline ls
+$ clarifai pipelinestep ls
 ```
 
 ## Learn More
