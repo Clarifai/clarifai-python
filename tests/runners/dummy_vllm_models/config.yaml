@@ -1,0 +1,20 @@
+model:
+  id: "facebook-opt-125m"
+  user_id: "mogith-p-n"
+  app_id: "test-co"
+  model_type_id: "text-to-text"
+
+build_info:
+  python_version: '3.11'
+
+inference_compute_info:
+  cpu_limit: '1'
+  cpu_memory: 1Gi
+  num_accelerators: 1
+  accelerator_type: ["NVIDIA-*"]
+  accelerator_memory: 1Gi
+
+checkpoints:
+  type: huggingface
+  repo_id: "facebook/opt-125m"
+  when: runtime

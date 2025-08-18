@@ -7,7 +7,7 @@ def get_model_class_template() -> str:
     """Return the template for a basic ModelClass-based model."""
     return '''from typing import Iterator, List
 from clarifai.runners.models.model_class import ModelClass
-from clarifai.runners.util.data_utils import Param
+from clarifai.runners.utils.data_utils import Param
 
 class MyModel(ModelClass):
     """A custom model implementation using ModelClass."""
@@ -31,7 +31,7 @@ class MyModel(ModelClass):
         """This is the method that will be called when the runner is run. It takes in an input and returns an output."""
         # TODO: please fill in
         # Implement your prediction logic here
-        pass  # Replace with your actual logic
+        return "This is a placeholder response. Please implement your model logic."
 
     @ModelClass.method
     def generate(
@@ -45,7 +45,7 @@ class MyModel(ModelClass):
         """Example yielding a streamed response."""
         # TODO: please fill in
         # Implement your generation logic here
-        pass # Replace with your actual logic
+        yield "This is a placeholder response. Please implement your model logic."
 '''
 
 
@@ -104,7 +104,7 @@ def get_openai_model_class_template() -> str:
     return '''from typing import List
 from openai import OpenAI
 from clarifai.runners.models.openai_class import OpenAIModelClass
-from clarifai.runners.util.data_utils import Param
+from clarifai.runners.utils.data_utils import Param
 from clarifai.runners.utils.openai_convertor import build_openai_messages
 
 class MyModel(OpenAIModelClass):

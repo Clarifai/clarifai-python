@@ -383,7 +383,7 @@ class ModelBuilder:
             sys.exit(1)
 
     @staticmethod
-    def _set_local_dev_model(config, user_id, app_id, model_id, model_type_id):
+    def _set_local_runner_model(config, user_id, app_id, model_id, model_type_id):
         """
         Sets the model configuration for local development.
         This is used when running the model locally without uploading it to Clarifai.
@@ -736,7 +736,26 @@ class ModelBuilder:
         else:
             logger.info("Setup: Python code linted successfully, no errors found.")
 
-    def create_dockerfile(self):
+    def _normalize_dockerfile_content(self, content):
+        """
+        Normalize Dockerfile content for comparison by standardizing whitespace and indentation.
+        This handles differences in spacing, indentation, and line endings.
+        """
+        lines = []
+        for line in content.splitlines():
+            # Strip leading/trailing whitespace from each line
+            normalized_line = line.strip()
+            # Skip empty lines for comparison
+            if normalized_line:
+                lines.append(normalized_line)
+        # Join with consistent line endings
+        return '\n'.join(lines)
+
+    def _generate_dockerfile_content(self):
+        """
+        Generate the Dockerfile content based on the model configuration.
+        This is a helper method that returns the content without writing to file.
+        """
         dockerfile_template = os.path.join(
             os.path.dirname(os.path.dirname(__file__)),
             'dockerfile_template',
@@ -883,9 +902,51 @@ class ModelBuilder:
             CLARIFAI_VERSION=clarifai_version,  # for clarifai
         )
 
-        # Write Dockerfile
-        with open(os.path.join(self.folder, 'Dockerfile'), 'w') as dockerfile:
-            dockerfile.write(dockerfile_content)
+        return dockerfile_content
+
+    def create_dockerfile(self, generate_dockerfile=False):
+        """
+        Create a Dockerfile for the model based on its configuration.
+        """
+        generated_content = self._generate_dockerfile_content()
+
+        if generate_dockerfile:
+            should_create_dockerfile = True
+        else:
+            # Always handle Dockerfile creation with user interaction when content differs
+            dockerfile_path = os.path.join(self.folder, 'Dockerfile')
+            should_create_dockerfile = True
+
+            if os.path.exists(dockerfile_path):
+                # Read existing Dockerfile content
+                with open(dockerfile_path, 'r') as existing_dockerfile:
+                    existing_content = existing_dockerfile.read()
+
+                # Compare content (normalize for robust comparison that handles indentation differences)
+                if self._normalize_dockerfile_content(
+                    existing_content
+                ) == self._normalize_dockerfile_content(generated_content):
+                    logger.info(
+                        "Dockerfile already exists with identical content, skipping creation."
+                    )
+                    should_create_dockerfile = False
+                else:
+                    logger.info("Dockerfile already exists with different content.")
+                    response = input(
+                        "A different Dockerfile already exists. Do you want to overwrite it with the generated one? "
+                        "Type 'y' to overwrite, 'n' to keep your custom Dockerfile: "
+                    )
+                    if response.lower() != 'y':
+                        logger.info("Keeping existing custom Dockerfile.")
+                        should_create_dockerfile = False
+                    else:
+                        logger.info("Overwriting existing Dockerfile with generated content.")
+
+        if should_create_dockerfile:
+            # Write Dockerfile
+            dockerfile_path = os.path.join(self.folder, 'Dockerfile')
+            with open(dockerfile_path, 'w') as dockerfile:
+                dockerfile.write(generated_content)
 
     @property
     def checkpoint_path(self):
@@ -1248,14 +1309,16 @@ def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
 
     :param folder: The folder containing the model files.
     :param stage: The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.
-    :param skip_dockerfile: If True, will not create a Dockerfile.
+    :param skip_dockerfile: If True, will skip Dockerfile generation entirely. If False or not provided, intelligently handle existing Dockerfiles with user confirmation.
     :param pat: Personal access token for authentication. If None, will use environment variables.
     :param base_url: Base URL for the API. If None, will use environment variables.
     """
     builder = ModelBuilder(folder, app_not_found_action="prompt", pat=pat, base_url=base_url)
     builder.download_checkpoints(stage=stage)
+
     if not skip_dockerfile:
         builder.create_dockerfile()
+
     exists = builder.check_model_exists()
     if exists:
         logger.info(
@@ -1457,7 +1520,7 @@ def setup_deployment_for_model(builder):
     # Step 3: Help create a new deployment by providing URL
     # Provide URL to create a new deployment
     url_helper = ClarifaiUrlHelper()
-    deployment_url = f"{url_helper.ui}/settings/compute/deployments/new?computeClusterId={compute_cluster.id}&nodePoolId={nodepool.id}"
+    deployment_url = f"{url_helper.ui}/compute/deployments/create?computeClusterId={compute_cluster.id}&nodePoolId={nodepool.id}"
     logger.info(f"Please create a new deployment by visiting: {deployment_url}")
 
     # Ask if they want to open the URL in browser
@@ -1471,4 +1534,3 @@ def setup_deployment_for_model(builder):
             logger.error(f"Failed to open browser: {e}")
 
     logger.info("After creating the deployment, your model will be ready for inference!")
-    logger.info(f"You can always return to view your deployments at: {deployment_url}")
