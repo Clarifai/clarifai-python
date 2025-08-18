@@ -102,6 +102,7 @@ class ModelBuilder:
         self.folder = self._validate_folder(folder)
         self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
         self._validate_config()
+        self._validate_stream_options()
         self.model_proto = self._get_model_proto()
         self.model_id = self.model_proto.id
         self.model_version_id = None
@@ -440,6 +441,89 @@ class ModelBuilder:
         else:
             num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 16))
             self.config["num_threads"] = num_threads
+
+    def _validate_stream_options(self):
+        """
+        Validate OpenAI streaming configuration for Clarifai models.
+        """
+        if not self._is_clarifai_internal():
+            return  # Skip validation for non-clarifai models
+
+        # Parse all Python files once
+        all_python_content = self._get_all_python_content()
+
+        if self._uses_openai_streaming(all_python_content):
+            logger.info(
+                "Detected OpenAI chat completions for Clarifai model streaming - validating stream_options..."
+            )
+
+            if not self.has_proper_usage_tracking(all_python_content):
+                logger.error(
+                    "Missing configuration to track usage for OpenAI chat completion calls. "
+                    "Go to your model scripts and make sure to set both: "
+                    "1) stream_options={'include_usage': True}"
+                    "2) set_output_context"
+                )
+
+    def _is_clarifai_internal(self):
+        """
+        Check if the current user is a Clarifai internal user based on email domain.
+
+        Returns:
+            bool: True if user is a Clarifai internal user, False otherwise
+        """
+        try:
+            # Get user info from Clarifai API
+            user_client = User(
+                pat=self.client.pat, user_id=self.config.get('model').get('user_id')
+            )
+            user_response = user_client.get_user_info()
+
+            if user_response.status.code != status_code_pb2.SUCCESS:
+                logger.debug("Could not retrieve user info for Clarifai internal user validation")
+                return False
+
+            user = user_response.user
+
+            # Check primary email domain
+            if hasattr(user, 'primary_email') and user.primary_email:
+                return user.primary_email.endswith('@clarifai.com')
+
+            return False
+
+        except Exception as e:
+            logger.debug(f"Employee validation failed: {e}")
+            return False
+
+    def _get_all_python_content(self):
+        """
+        Parse and concatenate all Python files in the model's 1/ subfolder.
+        """
+        model_folder = os.path.join(self.folder, '1')
+        if not os.path.exists(model_folder):
+            return ""
+
+        all_content = []
+        for root, _, files in os.walk(model_folder):
+            for file in files:
+                if file.endswith('.py'):
+                    file_path = os.path.join(root, file)
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            all_content.append(f.read())
+                    except Exception:
+                        continue
+        return "\n".join(all_content)
+
+    def _uses_openai_streaming(self, python_content):
+        return 'chat.completions.create' in python_content and 'generate(' in python_content
+
+    def has_proper_usage_tracking(self, python_content):
+        include_usage_patterns = ["'include_usage': True", '"include_usage": True']
+        has_include_usage = any(pattern in python_content for pattern in include_usage_patterns)
+        has_set_output_context = 'set_output_context' in python_content
+
+        return has_include_usage and has_set_output_context
 
     @staticmethod
     def _get_tar_file_content_size(tar_file_path):
