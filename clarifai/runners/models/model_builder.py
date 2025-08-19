@@ -739,7 +739,7 @@ class ModelBuilder:
         logger.info(f"Setup: Validating requirements.txt file at {path} using uv pip compile")
         # Don't log the output of the comment unless it errors.
         result = subprocess.run(
-            f"uv pip compile {path} --universal --python {python_version} --no-header  --no-emit-index-url --no-cache-dir",
+            f"uv pip compile {path} --universal --python {python_version} --no-header --no-emit-index-url --no-cache-dir",
             shell=True,
             text=True,
             capture_output=True,
