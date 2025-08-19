@@ -139,7 +139,6 @@ class OpenAIModelClass(ModelClass):
                 m.pop('id', None)
                 m.pop('file', None)
                 m.pop('panelId', None)
-            
 
         # Handle the "Currently only named tools are supported." error we see from trt-llm
         if 'tools' in request_data and request_data['tools'] is None:
