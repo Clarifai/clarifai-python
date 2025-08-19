@@ -1,3 +1,9 @@
+## [[11.7.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.2) - [PyPI](https://pypi.org/project/clarifai/11.7.2/) - 2025-08-19
+
+### Changed
+- fix num_threads setting fix pip checks [(#752)] (https://github.com/Clarifai/clarifai-python/pull/752)
+- fix pip checks when cache is broken [(#751)] (https://github.com/Clarifai/clarifai-python/pull/751)
+
 ## [[11.7.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.1) - [PyPI](https://pypi.org/project/clarifai/11.7.1/) - 2025-08-18
 
 ### Changed
