@@ -1,3 +1,4 @@
+import time
 from typing import Iterator
 
 from clarifai_grpc.grpc.api import service_pb2
@@ -6,6 +7,8 @@ from clarifai_protocol import BaseRunner
 from clarifai_protocol.utils.health import HealthProbeRequestHandler
 
 from clarifai.client.auth.helper import ClarifaiAuthHelper
+from clarifai.utils.constants import STATUS_FAIL, STATUS_MIXED, STATUS_OK, STATUS_UNKNOWN
+from clarifai.utils.logging import get_req_id_from_context, logger
 
 from ..utils.url_fetcher import ensure_urls_downloaded
 from .model_class import ModelClass
@@ -106,6 +109,20 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
+        start_time = time.time()
+        req_id = get_req_id_from_context()
+        status_str = STATUS_UNKNOWN
+        # Endpoint is always POST /v2/.../outputs for this runner
+        endpoint = "POST /v2/.../outputs         "
+
+        # if method_name == '_GET_SIGNATURES' then the request is for getting signatures and we don't want to log it.
+        # This is a workaround to avoid logging the _GET_SIGNATURES method call.
+        method_name = None
+        logging = True
+        if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
+            method_name = request.inputs[0].data.metadata['_method_name']
+        if method_name == '_GET_SIGNATURES':
+            logging = False
 
         resp = self.model.predict_wrapper(request)
         # if we have any non-successful code already it's an error we can return.
@@ -113,6 +130,9 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
             resp.status.code != status_code_pb2.SUCCESS
             and resp.status.code != status_code_pb2.ZERO
         ):
+            status_str = f"{resp.status.code} ERROR"
+            duration_ms = (time.time() - start_time) * 1000
+            logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
             return service_pb2.RunnerItemOutput(multi_output_response=resp)
         successes = []
         for output in resp.outputs:
@@ -126,18 +146,24 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
                 code=status_code_pb2.SUCCESS,
                 description="Success",
             )
+            status_str = STATUS_OK
         elif any(successes):
             status = status_pb2.Status(
                 code=status_code_pb2.MIXED_STATUS,
                 description="Mixed Status",
             )
+            status_str = STATUS_MIXED
         else:
             status = status_pb2.Status(
                 code=status_code_pb2.FAILURE,
                 description="Failed",
             )
+            status_str = STATUS_FAIL
 
         resp.status.CopyFrom(status)
+        if logging:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
         return service_pb2.RunnerItemOutput(multi_output_response=resp)
 
     def runner_item_generate(
@@ -150,12 +176,21 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         request = runner_item.post_model_outputs_request
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
 
+        # --- Live logging additions ---
+        start_time = time.time()
+        req_id = get_req_id_from_context()
+        status_str = STATUS_UNKNOWN
+        endpoint = "POST /v2/.../outputs/generate"
+
         for resp in self.model.generate_wrapper(request):
             # if we have any non-successful code already it's an error we can return.
             if (
                 resp.status.code != status_code_pb2.SUCCESS
                 and resp.status.code != status_code_pb2.ZERO
             ):
+                status_str = f"{resp.status.code} ERROR"
+                duration_ms = (time.time() - start_time) * 1000
+                logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
                 continue
             successes = []
@@ -170,30 +205,44 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
                     code=status_code_pb2.SUCCESS,
                     description="Success",
                 )
+                status_str = STATUS_OK
             elif any(successes):
                 status = status_pb2.Status(
                     code=status_code_pb2.MIXED_STATUS,
                     description="Mixed Status",
                 )
+                status_str = STATUS_MIXED
             else:
                 status = status_pb2.Status(
                     code=status_code_pb2.FAILURE,
                     description="Failed",
                 )
+                status_str = STATUS_FAIL
             resp.status.CopyFrom(status)
 
             yield service_pb2.RunnerItemOutput(multi_output_response=resp)
+
+        duration_ms = (time.time() - start_time) * 1000
+        logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
 
     def runner_item_stream(
         self, runner_item_iterator: Iterator[service_pb2.RunnerItem]
     ) -> Iterator[service_pb2.RunnerItemOutput]:
         # Call the generate() method the underlying model implements.
+        start_time = time.time()
+        req_id = get_req_id_from_context()
+        status_str = STATUS_UNKNOWN
+        endpoint = "POST /v2/.../outputs/stream  "
+
         for resp in self.model.stream_wrapper(pmo_iterator(runner_item_iterator)):
             # if we have any non-successful code already it's an error we can return.
             if (
                 resp.status.code != status_code_pb2.SUCCESS
                 and resp.status.code != status_code_pb2.ZERO
             ):
+                status_str = f"{resp.status.code} ERROR"
+                duration_ms = (time.time() - start_time) * 1000
+                logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
                 continue
             successes = []
@@ -208,19 +257,25 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
                     code=status_code_pb2.SUCCESS,
                     description="Success",
                 )
+                status_str = STATUS_OK
             elif any(successes):
                 status = status_pb2.Status(
                     code=status_code_pb2.MIXED_STATUS,
                     description="Mixed Status",
                 )
+                status_str = STATUS_MIXED
             else:
                 status = status_pb2.Status(
                     code=status_code_pb2.FAILURE,
                     description="Failed",
                 )
+                status_str = STATUS_FAIL
             resp.status.CopyFrom(status)
 
             yield service_pb2.RunnerItemOutput(multi_output_response=resp)
+
+        duration_ms = (time.time() - start_time) * 1000
+        logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
 
 
 def pmo_iterator(runner_item_iterator, auth_helper=None):

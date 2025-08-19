@@ -5,7 +5,13 @@ import tempfile
 import click
 
 from clarifai.cli.base import cli, pat_display
-from clarifai.utils.cli import validate_context
+from clarifai.utils.cli import (
+    check_ollama_installed,
+    check_requirements_installed,
+    customize_ollama_model,
+    parse_requirements,
+    validate_context,
+)
 from clarifai.utils.constants import (
     DEFAULT_LOCAL_RUNNER_APP_ID,
     DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG,
@@ -20,49 +26,6 @@ from clarifai.utils.constants import (
 )
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import GitHubDownloader, clone_github_repo, format_github_repo_url
-
-
-def customize_ollama_model(model_path, model_name, port, context_length):
-    """Customize the Ollama model name in the cloned template files.
-    Args:
-     model_path: Path to the cloned model directory
-     model_name: The model name to set (e.g., 'llama3.1', 'mistral')
-
-    """
-    model_py_path = os.path.join(model_path, "1", "model.py")
-
-    if not os.path.exists(model_py_path):
-        logger.warning(f"Model file {model_py_path} not found, skipping model name customization")
-        return
-
-    try:
-        # Read the model.py file
-        with open(model_py_path, 'r') as file:
-            content = file.read()
-        if model_name:
-            # Replace the default model name in the load_model method
-            content = content.replace(
-                'self.model = os.environ.get("OLLAMA_MODEL_NAME", \'llama3.2\')',
-                f'self.model = os.environ.get("OLLAMA_MODEL_NAME", \'{model_name}\')',
-            )
-
-        if port:
-            # Replace the default port variable in the model.py file
-            content = content.replace("PORT = '23333'", f"PORT = '{port}'")
-
-        if context_length:
-            # Replace the default context length variable in the model.py file
-            content = content.replace(
-                "context_length = '8192'", f"context_length = '{context_length}'"
-            )
-
-        # Write the modified content back to model.py
-        with open(model_py_path, 'w') as file:
-            file.write(content)
-
-    except Exception as e:
-        logger.error(f"Failed to customize Ollama model name in {model_py_path}: {e}")
-        raise
 
 
 @cli.group(
@@ -121,15 +84,22 @@ def model():
     required=False,
 )
 def init(
-    model_path, model_type_id, github_pat, github_url, toolkit, model_name, port, context_length
+    model_path,
+    model_type_id,
+    github_pat,
+    github_url,
+    toolkit,
+    model_name,
+    port,
+    context_length,
 ):
     """Initialize a new model directory structure.
 
-    Creates the following structure in the specified directory:
-    ├── 1/
-    │   └── model.py
-    ├── requirements.txt
-    └── config.yaml
+    Creates the following structure in the specified directory:\n
+    ├── 1/\n
+    │   └── model.py\n
+    ├── requirements.txt\n
+    └── config.yaml\n
 
     If --github-repo is provided, the entire repository contents will be copied to the target
     directory instead of using default templates. The --github-pat option can be used for authentication
@@ -137,13 +107,13 @@ def init(
     branch to clone from.
 
     MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
-    model_type_id: Type of model to initialize. Options are 'mcp' for MCPModelClass or 'openai' for OpenAIModelClass.
-    github_pat: GitHub Personal Access Token for cloning private repositories.
-    github_url: GitHub repository URL or "user/repo" format or the github folder URL to clone a model files from. If provided, the entire contents of repo/folder will be copied to the target directory instead of using default templates.
-    toolkit: Toolkit to use for model initialization. Currently supports 'ollama'.
-    model_name: Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., 'llama3.1', 'mistral', etc.).
-    port: Port to run the Ollama server on. Defaults to 23333.
-    context_length: Context length for the Ollama model. Defaults to 8192.
+    MODEL_TYPE_ID: Type of model to create. If not specified, defaults to "text-to-text" for text models.
+    GITHUB_PAT: GitHub Personal Access Token for authentication when cloning private repositories.
+    GITHUB_URL: GitHub repository URL or "repo" format to clone a repository from. If provided, the entire repository contents will be copied to the target directory instead of using default templates.
+    TOOLKIT: Toolkit to use for model initialization. Currently supports "ollama".
+    MODEL_NAME: Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.).
+    PORT: Port to run the Ollama server on. Defaults to 23333.
+    CONTEXT_LENGTH: Context length for the Ollama model. Defaults to 8192.
     """
     # Resolve the absolute path
     model_path = os.path.abspath(model_path)
@@ -171,6 +141,11 @@ def init(
 
     # --toolkit option
     if toolkit == 'ollama':
+        if not check_ollama_installed():
+            logger.error(
+                "Ollama is not installed. Please install it from `https://ollama.com/` to use the Ollama toolkit."
+            )
+            raise click.Abort()
         github_url = DEFAULT_OLLAMA_MODEL_REPO
         branch = DEFAULT_OLLAMA_MODEL_REPO_BRANCH
 
@@ -251,11 +226,12 @@ def init(
     if (model_name or port or context_length) and (toolkit == 'ollama'):
         customize_ollama_model(model_path, model_name, port, context_length)
 
-    logger.info("Model initialization complete with GitHub repository")
-    logger.info("Next steps:")
-    logger.info("1. Review the model configuration")
-    logger.info("2. Install any required dependencies manually")
-    logger.info("3. Test the model locally using 'clarifai model local-test'")
+    if github_url:
+        logger.info("Model initialization complete with GitHub repository")
+        logger.info("Next steps:")
+        logger.info("1. Review the model configuration")
+        logger.info("2. Install any required dependencies manually")
+        logger.info("3. Test the model locally using 'clarifai model local-test'")
 
     # Fall back to template-based initialization if no GitHub repo or if GitHub repo failed
     if not github_url:
@@ -322,7 +298,7 @@ def init(
 @click.option(
     '--skip_dockerfile',
     is_flag=True,
-    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile.',
+    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
 @click.pass_context
 def upload(ctx, model_path, stage, skip_dockerfile):
@@ -434,7 +410,7 @@ def signatures(model_path, out_path):
 @click.option(
     '--skip_dockerfile',
     is_flag=True,
-    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. Apply for `--mode conatainer`.',
+    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
 def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_dockerfile=False):
     """Test model locally.
@@ -501,7 +477,7 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_
 @click.option(
     '--skip_dockerfile',
     is_flag=True,
-    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. Apply for `--mode conatainer`.',
+    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
 def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=False):
     """Run the model locally and start a gRPC server to serve the model.
@@ -544,12 +520,17 @@ def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=Fa
 @click.option(
     "--pool_size",
     type=int,
-    default=1,  # default to 1 thread for local runner to avoid rapid depletion of compute time.
+    default=32,
     show_default=True,
     help="The number of threads to use. On community plan, the compute time allocation is drained at a rate proportional to the number of threads.",
 )  # pylint: disable=range-builtin-not-iterating
+@click.option(
+    '--verbose',
+    is_flag=True,
+    help='Show detailed logs including Ollama server output. By default, Ollama logs are suppressed.',
+)
 @click.pass_context
-def local_runner(ctx, model_path, pool_size):
+def local_runner(ctx, model_path, pool_size, verbose):
     """Run the model as a local runner to help debug your model connected to the API or to
     leverage local compute resources manually. This relies on many variables being present in the env
     of the currently selected context. If they are not present then default values will be used to
@@ -590,8 +571,26 @@ def local_runner(ctx, model_path, pool_size):
     from clarifai.runners.models.model_builder import ModelBuilder
     from clarifai.runners.server import serve
 
+    builder = ModelBuilder(model_path, download_validation_only=True)
+
     validate_context(ctx)
-    logger.info("Checking setup for local runner...")
+    builder = ModelBuilder(model_path, download_validation_only=True)
+    logger.info("> Checking local runner requirements...")
+    if not check_requirements_installed(model_path):
+        logger.error(f"Requirements not installed for model at {model_path}.")
+        raise click.Abort()
+
+    # Post check while running `clarifai model local-runner` we check if the toolkit is ollama
+    dependencies = parse_requirements(model_path)
+    if "ollama" in dependencies or builder.config.get('toolkit', {}).get('provider') == 'ollama':
+        logger.info("Verifying Ollama installation...")
+        if not check_ollama_installed():
+            logger.error(
+                "Ollama application is not installed. Please install it from `https://ollama.com/` to use the Ollama toolkit."
+            )
+            raise click.Abort()
+
+    logger.info("> Verifying local runner setup...")
     logger.info(f"Current context: {ctx.obj.current.name}")
     user_id = ctx.obj.current.user_id
     logger.info(f"Current user_id: {user_id}")
@@ -620,7 +619,7 @@ def local_runner(ctx, model_path, pool_size):
         compute_cluster = user.compute_cluster(compute_cluster_id)
         if compute_cluster.cluster_type != 'local-dev':
             raise ValueError(
-                f"Compute cluster {user_id}/{compute_cluster_id} is not a local-runner compute cluster. Please create a local-runner compute cluster."
+                f"Compute cluster {user_id}/{compute_cluster_id} is not a compute cluster of type 'local-dev'. Please use a compute cluster of type 'local-dev'."
             )
         try:
             compute_cluster_id = ctx.obj.current.compute_cluster_id
@@ -630,7 +629,7 @@ def local_runner(ctx, model_path, pool_size):
     except ValueError:
         raise
     except Exception as e:
-        logger.info(f"Failed to get compute cluster with ID {compute_cluster_id}: {e}")
+        logger.warning(f"Failed to get compute cluster with ID '{compute_cluster_id}':\n{e}")
         y = input(
             f"Compute cluster not found. Do you want to create a new compute cluster {user_id}/{compute_cluster_id}? (y/n): "
         )
@@ -659,7 +658,7 @@ def local_runner(ctx, model_path, pool_size):
             ctx.obj.current.CLARIFAI_NODEPOOL_ID = nodepool.id
             ctx.obj.to_yaml()  # save to yaml file.
     except Exception as e:
-        logger.info(f"Failed to get nodepool with ID {nodepool_id}: {e}")
+        logger.warning(f"Failed to get nodepool with ID '{nodepool_id}':\n{e}")
         y = input(
             f"Nodepool not found. Do you want to create a new nodepool {user_id}/{compute_cluster_id}/{nodepool_id}? (y/n): "
         )
@@ -687,7 +686,7 @@ def local_runner(ctx, model_path, pool_size):
             ctx.obj.current.CLARIFAI_APP_ID = app.id
             ctx.obj.to_yaml()  # save to yaml file.
     except Exception as e:
-        logger.info(f"Failed to get app with ID {app_id}: {e}")
+        logger.warning(f"Failed to get app with ID '{app_id}':\n{e}")
         y = input(f"App not found. Do you want to create a new app {user_id}/{app_id}? (y/n): ")
         if y.lower() != 'y':
             raise click.Abort()
@@ -710,7 +709,7 @@ def local_runner(ctx, model_path, pool_size):
             ctx.obj.current.CLARIFAI_MODEL_ID = model.id
             ctx.obj.to_yaml()  # save to yaml file.
     except Exception as e:
-        logger.info(f"Failed to get model with ID {model_id}: {e}")
+        logger.warning(f"Failed to get model with ID '{model_id}':\n{e}")
         y = input(
             f"Model not found. Do you want to create a new model {user_id}/{app_id}/models/{model_id}? (y/n): "
         )
@@ -729,12 +728,23 @@ def local_runner(ctx, model_path, pool_size):
     # Now we need to create a version for the model if no version exists. Only need one version that
     # mentions it's a local runner.
     model_versions = [v for v in model.list_versions()]
+    method_signatures = builder.get_method_signatures(mocking=False)
     if len(model_versions) == 0:
-        logger.info("No model versions found. Creating a new version for local runner.")
-        version = model.create_version(pretrained_model_config={"local_dev": True}).model_version
-        logger.info(f"Created model version {version.id}")
+        logger.warning("No model versions found. Creating a new version for local runner.")
+        version = model.create_version(
+            pretrained_model_config={"local_dev": True}, method_signatures=method_signatures
+        ).model_version
+        ctx.obj.current.CLARIFAI_MODEL_VERSION_ID = version.id
+        ctx.obj.to_yaml()
     else:
+        model.patch_version(
+            version_id=model_versions[0].model_version.id,
+            pretrained_model_config={"local_dev": True},
+            method_signatures=method_signatures,
+        )
         version = model_versions[0].model_version
+        ctx.obj.current.CLARIFAI_MODEL_VERSION_ID = version.id
+        ctx.obj.to_yaml()  # save to yaml file.
 
     logger.info(f"Current model version {version.id}")
 
@@ -759,12 +769,16 @@ def local_runner(ctx, model_path, pool_size):
             # ensure the deployment is using the latest version.
             if runner.worker.model.model_version.id != version.id:
                 nodepool.delete_runners([runner_id])
-                raise AttributeError("Deleted runner that was for an old model version ID.")
+                logger.warning("Deleted runner that was for an old model version ID.")
+                raise AttributeError(
+                    "Runner deleted because it was associated with an outdated model version."
+                )
         except Exception as e:
-            raise AttributeError("Runner not found in nodepool.") from e
+            logger.warning(f"Failed to get runner with ID '{runner_id}':\n{e}")
+            raise AttributeError("Runner not found in nodepool.")
     except AttributeError:
         logger.info(
-            f"Create the local runner tying this\n  {user_id}/{app_id}/models/{model.id} model (version: {version.id}) to the\n  {user_id}/{compute_cluster_id}/{nodepool_id} nodepool."
+            f"Creating the local runner tying this '{user_id}/{app_id}/models/{model.id}' model (version: {version.id}) to the '{user_id}/{compute_cluster_id}/{nodepool_id}' nodepool."
         )
         runner = nodepool.create_runner(
             runner_config={
@@ -792,14 +806,17 @@ def local_runner(ctx, model_path, pool_size):
         # ensure the deployment is using the latest version.
         if deployment.worker.model.model_version.id != version.id:
             nodepool.delete_deployments([deployment_id])
-            raise Exception("Deleted deployment that was for an old model version ID.")
+            logger.warning("Deleted deployment that was for an old model version ID.")
+            raise Exception(
+                "Deployment deleted because it was associated with an outdated model version."
+            )
         try:
             deployment_id = ctx.obj.current.deployment_id
         except AttributeError:  # doesn't exist in context but does in API then update the context.
             ctx.obj.current.CLARIFAI_DEPLOYMENT_ID = deployment.id
             ctx.obj.to_yaml()  # save to yaml file.
     except Exception as e:
-        logger.info(f"Failed to get deployment with ID {deployment_id}: {e}")
+        logger.warning(f"Failed to get deployment with ID {deployment_id}:\n{e}")
         y = input(
             f"Deployment not found. Do you want to create a new deployment {user_id}/{compute_cluster_id}/{nodepool_id}/{deployment_id}? (y/n): "
         )
@@ -829,17 +846,14 @@ def local_runner(ctx, model_path, pool_size):
 
     logger.info(f"Current deployment_id: {deployment_id}")
 
-    logger.info(
-        f"Full url for the model: {ctx.obj.current.ui}/users/{user_id}/apps/{app_id}/models/{model.id}/versions/{version.id}"
-    )
-
     # Now that we have all the context in ctx.obj, we need to update the config.yaml in
     # the model_path directory with the model object containing user_id, app_id, model_id, version_id
     config_file = os.path.join(model_path, 'config.yaml')
     if not os.path.exists(config_file):
-        raise ValueError(
+        logger.error(
             f"config.yaml not found in {model_path}. Please ensure you are passing the correct directory."
         )
+        raise click.Abort()
     config = ModelBuilder._load_config(config_file)
     model_type_id = config.get('model', {}).get('model_type_id', DEFAULT_LOCAL_RUNNER_MODEL_TYPE)
     # The config.yaml doens't match what we created above.
@@ -856,29 +870,29 @@ def local_runner(ctx, model_path, pool_size):
         ModelBuilder._backup_config(config_file)
         ModelBuilder._save_config(config_file, config)
 
-    builder = ModelBuilder(model_path, download_validation_only=True)
-    # don't mock for local runner since you need the dependencies to run the code anyways.
-    method_signatures = builder.get_method_signatures(mocking=False)
+    if not check_requirements_installed(model_path):
+        logger.error(f"Requirements not installed for model at {model_path}.")
+        raise click.Abort()
 
-    from clarifai.runners.utils import code_script
+    # Post check while running `clarifai model local-runner` we check if the toolkit is ollama
+    if builder.config.get('toolkit', {}).get('provider') == 'ollama':
+        if not check_ollama_installed():
+            logger.error(
+                "Ollama is not installed. Please install it from `https://ollama.com/` to use the Ollama toolkit."
+            )
+            raise click.Abort()
 
-    snippet = code_script.generate_client_script(
-        method_signatures,
-        user_id=user_id,
-        app_id=app_id,
-        model_id=model_id,
-        deployment_id=deployment_id,
-        base_url=ctx.obj.current.api_base,
-    )
+        try:
+            logger.info("Customizing Ollama model with provided parameters...")
+            customize_ollama_model(
+                model_path=model_path,
+                verbose=True if verbose else False,
+            )
+        except Exception as e:
+            logger.error(f"Failed to customize Ollama model: {e}")
+            raise click.Abort()
 
-    logger.info("""\n
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-# About to start up the local runner in this terminal...
-# Here is a code snippet to call this model once it start from another terminal:
-""")
-    logger.info(snippet)
-
-    logger.info("Now starting the local runner...")
+    logger.info("✅ Starting local runner...")
 
     # This reads the config.yaml from the model_path so we alter it above first.
     serve(
@@ -891,6 +905,7 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
         runner_id=runner_id,
         base_url=ctx.obj.current.api_base,
         pat=ctx.obj.current.pat,
+        context=ctx.obj.current,
     )
 
 

@@ -21,6 +21,7 @@ from google.protobuf import json_format
 from clarifai.client.base import BaseClient
 from clarifai.client.user import User
 from clarifai.runners.models.model_class import ModelClass
+from clarifai.runners.utils import code_script
 from clarifai.runners.utils.const import (
     AMD_PYTHON_BASE_IMAGE,
     AMD_TORCH_BASE_IMAGE,
@@ -101,6 +102,7 @@ class ModelBuilder:
         self.folder = self._validate_folder(folder)
         self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
         self._validate_config()
+        self._validate_stream_options()
         self.model_proto = self._get_model_proto()
         self.model_id = self.model_proto.id
         self.model_version_id = None
@@ -440,6 +442,89 @@ class ModelBuilder:
             num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 16))
             self.config["num_threads"] = num_threads
 
+    def _validate_stream_options(self):
+        """
+        Validate OpenAI streaming configuration for Clarifai models.
+        """
+        if not self._is_clarifai_internal():
+            return  # Skip validation for non-clarifai models
+
+        # Parse all Python files once
+        all_python_content = self._get_all_python_content()
+
+        if self._uses_openai_streaming(all_python_content):
+            logger.info(
+                "Detected OpenAI chat completions for Clarifai model streaming - validating stream_options..."
+            )
+
+            if not self.has_proper_usage_tracking(all_python_content):
+                logger.error(
+                    "Missing configuration to track usage for OpenAI chat completion calls. "
+                    "Go to your model scripts and make sure to set both: "
+                    "1) stream_options={'include_usage': True}"
+                    "2) set_output_context"
+                )
+
+    def _is_clarifai_internal(self):
+        """
+        Check if the current user is a Clarifai internal user based on email domain.
+
+        Returns:
+            bool: True if user is a Clarifai internal user, False otherwise
+        """
+        try:
+            # Get user info from Clarifai API
+            user_client = User(
+                pat=self.client.pat, user_id=self.config.get('model').get('user_id')
+            )
+            user_response = user_client.get_user_info()
+
+            if user_response.status.code != status_code_pb2.SUCCESS:
+                logger.debug("Could not retrieve user info for Clarifai internal user validation")
+                return False
+
+            user = user_response.user
+
+            # Check primary email domain
+            if hasattr(user, 'primary_email') and user.primary_email:
+                return user.primary_email.endswith('@clarifai.com')
+
+            return False
+
+        except Exception as e:
+            logger.debug(f"Employee validation failed: {e}")
+            return False
+
+    def _get_all_python_content(self):
+        """
+        Parse and concatenate all Python files in the model's 1/ subfolder.
+        """
+        model_folder = os.path.join(self.folder, '1')
+        if not os.path.exists(model_folder):
+            return ""
+
+        all_content = []
+        for root, _, files in os.walk(model_folder):
+            for file in files:
+                if file.endswith('.py'):
+                    file_path = os.path.join(root, file)
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            all_content.append(f.read())
+                    except Exception:
+                        continue
+        return "\n".join(all_content)
+
+    def _uses_openai_streaming(self, python_content):
+        return 'chat.completions.create' in python_content and 'generate(' in python_content
+
+    def has_proper_usage_tracking(self, python_content):
+        include_usage_patterns = ["'include_usage': True", '"include_usage": True']
+        has_include_usage = any(pattern in python_content for pattern in include_usage_patterns)
+        has_set_output_context = 'set_output_context' in python_content
+
+        return has_include_usage and has_set_output_context
+
     @staticmethod
     def _get_tar_file_content_size(tar_file_path):
         """
@@ -736,7 +821,26 @@ class ModelBuilder:
         else:
             logger.info("Setup: Python code linted successfully, no errors found.")
 
-    def create_dockerfile(self):
+    def _normalize_dockerfile_content(self, content):
+        """
+        Normalize Dockerfile content for comparison by standardizing whitespace and indentation.
+        This handles differences in spacing, indentation, and line endings.
+        """
+        lines = []
+        for line in content.splitlines():
+            # Strip leading/trailing whitespace from each line
+            normalized_line = line.strip()
+            # Skip empty lines for comparison
+            if normalized_line:
+                lines.append(normalized_line)
+        # Join with consistent line endings
+        return '\n'.join(lines)
+
+    def _generate_dockerfile_content(self):
+        """
+        Generate the Dockerfile content based on the model configuration.
+        This is a helper method that returns the content without writing to file.
+        """
         dockerfile_template = os.path.join(
             os.path.dirname(os.path.dirname(__file__)),
             'dockerfile_template',
@@ -885,9 +989,51 @@ class ModelBuilder:
             CLARIFAI_VERSION=clarifai_version,  # for clarifai
         )
 
-        # Write Dockerfile
-        with open(os.path.join(self.folder, 'Dockerfile'), 'w') as dockerfile:
-            dockerfile.write(dockerfile_content)
+        return dockerfile_content
+
+    def create_dockerfile(self, generate_dockerfile=False):
+        """
+        Create a Dockerfile for the model based on its configuration.
+        """
+        generated_content = self._generate_dockerfile_content()
+
+        if generate_dockerfile:
+            should_create_dockerfile = True
+        else:
+            # Always handle Dockerfile creation with user interaction when content differs
+            dockerfile_path = os.path.join(self.folder, 'Dockerfile')
+            should_create_dockerfile = True
+
+            if os.path.exists(dockerfile_path):
+                # Read existing Dockerfile content
+                with open(dockerfile_path, 'r') as existing_dockerfile:
+                    existing_content = existing_dockerfile.read()
+
+                # Compare content (normalize for robust comparison that handles indentation differences)
+                if self._normalize_dockerfile_content(
+                    existing_content
+                ) == self._normalize_dockerfile_content(generated_content):
+                    logger.info(
+                        "Dockerfile already exists with identical content, skipping creation."
+                    )
+                    should_create_dockerfile = False
+                else:
+                    logger.info("Dockerfile already exists with different content.")
+                    response = input(
+                        "A different Dockerfile already exists. Do you want to overwrite it with the generated one? "
+                        "Type 'y' to overwrite, 'n' to keep your custom Dockerfile: "
+                    )
+                    if response.lower() != 'y':
+                        logger.info("Keeping existing custom Dockerfile.")
+                        should_create_dockerfile = False
+                    else:
+                        logger.info("Overwriting existing Dockerfile with generated content.")
+
+        if should_create_dockerfile:
+            # Write Dockerfile
+            dockerfile_path = os.path.join(self.folder, 'Dockerfile')
+            with open(dockerfile_path, 'w') as dockerfile:
+                dockerfile.write(generated_content)
 
     @property
     def checkpoint_path(self):
@@ -1119,7 +1265,6 @@ class ModelBuilder:
             is_uploaded = self.monitor_model_build()
             if is_uploaded:
                 # python code to run the model.
-                from clarifai.runners.utils import code_script
 
                 method_signatures = self.get_method_signatures()
                 snippet = code_script.generate_client_script(
@@ -1197,7 +1342,6 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
             per_page=50,
         )
         response = self.client.STUB.ListLogEntries(logs_request)
-
         return response
 
     def monitor_model_build(self):
@@ -1250,14 +1394,16 @@ def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
 
     :param folder: The folder containing the model files.
     :param stage: The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.
-    :param skip_dockerfile: If True, will not create a Dockerfile.
+    :param skip_dockerfile: If True, will skip Dockerfile generation entirely. If False or not provided, intelligently handle existing Dockerfiles with user confirmation.
     :param pat: Personal access token for authentication. If None, will use environment variables.
     :param base_url: Base URL for the API. If None, will use environment variables.
     """
     builder = ModelBuilder(folder, app_not_found_action="prompt", pat=pat, base_url=base_url)
     builder.download_checkpoints(stage=stage)
+
     if not skip_dockerfile:
         builder.create_dockerfile()
+
     exists = builder.check_model_exists()
     if exists:
         logger.info(
@@ -1272,13 +1418,14 @@ def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
     model_version = builder.upload_model_version()
 
     # Ask user if they want to deploy the model
-    deploy_model = input("Do you want to deploy the model? (y/n): ")
-    if deploy_model.lower() != 'y':
-        logger.info("Model uploaded successfully. Skipping deployment setup.")
-        return
+    if model_version is not None:  # if it comes back None then it failed.
+        deploy_model = input("Do you want to deploy the model? (y/n): ")
+        if deploy_model.lower() != 'y':
+            logger.info("Model uploaded successfully. Skipping deployment setup.")
+            return
 
-    # Setup deployment for the uploaded model
-    setup_deployment_for_model(builder)
+        # Setup deployment for the uploaded model
+        setup_deployment_for_model(builder)
 
 
 def setup_deployment_for_model(builder):
@@ -1459,7 +1606,7 @@ def setup_deployment_for_model(builder):
     # Step 3: Help create a new deployment by providing URL
     # Provide URL to create a new deployment
     url_helper = ClarifaiUrlHelper()
-    deployment_url = f"{url_helper.ui}/settings/compute/deployments/new?computeClusterId={compute_cluster.id}&nodePoolId={nodepool.id}"
+    deployment_url = f"{url_helper.ui}/compute/deployments/create?computeClusterId={compute_cluster.id}&nodePoolId={nodepool.id}"
     logger.info(f"Please create a new deployment by visiting: {deployment_url}")
 
     # Ask if they want to open the URL in browser
@@ -1473,4 +1620,3 @@ def setup_deployment_for_model(builder):
             logger.error(f"Failed to open browser: {e}")
 
     logger.info("After creating the deployment, your model will be ready for inference!")
-    logger.info(f"You can always return to view your deployments at: {deployment_url}")

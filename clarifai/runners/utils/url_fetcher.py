@@ -1,6 +1,7 @@
 import concurrent.futures
 
 import fsspec
+import requests
 
 from clarifai.utils.logging import logger
 
@@ -10,6 +11,28 @@ def download_input(input, auth_helper=None):
     if input.data.parts:
         for i in range(len(input.data.parts)):
             _download_input_data(input.data.parts[i].data, auth_helper=auth_helper)
+
+
+def _download_with_handling(url, mode, auth_kwargs, setter, media_type):
+    fsspec_exceptions = (
+        getattr(fsspec.exceptions, 'FSTimeoutError', Exception),
+        getattr(fsspec.exceptions, 'BlocksizeMismatchError', Exception),
+    )
+    try:
+        with fsspec.open(url, mode, **auth_kwargs) as f:
+            setter(f.read())
+    except fsspec_exceptions as e:
+        logger.error(f"FSSpec error downloading {media_type} from {url}: {e}")
+        raise RuntimeError(f"FSSpec error downloading {media_type} from {url}: {e}") from e
+    except requests.RequestException as e:
+        logger.error(f"Requests error downloading {media_type} from {url}: {e}")
+        raise RuntimeError(f"Requests error downloading {media_type} from {url}: {e}") from e
+    except (IOError, OSError) as e:
+        logger.error(f"IO error downloading {media_type} from {url}: {e}")
+        raise RuntimeError(f"IO error downloading {media_type} from {url}: {e}") from e
+    except Exception as e:
+        logger.error(f"Unexpected error downloading {media_type} from {url}: {e}")
+        raise RuntimeError(f"Unexpected error downloading {media_type} from {url}: {e}") from e
 
 
 def _download_input_data(input_data, auth_helper=None):
@@ -26,21 +49,37 @@ def _download_input_data(input_data, auth_helper=None):
         auth_kwargs = _get_auth_kwargs(auth_helper)
 
     if input_data.image.url and not input_data.image.base64:
-        # Download the image
-        with fsspec.open(input_data.image.url, 'rb', **auth_kwargs) as f:
-            input_data.image.base64 = f.read()
+        _download_with_handling(
+            input_data.image.url,
+            'rb',
+            auth_kwargs,
+            lambda val: setattr(input_data.image, 'base64', val),
+            'image',
+        )
     if input_data.video.url and not input_data.video.base64:
-        # Download the video
-        with fsspec.open(input_data.video.url, 'rb', **auth_kwargs) as f:
-            input_data.video.base64 = f.read()
+        _download_with_handling(
+            input_data.video.url,
+            'rb',
+            auth_kwargs,
+            lambda val: setattr(input_data.video, 'base64', val),
+            'video',
+        )
     if input_data.audio.url and not input_data.audio.base64:
-        # Download the audio
-        with fsspec.open(input_data.audio.url, 'rb', **auth_kwargs) as f:
-            input_data.audio.base64 = f.read()
+        _download_with_handling(
+            input_data.audio.url,
+            'rb',
+            auth_kwargs,
+            lambda val: setattr(input_data.audio, 'base64', val),
+            'audio',
+        )
     if input_data.text.url and not input_data.text.raw:
-        # Download the text
-        with fsspec.open(input_data.text.url, 'r', **auth_kwargs) as f:
-            input_data.text.raw = f.read()
+        _download_with_handling(
+            input_data.text.url,
+            'r',
+            auth_kwargs,
+            lambda val: setattr(input_data.text, 'raw', val),
+            'text',
+        )
 
 
 def _get_auth_kwargs(auth_helper):
