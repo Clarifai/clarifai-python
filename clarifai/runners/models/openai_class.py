@@ -133,10 +133,12 @@ class OpenAIModelClass(ModelClass):
             request_data['top_p'] = float(request_data['top_p'])
         # Note(zeiler): temporary fix for our playground sending additional fields.
         # FIXME: remove this once the playground is updated.
-        for m in request_data['messages']:
-            m.pop('id', None)
-            m.pop('file', None)
-            m.pop('panelId', None)
+        # Shouldn't need to do anything with the responses API since playground isn't yet using it.
+        if 'messages' in request_data:
+            for m in request_data['messages']:
+                m.pop('id', None)
+                m.pop('file', None)
+                m.pop('panelId', None)
 
         # Handle the "Currently only named tools are supported." error we see from trt-llm
         if 'tools' in request_data and request_data['tools'] is None:
@@ -194,6 +196,7 @@ class OpenAIModelClass(ModelClass):
                 # Handle responses endpoint
                 stream_response = self._route_request(endpoint, request_data)
                 for chunk in stream_response:
+                    self._set_usage(chunk)
                     yield chunk.model_dump_json()
             else:
                 completion_args = self._create_completion_args(request_data)

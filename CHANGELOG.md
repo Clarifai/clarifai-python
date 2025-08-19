@@ -1,3 +1,8 @@
+## [[11.7.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.1) - [PyPI](https://pypi.org/project/clarifai/11.7.1/) - 2025-08-18
+
+### Changed
+- fix usage setting on openai responses [(#750)] (https://github.com/Clarifai/clarifai-python/pull/750)
+
 ## [[11.7.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.0) - [PyPI](https://pypi.org/project/clarifai/11.7.0/) - 2025-08-18
 
 ### Changed
