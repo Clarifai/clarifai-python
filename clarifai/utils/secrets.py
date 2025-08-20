@@ -27,7 +27,7 @@ def load_secrets_file(path: Path) -> Optional[dict[str, str]]:
     Args:
         path (Path): Path to the secrets file.
     Returns:
-        list[str] | None: List of loaded environment variable keys, or None if the file does not exist.
+        dict[str, str] | None: Dict of loaded environment variables, or None if the file does not exist.
     """
     variables = get_env_variable(path)
     if variables is not None:
@@ -137,9 +137,6 @@ def get_secrets(
 
     Args:
         request (Optional[service_pb2.PostModelOutputsRequest]): The request from which to extract secrets.
-
-    Returns:
-        dict[str, Any]: A dictionary containing the secrets extracted from the request.
     """
     params = {}
     env_params = {}
