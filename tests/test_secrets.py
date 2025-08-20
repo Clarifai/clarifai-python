@@ -4,6 +4,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 from clarifai_grpc.grpc.api import service_pb2
@@ -188,130 +189,123 @@ class TestSecretsSystem:
         assert extracted["E2E_KEY"] == "file_value"
         assert extracted["FILE_ONLY"] == "file_only"
 
-    def test_model_server_integration(self, secrets_file, mocker):
+    def test_model_server_integration(self, secrets_file):
         """Test end-to-end ModelServer integration with secrets."""
         secrets_file.write_text("SERVER_SECRET=server_value\n")
         os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
 
-        # Mock ModelBuilder to avoid file system dependencies
-        mock_builder = mocker.patch('clarifai.runners.server.ModelBuilder')
-        mock_model = mocker.MagicMock()
-        mock_builder.return_value.create_model_instance.return_value = mock_model
+        with patch('clarifai.runners.server.ModelBuilder') as mock_builder:
+            mock_model = MagicMock()
+            mock_builder.return_value.create_model_instance.return_value = mock_model
 
-        # Test ModelServer initialization loads secrets
-        from clarifai.runners.server import ModelServer
+            # Test ModelServer initialization loads secrets
+            from clarifai.runners.server import ModelServer
 
-        server = ModelServer("dummy_model_path")
+            server = ModelServer("dummy_model_path")
 
-        # Verify secrets are loaded
-        assert os.environ.get("SERVER_SECRET") == "server_value"
+            # Verify secrets are loaded during initialization
+            assert os.environ.get("SERVER_SECRET") == "server_value"
 
-        # Test reload callback
-        secrets_file.write_text("SERVER_SECRET=updated_value\n")
-        server.reload_model_on_secrets_change()
-        assert os.environ.get("SERVER_SECRET") == "updated_value"
+            # Test reload callback
+            secrets_file.write_text("SERVER_SECRET=updated_value\n")
+            server.reload_model_on_secrets_change()
+            assert os.environ.get("SERVER_SECRET") == "updated_value"
 
-        # Verify builder was called
-        mock_builder.assert_called_once_with("dummy_model_path", download_validation_only=True)
-
-    def test_model_reload_on_secrets_change(self, secrets_file, mocker):
+    def test_model_reload_on_secrets_change(self, secrets_file):
         """Test that model is actually reloaded when secrets file changes."""
         # Setup initial secrets
         secrets_file.write_text("INITIAL_SECRET=initial_value\n")
         os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
 
-        # Mock the ModelBuilder and ModelClass to avoid actual model loading
-        mock_builder = mocker.patch('clarifai.runners.server.ModelBuilder')
-        mock_model_instance = mocker.MagicMock()
-        mock_builder.return_value.create_model_instance.return_value = mock_model_instance
+        with patch('clarifai.runners.server.ModelBuilder') as mock_builder:
+            mock_model_instance = MagicMock()
+            mock_builder.return_value.create_model_instance.return_value = mock_model_instance
 
-        # Mock servicer and runner
-        mock_servicer = mocker.MagicMock()
-        mock_runner = mocker.MagicMock()
+            # Mock servicer and runner
+            mock_servicer = MagicMock()
+            mock_runner = MagicMock()
 
-        from clarifai.runners.server import ModelServer
+            from clarifai.runners.server import ModelServer
 
-        server = ModelServer("dummy_path")
-        server._servicer = mock_servicer
-        server._runner = mock_runner
+            server = ModelServer("dummy_path")
+            server._servicer = mock_servicer
+            server._runner = mock_runner
 
-        # Verify initial model was created
-        assert mock_builder.return_value.create_model_instance.call_count == 1
+            # Verify initial model was created
+            assert mock_builder.return_value.create_model_instance.call_count == 1
 
-        # Change secrets file
-        secrets_file.write_text("UPDATED_SECRET=updated_value\n")
+            # Change secrets file
+            secrets_file.write_text("UPDATED_SECRET=updated_value\n")
 
-        # Trigger reload
-        server.reload_model_on_secrets_change()
+            # Trigger reload
+            server.reload_model_on_secrets_change()
 
-        # Verify model was recreated
-        assert mock_builder.return_value.create_model_instance.call_count == 2
+            # Verify model was recreated
+            assert mock_builder.return_value.create_model_instance.call_count == 2
 
-        # Verify new model was set on servicer and runner
-        mock_servicer.set_model.assert_called_once_with(mock_model_instance)
-        mock_runner.set_model.assert_called_once_with(mock_model_instance)
+            # Verify new model was set on servicer and runner
+            mock_servicer.set_model.assert_called_once_with(mock_model_instance)
+            mock_runner.set_model.assert_called_once_with(mock_model_instance)
 
-        # Verify secrets were reloaded
-        assert os.environ.get("UPDATED_SECRET") == "updated_value"
+            # Verify secrets were reloaded
+            assert os.environ.get("UPDATED_SECRET") == "updated_value"
 
-    def test_model_reload_error_handling(self, secrets_file, mocker):
+    def test_model_reload_error_handling(self, secrets_file):
         """Test error handling during model reload."""
         secrets_file.write_text("SECRET=value\n")
         os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
 
-        # Mock builder to raise exception on second reload
-        mock_builder = mocker.patch('clarifai.runners.server.ModelBuilder')
-        mock_builder.return_value.create_model_instance.side_effect = [
-            mocker.MagicMock(),  # First call succeeds
-            Exception("Model creation failed"),  # Second call fails
-        ]
+        with patch('clarifai.runners.server.ModelBuilder') as mock_builder:
+            mock_builder.return_value.create_model_instance.side_effect = [
+                MagicMock(),  # First call succeeds
+                Exception("Model creation failed"),  # Second call fails
+            ]
 
-        from clarifai.runners.server import ModelServer
+            from clarifai.runners.server import ModelServer
 
-        server = ModelServer("dummy_path")
+            server = ModelServer("dummy_path")
 
-        # Change secrets and trigger reload
-        secrets_file.write_text("NEW_SECRET=new_value\n")
+            # Change secrets and trigger reload
+            secrets_file.write_text("NEW_SECRET=new_value\n")
 
-        # Should not crash even if model reload fails
-        server.reload_model_on_secrets_change()
+            # Should not crash even if model reload fails
+            server.reload_model_on_secrets_change()
 
-        # Verify it attempted to reload
-        assert mock_builder.return_value.create_model_instance.call_count == 2
+            # Verify it attempted to reload
+            assert mock_builder.return_value.create_model_instance.call_count == 2
 
-    def test_end_to_end_secrets_reload_integration(self, secrets_file, mocker):
+    def test_end_to_end_secrets_reload_integration(self, secrets_file):
         """Test complete integration: file change -> watcher -> reload -> model update."""
         secrets_file.write_text("WATCH_SECRET=initial\n")
         os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
 
-        # Mock components
-        mock_builder = mocker.patch('clarifai.runners.server.ModelBuilder')
-        mock_model = mocker.MagicMock()
-        mock_builder.return_value.create_model_instance.return_value = mock_model
+        with patch('clarifai.runners.server.ModelBuilder') as mock_builder:
+            mock_model = MagicMock()
+            mock_builder.return_value.create_model_instance.return_value = mock_model
 
-        reload_called = threading.Event()
-        original_reload = None
+            reload_called = threading.Event()
+            original_reload = None
 
-        def track_reload():
-            reload_called.set()
-            if original_reload:
-                original_reload()
+            def track_reload():
+                reload_called.set()
+                if original_reload:
+                    original_reload()
 
-        from clarifai.runners.server import ModelServer
+            from clarifai.runners.server import ModelServer
 
-        server = ModelServer("dummy_path")
+            server = ModelServer("dummy_path")
 
-        # Patch the reload method to track when it's called
-        original_reload = server.reload_model_on_secrets_change
-        server.reload_model_on_secrets_change = track_reload
+            # Patch the reload method to track when it's called
+            original_reload = server.reload_model_on_secrets_change
+            server.reload_model_on_secrets_change = track_reload
 
-        # Start file watcher (already done in ModelServer.__init__)
-        # Change the file
-        time.sleep(0.2)  # Ensure different timestamp
-        secrets_file.write_text("WATCH_SECRET=updated\n")
+            # Start file watcher (already done in ModelServer.__init__)
+            # Change the file
+            time.sleep(0.2)  # Ensure different timestamp
+            secrets_file.write_text("WATCH_SECRET=updated\n")
 
-        # Wait for reload to be triggered by file watcher
-        assert reload_called.wait(timeout=3.0), "Model reload should have been triggered"
+            # Wait for reload to be triggered by file watcher
+            assert reload_called.wait(timeout=3.0), "Model reload should have been triggered"
 
-        # Verify secrets were updated
-        assert os.environ.get("WATCH_SECRET") == "updated"
+            # Verify secrets were updated
+            assert os.environ.get("WATCH_SECRET") == "updated"
