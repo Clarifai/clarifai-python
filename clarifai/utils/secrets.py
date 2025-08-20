@@ -70,7 +70,7 @@ def get_env_variable(path: Path) -> Optional[dict[str, str]]:
 
 
 def start_secrets_watcher(
-    secrets_path: Path, reload_callback: Callable, interval: int = 10
+    secrets_path: Path, reload_callback: Callable, interval: float = 10
 ) -> Thread:
     """start_secrets_watcher starts a background thread that watches the secrets file for changes
     and calls the reload_callback when changes are detected.
@@ -157,3 +157,16 @@ def get_secrets(
     if req_params:
         params.update(req_params)
     return params
+
+
+def get_secret(param_name: str) -> Optional[str]:
+    """get_secret retrieves a secret value from environment variables
+    Args:
+        param_name (str): Name of the secret to retrieve.
+    Returns:
+        Optional[str]: The value of the secret if found, otherwise None.
+    """
+    env_value = os.environ.get(param_name) or os.environ.get(param_name.upper())
+    if env_value:
+        return env_value
+    return None
