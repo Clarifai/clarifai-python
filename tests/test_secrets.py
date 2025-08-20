@@ -98,7 +98,7 @@ class TestSecretsSystem:
     def test_file_watcher_detects_changes(self, secrets_file):
         """Test that file watcher detects file modifications."""
         # Create initial file
-        secrets_file.write_text("INITIAL_KEY=initial_value\\n")
+        secrets_file.write_text("INITIAL_KEY=initial_value\n")
 
         callback_called = threading.Event()
 
@@ -111,7 +111,7 @@ class TestSecretsSystem:
 
         # Modify file
         time.sleep(0.2)  # Ensure different timestamp
-        secrets_file.write_text("UPDATED_KEY=updated_value\\n")
+        secrets_file.write_text("UPDATED_KEY=updated_value\n")
 
         # Wait for callback
         assert callback_called.wait(timeout=2.0), "Callback should have been called"
@@ -148,7 +148,7 @@ class TestSecretsSystem:
     def test_end_to_end_workflow(self, secrets_file):
         """Test complete workflow from file creation to request processing."""
         # 1. Create secrets file
-        secrets_file.write_text("E2E_KEY=e2e_value\\n")
+        secrets_file.write_text("E2E_KEY=e2e_value\n")
         os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
 
         # 2. Load secrets
@@ -165,7 +165,7 @@ class TestSecretsSystem:
         assert extracted["E2E_KEY"] == "e2e_value"
 
         # 5. Update file and verify new secrets
-        secrets_file.write_text("E2E_KEY=updated_e2e\\n")
+        secrets_file.write_text("E2E_KEY=updated_e2e\n")
         load_secrets_file(secrets_file)
 
         new_request = service_pb2.PostModelOutputsRequest()
