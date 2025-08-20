@@ -1,120 +1,124 @@
-# This is an enhanced version of ModelServicer that integrates with secrets management
-# Add these methods to your existing ModelServicer class
+import os
+from itertools import tee
+from typing import Iterator
 
-from clarifai.utils.logging import logger
-from clarifai.utils.secrets import populate_params_from_secrets, set_request_context
+from clarifai_grpc.grpc.api import service_pb2, service_pb2_grpc
+from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
+
+from clarifai.client.auth.helper import ClarifaiAuthHelper
+
+from ..utils.url_fetcher import ensure_urls_downloaded
+
+_RAISE_EXCEPTIONS = os.getenv("RAISE_EXCEPTIONS", "false").lower() in ("true", "1")
 
 
-class ModelServicer:
+class ModelServicer(service_pb2_grpc.V2Servicer):
+    """
+    This is the servicer that will handle the gRPC requests from either the dev server or runner loop.
+    """
+
     def __init__(self, model):
+        """
+        Args:
+            model: The class that will handle the model logic. Must implement predict(),
+        generate(), stream().
+        """
         self.model = model
 
-    def update_model(self, new_model):
-        """Update the model instance (called when secrets change)."""
-        self.model = new_model
-        logger.info("ModelServicer updated with new model instance")
+        # Try to create auth helper from environment variables if available
+        self._auth_helper = None
+        try:
+            user_id = os.environ.get("CLARIFAI_USER_ID")
+            pat = os.environ.get("CLARIFAI_PAT")
+            token = os.environ.get("CLARIFAI_SESSION_TOKEN")
+            base_url = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
 
-    def _prepare_request_with_secrets(self, request):
-        """Prepare request by extracting params and populating from secrets if needed."""
-        # Extract request parameters (this will depend on your request structure)
-        request_params = self._extract_request_params(request)
+            if user_id and (pat or token):
+                self._auth_helper = ClarifaiAuthHelper(
+                    user_id=user_id,
+                    app_id="",  # app_id not needed for URL fetching
+                    pat=pat or "",
+                    token=token or "",
+                    base=base_url,
+                    validate=False,  # Don't validate since app_id is empty
+                )
+        except Exception:
+            # If auth helper creation fails, proceed without authentication
+            self._auth_helper = None
 
-        # Populate missing parameters from secrets
-        updated_params = populate_params_from_secrets(request_params)
-
-        # Set the context for the secrets helper
-        set_request_context(updated_params)
-
-        # Update the request object with populated parameters
-        self._update_request_params(request, updated_params)
-
-        return request
-
-    def _extract_request_params(self, request):
-        """Extract parameters from the request object.
-
-        This method should be customized based on your specific request structure.
-        Common patterns include:
-        - request.params (if params is a dict-like object)
-        - request.inputs[0].data.params (for some protobuf structures)
-        - getattr(request, 'parameters', {})
+    def PostModelOutputs(
+        self, request: service_pb2.PostModelOutputsRequest, context=None
+    ) -> service_pb2.MultiOutputResponse:
         """
-        params = {}
-
-        # Example implementations - adapt based on your request structure:
-        if hasattr(request, 'params') and request.params:
-            params = dict(request.params)
-        elif hasattr(request, 'inputs') and request.inputs:
-            for input_obj in request.inputs:
-                if hasattr(input_obj, 'data') and hasattr(input_obj.data, 'params'):
-                    params.update(dict(input_obj.data.params))
-        elif hasattr(request, 'model_parameters'):
-            params = dict(request.model_parameters)
-
-        return params
-
-    def _update_request_params(self, request, updated_params):
-        """Update the request object with the populated parameters.
-
-        This method should be customized based on your specific request structure.
+        This is the method that will be called when the servicer is run. It takes in an input and
+        returns an output.
         """
-        # Example implementations - adapt based on your request structure:
-        if hasattr(request, 'params'):
-            for key, value in updated_params.items():
-                if key not in request.params or not request.params[key]:
-                    request.params[key] = value
-        elif hasattr(request, 'inputs') and request.inputs:
-            for input_obj in request.inputs:
-                if hasattr(input_obj, 'data') and hasattr(input_obj.data, 'params'):
-                    for key, value in updated_params.items():
-                        if key not in input_obj.data.params or not input_obj.data.params[key]:
-                            input_obj.data.params[key] = value
-        elif hasattr(request, 'model_parameters'):
-            for key, value in updated_params.items():
-                if key not in request.model_parameters or not request.model_parameters[key]:
-                    request.model_parameters[key] = value
 
-    def PostModelOutputs(self, request, context):
-        """Handle predict requests with secrets integration."""
+        # Download any urls that are not already bytes.
+        ensure_urls_downloaded(request, auth_helper=self._auth_helper)
+
         try:
-            # Prepare request with secrets
-            prepared_request = self._prepare_request_with_secrets(request)
-
-            # Call the original model method
-            return self.model.predict(prepared_request, context)
+            return self.model.predict_wrapper(request)
         except Exception as e:
-            logger.error(f"Error in PostModelOutputs: {e}")
-            raise
-        finally:
-            # Clear request context
-            set_request_context({})
+            if _RAISE_EXCEPTIONS:
+                raise
+            return service_pb2.MultiOutputResponse(
+                status=status_pb2.Status(
+                    code=status_code_pb2.MODEL_PREDICTION_FAILED,
+                    description="Failed",
+                    details="",
+                    internal_details=str(e),
+                )
+            )
 
-    def PostModelOutputsStream(self, request, context):
-        """Handle streaming predict requests with secrets integration."""
+    def GenerateModelOutputs(
+        self, request: service_pb2.PostModelOutputsRequest, context=None
+    ) -> Iterator[service_pb2.MultiOutputResponse]:
+        """
+        This is the method that will be called when the servicer is run. It takes in an input and
+        returns an output.
+        """
+        # Download any urls that are not already bytes.
+        ensure_urls_downloaded(request, auth_helper=self._auth_helper)
+
         try:
-            # Prepare request with secrets
-            prepared_request = self._prepare_request_with_secrets(request)
-
-            # Call the original model method
-            return self.model.stream(prepared_request, context)
+            yield from self.model.generate_wrapper(request)
         except Exception as e:
-            logger.error(f"Error in PostModelOutputsStream: {e}")
-            raise
-        finally:
-            # Clear request context
-            set_request_context({})
+            if _RAISE_EXCEPTIONS:
+                raise
+            yield service_pb2.MultiOutputResponse(
+                status=status_pb2.Status(
+                    code=status_code_pb2.MODEL_PREDICTION_FAILED,
+                    description="Failed",
+                    details="",
+                    internal_details=str(e),
+                )
+            )
 
-    def GenerateText(self, request, context):
-        """Handle generate requests with secrets integration."""
+    def StreamModelOutputs(
+        self, request: Iterator[service_pb2.PostModelOutputsRequest], context=None
+    ) -> Iterator[service_pb2.MultiOutputResponse]:
+        """
+        This is the method that will be called when the servicer is run. It takes in an input and
+        returns an output.
+        """
+        # Duplicate the iterator
+        request, request_copy = tee(request)
+
+        # Download any urls that are not already bytes.
+        for req in request:
+            ensure_urls_downloaded(req, auth_helper=self._auth_helper)
+
         try:
-            # Prepare request with secrets
-            prepared_request = self._prepare_request_with_secrets(request)
-
-            # Call the original model method
-            return self.model.generate(prepared_request, context)
+            yield from self.model.stream_wrapper(request_copy)
         except Exception as e:
-            logger.error(f"Error in GenerateText: {e}")
-            raise
-        finally:
-            # Clear request context
-            set_request_context({})
+            if _RAISE_EXCEPTIONS:
+                raise
+            yield service_pb2.MultiOutputResponse(
+                status=status_pb2.Status(
+                    code=status_code_pb2.MODEL_PREDICTION_FAILED,
+                    description="Failed",
+                    details="",
+                    internal_details=str(e),
+                )
+            )
