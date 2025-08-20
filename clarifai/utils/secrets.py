@@ -107,7 +107,8 @@ def start_secrets_watcher(
 
 
 def inject_secrets(request: service_pb2.PostModelOutputsRequest) -> None:
-    """inject_secrets injects secrets into the request's model version output info params in-place.
+    """inject_secrets injects secrets into the request's model version output info params.
+    The request is modified in place.
 
     Args:
         request (service_pb2.PostModelOutputsRequest): The request to inject secrets into.
