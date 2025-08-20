@@ -6,6 +6,7 @@ and starts the server.
 import argparse
 import os
 from concurrent import futures
+from pathlib import Path
 
 from clarifai_grpc.grpc.api import service_pb2_grpc
 from clarifai_protocol.utils.grpc_server import GRPCServer
@@ -14,6 +15,14 @@ from clarifai.runners.models.model_builder import ModelBuilder
 from clarifai.runners.models.model_runner import ModelRunner
 from clarifai.runners.models.model_servicer import ModelServicer
 from clarifai.utils.logging import logger
+from clarifai.utils.secrets import load_secrets_file, start_secrets_watcher
+
+# Global variables to hold server components for restarting
+_current_model = None
+_current_servicer = None
+_current_runner = None
+_builder = None
+_secrets_path = None
 
 
 def main():
@@ -77,6 +86,43 @@ def main():
     )
 
 
+def reload_model_on_secrets_change():
+    """Callback function to reload the model when secrets change."""
+    global _current_model
+
+    logger.info("Reloading secrets and recreating model...")
+
+    # Reload secrets
+    if _secrets_path:
+        load_secrets_file(_secrets_path)
+
+    # Create new model instance
+    new_model = _builder.create_model_instance()
+
+    # Update global references
+    old_model = _current_model
+    _current_model = new_model
+
+    # Update servicer if it exists
+    if _current_servicer:
+        _current_servicer.update_model(new_model)
+        logger.info("Updated gRPC servicer with new model instance")
+
+    # Update runner if it exists
+    if _current_runner:
+        _current_runner.update_model(new_model)
+        logger.info("Updated runner with new model instance")
+
+    # Clean up old model if it has a cleanup method
+    if hasattr(old_model, 'cleanup'):
+        try:
+            old_model.cleanup()
+        except Exception as e:
+            logger.warning(f"Error cleaning up old model: {e}")
+
+    logger.info("Model reload completed")
+
+
 def serve(
     model_path,
     port=8000,
@@ -94,18 +140,34 @@ def serve(
     pat: str = os.environ.get("CLARIFAI_PAT", None),
     context=None,  # This is the current context object that contains user_id, app_id, model_id, etc.
 ):
-    builder = ModelBuilder(model_path, download_validation_only=True)
+    global _current_model, _current_servicer, _current_runner, _builder, _secrets_path
 
-    model = builder.create_model_instance()
+    # Handle secrets loading
+    secrets_path = os.environ.get("CLARIFAI_SECRETS_PATH", None)
+    if secrets_path:
+        _secrets_path = Path(secrets_path)
+        load_secrets_file(_secrets_path)
+
+        # Start watching for secrets changes
+        start_secrets_watcher(_secrets_path, reload_model_on_secrets_change)
+        logger.info(f"Started secrets watcher for {_secrets_path}")
+    else:
+        _secrets_path = None
+
+    # Initialize builder and model
+    _builder = ModelBuilder(model_path)
+    _current_model = _builder.create_model_instance()
 
     # `num_threads` can be set in config.yaml or via the environment variable CLARIFAI_NUM_THREADS="<integer>".
     # Note: The value in config.yaml takes precedence over the environment variable.
     if num_threads == 0:
-        num_threads = builder.config.get("num_threads")
+        num_threads = _builder.config.get("num_threads")
+
     # Setup the grpc server for local development.
     if grpc:
         # initialize the servicer with the runner so that it gets the predict(), generate(), stream() classes.
-        servicer = ModelServicer(model)
+        _current_servicer = ModelServicer(_current_model)
+        _current_runner = None  # No runner in gRPC mode
 
         server = GRPCServer(
             futures.ThreadPoolExecutor(
@@ -117,15 +179,16 @@ def serve(
         )
         server.add_port_to_server('[::]:%s' % port, enable_tls)
 
-        service_pb2_grpc.add_V2Servicer_to_server(servicer, server)
+        service_pb2_grpc.add_V2Servicer_to_server(_current_servicer, server)
         server.start()
         logger.info("Started server on port %s", port)
         logger.info(f"Access the model at http://localhost:{port}")
         server.wait_for_termination()
     else:  # start the runner with the proper env variables and as a runner protocol.
         # initialize the Runner class. This is what the user implements.
-        runner = ModelRunner(
-            model=model,
+        _current_servicer = None  # No servicer in runner mode
+        _current_runner = ModelRunner(
+            model=_current_model,
             user_id=user_id,
             compute_cluster_id=compute_cluster_id,
             nodepool_id=nodepool_id,
@@ -138,7 +201,7 @@ def serve(
         if context is None:
             logger.debug("Context is None. Skipping code snippet generation.")
         else:
-            method_signatures = builder.get_method_signatures(mocking=False)
+            method_signatures = _builder.get_method_signatures(mocking=False)
             from clarifai.runners.utils import code_script
 
             snippet = code_script.generate_client_script(
@@ -162,7 +225,7 @@ def serve(
                 f"> API URL:      To call your model via the API, use this model URL: {context.ui}/users/{context.user_id}/apps/{context.app_id}/models/{context.model_id}\n"
             )
             logger.info("Press CTRL+C to stop the runner.\n")
-        runner.start()  # start the runner to fetch work from the API.
+        _current_runner.start()  # start the runner to fetch work from the API.
 
 
 if __name__ == '__main__':
