@@ -5,6 +5,9 @@ from pathlib import Path
 from threading import Thread
 from typing import Callable, Optional
 
+from clarifai_grpc.grpc.api import resources_pb2, service_pb2
+from google.protobuf import struct_pb2
+
 from clarifai.utils.logging import logger
 
 # Context variable to store current request parameters
@@ -17,17 +20,36 @@ def get_secrets_path() -> Optional[Path]:
         return Path(secrets_path)
 
 
-def load_secrets_file(path: Path) -> Optional[list[str]]:
-    """load_secrets_file reads a .env style secrets file, sets the environment variables, and
+def load_secrets_file(path: Path) -> Optional[dict[str, str]]:
+    """load_secrets_file reads a .env style secrets file, sets them as environment variables, and
     returns the keys of the added variables.
     Args:
         path (Path): Path to the secrets file.
     Returns:
         list[str] | None: List of loaded environment variable keys, or None if the file does not exist.
     """
+    variables = get_env_variable(path)
+    if variables is not None:
+        set_env_variable(variables)
+        return variables
+    return None
+
+
+def set_env_variable(variables: dict[str, str]) -> None:
+    for key, value in variables.items():
+        os.environ[key] = value
+
+
+def get_env_variable(path: Path) -> Optional[dict[str, str]]:
+    """get_env_variable reads a .env style secrets file and returns variables.
+    Args:
+        path (Path): Path to the secrets file.
+    Returns:
+        dict[str, str] | None: Dictionary of environment variable keys and values, or None if the file does not exist.
+    """
     if not path.exists() or not path.is_file():
         return None
-    loaded_keys = []
+    loaded_keys = {}
     with open(path, 'r') as f:
         for line in f:
             line = line.strip()
@@ -38,8 +60,7 @@ def load_secrets_file(path: Path) -> Optional[list[str]]:
             key, value = line.split('=', 1)
             key = key.strip()
             value = value.strip().strip('"').strip("'")
-            os.environ[key] = value
-            loaded_keys.append(key)
+            loaded_keys[key] = value
     return loaded_keys
 
 
@@ -72,3 +93,33 @@ def start_secrets_watcher(
     watcher_thread = Thread(target=watch_loop, daemon=True)
     watcher_thread.start()
     return watcher_thread
+
+
+def inject_secrets(request: service_pb2.PostModelOutputsRequest) -> None:
+    """inject_secrets injects secrets into the request's model version output info params in-place.
+
+    Args:
+        request (service_pb2.PostModelOutputsRequest): The request to inject secrets into.
+    """
+    if request is None:
+        return
+
+    if secrets_path := get_secrets_path():
+        # Since only env type secrets are injected into the shared volume, we can read them directly.
+        variables = get_env_variable(secrets_path)
+    else:
+        # If no secrets path is set, assume no secrets and return the request as is.
+        return
+
+    if not request.HasField("model"):
+        request.model.CopyFrom(resources_pb2.Model())
+    if not request.model.HasField("model_version"):
+        request.model.model_version.CopyFrom(resources_pb2.ModelVersion())
+    if not request.model.model_version.HasField("output_info"):
+        request.model.model_version.output_info.CopyFrom(resources_pb2.OutputInfo())
+    if not request.model.model_version.output_info.HasField("params"):
+        request.model.model_version.output_info.params.CopyFrom(struct_pb2.Struct())
+
+    if variables:
+        request.model.model_version.output_info.params.update(variables)
+    return

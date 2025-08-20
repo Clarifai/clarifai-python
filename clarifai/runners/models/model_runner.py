@@ -9,6 +9,7 @@ from clarifai_protocol.utils.health import HealthProbeRequestHandler
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.utils.constants import STATUS_FAIL, STATUS_MIXED, STATUS_OK, STATUS_UNKNOWN
 from clarifai.utils.logging import get_req_id_from_context, logger
+from clarifai.utils.secrets import inject_secrets
 
 from ..utils.url_fetcher import ensure_urls_downloaded
 from .model_class import ModelClass
@@ -109,6 +110,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
+        inject_secrets(request)
         start_time = time.time()
         req_id = get_req_id_from_context()
         status_str = STATUS_UNKNOWN
@@ -175,6 +177,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
+        inject_secrets(request)
 
         # --- Live logging additions ---
         start_time = time.time()
@@ -287,4 +290,5 @@ def pmo_iterator(runner_item_iterator, auth_helper=None):
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         ensure_urls_downloaded(runner_item.post_model_outputs_request, auth_helper=auth_helper)
+        inject_secrets(runner_item.post_model_outputs_request)
         yield runner_item.post_model_outputs_request
