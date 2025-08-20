@@ -314,25 +314,32 @@ spec:
         assert result is False
 
     def test_update_config_with_versions(self, temp_config_file):
-        """Test updating config with version information."""
+        """Test that deprecated update_config_with_versions doesn't modify config."""
         builder = PipelineBuilder(temp_config_file)
         builder.uploaded_step_versions = {"stepA": "version-123"}
 
+        # Read original config
+        with open(temp_config_file, 'r') as f:
+            original_config = yaml.safe_load(f)
+
         builder.update_config_with_versions()
 
-        # Verify config was updated
+        # Read config again - should be unchanged
+        with open(temp_config_file, 'r') as f:
+            final_config = yaml.safe_load(f)
+
+        # Verify config was NOT updated (new behavior)
+        assert original_config == final_config
+        
+        # Verify the in-memory config is also unchanged  
         updated_config = builder.config
         argo_spec_str = updated_config["pipeline"]["orchestration_spec"]["argo_orchestration_spec"]
         argo_spec = yaml.safe_load(argo_spec_str)
 
-        # Check that templateRef was updated
+        # Check that templateRef was NOT updated (new behavior)
         template_ref = argo_spec["spec"]["templates"][0]["steps"][0][0]["templateRef"]
-        expected_name = "users/test-user/apps/test-app/pipeline_steps/stepA/versions/version-123"
-        assert template_ref["name"] == expected_name
-        assert template_ref["template"] == expected_name
-
-        # Check that step_directories was cleared
-        assert updated_config["pipeline"]["step_directories"] == []
+        original_name = "users/test-user/apps/test-app/pipeline_steps/stepA"
+        assert template_ref["name"] == original_name
 
     @patch('clarifai.runners.pipelines.pipeline_builder.BaseClient')
     def test_create_pipeline_success(self, mock_base_client, temp_config_file):
