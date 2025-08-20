@@ -183,11 +183,21 @@ class ModelServer:
         if self._secrets_path is not None:
             load_secrets_file(self._secrets_path)
         if self._builder is not None:
-            self._current_model = self._builder.create_model_instance()
+            try:
+                self._current_model = self._builder.create_model_instance()
+            except Exception as e:
+                logger.error(f"Failed to reload model: {e}")
+                return
         if self._servicer and self._current_model:
-            self._servicer.set_model(self._current_model)
+            try:
+                self._servicer.set_model(self._current_model)
+            except Exception as e:
+                logger.error(f"Failed to set model in servicer: {e}")
         if self._runner and self._current_model:
-            self._runner.set_model(self._current_model)
+            try:
+                self._runner.set_model(self._current_model)
+            except Exception as e:
+                logger.error(f"Failed to set model in runner: {e}")
 
 
 if __name__ == '__main__':
