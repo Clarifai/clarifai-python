@@ -22,7 +22,7 @@ def get_secrets_path() -> Optional[Path]:
 
 def load_secrets_file(path: Path) -> Optional[dict[str, str]]:
     """load_secrets_file reads a .env style secrets file, sets them as environment variables, and
-    returns the keys of the added variables.
+    returns the added variables.
     Args:
         path (Path): Path to the secrets file.
     Returns:
