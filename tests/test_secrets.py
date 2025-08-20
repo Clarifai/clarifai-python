@@ -33,7 +33,7 @@ def secrets_file():
 def populated_secrets_file():
     """Create a secrets file with test content."""
     with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
-        f.write("TEST_API_KEY=test_value\\nTEST_SECRET=secret123\\n")
+        f.write("TEST_API_KEY=test_value\nTEST_SECRET=secret123\n")
         secrets_path = Path(f.name)
     yield secrets_path
     # Cleanup
