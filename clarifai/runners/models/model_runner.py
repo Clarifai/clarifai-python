@@ -277,6 +277,10 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         duration_ms = (time.time() - start_time) * 1000
         logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
 
+    def set_model(self, model: ModelClass):
+        """Set the model for this runner."""
+        self.model = model
+
 
 def pmo_iterator(runner_item_iterator, auth_helper=None):
     for runner_item in runner_item_iterator:

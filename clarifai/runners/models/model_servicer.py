@@ -122,3 +122,6 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
                     internal_details=str(e),
                 )
             )
+
+    def set_model(self, model):
+        self.model = model
