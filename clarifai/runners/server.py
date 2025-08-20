@@ -114,71 +114,106 @@ class ModelServer:
             num_threads = self._builder.config.get("num_threads")
         # Setup the grpc server for local development.
         if grpc:
-            # initialize the servicer with the runner so that it gets the predict(), generate(), stream() classes.
-            self._servicer = ModelServicer(self._current_model)
-
-            server = GRPCServer(
-                futures.ThreadPoolExecutor(
-                    max_workers=pool_size,
-                    thread_name_prefix="ServeCalls",
-                ),
-                max_msg_length,
+            self.start_servicer(
+                port,
+                pool_size,
                 max_queue_size,
+                max_msg_length,
+                enable_tls,
             )
-            server.add_port_to_server('[::]:%s' % port, enable_tls)
-
-            service_pb2_grpc.add_V2Servicer_to_server(self._servicer, server)
-            server.start()
-            logger.info("Started server on port %s", port)
-            logger.info(f"Access the model at http://localhost:{port}")
-            server.wait_for_termination()
-        else:  # start the runner with the proper env variables and as a runner protocol.
-            # initialize the Runner class. This is what the user implements.
-            assert compute_cluster_id is not None, "compute_cluster_id must be set for the runner."
-            assert nodepool_id is not None, "nodepool_id must be set for the runner"
-            assert runner_id is not None, "runner_id must be set for the runner."
-            assert base_url is not None, "base_url must be set for the runner."
-            self._runner = ModelRunner(
-                model=self._current_model,
-                user_id=user_id,
-                compute_cluster_id=compute_cluster_id,
-                nodepool_id=nodepool_id,
-                runner_id=runner_id,
-                base_url=base_url,
-                pat=pat,
-                num_parallel_polls=num_threads,
+        else:
+            # start the runner with the proper env variables and as a runner protocol.
+            self.start_runner(
+                context,
+                compute_cluster_id,
+                user_id,
+                nodepool_id,
+                runner_id,
+                base_url,
+                pat,
+                num_threads,
             )
 
-            if context is None:
-                logger.debug("Context is None. Skipping code snippet generation.")
-            else:
-                method_signatures = self._builder.get_method_signatures(mocking=False)
-                from clarifai.runners.utils import code_script
+    def start_servicer(self, port, pool_size, max_queue_size, max_msg_length, enable_tls):
+        # initialize the servicer with the runner so that it gets the predict(), generate(), stream() classes.
+        self._servicer = ModelServicer(self._current_model)
 
-                snippet = code_script.generate_client_script(
-                    method_signatures,
-                    user_id=context.user_id,
-                    app_id=context.app_id,
-                    model_id=context.model_id,
-                    deployment_id=context.deployment_id,
-                    base_url=context.api_base,
-                )
-                logger.info(
-                    "✅ Your model is running locally and is ready for requests from the API...\n"
-                )
-                logger.info(
-                    f"> Code Snippet: To call your model via the API, use this code snippet:\n{snippet}"
-                )
-                logger.info(
-                    f"> Playground:   To chat with your model, visit: {context.ui}/playground?model={context.model_id}__{context.model_version_id}&user_id={context.user_id}&app_id={context.app_id}\n"
-                )
-                logger.info(
-                    f"> API URL:      To call your model via the API, use this model URL: {context.ui}/users/{context.user_id}/apps/{context.app_id}/models/{context.model_id}\n"
-                )
-                logger.info("Press CTRL+C to stop the runner.\n")
-            self._runner.start()  # start the runner to fetch work from the API.
+        server = GRPCServer(
+            futures.ThreadPoolExecutor(
+                max_workers=pool_size,
+                thread_name_prefix="ServeCalls",
+            ),
+            max_msg_length,
+            max_queue_size,
+        )
+        server.add_port_to_server('[::]:%s' % port, enable_tls)
 
-    def reload_model_on_secrets_change(self):
+        service_pb2_grpc.add_V2Servicer_to_server(self._servicer, server)
+        server.start()
+        logger.info("Started server on port %s", port)
+        logger.info(f"Access the model at http://localhost:{port}")
+        server.wait_for_termination()
+
+    def start_runner(
+        self,
+        context,
+        compute_cluster_id,
+        user_id,
+        nodepool_id,
+        runner_id,
+        base_url,
+        pat,
+        num_threads,
+    ):
+        # initialize the Runner class. This is what the user implements.
+        assert compute_cluster_id is not None, "compute_cluster_id must be set for the runner."
+        assert nodepool_id is not None, "nodepool_id must be set for the runner"
+        assert runner_id is not None, "runner_id must be set for the runner."
+        assert base_url is not None, "base_url must be set for the runner."
+        self._runner = ModelRunner(
+            model=self._current_model,
+            user_id=user_id,
+            compute_cluster_id=compute_cluster_id,
+            nodepool_id=nodepool_id,
+            runner_id=runner_id,
+            base_url=base_url,
+            pat=pat,
+            num_parallel_polls=num_threads,
+        )
+
+        if context is None:
+            logger.debug("Context is None. Skipping code snippet generation.")
+        else:
+            method_signatures = self._builder.get_method_signatures(mocking=False)
+            from clarifai.runners.utils import code_script
+
+            snippet = code_script.generate_client_script(
+                method_signatures,
+                user_id=context.user_id,
+                app_id=context.app_id,
+                model_id=context.model_id,
+                deployment_id=context.deployment_id,
+                base_url=context.api_base,
+            )
+            logger.info(
+                "✅ Your model is running locally and is ready for requests from the API...\n"
+            )
+            logger.info(
+                f"> Code Snippet: To call your model via the API, use this code snippet:\n{snippet}"
+            )
+            logger.info(
+                f"> Playground:   To chat with your model, visit: {context.ui}/playground?model={context.model_id}__{context.model_version_id}&user_id={context.user_id}&app_id={context.app_id}\n"
+            )
+            logger.info(
+                f"> API URL:      To call your model via the API, use this model URL: {context.ui}/users/{context.user_id}/apps/{context.app_id}/models/{context.model_id}\n"
+            )
+            logger.info("Press CTRL+C to stop the runner.\n")
+        self._runner.start()  # start the runner to fetch work from the API.
+
+    def reload_model_on_secrets_change(self) -> None:
+        """reload_model_on_secrets_change reloads the model and environment secrets when the secrets
+        file changes.
+        """
         logger.info("Detected change in secrets file, reloading model...")
         if self._secrets_path is not None:
             load_secrets_file(self._secrets_path)
