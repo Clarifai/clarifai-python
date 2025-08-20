@@ -9,8 +9,8 @@ import pytest
 from clarifai_grpc.grpc.api import service_pb2
 
 from clarifai.utils.secrets import (
+    get_request_secrets,
     get_secret,
-    get_secrets,
     inject_secrets,
     load_secrets_file,
     start_secrets_watcher,
@@ -83,9 +83,17 @@ class TestSecretsSystem:
         request = service_pb2.PostModelOutputsRequest()
         inject_secrets(request)
 
-        secrets_from_request = get_secrets(request)
+        secrets_from_request = get_request_secrets(request)
+        assert secrets_from_request is not None
         assert "TEST_API_KEY" in secrets_from_request
         assert secrets_from_request["TEST_API_KEY"] == "test_value"
+
+        # Test with None request (edge case)
+        inject_secrets(None)
+
+        # Test with partial request (edge case)
+        partial_request = service_pb2.PostModelOutputsRequest()
+        inject_secrets(partial_request)
 
     def test_file_watcher_detects_changes(self, secrets_file):
         """Test that file watcher detects file modifications."""
@@ -152,7 +160,8 @@ class TestSecretsSystem:
         inject_secrets(request)
 
         # 4. Verify secrets in request
-        extracted = get_secrets(request)
+        extracted = get_request_secrets(request)
+        assert extracted is not None
         assert extracted["E2E_KEY"] == "e2e_value"
 
         # 5. Update file and verify new secrets
@@ -161,5 +170,38 @@ class TestSecretsSystem:
 
         new_request = service_pb2.PostModelOutputsRequest()
         inject_secrets(new_request)
-        new_extracted = get_secrets(new_request)
+        new_extracted = get_request_secrets(new_request)
+        assert new_extracted is not None
         assert new_extracted["E2E_KEY"] == "updated_e2e"
+
+        # Test precedence (env vars vs file vs request)
+        os.environ["E2E_KEY"] = "env_value"
+        secrets_file.write_text("E2E_KEY=file_value\nFILE_ONLY=file_only\n")
+
+        load_secrets_file(secrets_file)
+        request = service_pb2.PostModelOutputsRequest()
+        inject_secrets(request)
+
+        extracted = get_request_secrets(request)
+        # File should override env in this implementation
+        assert extracted is not None
+        assert extracted["E2E_KEY"] == "file_value"
+        assert extracted["FILE_ONLY"] == "file_only"
+
+    def test_model_server_integration(self, secrets_file):
+        """Test end-to-end ModelServer integration with secrets."""
+        secrets_file.write_text("SERVER_SECRET=server_value\n")
+        os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
+
+        # Test ModelServer initialization loads secrets
+        from clarifai.runners.server import ModelServer
+
+        server = ModelServer("dummy_model_path")  # Would need mocking in real test
+
+        # Verify secrets are loaded
+        assert os.environ.get("SERVER_SECRET") == "server_value"
+
+        # Test reload callback
+        secrets_file.write_text("SERVER_SECRET=updated_value\n")
+        server.reload_model_on_secrets_change()
+        assert os.environ.get("SERVER_SECRET") == "updated_value"

@@ -106,7 +106,7 @@ def start_secrets_watcher(
     return watcher_thread
 
 
-def inject_secrets(request: service_pb2.PostModelOutputsRequest) -> None:
+def inject_secrets(request: Optional[service_pb2.PostModelOutputsRequest]) -> None:
     """inject_secrets injects secrets into the request's model version output info params.
     The request is modified in place.
 
@@ -148,14 +148,10 @@ def get_secrets(
     params = {}
     env_params = {}
     req_params = {}
-    if (
-        request is not None
-        and request.HasField("model")
-        and request.model.HasField("model_version")
-        and request.model.model_version.HasField("output_info")
-        and request.model.model_version.output_info.HasField("params")
-    ):
-        req_params = MessageToDict(request.model.model_version.output_info.params)
+
+    if request is not None:
+        req_params = get_request_secrets(request)
+
     if secrets_path := get_secrets_path():
         # Since only env type secrets are injected into the shared volume, we can read them directly.
         env_params = get_env_variable(secrets_path)
@@ -164,6 +160,17 @@ def get_secrets(
     if req_params:
         params.update(req_params)
     return params
+
+
+def get_request_secrets(request: service_pb2.PostModelOutputsRequest) -> Optional[dict[str, Any]]:
+    if (
+        request.HasField("model")
+        and request.model.HasField("model_version")
+        and request.model.model_version.HasField("output_info")
+        and request.model.model_version.output_info.HasField("params")
+    ):
+        return MessageToDict(request.model.model_version.output_info.params)
+    return None
 
 
 def get_secret(param_name: str) -> Optional[str]:
