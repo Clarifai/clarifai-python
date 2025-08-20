@@ -1083,7 +1083,7 @@ def predict(
     Input Methods:
         Traditional models (files/URLs):
             --file_path: Local file path
-            --url: Remote file URL  
+            --url: Remote file URL
             --bytes: Raw bytes data
 
         Pythonic models (structured data):
