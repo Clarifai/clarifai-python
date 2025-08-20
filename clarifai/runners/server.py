@@ -6,6 +6,7 @@ and starts the server.
 import argparse
 import os
 from concurrent import futures
+from typing import Optional
 
 from clarifai_grpc.grpc.api import service_pb2_grpc
 from clarifai_protocol.utils.grpc_server import GRPCServer
@@ -18,9 +19,9 @@ from clarifai.utils.secrets import get_secrets_path, load_secrets_file, start_se
 
 # Globals needed to hold components for restarting
 _current_model = None
-_servicer: ModelServicer | None = None
-_runner: ModelRunner | None = None
-_builder = None
+_servicer: Optional[ModelServicer] = None
+_runner: Optional[ModelRunner] = None
+_builder: Optional[ModelBuilder] = None
 _secrets_path = None
 
 
@@ -29,10 +30,11 @@ def reload_model_on_secrets_change():
     logger.info("Detected change in secrets file, reloading model...")
     if _secrets_path is not None:
         load_secrets_file(_secrets_path)
-    _current_model = _builder.create_model_instance()
-    if _servicer:
+    if _builder is not None:
+        _current_model = _builder.create_model_instance()
+    if _servicer and _current_model:
         _servicer.set_model(_current_model)
-    if _runner:
+    if _runner and _current_model:
         _runner.set_model(_current_model)
 
 
@@ -106,12 +108,12 @@ def serve(
     max_msg_length=1024 * 1024 * 1024,
     enable_tls=False,
     grpc=False,
-    user_id: str = os.environ.get("CLARIFAI_USER_ID", None),
-    compute_cluster_id: str = os.environ.get("CLARIFAI_COMPUTE_CLUSTER_ID", None),
-    nodepool_id: str = os.environ.get("CLARIFAI_NODEPOOL_ID", None),
-    runner_id: str = os.environ.get("CLARIFAI_RUNNER_ID", None),
-    base_url: str = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com"),
-    pat: str = os.environ.get("CLARIFAI_PAT", None),
+    user_id: Optional[str] = os.environ.get("CLARIFAI_USER_ID", None),
+    compute_cluster_id: Optional[str] = os.environ.get("CLARIFAI_COMPUTE_CLUSTER_ID", None),
+    nodepool_id: Optional[str] = os.environ.get("CLARIFAI_NODEPOOL_ID", None),
+    runner_id: Optional[str] = os.environ.get("CLARIFAI_RUNNER_ID", None),
+    base_url: Optional[str] = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com"),
+    pat: Optional[str] = os.environ.get("CLARIFAI_PAT", None),
     context=None,  # This is the current context object that contains user_id, app_id, model_id, etc.
 ):
     global _current_model, _servicer, _runner, _builder, _secrets_path

@@ -1,9 +1,9 @@
 import os
 import time
-from collections.abc import Callable
 from contextvars import ContextVar
 from pathlib import Path
 from threading import Thread
+from typing import Callable, Optional
 
 from clarifai.utils.logging import logger
 
@@ -11,13 +11,13 @@ from clarifai.utils.logging import logger
 _current_request_params: ContextVar[dict] = ContextVar('current_request_params', default={})
 
 
-def get_secrets_path() -> Path | None:
+def get_secrets_path() -> Optional[Path]:
     secrets_path = os.environ.get("CLARIFAI_SECRETS_PATH", None)
     if secrets_path is not None:
         return Path(secrets_path)
 
 
-def load_secrets_file(path: Path) -> list[str] | None:
+def load_secrets_file(path: Path) -> Optional[list[str]]:
     """load_secrets_file reads a .env style secrets file, sets the environment variables, and
     returns the keys of the added variables.
     Args:
@@ -45,7 +45,7 @@ def load_secrets_file(path: Path) -> list[str] | None:
 
 def start_secrets_watcher(
     secrets_path: Path, reload_callback: Callable, interval: int = 10
-) -> None:
+) -> Thread:
     """start_secrets_watcher starts a background thread that watches the secrets file for changes
     and calls the reload_callback when changes are detected.
 

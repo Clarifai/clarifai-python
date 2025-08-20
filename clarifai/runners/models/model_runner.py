@@ -1,5 +1,5 @@
 import time
-from typing import Iterator
+from typing import Iterator, Optional
 
 from clarifai_grpc.grpc.api import service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
@@ -25,11 +25,11 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         runner_id: str,
         nodepool_id: str,
         compute_cluster_id: str,
-        user_id: str = None,
+        user_id: Optional[str] = None,
         check_runner_exists: bool = True,
         base_url: str = "https://api.clarifai.com",
-        pat: str = None,
-        token: str = None,
+        pat: Optional[str] = None,
+        token: Optional[str] = None,
         num_parallel_polls: int = 4,
         **kwargs,
     ) -> None:
@@ -54,7 +54,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         self._base_url = base_url
 
         # Create auth helper if we have sufficient authentication information
-        self._auth_helper = None
+        self._auth_helper: Optional[ClarifaiAuthHelper] = None
         if self._user_id and (self._pat or self._token):
             try:
                 self._auth_helper = ClarifaiAuthHelper(
