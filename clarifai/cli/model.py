@@ -1,6 +1,6 @@
+import json
 import os
 import shutil
-import json
 
 import click
 
@@ -658,14 +658,14 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 def _parse_json_param(param_value, param_name):
     """Parse JSON parameter with error handling.
-    
+
     Args:
         param_value: The JSON string to parse
         param_name: Name of the parameter for error messages
-        
+
     Returns:
         dict: Parsed JSON dictionary
-        
+
     Raises:
         ValueError: If JSON parsing fails
     """
@@ -674,24 +674,25 @@ def _parse_json_param(param_value, param_name):
     try:
         return json.loads(param_value)
     except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON in --{param_name} parameter: {e}")
+        logger.error(f"ValueError: Invalid JSON in --{param_name} parameter: {e}")
+        raise click.Abort()
 
 
 def _process_multimodal_inputs(inputs_dict):
     """Process inputs to convert URLs and file paths to appropriate data types.
-    
+
     Args:
         inputs_dict: Dictionary of input parameters
-        
+
     Returns:
         dict: Processed inputs with Image/Video/Audio objects where appropriate
     """
     from clarifai.runners.utils.data_types import Audio, Image, Video
-    
+
     for key, value in list(inputs_dict.items()):
         if not isinstance(value, str):
             continue
-            
+
         if value.startswith(("http://", "https://")):
             # Convert URL strings to appropriate data types
             if "image" in key.lower():
@@ -712,52 +713,55 @@ def _process_multimodal_inputs(inputs_dict):
                 elif "audio" in key.lower():
                     inputs_dict[key] = Audio(bytes=file_bytes)
             except IOError as e:
-                raise ValueError(f"Failed to read file {value}: {e}")
-    
+                logger.error(f"ValueError: Failed to read file {value}: {e}")
+                raise click.Abort()
+
     return inputs_dict
 
 
 def _validate_model_params(model_id, user_id, app_id, model_url):
     """Validate model identification parameters.
-    
+
     Args:
         model_id: Model ID
-        user_id: User ID  
+        user_id: User ID
         app_id: App ID
         model_url: Model URL
-        
+
     Raises:
         ValueError: If validation fails
     """
     # Check if we have either (model_id, user_id, app_id) or model_url
     has_triple = all([model_id, user_id, app_id])
     has_url = bool(model_url)
-    
+
     if not (has_triple or has_url):
-        raise ValueError(
-            "Either --model_id & --user_id & --app_id or --model_url must be provided."
+        logger.error(
+            "ValueError: Either --model_id & --user_id & --app_id or --model_url must be provided."
         )
+        raise click.Abort()
 
 
 def _validate_compute_params(compute_cluster_id, nodepool_id, deployment_id):
     """Validate compute cluster parameters.
-    
+
     Args:
         compute_cluster_id: Compute cluster ID
         nodepool_id: Nodepool ID
         deployment_id: Deployment ID
-        
+
     Raises:
         ValueError: If validation fails
     """
     if any([compute_cluster_id, nodepool_id, deployment_id]):
         has_cluster_nodepool = bool(compute_cluster_id) and bool(nodepool_id)
         has_deployment = bool(deployment_id)
-        
+
         if not (has_cluster_nodepool or has_deployment):
-            raise ValueError(
-                "Either --compute_cluster_id & --nodepool_id or --deployment_id must be provided."
+            logger.error(
+                "ValueError: Either --compute_cluster_id & --nodepool_id or --deployment_id must be provided."
             )
+            raise click.Abort()
 
 
 @model.command()
@@ -790,9 +794,9 @@ def _validate_compute_params(compute_cluster_id, nodepool_id, deployment_id):
 )
 @click.option('--output_config', required=False, default='{}', help='Output config to override')
 @click.option(
-    '--inputs', 
-    required=False, 
-    help='JSON string of input parameters for pythonic models (e.g., \'{"prompt": "Hello", "max_tokens": 100}\')'
+    '--inputs',
+    required=False,
+    help='JSON string of input parameters for pythonic models (e.g., \'{"prompt": "Hello", "max_tokens": 100}\')',
 )
 @click.pass_context
 def predict(
@@ -814,48 +818,46 @@ def predict(
     inputs,
 ):
     """Predict using a Clarifai model.
-    
+
     This command supports both traditional models and pythonic models with flexible input options.
-    
+
     \b
     Model Identification:
         Use either --model_url OR the combination of --model_id, --user_id, and --app_id
-    
+
     \b
     Input Methods:
         Traditional models (files/URLs):
             --file_path: Local file path
             --url: Remote file URL  
             --bytes: Raw bytes data
-            
+
         Pythonic models (structured data):
             --inputs: JSON string with parameters (e.g., '{"prompt": "Hello", "max_tokens": 100}')
-    
+
     \b
     Compute Options:
         Use either --deployment_id OR both --compute_cluster_id and --nodepool_id
-    
+
     \b
     Examples:
         Traditional image model:
             clarifai model predict --model_url <url> --file_path image.jpg
-            
+
         Pythonic text model:
             clarifai model predict --model_url <url> --inputs '{"prompt": "Hello world"}'
-            
+
         With compute cluster:
             clarifai model predict --model_id <id> --user_id <uid> --app_id <aid> \\
                                   --compute_cluster_id <cc_id> --nodepool_id <np_id> \\
                                   --inputs '{"prompt": "Hello"}'
     """
-    import json
-
     from clarifai.client.model import Model
     from clarifai.urls.helper import ClarifaiUrlHelper
     from clarifai.utils.cli import from_yaml, validate_context
 
     validate_context(ctx)
-    
+
     # Load configuration from file if provided
     if config:
         config_data = from_yaml(config)
@@ -877,13 +879,14 @@ def predict(
     # Validate parameters
     _validate_model_params(model_id, user_id, app_id, model_url)
     _validate_compute_params(compute_cluster_id, nodepool_id, deployment_id)
-    
+
     # Generate model URL if not provided
     if not model_url:
         model_url = ClarifaiUrlHelper.clarifai_url(
             user_id=user_id, app_id=app_id, resource_type="models", resource_id=model_id
         )
-    
+    logger.debug(f"Using model at URL: {model_url}")
+
     # Create model instance
     model = Model(
         url=model_url,
@@ -897,9 +900,15 @@ def predict(
     # Parse JSON parameters
     inference_params = _parse_json_param(inference_params, "inference_params")
     output_config = _parse_json_param(output_config, "output_config")
-    
+
     # Determine prediction method and execute
     if inputs:
+        methods = model.client.available_methods()
+        if "predict" not in methods:
+            logger.error(
+                "ValueError: The model does not support the 'predict' method. Please check the model's capabilities."
+            )
+            raise click.Abort()
         # Pythonic model prediction with JSON inputs
         inputs_dict = _parse_json_param(inputs, "inputs")
         inputs_dict = _process_multimodal_inputs(inputs_dict)
@@ -930,11 +939,11 @@ def predict(
             output_config=output_config,
         )
     else:
-        raise ValueError(
-            "Must provide input data using one of: --inputs (pythonic models), "
-            "--file_path, --url, or --bytes (traditional models)."
+        logger.error(
+            "ValueError: Must provide input data using one of: --inputs (pythonic models), --file_path, --url, or --bytes (traditional models)."
         )
-    
+        raise click.Abort()
+
     click.echo(model_prediction)
 
 
