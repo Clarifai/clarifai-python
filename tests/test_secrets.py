@@ -188,15 +188,20 @@ class TestSecretsSystem:
         assert extracted["E2E_KEY"] == "file_value"
         assert extracted["FILE_ONLY"] == "file_only"
 
-    def test_model_server_integration(self, secrets_file):
+    def test_model_server_integration(self, secrets_file, mocker):
         """Test end-to-end ModelServer integration with secrets."""
         secrets_file.write_text("SERVER_SECRET=server_value\n")
         os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
 
+        # Mock ModelBuilder to avoid file system dependencies
+        mock_builder = mocker.patch('clarifai.runners.server.ModelBuilder')
+        mock_model = mocker.MagicMock()
+        mock_builder.return_value.create_model_instance.return_value = mock_model
+
         # Test ModelServer initialization loads secrets
         from clarifai.runners.server import ModelServer
 
-        server = ModelServer("dummy_model_path")  # Would need mocking in real test
+        server = ModelServer("dummy_model_path")
 
         # Verify secrets are loaded
         assert os.environ.get("SERVER_SECRET") == "server_value"
@@ -205,6 +210,9 @@ class TestSecretsSystem:
         secrets_file.write_text("SERVER_SECRET=updated_value\n")
         server.reload_model_on_secrets_change()
         assert os.environ.get("SERVER_SECRET") == "updated_value"
+
+        # Verify builder was called
+        mock_builder.assert_called_once_with("dummy_model_path", download_validation_only=True)
 
     def test_model_reload_on_secrets_change(self, secrets_file, mocker):
         """Test that model is actually reloaded when secrets file changes."""
