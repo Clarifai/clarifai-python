@@ -1,6 +1,6 @@
 import os
 import urllib.request
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 import grpc
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
@@ -293,7 +293,7 @@ class ClarifaiAuthHelper:
         stub, channel = self.get_stub_and_channel()
         return stub
 
-    def get_stub_and_channel(self) -> tuple[service_pb2_grpc.V2Stub, grpc.Channel]:
+    def get_stub_and_channel(self) -> Tuple[service_pb2_grpc.V2Stub, grpc.Channel]:
         """Get the API gRPC stub and channel based on the API endpoint base.
 
         Returns:

@@ -38,7 +38,7 @@ def main():
         '--pool_size',
         type=int,
         default=os.environ.get('CLARIFAI_NUM_THREADS', 32),
-        help="The number of threads to use for the gRPC server.",
+        help="The number of threads to use for the gRPC server. Runner (ie. grpc=False) threads are read from the config file and ModelBuilder defaults.",
         choices=range(1, 129),
     )  # pylint: disable=range-builtin-not-iterating
     parser.add_argument(
@@ -76,13 +76,13 @@ def main():
     parsed_args = parser.parse_args()
 
     serve(
-        parsed_args.model_path,
-        parsed_args.port,
-        parsed_args.pool_size,
-        parsed_args.max_queue_size,
-        parsed_args.max_msg_length,
-        parsed_args.enable_tls,
-        parsed_args.grpc,
+        model_path=parsed_args.model_path,
+        port=parsed_args.port,
+        pool_size=parsed_args.pool_size,
+        max_queue_size=parsed_args.max_queue_size,
+        max_msg_length=parsed_args.max_msg_length,
+        enable_tls=parsed_args.enable_tls,
+        grpc=parsed_args.grpc,
     )
 
 
