@@ -3,10 +3,11 @@ import time
 from contextvars import ContextVar
 from pathlib import Path
 from threading import Thread
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from google.protobuf import struct_pb2
+from google.protobuf.json_format import MessageToDict
 
 from clarifai.utils.logging import logger
 
@@ -123,3 +124,33 @@ def inject_secrets(request: service_pb2.PostModelOutputsRequest) -> None:
     if variables:
         request.model.model_version.output_info.params.update(variables)
     return
+
+
+def get_secrets_from_request(
+    request: Optional[service_pb2.PostModelOutputsRequest],
+) -> dict[str, Any]:
+    """get_secrets_from_request extracts and returns the secrets from the request's model version output info params.
+
+    Args:
+        request (Optional[service_pb2.PostModelOutputsRequest]): The request from which to extract secrets.
+
+    Returns:
+        dict[str, Any]: A dictionary containing the secrets extracted from the request.
+    """
+    params = {}
+    if (
+        request is not None
+        and request.HasField("model")
+        and request.model.HasField("model_version")
+        and request.model.model_version.HasField("output_info")
+        and request.model.model_version.output_info.HasField("params")
+    ):
+        req_params = MessageToDict(request.model.model_version.output_info.params)
+    if secrets_path := get_secrets_path():
+        # Since only env type secrets are injected into the shared volume, we can read them directly.
+        env_params = get_env_variable(secrets_path)
+    if req_params:
+        params.update(req_params)
+    if env_params:
+        params.update(env_params)
+    return params
