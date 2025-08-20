@@ -13,7 +13,7 @@ deployment:
     model:
       id: "python_string_cat"
       model_version:
-        id: "b7038e059a0c4ddca29c22aec561824d"
+        id: "d87bde385b7d43aa9c2c40c64761e706"
       user_id: "clarifai"
       app_id: "Test-Model-Upload"
   scheduling_choice: 4

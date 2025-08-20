@@ -35,7 +35,7 @@ def get_pipeline_step_template():
     return '''import argparse
 
 import clarifai
-
+from clarifai.utils.logging import logger
 
 def main():
     parser = argparse.ArgumentParser(description='Concatenate two strings.')
@@ -44,9 +44,9 @@ def main():
 
     args = parser.parse_args()
 
-    print(clarifai.__version__)
+    logger.info(clarifai.__version__)
 
-    print(f"Concatenation Output: {args.param_a + args.param_b}")
+    logger.info(f"Concatenation Output: {args.param_a + args.param_b}")
 
 
 if __name__ == "__main__":

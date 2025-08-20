@@ -8,6 +8,7 @@ from string import Template
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
+from google.protobuf import json_format
 
 from clarifai.client.base import BaseClient
 from clarifai.utils.logging import logger
@@ -106,16 +107,16 @@ class PipelineStepBuilder:
 
     def _get_pipeline_step_compute_info(self):
         """Get pipeline step compute info from config."""
+        assert "pipeline_step_compute_info" in self.config, (
+            "pipeline_step_compute_info not found in the config file"
+        )
         compute_config = self.config.get("pipeline_step_compute_info", {})
 
-        compute_info = resources_pb2.ComputeInfo()
+        # Ensure cpu_limit is a string if it exists and is an int
+        if 'cpu_limit' in compute_config and isinstance(compute_config['cpu_limit'], int):
+            compute_config['cpu_limit'] = str(compute_config['cpu_limit'])
 
-        if "cpu_limit" in compute_config:
-            compute_info.cpu_limit = compute_config["cpu_limit"]
-        if "cpu_memory" in compute_config:
-            compute_info.cpu_memory = compute_config["cpu_memory"]
-        if "num_accelerators" in compute_config:
-            compute_info.num_accelerators = compute_config["num_accelerators"]
+        compute_info = json_format.ParseDict(compute_config, resources_pb2.ComputeInfo())
 
         return compute_info
 
@@ -200,8 +201,11 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
             PYTHON_VERSION=python_version
         )
 
-        # Write Dockerfile
+        # Write Dockerfile if it doesn't exist
         dockerfile_path = os.path.join(self.folder, 'Dockerfile')
+        if os.path.exists(dockerfile_path):
+            logger.info(f"Dockerfile already exists at {dockerfile_path}, skipping creation.")
+            return
         with open(dockerfile_path, 'w') as dockerfile:
             dockerfile.write(dockerfile_content)
 
