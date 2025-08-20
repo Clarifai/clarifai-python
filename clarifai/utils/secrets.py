@@ -126,10 +126,10 @@ def inject_secrets(request: service_pb2.PostModelOutputsRequest) -> None:
     return
 
 
-def get_secrets_from_request(
+def get_secrets(
     request: Optional[service_pb2.PostModelOutputsRequest],
 ) -> dict[str, Any]:
-    """get_secrets_from_request extracts and returns the secrets from the request's model version output info params.
+    """get_secrets extracts and returns the secrets from the request's model version output info params and environment.
 
     Args:
         request (Optional[service_pb2.PostModelOutputsRequest]): The request from which to extract secrets.
@@ -138,6 +138,8 @@ def get_secrets_from_request(
         dict[str, Any]: A dictionary containing the secrets extracted from the request.
     """
     params = {}
+    env_params = {}
+    req_params = {}
     if (
         request is not None
         and request.HasField("model")
@@ -149,8 +151,8 @@ def get_secrets_from_request(
     if secrets_path := get_secrets_path():
         # Since only env type secrets are injected into the shared volume, we can read them directly.
         env_params = get_env_variable(secrets_path)
-    if req_params:
-        params.update(req_params)
     if env_params:
         params.update(env_params)
+    if req_params:
+        params.update(req_params)
     return params
