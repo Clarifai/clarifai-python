@@ -51,17 +51,21 @@ def get_env_variable(path: Path) -> Optional[dict[str, str]]:
     if not path.exists() or not path.is_file():
         return None
     loaded_keys = {}
-    with open(path, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            if '=' not in line:
-                continue
-            key, value = line.split('=', 1)
-            key = key.strip()
-            value = value.strip().strip('"').strip("'")
-            loaded_keys[key] = value
+    try:
+        with open(path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if '=' not in line:
+                    continue
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                loaded_keys[key] = value
+    except Exception as e:
+        logger.error(f"Error reading secrets file {path}: {e}")
+        return None
     return loaded_keys
 
 
