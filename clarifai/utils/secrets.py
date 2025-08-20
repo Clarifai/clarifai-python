@@ -1,6 +1,5 @@
 import os
 import time
-from contextvars import ContextVar
 from pathlib import Path
 from threading import Thread
 from typing import Any, Callable, Optional
@@ -10,9 +9,6 @@ from google.protobuf import struct_pb2
 from google.protobuf.json_format import MessageToDict
 
 from clarifai.utils.logging import logger
-
-# Context variable to store current request parameters
-_current_request_params: ContextVar[dict] = ContextVar('current_request_params', default={})
 
 
 def get_secrets_path() -> Optional[Path]:
