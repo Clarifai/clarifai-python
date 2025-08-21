@@ -66,6 +66,7 @@ def cleanup_env():
         "INITIAL_SECRET",
         "UPDATED_SECRET",
         "PRECEDENCE_KEY",
+        "RELOAD_SECRET",
     ]
     yield
     # Restore environment
@@ -259,7 +260,7 @@ class TestSecretsSystem:
     def test_model_reload_on_secrets_change(self, secrets_file):
         """Test that model is reloaded and servicer/runner are updated correctly."""
         # Setup initial secrets
-        secrets_file.write_text("INITIAL_SECRET=initial_value\n")
+        secrets_file.write_text("RELOAD_SECRET=initial_value\n")
         os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
 
         with patch('clarifai.runners.server.ModelBuilder') as mock_builder:
@@ -276,11 +277,13 @@ class TestSecretsSystem:
             server._servicer = mock_servicer
             server._runner = mock_runner
 
-            # Verify initial model was created
+            # Verify initial model was created and initial secrets loaded
             assert mock_builder.return_value.create_model_instance.call_count == 1
+            assert os.environ.get("RELOAD_SECRET") == "initial_value"
 
-            # Change secrets file
-            secrets_file.write_text("UPDATED_SECRET=updated_value\n")
+            # Change secrets file - update the same key to test replacement
+            time.sleep(0.01)  # Ensure different mtime for cache invalidation
+            secrets_file.write_text("RELOAD_SECRET=updated_value\n")
 
             # Trigger reload
             server.reload_model_on_secrets_change()
@@ -292,8 +295,8 @@ class TestSecretsSystem:
             mock_servicer.set_model.assert_called_once_with(mock_model_instance)
             mock_runner.set_model.assert_called_once_with(mock_model_instance)
 
-            # Verify secrets were reloaded
-            assert os.environ.get("UPDATED_SECRET") == "updated_value"
+            # Verify secrets were reloaded with new value
+            assert os.environ.get("RELOAD_SECRET") == "updated_value"
 
     def test_model_reload_error_handling(self, secrets_file):
         """Test error handling during model reload."""
