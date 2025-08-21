@@ -15,7 +15,7 @@ from clarifai.runners.models.model_builder import ModelBuilder
 from clarifai.runners.models.model_runner import ModelRunner
 from clarifai.runners.models.model_servicer import ModelServicer
 from clarifai.utils.logging import logger
-from clarifai.utils.secrets import get_secrets_path, load_secrets_file, start_secrets_watcher
+from clarifai.utils.secrets import get_secrets_path, load_secrets, start_secrets_watcher
 
 
 def main():
@@ -86,7 +86,7 @@ class ModelServer:
         self._runner = None
         self._secrets_path = get_secrets_path()
         if self._secrets_path:
-            load_secrets_file(self._secrets_path)
+            load_secrets(self._secrets_path)
             start_secrets_watcher(self._secrets_path, self.reload_model_on_secrets_change)
         self._builder = ModelBuilder(model_path, download_validation_only=True)
         self._current_model = self._builder.create_model_instance()
@@ -216,7 +216,7 @@ class ModelServer:
         """
         logger.info("Detected change in secrets file, reloading model...")
         if self._secrets_path is not None:
-            load_secrets_file(self._secrets_path)
+            load_secrets(self._secrets_path)
         if self._builder is not None:
             try:
                 self._current_model = self._builder.create_model_instance()

@@ -13,7 +13,7 @@ from clarifai.utils.secrets import (
     get_request_secrets,
     get_secret,
     inject_secrets,
-    load_secrets_file,
+    load_secrets,
     start_secrets_watcher,
 )
 
@@ -84,20 +84,20 @@ class TestSecretsSystem:
 
     def test_load_secrets_file(self, populated_secrets_file):
         """Test loading secrets from file."""
-        result = load_secrets_file(populated_secrets_file)
+        result = load_secrets(populated_secrets_file)
         assert result == {"TEST_API_KEY": "test_value", "TEST_SECRET": "secret123"}
         assert os.environ["TEST_API_KEY"] == "test_value"
         assert os.environ["TEST_SECRET"] == "secret123"
 
     def test_load_nonexistent_file(self):
         """Test loading from nonexistent file."""
-        result = load_secrets_file(Path("/nonexistent/file.env"))
+        result = load_secrets(Path("/nonexistent/file.env"))
         assert result is None
 
     def test_inject_secrets_into_request(self, populated_secrets_file):
         """Test injecting secrets into protobuf request."""
         os.environ["CLARIFAI_SECRETS_PATH"] = str(populated_secrets_file)
-        load_secrets_file(populated_secrets_file)
+        load_secrets(populated_secrets_file)
 
         request = service_pb2.PostModelOutputsRequest()
         inject_secrets(request)
@@ -149,7 +149,7 @@ class TestSecretsSystem:
 
     def test_secrets_helper_function(self, populated_secrets_file):
         """Test the public get_secret() helper function."""
-        load_secrets_file(populated_secrets_file)
+        load_secrets(populated_secrets_file)
 
         assert get_secret("TEST_API_KEY") == "test_value"
         assert get_secret("TEST_SECRET") == "secret123"
@@ -168,7 +168,7 @@ class TestSecretsSystem:
         """
         secrets_file.write_text(malformed_content)
 
-        result = load_secrets_file(secrets_file)
+        result = load_secrets(secrets_file)
 
         assert result is not None
         assert "VALID_KEY" in result
@@ -183,7 +183,7 @@ class TestSecretsSystem:
         os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
 
         # 2. Load secrets
-        load_secrets_file(secrets_file)
+        load_secrets(secrets_file)
         assert os.environ["E2E_KEY"] == "e2e_value"
 
         # 3. Inject into request
@@ -198,7 +198,7 @@ class TestSecretsSystem:
         # 5. Update file and verify new secrets
         time.sleep(0.01)  # Ensure different mtime for cache invalidation
         secrets_file.write_text("E2E_KEY=updated_e2e\n")
-        load_secrets_file(secrets_file)
+        load_secrets(secrets_file)
 
         new_request = service_pb2.PostModelOutputsRequest()
         inject_secrets(new_request)
@@ -215,7 +215,7 @@ class TestSecretsSystem:
         # Create file with different value
         secrets_file.write_text("PRECEDENCE_KEY=file_value\nFILE_ONLY=file_only\n")
 
-        load_secrets_file(secrets_file)
+        load_secrets(secrets_file)
         request = service_pb2.PostModelOutputsRequest()
         inject_secrets(request)
 

@@ -10,18 +10,18 @@ from google.protobuf.json_format import MessageToDict
 
 from clarifai.utils.logging import logger
 
+CLARIFAI_SECRETS_PATH = os.environ.get("CLARIFAI_SECRETS_PATH", None)
+
 
 def get_secrets_path() -> Optional[Path]:
-    secrets_path = os.environ.get("CLARIFAI_SECRETS_PATH", None)
-    if secrets_path is not None:
-        return Path(secrets_path)
+    return Path(CLARIFAI_SECRETS_PATH) if CLARIFAI_SECRETS_PATH else None
 
 
-def load_secrets_file(path: Path) -> Optional[dict[str, str]]:
-    """load_secrets_file reads a .env style secrets file, sets them as environment variables, and
+def load_secrets(path: Path) -> Optional[dict[str, str]]:
+    """load_secrets reads .env style secret files, sets them as environment variables, and
     returns the added variables.
     Args:
-        path (Path): Path to the secrets file.
+        path (Path): Path to the directory containing secrets files.
     Returns:
         dict[str, str] | None: Dict of loaded environment variables, or None if the file does not exist.
     """
@@ -38,57 +38,79 @@ def set_env_variable(variables: dict[str, str]) -> None:
 
 
 def get_env_variable(path: Path) -> Optional[dict[str, str]]:
-    """get_env_variable reads a .env style secrets file and returns variables.
+    """get_env_variable reads .env style secret files and returns variables to be added to the environment.
     Args:
-        path (Path): Path to the secrets file.
+        path (Path): Path to the secrets directory.
     Returns:
-        dict[str, str] | None: Dictionary of environment variable keys and values, or None if the file does not exist.
+        dict[str, str] | None: Dictionary of environment variable keys and values, or None if the files do not exist.
     """
-    if not path.exists() or not path.is_file():
+    if not path.exists() or not path.is_dir():
         return None
     loaded_keys = {}
-    try:
-        with open(path, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith('#'):
-                    continue
-                if '=' not in line:
-                    continue
-                key, value = line.split('=', 1)
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                loaded_keys[key] = value
-    except Exception as e:
-        logger.error(f"Error reading secrets file {path}: {e}")
-        return None
+    for secret_dir in path.iterdir():
+        if not secret_dir.is_dir():
+            continue
+        secrets_file_path = secret_dir / secret_dir.name
+        if secrets_file_path.exists() and secrets_file_path.is_file():
+            secrets = read_secrets_file(secrets_file_path)
+            if secrets:
+                loaded_keys.update(secrets)
     return loaded_keys
+
+
+def read_secrets_file(path: Path) -> Optional[dict[str, str]]:
+    loaded_keys = {}
+    with open(path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            if '=' not in line:
+                continue
+            key, value = line.split('=', 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            loaded_keys[key] = value
+    return loaded_keys if loaded_keys else None
 
 
 def start_secrets_watcher(
     secrets_path: Path, reload_callback: Callable, interval: float = 10
 ) -> Thread:
-    """start_secrets_watcher starts a background thread that watches the secrets file for changes
+    """start_secrets_watcher starts a background thread that watches the secret file directory for changes
     and calls the reload_callback when changes are detected.
 
     Args:
-        secrets_path (Path): Path to the secrets file to watch.
+        secrets_path (Path): Path to the secrets file directory.
         reload_callback (Callable): Callback function to call when the file changes.
-        interval (int, optional): Interval to wait before checking again. Defaults to 10.
+        interval (float, optional): Interval to wait before checking again. Defaults to 10.
     """
 
     def watch_loop():
-        last_modified = 0
+        filename_to_modified = {}
         while True:
-            try:
-                if secrets_path.exists():
-                    current_modified = secrets_path.stat().st_mtime
+            changes_detected = False
+            for secret_dir in secrets_path.iterdir():
+                if not secret_dir.is_dir():
+                    continue
+                try:
+                    filepath = secret_dir / secret_dir.name
+                    if not filepath.exists() or not filepath.is_file():
+                        continue
+                    current_modified = filepath.stat().st_mtime
+                    last_modified = filename_to_modified.get(secret_dir.name, 0)
                     if current_modified != last_modified and last_modified != 0:
                         logger.info("Secrets file changed, reloading...")
-                        reload_callback()
-                    last_modified = current_modified
-            except Exception as e:
-                logger.error(f"Error watching secrets file: {e}")
+                        changes_detected = True
+                    filename_to_modified[secret_dir.name] = current_modified
+                except Exception as e:
+                    logger.error(f"Error watching secrets file: {e}")
+            if changes_detected:
+                try:
+                    logger.info("Secrets file changed, calling reload callback...")
+                    reload_callback()
+                except Exception as e:
+                    logger.error(f"Error in reload callback: {e}")
             time.sleep(interval)
 
     watcher_thread = Thread(target=watch_loop, daemon=True)
