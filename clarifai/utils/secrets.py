@@ -10,9 +10,6 @@ from google.protobuf.json_format import MessageToDict
 
 from clarifai.utils.logging import logger
 
-_secrets_cache = {}
-_last_cache_time = 0
-
 
 def get_secrets_path() -> Optional[Path]:
     secrets_path = os.environ.get("CLARIFAI_SECRETS_PATH", None)
@@ -47,13 +44,8 @@ def get_env_variable(path: Path) -> Optional[dict[str, str]]:
     Returns:
         dict[str, str] | None: Dictionary of environment variable keys and values, or None if the file does not exist.
     """
-    global _secrets_cache, _last_cache_time
     if not path.exists() or not path.is_file():
         return None
-    # Use cache if the file has not changed
-    current_mtime = path.stat().st_mtime
-    if current_mtime == _last_cache_time and _secrets_cache:
-        return _secrets_cache
     loaded_keys = {}
     try:
         with open(path, 'r') as f:
@@ -70,8 +62,6 @@ def get_env_variable(path: Path) -> Optional[dict[str, str]]:
     except Exception as e:
         logger.error(f"Error reading secrets file {path}: {e}")
         return None
-    _secrets_cache = loaded_keys
-    _last_cache_time = current_mtime
     return loaded_keys
 
 
