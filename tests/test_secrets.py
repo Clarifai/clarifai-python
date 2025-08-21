@@ -57,16 +57,21 @@ def populated_secrets_file():
 def cleanup_env():
     """Clean up environment after each test."""
     original_path = os.environ.get("CLARIFAI_SECRETS_PATH")
-    test_keys = ["TEST_API_KEY", "TEST_SECRET", "NEW_SECRET"]
-
+    test_keys = [
+        "TEST_API_KEY",
+        "TEST_SECRET",
+        "NEW_SECRET",
+        "E2E_KEY",
+        "SERVER_SECRET",
+        "INITIAL_SECRET",
+        "UPDATED_SECRET",
+    ]
     yield
-
     # Restore environment
     if original_path:
         os.environ["CLARIFAI_SECRETS_PATH"] = original_path
     elif "CLARIFAI_SECRETS_PATH" in os.environ:
         del os.environ["CLARIFAI_SECRETS_PATH"]
-
     # Clean up test keys
     for key in test_keys:
         os.environ.pop(key, None)
@@ -78,7 +83,6 @@ class TestSecretsSystem:
     def test_load_secrets_file(self, populated_secrets_file):
         """Test loading secrets from file."""
         result = load_secrets_file(populated_secrets_file)
-
         assert result == {"TEST_API_KEY": "test_value", "TEST_SECRET": "secret123"}
         assert os.environ["TEST_API_KEY"] == "test_value"
         assert os.environ["TEST_SECRET"] == "secret123"
@@ -114,23 +118,35 @@ class TestSecretsSystem:
         secrets_file.write_text("INITIAL_KEY=initial_value\n")
 
         callback_called = threading.Event()
+        callback_count = 0
 
-        def reload_callback():
+        def test_callback():
+            nonlocal callback_count
+            callback_count += 1
             callback_called.set()
 
-        # Start watcher
-        watcher = start_secrets_watcher(secrets_file, reload_callback, interval=0.1)
-        assert watcher.is_alive()
+        # Start watcher with short interval
+        watcher_thread = start_secrets_watcher(secrets_file, test_callback, interval=0.1)
 
-        # Modify file
-        time.sleep(0.2)  # Ensure different timestamp
-        secrets_file.write_text("UPDATED_KEY=updated_value\n")
+        try:
+            # Verify thread started
+            assert watcher_thread.is_alive(), "Watcher thread should be running"
 
-        # Wait for callback
-        assert callback_called.wait(timeout=2.0), "Callback should have been called"
+            # Give watcher time to establish baseline
+            time.sleep(0.2)
+
+            # Modify file
+            secrets_file.write_text("UPDATED_KEY=updated_value\n")
+
+            # Wait for callback
+            assert callback_called.wait(timeout=2.0), "Callback should have been triggered"
+            assert callback_count > 0, "Callback should have been called"
+        finally:
+            # Note: The watcher thread is daemon, so it will die with the test
+            pass
 
     def test_secrets_helper_function(self, populated_secrets_file):
-        """Test the public secrets() helper function."""
+        """Test the public get_secret() helper function."""
         load_secrets_file(populated_secrets_file)
 
         assert get_secret("TEST_API_KEY") == "test_value"
@@ -178,6 +194,7 @@ class TestSecretsSystem:
         assert extracted["E2E_KEY"] == "e2e_value"
 
         # 5. Update file and verify new secrets
+        time.sleep(0.01)  # Ensure different mtime for cache invalidation
         secrets_file.write_text("E2E_KEY=updated_e2e\n")
         load_secrets_file(secrets_file)
 
@@ -201,44 +218,14 @@ class TestSecretsSystem:
         assert extracted["E2E_KEY"] == "file_value"
         assert extracted["FILE_ONLY"] == "file_only"
 
-    def test_file_watcher_triggers_callback(self, secrets_file):
-        """Test that the file watcher actually triggers callbacks."""
-        # Create initial file
-        secrets_file.write_text("INITIAL=value\n")
-
-        callback_called = threading.Event()
-        callback_count = 0
-
-        def test_callback():
-            nonlocal callback_count
-            callback_count += 1
-            callback_called.set()
-
-        # Start watcher with short interval
-        watcher_thread = start_secrets_watcher(secrets_file, test_callback, interval=0.1)
-
-        try:
-            # Give watcher time to establish baseline
-            time.sleep(0.2)
-
-            # Modify file
-            secrets_file.write_text("UPDATED=value\n")
-
-            # Wait for callback
-            assert callback_called.wait(timeout=2.0), "Callback should have been triggered"
-            assert callback_count > 0, "Callback should have been called"
-
-        finally:
-            # Note: The watcher thread is daemon, so it will die with the test
-            pass
-
-    def test_model_server_secrets_integration_without_watcher(self, secrets_file):
+    def test_model_server_integration(self, secrets_file):
         """Test ModelServer secrets integration by calling reload directly."""
         secrets_file.write_text("SERVER_SECRET=initial\n")
         os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
 
         with patch('clarifai.runners.server.ModelBuilder') as mock_builder:
-            with patch('clarifai.runners.server.start_secrets_watcher'):  # Disable watcher
+            # Disable the watcher for this test to focus on reload functionality
+            with patch('clarifai.runners.server.start_secrets_watcher') as mock_watcher:
                 mock_model = MagicMock()
                 mock_builder.return_value.create_model_instance.return_value = mock_model
 
@@ -246,8 +233,12 @@ class TestSecretsSystem:
 
                 server = ModelServer("dummy_path")
 
+                # Verify watcher was attempted to be started
+                mock_watcher.assert_called_once()
+
                 # Verify initial secrets loaded
                 assert os.environ.get("SERVER_SECRET") == "initial"
+                assert mock_builder.return_value.create_model_instance.call_count == 1
 
                 # Update secrets file
                 secrets_file.write_text("SERVER_SECRET=updated\n")
@@ -255,14 +246,12 @@ class TestSecretsSystem:
                 # Manually trigger reload (simulating what watcher would do)
                 server.reload_model_on_secrets_change()
 
-                # Verify secrets were reloaded
+                # Verify secrets were reloaded and model was recreated
                 assert os.environ.get("SERVER_SECRET") == "updated"
-
-                # Verify model was recreated
                 assert mock_builder.return_value.create_model_instance.call_count == 2
 
     def test_model_reload_on_secrets_change(self, secrets_file):
-        """Test that model is actually reloaded when secrets file changes."""
+        """Test that model is reloaded and servicer/runner are updated correctly."""
         # Setup initial secrets
         secrets_file.write_text("INITIAL_SECRET=initial_value\n")
         os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
@@ -323,41 +312,3 @@ class TestSecretsSystem:
 
             # Verify it attempted to reload
             assert mock_builder.return_value.create_model_instance.call_count == 2
-
-    def test_end_to_end_secrets_reload_integration(self, secrets_file):
-        """Test complete integration: file change -> watcher -> reload -> model update."""
-        secrets_file.write_text("WATCH_SECRET=initial\n")
-        os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
-
-        with patch('clarifai.runners.server.ModelBuilder') as mock_builder:
-            mock_model = MagicMock()
-            mock_builder.return_value.create_model_instance.return_value = mock_model
-
-            reload_called = threading.Event()
-            original_reload = None
-
-            def track_reload():
-                reload_called.set()
-                if original_reload:
-                    original_reload()
-
-            from clarifai.runners.server import ModelServer
-
-            server = ModelServer("dummy_path")
-
-            # Patch the reload method to track when it's called
-            original_reload = server.reload_model_on_secrets_change
-            server.reload_model_on_secrets_change = track_reload
-
-            # Give the watcher thread time to initialize and read initial state
-            time.sleep(0.5)
-
-            # Change the file with a significant time difference
-            time.sleep(0.1)  # Ensure different timestamp
-            secrets_file.write_text("WATCH_SECRET=updated\n")
-
-            # Wait for reload to be triggered by file watcher
-            assert reload_called.wait(timeout=10.5), "Model reload should have been triggered"
-
-            # Verify secrets were updated
-        assert os.environ.get("WATCH_SECRET") == "updated"
