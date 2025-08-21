@@ -148,17 +148,50 @@ class PipelineBuilder:
             logger.error(f"Error uploading pipeline step: {e}")
             return False, ""
 
-    def update_config_with_versions(self) -> None:
-        """Update the config.yaml with uploaded pipeline step versions."""
-        logger.warning("update_config_with_versions is deprecated. Use generate_lockfile_data instead.")
-        # Keep this method for backward compatibility but don't modify config.yaml
+
+
+    def prepare_lockfile_with_step_versions(self) -> Dict[str, Any]:
+        """Prepare lockfile data with step versions after pipeline step upload."""
         if not self.uploaded_step_versions:
-            logger.info("No pipeline step versions to update")
-            return
-        logger.info("Skipping config.yaml update - use config-lock.yaml instead")
+            logger.info("No pipeline step versions for lockfile")
+
+        # Create a copy of the orchestration spec to modify
+        pipeline_config = self.config["pipeline"]
+        orchestration_spec = pipeline_config["orchestration_spec"].copy()
+        argo_spec_str = orchestration_spec["argo_orchestration_spec"]
+        argo_spec = yaml.safe_load(argo_spec_str)
+
+        # Update templateRef names to include versions
+        self._update_template_refs_with_versions(argo_spec)
+
+        # Create the partial lockfile data structure (without pipeline info)
+        lockfile_data = {
+            "pipeline": {
+                "id": self.pipeline_id,
+                "user_id": self.user_id,
+                "app_id": self.app_id,
+                "version_id": None,  # Will be filled in later
+                "orchestration_spec": {
+                    "argo_orchestration_spec": yaml.dump(
+                        argo_spec, Dumper=LiteralBlockDumper, default_flow_style=False
+                    )
+                }
+            }
+        }
+
+        return lockfile_data
+
+    def update_lockfile_with_pipeline_info(self, lockfile_data: Dict[str, Any], pipeline_version_id: str) -> Dict[str, Any]:
+        """Update the prepared lockfile data with pipeline version information."""
+        lockfile_data["pipeline"]["version_id"] = pipeline_version_id
+        return lockfile_data
 
     def generate_lockfile_data(self, pipeline_id: str = None, pipeline_version_id: str = None) -> Dict[str, Any]:
-        """Generate the lockfile data structure without modifying config.yaml."""
+        """Generate the complete lockfile data structure without modifying config.yaml.
+        
+        This method is kept for backward compatibility. The recommended approach is to use
+        prepare_lockfile_with_step_versions() followed by update_lockfile_with_pipeline_info().
+        """
         if not self.uploaded_step_versions:
             logger.info("No pipeline step versions for lockfile")
 
@@ -342,18 +375,21 @@ def upload_pipeline(path: str, no_lockfile: bool = False):
             logger.error("Failed to upload pipeline steps")
             sys.exit(1)
 
-        # Step 2: Create the pipeline
+        # Step 2: Generate lockfile (unless --no-lockfile is specified)
+        # This will be used to update the versions of pipeline-steps that just got uploaded in Step 1
+        lockfile_data = None
+        if not no_lockfile:
+            lockfile_data = builder.prepare_lockfile_with_step_versions()
+
+        # Step 3: Create the pipeline
         success, pipeline_version_id = builder.create_pipeline()
         if not success:
             logger.error("Failed to create pipeline")
             sys.exit(1)
 
-        # Step 3: Generate lockfile (unless --no-lockfile is specified)
-        if not no_lockfile:
-            lockfile_data = builder.generate_lockfile_data(
-                pipeline_id=builder.pipeline_id,
-                pipeline_version_id=pipeline_version_id
-            )
+        # Step 4: Update lockfile (unless --no-lockfile is specified)
+        if not no_lockfile and lockfile_data:
+            lockfile_data = builder.update_lockfile_with_pipeline_info(lockfile_data, pipeline_version_id)
             builder.save_lockfile(lockfile_data)
             logger.info("Pipeline upload completed successfully with lockfile!")
         else:

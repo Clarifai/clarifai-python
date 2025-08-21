@@ -123,20 +123,3 @@ spec:
         assert pipeline_data["app_id"] == "test-app"
         assert pipeline_data["version_id"] == "pipeline-version-456"
 
-    def test_deprecated_update_config_with_versions(self, temp_config_file):
-        """Test that the deprecated method doesn't modify config.yaml."""
-        builder = PipelineBuilder(temp_config_file)
-        builder.uploaded_step_versions = {"stepA": "version-123"}
-
-        # Read original config
-        with open(temp_config_file, 'r') as f:
-            original_config = yaml.safe_load(f)
-
-        # Call deprecated method
-        builder.update_config_with_versions()
-
-        # Read config again - it should be unchanged
-        with open(temp_config_file, 'r') as f:
-            updated_config = yaml.safe_load(f)
-
-        assert original_config == updated_config

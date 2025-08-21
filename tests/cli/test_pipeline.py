@@ -313,33 +313,7 @@ spec:
         result = builder.upload_pipeline_steps()
         assert result is False
 
-    def test_update_config_with_versions(self, temp_config_file):
-        """Test that deprecated update_config_with_versions doesn't modify config."""
-        builder = PipelineBuilder(temp_config_file)
-        builder.uploaded_step_versions = {"stepA": "version-123"}
 
-        # Read original config
-        with open(temp_config_file, 'r') as f:
-            original_config = yaml.safe_load(f)
-
-        builder.update_config_with_versions()
-
-        # Read config again - should be unchanged
-        with open(temp_config_file, 'r') as f:
-            final_config = yaml.safe_load(f)
-
-        # Verify config was NOT updated (new behavior)
-        assert original_config == final_config
-        
-        # Verify the in-memory config is also unchanged  
-        updated_config = builder.config
-        argo_spec_str = updated_config["pipeline"]["orchestration_spec"]["argo_orchestration_spec"]
-        argo_spec = yaml.safe_load(argo_spec_str)
-
-        # Check that templateRef was NOT updated (new behavior)
-        template_ref = argo_spec["spec"]["templates"][0]["steps"][0][0]["templateRef"]
-        original_name = "users/test-user/apps/test-app/pipeline_steps/stepA"
-        assert template_ref["name"] == original_name
 
     @patch('clarifai.runners.pipelines.pipeline_builder.BaseClient')
     def test_create_pipeline_success(self, mock_base_client, temp_config_file):
@@ -640,13 +614,10 @@ spec:
         assert builder.uploaded_step_versions == {}
 
     def test_update_config_with_no_versions(self, temp_config_file_no_dirs):
-        """Test updating config when no versions were uploaded."""
+        """Test that config remains unchanged when no versions were uploaded."""
         builder = PipelineBuilder(temp_config_file_no_dirs)
 
-        # Should handle no uploaded versions gracefully
-        builder.update_config_with_versions()
-
-        # Config should be unchanged
+        # Config should be unchanged when no versions are available
         assert "step_directories" not in builder.config["pipeline"]
 
 
@@ -668,7 +639,7 @@ class TestUploadPipeline:
         mock_builder_class.assert_called_once_with("test-config.yaml")
         mock_builder.upload_pipeline_steps.assert_called_once()
         mock_builder.create_pipeline.assert_called_once()
-        # Note: update_config_with_versions is no longer called by default
+        # Note: config.yaml is no longer modified during pipeline upload
 
     @patch('clarifai.runners.pipelines.pipeline_builder.PipelineBuilder')
     @patch('os.path.isdir')
@@ -693,7 +664,7 @@ class TestUploadPipeline:
         mock_builder_class.assert_called_once_with(os.path.join(path_to_dir, "config.yaml"))
         mock_builder.upload_pipeline_steps.assert_called_once()
         mock_builder.create_pipeline.assert_called_once()
-        # Note: update_config_with_versions is no longer called by default
+        # Note: config.yaml is no longer modified during pipeline upload
 
     @patch('os.path.isdir')
     @patch('os.path.exists')
@@ -723,7 +694,7 @@ class TestUploadPipeline:
 
         mock_builder.upload_pipeline_steps.assert_called_once()
         mock_builder.create_pipeline.assert_called_once()
-        # Note: update_config_with_versions is no longer called by default
+        # Note: config.yaml is no longer modified during pipeline upload
 
     @patch('clarifai.runners.pipelines.pipeline_builder.PipelineBuilder')
     @patch('sys.exit')
