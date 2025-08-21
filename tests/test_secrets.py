@@ -65,6 +65,7 @@ def cleanup_env():
         "SERVER_SECRET",
         "INITIAL_SECRET",
         "UPDATED_SECRET",
+        "PRECEDENCE_KEY",
     ]
     yield
     # Restore environment
@@ -204,9 +205,14 @@ class TestSecretsSystem:
         assert new_extracted is not None
         assert new_extracted["E2E_KEY"] == "updated_e2e"
 
-        # Test precedence (env vars vs file vs request)
-        os.environ["E2E_KEY"] = "env_value"
-        secrets_file.write_text("E2E_KEY=file_value\nFILE_ONLY=file_only\n")
+    def test_secrets_precedence(self, secrets_file):
+        """Test precedence: file secrets should override environment variables."""
+        # Set up environment variable
+        os.environ["PRECEDENCE_KEY"] = "env_value"
+        os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
+
+        # Create file with different value
+        secrets_file.write_text("PRECEDENCE_KEY=file_value\nFILE_ONLY=file_only\n")
 
         load_secrets_file(secrets_file)
         request = service_pb2.PostModelOutputsRequest()
@@ -215,7 +221,7 @@ class TestSecretsSystem:
         extracted = get_request_secrets(request)
         # File should override env in this implementation
         assert extracted is not None
-        assert extracted["E2E_KEY"] == "file_value"
+        assert extracted["PRECEDENCE_KEY"] == "file_value"
         assert extracted["FILE_ONLY"] == "file_only"
 
     def test_model_server_integration(self, secrets_file):
