@@ -2,6 +2,7 @@
 
 ### Changed
 - avoid downloading original checkpoints [(#760)] (https://github.com/Clarifai/clarifai-python/pull/760)
+- integrate secrets into SDK [(#757)] (https://github.com/Clarifai/clarifai-python/pull/757)
 
 ## [[11.7.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.2) - [PyPI](https://pypi.org/project/clarifai/11.7.2/) - 2025-08-19
 
