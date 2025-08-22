@@ -1040,7 +1040,10 @@ def _validate_compute_params(compute_cluster_id, nodepool_id, deployment_id):
     '-dpl_id', '--deployment_id', required=False, help='Deployment ID to use for the model'
 )
 @click.option(
-    '-dpl_usr_id', '--deployment_user_id', required=False, help='User ID to use for runner selector (organization or user). If not provided, defaults to PAT owner user_id.'
+    '-dpl_usr_id',
+    '--deployment_user_id',
+    required=False,
+    help='User ID to use for runner selector (organization or user). If not provided, defaults to PAT owner user_id.',
 )
 @click.option(
     '--inputs',
@@ -1132,7 +1135,9 @@ def predict(
     )
 
     model_methods = model.client.available_methods()
-    stream_method = model.client.method_signature(method).split()[-1][:-1].lower().startswith('iter')
+    stream_method = (
+        model.client.method_signature(method).split()[-1][:-1].lower().startswith('iter')
+    )
 
     # Determine prediction method and execute
     if inputs and (method in model_methods):
