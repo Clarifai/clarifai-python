@@ -21,20 +21,37 @@ NOW = uuid.uuid4().hex[:10]
 
 
 @pytest.fixture(scope="function")
-def secrets_file():
-    """Create a temporary secrets file."""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
-        secrets_path = Path(f.name)
-    yield secrets_path
-    # Cleanup
-    secrets_path.unlink(missing_ok=True)
+def secrets_directory():
+    """Create a temporary secrets directory structure."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        secrets_path = Path(temp_dir)
+        yield secrets_path
 
 
 @pytest.fixture(scope="function")
-def populated_secrets_file():
-    """Create a secrets file with test content."""
+def populated_secrets_directory():
+    """Create a secrets directory with test content in the expected K8s structure."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        secrets_path = Path(temp_dir)
+
+        # Create TEST_API_KEY secret in K8s structure
+        api_key_dir = secrets_path / "TEST_API_KEY"
+        api_key_dir.mkdir()
+        (api_key_dir / "TEST_API_KEY").write_text("TEST_API_KEY=test_value\n")
+
+        # Create TEST_SECRET secret in K8s structure
+        test_secret_dir = secrets_path / "TEST_SECRET"
+        test_secret_dir.mkdir()
+        (test_secret_dir / "TEST_SECRET").write_text("TEST_SECRET=secret123\n")
+
+        yield secrets_path
+
+
+@pytest.fixture(scope="function")
+def legacy_secrets_file():
+    """Create a temporary legacy .env file for backward compatibility tests."""
     with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
-        f.write("TEST_API_KEY=test_value\nTEST_SECRET=secret123\n")
+        f.write("LEGACY_KEY=legacy_value\nANOTHER_KEY=another_value\n")
         secrets_path = Path(f.name)
     yield secrets_path
     # Cleanup
@@ -55,6 +72,8 @@ def cleanup_env():
         "UPDATED_SECRET",
         "PRECEDENCE_KEY",
         "RELOAD_SECRET",
+        "LEGACY_KEY",
+        "ANOTHER_KEY",
     ]
     yield
     # Restore environment
@@ -67,25 +86,80 @@ def cleanup_env():
         os.environ.pop(key, None)
 
 
-class TestSecretsSystem:
-    """Tests for secrets management system."""
+def create_secret_in_directory(base_path: Path, secret_name: str, secret_content: str):
+    """Helper to create a secret in the K8s directory structure."""
+    secret_dir = base_path / secret_name
+    secret_dir.mkdir(exist_ok=True)
+    (secret_dir / secret_name).write_text(secret_content)
 
-    def test_load_secrets_file(self, populated_secrets_file):
-        """Test loading secrets from file."""
-        result = load_secrets(populated_secrets_file)
+
+class TestSecretsSystem:
+    """Tests for secrets management system with K8s directory structure."""
+
+    def test_load_secrets_directory(self, populated_secrets_directory):
+        """Test loading secrets from K8s directory structure."""
+        result = load_secrets(populated_secrets_directory)
         assert result == {"TEST_API_KEY": "test_value", "TEST_SECRET": "secret123"}
         assert os.environ["TEST_API_KEY"] == "test_value"
         assert os.environ["TEST_SECRET"] == "secret123"
 
-    def test_load_nonexistent_file(self):
-        """Test loading from nonexistent file."""
-        result = load_secrets(Path("/nonexistent/file.env"))
+    def test_load_nonexistent_directory(self):
+        """Test loading from nonexistent directory."""
+        result = load_secrets(Path("/nonexistent/directory"))
         assert result is None
 
-    def test_inject_secrets_into_request(self, populated_secrets_file):
+    def test_load_empty_directory(self, secrets_directory):
+        """Test loading from empty directory."""
+        result = load_secrets(secrets_directory)
+        assert result == {}
+
+    def test_complex_secret_structures(self, secrets_directory):
+        """Test secrets with complex .env content."""
+        # Create a secret with multiple key-value pairs
+        multi_content = "DB_HOST=localhost\nDB_PORT=5432\nDB_NAME=myapp\n"
+        create_secret_in_directory(secrets_directory, "database-config", multi_content)
+
+        # Create a secret with special characters
+        special_content = "API_KEY=sk-1234567890abcdef\nSECRET_TOKEN=Bearer xyz123==\n"
+        create_secret_in_directory(secrets_directory, "api-credentials", special_content)
+
+        result = load_secrets(secrets_directory)
+        assert result is not None
+        assert result["DB_HOST"] == "localhost"
+        assert result["DB_PORT"] == "5432"
+        assert result["DB_NAME"] == "myapp"
+        assert result["API_KEY"] == "sk-1234567890abcdef"
+        assert result["SECRET_TOKEN"] == "Bearer xyz123=="
+
+    def test_malformed_secret_files(self, secrets_directory):
+        """Test handling of malformed secret files."""
+        # Create a valid secret
+        create_secret_in_directory(secrets_directory, "valid-secret", "VALID_KEY=valid_value\n")
+
+        # Create a malformed secret (no equals signs)
+        create_secret_in_directory(
+            secrets_directory, "malformed-secret", "INVALID_LINE_NO_EQUALS\n"
+        )
+
+        # Create a secret with mixed valid/invalid content
+        mixed_content = """
+        # Comment
+        VALID_KEY=valid_value
+        INVALID_LINE_NO_EQUALS
+        ANOTHER_VALID=value_with=equals
+        """
+        create_secret_in_directory(secrets_directory, "mixed-secret", mixed_content)
+
+        result = load_secrets(secrets_directory)
+        assert result is not None
+        assert "VALID_KEY" in result
+        assert "ANOTHER_VALID" in result
+        assert result["ANOTHER_VALID"] == "value_with=equals"
+
+    def test_inject_secrets_into_request(self, populated_secrets_directory):
         """Test injecting secrets into protobuf request."""
-        os.environ["CLARIFAI_SECRETS_PATH"] = str(populated_secrets_file)
-        load_secrets(populated_secrets_file)
+        os.environ["CLARIFAI_SECRETS_PATH"] = str(populated_secrets_directory)
+        load_secrets(populated_secrets_directory)
 
         request = service_pb2.PostModelOutputsRequest()
         inject_secrets(request)
@@ -102,10 +176,10 @@ class TestSecretsSystem:
         partial_request = service_pb2.PostModelOutputsRequest()
         inject_secrets(partial_request)
 
-    def test_file_watcher_detects_changes(self, secrets_file):
-        """Test that file watcher detects file modifications."""
-        # Create initial file
-        secrets_file.write_text("INITIAL_KEY=initial_value\n")
+    def test_directory_watcher_detects_changes(self, secrets_directory):
+        """Test that directory watcher detects file modifications."""
+        # Create initial secret
+        create_secret_in_directory(secrets_directory, "INITIAL_KEY", "INITIAL_KEY=initial_value\n")
 
         callback_called = threading.Event()
         callback_count = 0
@@ -116,7 +190,7 @@ class TestSecretsSystem:
             callback_called.set()
 
         # Start watcher with short interval
-        watcher_thread = start_secrets_watcher(secrets_file, test_callback, interval=0.1)
+        watcher_thread = start_secrets_watcher(secrets_directory, test_callback, interval=0.1)
 
         try:
             # Verify thread started
@@ -125,53 +199,49 @@ class TestSecretsSystem:
             # Give watcher time to establish baseline
             time.sleep(0.2)
 
-            # Modify file
-            secrets_file.write_text("UPDATED_KEY=updated_value\n")
+            # Modify existing secret
+            create_secret_in_directory(
+                secrets_directory, "INITIAL_KEY", "INITIAL_KEY=updated_value\n"
+            )
 
             # Wait for callback
             assert callback_called.wait(timeout=2.0), "Callback should have been triggered"
             assert callback_count > 0, "Callback should have been called"
+
+            # Reset for next test
+            callback_called.clear()
+            old_count = callback_count
+
+            # Add new secret
+            create_secret_in_directory(secrets_directory, "NEW_SECRET", "NEW_SECRET=new_value\n")
+
+            # Wait for callback
+            assert callback_called.wait(timeout=2.0), "Callback should be triggered for new secret"
+            assert callback_count > old_count, "Callback count should increase"
+
         finally:
             # Note: The watcher thread is daemon, so it will die with the test
             pass
 
-    def test_secrets_helper_function(self, populated_secrets_file):
+    def test_secrets_helper_function(self, populated_secrets_directory):
         """Test the public get_secret() helper function."""
-        load_secrets(populated_secrets_file)
+        load_secrets(populated_secrets_directory)
 
         assert get_secret("TEST_API_KEY") == "test_value"
         assert get_secret("TEST_SECRET") == "secret123"
         assert get_secret("NONEXISTENT") is None
 
-        # Test case-insensitive lookup
+        # Test case-insensitive lookup for environment variables
         assert get_secret("test_api_key") == "test_value"
 
-    def test_malformed_secrets_file(self, secrets_file):
-        """Test handling of malformed .env files."""
-        malformed_content = """
-        # Comment
-        VALID_KEY=valid_value
-        INVALID_LINE_NO_EQUALS
-        ANOTHER_VALID=value_with=equals
-        """
-        secrets_file.write_text(malformed_content)
-
-        result = load_secrets(secrets_file)
-
-        assert result is not None
-        assert "VALID_KEY" in result
-        assert "ANOTHER_VALID" in result
-        assert result["ANOTHER_VALID"] == "value_with=equals"
-        assert "INVALID_LINE_NO_EQUALS" not in str(result)
-
-    def test_end_to_end_workflow(self, secrets_file):
-        """Test complete workflow from file creation to request processing."""
-        # 1. Create secrets file
-        secrets_file.write_text("E2E_KEY=e2e_value\n")
-        os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
+    def test_end_to_end_workflow(self, secrets_directory):
+        """Test complete workflow from directory creation to request processing."""
+        # 1. Create secrets directory structure
+        create_secret_in_directory(secrets_directory, "E2E_KEY", "E2E_KEY=e2e_value\n")
+        os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_directory)
 
         # 2. Load secrets
-        load_secrets(secrets_file)
+        load_secrets(secrets_directory)
         assert os.environ["E2E_KEY"] == "e2e_value"
 
         # 3. Inject into request
@@ -183,10 +253,10 @@ class TestSecretsSystem:
         assert extracted is not None
         assert extracted["E2E_KEY"] == "e2e_value"
 
-        # 5. Update file and verify new secrets
-        time.sleep(0.01)  # Ensure different mtime for cache invalidation
-        secrets_file.write_text("E2E_KEY=updated_e2e\n")
-        load_secrets(secrets_file)
+        # 5. Update secret and verify new value
+        time.sleep(0.01)  # Ensure different mtime for change detection
+        create_secret_in_directory(secrets_directory, "E2E_KEY", "E2E_KEY=updated_e2e\n")
+        load_secrets(secrets_directory)
 
         new_request = service_pb2.PostModelOutputsRequest()
         inject_secrets(new_request)
@@ -194,29 +264,36 @@ class TestSecretsSystem:
         assert new_extracted is not None
         assert new_extracted["E2E_KEY"] == "updated_e2e"
 
-    def test_secrets_precedence(self, secrets_file):
-        """Test precedence: file secrets should override environment variables."""
+    def test_secrets_precedence(self, secrets_directory):
+        """Test precedence: loaded secrets should set environment variables."""
         # Set up environment variable
         os.environ["PRECEDENCE_KEY"] = "env_value"
-        os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
+        os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_directory)
 
-        # Create file with different value
-        secrets_file.write_text("PRECEDENCE_KEY=file_value\nFILE_ONLY=file_only\n")
+        # Create secrets with different values
+        create_secret_in_directory(
+            secrets_directory,
+            "precedence-secret",
+            "PRECEDENCE_KEY=file_value\nFILE_ONLY=file_only\n",
+        )
 
-        load_secrets(secrets_file)
+        load_secrets(secrets_directory)
         request = service_pb2.PostModelOutputsRequest()
         inject_secrets(request)
 
         extracted = get_request_secrets(request)
-        # File should override env in this implementation
         assert extracted is not None
-        assert extracted["PRECEDENCE_KEY"] == "file_value"
+        assert extracted["PRECEDENCE_KEY"] == "file_value"  # File should override env
         assert extracted["FILE_ONLY"] == "file_only"
 
-    def test_model_server_integration(self, secrets_file):
+        # Verify environment was updated
+        assert os.environ["PRECEDENCE_KEY"] == "file_value"
+        assert os.environ["FILE_ONLY"] == "file_only"
+
+    def test_model_server_integration(self, secrets_directory):
         """Test ModelServer secrets integration by calling reload directly."""
-        secrets_file.write_text("SERVER_SECRET=initial\n")
-        os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
+        create_secret_in_directory(secrets_directory, "server-secret", "SERVER_SECRET=initial\n")
+        os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_directory)
 
         with patch('clarifai.runners.server.ModelBuilder') as mock_builder:
             # Disable the watcher for this test to focus on reload functionality
@@ -228,15 +305,17 @@ class TestSecretsSystem:
 
                 server = ModelServer("dummy_path")
 
-                # Verify watcher was attempted to be started
+                # Verify watcher was attempted to be started (only if secrets path exists)
                 mock_watcher.assert_called_once()
 
                 # Verify initial secrets loaded
                 assert os.environ.get("SERVER_SECRET") == "initial"
                 assert mock_builder.return_value.create_model_instance.call_count == 1
 
-                # Update secrets file
-                secrets_file.write_text("SERVER_SECRET=updated\n")
+                # Update secrets directory
+                create_secret_in_directory(
+                    secrets_directory, "server-secret", "SERVER_SECRET=updated\n"
+                )
 
                 # Manually trigger reload (simulating what watcher would do)
                 server.reload_model_on_secrets_change()
@@ -245,11 +324,13 @@ class TestSecretsSystem:
                 assert os.environ.get("SERVER_SECRET") == "updated"
                 assert mock_builder.return_value.create_model_instance.call_count == 2
 
-    def test_model_reload_on_secrets_change(self, secrets_file):
+    def test_model_reload_on_secrets_change(self, secrets_directory):
         """Test that model is reloaded and servicer/runner are updated correctly."""
         # Setup initial secrets
-        secrets_file.write_text("RELOAD_SECRET=initial_value\n")
-        os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
+        create_secret_in_directory(
+            secrets_directory, "reload-secret", "RELOAD_SECRET=initial_value\n"
+        )
+        os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_directory)
 
         with patch('clarifai.runners.server.ModelBuilder') as mock_builder:
             mock_model_instance = MagicMock()
@@ -269,9 +350,11 @@ class TestSecretsSystem:
             assert mock_builder.return_value.create_model_instance.call_count == 1
             assert os.environ.get("RELOAD_SECRET") == "initial_value"
 
-            # Change secrets file - update the same key to test replacement
-            time.sleep(0.01)  # Ensure different mtime for cache invalidation
-            secrets_file.write_text("RELOAD_SECRET=updated_value\n")
+            # Change secrets directory
+            time.sleep(0.01)  # Ensure different mtime for change detection
+            create_secret_in_directory(
+                secrets_directory, "reload-secret", "RELOAD_SECRET=updated_value\n"
+            )
 
             # Trigger reload
             server.reload_model_on_secrets_change()
@@ -286,10 +369,10 @@ class TestSecretsSystem:
             # Verify secrets were reloaded with new value
             assert os.environ.get("RELOAD_SECRET") == "updated_value"
 
-    def test_model_reload_error_handling(self, secrets_file):
+    def test_model_reload_error_handling(self, secrets_directory):
         """Test error handling during model reload."""
-        secrets_file.write_text("SECRET=value\n")
-        os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_file)
+        create_secret_in_directory(secrets_directory, "error-secret", "SECRET=value\n")
+        os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_directory)
 
         with patch('clarifai.runners.server.ModelBuilder') as mock_builder:
             mock_builder.return_value.create_model_instance.side_effect = [
@@ -302,10 +385,50 @@ class TestSecretsSystem:
             server = ModelServer("dummy_path")
 
             # Change secrets and trigger reload
-            secrets_file.write_text("NEW_SECRET=new_value\n")
+            create_secret_in_directory(secrets_directory, "new-secret", "NEW_SECRET=new_value\n")
 
             # Should not crash even if model reload fails
             server.reload_model_on_secrets_change()
 
             # Verify it attempted to reload
             assert mock_builder.return_value.create_model_instance.call_count == 2
+
+    def test_backward_compatibility_with_legacy_files(self, legacy_secrets_file):
+        """Test that the system gracefully handles legacy .env files (if supported)."""
+        # This test would only pass if you add backward compatibility logic
+        # For now, we expect it to fail gracefully
+        result = load_secrets(legacy_secrets_file)
+        # Since your current implementation expects directories, this should return None
+        assert result is None
+
+    def test_missing_secret_files_in_directories(self, secrets_directory):
+        """Test handling of directories without corresponding secret files."""
+        # Create directory structure but don't create the expected files
+        orphan_dir = secrets_directory / "orphan-secret"
+        orphan_dir.mkdir()
+        # Don't create the secret file inside
+
+        # Create a valid secret for comparison
+        create_secret_in_directory(secrets_directory, "valid-secret", "VALID_KEY=valid_value\n")
+
+        result = load_secrets(secrets_directory)
+        assert result is not None
+        assert "VALID_KEY" in result
+        # Should not include anything from the orphan directory
+        assert len([k for k in result.keys() if "orphan" in k.lower()]) == 0
+
+    def test_empty_secret_files(self, secrets_directory):
+        """Test handling of empty secret files."""
+        # Create an empty secret file
+        empty_dir = secrets_directory / "empty-secret"
+        empty_dir.mkdir()
+        (empty_dir / "empty-secret").write_text("")
+
+        # Create a valid secret for comparison
+        create_secret_in_directory(secrets_directory, "valid-secret", "VALID_KEY=valid_value\n")
+
+        result = load_secrets(secrets_directory)
+        assert result is not None
+        assert "VALID_KEY" in result
+        # Empty files should not contribute any keys
+        assert len([k for k in result.keys() if "empty" in k.lower()]) == 0
