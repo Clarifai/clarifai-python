@@ -20,18 +20,6 @@ from clarifai.utils.secrets import (
 NOW = uuid.uuid4().hex[:10]
 
 
-@pytest.fixture(autouse=True)
-def clear_secrets_cache():
-    """Clear secrets cache before each test."""
-    import clarifai.utils.secrets as sm
-
-    sm._secrets_cache.clear()
-    sm._last_cache_time = 0
-    yield
-    sm._secrets_cache.clear()
-    sm._last_cache_time = 0
-
-
 @pytest.fixture(scope="function")
 def secrets_file():
     """Create a temporary secrets file."""
