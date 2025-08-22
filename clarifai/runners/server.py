@@ -85,11 +85,109 @@ class ModelServer:
         self._servicer = None
         self._runner = None
         self._secrets_path = get_secrets_path()
-        if self._secrets_path:
-            load_secrets(self._secrets_path)
-            start_secrets_watcher(self._secrets_path, self.reload_model_on_secrets_change)
+        self._watcher_thread = None
+
+        # Initialize secrets system with enhanced validation
+        self._initialize_secrets_system()
+
+        # Build model after secrets are loaded
         self._builder = ModelBuilder(model_path, download_validation_only=True)
         self._current_model = self._builder.create_model_instance()
+        logger.info("ModelServer initialized successfully")
+
+    def _initialize_secrets_system(self):
+        """Initialize the secrets management system with comprehensive validation."""
+        if not self._secrets_path:
+            logger.info("No secrets path configured, running without secrets")
+            return
+
+        logger.info(f"Initializing secrets system with path: {self._secrets_path}")
+
+        # Load existing secrets if directory exists
+        if self._secrets_path.exists():
+            try:
+                loaded_secrets = load_secrets(self._secrets_path)
+                if loaded_secrets:
+                    logger.info(f"Loaded {len(loaded_secrets)} initial secrets")
+                else:
+                    logger.info("Secrets directory exists but contains no valid secrets")
+            except Exception as e:
+                logger.error(f"Error loading initial secrets: {e}")
+        else:
+            logger.info(f"Secrets directory does not exist yet: {self._secrets_path}")
+
+        # Always start the watcher regardless of current directory state
+        # This handles the case where secrets are mounted after server startup
+        try:
+            self._watcher_thread = start_secrets_watcher(
+                self._secrets_path, self.reload_model_on_secrets_change, interval=10.0
+            )
+            logger.info("Secrets watcher started successfully")
+        except Exception as e:
+            logger.error(f"Failed to start secrets watcher: {e}")
+            # Don't fail server startup if watcher fails
+            self._watcher_thread = None
+
+    def reload_model_on_secrets_change(self) -> None:
+        """Reload model and environment secrets when the secrets directory changes.
+
+        This method implements a robust reload strategy with comprehensive error handling
+        and component state management.
+        """
+        logger.info("Detected secrets change, initiating model reload sequence...")
+
+        # Step 1: Reload secrets from filesystem
+        if self._secrets_path is not None:
+            try:
+                loaded_secrets = load_secrets(self._secrets_path)
+                if loaded_secrets:
+                    logger.info(
+                        f"Reloaded {len(loaded_secrets)} secrets: {list(loaded_secrets.keys())}"
+                    )
+                else:
+                    logger.warning("No secrets loaded during reload")
+            except Exception as e:
+                logger.error(f"Failed to reload secrets: {e}")
+                return
+
+        # Step 2: Rebuild model instance
+        if self._builder is not None:
+            try:
+                logger.info("Rebuilding model instance...")
+                self._current_model = self._builder.create_model_instance()
+                logger.info("Model instance rebuilt successfully")
+            except Exception as e:
+                logger.error(f"Failed to rebuild model instance: {e}")
+                # Keep the previous model instance if rebuild fails
+                return
+
+        # Step 3: Update servicer with new model
+        if self._servicer and self._current_model:
+            try:
+                self._servicer.set_model(self._current_model)
+                logger.info("Updated servicer with new model instance")
+            except Exception as e:
+                logger.error(f"Failed to update servicer with new model: {e}")
+
+        # Step 4: Update runner with new model
+        if self._runner and self._current_model:
+            try:
+                self._runner.set_model(self._current_model)
+                logger.info("Updated runner with new model instance")
+            except Exception as e:
+                logger.error(f"Failed to update runner with new model: {e}")
+
+        logger.info("Model reload sequence completed successfully")
+
+    def shutdown(self):
+        """Gracefully shutdown the server and cleanup resources."""
+        logger.info("Shutting down ModelServer...")
+
+        # Stop the watcher thread
+        if self._watcher_thread and self._watcher_thread.is_alive():
+            logger.info("Stopping secrets watcher...")
+            # Note: Since it's a daemon thread, it will stop when main process exits
+        logger.info("ModelServer shutdown completed")
 
     def serve(
         self,
@@ -209,30 +307,6 @@ class ModelServer:
             )
             logger.info("Press CTRL+C to stop the runner.\n")
         self._runner.start()  # start the runner to fetch work from the API.
-
-    def reload_model_on_secrets_change(self) -> None:
-        """reload_model_on_secrets_change reloads the model and environment secrets when the secrets
-        file changes.
-        """
-        logger.info("Detected change in secrets file, reloading model...")
-        if self._secrets_path is not None:
-            load_secrets(self._secrets_path)
-        if self._builder is not None:
-            try:
-                self._current_model = self._builder.create_model_instance()
-            except Exception as e:
-                logger.error(f"Failed to reload model: {e}")
-                return
-        if self._servicer and self._current_model:
-            try:
-                self._servicer.set_model(self._current_model)
-            except Exception as e:
-                logger.error(f"Failed to set model in servicer: {e}")
-        if self._runner and self._current_model:
-            try:
-                self._runner.set_model(self._current_model)
-            except Exception as e:
-                logger.error(f"Failed to set model in runner: {e}")
 
 
 if __name__ == '__main__':

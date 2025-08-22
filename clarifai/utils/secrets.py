@@ -59,18 +59,33 @@ def get_env_variable(path: Path) -> Optional[dict[str, str]]:
 
 
 def read_secrets_file(path: Path) -> Optional[dict[str, str]]:
+    """Read secrets from a single .env formatted file with robust error handling."""
+    if not path.exists() or not path.is_file():
+        logger.warning(f"Secret file does not exist or is not a file: {path}")
+        return None
     loaded_keys = {}
-    with open(path, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            if '=' not in line:
-                continue
-            key, value = line.split('=', 1)
-            key = key.strip()
-            value = value.strip().strip('"').strip("'")
-            loaded_keys[key] = value
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if '=' not in line:
+                    logger.warning(f"Invalid line format in {path}:{line_num}: {line}")
+                    continue
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key:  # Only add non-empty keys
+                    loaded_keys[key] = value
+                    logger.debug(f"Loaded secret key: {key}")
+    except (IOError, OSError, UnicodeDecodeError) as e:
+        logger.error(f"Error reading secrets file {path}: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error reading secrets file {path}: {e}")
+        return None
+
     return loaded_keys if loaded_keys else None
 
 

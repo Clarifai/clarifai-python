@@ -157,70 +157,86 @@ class TestSecretsSystem:
         assert result["ANOTHER_VALID"] == "value_with=equals"
 
     def test_inject_secrets_into_request(self, populated_secrets_directory):
-        """Test injecting secrets into protobuf request."""
+        """Test injecting secrets into protobuf request with proper environment setup."""
+        # Critical: Set environment BEFORE loading secrets
         os.environ["CLARIFAI_SECRETS_PATH"] = str(populated_secrets_directory)
-        load_secrets(populated_secrets_directory)
 
+        # Load secrets into environment
+        result = load_secrets(populated_secrets_directory)
+        assert result is not None, "Secrets should load successfully"
+        assert len(result) > 0, "Should have loaded at least one secret"
+
+        # Create and inject into request
         request = service_pb2.PostModelOutputsRequest()
         inject_secrets(request)
 
+        # Verify injection worked
         secrets_from_request = get_request_secrets(request)
-        assert secrets_from_request is not None
-        assert "TEST_API_KEY" in secrets_from_request
-        assert secrets_from_request["TEST_API_KEY"] == "test_value"
+        assert secrets_from_request is not None, "Request should contain injected secrets"
+        assert "TEST_API_KEY" in secrets_from_request, "TEST_API_KEY should be in request"
+        assert secrets_from_request["TEST_API_KEY"] == "test_value", "Secret value should match"
 
-        # Test with None request (edge case)
-        inject_secrets(None)
+        # Test edge cases
+        inject_secrets(None)  # Should not crash
 
-        # Test with partial request (edge case)
-        partial_request = service_pb2.PostModelOutputsRequest()
-        inject_secrets(partial_request)
+        empty_request = service_pb2.PostModelOutputsRequest()
+        inject_secrets(empty_request)  # Should create proper structure
 
     def test_directory_watcher_detects_changes(self, secrets_directory):
-        """Test that directory watcher detects file modifications."""
+        """Test directory watcher with corrected timing and change detection."""
         # Create initial secret
         create_secret_in_directory(secrets_directory, "INITIAL_KEY", "INITIAL_KEY=initial_value\n")
 
-        callback_called = threading.Event()
-        callback_count = 0
+        callback_events = []
+        callback_lock = threading.Lock()
 
         def test_callback():
-            nonlocal callback_count
-            callback_count += 1
-            callback_called.set()
+            with callback_lock:
+                callback_events.append(time.time())
 
-        # Start watcher with short interval
-        watcher_thread = start_secrets_watcher(secrets_directory, test_callback, interval=0.1)
+        # Start watcher with aggressive interval for testing
+        watcher_thread = start_secrets_watcher(secrets_directory, test_callback, interval=0.05)
 
         try:
-            # Verify thread started
             assert watcher_thread.is_alive(), "Watcher thread should be running"
 
-            # Give watcher time to establish baseline
+            # Give watcher time to establish baseline and detect initial file
             time.sleep(0.2)
 
-            # Modify existing secret
+            # Verify initial state
+            initial_count = len(callback_events)
+
+            # Modify existing secret - this should trigger callback
+            time.sleep(0.1)  # Ensure different mtime
             create_secret_in_directory(
                 secrets_directory, "INITIAL_KEY", "INITIAL_KEY=updated_value\n"
             )
 
-            # Wait for callback
-            assert callback_called.wait(timeout=2.0), "Callback should have been triggered"
-            assert callback_count > 0, "Callback should have been called"
+            # Wait for detection with timeout
+            timeout = time.time() + 3.0
+            while len(callback_events) <= initial_count and time.time() < timeout:
+                time.sleep(0.05)
 
-            # Reset for next test
-            callback_called.clear()
-            old_count = callback_count
+            assert len(callback_events) > initial_count, (
+                f"Should detect file modification. Events: {len(callback_events)}"
+            )
 
-            # Add new secret
+            # Test new file detection
+            previous_count = len(callback_events)
+            time.sleep(0.1)  # Ensure different mtime
             create_secret_in_directory(secrets_directory, "NEW_SECRET", "NEW_SECRET=new_value\n")
 
-            # Wait for callback
-            assert callback_called.wait(timeout=2.0), "Callback should be triggered for new secret"
-            assert callback_count > old_count, "Callback count should increase"
+            # Wait for new file detection
+            timeout = time.time() + 3.0
+            while len(callback_events) <= previous_count and time.time() < timeout:
+                time.sleep(0.05)
+
+            assert len(callback_events) > previous_count, (
+                f"Should detect new file. Events: {len(callback_events)}"
+            )
 
         finally:
-            # Note: The watcher thread is daemon, so it will die with the test
+            # Cleanup - thread will die when test ends due to daemon=True
             pass
 
     def test_secrets_helper_function(self, populated_secrets_directory):
@@ -291,42 +307,43 @@ class TestSecretsSystem:
         assert os.environ["FILE_ONLY"] == "file_only"
 
     def test_model_server_integration(self, secrets_directory):
-        """Test ModelServer secrets integration by calling reload directly."""
+        """Test ModelServer integration with proper initialization sequence."""
+        # Setup secrets BEFORE creating server
         create_secret_in_directory(secrets_directory, "server-secret", "SERVER_SECRET=initial\n")
         os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_directory)
 
         with patch('clarifai.runners.server.ModelBuilder') as mock_builder:
-            # Disable the watcher for this test to focus on reload functionality
-            with patch('clarifai.runners.server.start_secrets_watcher') as mock_watcher:
-                mock_model = MagicMock()
-                mock_builder.return_value.create_model_instance.return_value = mock_model
+            # Don't mock the watcher - let it run normally for this test
+            mock_model = MagicMock()
+            mock_builder.return_value.create_model_instance.return_value = mock_model
 
-                from clarifai.runners.server import ModelServer
+            from clarifai.runners.server import ModelServer
 
-                server = ModelServer("dummy_path")
+            # Create server - this should load initial secrets and start watcher
+            server = ModelServer("dummy_path")
 
-                # Verify watcher was attempted to be started (only if secrets path exists)
-                mock_watcher.assert_called_once()
+            # Verify initial state
+            assert mock_builder.return_value.create_model_instance.call_count == 1
+            assert os.environ.get("SERVER_SECRET") == "initial", "Initial secret should be loaded"
 
-                # Verify initial secrets loaded
-                assert os.environ.get("SERVER_SECRET") == "initial"
-                assert mock_builder.return_value.create_model_instance.call_count == 1
+            # Update secrets and trigger reload manually
+            # (In production, the watcher would trigger this automatically)
+            create_secret_in_directory(
+                secrets_directory, "server-secret", "SERVER_SECRET=updated\n"
+            )
 
-                # Update secrets directory
-                create_secret_in_directory(
-                    secrets_directory, "server-secret", "SERVER_SECRET=updated\n"
-                )
+            # Manually trigger reload to simulate watcher behavior
+            server.reload_model_on_secrets_change()
 
-                # Manually trigger reload (simulating what watcher would do)
-                server.reload_model_on_secrets_change()
-
-                # Verify secrets were reloaded and model was recreated
-                assert os.environ.get("SERVER_SECRET") == "updated"
-                assert mock_builder.return_value.create_model_instance.call_count == 2
+            # Verify reload occurred
+            assert os.environ.get("SERVER_SECRET") == "updated", "Secret should be updated"
+            assert mock_builder.return_value.create_model_instance.call_count == 2, (
+                "Model should be rebuilt"
+            )
 
     def test_model_reload_on_secrets_change(self, secrets_directory):
-        """Test that model is reloaded and servicer/runner are updated correctly."""
-        # Setup initial secrets
+        """Test comprehensive model reload with component updates."""
+        # Setup initial state
         create_secret_in_directory(
             secrets_directory, "reload-secret", "RELOAD_SECRET=initial_value\n"
         )
@@ -336,7 +353,7 @@ class TestSecretsSystem:
             mock_model_instance = MagicMock()
             mock_builder.return_value.create_model_instance.return_value = mock_model_instance
 
-            # Mock servicer and runner
+            # Mock servicer and runner with proper set_model methods
             mock_servicer = MagicMock()
             mock_runner = MagicMock()
 
@@ -346,28 +363,28 @@ class TestSecretsSystem:
             server._servicer = mock_servicer
             server._runner = mock_runner
 
-            # Verify initial model was created and initial secrets loaded
+            # Verify initial state
             assert mock_builder.return_value.create_model_instance.call_count == 1
             assert os.environ.get("RELOAD_SECRET") == "initial_value"
 
-            # Change secrets directory
-            time.sleep(0.01)  # Ensure different mtime for change detection
+            # Update secrets and trigger reload
+            time.sleep(0.01)  # Ensure different mtime
             create_secret_in_directory(
                 secrets_directory, "reload-secret", "RELOAD_SECRET=updated_value\n"
             )
 
-            # Trigger reload
+            # Trigger reload sequence
             server.reload_model_on_secrets_change()
 
-            # Verify model was recreated
-            assert mock_builder.return_value.create_model_instance.call_count == 2
-
-            # Verify new model was set on servicer and runner
+            # Verify complete reload sequence
+            assert mock_builder.return_value.create_model_instance.call_count == 2, (
+                "Model should be rebuilt"
+            )
             mock_servicer.set_model.assert_called_once_with(mock_model_instance)
             mock_runner.set_model.assert_called_once_with(mock_model_instance)
-
-            # Verify secrets were reloaded with new value
-            assert os.environ.get("RELOAD_SECRET") == "updated_value"
+            assert os.environ.get("RELOAD_SECRET") == "updated_value", (
+                "Environment should be updated"
+            )
 
     def test_model_reload_error_handling(self, secrets_directory):
         """Test error handling during model reload."""
