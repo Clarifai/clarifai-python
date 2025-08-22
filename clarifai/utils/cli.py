@@ -298,6 +298,20 @@ def check_ollama_installed():
         return False
 
 
+def check_lmstudio_installed():
+    """Check if the LM Studio CLI is installed."""
+    try:
+        import subprocess
+
+        result = subprocess.run(['lms', 'version'], capture_output=True, text=True, check=False)
+        if result.returncode == 0:
+            return True
+        else:
+            return False
+    except FileNotFoundError:
+        return False
+
+
 def _is_package_installed(package_name):
     """Helper function to check if a single package in requirements.txt is installed."""
     import importlib.metadata
@@ -408,3 +422,46 @@ def customize_huggingface_model(model_path, model_name):
         logger.info(f"Updated Hugging Face model repo_id to: {model_name}")
     else:
         logger.warning(f"config.yaml not found at {config_path}, skipping model configuration")
+
+
+def customize_lmstudio_model(model_path, model_name, port, context_length):
+    """Customize the LM Studio model name in the cloned template files.
+    Args:
+     model_path: Path to the cloned model directory
+     model_name: The model name to set (e.g., 'qwen/qwen3-4b-thinking-2507') - optional
+     port: Port for LM Studio server - optional
+     context_length: Context length for the model - optional
+
+    """
+    model_py_path = os.path.join(model_path, "1", "model.py")
+
+    if not os.path.exists(model_py_path):
+        logger.warning(f"Model file {model_py_path} not found, skipping model name customization")
+        return
+
+    try:
+        # Read the model.py file
+        with open(model_py_path, 'r') as file:
+            content = file.read()
+        if model_name:
+            # Replace the default model name in the load_model method
+            content = content.replace(
+                "LMS_MODEL_NAME = 'LiquidAI/LFM2-1.2B'", f"LMS_MODEL_NAME = '{model_name}'"
+            )
+
+        if port:
+            # Replace the default port variable in the model.py file
+            content = content.replace("LMS_PORT = 11434", f"LMS_PORT = {port}")
+
+        if context_length:
+            # Replace the default context length variable in the model.py file
+            content = content.replace(
+                "LMS_CONTEXT_LENGTH = 4096", f"LMS_CONTEXT_LENGTH = {context_length}"
+            )
+
+        # Write the modified content back to model.py
+        with open(model_py_path, 'w') as file:
+            file.write(content)
+
+    except Exception as e:
+        logger.error(f"Failed to customize LM Studio model: {e}")
