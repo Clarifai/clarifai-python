@@ -10,11 +10,10 @@ from google.protobuf.json_format import MessageToDict
 
 from clarifai.utils.logging import logger
 
-CLARIFAI_SECRETS_PATH = os.environ.get("CLARIFAI_SECRETS_PATH", None)
-
 
 def get_secrets_path() -> Optional[Path]:
-    return Path(CLARIFAI_SECRETS_PATH) if CLARIFAI_SECRETS_PATH else None
+    path = os.environ.get("CLARIFAI_SECRETS_PATH", None)
+    return Path(path) if path else None
 
 
 def load_secrets(path: Path) -> Optional[dict[str, str]]:
@@ -102,30 +101,32 @@ def start_secrets_watcher(
     """
 
     def watch_loop():
-        filename_to_modified = {}
+        previous_state = None
+
         while True:
-            changes_detected = False
-            for secret_dir in secrets_path.iterdir():
-                if not secret_dir.is_dir():
-                    continue
-                try:
-                    filepath = secret_dir / secret_dir.name
-                    if not filepath.exists() or not filepath.is_file():
+            current_state = {}
+
+            # Build current state of all secret files
+            if secrets_path.exists():
+                for secret_dir in secrets_path.iterdir():
+                    if not secret_dir.is_dir():
                         continue
-                    current_modified = filepath.stat().st_mtime
-                    last_modified = filename_to_modified.get(secret_dir.name, 0)
-                    if current_modified != last_modified and last_modified != 0:
-                        logger.info("Secrets file changed, reloading...")
-                        changes_detected = True
-                    filename_to_modified[secret_dir.name] = current_modified
-                except Exception as e:
-                    logger.error(f"Error watching secrets file: {e}")
-            if changes_detected:
+                    try:
+                        filepath = secret_dir / secret_dir.name
+                        if filepath.exists() and filepath.is_file():
+                            current_state[secret_dir.name] = filepath.stat().st_mtime
+                    except Exception as e:
+                        logger.error(f"Error checking secret file {secret_dir.name}: {e}")
+
+            # Trigger callback if state changed (but not on first run)
+            if previous_state is not None and current_state != previous_state:
                 try:
-                    logger.info("Secrets file changed, calling reload callback...")
+                    logger.info("Secrets changed, calling reload callback...")
                     reload_callback()
                 except Exception as e:
                     logger.error(f"Error in reload callback: {e}")
+
+            previous_state = current_state
             time.sleep(interval)
 
     watcher_thread = Thread(target=watch_loop, daemon=True)
