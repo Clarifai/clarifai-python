@@ -1,5 +1,5 @@
 import time
-from typing import Iterator
+from typing import Iterator, Optional
 
 from clarifai_grpc.grpc.api import service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
@@ -9,6 +9,7 @@ from clarifai_protocol.utils.health import HealthProbeRequestHandler
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.utils.constants import STATUS_FAIL, STATUS_MIXED, STATUS_OK, STATUS_UNKNOWN
 from clarifai.utils.logging import get_req_id_from_context, logger
+from clarifai.utils.secrets import inject_secrets
 
 from ..utils.url_fetcher import ensure_urls_downloaded
 from .model_class import ModelClass
@@ -25,11 +26,11 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         runner_id: str,
         nodepool_id: str,
         compute_cluster_id: str,
-        user_id: str = None,
+        user_id: Optional[str] = None,
         check_runner_exists: bool = True,
         base_url: str = "https://api.clarifai.com",
-        pat: str = None,
-        token: str = None,
+        pat: Optional[str] = None,
+        token: Optional[str] = None,
         num_parallel_polls: int = 4,
         **kwargs,
     ) -> None:
@@ -54,7 +55,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         self._base_url = base_url
 
         # Create auth helper if we have sufficient authentication information
-        self._auth_helper = None
+        self._auth_helper: Optional[ClarifaiAuthHelper] = None
         if self._user_id and (self._pat or self._token):
             try:
                 self._auth_helper = ClarifaiAuthHelper(
@@ -109,6 +110,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
+        inject_secrets(request)
         start_time = time.time()
         req_id = get_req_id_from_context()
         status_str = STATUS_UNKNOWN
@@ -175,6 +177,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
+        inject_secrets(request)
 
         # --- Live logging additions ---
         start_time = time.time()
@@ -277,10 +280,15 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         duration_ms = (time.time() - start_time) * 1000
         logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
 
+    def set_model(self, model: ModelClass):
+        """Set the model for this runner."""
+        self.model = model
+
 
 def pmo_iterator(runner_item_iterator, auth_helper=None):
     for runner_item in runner_item_iterator:
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         ensure_urls_downloaded(runner_item.post_model_outputs_request, auth_helper=auth_helper)
+        inject_secrets(runner_item.post_model_outputs_request)
         yield runner_item.post_model_outputs_request
