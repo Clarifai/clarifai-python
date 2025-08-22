@@ -3,12 +3,24 @@
 from clarifai.versions import CLIENT_VERSION
 
 
-def get_pipeline_config_template():
+def get_pipeline_config_template(pipeline_name=None, user_id=None, app_id=None):
     """Get the config.yaml template for pipelines."""
-    return """pipeline:
-  id: "hello-world-pipeline"  # TODO: please fill in
-  user_id: "your_user_id"  # TODO: please fill in
-  app_id: "your_app_id"  # TODO: please fill in
+    # Use provided values or defaults
+    pipeline_id = pipeline_name if pipeline_name else "hello-world-pipeline"
+    user_id_value = user_id if user_id else "your_user_id"
+    app_id_value = app_id if app_id else "your_app_id"
+
+    # Generate TODO comments only if using default values
+    pipeline_id_comment = "" if pipeline_name else "  # TODO: please fill in"
+    user_id_comment = "" if user_id else "  # TODO: please fill in" 
+    app_id_comment = "" if app_id else "  # TODO: please fill in"
+    step_a_comment = "" if user_id and app_id else "  # TODO: please fill in"
+    step_b_comment = "" if user_id and app_id else "  # TODO: please fill in"
+
+    return f"""pipeline:
+  id: "{pipeline_id}"{pipeline_id_comment}
+  user_id: "{user_id_value}"{user_id_comment}
+  app_id: "{app_id_value}"{app_id_comment}
   step_directories:
     - stepA
     - stepB
@@ -16,8 +28,6 @@ def get_pipeline_config_template():
     argo_orchestration_spec: |
       apiVersion: argoproj.io/v1alpha1
       kind: Workflow
-      metadata:
-        generateName: hello-world-pipeline-
       spec:
         entrypoint: sequence
         templates:
@@ -25,21 +35,37 @@ def get_pipeline_config_template():
           steps:
           - - name: step-a
               templateRef:
-                name: users/your_user_id/apps/your_app_id/pipeline_steps/stepA  # TODO: please fill in
-                template: users/your_user_id/apps/your_app_id/pipeline_steps/stepA  # TODO: please fill in
+                name: users/{user_id_value}/apps/{app_id_value}/pipeline_steps/stepA{step_a_comment}
+                template: users/{user_id_value}/apps/{app_id_value}/pipeline_steps/stepA{step_a_comment}
+              arguments:
+                parameters:
+                  - name: input_text
+                    value: "Input Text to Step A"
           - - name: step-b
               templateRef:
-                name: users/your_user_id/apps/your_app_id/pipeline_steps/stepB  # TODO: please fill in
-                template: users/your_user_id/apps/your_app_id/pipeline_steps/stepB  # TODO: please fill in
+                name: users/{user_id_value}/apps/{app_id_value}/pipeline_steps/stepB{step_b_comment}
+                template: users/{user_id_value}/apps/{app_id_value}/pipeline_steps/stepB{step_b_comment}
+              arguments:
+                parameters:
+                  - name: input_text
+                    value: "Input Text to Step B"
 """
 
 
-def get_pipeline_step_config_template(step_id: str):
+def get_pipeline_step_config_template(step_id: str, user_id=None, app_id=None):
     """Get the config.yaml template for a pipeline step."""
+    # Use provided values or defaults
+    user_id_value = user_id if user_id else "your_user_id"
+    app_id_value = app_id if app_id else "your_app_id"
+
+    # Generate TODO comments only if using default values
+    user_id_comment = "" if user_id else "  # TODO: please fill in"
+    app_id_comment = "" if app_id else "  # TODO: please fill in"
+
     return f"""pipeline_step:
-  id: "{step_id}"  # TODO: please fill in
-  user_id: "your_user_id"  # TODO: please fill in
-  app_id: "your_app_id"  # TODO: please fill in
+  id: "{step_id}"
+  user_id: "{user_id_value}"{user_id_comment}
+  app_id: "{app_id_value}"{app_id_comment}
 
 pipeline_step_input_params:
   - name: input_text

@@ -191,12 +191,29 @@ def run(
 
 @pipeline.command()
 @click.argument(
+    "pipeline_name",
+    type=str,
+    required=True,
+)
+@click.option(
+    "--user_id",
+    type=str,
+    required=False,
+    help="User ID to set in config files. If not provided, will use 'your_user_id' placeholder.",
+)
+@click.option(
+    "--app_id", 
+    type=str,
+    required=False,
+    help="App ID to set in config files. If not provided, will use 'your_app_id' placeholder.",
+)
+@click.argument(
     "pipeline_path",
     type=click.Path(),
     required=False,
     default=".",
 )
-def init(pipeline_path):
+def init(pipeline_name, user_id, app_id, pipeline_path):
     """Initialize a new pipeline project structure.
 
     Creates the following structure in the specified directory:
@@ -213,6 +230,7 @@ def init(pipeline_path):
     │       └── pipeline_step.py  # Step B implementation
     └── README.md           # Documentation
 
+    PIPELINE_NAME: Name of the pipeline to create.
     PIPELINE_PATH: Path where to create the pipeline project structure. If not specified, the current directory is used by default.
     """
     from clarifai.cli.templates.pipeline_templates import (
@@ -234,7 +252,7 @@ def init(pipeline_path):
     if os.path.exists(config_path):
         logger.warning(f"File {config_path} already exists, skipping...")
     else:
-        config_template = get_pipeline_config_template()
+        config_template = get_pipeline_config_template(pipeline_name, user_id, app_id)
         with open(config_path, 'w', encoding='utf-8') as f:
             f.write(config_template)
         logger.info(f"Created {config_path}")
@@ -263,7 +281,7 @@ def init(pipeline_path):
         if os.path.exists(step_config_path):
             logger.warning(f"File {step_config_path} already exists, skipping...")
         else:
-            step_config_template = get_pipeline_step_config_template(step_id)
+            step_config_template = get_pipeline_step_config_template(step_id, user_id, app_id)
             with open(step_config_path, 'w', encoding='utf-8') as f:
                 f.write(step_config_template)
             logger.info(f"Created {step_config_path}")

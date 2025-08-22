@@ -872,14 +872,21 @@ class TestPipelineInitCommand:
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ['my_pipeline'])
+            # Create custom directory first
+            os.makedirs('custom_dir', exist_ok=True)
+            result = runner.invoke(init, ['my_pipeline', 'custom_dir'])
 
             assert result.exit_code == 0
 
             # Check that files were created in the custom directory
-            assert os.path.exists('my_pipeline/config.yaml')
-            assert os.path.exists('my_pipeline/stepA/1/pipeline_step.py')
-            assert os.path.exists('my_pipeline/stepB/1/pipeline_step.py')
+            assert os.path.exists('custom_dir/config.yaml')
+            assert os.path.exists('custom_dir/stepA/1/pipeline_step.py')
+            assert os.path.exists('custom_dir/stepB/1/pipeline_step.py')
+            
+            # Check that the pipeline name is correct
+            with open('custom_dir/config.yaml', 'r') as f:
+                config = yaml.safe_load(f)
+            assert config['pipeline']['id'] == 'my_pipeline'
 
     def test_init_command_skips_existing_files(self):
         """Test that init command skips files that already exist."""
