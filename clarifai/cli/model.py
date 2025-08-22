@@ -1029,10 +1029,6 @@ def _validate_compute_params(compute_cluster_id, nodepool_id, deployment_id):
 @click.option('--user_id', required=False, help='User ID of the model used to predict.')
 @click.option('--app_id', required=False, help='App ID of the model used to predict.')
 @click.option('--model_url', required=False, help='Model URL of the model used to predict.')
-@click.option('--file_path', required=False, help='File path of file for the model to predict')
-@click.option('--url', required=False, help='URL to the file for the model to predict')
-@click.option('--bytes', required=False, help='Bytes to the file for the model to predict')
-@click.option('--input_type', required=False, help='Type of input')
 @click.option(
     '-cc_id',
     '--compute_cluster_id',
@@ -1044,14 +1040,14 @@ def _validate_compute_params(compute_cluster_id, nodepool_id, deployment_id):
     '-dpl_id', '--deployment_id', required=False, help='Deployment ID to use for the model'
 )
 @click.option(
-    '--inference_params', required=False, default='{}', help='Inference parameters to override'
+    '-dpl_usr_id', '--deployment_user_id', required=False, help='User ID to use for runner selector (organization or user). If not provided, defaults to PAT owner user_id.'
 )
-@click.option('--output_config', required=False, default='{}', help='Output config to override')
 @click.option(
     '--inputs',
     required=False,
     help='JSON string of input parameters for pythonic models (e.g., \'{"prompt": "Hello", "max_tokens": 100}\')',
 )
+@click.option('--method', required=False, default='predict', help='Method to call on the model.')
 @click.pass_context
 def predict(
     ctx,
@@ -1060,20 +1056,14 @@ def predict(
     user_id,
     app_id,
     model_url,
-    file_path,
-    url,
-    bytes,
-    input_type,
     compute_cluster_id,
     nodepool_id,
     deployment_id,
-    inference_params,
-    output_config,
+    deployment_user_id,
     inputs,
+    method,
 ):
     """Predict using a Clarifai model.
-
-    This command supports both traditional models and pythonic models with flexible input options.
 
     \b
     Model Identification:
@@ -1081,13 +1071,8 @@ def predict(
 
     \b
     Input Methods:
-        Traditional models (files/URLs):
-            --file_path: Local file path
-            --url: Remote file URL
-            --bytes: Raw bytes data
-
-        Pythonic models (structured data):
-            --inputs: JSON string with parameters (e.g., '{"prompt": "Hello", "max_tokens": 100}')
+        --inputs: JSON string with parameters (e.g., '{"prompt": "Hello", "max_tokens": 100}')
+        --method: Method to call on the model (default is 'predict')
 
     \b
     Compute Options:
@@ -1095,10 +1080,7 @@ def predict(
 
     \b
     Examples:
-        Traditional image model:
-            clarifai model predict --model_url <url> --file_path image.jpg
-
-        Pythonic text model:
+        Text model:
             clarifai model predict --model_url <url> --inputs '{"prompt": "Hello world"}'
 
         With compute cluster:
@@ -1120,15 +1102,12 @@ def predict(
         user_id = user_id or config_data.get('user_id')
         app_id = app_id or config_data.get('app_id')
         model_url = model_url or config_data.get('model_url')
-        file_path = file_path or config_data.get('file_path')
-        url = url or config_data.get('url')
-        bytes = bytes or config_data.get('bytes')
-        input_type = input_type or config_data.get('input_type')
         compute_cluster_id = compute_cluster_id or config_data.get('compute_cluster_id')
         nodepool_id = nodepool_id or config_data.get('nodepool_id')
         deployment_id = deployment_id or config_data.get('deployment_id')
-        inference_params = inference_params or config_data.get('inference_params', '{}')
-        output_config = output_config or config_data.get('output_config', '{}')
+        deployment_user_id = deployment_user_id or config_data.get('deployment_user_id')
+        inputs = inputs or config_data.get('inputs')
+        method = method or config_data.get('method', 'predict')
 
     # Validate parameters
     _validate_model_params(model_id, user_id, app_id, model_url)
@@ -1149,56 +1128,30 @@ def predict(
         compute_cluster_id=compute_cluster_id,
         nodepool_id=nodepool_id,
         deployment_id=deployment_id,
+        deployment_user_id=deployment_user_id,
     )
 
-    # Parse JSON parameters
-    inference_params = _parse_json_param(inference_params, "inference_params")
-    output_config = _parse_json_param(output_config, "output_config")
+    model_methods = model.client.available_methods()
+    stream_method = model.client.method_signature(method).split()[-1][:-1].lower().startswith('iter')
 
     # Determine prediction method and execute
-    if inputs:
-        methods = model.client.available_methods()
-        if "predict" not in methods:
-            logger.error(
-                "ValueError: The model does not support the 'predict' method. Please check the model's capabilities."
-            )
-            raise click.Abort()
+    if inputs and (method in model_methods):
         # Pythonic model prediction with JSON inputs
         inputs_dict = _parse_json_param(inputs, "inputs")
         inputs_dict = _process_multimodal_inputs(inputs_dict)
-        model_prediction = model.predict(**inputs_dict, **inference_params)
-    elif file_path:
-        # Traditional prediction from file
-        model_prediction = model.predict_by_filepath(
-            filepath=file_path,
-            input_type=input_type,
-            inference_params=inference_params,
-            output_config=output_config,
-        )
-    elif url:
-        # Traditional prediction from URL
-        model_prediction = model.predict_by_url(
-            url=url,
-            input_type=input_type,
-            inference_params=inference_params,
-            output_config=output_config,
-        )
-    elif bytes:
-        # Traditional prediction from bytes
-        bytes_data = str.encode(bytes)
-        model_prediction = model.predict_by_bytes(
-            input_bytes=bytes_data,
-            input_type=input_type,
-            inference_params=inference_params,
-            output_config=output_config,
-        )
+        model_prediction = getattr(model, method)(**inputs_dict)
     else:
         logger.error(
-            "ValueError: Must provide input data using one of: --inputs (pythonic models), --file_path, --url, or --bytes (traditional models)."
+            f"ValueError: The model does not support the '{method}' method. Please check the model's capabilities."
         )
         raise click.Abort()
 
-    click.echo(model_prediction)
+    if stream_method:
+        for chunk in model_prediction:
+            click.echo(chunk, nl=False)
+        click.echo()  # Ensure a newline after the stream ends
+    else:
+        click.echo(model_prediction)
 
 
 @model.command(name="list")
