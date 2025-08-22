@@ -142,7 +142,7 @@ class ModelServer:
                 loaded_secrets = load_secrets(self._secrets_path)
                 if loaded_secrets:
                     logger.info(
-                        f"Reloaded {len(loaded_secrets)} secrets: {list(loaded_secrets.keys())}"
+                        f"Reloaded {len(loaded_secrets)} secrets"
                     )
                 else:
                     logger.warning("No secrets loaded during reload")
