@@ -21,6 +21,7 @@ from google.protobuf import json_format
 from clarifai.client.base import BaseClient
 from clarifai.client.user import User
 from clarifai.runners.models.model_class import ModelClass
+from clarifai.runners.utils import code_script
 from clarifai.runners.utils.const import (
     AMD_PYTHON_BASE_IMAGE,
     AMD_TORCH_BASE_IMAGE,
@@ -101,6 +102,7 @@ class ModelBuilder:
         self.folder = self._validate_folder(folder)
         self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
         self._validate_config()
+        self._validate_stream_options()
         self.model_proto = self._get_model_proto()
         self.model_id = self.model_proto.id
         self.model_version_id = None
@@ -440,6 +442,89 @@ class ModelBuilder:
             num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 16))
             self.config["num_threads"] = num_threads
 
+    def _validate_stream_options(self):
+        """
+        Validate OpenAI streaming configuration for Clarifai models.
+        """
+        if not self._is_clarifai_internal():
+            return  # Skip validation for non-clarifai models
+
+        # Parse all Python files once
+        all_python_content = self._get_all_python_content()
+
+        if self._uses_openai_streaming(all_python_content):
+            logger.info(
+                "Detected OpenAI chat completions for Clarifai model streaming - validating stream_options..."
+            )
+
+            if not self.has_proper_usage_tracking(all_python_content):
+                logger.error(
+                    "Missing configuration to track usage for OpenAI chat completion calls. "
+                    "Go to your model scripts and make sure to set both: "
+                    "1) stream_options={'include_usage': True}"
+                    "2) set_output_context"
+                )
+
+    def _is_clarifai_internal(self):
+        """
+        Check if the current user is a Clarifai internal user based on email domain.
+
+        Returns:
+            bool: True if user is a Clarifai internal user, False otherwise
+        """
+        try:
+            # Get user info from Clarifai API
+            user_client = User(
+                pat=self.client.pat, user_id=self.config.get('model').get('user_id')
+            )
+            user_response = user_client.get_user_info()
+
+            if user_response.status.code != status_code_pb2.SUCCESS:
+                logger.debug("Could not retrieve user info for Clarifai internal user validation")
+                return False
+
+            user = user_response.user
+
+            # Check primary email domain
+            if hasattr(user, 'primary_email') and user.primary_email:
+                return user.primary_email.endswith('@clarifai.com')
+
+            return False
+
+        except Exception as e:
+            logger.debug(f"Employee validation failed: {e}")
+            return False
+
+    def _get_all_python_content(self):
+        """
+        Parse and concatenate all Python files in the model's 1/ subfolder.
+        """
+        model_folder = os.path.join(self.folder, '1')
+        if not os.path.exists(model_folder):
+            return ""
+
+        all_content = []
+        for root, _, files in os.walk(model_folder):
+            for file in files:
+                if file.endswith('.py'):
+                    file_path = os.path.join(root, file)
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            all_content.append(f.read())
+                    except Exception:
+                        continue
+        return "\n".join(all_content)
+
+    def _uses_openai_streaming(self, python_content):
+        return 'chat.completions.create' in python_content and 'generate(' in python_content
+
+    def has_proper_usage_tracking(self, python_content):
+        include_usage_patterns = ["'include_usage': True", '"include_usage": True']
+        has_include_usage = any(pattern in python_content for pattern in include_usage_patterns)
+        has_set_output_context = 'set_output_context' in python_content
+
+        return has_include_usage and has_set_output_context
+
     @staticmethod
     def _get_tar_file_content_size(tar_file_path):
         """
@@ -654,7 +739,7 @@ class ModelBuilder:
         logger.info(f"Setup: Validating requirements.txt file at {path} using uv pip compile")
         # Don't log the output of the comment unless it errors.
         result = subprocess.run(
-            f"uv pip compile {path} --universal --python {python_version} --no-header  --no-emit-index-url",
+            f"uv pip compile {path} --universal --python {python_version} --no-header --no-emit-index-url --no-cache-dir",
             shell=True,
             text=True,
             capture_output=True,
@@ -1180,7 +1265,6 @@ class ModelBuilder:
             is_uploaded = self.monitor_model_build()
             if is_uploaded:
                 # python code to run the model.
-                from clarifai.runners.utils import code_script
 
                 method_signatures = self.get_method_signatures()
                 snippet = code_script.generate_client_script(
@@ -1258,7 +1342,6 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
             per_page=50,
         )
         response = self.client.STUB.ListLogEntries(logs_request)
-
         return response
 
     def monitor_model_build(self):
@@ -1335,13 +1418,14 @@ def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
     model_version = builder.upload_model_version()
 
     # Ask user if they want to deploy the model
-    deploy_model = input("Do you want to deploy the model? (y/n): ")
-    if deploy_model.lower() != 'y':
-        logger.info("Model uploaded successfully. Skipping deployment setup.")
-        return
+    if model_version is not None:  # if it comes back None then it failed.
+        deploy_model = input("Do you want to deploy the model? (y/n): ")
+        if deploy_model.lower() != 'y':
+            logger.info("Model uploaded successfully. Skipping deployment setup.")
+            return
 
-    # Setup deployment for the uploaded model
-    setup_deployment_for_model(builder)
+        # Setup deployment for the uploaded model
+        setup_deployment_for_model(builder)
 
 
 def setup_deployment_for_model(builder):
@@ -1522,7 +1606,7 @@ def setup_deployment_for_model(builder):
     # Step 3: Help create a new deployment by providing URL
     # Provide URL to create a new deployment
     url_helper = ClarifaiUrlHelper()
-    deployment_url = f"{url_helper.ui}/settings/compute/deployments/new?computeClusterId={compute_cluster.id}&nodePoolId={nodepool.id}"
+    deployment_url = f"{url_helper.ui}/compute/deployments/create?computeClusterId={compute_cluster.id}&nodePoolId={nodepool.id}"
     logger.info(f"Please create a new deployment by visiting: {deployment_url}")
 
     # Ask if they want to open the URL in browser
@@ -1536,4 +1620,3 @@ def setup_deployment_for_model(builder):
             logger.error(f"Failed to open browser: {e}")
 
     logger.info("After creating the deployment, your model will be ready for inference!")
-    logger.info(f"You can always return to view your deployments at: {deployment_url}")

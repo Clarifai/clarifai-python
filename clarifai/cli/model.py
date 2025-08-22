@@ -529,7 +529,7 @@ def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=Fa
 @click.option(
     "--pool_size",
     type=int,
-    default=1,  # default to 1 thread for local runner to avoid rapid depletion of compute time.
+    default=32,
     show_default=True,
     help="The number of threads to use. On community plan, the compute time allocation is drained at a rate proportional to the number of threads.",
 )  # pylint: disable=range-builtin-not-iterating
