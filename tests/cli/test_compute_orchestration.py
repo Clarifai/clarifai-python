@@ -1,5 +1,6 @@
 import os
 import uuid
+from unittest import mock
 
 import pytest
 import yaml
@@ -205,3 +206,60 @@ class TestComputeOrchestration:
         cli_runner.invoke(cli, ["login", "--env", CLARIFAI_ENV])
         result = cli_runner.invoke(cli, ["computecluster", "delete", CREATE_COMPUTE_CLUSTER_ID])
         assert result.exit_code == 0, logger.exception(result)
+        
+        
+@pytest.mark.requires_secrets
+class TestLocalDevCLI:
+    """Tests for the local_dev CLI functionality.
+    
+    These tests use the test_local_dev_utils module to test the core functionality
+    of the local_dev command without the CLI infrastructure dependencies.
+    """
+    
+    def test_local_dev_all_resources_exist(self, tmpdir):
+        """Test local_dev function when all resources exist."""
+        from tests.cli.test_local_dev_utils import test_local_dev_flow, setup_model_dir
+        
+        model_path = setup_model_dir(tmpdir)
+        mocks = test_local_dev_flow(model_path)
+        
+        # Verify key interactions
+        mocks["user"].compute_cluster.assert_called_once()
+        mocks["compute_cluster"].nodepool.assert_called_once()
+        mocks["nodepool"].runner.assert_called_once()
+    
+    def test_local_dev_no_runner(self, tmpdir):
+        """Test local_dev function when compute cluster and nodepool exist but runner doesn't."""
+        from tests.cli.test_local_dev_utils import test_local_dev_no_runner, setup_model_dir
+        
+        model_path = setup_model_dir(tmpdir)
+        mocks = test_local_dev_no_runner(model_path)
+        
+        # Verify key interactions
+        mocks["user"].compute_cluster.assert_called_once()
+        mocks["compute_cluster"].nodepool.assert_called_once()
+        mocks["nodepool"].runner.assert_called_once()
+        mocks["nodepool"].create_runner.assert_called_once()
+    
+    def test_local_dev_no_nodepool(self, tmpdir):
+        """Test local_dev function when compute cluster exists but nodepool doesn't."""
+        from tests.cli.test_local_dev_utils import test_local_dev_no_nodepool, setup_model_dir
+        
+        model_path = setup_model_dir(tmpdir)
+        mocks = test_local_dev_no_nodepool(model_path)
+        
+        # Verify key interactions
+        mocks["user"].compute_cluster.assert_called_once()
+        mocks["compute_cluster"].nodepool.assert_called_once()
+        mocks["compute_cluster"].create_nodepool.assert_called_once()
+    
+    def test_local_dev_no_compute_cluster(self, tmpdir):
+        """Test local_dev function when compute cluster doesn't exist."""
+        from tests.cli.test_local_dev_utils import test_local_dev_no_compute_cluster, setup_model_dir
+        
+        model_path = setup_model_dir(tmpdir)
+        mocks = test_local_dev_no_compute_cluster(model_path)
+        
+        # Verify key interactions
+        mocks["user"].compute_cluster.assert_called_once()
+        mocks["user"].create_compute_cluster.assert_called_once()
