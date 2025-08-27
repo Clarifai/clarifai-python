@@ -1154,7 +1154,7 @@ class ModelBuilder:
                 cwd=self.folder,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
 
             # Get git remote URL
@@ -1162,7 +1162,8 @@ class ModelBuilder:
                 ['git', 'config', '--get', 'remote.origin.url'],
                 cwd=self.folder,
                 capture_output=True,
-                text=True, check=False
+                text=True,
+                check=False,
             )
 
             # Get current commit hash
@@ -1171,7 +1172,7 @@ class ModelBuilder:
                 cwd=self.folder,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
 
             # Get current branch
@@ -1179,12 +1180,15 @@ class ModelBuilder:
                 ['git', 'branch', '--show-current'],
                 cwd=self.folder,
                 capture_output=True,
-                text=True, check=False
+                text=True,
+                check=False,
             )
 
             git_info = {
                 'commit': commit_result.stdout.strip(),
-                'branch': branch_result.stdout.strip() if branch_result.returncode == 0 else 'HEAD'
+                'branch': branch_result.stdout.strip()
+                if branch_result.returncode == 0
+                else 'HEAD',
             }
 
             if remote_result.returncode == 0:
@@ -1210,14 +1214,16 @@ class ModelBuilder:
                 cwd=self.folder,
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
             )
 
             if status_result.stdout.strip():
                 logger.warning("Uncommitted changes detected in model path:")
                 logger.warning(status_result.stdout)
 
-                response = input("\nDo you want to continue upload with uncommitted changes? (y/N): ")
+                response = input(
+                    "\nDo you want to continue upload with uncommitted changes? (y/N): "
+                )
                 return response.lower() in ['y', 'yes']
             else:
                 logger.info("Model path has no uncommitted changes.")
@@ -1239,6 +1245,7 @@ class ModelBuilder:
         # Add git information to metadata if available
         if git_info:
             from google.protobuf.struct_pb2 import Struct
+
             metadata_struct = Struct()
             metadata_struct.update({'git_registry': git_info})
             model_version_proto.metadata.CopyFrom(metadata_struct)
@@ -1314,6 +1321,7 @@ class ModelBuilder:
             if not self._check_git_status_and_prompt():
                 logger.info("Upload cancelled by user due to uncommitted changes.")
                 return
+        input("Press Enter to continue...")
 
         model_version_proto = self.get_model_version_proto(git_info)
 
@@ -1521,7 +1529,6 @@ def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
             f"New model will be created at {builder.model_ui_url} with it's first version."
         )
 
-    input("Press Enter to continue...")
     model_version = builder.upload_model_version()
 
     # Ask user if they want to deploy the model
