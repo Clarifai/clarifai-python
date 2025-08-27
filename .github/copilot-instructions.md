@@ -23,7 +23,7 @@ Always reference these instructions first and fallback to search or bash command
 
 ### CI-Preferred UV-based Setup (When Available)
 - Upgrade pip: `python -m pip install --upgrade pip`
-- Install uv: `pip install uv` -- takes 10 seconds  
+- Install uv: `pip install uv` -- takes 10 seconds
 - Create venv: `uv venv` -- takes 5 seconds
 - Install dependencies: `uv pip install -r requirements.txt -r tests/requirements.txt` -- takes 60 seconds. NEVER CANCEL. Set timeout to 3+ minutes.
 
@@ -35,9 +35,9 @@ Always reference these instructions first and fallback to search or bash command
 
 ### Validation Scenarios
 After making changes, ALWAYS test these core scenarios (requires working clarifai installation):
-- **Basic Import Test**: `python -c "import clarifai; print(f'Version: {clarifai.__version__}')"` 
+- **Basic Import Test**: `python -c "import clarifai; print(f'Version: {clarifai.__version__}')"`
 - **CLI Functionality**: `clarifai --help` should show all available commands
-- **CLI Commands**: Test `clarifai model --help`, `clarifai pipeline --help` 
+- **CLI Commands**: Test `clarifai model --help`, `clarifai pipeline --help`
 - **Model Operations**: If changing model code, test help commands and basic imports
 - **Pipeline Operations**: If changing pipeline code, test help commands and basic imports
 
@@ -57,12 +57,12 @@ After making changes, ALWAYS test these core scenarios (requires working clarifa
 
 ### Python Version Support
 - Supports Python 3.9, 3.10, 3.11, 3.12
-- CI primarily tests Python 3.11 and 3.12 
+- CI primarily tests Python 3.11 and 3.12
 - Uses `setup.py` and `pyproject.toml` for packaging
 
 ### Build Times and Timeouts
 - **NEVER CANCEL**: Basic installation takes 30-60 seconds
-- **NEVER CANCEL**: Full test suite takes 5-15 minutes  
+- **NEVER CANCEL**: Full test suite takes 5-15 minutes
 - **NEVER CANCEL**: Pre-commit setup can take 2+ minutes
 - Always set timeouts to at least double the expected time
 
@@ -99,7 +99,7 @@ After making changes, ALWAYS test these core scenarios (requires working clarifa
 ```bash
 clarifai --help                    # Show all available commands
 clarifai model --help             # Model operations (list, predict, upload, etc.)
-clarifai pipeline --help          # Pipeline operations  
+clarifai pipeline --help          # Pipeline operations
 clarifai computecluster --help    # Compute cluster management
 clarifai nodepool --help          # Nodepool management
 clarifai deployment --help        # Deployment management
@@ -122,7 +122,7 @@ clarifai login --help             # Authentication setup
 
 ### Before Committing (When Tools Available)
 - **ALWAYS** run `ruff check . --fix` before committing or CI will fail
-- **ALWAYS** run `ruff format .` before committing or CI will fail  
+- **ALWAYS** run `ruff format .` before committing or CI will fail
 - Test that basic imports still work: `python -c "import clarifai"`
 - If changing CLI code, test: `clarifai --help`
 
@@ -203,11 +203,11 @@ Usage: clarifai [OPTIONS] COMMAND [ARGS]...
 
 Commands:
   computecluster (cc)     Manage Compute Clusters
-  config                  Manage configuration profiles  
+  config                  Manage configuration profiles
   deployment (dp)         Manage Deployments
   login                   Login command to set PAT
   model                   Manage & Develop Models
-  nodepool (np)           Manage Nodepools  
+  nodepool (np)           Manage Nodepools
   pipeline (pl)           Manage pipelines
   pipeline-step (ps)      Manage pipeline steps
   run                     Execute script with context
