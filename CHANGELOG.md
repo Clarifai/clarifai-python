@@ -1,3 +1,8 @@
+## [[11.7.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.4) - [PyPI](https://pypi.org/project/clarifai/11.7.4/) - 2025-08-27
+
+### Changed
+- update protocol and grpc versions [(#763)] (https://github.com/Clarifai/clarifai-python/pull/763)
+
 ## [[11.7.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.3) - [PyPI](https://pypi.org/project/clarifai/11.7.3/) - 2025-08-22
 
 ### Changed
