@@ -3,9 +3,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch, MagicMock
-from pathlib import Path
-
+from unittest.mock import patch
 from clarifai.runners.models.model_builder import ModelBuilder
 
 
@@ -177,6 +175,56 @@ class TestModel(ModelClass):
         # Metadata should be empty or not contain git_registry
         metadata_dict = dict(proto.metadata) if proto.metadata else {}
         self.assertNotIn('git_registry', metadata_dict)
+
+    def test_git_status_limited_to_model_path(self):
+        """Test that git status checking is limited to model path only"""
+        # Create a parent directory for the git repo
+        parent_dir = os.path.join(self.test_dir, "git_repo")
+        os.makedirs(parent_dir)
+        
+        # Initialize git repo in parent directory
+        subprocess.run(['git', 'init'], cwd=parent_dir, capture_output=True, check=True)
+        subprocess.run(['git', 'config', 'user.email', 'test@test.com'], 
+                      cwd=parent_dir, capture_output=True)
+        subprocess.run(['git', 'config', 'user.name', 'Test User'], 
+                      cwd=parent_dir, capture_output=True)
+        
+        # Move model to be inside the git repo
+        model_in_git = os.path.join(parent_dir, "my_model")
+        shutil.move(self.model_dir, model_in_git)
+        self.model_dir = model_in_git
+        
+        # Commit all files
+        subprocess.run(['git', 'add', '.'], cwd=parent_dir, capture_output=True)
+        subprocess.run(['git', 'commit', '-m', 'Initial commit'], 
+                      cwd=parent_dir, capture_output=True)
+        
+        # Add uncommitted file OUTSIDE the model directory
+        outside_file = os.path.join(parent_dir, "outside_model.txt")
+        with open(outside_file, "w") as f:
+            f.write("This file is outside the model directory")
+        
+        # Test that ModelBuilder ignores files outside model path
+        builder = ModelBuilder(self.model_dir, download_validation_only=True)
+        result = builder._check_git_status_and_prompt()
+        
+        # Should return True because no uncommitted changes within model path
+        self.assertTrue(result)
+        
+        # Now add uncommitted file inside model directory
+        inside_file = os.path.join(self.model_dir, "inside_model.txt")
+        with open(inside_file, "w") as f:
+            f.write("This file is inside the model directory")
+        
+        # Mock user declining the prompt
+        with patch('builtins.input', return_value='n'):
+            result = builder._check_git_status_and_prompt()
+            self.assertFalse(result)
+        
+        # Mock user accepting the prompt
+        with patch('builtins.input', return_value='y'):
+            result = builder._check_git_status_and_prompt()
+            self.assertTrue(result)
 
 
 if __name__ == '__main__':

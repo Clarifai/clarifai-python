@@ -1198,15 +1198,15 @@ class ModelBuilder:
 
     def _check_git_status_and_prompt(self) -> bool:
         """
-        Check for uncommitted changes in git repository and prompt user.
+        Check for uncommitted changes in git repository within the model path and prompt user.
 
         Returns:
             True if should continue with upload, False if should abort
         """
         try:
-            # Check for uncommitted changes
+            # Check for uncommitted changes within the model path only
             status_result = subprocess.run(
-                ['git', 'status', '--porcelain'],
+                ['git', 'status', '--porcelain', '.'],
                 cwd=self.folder,
                 capture_output=True,
                 text=True,
@@ -1214,13 +1214,13 @@ class ModelBuilder:
             )
 
             if status_result.stdout.strip():
-                logger.warning("Uncommitted changes detected in git repository:")
+                logger.warning("Uncommitted changes detected in model path:")
                 logger.warning(status_result.stdout)
 
                 response = input("\nDo you want to continue upload with uncommitted changes? (y/N): ")
                 return response.lower() in ['y', 'yes']
             else:
-                logger.info("Git repository has no uncommitted changes.")
+                logger.info("Model path has no uncommitted changes.")
                 return True
 
         except (subprocess.CalledProcessError, FileNotFoundError):
