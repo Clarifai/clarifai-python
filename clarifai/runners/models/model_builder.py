@@ -10,7 +10,7 @@ import tarfile
 import time
 import webbrowser
 from string import Template
-from typing import Literal
+from typing import Any, Dict, Literal, Optional
 from unittest.mock import MagicMock
 
 import yaml
@@ -1140,13 +1140,123 @@ class ModelBuilder:
         concepts = config.get('concepts')
         logger.info(f"Updated config.yaml with {len(concepts)} concepts.")
 
-    def get_model_version_proto(self):
+    def _get_git_info(self) -> Optional[Dict[str, Any]]:
+        """
+        Get git repository information for the model path.
+
+        Returns:
+            Dict with git info (url, commit, branch) or None if not a git repository
+        """
+        try:
+            # Check if the folder is within a git repository
+            result = subprocess.run(
+                ['git', 'rev-parse', '--git-dir'],
+                cwd=self.folder,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            # Get git remote URL
+            remote_result = subprocess.run(
+                ['git', 'config', '--get', 'remote.origin.url'],
+                cwd=self.folder,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            # Get current commit hash
+            commit_result = subprocess.run(
+                ['git', 'rev-parse', 'HEAD'],
+                cwd=self.folder,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            # Get current branch
+            branch_result = subprocess.run(
+                ['git', 'branch', '--show-current'],
+                cwd=self.folder,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            git_info = {
+                'commit': commit_result.stdout.strip(),
+                'branch': branch_result.stdout.strip()
+                if branch_result.returncode == 0
+                else 'HEAD',
+            }
+
+            if remote_result.returncode == 0:
+                git_info['url'] = remote_result.stdout.strip()
+
+            return git_info
+
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Not a git repository or git not available
+            return None
+
+    def _check_git_status_and_prompt(self) -> bool:
+        """
+        Check for uncommitted changes in git repository within the model path and prompt user.
+
+        Returns:
+            True if should continue with upload, False if should abort
+        """
+        try:
+            # Check for uncommitted changes within the model path only
+            status_result = subprocess.run(
+                ['git', 'status', '--porcelain', '.'],
+                cwd=self.folder,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            if status_result.stdout.strip():
+                logger.warning("Uncommitted changes detected in model path:")
+                logger.warning(status_result.stdout)
+
+                response = input(
+                    "\nDo you want to continue upload with uncommitted changes? (y/N): "
+                )
+                return response.lower() in ['y', 'yes']
+            else:
+                logger.info("Model path has no uncommitted changes.")
+                return True
+
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Error checking git status, but we already know it's a git repo
+            logger.warning("Could not check git status, continuing with upload.")
+            return True
+
+    def get_model_version_proto(self, git_info: Optional[Dict[str, Any]] = None):
+        """
+        Create a ModelVersion protobuf message for the model.
+        Args:
+          git_info (Optional[Dict[str, Any]]): Git repository information to include in metadata.
+        Returns:
+          resources_pb2.ModelVersion: The ModelVersion protobuf message.
+        """
+
         signatures = self.get_method_signatures()
         model_version_proto = resources_pb2.ModelVersion(
             pretrained_model_config=resources_pb2.PretrainedModelConfig(),
             inference_compute_info=self.inference_compute_info,
             method_signatures=signatures,
         )
+
+        # Add git information to metadata if available
+        if git_info:
+            from google.protobuf.struct_pb2 import Struct
+
+            metadata_struct = Struct()
+            metadata_struct.update({'git_registry': git_info})
+            model_version_proto.metadata.CopyFrom(metadata_struct)
 
         model_type_id = self.config.get('model').get('model_type_id')
         if model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE:
@@ -1175,7 +1285,7 @@ class ModelBuilder:
                 )
         return model_version_proto
 
-    def upload_model_version(self):
+    def upload_model_version(self, git_info=None):
         file_path = f"{self.folder}.tar.gz"
         logger.debug(f"Will tar it into file: {file_path}")
 
@@ -1208,7 +1318,7 @@ class ModelBuilder:
                 )
                 return
 
-        model_version_proto = self.get_model_version_proto()
+        model_version_proto = self.get_model_version_proto(git_info)
 
         def filter_func(tarinfo):
             name = tarinfo.name
@@ -1414,8 +1524,20 @@ def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
             f"New model will be created at {builder.model_ui_url} with it's first version."
         )
 
+    # Check for git repository information
+    git_info = builder._get_git_info()
+    if git_info:
+        logger.info(f"Detected git repository: {git_info.get('url', 'local repository')}")
+        logger.info(f"Current commit: {git_info['commit']}")
+        logger.info(f"Current branch: {git_info['branch']}")
+
+        # Check for uncommitted changes and prompt user
+        if not builder._check_git_status_and_prompt():
+            logger.info("Upload cancelled by user due to uncommitted changes.")
+            return
     input("Press Enter to continue...")
-    model_version = builder.upload_model_version()
+
+    model_version = builder.upload_model_version(git_info)
 
     # Ask user if they want to deploy the model
     if model_version is not None:  # if it comes back None then it failed.
