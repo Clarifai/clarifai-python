@@ -1235,6 +1235,14 @@ class ModelBuilder:
             return True
 
     def get_model_version_proto(self, git_info: Optional[Dict[str, Any]] = None):
+        """
+        Create a ModelVersion protobuf message for the model.
+        Args:
+          git_info (Optional[Dict[str, Any]]): Git repository information to include in metadata.
+        Returns:
+          resources_pb2.ModelVersion: The ModelVersion protobuf message.
+        """
+
         signatures = self.get_method_signatures()
         model_version_proto = resources_pb2.ModelVersion(
             pretrained_model_config=resources_pb2.PretrainedModelConfig(),
@@ -1277,7 +1285,7 @@ class ModelBuilder:
                 )
         return model_version_proto
 
-    def upload_model_version(self):
+    def upload_model_version(self, git_info=None):
         file_path = f"{self.folder}.tar.gz"
         logger.debug(f"Will tar it into file: {file_path}")
 
@@ -1309,19 +1317,6 @@ class ModelBuilder:
                     "No checkpoints specified in the config.yaml file to infer the concepts. Please either specify the concepts directly in the config.yaml file or include a checkpoints section to download the HF model's config.json file to infer the concepts."
                 )
                 return
-
-        # Check for git repository information
-        git_info = self._get_git_info()
-        if git_info:
-            logger.info(f"Detected git repository: {git_info.get('url', 'local repository')}")
-            logger.info(f"Current commit: {git_info['commit']}")
-            logger.info(f"Current branch: {git_info['branch']}")
-
-            # Check for uncommitted changes and prompt user
-            if not self._check_git_status_and_prompt():
-                logger.info("Upload cancelled by user due to uncommitted changes.")
-                return
-        input("Press Enter to continue...")
 
         model_version_proto = self.get_model_version_proto(git_info)
 
@@ -1529,7 +1524,20 @@ def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
             f"New model will be created at {builder.model_ui_url} with it's first version."
         )
 
-    model_version = builder.upload_model_version()
+    # Check for git repository information
+    git_info = builder._get_git_info()
+    if git_info:
+        logger.info(f"Detected git repository: {git_info.get('url', 'local repository')}")
+        logger.info(f"Current commit: {git_info['commit']}")
+        logger.info(f"Current branch: {git_info['branch']}")
+
+        # Check for uncommitted changes and prompt user
+        if not builder._check_git_status_and_prompt():
+            logger.info("Upload cancelled by user due to uncommitted changes.")
+            return
+    input("Press Enter to continue...")
+
+    model_version = builder.upload_model_version(git_info)
 
     # Ask user if they want to deploy the model
     if model_version is not None:  # if it comes back None then it failed.
