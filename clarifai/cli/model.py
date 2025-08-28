@@ -569,9 +569,7 @@ def local_runner(ctx, model_path, pool_size, verbose):
     """
     from clarifai.client.user import User
     from clarifai.runners.models.model_builder import ModelBuilder
-    from clarifai.runners.server import serve
-
-    builder = ModelBuilder(model_path, download_validation_only=True)
+    from clarifai.runners.server import ModelServer
 
     validate_context(ctx)
     builder = ModelBuilder(model_path, download_validation_only=True)
@@ -895,8 +893,8 @@ def local_runner(ctx, model_path, pool_size, verbose):
     logger.info("✅ Starting local runner...")
 
     # This reads the config.yaml from the model_path so we alter it above first.
-    serve(
-        model_path,
+    server = ModelServer(model_path)
+    server.serve(
         pool_size=pool_size,
         num_threads=pool_size,
         user_id=user_id,
