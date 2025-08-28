@@ -229,12 +229,37 @@ def init(pipeline_path):
     # Create the pipeline directory if it doesn't exist
     os.makedirs(pipeline_path, exist_ok=True)
 
+    # Prompt for user inputs
+    click.echo("Welcome to Clarifai Pipeline Initialization!")
+    click.echo("Please provide the following information:")
+    
+    user_id = click.prompt("User ID", type=str)
+    app_id = click.prompt("App ID", type=str)
+    pipeline_id = click.prompt("Pipeline ID", default="hello-world-pipeline", type=str)
+    num_steps = click.prompt("Number of pipeline steps", default=2, type=int)
+    
+    # Get step names
+    step_names = []
+    default_names = ["stepA", "stepB", "stepC", "stepD", "stepE", "stepF"]
+    
+    for i in range(num_steps):
+        default_name = default_names[i] if i < len(default_names) else f"step{i+1}"
+        step_name = click.prompt(f"Name for step {i+1}", default=default_name, type=str)
+        step_names.append(step_name)
+
+    click.echo(f"\nCreating pipeline '{pipeline_id}' with steps: {', '.join(step_names)}")
+
     # Create pipeline config.yaml
     config_path = os.path.join(pipeline_path, "config.yaml")
     if os.path.exists(config_path):
         logger.warning(f"File {config_path} already exists, skipping...")
     else:
-        config_template = get_pipeline_config_template()
+        config_template = get_pipeline_config_template(
+            pipeline_id=pipeline_id, 
+            user_id=user_id, 
+            app_id=app_id, 
+            step_names=step_names
+        )
         with open(config_path, 'w', encoding='utf-8') as f:
             f.write(config_template)
         logger.info(f"Created {config_path}")
@@ -249,8 +274,8 @@ def init(pipeline_path):
             f.write(readme_template)
         logger.info(f"Created {readme_path}")
 
-    # Create pipeline steps (stepA and stepB)
-    for step_id in ["stepA", "stepB"]:
+    # Create pipeline steps
+    for step_id in step_names:
         step_dir = os.path.join(pipeline_path, step_id)
         os.makedirs(step_dir, exist_ok=True)
 
@@ -263,7 +288,11 @@ def init(pipeline_path):
         if os.path.exists(step_config_path):
             logger.warning(f"File {step_config_path} already exists, skipping...")
         else:
-            step_config_template = get_pipeline_step_config_template(step_id)
+            step_config_template = get_pipeline_step_config_template(
+                step_id=step_id, 
+                user_id=user_id, 
+                app_id=app_id
+            )
             with open(step_config_path, 'w', encoding='utf-8') as f:
                 f.write(step_config_template)
             logger.info(f"Created {step_config_path}")
@@ -290,13 +319,9 @@ def init(pipeline_path):
 
     logger.info(f"Pipeline initialization complete in {pipeline_path}")
     logger.info("Next steps:")
-    logger.info("1. Search for '# TODO: please fill in' comments in the generated files")
-    logger.info("2. Update your user_id and app_id in all config.yaml files")
-    logger.info(
-        "3. Implement your pipeline step logic in stepA/1/pipeline_step.py and stepB/1/pipeline_step.py"
-    )
-    logger.info("4. Add dependencies to requirements.txt files as needed")
-    logger.info("5. Run 'clarifai pipeline upload config.yaml' to upload your pipeline")
+    logger.info(f"1. Implement your pipeline step logic in the generated pipeline_step.py files")
+    logger.info("2. Add dependencies to requirements.txt files as needed")
+    logger.info("3. Run 'clarifai pipeline upload config.yaml' to upload your pipeline")
 
 
 @pipeline.command(['ls'])
