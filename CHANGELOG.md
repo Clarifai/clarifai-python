@@ -1,3 +1,8 @@
+## [[11.7.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.5) - [PyPI](https://pypi.org/project/clarifai/11.7.5/) - 2025-08-28
+
+### Changed
+- Fix Local Runner CLI command [(#765)] (https://github.com/Clarifai/clarifai-python/pull/765)
+
 ## [[11.7.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.4) - [PyPI](https://pypi.org/project/clarifai/11.7.4/) - 2025-08-27
 
 ### Changed
