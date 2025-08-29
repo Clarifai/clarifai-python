@@ -71,6 +71,7 @@ class HuggingFaceLoader:
                         self.ignore_patterns.extend(ignore_file_patterns)
                     else:
                         self.ignore_patterns = ignore_file_patterns
+
                 snapshot_download(
                     repo_id=self.repo_id,
                     local_dir=checkpoint_path,
@@ -196,6 +197,7 @@ class HuggingFaceLoader:
         if any(f.endswith(".safetensors") for f in repo_files):
             self.ignore_patterns = [
                 "**/original/*",
+                "original/*",
                 "**/*.pth",
                 "**/*.bin",
                 "*.pth",

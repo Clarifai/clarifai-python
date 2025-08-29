@@ -1,3 +1,19 @@
+## [[11.7.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.5) - [PyPI](https://pypi.org/project/clarifai/11.7.5/) - 2025-08-28
+
+### Changed
+- Fix Local Runner CLI command [(#765)] (https://github.com/Clarifai/clarifai-python/pull/765)
+
+## [[11.7.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.4) - [PyPI](https://pypi.org/project/clarifai/11.7.4/) - 2025-08-27
+
+### Changed
+- update protocol and grpc versions [(#763)] (https://github.com/Clarifai/clarifai-python/pull/763)
+
+## [[11.7.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.3) - [PyPI](https://pypi.org/project/clarifai/11.7.3/) - 2025-08-22
+
+### Changed
+- avoid downloading original checkpoints [(#760)] (https://github.com/Clarifai/clarifai-python/pull/760)
+- integrate secrets into SDK [(#757)] (https://github.com/Clarifai/clarifai-python/pull/757)
+
 ## [[11.7.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.2) - [PyPI](https://pypi.org/project/clarifai/11.7.2/) - 2025-08-19
 
 ### Changed
