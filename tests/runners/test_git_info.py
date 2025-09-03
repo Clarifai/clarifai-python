@@ -26,7 +26,7 @@ def _safe_rmtree(path):
     """
     if not os.path.exists(path):
         return
-    
+
     try:
         # First attempt: normal removal
         shutil.rmtree(path)
