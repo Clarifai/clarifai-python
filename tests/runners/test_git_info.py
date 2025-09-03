@@ -1,5 +1,6 @@
 import os
 import shutil
+import stat
 import subprocess
 import tempfile
 import unittest
@@ -8,11 +9,41 @@ from unittest.mock import patch
 from clarifai.runners.models.model_builder import ModelBuilder
 
 
+def _remove_readonly_windows(func, path, exc_info):
+    """
+    Windows-compatible error handler for shutil.rmtree.
+    Handles read-only files in .git directories by making them writable before deletion.
+    """
+    if os.path.exists(path):
+        # Make the file writable and try again
+        os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+        func(path)
+
+
+def _safe_rmtree(path):
+    """
+    Cross-platform safe directory removal that handles Windows file permission issues.
+    """
+    if not os.path.exists(path):
+        return
+    
+    try:
+        # First attempt: normal removal
+        shutil.rmtree(path)
+    except (OSError, PermissionError):
+        # Second attempt: handle Windows read-only files
+        try:
+            shutil.rmtree(path, onerror=_remove_readonly_windows)
+        except Exception:
+            # Final fallback: ignore errors completely
+            shutil.rmtree(path, ignore_errors=True)
+
+
 class TestGitInfo(unittest.TestCase):
     def setUp(self):
         """Set up test environment with a temporary directory"""
         self.test_dir = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, self.test_dir)
+        self.addCleanup(_safe_rmtree, self.test_dir)
 
         # Create a basic model structure
         self.model_dir = os.path.join(self.test_dir, "test_model")
