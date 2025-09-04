@@ -1107,7 +1107,7 @@ class ModelBuilder:
                 logger.error(f"Failed to download checkpoints for model {repo_id}")
                 sys.exit(1)
             else:
-                logger.info(f"Downloaded checkpoints for model {repo_id}")
+                logger.info(f"Downloaded checkpoints for model {repo_id} successfully to {path}")
         return path
 
     def _concepts_protos_from_concepts(self, concepts):

@@ -26,7 +26,12 @@ from clarifai.utils.constants import (
     DEFAULT_OLLAMA_MODEL_REPO_BRANCH,
 )
 from clarifai.utils.logging import logger
-from clarifai.utils.misc import GitHubDownloader, clone_github_repo, format_github_repo_url
+from clarifai.utils.misc import (
+    GitHubDownloader,
+    clone_github_repo,
+    format_github_repo_url,
+    get_list_of_files_to_download,
+)
 
 
 @cli.group(
@@ -151,16 +156,27 @@ def init(
         branch = DEFAULT_OLLAMA_MODEL_REPO_BRANCH
 
     if github_url:
+        downloader = GitHubDownloader(
+            max_retries=3,
+            github_token=github_pat,
+        )
+        if toolkit:
+            owner, repo, _, folder_path = downloader.parse_github_url(url=github_url)
+        else:
+            owner, repo, branch, folder_path = downloader.parse_github_url(url=github_url)
+        logger.info(
+            f"Parsed GitHub repository: owner={owner}, repo={repo}, branch={branch}, folder_path={folder_path}"
+        )
+        files_to_download = get_list_of_files_to_download(
+            downloader, owner, repo, folder_path, branch, []
+        )
+        for i, file in enumerate(files_to_download):
+            files_to_download[i] = f"{i + 1}. {file}"
+        files_to_download = '\n'.join(files_to_download)
+        logger.info(f"Files to be downloaded are:\n{files_to_download}")
+        input("Press Enter to continue...")
         if not toolkit:
-            owner, repo, branch, folder_path = GitHubDownloader().parse_github_url(url=github_url)
-            logger.info(
-                f"Parsed GitHub repository: owner={owner}, repo={repo}, branch={branch}, folder_path={folder_path}"
-            )
             if folder_path != "":
-                downloader = GitHubDownloader(
-                    max_retries=3,
-                    github_token=github_pat,
-                )
                 try:
                     downloader.download_github_folder(
                         url=github_url,
@@ -169,6 +185,10 @@ def init(
                     )
                     logger.info(f"Successfully downloaded folder contents to {model_path}")
                     logger.info("Model initialization complete with GitHub folder download")
+                    logger.info("Next steps:")
+                    logger.info("1. Review the model configuration")
+                    logger.info("2. Install any required dependencies manually")
+                    logger.info("3. Test the model locally using 'clarifai model local-test'")
                     return
 
                 except Exception as e:
@@ -236,6 +256,9 @@ def init(
 
     # Fall back to template-based initialization if no GitHub repo or if GitHub repo failed
     if not github_url:
+        logger.info("Initializing model with default templates...")
+        input("Press Enter to continue...")
+
         from clarifai.cli.templates.model_templates import (
             get_config_template,
             get_model_template,
@@ -1180,7 +1203,7 @@ def list_model(ctx, user_id, app_id):
     from clarifai.client import User
 
     try:
-        pat = ctx.obj.contexts["default"]["env"]["CLARIFAI_PAT"]
+        pat = ctx.obj.current.pat
     except Exception as e:
         pat = None
 
