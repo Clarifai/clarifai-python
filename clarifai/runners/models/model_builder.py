@@ -1442,13 +1442,13 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
         )
         return result
 
-    def get_model_build_logs(self):
+    def get_model_build_logs(self, current_page=1):
         logs_request = service_pb2.ListLogEntriesRequest(
             log_type="builder",
             user_app_id=self.client.user_app_id,
             model_id=self.model_proto.id,
             model_version_id=self.model_version_id,
-            page=1,
+            page=current_page,
             per_page=50,
         )
         response = self.client.STUB.ListLogEntries(logs_request)
@@ -1457,6 +1457,7 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     def monitor_model_build(self):
         st = time.time()
         seen_logs = set()  # To avoid duplicate log messages
+        current_page = 1  # Track current page for log pagination
         while True:
             resp = self.client.STUB.GetModelVersion(
                 service_pb2.GetModelVersionRequest(
@@ -1467,8 +1468,10 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
             )
 
             status_code = resp.model_version.status.code
-            logs = self.get_model_build_logs()
+            logs = self.get_model_build_logs(current_page)
+            entries_count = 0
             for log_entry in logs.log_entries:
+                entries_count += 1
                 if log_entry.url not in seen_logs:
                     seen_logs.add(log_entry.url)
                     log_entry_msg = re.sub(
@@ -1477,6 +1480,12 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                         log_entry.message.strip(),
                     )
                     logger.info(log_entry_msg)
+
+            # If we got a full page (50 entries), there might be more logs on the next page
+            # If we got fewer than 50 entries, we've reached the end and should stay on current page
+            if entries_count == 50:
+                current_page += 1
+            # else: stay on current_page
             if status_code == status_code_pb2.MODEL_BUILDING:
                 print(
                     f"Model is building... (elapsed {time.time() - st:.1f}s)", end='\r', flush=True
