@@ -193,6 +193,7 @@ class Pipeline(Lister, BaseClient):
         """
         start_time = time.time()
         seen_logs = set()
+        current_page = 1  # Track current page for log pagination
 
         while time.time() - start_time < timeout:
             # Get run status
@@ -217,8 +218,8 @@ class Pipeline(Lister, BaseClient):
                     pipeline_run, preserving_proto_field_name=True
                 )
 
-                # Display new log entries
-                self._display_new_logs(run_id, seen_logs)
+                # Display new log entries and update current page
+                current_page = self._display_new_logs(run_id, seen_logs, current_page)
 
                 elapsed_time = time.time() - start_time
                 logger.info(f"Pipeline run monitoring... (elapsed {elapsed_time:.1f}s)")
@@ -276,12 +277,16 @@ class Pipeline(Lister, BaseClient):
         logger.error(f"Pipeline run timed out after {timeout} seconds")
         return {"status": "timeout"}
 
-    def _display_new_logs(self, run_id: str, seen_logs: set):
+    def _display_new_logs(self, run_id: str, seen_logs: set, current_page: int = 1) -> int:
         """Display new log entries for a pipeline version run.
 
         Args:
             run_id (str): The pipeline version run ID.
             seen_logs (set): Set of already seen log entry IDs.
+            current_page (int): The current page to fetch logs from.
+
+        Returns:
+            int: The next page number to fetch from in subsequent calls.
         """
         try:
             logs_request = service_pb2.ListLogEntriesRequest()
@@ -290,7 +295,7 @@ class Pipeline(Lister, BaseClient):
             logs_request.pipeline_version_id = self.pipeline_version_id or ""
             logs_request.pipeline_version_run_id = run_id
             logs_request.log_type = "pipeline.version.run"  # Set required log type
-            logs_request.page = 1
+            logs_request.page = current_page
             logs_request.per_page = 50
 
             logs_response = self.STUB.ListLogEntries(
@@ -298,7 +303,9 @@ class Pipeline(Lister, BaseClient):
             )
 
             if logs_response.status.code == status_code_pb2.StatusCode.SUCCESS:
+                entries_count = 0
                 for log_entry in logs_response.log_entries:
+                    entries_count += 1
                     # Use log entry URL or timestamp as unique identifier
                     log_id = log_entry.url or f"{log_entry.created_at.seconds}_{log_entry.message}"
                     if log_id not in seen_logs:
@@ -312,5 +319,14 @@ class Pipeline(Lister, BaseClient):
                         else:
                             logger.info(log_message)
 
+                # If we got a full page (50 entries), there might be more logs on the next page
+                # If we got fewer than 50 entries, we've reached the end and should stay on current page
+                if entries_count == 50:
+                    return current_page + 1
+                else:
+                    return current_page
+
         except Exception as e:
             logger.debug(f"Error fetching logs: {e}")
+            # Return current page on error to retry the same page next fetch
+            return current_page
