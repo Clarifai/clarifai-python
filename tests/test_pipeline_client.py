@@ -263,3 +263,69 @@ class TestPipelineClient:
             UserError, match="pipeline_version_run_id is required for monitoring existing runs"
         ):
             pipeline.monitor_only()
+
+    @patch('clarifai.client.pipeline.BaseClient.__init__')
+    def test_display_new_logs_pagination(self, mock_init):
+        """Test _display_new_logs pagination behavior."""
+        mock_init.return_value = None
+
+        pipeline = Pipeline(
+            pipeline_id='test-pipeline',
+            pipeline_version_id='test-version-123',
+            user_id='test-user',
+            app_id='test-app',
+            pat='test-pat',
+        )
+
+        # Mock the required attributes
+        pipeline.user_app_id = resources_pb2.UserAppIDSet(user_id="test-user", app_id="test-app")
+        pipeline.STUB = Mock()
+        pipeline.auth_helper = Mock()
+        pipeline.auth_helper.metadata = []
+
+        # Test Case 1: Full page (50 entries) should advance to next page
+        mock_response_full = Mock()
+        mock_response_full.status.code = status_code_pb2.StatusCode.SUCCESS
+        mock_response_full.log_entries = [Mock() for _ in range(50)]  # Full page
+
+        # Set up mock log entries with unique identifiers
+        for i, entry in enumerate(mock_response_full.log_entries):
+            entry.url = f"test-url-{i}"
+            entry.message = f"Test log message {i}"
+            entry.created_at.seconds = 1000 + i
+
+        pipeline.STUB.ListLogEntries.return_value = mock_response_full
+        seen_logs = set()
+
+        # Call with page 1, should return page 2
+        next_page = pipeline._display_new_logs('test-run-123', seen_logs, current_page=1)
+        assert next_page == 2
+        assert len(seen_logs) == 50
+
+        # Test Case 2: Partial page (less than 50 entries) should stay on current page
+        mock_response_partial = Mock()
+        mock_response_partial.status.code = status_code_pb2.StatusCode.SUCCESS
+        mock_response_partial.log_entries = [Mock() for _ in range(25)]  # Partial page
+
+        # Set up mock log entries with unique identifiers  
+        for i, entry in enumerate(mock_response_partial.log_entries):
+            entry.url = f"test-url-partial-{i}"
+            entry.message = f"Test partial log message {i}"
+            entry.created_at.seconds = 2000 + i
+
+        pipeline.STUB.ListLogEntries.return_value = mock_response_partial
+        seen_logs_partial = set()
+
+        # Call with page 2, should stay on page 2
+        next_page = pipeline._display_new_logs('test-run-123', seen_logs_partial, current_page=2)
+        assert next_page == 2
+        assert len(seen_logs_partial) == 25
+
+        # Test Case 3: Error should return current page
+        pipeline.STUB.ListLogEntries.side_effect = Exception("Test error")
+        seen_logs_error = set()
+
+        # Call with page 3, should stay on page 3 due to error
+        next_page = pipeline._display_new_logs('test-run-123', seen_logs_error, current_page=3)
+        assert next_page == 3
+        assert len(seen_logs_error) == 0
