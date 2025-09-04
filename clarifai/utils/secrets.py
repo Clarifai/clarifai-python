@@ -194,12 +194,15 @@ def extract_req_secrets(
         req_secrets = []
         for secret in secrets_array:
             if isinstance(secret, dict) and secret.get("secret_type") == "req":
+                secret_id = secret.get("id")
                 env_var = secret.get("env_var")
                 value = secret.get("value")
                 if env_var and value:
                     req_secrets.append({"env_var": env_var, "value": str(value)})
                 else:
-                    logger.warning(f"Invalid req-type secret missing env_var or value: {secret}")
+                    logger.warning(
+                        f"Invalid req-type secret missing env_var or value: {secret_id}"
+                    )
         return req_secrets
     except Exception as e:
         logger.error(f"Error extracting req secrets: {e}")
