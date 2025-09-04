@@ -307,7 +307,7 @@ class TestPipelineClient:
         mock_response_partial.status.code = status_code_pb2.StatusCode.SUCCESS
         mock_response_partial.log_entries = [Mock() for _ in range(25)]  # Partial page
 
-        # Set up mock log entries with unique identifiers  
+        # Set up mock log entries with unique identifiers
         for i, entry in enumerate(mock_response_partial.log_entries):
             entry.url = f"test-url-partial-{i}"
             entry.message = f"Test partial log message {i}"
