@@ -328,5 +328,5 @@ class Pipeline(Lister, BaseClient):
 
         except Exception as e:
             logger.debug(f"Error fetching logs: {e}")
-            # Return current page on error to retry the same page next time
+            # Return current page on error to retry the same page next fetch
             return current_page
