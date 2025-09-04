@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import tempfile
@@ -321,7 +322,7 @@ def init(
 @click.option(
     '--skip_dockerfile',
     is_flag=True,
-    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile.',
+    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
 @click.pass_context
 def upload(ctx, model_path, stage, skip_dockerfile):
@@ -433,7 +434,7 @@ def signatures(model_path, out_path):
 @click.option(
     '--skip_dockerfile',
     is_flag=True,
-    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. Apply for `--mode conatainer`.',
+    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
 def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_dockerfile=False):
     """Test model locally.
@@ -500,7 +501,7 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_
 @click.option(
     '--skip_dockerfile',
     is_flag=True,
-    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. Apply for `--mode conatainer`.',
+    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
 def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=False):
     """Run the model locally and start a gRPC server to serve the model.
@@ -543,7 +544,7 @@ def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=Fa
 @click.option(
     "--pool_size",
     type=int,
-    default=1,  # default to 1 thread for local runner to avoid rapid depletion of compute time.
+    default=32,
     show_default=True,
     help="The number of threads to use. On community plan, the compute time allocation is drained at a rate proportional to the number of threads.",
 )  # pylint: disable=range-builtin-not-iterating
@@ -592,7 +593,7 @@ def local_runner(ctx, model_path, pool_size, verbose):
     """
     from clarifai.client.user import User
     from clarifai.runners.models.model_builder import ModelBuilder
-    from clarifai.runners.server import serve
+    from clarifai.runners.server import ModelServer
 
     validate_context(ctx)
     builder = ModelBuilder(model_path, download_validation_only=True)
@@ -749,12 +750,20 @@ def local_runner(ctx, model_path, pool_size, verbose):
     # Now we need to create a version for the model if no version exists. Only need one version that
     # mentions it's a local runner.
     model_versions = [v for v in model.list_versions()]
+    method_signatures = builder.get_method_signatures(mocking=False)
     if len(model_versions) == 0:
         logger.warning("No model versions found. Creating a new version for local runner.")
-        version = model.create_version(pretrained_model_config={"local_dev": True}).model_version
+        version = model.create_version(
+            pretrained_model_config={"local_dev": True}, method_signatures=method_signatures
+        ).model_version
         ctx.obj.current.CLARIFAI_MODEL_VERSION_ID = version.id
         ctx.obj.to_yaml()
     else:
+        model.patch_version(
+            version_id=model_versions[0].model_version.id,
+            pretrained_model_config={"local_dev": True},
+            method_signatures=method_signatures,
+        )
         version = model_versions[0].model_version
         ctx.obj.current.CLARIFAI_MODEL_VERSION_ID = version.id
         ctx.obj.to_yaml()  # save to yaml file.
@@ -883,7 +892,6 @@ def local_runner(ctx, model_path, pool_size, verbose):
         ModelBuilder._backup_config(config_file)
         ModelBuilder._save_config(config_file, config)
 
-    builder = ModelBuilder(model_path, download_validation_only=True)
     if not check_requirements_installed(model_path):
         logger.error(f"Requirements not installed for model at {model_path}.")
         raise click.Abort()
@@ -906,35 +914,11 @@ def local_runner(ctx, model_path, pool_size, verbose):
             logger.error(f"Failed to customize Ollama model: {e}")
             raise click.Abort()
 
-    # don't mock for local runner since you need the dependencies to run the code anyways.
-    method_signatures = builder.get_method_signatures(mocking=False)
-
-    from clarifai.runners.utils import code_script
-
-    snippet = code_script.generate_client_script(
-        method_signatures,
-        user_id=user_id,
-        app_id=app_id,
-        model_id=model_id,
-        deployment_id=deployment_id,
-        base_url=ctx.obj.current.api_base,
-    )
-
-    logger.info(f"""\nXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-# About to start up the local runner in this terminal...
-# Here is a code snippet to call this model once it start from another terminal:{snippet}
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-""")
-
-    logger.info(
-        f"Playground: To chat with your model, visit:\n{ctx.obj.current.ui}/playground?model={model.id}__{version.id}&user_id={user_id}&app_id={app_id}"
-    )
-
     logger.info("✅ Starting local runner...")
 
     # This reads the config.yaml from the model_path so we alter it above first.
-    serve(
-        model_path,
+    server = ModelServer(model_path)
+    server.serve(
         pool_size=pool_size,
         num_threads=pool_size,
         user_id=user_id,
@@ -945,6 +929,114 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
         pat=ctx.obj.current.pat,
         context=ctx.obj.current,
     )
+
+
+def _parse_json_param(param_value, param_name):
+    """Parse JSON parameter with error handling.
+
+    Args:
+        param_value: The JSON string to parse
+        param_name: Name of the parameter for error messages
+
+    Returns:
+        dict: Parsed JSON dictionary
+
+    Raises:
+        ValueError: If JSON parsing fails
+    """
+    if not param_value or param_value == '{}':
+        return {}
+    try:
+        return json.loads(param_value)
+    except json.JSONDecodeError as e:
+        logger.error(f"ValueError: Invalid JSON in --{param_name} parameter: {e}")
+        raise click.Abort()
+
+
+def _process_multimodal_inputs(inputs_dict):
+    """Process inputs to convert URLs and file paths to appropriate data types.
+
+    Args:
+        inputs_dict: Dictionary of input parameters
+
+    Returns:
+        dict: Processed inputs with Image/Video/Audio objects where appropriate
+    """
+    from clarifai.runners.utils.data_types import Audio, Image, Video
+
+    for key, value in list(inputs_dict.items()):
+        if not isinstance(value, str):
+            continue
+
+        if value.startswith(("http://", "https://")):
+            # Convert URL strings to appropriate data types
+            if "image" in key.lower():
+                inputs_dict[key] = Image(url=value)
+            elif "video" in key.lower():
+                inputs_dict[key] = Video(url=value)
+            elif "audio" in key.lower():
+                inputs_dict[key] = Audio(url=value)
+        elif os.path.isfile(value):
+            # Convert file paths to appropriate data types
+            try:
+                with open(value, "rb") as f:
+                    file_bytes = f.read()
+                if "image" in key.lower():
+                    inputs_dict[key] = Image(bytes=file_bytes)
+                elif "video" in key.lower():
+                    inputs_dict[key] = Video(bytes=file_bytes)
+                elif "audio" in key.lower():
+                    inputs_dict[key] = Audio(bytes=file_bytes)
+            except IOError as e:
+                logger.error(f"ValueError: Failed to read file {value}: {e}")
+                raise click.Abort()
+
+    return inputs_dict
+
+
+def _validate_model_params(model_id, user_id, app_id, model_url):
+    """Validate model identification parameters.
+
+    Args:
+        model_id: Model ID
+        user_id: User ID
+        app_id: App ID
+        model_url: Model URL
+
+    Raises:
+        ValueError: If validation fails
+    """
+    # Check if we have either (model_id, user_id, app_id) or model_url
+    has_triple = all([model_id, user_id, app_id])
+    has_url = bool(model_url)
+
+    if not (has_triple or has_url):
+        logger.error(
+            "ValueError: Either --model_id & --user_id & --app_id or --model_url must be provided."
+        )
+        raise click.Abort()
+
+
+def _validate_compute_params(compute_cluster_id, nodepool_id, deployment_id):
+    """Validate compute cluster parameters.
+
+    Args:
+        compute_cluster_id: Compute cluster ID
+        nodepool_id: Nodepool ID
+        deployment_id: Deployment ID
+
+    Raises:
+        ValueError: If validation fails
+    """
+    if any([compute_cluster_id, nodepool_id, deployment_id]):
+        has_cluster_nodepool = bool(compute_cluster_id) and bool(nodepool_id)
+        has_deployment = bool(deployment_id)
+
+        if not (has_cluster_nodepool or has_deployment):
+            logger.error(
+                "ValueError: Either --compute_cluster_id & --nodepool_id or --deployment_id must be provided."
+            )
+            raise click.Abort()
 
 
 @model.command(help="Perform a prediction using the model.")
@@ -958,10 +1050,6 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 @click.option('--user_id', required=False, help='User ID of the model used to predict.')
 @click.option('--app_id', required=False, help='App ID of the model used to predict.')
 @click.option('--model_url', required=False, help='Model URL of the model used to predict.')
-@click.option('--file_path', required=False, help='File path of file for the model to predict')
-@click.option('--url', required=False, help='URL to the file for the model to predict')
-@click.option('--bytes', required=False, help='Bytes to the file for the model to predict')
-@click.option('--input_type', required=False, help='Type of input')
 @click.option(
     '-cc_id',
     '--compute_cluster_id',
@@ -973,9 +1061,17 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     '-dpl_id', '--deployment_id', required=False, help='Deployment ID to use for the model'
 )
 @click.option(
-    '--inference_params', required=False, default='{}', help='Inference parameters to override'
+    '-dpl_usr_id',
+    '--deployment_user_id',
+    required=False,
+    help='User ID to use for runner selector (organization or user). If not provided, defaults to PAT owner user_id.',
 )
-@click.option('--output_config', required=False, default='{}', help='Output config to override')
+@click.option(
+    '--inputs',
+    required=False,
+    help='JSON string of input parameters for pythonic models (e.g., \'{"prompt": "Hello", "max_tokens": 100}\')',
+)
+@click.option('--method', required=False, default='predict', help='Method to call on the model.')
 @click.pass_context
 def predict(
     ctx,
@@ -984,133 +1080,104 @@ def predict(
     user_id,
     app_id,
     model_url,
-    file_path,
-    url,
-    bytes,
-    input_type,
     compute_cluster_id,
     nodepool_id,
     deployment_id,
-    inference_params,
-    output_config,
+    deployment_user_id,
+    inputs,
+    method,
 ):
-    """Predict using the given model"""
-    import json
+    """Predict using a Clarifai model.
 
+    \b
+    Model Identification:
+        Use either --model_url OR the combination of --model_id, --user_id, and --app_id
+
+    \b
+    Input Methods:
+        --inputs: JSON string with parameters (e.g., '{"prompt": "Hello", "max_tokens": 100}')
+        --method: Method to call on the model (default is 'predict')
+
+    \b
+    Compute Options:
+        Use either --deployment_id OR both --compute_cluster_id and --nodepool_id
+
+    \b
+    Examples:
+        Text model:
+            clarifai model predict --model_url <url> --inputs '{"prompt": "Hello world"}'
+
+        With compute cluster:
+            clarifai model predict --model_id <id> --user_id <uid> --app_id <aid> \\
+                                  --compute_cluster_id <cc_id> --nodepool_id <np_id> \\
+                                  --inputs '{"prompt": "Hello"}'
+    """
     from clarifai.client.model import Model
+    from clarifai.urls.helper import ClarifaiUrlHelper
     from clarifai.utils.cli import from_yaml, validate_context
 
     validate_context(ctx)
+
+    # Load configuration from file if provided
     if config:
-        config = from_yaml(config)
-        (
-            model_id,
-            user_id,
-            app_id,
-            model_url,
-            file_path,
-            url,
-            bytes,
-            input_type,
-            compute_cluster_id,
-            nodepool_id,
-            deployment_id,
-            inference_params,
-            output_config,
-        ) = (
-            config.get(k, v)
-            for k, v in [
-                ('model_id', model_id),
-                ('user_id', user_id),
-                ('app_id', app_id),
-                ('model_url', model_url),
-                ('file_path', file_path),
-                ('url', url),
-                ('bytes', bytes),
-                ('input_type', input_type),
-                ('compute_cluster_id', compute_cluster_id),
-                ('nodepool_id', nodepool_id),
-                ('deployment_id', deployment_id),
-                ('inference_params', inference_params),
-                ('output_config', output_config),
-            ]
+        config_data = from_yaml(config)
+        # Override None values with config data
+        model_id = model_id or config_data.get('model_id')
+        user_id = user_id or config_data.get('user_id')
+        app_id = app_id or config_data.get('app_id')
+        model_url = model_url or config_data.get('model_url')
+        compute_cluster_id = compute_cluster_id or config_data.get('compute_cluster_id')
+        nodepool_id = nodepool_id or config_data.get('nodepool_id')
+        deployment_id = deployment_id or config_data.get('deployment_id')
+        deployment_user_id = deployment_user_id or config_data.get('deployment_user_id')
+        inputs = inputs or config_data.get('inputs')
+        method = method or config_data.get('method', 'predict')
+
+    # Validate parameters
+    _validate_model_params(model_id, user_id, app_id, model_url)
+    _validate_compute_params(compute_cluster_id, nodepool_id, deployment_id)
+
+    # Generate model URL if not provided
+    if not model_url:
+        model_url = ClarifaiUrlHelper.clarifai_url(
+            user_id=user_id, app_id=app_id, resource_type="models", resource_id=model_id
         )
-    if (
-        sum(
-            [
-                opt[1]
-                for opt in [(model_id, 1), (user_id, 1), (app_id, 1), (model_url, 3)]
-                if opt[0]
-            ]
-        )
-        != 3
-    ):
-        raise ValueError(
-            "Either --model_id & --user_id & --app_id or --model_url must be provided."
-        )
-    if compute_cluster_id or nodepool_id or deployment_id:
-        if (
-            sum(
-                [
-                    opt[1]
-                    for opt in [(compute_cluster_id, 0.5), (nodepool_id, 0.5), (deployment_id, 1)]
-                    if opt[0]
-                ]
-            )
-            != 1
-        ):
-            raise ValueError(
-                "Either --compute_cluster_id & --nodepool_id or --deployment_id must be provided."
-            )
-    if model_url:
-        model = Model(
-            url=model_url,
-            pat=ctx.obj['pat'],
-            base_url=ctx.obj['base_url'],
-            compute_cluster_id=compute_cluster_id,
-            nodepool_id=nodepool_id,
-            deployment_id=deployment_id,
-        )
+    logger.debug(f"Using model at URL: {model_url}")
+
+    # Create model instance
+    model = Model(
+        url=model_url,
+        pat=ctx.obj.current.pat,
+        base_url=ctx.obj.current.api_base,
+        compute_cluster_id=compute_cluster_id,
+        nodepool_id=nodepool_id,
+        deployment_id=deployment_id,
+        deployment_user_id=deployment_user_id,
+    )
+
+    model_methods = model.client.available_methods()
+    stream_method = (
+        model.client.method_signature(method).split()[-1][:-1].lower().startswith('iter')
+    )
+
+    # Determine prediction method and execute
+    if inputs and (method in model_methods):
+        # Pythonic model prediction with JSON inputs
+        inputs_dict = _parse_json_param(inputs, "inputs")
+        inputs_dict = _process_multimodal_inputs(inputs_dict)
+        model_prediction = getattr(model, method)(**inputs_dict)
     else:
-        model = Model(
-            model_id=model_id,
-            user_id=user_id,
-            app_id=app_id,
-            pat=ctx.obj['pat'],
-            base_url=ctx.obj['base_url'],
-            compute_cluster_id=compute_cluster_id,
-            nodepool_id=nodepool_id,
-            deployment_id=deployment_id,
+        logger.error(
+            f"ValueError: The model does not support the '{method}' method. Please check the model's capabilities."
         )
+        raise click.Abort()
 
-    if inference_params:
-        inference_params = json.loads(inference_params)
-    if output_config:
-        output_config = json.loads(output_config)
-
-    if file_path:
-        model_prediction = model.predict_by_filepath(
-            filepath=file_path,
-            input_type=input_type,
-            inference_params=inference_params,
-            output_config=output_config,
-        )
-    elif url:
-        model_prediction = model.predict_by_url(
-            url=url,
-            input_type=input_type,
-            inference_params=inference_params,
-            output_config=output_config,
-        )
-    elif bytes:
-        bytes = str.encode(bytes)
-        model_prediction = model.predict_by_bytes(
-            input_bytes=bytes,
-            input_type=input_type,
-            inference_params=inference_params,
-            output_config=output_config,
-        )  ## TO DO: Add support for input_id
-    click.echo(model_prediction)
+    if stream_method:
+        for chunk in model_prediction:
+            click.echo(chunk, nl=False)
+        click.echo()  # Ensure a newline after the stream ends
+    else:
+        click.echo(model_prediction)
 
 
 @model.command(name="list")

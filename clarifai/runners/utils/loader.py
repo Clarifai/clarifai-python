@@ -214,6 +214,7 @@ class HuggingFaceLoader:
         if any(f.endswith(".safetensors") for f in repo_files):
             self.ignore_patterns = [
                 "**/original/*",
+                "original/*",
                 "**/*.pth",
                 "**/*.bin",
                 "*.pth",

@@ -1,3 +1,60 @@
+## [[11.7.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.5) - [PyPI](https://pypi.org/project/clarifai/11.7.5/) - 2025-08-28
+
+### Changed
+- Fix Local Runner CLI command [(#765)] (https://github.com/Clarifai/clarifai-python/pull/765)
+
+## [[11.7.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.4) - [PyPI](https://pypi.org/project/clarifai/11.7.4/) - 2025-08-27
+
+### Changed
+- update protocol and grpc versions [(#763)] (https://github.com/Clarifai/clarifai-python/pull/763)
+
+## [[11.7.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.3) - [PyPI](https://pypi.org/project/clarifai/11.7.3/) - 2025-08-22
+
+### Changed
+- avoid downloading original checkpoints [(#760)] (https://github.com/Clarifai/clarifai-python/pull/760)
+- integrate secrets into SDK [(#757)] (https://github.com/Clarifai/clarifai-python/pull/757)
+
+## [[11.7.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.2) - [PyPI](https://pypi.org/project/clarifai/11.7.2/) - 2025-08-19
+
+### Changed
+- fix num_threads setting fix pip checks [(#752)] (https://github.com/Clarifai/clarifai-python/pull/752)
+- fix pip checks when cache is broken [(#751)] (https://github.com/Clarifai/clarifai-python/pull/751)
+
+## [[11.7.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.1) - [PyPI](https://pypi.org/project/clarifai/11.7.1/) - 2025-08-18
+
+### Changed
+- fix usage setting on openai responses [(#750)] (https://github.com/Clarifai/clarifai-python/pull/750)
+
+## [[11.7.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.0) - [PyPI](https://pypi.org/project/clarifai/11.7.0/) - 2025-08-18
+
+### Changed
+- add stream_options validation for internal streaming model upload [(#742)] (https://github.com/Clarifai/clarifai-python/pull/742)
+- add packaging dependency that was missing [(#743)] (https://github.com/Clarifai/clarifai-python/pull/743)
+- always return JSON errors on openAI calls [(#744)] (https://github.com/Clarifai/clarifai-python/pull/744)
+- use 32 threads by default [(#735)] (https://github.com/Clarifai/clarifai-python/pull/735)
+- [PR-754] Fix ruff and dependencies-related issues [(#737)] (https://github.com/Clarifai/clarifai-python/pull/737)
+- [PR-768]: Fix Model Upload Deployment [(#739)] (https://github.com/Clarifai/clarifai-python/pull/739)
+- [PR-765] Fix wrong url for python SDK in README [(#734)] (https://github.com/Clarifai/clarifai-python/pull/733)
+- [PR-734] Use Method signature for local-runner [(#718)] (https://github.com/Clarifai/clarifai-python/pull/718)
+- Prevent Dockerfile overwrite during model upload with user confirmation [(#715)] (https://github.com/Clarifai/clarifai-python/pull/715)
+
+
+## [[11.6.8]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.8) - [PyPI](https://pypi.org/project/clarifai/11.6.8/) - 2025-08-05
+
+### Changed
+- quickfix for local runner signatures [(#732)] (https://github.com/Clarifai/clarifai-python/pull/732)
+
+## [[11.6.7]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.7) - [PyPI](https://pypi.org/project/clarifai/11.6.7/) - 2025-08-04
+
+### Changed
+- skip code generation when context is None [(#730)] (https://github.com/Clarifai/clarifai-python/pull/730)
+- pipeline_steps should be used in templates [(#728)] (https://github.com/Clarifai/clarifai-python/pull/728)
+- Fix nodepool creation [(#729)] (https://github.com/Clarifai/clarifai-python/pull/729)
+- Fix pipeline status code checks [(#727)] (https://github.com/Clarifai/clarifai-python/pull/727)
+- various fixes for pipelines [(#726)] (https://github.com/Clarifai/clarifai-python/pull/726)
+- Add list / ls CLI command for pipeline and pipelinestep [(#667)] (https://github.com/Clarifai/clarifai-python/pull/667)
+- Fix PAT account settings link [(#724)] (https://github.com/Clarifai/clarifai-python/pull/724)
+
 ## [[11.6.6]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.6) - [PyPI](https://pypi.org/project/clarifai/11.6.6/) - 2025-07-30
 
 ### Changed
