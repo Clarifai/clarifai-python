@@ -193,7 +193,7 @@ class Pipeline(Lister, BaseClient):
         """
         start_time = time.time()
         seen_logs = set()
-        current_page = 1  # Track current page for log pagination
+        current_page = 1  # Track current page for log pagination.
 
         while time.time() - start_time < timeout:
             # Get run status
