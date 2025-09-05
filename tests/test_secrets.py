@@ -449,3 +449,209 @@ class TestSecretsSystem:
         assert "VALID_KEY" in result
         # Empty files should not contribute any keys
         assert len([k for k in result.keys() if "empty" in k.lower()]) == 0
+
+    def test_extract_req_secrets_from_request(self):
+        """Test extracting request-type secrets from PostModelOutputsRequest."""
+        from google.protobuf.struct_pb2 import Struct
+
+        from clarifai.utils.secrets import extract_req_secrets
+
+        # Create a request with request-type secrets in model parameters
+        request = service_pb2.PostModelOutputsRequest()
+        request.model.model_version.output_info.params.CopyFrom(Struct())
+
+        # Simulate the structure that would contain req-type secrets
+        secrets_data = [
+            {
+                "id": "secret1",
+                "secret_type": "req",
+                "env_var": "REQ_API_KEY",
+                "value": "req_secret_value_1",
+            },
+            {
+                "id": "secret2",
+                "secret_type": "system",  # This should be ignored
+                "env_var": "SYSTEM_KEY",
+                "value": "system_value",
+            },
+            {
+                "id": "secret3",
+                "secret_type": "req",
+                "env_var": "REQ_TOKEN",
+                "value": "req_secret_value_2",
+            },
+        ]
+
+        # Set the secrets in the params
+        request.model.model_version.output_info.params["secrets"] = secrets_data
+
+        # Extract req-type secrets
+        req_secrets = extract_req_secrets(request)
+
+        # Should only extract the req-type secrets
+        assert len(req_secrets) == 2
+        assert {"env_var": "REQ_API_KEY", "value": "req_secret_value_1"} in req_secrets
+        assert {"env_var": "REQ_TOKEN", "value": "req_secret_value_2"} in req_secrets
+
+        # Should not include system-type secret
+        system_secrets = [s for s in req_secrets if s["env_var"] == "SYSTEM_KEY"]
+        assert len(system_secrets) == 0
+
+    def test_extract_req_secrets_empty_request(self):
+        """Test extracting secrets from empty or invalid requests."""
+        from clarifai.utils.secrets import extract_req_secrets
+
+        # Test with None request
+        assert extract_req_secrets(None) == []
+
+        # Test with empty request
+        empty_request = service_pb2.PostModelOutputsRequest()
+        assert extract_req_secrets(empty_request) == []
+
+        # Test with request missing model field
+        request_no_model = service_pb2.PostModelOutputsRequest()
+        assert extract_req_secrets(request_no_model) == []
+
+    def test_extract_req_secrets_malformed_data(self):
+        """Test extracting secrets with malformed or incomplete data."""
+        from google.protobuf.struct_pb2 import Struct
+
+        from clarifai.utils.secrets import extract_req_secrets
+
+        request = service_pb2.PostModelOutputsRequest()
+        request.model.model_version.output_info.params.CopyFrom(Struct())
+
+        # Test with malformed secrets (missing required fields)
+        malformed_secrets = [
+            {"id": "secret1", "secret_type": "req"},  # Missing env_var and value
+            {"id": "secret2", "secret_type": "req", "env_var": "MISSING_VALUE"},  # Missing value
+            {"id": "secret3", "secret_type": "req", "value": "missing_env_var"},  # Missing env_var
+            {
+                "id": "secret4",
+                "secret_type": "req",
+                "env_var": "VALID_KEY",
+                "value": "valid_value",
+            },  # Valid
+        ]
+
+        request.model.model_version.output_info.params["secrets"] = malformed_secrets
+        req_secrets = extract_req_secrets(request)
+
+        # Should only extract the valid secret
+        assert len(req_secrets) == 1
+        assert req_secrets[0] == {"env_var": "VALID_KEY", "value": "valid_value"}
+
+    def test_temporary_env_vars_context_manager(self):
+        """Test the temporary_env_vars context manager."""
+        from clarifai.utils.secrets import temporary_env_vars
+
+        # Set up initial environment state
+        original_value = "original"
+        os.environ["TEMP_TEST_VAR"] = original_value
+
+        # Remove any existing TEST_NEW_VAR
+        if "TEST_NEW_VAR" in os.environ:
+            del os.environ["TEST_NEW_VAR"]
+
+        test_env_vars = {"TEMP_TEST_VAR": "temporary_value", "TEST_NEW_VAR": "new_value"}
+
+        # Test that variables are set within context
+        with temporary_env_vars(test_env_vars):
+            assert os.environ["TEMP_TEST_VAR"] == "temporary_value"
+            assert os.environ["TEST_NEW_VAR"] == "new_value"
+
+        # Test that original state is restored
+        assert os.environ["TEMP_TEST_VAR"] == original_value
+        assert "TEST_NEW_VAR" not in os.environ
+
+    def test_temporary_env_vars_exception_handling(self):
+        """Test that environment is restored even when exception occurs."""
+        from clarifai.utils.secrets import temporary_env_vars
+
+        # Set initial state
+        os.environ["EXCEPTION_TEST_VAR"] = "original"
+
+        test_env_vars = {"EXCEPTION_TEST_VAR": "temporary"}
+
+        try:
+            with temporary_env_vars(test_env_vars):
+                assert os.environ["EXCEPTION_TEST_VAR"] == "temporary"
+                raise ValueError("Test exception")
+        except ValueError:
+            pass
+
+        # Should restore original value even after exception
+        assert os.environ["EXCEPTION_TEST_VAR"] == "original"
+
+    def test_req_secrets_context_full_workflow(self):
+        """Test the complete req_secrets_context workflow with multiple secrets."""
+        from google.protobuf.struct_pb2 import Struct
+
+        from clarifai.utils.secrets import req_secrets_context
+
+        # Create request with multiple req-type secrets
+        request = service_pb2.PostModelOutputsRequest()
+        request.model.model_version.output_info.params.CopyFrom(Struct())
+
+        secrets_data = [
+            {
+                "id": "secret1",
+                "secret_type": "req",
+                "env_var": "WORKFLOW_API_KEY",
+                "value": "api_value",
+            },
+            {
+                "id": "secret2",
+                "secret_type": "req",
+                "env_var": "WORKFLOW_TOKEN",
+                "value": "token_value",
+            },
+        ]
+
+        request.model.model_version.output_info.params["secrets"] = secrets_data
+
+        # Clean initial state
+        for var in ["WORKFLOW_API_KEY", "WORKFLOW_TOKEN"]:
+            if var in os.environ:
+                del os.environ[var]
+
+        # Test that secrets are available within context
+        with req_secrets_context(request):
+            assert os.environ.get("WORKFLOW_API_KEY") == "api_value"
+            assert os.environ.get("WORKFLOW_TOKEN") == "token_value"
+
+        # Test that secrets are removed after context
+        assert "WORKFLOW_API_KEY" not in os.environ
+        assert "WORKFLOW_TOKEN" not in os.environ
+
+    def test_req_secrets_context_with_existing_env_vars(self):
+        """Test req_secrets_context preserves original environment variables."""
+        from google.protobuf.struct_pb2 import Struct
+
+        from clarifai.utils.secrets import req_secrets_context
+
+        # Set up existing environment variable
+        original_value = "original_api_key"
+        os.environ["CONTEXT_API_KEY"] = original_value
+
+        # Create request that will override the existing variable
+        request = service_pb2.PostModelOutputsRequest()
+        request.model.model_version.output_info.params.CopyFrom(Struct())
+
+        secrets_data = [
+            {
+                "id": "override_secret",
+                "secret_type": "req",
+                "env_var": "CONTEXT_API_KEY",
+                "value": "request_override_value",
+            }
+        ]
+
+        request.model.model_version.output_info.params["secrets"] = secrets_data
+
+        # Test override within context
+        with req_secrets_context(request):
+            assert os.environ["CONTEXT_API_KEY"] == "request_override_value"
+
+        # Test restoration after context
+        assert os.environ["CONTEXT_API_KEY"] == original_value

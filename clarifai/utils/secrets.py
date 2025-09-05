@@ -1,8 +1,9 @@
 import os
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from threading import Thread
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from google.protobuf import struct_pb2
@@ -163,6 +164,100 @@ def inject_secrets(request: Optional[service_pb2.PostModelOutputsRequest]) -> No
     if variables:
         request.model.model_version.output_info.params.update(variables)
     return
+
+
+def extract_req_secrets(
+    request: Optional[service_pb2.PostModelOutputsRequest],
+) -> List[Dict[str, Any]]:
+    """Extract request-type secrets from the model parameters.
+
+    Args:
+        request: The PostModelOutputsRequest containing the model parameters
+
+    Returns:
+        list: request-type secrets with env_var and value fields
+    """
+    if not request or not request.HasField("model"):
+        return []
+
+    if not (
+        request.model.HasField("model_version")
+        and request.model.model_version.HasField("output_info")
+        and request.model.model_version.output_info.HasField("params")
+    ):
+        return []
+
+    try:
+        params_dict = MessageToDict(request.model.model_version.output_info.params)
+        secrets_array = params_dict.get("secrets", [])
+
+        req_secrets = []
+        for secret in secrets_array:
+            if isinstance(secret, dict) and secret.get("secret_type") == "req":
+                secret_id = secret.get("id")
+                env_var = secret.get("env_var")
+                value = secret.get("value")
+                if env_var and value:
+                    req_secrets.append({"env_var": env_var, "value": str(value)})
+                else:
+                    logger.warning(
+                        f"Invalid req-type secret missing env_var or value: {secret_id}"
+                    )
+        return req_secrets
+    except Exception as e:
+        logger.error(f"Error extracting req secrets: {e}")
+        return []
+
+
+@contextmanager
+def temporary_env_vars(env_vars: Dict[str, str]):
+    """Context manager to temporarily set environment variables and restore them after.
+
+    Args:
+        env_vars: Dictionary of environment variable names and values to set
+    """
+    if not env_vars:
+        yield
+        return
+
+    original_values = {}
+    for key in env_vars.keys():
+        original_values[key] = os.environ.get(key)
+
+    try:
+        for key, value in env_vars.items():
+            os.environ[key] = value
+            logger.debug(f"Temporarily set environment variable: {key}")
+        yield
+    finally:
+        # Restore original environment state
+        for key, original_value in original_values.items():
+            if original_value is None:
+                if key in os.environ:
+                    del os.environ[key]
+                    logger.debug(f"Removed temporary environment variable: {key}")
+            else:
+                os.environ[key] = original_value
+                logger.debug(f"Restored environment variable: {key}")
+
+
+@contextmanager
+def req_secrets_context(request: Optional[service_pb2.PostModelOutputsRequest]):
+    """Context manager to handle request-type secrets during model prediction.
+
+    Args:
+        request: The PostModelOutputsRequest to extract secrets from
+    """
+    req_secrets = extract_req_secrets(request)
+
+    if not req_secrets:
+        yield
+        return
+
+    env_vars = {secret["env_var"]: secret["value"] for secret in req_secrets}
+    logger.debug(f"Setting {len(env_vars)} request-type secrets as environment variables")
+    with temporary_env_vars(env_vars):
+        yield
 
 
 def get_secrets(

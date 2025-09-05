@@ -9,7 +9,7 @@ from clarifai_protocol.utils.health import HealthProbeRequestHandler
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.utils.constants import STATUS_FAIL, STATUS_MIXED, STATUS_OK, STATUS_UNKNOWN
 from clarifai.utils.logging import get_req_id_from_context, logger
-from clarifai.utils.secrets import inject_secrets
+from clarifai.utils.secrets import inject_secrets, req_secrets_context
 
 from ..utils.url_fetcher import ensure_urls_downloaded
 from .model_class import ModelClass
@@ -126,7 +126,10 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         if method_name == '_GET_SIGNATURES':
             logging = False
 
-        resp = self.model.predict_wrapper(request)
+        # Use req_secrets_context to temporarily set request-type secrets as environment variables
+        with req_secrets_context(request):
+            resp = self.model.predict_wrapper(request)
+
         # if we have any non-successful code already it's an error we can return.
         if (
             resp.status.code != status_code_pb2.SUCCESS
@@ -185,45 +188,49 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         status_str = STATUS_UNKNOWN
         endpoint = "POST /v2/.../outputs/generate"
 
-        for resp in self.model.generate_wrapper(request):
-            # if we have any non-successful code already it's an error we can return.
-            if (
-                resp.status.code != status_code_pb2.SUCCESS
-                and resp.status.code != status_code_pb2.ZERO
-            ):
-                status_str = f"{resp.status.code} ERROR"
-                duration_ms = (time.time() - start_time) * 1000
-                logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
-                yield service_pb2.RunnerItemOutput(multi_output_response=resp)
-                continue
-            successes = []
-            for output in resp.outputs:
-                if not output.HasField('status') or not output.status.code:
-                    raise Exception(
-                        "Output must have a status code, please check the model implementation."
+        # Use req_secrets_context to temporarily set request-type secrets as environment variables
+        with req_secrets_context(request):
+            for resp in self.model.generate_wrapper(request):
+                # if we have any non-successful code already it's an error we can return.
+                if (
+                    resp.status.code != status_code_pb2.SUCCESS
+                    and resp.status.code != status_code_pb2.ZERO
+                ):
+                    status_str = f"{resp.status.code} ERROR"
+                    duration_ms = (time.time() - start_time) * 1000
+                    logger.info(
+                        f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}"
                     )
-                successes.append(output.status.code == status_code_pb2.SUCCESS)
-            if all(successes):
-                status = status_pb2.Status(
-                    code=status_code_pb2.SUCCESS,
-                    description="Success",
-                )
-                status_str = STATUS_OK
-            elif any(successes):
-                status = status_pb2.Status(
-                    code=status_code_pb2.MIXED_STATUS,
-                    description="Mixed Status",
-                )
-                status_str = STATUS_MIXED
-            else:
-                status = status_pb2.Status(
-                    code=status_code_pb2.FAILURE,
-                    description="Failed",
-                )
-                status_str = STATUS_FAIL
-            resp.status.CopyFrom(status)
+                    yield service_pb2.RunnerItemOutput(multi_output_response=resp)
+                    continue
+                successes = []
+                for output in resp.outputs:
+                    if not output.HasField('status') or not output.status.code:
+                        raise Exception(
+                            "Output must have a status code, please check the model implementation."
+                        )
+                    successes.append(output.status.code == status_code_pb2.SUCCESS)
+                if all(successes):
+                    status = status_pb2.Status(
+                        code=status_code_pb2.SUCCESS,
+                        description="Success",
+                    )
+                    status_str = STATUS_OK
+                elif any(successes):
+                    status = status_pb2.Status(
+                        code=status_code_pb2.MIXED_STATUS,
+                        description="Mixed Status",
+                    )
+                    status_str = STATUS_MIXED
+                else:
+                    status = status_pb2.Status(
+                        code=status_code_pb2.FAILURE,
+                        description="Failed",
+                    )
+                    status_str = STATUS_FAIL
+                resp.status.CopyFrom(status)
 
-            yield service_pb2.RunnerItemOutput(multi_output_response=resp)
+                yield service_pb2.RunnerItemOutput(multi_output_response=resp)
 
         duration_ms = (time.time() - start_time) * 1000
         logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
@@ -237,45 +244,55 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         status_str = STATUS_UNKNOWN
         endpoint = "POST /v2/.../outputs/stream  "
 
-        for resp in self.model.stream_wrapper(pmo_iterator(runner_item_iterator)):
-            # if we have any non-successful code already it's an error we can return.
-            if (
-                resp.status.code != status_code_pb2.SUCCESS
-                and resp.status.code != status_code_pb2.ZERO
-            ):
-                status_str = f"{resp.status.code} ERROR"
-                duration_ms = (time.time() - start_time) * 1000
-                logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
-                yield service_pb2.RunnerItemOutput(multi_output_response=resp)
-                continue
-            successes = []
-            for output in resp.outputs:
-                if not output.HasField('status') or not output.status.code:
-                    raise Exception(
-                        "Output must have a status code, please check the model implementation."
-                    )
-                successes.append(output.status.code == status_code_pb2.SUCCESS)
-            if all(successes):
-                status = status_pb2.Status(
-                    code=status_code_pb2.SUCCESS,
-                    description="Success",
-                )
-                status_str = STATUS_OK
-            elif any(successes):
-                status = status_pb2.Status(
-                    code=status_code_pb2.MIXED_STATUS,
-                    description="Mixed Status",
-                )
-                status_str = STATUS_MIXED
-            else:
-                status = status_pb2.Status(
-                    code=status_code_pb2.FAILURE,
-                    description="Failed",
-                )
-                status_str = STATUS_FAIL
-            resp.status.CopyFrom(status)
+        # Get the first request to establish secrets context
+        first_request = None
+        runner_items = list(runner_item_iterator)  # Convert to list to avoid consuming iterator
+        if runner_items:
+            first_request = runner_items[0].post_model_outputs_request
 
-            yield service_pb2.RunnerItemOutput(multi_output_response=resp)
+        # Use req_secrets_context based on the first request (secrets should be consistent across stream)
+        with req_secrets_context(first_request):
+            for resp in self.model.stream_wrapper(pmo_iterator(iter(runner_items))):
+                # if we have any non-successful code already it's an error we can return.
+                if (
+                    resp.status.code != status_code_pb2.SUCCESS
+                    and resp.status.code != status_code_pb2.ZERO
+                ):
+                    status_str = f"{resp.status.code} ERROR"
+                    duration_ms = (time.time() - start_time) * 1000
+                    logger.info(
+                        f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}"
+                    )
+                    yield service_pb2.RunnerItemOutput(multi_output_response=resp)
+                    continue
+                successes = []
+                for output in resp.outputs:
+                    if not output.HasField('status') or not output.status.code:
+                        raise Exception(
+                            "Output must have a status code, please check the model implementation."
+                        )
+                    successes.append(output.status.code == status_code_pb2.SUCCESS)
+                if all(successes):
+                    status = status_pb2.Status(
+                        code=status_code_pb2.SUCCESS,
+                        description="Success",
+                    )
+                    status_str = STATUS_OK
+                elif any(successes):
+                    status = status_pb2.Status(
+                        code=status_code_pb2.MIXED_STATUS,
+                        description="Mixed Status",
+                    )
+                    status_str = STATUS_MIXED
+                else:
+                    status = status_pb2.Status(
+                        code=status_code_pb2.FAILURE,
+                        description="Failed",
+                    )
+                    status_str = STATUS_FAIL
+                resp.status.CopyFrom(status)
+
+                yield service_pb2.RunnerItemOutput(multi_output_response=resp)
 
         duration_ms = (time.time() - start_time) * 1000
         logger.info(f"{endpoint} | {status_str} | {duration_ms:.2f}ms | req_id={req_id}")
