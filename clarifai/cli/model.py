@@ -755,12 +755,12 @@ def local_runner(ctx, model_path, pool_size, verbose):
     local_dev_versions = []
     for v in model_versions:
         config = v.model_version.pretrained_model_config
-        if config and "local_dev" in config and config["local_dev"].bool_value:
+        if config and config.local_dev and config.local_dev.bool_value:
             local_dev_versions.append(v)
             continue
 
         import_info = v.model_version.import_info
-        if import_info and "local_dev" in import_info and import_info["local_dev"].bool_value:
+        if import_info and import_info.local_dev and import_info.local_dev.bool_value:
             local_dev_versions.append(v)
 
     if local_dev_versions:
