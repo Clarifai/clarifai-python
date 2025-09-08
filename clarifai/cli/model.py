@@ -759,10 +759,6 @@ def local_runner(ctx, model_path, pool_size, verbose):
             local_dev_versions.append(v)
             continue
 
-        import_info = v.model_version.import_info
-        if import_info and import_info.local_dev and import_info.local_dev.bool_value:
-            local_dev_versions.append(v)
-
     if local_dev_versions:
         # Use the latest version with local_dev=True. The list_versions() returns versions in descending order of creation.
         version = local_dev_versions[0].model_version
