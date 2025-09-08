@@ -1338,7 +1338,7 @@ class ModelBuilder:
         if when != "upload" and self.config.get("checkpoints"):
             # Get the checkpoint size to add to the storage request.
             # First check for the env variable, then try querying huggingface. If all else fails, use the default.
-            checkpoint_size = os.environ.get('CHECKPOINT_SIZE_BYTES', 0)
+            checkpoint_size = int(os.environ.get('CHECKPOINT_SIZE_BYTES', 0))
             if not checkpoint_size:
                 _, repo_id, _, _, _, _ = self._validate_config_checkpoints()
                 checkpoint_size = HuggingFaceLoader.get_huggingface_checkpoint_total_size(repo_id)
