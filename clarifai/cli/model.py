@@ -749,24 +749,34 @@ def local_runner(ctx, model_path, pool_size, verbose):
 
     # Now we need to create a version for the model if no version exists. Only need one version that
     # mentions it's a local runner.
-    model_versions = [v for v in model.list_versions()]
+    model_versions = list(model.list_versions())
     method_signatures = builder.get_method_signatures(mocking=False)
-    if len(model_versions) == 0:
-        logger.warning("No model versions found. Creating a new version for local runner.")
+
+    local_dev_versions = []
+    for v in model_versions:
+        config = v.model_version.pretrained_model_config
+        if config and config.get("local_dev") and config["local_dev"].bool_value:
+            local_dev_versions.append(v)
+            continue
+
+        import_info = v.model_version.import_info
+        if import_info and import_info.get("local_dev") and import_info["local_dev"].bool_value:
+            local_dev_versions.append(v)
+
+    if local_dev_versions:
+        # Use the latest version with local_dev=True. The list_versions() returns versions in descending order of creation.
+        version = local_dev_versions[0].model_version
+        logger.info(f"Using existing local-dev model version: {version.id}")
+        ctx.obj.current.CLARIFAI_MODEL_VERSION_ID = version.id
+        ctx.obj.to_yaml()
+    else:
+        # If no local_dev versions are found, create a new one.
+        logger.warning("No local-dev model version found. Creating a new version for local runner.")
         version = model.create_version(
             pretrained_model_config={"local_dev": True}, method_signatures=method_signatures
         ).model_version
         ctx.obj.current.CLARIFAI_MODEL_VERSION_ID = version.id
         ctx.obj.to_yaml()
-    else:
-        model.patch_version(
-            version_id=model_versions[0].model_version.id,
-            pretrained_model_config={"local_dev": True},
-            method_signatures=method_signatures,
-        )
-        version = model_versions[0].model_version
-        ctx.obj.current.CLARIFAI_MODEL_VERSION_ID = version.id
-        ctx.obj.to_yaml()  # save to yaml file.
 
     logger.info(f"Current model version {version.id}")
 
