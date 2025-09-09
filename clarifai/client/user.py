@@ -533,6 +533,178 @@ class User(Lister, BaseClient):
         ]
         return f"Clarifai User Details: \n{', '.join(attribute_strings)}\n"
 
+    def get_secret(self, secret_id: str) -> dict:
+        """Returns a secret object if exists.
+
+        Args:
+            secret_id (str): The secret ID to interact with
+
+        Returns:
+            Dict: A dictionary containing information about the existing secret ID.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> secret_info = client.get_secret(secret_id="secret_id")
+        """
+        request = service_pb2.GetSecretRequest(user_app_id=self.user_app_id, id=secret_id)
+        response = self._grpc_request(self.STUB.GetSecret, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(
+                f"""Error getting secret, are you sure this is a valid secret id {secret_id} at the user_id
+          {self.user_app_id.user_id}.
+          Error: {response.status.description}"""
+            )
+
+        dict_response = MessageToDict(response, preserving_proto_field_name=True)
+        kwargs = self.process_response_keys(dict_response["secret"], "secret")
+
+        return dict(auth=self.auth_helper, **kwargs)
+
+    def list_secrets(
+        self, page_no: int = None, per_page: int = None
+    ) -> Generator[dict, None, None]:
+        """List all secrets for the user
+
+        Args:
+            page_no (int): The page number to list.
+            per_page (int): The number of items per page.
+
+        Yields:
+            Dict: Dictionaries containing information about the secrets.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> all_secrets = list(client.list_secrets())
+
+        Note:
+            Defaults to 16 per page if page_no is specified and per_page is not specified.
+            If both page_no and per_page are None, then lists all the resources.
+        """
+        request_data = dict(user_app_id=self.user_app_id)
+        all_secrets_info = self.list_pages_generator(
+            self.STUB.ListSecrets,
+            service_pb2.ListSecretsRequest,
+            request_data,
+            per_page=per_page,
+            page_no=page_no,
+        )
+        for secret_info in all_secrets_info:
+            yield dict(auth=self.auth_helper, **secret_info)
+
+    def create_secrets(self, secrets: List[Dict[str, Any]]) -> List[dict]:
+        """Creates secrets for the user.
+
+        Args:
+            secrets (List[Dict[str, Any]]): List of secret configurations to create.
+                Each secret dict can contain:
+                - id (str): The name/ID of the secret (required)
+                - value (str): The secret value (required)
+                - description (str): Optional description of the secret
+                - expires_at (str): Optional expiration timestamp
+
+        Returns:
+            List[Dict]: List of dictionaries containing information about the created secrets.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> secrets = [{"id": "secret1", "value": "secret_value", "description": "My Secret"}]
+            >>> created_secrets = client.create_secrets(secrets)
+        """
+        assert isinstance(secrets, list), "secrets param should be a list"
+
+        # Convert dict secrets to protobuf Secret objects
+        secret_objects = []
+        for secret_config in secrets:
+            secret_objects.append(resources_pb2.Secret(**secret_config))
+
+        request = service_pb2.PostSecretsRequest(
+            user_app_id=self.user_app_id, secrets=secret_objects
+        )
+        response = self._grpc_request(self.STUB.PostSecrets, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+
+        self.logger.info(f"Secrets created successfully:\n{response.status}")
+
+        # Convert response to list of dictionaries
+        dict_response = MessageToDict(response, preserving_proto_field_name=True)
+        created_secrets = []
+        for secret in dict_response.get("secrets", []):
+            kwargs = self.process_response_keys(secret, "secret")
+            created_secrets.append(dict(auth=self.auth_helper, **kwargs))
+
+        return created_secrets
+
+    def patch_secrets(
+        self, secrets: List[Dict[str, Any]], action: str = 'overwrite'
+    ) -> List[dict]:
+        """Patches secrets for the user.
+
+        Args:
+            secrets (List[Dict[str, Any]]): List of secret configurations to patch.
+                Each secret dict should contain:
+                - id (str): The name/ID of the secret to patch (required)
+                - value (str): Optional new secret value
+                - description (str): Optional new description
+                - expires_at (str): Optional new expiration timestamp
+            action (str): The action to perform on the secrets (overwrite/remove).
+
+        Returns:
+            List[Dict]: List of dictionaries containing information about the patched secrets.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> secrets = [{"id": "secret1", "description": "Updated Secret Description"}]
+            >>> patched_secrets = client.patch_secrets(secrets, action="overwrite")
+        """
+        assert isinstance(secrets, list), "secrets param should be a list"
+
+        # Convert dict secrets to protobuf Secret objects
+        secret_objects = []
+        for secret_config in secrets:
+            secret_objects.append(resources_pb2.Secret(**secret_config))
+
+        request = service_pb2.PatchSecretsRequest(
+            user_app_id=self.user_app_id, secret=secret_objects, action=action
+        )
+        response = self._grpc_request(self.STUB.PatchSecrets, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+
+        self.logger.info(f"Secrets patched successfully:\n{response.status}")
+
+        # Convert response to list of dictionaries
+        dict_response = MessageToDict(response, preserving_proto_field_name=True)
+        patched_secrets = []
+        for secret in dict_response.get("secrets", []):
+            kwargs = self.process_response_keys(secret, "secret")
+            patched_secrets.append(dict(auth=self.auth_helper, **kwargs))
+
+        return patched_secrets
+
+    def delete_secrets(self, secret_ids: List[str]) -> None:
+        """Deletes a list of secrets for the user.
+
+        Args:
+            secret_ids (List[str]): The secret IDs of the user to delete.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> client.delete_secrets(secret_ids=["secret_id1", "secret_id2"])
+        """
+        assert isinstance(secret_ids, list), "secret_ids param should be a list"
+
+        request = service_pb2.DeleteSecretsRequest(user_app_id=self.user_app_id, ids=secret_ids)
+        response = self._grpc_request(self.STUB.DeleteSecrets, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+        self.logger.info("\nSecrets Deleted\n%s", response.status)
+
     def list_models(
         self,
         user_id: str = None,
