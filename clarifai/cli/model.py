@@ -759,9 +759,8 @@ def local_runner(ctx, model_path, pool_size, verbose):
     else:
         # Try to patch the latest version, and fallback to creating a new one if that fails.
         latest_version = model_versions[0]
-        logger.warning(
-            f"Attempting to patch latest version: {latest_version.model_version.id}"
-        )
+        logger.warning(f"Attempting to patch latest version: {latest_version.model_version.id}")
+
         try:
             patched_model = model.patch_version(
                 version_id=latest_version.model_version.id,
@@ -776,7 +775,7 @@ def local_runner(ctx, model_path, pool_size, verbose):
         except Exception as e:
             logger.warning(f"Failed to patch model version: {e}. Creating a new version instead.")
             create_new_version = True
-    
+
     if create_new_version:
         version = model.create_version(
             pretrained_model_config={"local_dev": True}, method_signatures=method_signatures
