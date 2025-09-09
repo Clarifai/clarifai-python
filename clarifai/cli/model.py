@@ -752,11 +752,15 @@ def local_runner(ctx, model_path, pool_size, verbose):
     model_versions = list(model.list_versions())
     method_signatures = builder.get_method_signatures(mocking=False)
 
-    if model_versions:
+    create_new_version = False
+    if len(model_versions) == 0:
+        logger.warning("No model versions found. Creating a new version for local runner.")
+        create_new_version = True
+    else:
         # Try to patch the latest version, and fallback to creating a new one if that fails.
         latest_version = model_versions[0]
         logger.warning(
-            f"No model version with local_dev=True found. Attempting to patch latest version: {latest_version.model_version.id}"
+            f"Attempting to patch latest version: {latest_version.model_version.id}"
         )
         try:
             patched_model = model.patch_version(
@@ -771,14 +775,9 @@ def local_runner(ctx, model_path, pool_size, verbose):
             ctx.obj.to_yaml()  # save to yaml file.
         except Exception as e:
             logger.warning(f"Failed to patch model version: {e}. Creating a new version instead.")
-            version = model.create_version(
-                pretrained_model_config={"local_dev": True}, method_signatures=method_signatures
-            ).model_version
-            ctx.obj.current.CLARIFAI_MODEL_VERSION_ID = version.id
-            ctx.obj.to_yaml()
-    else:
-        # If no versions exist, create a new one.
-        logger.warning("No model versions found. Creating a new version for local runner.")
+            create_new_version = True
+    
+    if create_new_version:
         version = model.create_version(
             pretrained_model_config={"local_dev": True}, method_signatures=method_signatures
         ).model_version
