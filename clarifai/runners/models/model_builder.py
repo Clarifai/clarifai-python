@@ -487,14 +487,11 @@ class ModelBuilder:
 
             if "type" not in secret or not secret["type"]:
                 secret["type"] = "env"
-                # raise ValueError(f"Secret at index {i} must have a non-empty 'type' field.")
 
             if "env_var" not in secret or not secret["env_var"]:
                 raise ValueError(f"Secret at index {i} must have a non-empty 'env_var' field.")
             # Validate secret type
-            if secret["type"] not in [
-                "env",
-            ]:
+            if secret["type"] != "env":
                 raise ValueError(
                     f"Secret at index {i} has invalid type '{secret['type']}'. Must be 'env'."
                 )
