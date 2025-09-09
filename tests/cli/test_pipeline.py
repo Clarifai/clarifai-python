@@ -882,17 +882,21 @@ class TestPipelineInitCommand:
 
             # Check that custom step directories were created
             assert os.path.exists('data-prep/config.yaml')
-            assert os.path.exists('model-train/config.yaml') 
+            assert os.path.exists('model-train/config.yaml')
             assert os.path.exists('model-deploy/config.yaml')
 
             # Verify the pipeline config contains the custom values
             with open('config.yaml', 'r') as f:
                 config = yaml.safe_load(f)
-            
+
             assert config['pipeline']['id'] == 'custom-pipeline'
             assert config['pipeline']['user_id'] == 'custom-user'
             assert config['pipeline']['app_id'] == 'custom-app'
-            assert config['pipeline']['step_directories'] == ['data-prep', 'model-train', 'model-deploy']
+            assert config['pipeline']['step_directories'] == [
+                'data-prep',
+                'model-train',
+                'model-deploy',
+            ]
 
     def test_init_command_with_custom_path(self):
         """Test that init command works with custom path."""
@@ -958,12 +962,12 @@ class TestPipelineInitCommand:
 
             # Check step directories
             assert config['pipeline']['step_directories'] == ['stepA', 'stepB']
-            
+
             # Check that actual values are used, not placeholders
             assert config['pipeline']['id'] == 'test-pipeline'
             assert config['pipeline']['user_id'] == 'test-user'
             assert config['pipeline']['app_id'] == 'test-app'
-            
+
             # Ensure no TODO comments exist
             assert 'TODO' not in config_content
 
@@ -989,7 +993,7 @@ class TestPipelineInitCommand:
             assert 'pipeline_step_input_params' in step_config
             assert 'build_info' in step_config
             assert 'pipeline_step_compute_info' in step_config
-            
+
             # Ensure no TODO comments exist
             assert 'TODO' not in step_config_content
 

@@ -3,13 +3,18 @@
 from clarifai.versions import CLIENT_VERSION
 
 
-def get_pipeline_config_template(pipeline_id="hello-world-pipeline", user_id="your_user_id", app_id="your_app_id", step_names=None):
+def get_pipeline_config_template(
+    pipeline_id="hello-world-pipeline",
+    user_id="your_user_id",
+    app_id="your_app_id",
+    step_names=None,
+):
     """Get the config.yaml template for pipelines."""
     if step_names is None:
         step_names = ["stepA", "stepB"]
-    
+
     step_directories = "\n".join(f"    - {step}" for step in step_names)
-    
+
     # Generate step templates for orchestration
     step_templates = []
     for i, step_name in enumerate(step_names):
@@ -17,9 +22,9 @@ def get_pipeline_config_template(pipeline_id="hello-world-pipeline", user_id="yo
               templateRef:
                 name: users/{user_id}/apps/{app_id}/pipeline_steps/{step_name}
                 template: users/{user_id}/apps/{app_id}/pipeline_steps/{step_name}""")
-    
+
     steps_yaml = "\n".join(step_templates)
-    
+
     return f"""pipeline:
   id: "{pipeline_id}"
   user_id: "{user_id}"
