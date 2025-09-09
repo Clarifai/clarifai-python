@@ -848,7 +848,9 @@ class TestPipelineInitCommand:
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ['.'])
+            # Provide inputs for the interactive prompts
+            inputs = "test-user\ntest-app\nhello-world-pipeline\n2\nstepA\nstepB\n"
+            result = runner.invoke(init, ['.'], input=inputs)
 
             assert result.exit_code == 0
 
@@ -867,12 +869,42 @@ class TestPipelineInitCommand:
             for file_path in expected_files:
                 assert os.path.exists(file_path), f"Expected file {file_path} was not created"
 
+    def test_init_command_with_custom_inputs(self):
+        """Test that init command works with custom user inputs."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        with runner.isolated_filesystem():
+            # Provide custom inputs
+            inputs = "custom-user\ncustom-app\ncustom-pipeline\n3\ndata-prep\nmodel-train\nmodel-deploy\n"
+            result = runner.invoke(init, ['.'], input=inputs)
+
+            assert result.exit_code == 0
+
+            # Check that custom step directories were created
+            assert os.path.exists('data-prep/config.yaml')
+            assert os.path.exists('model-train/config.yaml')
+            assert os.path.exists('model-deploy/config.yaml')
+
+            # Verify the pipeline config contains the custom values
+            with open('config.yaml', 'r') as f:
+                config = yaml.safe_load(f)
+
+            assert config['pipeline']['id'] == 'custom-pipeline'
+            assert config['pipeline']['user_id'] == 'custom-user'
+            assert config['pipeline']['app_id'] == 'custom-app'
+            assert config['pipeline']['step_directories'] == [
+                'data-prep',
+                'model-train',
+                'model-deploy',
+            ]
+
     def test_init_command_with_custom_path(self):
         """Test that init command works with custom path."""
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ['my_pipeline'])
+            inputs = "test-user\ntest-app\nhello-world-pipeline\n2\nstepA\nstepB\n"
+            result = runner.invoke(init, ['my_pipeline'], input=inputs)
 
             assert result.exit_code == 0
 
@@ -890,7 +922,8 @@ class TestPipelineInitCommand:
             with open('config.yaml', 'w') as f:
                 f.write('existing content')
 
-            result = runner.invoke(init, ['.'])
+            inputs = "test-user\ntest-app\nhello-world-pipeline\n2\nstepA\nstepB\n"
+            result = runner.invoke(init, ['.'], input=inputs)
 
             assert result.exit_code == 0
 
@@ -904,17 +937,19 @@ class TestPipelineInitCommand:
             assert os.path.exists('stepA/config.yaml')
 
     def test_init_command_creates_valid_pipeline_config(self):
-        """Test that the generated pipeline config is valid."""
+        """Test that the generated pipeline config is valid and has no TODO comments."""
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ['.'])
+            inputs = "test-user\ntest-app\ntest-pipeline\n2\nstepA\nstepB\n"
+            result = runner.invoke(init, ['.'], input=inputs)
 
             assert result.exit_code == 0
 
             # Load and validate the generated config
             with open('config.yaml', 'r') as f:
-                config = yaml.safe_load(f)
+                config_content = f.read()
+                config = yaml.safe_load(config_content)
 
             # Check that required sections exist
             assert 'pipeline' in config
@@ -928,31 +963,47 @@ class TestPipelineInitCommand:
             # Check step directories
             assert config['pipeline']['step_directories'] == ['stepA', 'stepB']
 
+            # Check that actual values are used, not placeholders
+            assert config['pipeline']['id'] == 'test-pipeline'
+            assert config['pipeline']['user_id'] == 'test-user'
+            assert config['pipeline']['app_id'] == 'test-app'
+
+            # Ensure no TODO comments exist
+            assert 'TODO' not in config_content
+
     def test_init_command_creates_valid_step_configs(self):
-        """Test that the generated step configs are valid."""
+        """Test that the generated step configs are valid and have no TODO comments."""
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ['.'])
+            inputs = "test-user\ntest-app\ntest-pipeline\n2\nstepA\nstepB\n"
+            result = runner.invoke(init, ['.'], input=inputs)
 
             assert result.exit_code == 0
 
             # Check stepA config
             with open('stepA/config.yaml', 'r') as f:
-                step_config = yaml.safe_load(f)
+                step_config_content = f.read()
+                step_config = yaml.safe_load(step_config_content)
 
             assert 'pipeline_step' in step_config
             assert step_config['pipeline_step']['id'] == 'stepA'
+            assert step_config['pipeline_step']['user_id'] == 'test-user'
+            assert step_config['pipeline_step']['app_id'] == 'test-app'
             assert 'pipeline_step_input_params' in step_config
             assert 'build_info' in step_config
             assert 'pipeline_step_compute_info' in step_config
+
+            # Ensure no TODO comments exist
+            assert 'TODO' not in step_config_content
 
     def test_init_command_includes_helpful_messages(self):
         """Test that init command works successfully."""
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ['.'])
+            inputs = "test-user\ntest-app\ntest-pipeline\n2\nstepA\nstepB\n"
+            result = runner.invoke(init, ['.'], input=inputs)
 
             assert result.exit_code == 0
 
