@@ -752,25 +752,8 @@ def local_runner(ctx, model_path, pool_size, verbose):
     model_versions = list(model.list_versions())
     method_signatures = builder.get_method_signatures(mocking=False)
 
-    local_dev_versions = []
-    for v in model_versions:
-        config = v.model_version.pretrained_model_config
-        if config and config.local_dev:
-            local_dev_versions.append(v)
-            continue
-
-        import_info = v.model_version.import_info
-        if import_info and import_info.local_dev:
-            local_dev_versions.append(v)
-
-    if local_dev_versions:
-        # Use the latest version with local_dev=True.
-        version = local_dev_versions[0].model_version
-        logger.info(f"Using existing local-dev model version: {version.id}")
-        ctx.obj.current.CLARIFAI_MODEL_VERSION_ID = version.id
-        ctx.obj.to_yaml()
-    elif model_versions:
-        # If no local_dev versions, try to patch the latest version.
+    if model_versions:
+        # Try to patch the latest version, and fallback to creating a new one if that fails.
         latest_version = model_versions[0]
         logger.warning(
             f"No model version with local_dev=True found. Attempting to patch latest version: {latest_version.model_version.id}"
