@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, Generator, List
+from typing import Any, Dict, Generator, List, Optional
 
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -53,14 +53,14 @@ class User(Lister, BaseClient):
         Lister.__init__(self)
 
     def list_apps(
-        self, filter_by: Dict[str, Any] = {}, page_no: int = None, per_page: int = None
+        self, filter_by: Dict[str, Any] = {}, page_no: Optional[int] = None, per_page: Optional[int] = None
     ) -> Generator[App, None, None]:
         """Lists all the apps for the user.
 
         Args:
-            filter_by (dict): A dictionary of filters to be applied to the list of apps.
-            page_no (int): The page number to list.
-            per_page (int): The number of items per page.
+            filter_by (Dict[str, Any]): A dictionary of filters to be applied to the list of apps.
+            page_no (Optional[int]): The page number to list. If None, lists all pages.
+            per_page (Optional[int]): The number of items per page. If None, uses default.
 
         Yields:
             App: App objects for the user.

@@ -91,14 +91,21 @@ class Search(Lister, BaseClient):
         )
         Lister.__init__(self, page_size=1000)
 
-    def _get_annot_proto(self, **kwargs):
+    def _get_annot_proto(self, **kwargs) -> resources_pb2.Annotation:
         """Get an Annotation proto message based on keyword arguments.
 
         Args:
-            **kwargs: Keyword arguments specifying the resource.
+            **kwargs: Keyword arguments specifying the annotation data.
+                     Supported keys:
+                     - image_bytes (bytes): Raw image bytes
+                     - image_url (str): URL to an image
+                     - concepts (List[Dict]): List of concept dictionaries
+                     - metadata (Dict): Metadata dictionary
+                     - geo_longitude (float): Geographic longitude
+                     - geo_latitude (float): Geographic latitude
 
         Returns:
-            resources_pb2.Annotation: An Annotation proto message.
+            resources_pb2.Annotation: An Annotation proto message with the specified data.
         """
         if not kwargs:
             return resources_pb2.Annotation()
@@ -139,14 +146,24 @@ class Search(Lister, BaseClient):
                 raise UserError(f"kwargs contain key that is not supported: {key}")
         return resources_pb2.Annotation(data=self.data_proto)
 
-    def _get_input_proto(self, **kwargs):
+    def _get_input_proto(self, **kwargs) -> resources_pb2.Input:
         """Get an Input proto message based on keyword arguments.
 
         Args:
-            **kwargs: Keyword arguments specifying the resource.
+            **kwargs: Keyword arguments specifying the input data.
+                     Supported keys:
+                     - input_types (List[str]): List of input types ('image', 'text', 'audio', 'video')
+                     - dataset_ids (List[str]): List of dataset IDs to filter by
+                     - image_bytes (bytes): Raw image bytes
+                     - image_url (str): URL to an image  
+                     - text_raw (str): Raw text content
+                     - concepts (List[Dict]): List of concept dictionaries
+                     - metadata (Dict): Metadata dictionary
+                     - geo_longitude (float): Geographic longitude
+                     - geo_latitude (float): Geographic latitude
 
         Returns:
-            resources_pb2.Input: An Input proto message.
+            resources_pb2.Input: An Input proto message with the specified data.
         """
         if not kwargs:
             return resources_pb2.Input()
@@ -194,15 +211,22 @@ class Search(Lister, BaseClient):
     def _list_topk_generator(
         self, endpoint: Callable[..., Any], proto_message: Any, request_data: Dict[str, Any]
     ) -> Generator[Dict[str, Any], None, None]:
-        """Lists all pages of a resource.
+        """Lists top-k results with pagination support.
+
+        This method handles pagination for search results when top_k is specified,
+        automatically calculating the required number of pages and per-page limits.
 
         Args:
-            endpoint (Callable): The endpoint to call.
-            proto_message (Any): The proto message to use.
-            request_data (dict): The request data to use.
+            endpoint (Callable[..., Any]): The gRPC endpoint method to call for search.
+            proto_message (Any): The protobuf message class for the request.
+            request_data (Dict[str, Any]): The base request data dictionary.
 
         Yields:
-            response_dict: The next item in the listing.
+            Dict[str, Any]: Individual search result items from the API response.
+
+        Raises:
+            UserError: If pagination limits are exceeded or top_k is too large.
+            Exception: If the API request fails.
         """
         max_pages = ceil(self.top_k / self.default_page_size)
         total_hits = 0
