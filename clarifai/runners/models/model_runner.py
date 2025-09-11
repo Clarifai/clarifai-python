@@ -301,6 +301,45 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         """Set the model for this runner."""
         self.model = model
 
+    def handle_liveness_probe(self):
+        # if the model has a handle_liveness_probe method, call it to determine liveness
+        # otherwise rely on HealthProbeRequestHandler.is_alive from the protocol
+        if hasattr(self.model, 'handle_liveness_probe'):
+            if self.model.handle_liveness_probe():
+                self.send_response(200)
+            else:
+                self.send_response(500)
+            self.end_headers()
+            return
+
+        super(HealthProbeRequestHandler, self).handle_liveness_probe()
+
+    def handle_readiness_probe(self):
+        # if the model has a handle_readiness_probe method, call it to determine readiness
+        # otherwise rely on HealthProbeRequestHandler.is_ready from the protocol
+        if hasattr(self.model, 'handle_readiness_probe'):
+            if self.model.handle_readiness_probe():
+                self.send_response(200)
+            else:
+                self.send_response(500)
+            self.end_headers()
+            return
+
+        super(HealthProbeRequestHandler, self).handle_readiness_probe()
+
+    def handle_startup_probe(self):
+        # if the model has a handle_startup_probe method, call it to determine startup
+        # otherwise rely on HealthProbeRequestHandler.is_startup from the protocol
+        if hasattr(self.model, 'handle_startup_probe'):
+            if self.model.handle_startup_probe():
+                self.send_response(200)
+            else:
+                self.send_response(500)
+            self.end_headers()
+            return
+
+        super(HealthProbeRequestHandler, self).handle_startup_probe()
+
 
 def pmo_iterator(runner_item_iterator, auth_helper=None):
     for runner_item in runner_item_iterator:
