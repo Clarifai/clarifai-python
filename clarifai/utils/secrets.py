@@ -1,8 +1,8 @@
 import os
+import subprocess
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from threading import Thread
 from typing import Any, Callable, Dict, List, Optional
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2

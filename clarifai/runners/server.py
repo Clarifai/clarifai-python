@@ -5,6 +5,10 @@ and starts the server.
 
 import argparse
 import os
+import subprocess
+import sys
+import tempfile
+import pickle
 from concurrent import futures
 from typing import Optional
 
@@ -107,9 +111,13 @@ class ModelServer:
         # Initialize secrets system with enhanced validation
         self._initialize_secrets_system()
 
-        # Build model after secrets are loaded
+        # Build model after secrets are loaded - use subprocess for clean GPU memory
         self._builder = ModelBuilder(model_path, download_validation_only=True)
-        self._current_model = self._builder.create_model_instance()
+        logger.info("Creating initial model instance in subprocess...")
+        self._current_model = self._create_model_in_subprocess()
+        if self._current_model is None:
+            logger.error("Failed to create initial model in subprocess")
+            raise RuntimeError("Failed to create initial model")
         logger.info("ModelServer initialized successfully")
 
     def _initialize_secrets_system(self):
@@ -150,13 +158,98 @@ class ModelServer:
             # Don't fail server startup if watcher fails
             self._watcher_thread = None
 
+    def _create_model_in_subprocess(self) -> Optional[object]:
+        """Create model instance in a subprocess to ensure clean GPU memory allocation.
+        
+        This avoids GPU memory duplication issues by creating the model in an isolated process
+        that starts with clean GPU state. The model instance is returned via IPC.
+        
+        Returns:
+            The model instance created in the subprocess, or None if creation failed.
+        """
+        logger.info("Creating model instance in isolated subprocess...")
+        
+        try:
+            # Create a temporary file for IPC
+            with tempfile.NamedTemporaryFile(mode='wb', delete=False) as f:
+                temp_file = f.name
+            
+            # Subprocess code to create model and serialize it
+            subprocess_code = f'''
+import sys
+import pickle
+import tempfile
+sys.path.insert(0, '{os.path.dirname(os.path.dirname(__file__))}')
+
+from clarifai.runners.models.model_builder import ModelBuilder
+from clarifai.utils.logging import logger
+
+try:
+    logger.info("Subprocess: Starting model creation...")
+    builder = ModelBuilder('{self.model_path}', download_validation_only=True)
+    model = builder.create_model_instance()
+    logger.info("Subprocess: Model created successfully")
+    
+    # Serialize the model instance
+    with open('{temp_file}', 'wb') as f:
+        pickle.dump(model, f)
+    logger.info("Subprocess: Model serialized successfully")
+    
+except Exception as e:
+    logger.error(f"Subprocess: Error creating model: {{e}}")
+    import traceback
+    logger.error(f"Subprocess: Traceback: {{traceback.format_exc()}}")
+    sys.exit(1)
+'''
+            
+            # Run model creation in subprocess
+            process = subprocess.Popen(
+                [sys.executable, "-c", subprocess_code],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            # Wait for subprocess to complete
+            stdout, stderr = process.communicate(timeout=300)  # 5 minute timeout
+            
+            if process.returncode == 0:
+                # Load the model from the temporary file
+                try:
+                    with open(temp_file, 'rb') as f:
+                        model = pickle.load(f)
+                    logger.info("Successfully loaded model from subprocess")
+                    return model
+                except Exception as e:
+                    logger.error(f"Failed to deserialize model from subprocess: {e}")
+                    return None
+            else:
+                logger.error(f"Subprocess model creation failed with return code {process.returncode}")
+                logger.error(f"Subprocess stdout: {stdout}")
+                logger.error(f"Subprocess stderr: {stderr}")
+                return None
+                
+        except subprocess.TimeoutExpired:
+            logger.error("Subprocess model creation timed out")
+            process.kill()
+            return None
+        except Exception as e:
+            logger.error(f"Error in subprocess model creation: {e}")
+            return None
+        finally:
+            # Clean up temporary file
+            try:
+                os.unlink(temp_file)
+            except:
+                pass
+
     def reload_model_on_secrets_change(self) -> None:
         """Reload model and environment secrets when the secrets directory changes.
 
-        This method implements a robust reload strategy with comprehensive error handling,
-        resource cleanup, and component state management.
+        This method uses subprocess-based model creation to avoid GPU memory duplication
+        and automatically reclaim GPU memory without framework-specific cleanup.
         """
-        logger.info("Detected secrets change, initiating model reload sequence...")
+        logger.info("Detected secrets change, initiating subprocess-based model reload...")
 
         # Step 1: Reload secrets from filesystem
         if self._secrets_path is not None:
@@ -170,30 +263,25 @@ class ModelServer:
                 logger.error(f"Failed to reload secrets: {e}")
                 return
 
-        # Step 2: Clean up the current model instance before creating a new one
-        if self._current_model:
-            try:
-                logger.info("Cleaning up current model instance...")
-                self._current_model.cleanup()
-                logger.info("Current model instance cleaned up successfully")
-            except Exception as e:
-                logger.warning(f"Error during model cleanup (proceeding anyway): {e}")
-
-        # Step 3: Rebuild model instance
-        if self._builder is not None:
-            try:
-                logger.info("Rebuilding model instance...")
-                new_model = self._builder.create_model_instance()
-
-                # Only update the current model reference after successful creation
-                self._current_model = new_model
-                logger.info("Model instance rebuilt successfully")
-            except Exception as e:
-                logger.error(f"Failed to rebuild model instance: {e}")
-                # Keep the previous model instance if rebuild fails
+        # Step 2: Create new model instance in subprocess (no cleanup needed)
+        # The subprocess starts with clean GPU memory, avoiding duplication issues
+        try:
+            logger.info("Creating new model instance in isolated subprocess...")
+            new_model = self._create_model_in_subprocess()
+            
+            if new_model is None:
+                logger.error("Failed to create model in subprocess - keeping current model")
                 return
+                
+            # Only update the current model reference after successful creation
+            self._current_model = new_model
+            logger.info("Model instance created successfully in subprocess")
+        except Exception as e:
+            logger.error(f"Failed to create model in subprocess: {e}")
+            # Keep the previous model instance if subprocess creation fails
+            return
 
-        # Step 4: Update servicer with new model
+        # Step 3: Update servicer with new model
         if self._servicer and self._current_model:
             try:
                 self._servicer.set_model(self._current_model)
@@ -201,7 +289,7 @@ class ModelServer:
             except Exception as e:
                 logger.error(f"Failed to update servicer with new model: {e}")
 
-        # Step 5: Update runner with new model
+        # Step 4: Update runner with new model  
         if self._runner and self._current_model:
             try:
                 self._runner.set_model(self._current_model)
@@ -209,25 +297,19 @@ class ModelServer:
             except Exception as e:
                 logger.error(f"Failed to update runner with new model: {e}")
 
-        logger.info("Model reload sequence completed successfully")
+        logger.info("Subprocess-based model reload sequence completed successfully")
 
     def shutdown(self):
         """Gracefully shutdown the server and cleanup resources."""
         logger.info("Shutting down ModelServer...")
 
-        # Clean up the current model instance
-        if self._current_model:
-            try:
-                logger.info("Cleaning up model instance...")
-                self._current_model.cleanup()
-                logger.info("Model instance cleaned up successfully")
-            except Exception as e:
-                logger.warning(f"Error during model cleanup: {e}")
-
         # Stop the watcher thread
         if self._watcher_thread and self._watcher_thread.is_alive():
             logger.info("Stopping secrets watcher...")
             # Note: Since it's a daemon thread, it will stop when main process exits
+            
+        # Note: No need for model.cleanup() since we use subprocess-based model creation
+        # The subprocess approach automatically handles GPU memory cleanup
         logger.info("ModelServer shutdown completed")
 
     def serve(

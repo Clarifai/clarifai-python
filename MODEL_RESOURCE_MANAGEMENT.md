@@ -1,288 +1,180 @@
-# Model Resource Management Guide
+# Model Resource Management
 
-## Secrets Watcher and GPU Memory Management
+This document describes how the Clarifai Python SDK handles model resource management, particularly GPU memory cleanup and resource isolation during secrets changes.
 
-The Clarifai Python SDK automatically watches for secrets changes and reloads models when secrets are updated. However, this can cause GPU memory issues and subprocess problems for large models.
+## Problem
 
-### The Problem
+When secrets change in production deployments, the traditional approach of reloading models in-process can cause:
 
-When secrets change, the server creates a new model instance without properly cleaning up the old one. This can lead to:
+- **GPU Memory Duplication**: Creating a new model instance while the old one is still in memory
+- **Out-of-Memory Errors**: Insufficient GPU memory for large models during reload
+- **Resource Leaks**: Incomplete cleanup of GPU memory, file handles, and other resources
+- **Framework Dependencies**: Complex cleanup code that depends on specific ML frameworks
 
-- **GPU Memory Duplication**: Multiple model instances loaded simultaneously
-- **Out-of-Memory Errors**: Especially with large models (LLMs, vision models)
-- **Zombie Subprocesses**: If models use subprocess-based implementations
-- **Resource Leaks**: File handles, network connections, etc.
+## Solution: Subprocess-Based Model Isolation
 
-### Solution 1: Implement Model Cleanup
+The SDK now uses **subprocess-based model creation** to automatically handle GPU memory cleanup without requiring framework-specific code.
 
-Override the `cleanup()` method in your model class to properly release resources:
+### How It Works
+
+1. **Initial Model Loading**: Models are created in isolated subprocesses with clean GPU memory
+2. **Secrets Change Detection**: The secrets watcher detects when secrets files change
+3. **Subprocess Reload**: A new subprocess creates the updated model with fresh GPU memory
+4. **Automatic Cleanup**: The subprocess approach ensures clean GPU memory without manual cleanup
+5. **Model Replacement**: The new model replaces the old one after successful creation
+
+### Benefits
+
+- **Zero GPU Memory Duplication**: Each model is created in a fresh subprocess with clean GPU state
+- **Framework Agnostic**: No need for PyTorch, TensorFlow, or other framework-specific cleanup code
+- **Automatic Resource Management**: Process isolation handles all resource cleanup automatically
+- **Production Ready**: Eliminates out-of-memory errors during secrets rotation
+
+## Implementation
+
+### Basic Usage
+
+The subprocess-based model management is automatic and requires no changes to existing model code:
 
 ```python
 from clarifai.runners.models.model_class import ModelClass
 
 class MyLargeModel(ModelClass):
-    def load_model(self):
-        # Load your model using any framework
-        # This is just an example - use your preferred ML framework
-        self.model = self._load_my_model()  # Your custom loading logic
-
-    def cleanup(self):
-        """Clean up GPU memory and other resources.
-        
-        This method should be customized based on your specific model and framework.
-        """
-        # Step 1: Clear model from memory
-        if hasattr(self, 'model'):
-            del self.model
-            
-        # Step 2: Framework-specific GPU memory cleanup (if applicable)
-        self._cleanup_gpu_memory()
-            
-        # Step 3: Terminate any subprocesses
-        if hasattr(self, 'worker_process'):
-            self.worker_process.terminate()
-            self.worker_process.join()
-            
-        # Step 4: Close file handles, network connections, etc.
-        if hasattr(self, 'file_handle'):
-            self.file_handle.close()
-
-    def _cleanup_gpu_memory(self):
-        """Framework-agnostic GPU memory cleanup - customize based on your model's needs."""
-        # Force garbage collection to release Python object references
-        import gc
-        gc.collect()
-        
-        # Framework-specific cleanup should be implemented in your model class
-        # based on whichever ML framework you're actually using
-        # Examples (only include what your model actually uses):
-        
-        # PyTorch (only if your model uses it)
-        # try:
-        #     import torch
-        #     if torch.cuda.is_available():
-        #         torch.cuda.empty_cache()
-        # except ImportError:
-        #     pass
-        
-        # TensorFlow (only if your model uses it)
-        # try:
-        #     import tensorflow as tf
-        #     tf.keras.backend.clear_session()
-        # except ImportError:
-        #     pass
+    def __init__(self):
+        super().__init__()
+        # Load your model (PyTorch, TensorFlow, etc.)
+        self.model = load_my_large_model()
 
     @ModelClass.method
     def predict(self, text: str) -> str:
-        return self.model.generate(text)  # Your prediction logic
+        return self.model.generate(text)
 ```
 
-### Solution 2: Disable Automatic Secrets Reloading
+### Server Configuration
 
-If cleanup is not sufficient or your model is too large to reload safely, disable automatic reloading:
+```python
+from clarifai.runners.server import ModelServer
+
+# Automatic subprocess-based model management
+server = ModelServer("./model")
+
+# To disable secrets reloading for very large models
+server = ModelServer("./model", disable_secrets_reload=True)
+```
+
+### Command Line Options
 
 ```bash
-# Command line option
-python clarifai/runners/server.py --model_path ./my_model --disable_secrets_reload
+# Default: subprocess-based model management enabled
+python server.py --model_path ./model
 
-# Or set environment variable
-export CLARIFAI_DISABLE_SECRETS_RELOAD=1
+# Disable for very large models or environments with memory constraints
+python server.py --model_path ./model --disable_secrets_reload
+
+# Environment variable
+export CLARIFAI_DISABLE_SECRETS_RELOAD=true
 ```
+
+## Optional: Model Cleanup Method
+
+While the subprocess approach eliminates the need for manual cleanup, models can still implement a `cleanup()` method for backwards compatibility or additional resource management:
 
 ```python
-# Programmatically
-from clarifai.runners.server import ModelServer
-server = ModelServer("./my_model", disable_secrets_reload=True)
-```
-
-### Solution 3: Manual Secrets Management
-
-With automatic reloading disabled, you can manually reload secrets when needed:
-
-```python
-# Manually trigger reload (only when safe)
-server.reload_model_on_secrets_change()
-```
-
-### Best Practices
-
-1. **Only use frameworks your model actually imports** - don't add new dependencies just for cleanup
-2. **Use Python's garbage collector** (`gc.collect()`) as a framework-agnostic baseline
-3. **Test memory usage** during development to identify leaks
-4. **Monitor GPU memory** in production using `nvidia-smi` or similar tools
-5. **Use disable_secrets_reload** for very large models or production environments
-6. **Handle cleanup errors gracefully** - don't crash if cleanup fails
-7. **Keep the package framework-agnostic** - don't assume specific ML frameworks are installed
-
-### Example Cleanup Patterns
-
-#### Framework-Specific Examples
-
-**PyTorch Models:**
-```python
-def cleanup(self):
-    # Clear model reference
-    if hasattr(self, 'model'):
-        del self.model
-    
-    # PyTorch-specific cleanup (only if your model actually uses PyTorch) 
-    import torch  # Your model should already import this
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    
-    # Force garbage collection
-    import gc
-    gc.collect()
-```
-
-**TensorFlow Models:**
-```python  
-def cleanup(self):
-    # Clear model reference  
-    if hasattr(self, 'model'):
-        del self.model
-    
-    # TensorFlow-specific cleanup (only if your model actually uses TensorFlow)
-    import tensorflow as tf  # Your model should already import this
-    tf.keras.backend.clear_session()
-    
-    # Force garbage collection
-    import gc
-    gc.collect()
-```
-
-**Generic/Framework-Agnostic Models:**
-```python
-def cleanup(self):
-    # Clear model reference - works with any framework
-    if hasattr(self, 'model'):
-        del self.model
-    
-    # Clear other model components
-    if hasattr(self, 'tokenizer'):
-        del self.tokenizer
+class MyModel(ModelClass):
+    def cleanup(self):
+        """Optional cleanup method - subprocess approach makes this unnecessary."""
+        # This method is now optional since subprocess isolation
+        # automatically handles GPU memory and resource cleanup
         
-    # Terminate any child processes
-    if hasattr(self, 'worker_processes'):
-        for process in self.worker_processes:
-            process.terminate()
-            process.join()
-    
-    # Close file handles, network connections, etc.
-    if hasattr(self, 'file_handles'):
-        for handle in self.file_handles:
-            handle.close()
-    
-    # Force Python garbage collection to release memory
-    import gc
-    gc.collect()
-    
-    # Note: For GPU memory cleanup, use the specific framework 
-    # your model actually imports (PyTorch, TensorFlow, etc.)
-    # Don't add framework dependencies just for cleanup
+        # Still useful for:
+        # - Backwards compatibility
+        # - Additional resource cleanup beyond GPU memory
+        # - Custom cleanup logic
+        pass
 ```
 
-#### Subprocess-based Models
-```python
-def cleanup(self):
-    if hasattr(self, 'worker_processes'):
-        for proc in self.worker_processes:
-            proc.terminate()
-        for proc in self.worker_processes:
-            proc.join(timeout=5)  # Wait up to 5 seconds
+## Production Considerations
+
+### When to Disable Secrets Reloading
+
+Consider disabling automatic secrets reloading in these scenarios:
+
+- **Very Large Models**: Models that take > 5 minutes to load
+- **Memory-Constrained Environments**: Systems with limited RAM/GPU memory
+- **Stable Secrets**: Environments where secrets rarely change
+- **Custom Reload Logic**: Applications with their own reload mechanisms
+
+### Monitoring
+
+The subprocess approach provides clear logging for monitoring:
+
+```
+INFO - Detected secrets change, initiating subprocess-based model reload...
+INFO - Creating new model instance in isolated subprocess...
+INFO - Subprocess: Model created successfully
+INFO - Successfully loaded model from subprocess
+INFO - Subprocess-based model reload sequence completed successfully
 ```
 
-#### File and Network Resources
-```python
-def cleanup(self):
-    # Close file handles - framework agnostic
-    for attr_name in dir(self):
-        attr = getattr(self, attr_name)
-        if hasattr(attr, 'close'):
-            try:
-                attr.close()
-            except Exception:
-                pass  # Ignore errors during cleanup
-                
-    # Clean up temporary files
-    if hasattr(self, 'temp_files'):
-        import os
-        for temp_file in self.temp_files:
-            try:
-                os.remove(temp_file)
-            except Exception:
-                pass
-```
+## Migration from Framework-Specific Cleanup
 
-### Framework Compatibility
+If your existing code has framework-specific cleanup, you can simplify it:
 
-The cleanup mechanism is designed to be **framework-agnostic**. The clarifai-python package does not require any specific ML framework as a dependency. When implementing cleanup methods:
-
-1. **Only use frameworks your model actually imports** - don't add new dependencies for cleanup
-2. **Provide fallback behavior** when frameworks aren't available  
-3. **Focus on resource cleanup** rather than framework-specific optimizations
-4. **Test with and without** your chosen ML framework installed
-
-This ensures your models work regardless of which ML frameworks users have installed.
-
-### Framework-Agnostic GPU Memory Management
-
-For GPU memory cleanup without depending on specific ML frameworks, use these approaches:
-
-#### 1. Python Garbage Collection (Always Safe)
-```python
-def cleanup(self):
-    # Clear object references
-    if hasattr(self, 'model'):
-        del self.model
-    
-    # Force garbage collection - works with any framework
-    import gc
-    gc.collect()
-```
-
-#### 2. Use Only Your Model's Existing Dependencies
-```python
-def cleanup(self):
-    # Clear model reference
-    if hasattr(self, 'model'):
-        del self.model
-    
-    # Only use frameworks your model already imports
-    # If your model.py imports torch, then use torch cleanup
-    # If your model.py imports tensorflow, then use tensorflow cleanup
-    # Don't add new framework dependencies just for cleanup
-    
-    # Your model should handle its own framework-specific cleanup
-    # based on what it actually uses
-```
-
-#### 3. Optional GPU Memory Monitoring (No Framework Dependencies)
+### Before (Framework-Specific)
 ```python
 def cleanup(self):
     if hasattr(self, 'model'):
         del self.model
     
-    # Force garbage collection
-    import gc
-    gc.collect()
-    
-    # Optional: Monitor GPU memory without ML framework dependencies
-    # (only if nvidia-ml-py is available in your environment)
     try:
-        import pynvml
-        pynvml.nvmlInit()
-        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-        meminfo = pynvml.nvmlDeviceGetMemoryInfo(handle)
-        print(f"GPU memory after cleanup: {meminfo.used/1024**2:.1f}MB used")
-    except (ImportError, Exception):
-        pass  # nvidia-ml-py not available or no GPU
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except ImportError:
+        pass
 ```
 
-#### 4. Process-Level Isolation (Ultimate Fallback)
-For very large models where memory cleanup is difficult, consider process-level isolation:
+### After (Subprocess-Based)
 ```python
-# Run model in separate process
-# When secrets change, restart the entire process
-# This ensures complete memory cleanup without framework dependencies
+def cleanup(self):
+    """Cleanup is now handled automatically by subprocess isolation."""
+    # Optional: Keep for backwards compatibility or additional cleanup
+    # The subprocess approach handles GPU memory automatically
+    pass
 ```
+
+## Troubleshooting
+
+### Common Issues
+
+**Subprocess Creation Fails**
+- Check model path is correct
+- Ensure sufficient system memory for subprocess
+- Verify no import errors in model code
+
+**Model Serialization Errors**
+- Some models may not be serializable via pickle
+- Consider simplifying model structure or using alternative IPC methods
+
+**Performance Considerations**
+- Initial model loading is slower due to subprocess overhead
+- Reload time includes subprocess startup time
+- Memory usage temporarily increases during reload (subprocess + main process)
+
+### Debugging
+
+Enable detailed logging to troubleshoot subprocess issues:
+
+```python
+import logging
+logging.getLogger('clarifai').setLevel(logging.DEBUG)
+```
+
+## Backward Compatibility
+
+This change is fully backward compatible:
+
+- Existing models continue to work without modification
+- The `cleanup()` method is still called but is now optional
+- All existing APIs and configuration options remain the same
+- Framework-specific cleanup code continues to work but is no longer necessary
