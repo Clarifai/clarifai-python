@@ -19,37 +19,54 @@ Override the `cleanup()` method in your model class to properly release resource
 
 ```python
 from clarifai.runners.models.model_class import ModelClass
-import torch
 
 class MyLargeModel(ModelClass):
     def load_model(self):
-        # Load your model (e.g., transformer, vision model)
-        self.model = torch.load('my_model.pt')
-        if torch.cuda.is_available():
-            self.model = self.model.cuda()
+        # Load your model using any framework
+        # This is just an example - use your preferred ML framework
+        self.model = self._load_my_model()  # Your custom loading logic
 
     def cleanup(self):
-        """Clean up GPU memory and other resources."""
+        """Clean up GPU memory and other resources.
+        
+        This method should be customized based on your specific model and framework.
+        """
+        # Step 1: Clear model from memory
         if hasattr(self, 'model'):
-            # Clear model from GPU memory
             del self.model
             
-        # Clear CUDA cache if using PyTorch
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        # Step 2: Framework-specific GPU memory cleanup (if applicable)
+        self._cleanup_gpu_memory()
             
-        # Terminate any subprocesses
+        # Step 3: Terminate any subprocesses
         if hasattr(self, 'worker_process'):
             self.worker_process.terminate()
             self.worker_process.join()
             
-        # Close file handles, network connections, etc.
+        # Step 4: Close file handles, network connections, etc.
         if hasattr(self, 'file_handle'):
             self.file_handle.close()
 
+    def _cleanup_gpu_memory(self):
+        """Framework-specific GPU memory cleanup - override as needed."""
+        # PyTorch example (only if torch is installed)
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except ImportError:
+            pass  # torch not available
+            
+        # TensorFlow example (only if tensorflow is installed)
+        try:
+            import tensorflow as tf
+            tf.keras.backend.clear_session()
+        except ImportError:
+            pass  # tensorflow not available
+
     @ModelClass.method
     def predict(self, text: str) -> str:
-        return self.model.generate(text)
+        return self.model.generate(text)  # Your prediction logic
 ```
 
 ### Solution 2: Disable Automatic Secrets Reloading
@@ -82,27 +99,60 @@ server.reload_model_on_secrets_change()
 ### Best Practices
 
 1. **Always implement `cleanup()`** for models using significant resources
-2. **Test memory usage** during development to identify leaks
-3. **Monitor GPU memory** in production using `nvidia-smi` or similar tools
-4. **Use disable_secrets_reload** for very large models or production environments
-5. **Handle cleanup errors gracefully** - don't crash if cleanup fails
+2. **Use conditional imports** for framework-specific cleanup to maintain compatibility
+3. **Test memory usage** during development to identify leaks
+4. **Monitor GPU memory** in production using `nvidia-smi` or similar tools
+5. **Use disable_secrets_reload** for very large models or production environments
+6. **Handle cleanup errors gracefully** - don't crash if cleanup fails
+7. **Keep the package framework-agnostic** - don't assume specific ML frameworks are installed
 
 ### Example Cleanup Patterns
 
-#### PyTorch Models
+#### Framework-Specific Examples
+
+**PyTorch Models (if torch is available):**
 ```python
 def cleanup(self):
     if hasattr(self, 'model'):
         del self.model
-    torch.cuda.empty_cache()
+    
+    # Only use torch if it's installed
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except ImportError:
+        pass  # torch not available, skip GPU cleanup
 ```
 
-#### TensorFlow Models
+**TensorFlow Models (if tensorflow is available):**
 ```python
 def cleanup(self):
     if hasattr(self, 'model'):
         del self.model
-    tf.keras.backend.clear_session()
+    
+    # Only use tensorflow if it's installed
+    try:
+        import tensorflow as tf
+        tf.keras.backend.clear_session()
+    except ImportError:
+        pass  # tensorflow not available, skip cleanup
+```
+
+**Generic Framework-Agnostic Cleanup:**
+```python
+def cleanup(self):
+    # Always safe - works with any framework
+    if hasattr(self, 'model'):
+        del self.model
+    
+    # Clean up other resources without framework dependencies
+    if hasattr(self, 'tokenizer'):
+        del self.tokenizer
+        
+    # Force garbage collection
+    import gc
+    gc.collect()
 ```
 
 #### Subprocess-based Models
@@ -118,7 +168,7 @@ def cleanup(self):
 #### File and Network Resources
 ```python
 def cleanup(self):
-    # Close file handles
+    # Close file handles - framework agnostic
     for attr_name in dir(self):
         attr = getattr(self, attr_name)
         if hasattr(attr, 'close'):
@@ -126,4 +176,24 @@ def cleanup(self):
                 attr.close()
             except Exception:
                 pass  # Ignore errors during cleanup
+                
+    # Clean up temporary files
+    if hasattr(self, 'temp_files'):
+        import os
+        for temp_file in self.temp_files:
+            try:
+                os.remove(temp_file)
+            except Exception:
+                pass
 ```
+
+### Framework Compatibility
+
+The cleanup mechanism is designed to be **framework-agnostic**. The clarifai-python package does not require any specific ML framework as a dependency. When implementing cleanup methods:
+
+1. **Use conditional imports** for framework-specific cleanup (e.g., `try: import torch` with `except ImportError`)
+2. **Provide fallback behavior** when frameworks aren't available
+3. **Focus on resource cleanup** rather than framework-specific optimizations
+4. **Test with and without** your chosen ML framework installed
+
+This ensures your models work regardless of which ML frameworks users have installed.
