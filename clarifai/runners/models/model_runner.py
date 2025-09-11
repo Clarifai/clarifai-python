@@ -306,24 +306,21 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         # otherwise rely on HealthProbeRequestHandler.is_alive from the protocol
         if hasattr(self.model, 'handle_liveness_probe'):
             HealthProbeRequestHandler.is_alive = self.model.handle_liveness_probe()
-            
-        super(HealthProbeRequestHandler, self).handle_liveness_probe()
+        return super().handle_liveness_probe()
 
     def handle_readiness_probe(self):
         # if the model has a handle_readiness_probe method, call it to determine readiness
         # otherwise rely on HealthProbeRequestHandler.is_ready from the protocol
         if hasattr(self.model, 'handle_readiness_probe'):
-            HealthProbeRequestHandler.is_ready = self.model.handle_readiness_probe():
-
-        super(HealthProbeRequestHandler, self).handle_readiness_probe()
+            HealthProbeRequestHandler.is_ready = self.model.handle_readiness_probe()
+        return super().handle_readiness_probe()
 
     def handle_startup_probe(self):
         # if the model has a handle_startup_probe method, call it to determine startup
         # otherwise rely on HealthProbeRequestHandler.is_startup from the protocol
         if hasattr(self.model, 'handle_startup_probe'):
             HealthProbeRequestHandler.is_startup = self.model.handle_startup_probe()
-
-        super(HealthProbeRequestHandler, self).handle_startup_probe()
+        return super().handle_startup_probe()
 
 
 def pmo_iterator(runner_item_iterator, auth_helper=None):
