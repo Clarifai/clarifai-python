@@ -65,10 +65,19 @@ def main():
         required=True,
         help='The path to the model directory that contains implemention of the model.',
     )
+    parser.add_argument(
+        '--disable_secrets_reload',
+        action='store_true',
+        default=os.environ.get('CLARIFAI_DISABLE_SECRETS_RELOAD', '').lower()
+        in ('true', '1', 'yes'),
+        help='Disable automatic model reloading when secrets change (default: False, can be set via CLARIFAI_DISABLE_SECRETS_RELOAD env var). Use this if experiencing GPU memory issues or subprocess problems.',
+    )
 
     parsed_args = parser.parse_args()
 
-    server = ModelServer(parsed_args.model_path)
+    server = ModelServer(
+        parsed_args.model_path, disable_secrets_reload=parsed_args.disable_secrets_reload
+    )
     server.serve(
         port=parsed_args.port,
         pool_size=parsed_args.pool_size,
@@ -80,8 +89,16 @@ def main():
 
 
 class ModelServer:
-    def __init__(self, model_path):
+    def __init__(self, model_path, disable_secrets_reload=None):
         self.model_path = model_path
+
+        # Check environment variable if not explicitly set
+        if disable_secrets_reload is None:
+            disable_secrets_reload = os.environ.get(
+                'CLARIFAI_DISABLE_SECRETS_RELOAD', ''
+            ).lower() in ('true', '1', 'yes')
+
+        self.disable_secrets_reload = disable_secrets_reload
         self._servicer = None
         self._runner = None
         self._secrets_path = get_secrets_path()
@@ -116,6 +133,11 @@ class ModelServer:
         else:
             logger.info(f"Secrets directory does not exist yet: {self._secrets_path}")
 
+        # Start the watcher unless disabled
+        if self.disable_secrets_reload:
+            logger.info("Secrets watcher disabled - secrets will not be automatically reloaded")
+            return
+
         # Always start the watcher regardless of current directory state
         # This handles the case where secrets are mounted after server startup
         try:
@@ -131,8 +153,8 @@ class ModelServer:
     def reload_model_on_secrets_change(self) -> None:
         """Reload model and environment secrets when the secrets directory changes.
 
-        This method implements a robust reload strategy with comprehensive error handling
-        and component state management.
+        This method implements a robust reload strategy with comprehensive error handling,
+        resource cleanup, and component state management.
         """
         logger.info("Detected secrets change, initiating model reload sequence...")
 
@@ -148,18 +170,30 @@ class ModelServer:
                 logger.error(f"Failed to reload secrets: {e}")
                 return
 
-        # Step 2: Rebuild model instance
+        # Step 2: Clean up the current model instance before creating a new one
+        if self._current_model:
+            try:
+                logger.info("Cleaning up current model instance...")
+                self._current_model.cleanup()
+                logger.info("Current model instance cleaned up successfully")
+            except Exception as e:
+                logger.warning(f"Error during model cleanup (proceeding anyway): {e}")
+
+        # Step 3: Rebuild model instance
         if self._builder is not None:
             try:
                 logger.info("Rebuilding model instance...")
-                self._current_model = self._builder.create_model_instance()
+                new_model = self._builder.create_model_instance()
+
+                # Only update the current model reference after successful creation
+                self._current_model = new_model
                 logger.info("Model instance rebuilt successfully")
             except Exception as e:
                 logger.error(f"Failed to rebuild model instance: {e}")
                 # Keep the previous model instance if rebuild fails
                 return
 
-        # Step 3: Update servicer with new model
+        # Step 4: Update servicer with new model
         if self._servicer and self._current_model:
             try:
                 self._servicer.set_model(self._current_model)
@@ -167,7 +201,7 @@ class ModelServer:
             except Exception as e:
                 logger.error(f"Failed to update servicer with new model: {e}")
 
-        # Step 4: Update runner with new model
+        # Step 5: Update runner with new model
         if self._runner and self._current_model:
             try:
                 self._runner.set_model(self._current_model)
@@ -180,6 +214,15 @@ class ModelServer:
     def shutdown(self):
         """Gracefully shutdown the server and cleanup resources."""
         logger.info("Shutting down ModelServer...")
+
+        # Clean up the current model instance
+        if self._current_model:
+            try:
+                logger.info("Cleaning up model instance...")
+                self._current_model.cleanup()
+                logger.info("Model instance cleaned up successfully")
+            except Exception as e:
+                logger.warning(f"Error during model cleanup: {e}")
 
         # Stop the watcher thread
         if self._watcher_thread and self._watcher_thread.is_alive():
