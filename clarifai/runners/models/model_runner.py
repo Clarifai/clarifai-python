@@ -120,11 +120,10 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
         ensure_urls_downloaded(request)
-
+        logger.debug(
+            f'Processing request with ID: {request.status.req_id}'
+        )
         for resp in self.model.generate_wrapper(request):
-            logger.debug(
-                f'Processing request with ID: {request.status.req_id}'
-            )
             if resp.status.code != status_code_pb2.SUCCESS:
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
                 continue
