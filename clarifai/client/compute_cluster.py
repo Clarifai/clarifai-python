@@ -10,6 +10,7 @@ from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
 from clarifai.client.nodepool import Nodepool
 from clarifai.errors import UserError
+from clarifai.utils.constants import DEFAULT_BASE
 from clarifai.utils.logging import logger
 
 
@@ -20,7 +21,7 @@ class ComputeCluster(Lister, BaseClient):
         self,
         compute_cluster_id: str = None,
         user_id: str = None,
-        base_url: str = "https://api.clarifai.com",
+        base_url: str = DEFAULT_BASE,
         pat: str = None,
         token: str = None,
         root_certificates_path: str = None,
@@ -164,7 +165,7 @@ class ComputeCluster(Lister, BaseClient):
         response = self._grpc_request(self.STUB.PostNodepools, request)
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
-        self.logger.info("\nNodepool created\n%s", response.status)
+        self.logger.info(f"Nodepool with ID '{nodepool_id}' is created:\n{response.status}")
 
         dict_response = MessageToDict(response.nodepools[0], preserving_proto_field_name=True)
         kwargs = self.process_response_keys(dict_response, 'nodepool')

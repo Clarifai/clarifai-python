@@ -45,6 +45,7 @@ ClarifaiDatasetType = TypeVar(
     VisualSegmentationDataset,
     TextClassificationDataset,
 )
+from clarifai.utils.constants import DEFAULT_BASE
 
 
 class Dataset(Lister, BaseClient):
@@ -55,7 +56,7 @@ class Dataset(Lister, BaseClient):
         url: str = None,
         dataset_id: str = None,
         dataset_version_id: str = None,
-        base_url: str = "https://api.clarifai.com",
+        base_url: str = DEFAULT_BASE,
         pat: str = None,
         token: str = None,
         root_certificates_path: str = None,
@@ -685,6 +686,12 @@ class Dataset(Lister, BaseClient):
         Note:
             This is a beta feature and is subject to change.
         """
+        try:
+            import rich  # noqa: F401
+        except ImportError:
+            raise UserError(
+                "Rich library is not installed. Please install it using pip install rich>=13.4.2"
+            )
         self.logger.info("Getting dataset upload status...")
         dataset_version_id = uuid.uuid4().hex
         _ = self.create_version(id=dataset_version_id, description="SDK Upload Status")

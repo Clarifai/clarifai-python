@@ -1,80 +1,110 @@
+import base64
+import json
+import math
+import operator
 from io import BytesIO
-from typing import List
+from typing import Dict, List
 
+import requests
 from clarifai_grpc.grpc.api import resources_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeEnumOption, ModelTypeRangeInfo
-from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeField as InputFieldProto
-from PIL import Image
+from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeField as ParamProto
+from PIL import Image as PILImage
 
-from clarifai.runners.utils.data_types import MessageData
+from clarifai.runners.utils.data_types import Audio, Image, MessageData, Video
 
 
-def image_to_bytes(img: Image.Image, format="JPEG") -> bytes:
+def image_to_bytes(img: PILImage.Image, format="JPEG") -> bytes:
     buffered = BytesIO()
     img.save(buffered, format=format)
     img_str = buffered.getvalue()
     return img_str
 
 
-def bytes_to_image(bytes_img) -> Image.Image:
-    img = Image.open(BytesIO(bytes_img))
+def bytes_to_image(bytes_img) -> PILImage.Image:
+    img = PILImage.open(BytesIO(bytes_img))
     return img
 
 
-def is_openai_chat_format(messages):
-    """
-    Verify if the given argument follows the OpenAI chat messages format.
+def process_image(image: Image) -> Dict:
+    """Convert Clarifai Image object to OpenAI image format."""
 
-    Args:
-        messages (list): A list of dictionaries representing chat messages.
-
-    Returns:
-        bool: True if valid, False otherwise.
-    """
-    if not isinstance(messages, list):
-        return False
-
-    valid_roles = {"system", "user", "assistant", "function"}
-
-    for msg in messages:
-        if not isinstance(msg, dict):
-            return False
-        if "role" not in msg or "content" not in msg:
-            return False
-        if msg["role"] not in valid_roles:
-            return False
-
-        content = msg["content"]
-
-        # Content should be either a string (text message) or a multimodal list
-        if isinstance(content, str):
-            continue  # Valid text message
-
-        elif isinstance(content, list):
-            for item in content:
-                if not isinstance(item, dict):
-                    return False
-    return True
+    if image.bytes:
+        b64_img = image.to_base64_str()
+        return {'type': 'image_url', 'image_url': {'url': f"data:image/jpeg;base64,{b64_img}"}}
+    elif image.url:
+        return {'type': 'image_url', 'image_url': {'url': image.url}}
+    else:
+        raise ValueError("Image must contain either bytes or URL")
 
 
-class InputField(MessageData):
+def process_audio(audio: Audio) -> Dict:
+    """Convert Clarifai Audio object to OpenAI audio format."""
+
+    if audio.bytes:
+        audio = audio.to_base64_str()
+        audio = {
+            "type": "input_audio",
+            "input_audio": {"data": audio, "format": "wav"},
+        }
+    elif audio.url:
+        response = requests.get(audio.url)
+        if response.status_code != 200:
+            raise ValueError(f"Failed to fetch audio from URL: {audio.url}")
+        audio_base64_str = base64.b64encode(response.content).decode('utf-8')
+        audio = {
+            "type": "input_audio",
+            "input_audio": {"data": audio_base64_str, "format": "wav"},
+        }
+    else:
+        raise ValueError("Audio must contain either bytes or URL")
+
+    return audio
+
+
+def process_video(video: Video) -> Dict:
+    """Convert Clarifai Video object to OpenAI video format."""
+
+    if video.bytes:
+        video = "data:video/mp4;base64," + video.to_base64_str()
+        video = {
+            "type": "video_url",
+            "video_url": {"url": video},
+        }
+    elif video.url:
+        response = requests.get(video.url)
+        if response.status_code != 200:
+            raise ValueError(f"Failed to fetch video from URL: {video.url}")
+        video_base64_str = base64.b64encode(response.content).decode('utf-8')
+        video = {
+            "type": "video_url",
+            "video_url": {"url": video_base64_str},
+        }
+    else:
+        raise ValueError("Video must contain either bytes or URL")
+
+    return video
+
+
+class Param(MessageData):
     """A field that can be used to store input data."""
 
     def __init__(
         self,
-        default=None,
+        default,
         description=None,
         min_value=None,
         max_value=None,
         choices=None,
-        #  is_param=True
+        is_param=True,
     ):
         self.default = default
         self.description = description
         self.min_value = min_value
         self.max_value = max_value
         self.choices = choices
-        # self.is_param = is_param
+        self.is_param = is_param
+        self._patch_encoder()
 
     def __repr__(self) -> str:
         attrs = []
@@ -88,12 +118,189 @@ class InputField(MessageData):
             attrs.append(f"max_value={self.max_value!r}")
         if self.choices is not None:
             attrs.append(f"choices={self.choices!r}")
-        # attrs.append(f"is_param={self.is_param!r}")
-        return f"InputField({', '.join(attrs)})"
+        attrs.append(f"is_param={self.is_param!r}")
+        return f"Param({', '.join(attrs)})"
 
-    def to_proto(self, proto=None) -> InputFieldProto:
+    # All *explicit* conversions
+    def __int__(self):
+        return int(self.default)
+
+    def __float__(self):
+        return float(self.default)
+
+    def __str__(self):
+        return str(self.default)
+
+    def __bool__(self):
+        return bool(self.default)
+
+    def __index__(self):
+        return int(self.default)  # for slicing
+
+    # sequence / mapping protocol delegation
+    def __len__(self):
+        return len(self.default)
+
+    def __iter__(self):
+        return iter(self.default)
+
+    def __reversed__(self):
+        return reversed(self.default)
+
+    def __contains__(self, item):
+        return item in self.default
+
+    def __getitem__(self, key):
+        return self.default[key]
+
+    def __setitem__(self, k, v):
+        self.default[k] = v
+
+    def __delitem__(self, k):
+        del self.default[k]
+
+    def __hash__(self):
+        return hash(self.default)
+
+    def __call__(self, *args, **kwargs):
+        return self.default(*args, **kwargs)
+
+    # Comparison operators
+    def __eq__(self, other):
+        return self.default == other
+
+    def __lt__(self, other):
+        return self.default < other
+
+    def __le__(self, other):
+        return self.default <= other
+
+    def __gt__(self, other):
+        return self.default > other
+
+    def __ge__(self, other):
+        return self.default >= other
+
+    def __getattribute__(self, name):
+        """Intercept attribute access to mimic default value behavior"""
+        try:
+            # First try to get Param attributes normally
+            return object.__getattribute__(self, name)
+        except AttributeError:
+            # Fall back to the default value's attributes
+            default = object.__getattribute__(self, 'default')
+            return getattr(default, name)
+
+    # Arithmetic operators – # arithmetic & bitwise operators – auto-generated
+    _arith_ops = {
+        "__add__": operator.add,
+        "__sub__": operator.sub,
+        "__mul__": operator.mul,
+        "__truediv__": operator.truediv,
+        "__floordiv__": operator.floordiv,
+        "__mod__": operator.mod,
+        "__pow__": operator.pow,
+        "__and__": operator.and_,
+        "__or__": operator.or_,
+        "__xor__": operator.xor,
+        "__lshift__": operator.lshift,
+        "__rshift__": operator.rshift,
+    }
+
+    for _name, _op in _arith_ops.items():
+
+        def _make(op):
+            def _f(self, other, *, _op=op):  # default arg binds op
+                return _op(self.default, other)
+
+            return _f
+
+        locals()[_name] = _make(_op)
+        locals()["__r" + _name[2:]] = _make(lambda x, y, _op=_op: _op(y, x))
+    del _name, _op, _make
+
+    # In-place operators
+    _inplace_ops = {
+        "__iadd__": operator.iadd,
+        "__isub__": operator.isub,
+        "__imul__": operator.imul,
+        "__itruediv__": operator.itruediv,
+        "__ifloordiv__": operator.ifloordiv,
+        "__imod__": operator.imod,
+        "__ipow__": operator.ipow,
+        "__ilshift__": operator.ilshift,
+        "__irshift__": operator.irshift,
+        "__iand__": operator.iand,
+        "__ixor__": operator.ixor,
+        "__ior__": operator.ior,
+    }
+
+    for _name, _op in _inplace_ops.items():
+
+        def _make_inplace(op):
+            def _f(self, other, *, _op=op):
+                self.default = _op(self.default, other)
+                return self
+
+            return _f
+
+        locals()[_name] = _make_inplace(_op)
+    del _name, _op, _make_inplace
+
+    # Formatting and other conversions
+    def __format__(self, format_spec):
+        return format(self.default, format_spec)
+
+    def __bytes__(self):
+        return bytes(self.default)
+
+    def __complex__(self):
+        return complex(self.default)
+
+    def __round__(self, ndigits=None):
+        return round(self.default, ndigits)
+
+    def __trunc__(self):
+        return math.trunc(self.default)
+
+    def __floor__(self):
+        return math.floor(self.default)
+
+    def __ceil__(self):
+        return math.ceil(self.default)
+
+    # Attribute access delegation – anything we did *not* define above
+    # will automatically be looked up on the wrapped default value.
+    # Attribute access delegation
+    def __getattr__(self, item):
+        return getattr(self.default, item)
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+        return self.default
+
+    def __json__(self):
+        return self.default if not hasattr(self.default, '__json__') else self.default.__json__()
+
+    @classmethod
+    def _patch_encoder(cls):
+        # only patch once
+        if getattr(json.JSONEncoder, "_user_patched", False):
+            return
+        original = json.JSONEncoder.default
+
+        def default(self, obj):
+            if isinstance(obj, Param):
+                return obj.__json__()
+            return original(self, obj)
+
+        json.JSONEncoder.default = default
+        json.JSONEncoder._user_patched = True
+
+    def to_proto(self, proto=None) -> ParamProto:
         if proto is None:
-            proto = InputFieldProto()
+            proto = ParamProto()
         if self.description is not None:
             proto.description = self.description
 
@@ -102,7 +309,7 @@ class InputField(MessageData):
                 option = ModelTypeEnumOption(id=str(choice))
                 proto.model_type_enum_options.append(option)
 
-        proto.required = self.default is None
+        proto.required = False
 
         if self.min_value is not None or self.max_value is not None:
             range_info = ModelTypeRangeInfo()
@@ -111,11 +318,9 @@ class InputField(MessageData):
             if self.max_value is not None:
                 range_info.max = float(self.max_value)
             proto.model_type_range_info.CopyFrom(range_info)
-        # proto.is_param = self.is_param
+        proto.is_param = self.is_param
 
-        if self.default is not None:
-            proto = self.set_default(proto, self.default)
-
+        proto = self.set_default(proto, self.default)
         return proto
 
     @classmethod
@@ -162,7 +367,7 @@ class InputField(MessageData):
             min_value=min_value,
             max_value=max_value,
             choices=choices,
-            # is_param=proto.is_param
+            is_param=proto.is_param,
         )
 
     @classmethod
@@ -171,10 +376,15 @@ class InputField(MessageData):
             import json
 
             if proto is None:
-                proto = InputFieldProto()
-            if default is not None:
+                proto = ParamProto()
+
+            if isinstance(default, str):
+                proto.default = default
+            else:
                 proto.default = json.dumps(default)
+
             return proto
+
         except Exception:
             if default is not None:
                 proto.default = str(default)

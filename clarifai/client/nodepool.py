@@ -11,6 +11,7 @@ from clarifai.client.deployment import Deployment
 from clarifai.client.lister import Lister
 from clarifai.client.runner import Runner
 from clarifai.errors import UserError
+from clarifai.utils.constants import DEFAULT_BASE
 from clarifai.utils.logging import logger
 
 
@@ -21,7 +22,7 @@ class Nodepool(Lister, BaseClient):
         self,
         nodepool_id: str = None,
         user_id: str = None,
-        base_url: str = "https://api.clarifai.com",
+        base_url: str = DEFAULT_BASE,
         pat: str = None,
         token: str = None,
         root_certificates_path: str = None,
@@ -93,7 +94,9 @@ class Nodepool(Lister, BaseClient):
         ), "worker info not found in the config file"
         assert "scheduling_choice" in deployment, "scheduling_choice not found in the config file"
         assert "nodepools" in deployment, "nodepools not found in the config file"
-        deployment['user_id'] = self.user_app_id.user_id
+        deployment['user_id'] = (
+            deployment['user_id'] if 'user_id' in deployment else self.user_app_id.user_id
+        )
         if "autoscale_config" in deployment:
             deployment['autoscale_config'] = resources_pb2.AutoscaleConfig(
                 **deployment['autoscale_config']
@@ -102,7 +105,10 @@ class Nodepool(Lister, BaseClient):
             resources_pb2.Nodepool(
                 id=nodepool['id'],
                 compute_cluster=resources_pb2.ComputeCluster(
-                    id=nodepool['compute_cluster']['id'], user_id=self.user_app_id.user_id
+                    id=nodepool['compute_cluster']['id'],
+                    user_id=nodepool['compute_cluster']['user_id']
+                    if 'user_id' in nodepool['compute_cluster']
+                    else self.user_app_id.user_id,
                 ),
             )
             for nodepool in deployment['nodepools']
@@ -194,7 +200,9 @@ class Nodepool(Lister, BaseClient):
         response = self._grpc_request(self.STUB.PostDeployments, request)
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
-        self.logger.info("\nDeployment created\n%s", response.status)
+        self.logger.info(
+            f"Deployment with ID '{response.deployments[0].id}' is created:\n{response.status}"
+        )
 
         dict_response = MessageToDict(
             response.deployments[0], preserving_proto_field_name=True, use_integers_for_enums=True
@@ -279,7 +287,7 @@ class Nodepool(Lister, BaseClient):
     def create_runner(
         self, config_filepath: str = None, runner_config: Dict[str, Any] = None
     ) -> Runner:
-        """Creates a runner for the nodepool. Only needed for local dev runners.
+        """Creates a runner for the nodepool. Only needed for local runners.
 
         Args:
             config_filepath (str): The path to the runner config file.
@@ -323,7 +331,7 @@ class Nodepool(Lister, BaseClient):
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
         self.logger.info(
-            "\nRunner created\n%s with id: %s", response.status, response.runners[0].id
+            f"Runner with ID '{response.runners[0].id}' is created:\n{response.status}"
         )
 
         dict_response = MessageToDict(

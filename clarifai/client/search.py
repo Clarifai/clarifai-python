@@ -17,6 +17,7 @@ from clarifai.constants.search import (
 )
 from clarifai.errors import UserError
 from clarifai.schema.search import get_schema
+from clarifai.utils.constants import DEFAULT_BASE
 
 
 class Search(Lister, BaseClient):
@@ -28,7 +29,7 @@ class Search(Lister, BaseClient):
         metric: str = DEFAULT_SEARCH_METRIC,
         algorithm: str = DEFAULT_SEARCH_ALGORITHM,
         pagination: bool = False,
-        base_url: str = "https://api.clarifai.com",
+        base_url: str = DEFAULT_BASE,
         pat: str = None,
         token: str = None,
         root_certificates_path: str = None,

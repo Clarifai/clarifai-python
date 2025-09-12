@@ -12,6 +12,7 @@ from clarifai.client.base import BaseClient
 from clarifai.client.compute_cluster import ComputeCluster
 from clarifai.client.lister import Lister
 from clarifai.errors import UserError
+from clarifai.utils.constants import DEFAULT_BASE
 from clarifai.utils.logging import logger
 
 
@@ -21,7 +22,7 @@ class User(Lister, BaseClient):
     def __init__(
         self,
         user_id: str = None,
-        base_url: str = "https://api.clarifai.com",
+        base_url: str = DEFAULT_BASE,
         pat: str = None,
         token: str = None,
         root_certificates_path: str = None,
@@ -152,6 +153,80 @@ class User(Lister, BaseClient):
         for compute_cluster_info in all_compute_clusters_info:
             yield ComputeCluster.from_auth_helper(self.auth_helper, **compute_cluster_info)
 
+    def list_pipelines(
+        self, page_no: int = None, per_page: int = None
+    ) -> Generator[dict, None, None]:
+        """List all pipelines for the user across all apps
+
+        Args:
+            page_no (int): The page number to list.
+            per_page (int): The number of items per page.
+
+        Yields:
+            Dict: Dictionaries containing information about the pipelines.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> all_pipelines = list(client.list_pipelines())
+
+        Note:
+            Defaults to 16 per page if page_no is specified and per_page is not specified.
+            If both page_no and per_page are None, then lists all the resources.
+        """
+        request_data = dict(user_app_id=self.user_app_id)
+        all_pipelines_info = self.list_pages_generator(
+            self.STUB.ListPipelines,
+            service_pb2.ListPipelinesRequest,
+            request_data,
+            per_page=per_page,
+            page_no=page_no,
+        )
+
+        for pipeline_info in all_pipelines_info:
+            pipeline = App._process_pipeline_info(
+                pipeline_info, self.auth_helper, only_in_app=False
+            )
+            if pipeline is not None:
+                yield pipeline
+
+    def list_pipeline_steps(
+        self, page_no: int = None, per_page: int = None
+    ) -> Generator[dict, None, None]:
+        """List all pipeline steps for the user across all apps
+
+        Args:
+            page_no (int): The page number to list.
+            per_page (int): The number of items per page.
+
+        Yields:
+            Dict: Dictionaries containing information about the pipeline steps.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> all_pipeline_steps = list(client.list_pipeline_steps())
+
+        Note:
+            Defaults to 16 per page if page_no is specified and per_page is not specified.
+            If both page_no and per_page are None, then lists all the resources.
+        """
+        request_data = dict(user_app_id=self.user_app_id)
+        all_pipeline_steps_info = self.list_pages_generator(
+            self.STUB.ListPipelineStepVersions,
+            service_pb2.ListPipelineStepVersionsRequest,
+            request_data,
+            per_page=per_page,
+            page_no=page_no,
+        )
+
+        for pipeline_step_info in all_pipeline_steps_info:
+            pipeline_step = App._process_pipeline_step_info(
+                pipeline_step_info, self.auth_helper, only_in_app=False
+            )
+            if pipeline_step is not None:
+                yield pipeline_step
+
     def create_app(self, app_id: str, base_workflow: str = 'Empty', **kwargs) -> App:
         """Creates an app for the user.
 
@@ -176,7 +251,7 @@ class User(Lister, BaseClient):
         response = self._grpc_request(self.STUB.PostApps, request)
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
-        self.logger.info("\nApp created\n%s", response.status)
+        self.logger.info(f"App with ID '{app_id}' is created:\n{response.status}")
         return App.from_auth_helper(auth=self.auth_helper, app_id=app_id)
 
     def _process_compute_cluster_config(
@@ -254,7 +329,9 @@ class User(Lister, BaseClient):
         response = self._grpc_request(self.STUB.PostComputeClusters, request)
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
-        self.logger.info("\nCompute Cluster created\n%s", response.status)
+        self.logger.info(
+            f"Compute Cluster with ID '{compute_cluster_id}' is created:\n{response.status}"
+        )
         return ComputeCluster.from_auth_helper(
             auth=self.auth_helper, compute_cluster_id=compute_cluster_id
         )
@@ -426,6 +503,24 @@ class User(Lister, BaseClient):
             raise Exception(response.status)
         self.logger.info("\nCompute Cluster Deleted\n%s", response.status)
 
+    def get_user_info(self, user_id: str = None) -> resources_pb2.User:
+        """Returns the user information for the specified user ID.
+
+        Args:
+            user_id (str): The user ID for the user to interact with.
+
+        Returns:
+            User: A User object for the specified user ID.
+        """
+        request = service_pb2.GetUserRequest(
+            user_app_id=resources_pb2.UserAppIDSet(user_id=user_id if user_id else self.id)
+        )
+        response = self._grpc_request(self.STUB.GetUser, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+
+        return response
+
     def __getattr__(self, name):
         return getattr(self.user_info, name)
 
@@ -437,3 +532,84 @@ class User(Lister, BaseClient):
             if hasattr(self.user_info, param)
         ]
         return f"Clarifai User Details: \n{', '.join(attribute_strings)}\n"
+
+    def list_models(
+        self,
+        user_id: str = None,
+        app_id: str = None,
+        show: bool = True,
+        return_clarifai_model: bool = False,
+        **kwargs,
+    ):
+        if user_id == "all":
+            params = {}
+        elif user_id:
+            user_app_id = resources_pb2.UserAppIDSet(user_id=user_id, app_id=app_id)
+            params = {"user_app_id": user_app_id}
+        elif not user_id:
+            user_app_id = resources_pb2.UserAppIDSet(
+                user_id=self.user_app_id.user_id, app_id=app_id
+            )
+            params = {"user_app_id": user_app_id}
+
+        params.update(**kwargs)
+        models = self.list_pages_generator(
+            self.STUB.ListModels, service_pb2.ListModelsRequest, request_data=params
+        )
+        all_data = []
+        for model in models:
+            url = (
+                f"https://clarifai.com/{model['user_id']}/{model['app_id']}/models/{model['name']}"
+            )
+            data = dict(
+                user_id=model["user_id"],
+                app_id=model["app_id"],
+                id=model["model_id"],
+                model_type=model["model_type_id"],
+                url=url,
+            )
+            method_types_data = dict(
+                supported_openai_client=False,
+                UNARY_UNARY={"predict"},
+                UNARY_STREAMING=set(),
+                STREAMING_STREAMING=set(),
+            )
+            for each_method in model.get("model_version", {}).get("method_signatures", []):
+                name = each_method["name"]
+                method_type = each_method["method_type"]
+                method_types_data[method_type].add(name)
+            if (
+                "openai_transport" in method_types_data["UNARY_UNARY"]
+                and "openai_stream_transport" in method_types_data["UNARY_STREAMING"]
+            ):
+                method_types_data["supported_openai_client"] = True
+                method_types_data["UNARY_UNARY"].remove("openai_transport")
+                method_types_data["UNARY_STREAMING"].remove("openai_stream_transport")
+            for k, v in method_types_data.items():
+                if k != "supported_openai_client":
+                    if not v:
+                        method_types_data[k] = None
+                    else:
+                        method_types_data[k] = list(v)
+
+            data.update(method_types_data)
+            all_data.append(data)
+
+        if show:
+            from tabulate import tabulate
+
+            print(tabulate(all_data, headers="keys"))
+
+        if return_clarifai_model:
+            from clarifai.client import Model
+
+            models = []
+            for each_data in all_data:
+                model = Model.from_auth_helper(
+                    self.auth_helper,
+                    url=each_data["url"],
+                )
+                models.append(model)
+            return models
+        else:
+            return all_data

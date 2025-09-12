@@ -1,8 +1,7 @@
-clarifai-grpc>=11.3.2
-clarifai-protocol>=0.0.22
+clarifai-grpc>=11.7.9
+clarifai-protocol>=0.0.30
 numpy>=1.22.0
 tqdm>=4.65.0
-rich>=13.4.2
 PyYAML>=6.0.1
 schema==0.7.5
 Pillow>=9.5.0
@@ -11,3 +10,8 @@ fsspec>=2024.6.1
 click>=8.1.7
 requests>=2.32.3
 aiohttp>=3.10.0
+uv==0.7.12
+ruff==0.11.4
+psutil==7.0.0
+pydantic_core==2.33.2
+packaging==25.0

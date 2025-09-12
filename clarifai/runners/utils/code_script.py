@@ -3,7 +3,24 @@ from typing import List
 
 from clarifai_grpc.grpc.api import resources_pb2
 
-from clarifai.runners.utils import data_types
+from clarifai.runners.utils import data_utils
+from clarifai.urls.helper import ClarifaiUrlHelper
+from clarifai.utils.constants import MCP_TRANSPORT_NAME, OPENAI_TRANSPORT_NAME
+
+
+def has_signature_method(
+    name: str, method_signatures: List[resources_pb2.MethodSignature]
+) -> bool:
+    """
+    Check if a method signature with the given name exists in the list of method signatures.
+
+    :param name: The name of the method to check.
+    :param method_signatures: List of MethodSignature objects to search in.
+    :return: True if a method with the given name exists, False otherwise.
+    """
+    return any(
+        method_signature.name == name for method_signature in method_signatures if method_signature
+    )
 
 
 def generate_client_script(
@@ -13,73 +30,164 @@ def generate_client_script(
     model_id,
     base_url: str = None,
     deployment_id: str = None,
+    compute_cluster_id: str = None,
+    nodepool_id: str = None,
     use_ctx: bool = False,
 ) -> str:
-    _CLIENT_TEMPLATE = """\
+    url_helper = ClarifaiUrlHelper()
+
+    # Provide an mcp client config if there is a method named "mcp_transport"
+    if has_signature_method(MCP_TRANSPORT_NAME, method_signatures):
+        mcp_url = url_helper.mcp_api_url(
+            user_id,
+            app_id,
+            model_id,
+        )
+
+        _CLIENT_TEMPLATE = f"""
+import asyncio
 import os
 
-from clarifai.client import Model
-from clarifai.runners.utils import data_types
-{model_section}
-    """
+from fastmcp import Client
+from fastmcp.client.transports import StreamableHttpTransport
 
-    deployment_id = (
-        "os.environ['CLARIFAI_DEPLOYMENT_ID']" if deployment_id is None else deployment_id
+transport = StreamableHttpTransport(
+    url="{mcp_url}",
+    headers={{"Authorization": "Bearer " + os.environ["CLARIFAI_PAT"]}},
+)
+
+async def main():
+    async with Client(transport) as client:
+        tools = await client.list_tools()
+        print(f"Available tools: {{tools}}")
+        # TODO: update the dictionary of arguments passed to call_tool to make sense for your MCP.
+        result = await client.call_tool(tools[0].name, {{"a": 5, "b": 3}})
+        print(f"Result: {{result[0].text}}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+"""
+        return _CLIENT_TEMPLATE
+
+    if has_signature_method(OPENAI_TRANSPORT_NAME, method_signatures):
+        openai_api_base = url_helper.openai_api_url()
+        model_ui_url = url_helper.clarifai_url(user_id, app_id, "models", model_id)
+        _CLIENT_TEMPLATE = f"""
+import os
+
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="{openai_api_base}",
+    api_key=os.environ['CLARIFAI_PAT'],
+)
+
+response = client.chat.completions.create(
+    model="{model_ui_url}",
+    messages=[
+        {{"role": "system", "content": "Talk like a pirate."}},
+        {{
+            "role": "user",
+            "content": "How do I check if a Python object is an instance of a class?",
+        }},
+    ],
+    temperature=0.7,
+    stream=False,  # stream=True also works, just iterator over the response
+)
+print(response)
+"""
+        return _CLIENT_TEMPLATE
+    # Generate client template
+    _CLIENT_TEMPLATE = (
+        "import os\n\n"
+        "from clarifai.client import Model\n"
+        "from clarifai.runners.utils import data_types\n\n"
+        "{model_section}\n"
+    )
+    if deployment_id and (compute_cluster_id or nodepool_id):
+        raise ValueError(
+            "You can only specify one of deployment_id or compute_cluster_id and nodepool_id."
+        )
+    if compute_cluster_id and nodepool_id:
+        deployment_id = None
+    else:
+        deployment_id = (
+            'os.environ.get("CLARIFAI_DEPLOYMENT_ID", None)'
+            if not deployment_id
+            else repr(deployment_id)
+        )
+
+    deployment_line = (
+        f'deployment_id={deployment_id},  # Only needed for dedicated deployed models'
+        if deployment_id
+        else ""
+    )
+    compute_cluster_line = (
+        f'compute_cluster_id="{compute_cluster_id}",' if compute_cluster_id else ""
+    )
+    nodepool_line = (
+        f'nodepool_id="{nodepool_id}",  # Only needed for dedicated nodepool'
+        if nodepool_id
+        else ""
     )
 
     base_url_str = ""
     if base_url is not None:
-        base_url_str = f"base_url={base_url},"
+        base_url_str = f'base_url="{base_url}",'
+
+    # Join all non-empty lines
+    optional_lines = "\n    ".join(
+        line
+        for line in [deployment_line, compute_cluster_line, nodepool_line, base_url_str]
+        if line
+    )
 
     if use_ctx:
         model_section = """
-model = Model.from_current_context()"""
-    else:
-        model_section = """
- model = Model("https://clarifai.com/{user_id}/{app_id}/{model_id}",
-               deployment_id = {deployment_id}, # Only needed for dedicated deployed models
-               {base_url_str}
- )
+model = Model.from_current_context()
 """
-        model_section = _CLIENT_TEMPLATE.format(
-            user_id=user_id,
-            app_id=app_id,
-            model_id=model_id,
-            deployment_id=deployment_id,
-            base_url_str=base_url_str,
-        )
+    else:
+        model_ui_url = url_helper.clarifai_url(user_id, app_id, "models", model_id)
+        if optional_lines:
+            model_args = f'"{model_ui_url}",\n    {optional_lines}'
+        else:
+            model_args = f'"{model_ui_url}"'
+        model_section = f"model = Model(\n    {model_args}\n)"
 
-    # Generate client template
-    client_template = _CLIENT_TEMPLATE.format(
-        model_section=model_section,
-    )
+    client_template = _CLIENT_TEMPLATE.format(model_section=model_section.strip("\n"))
 
     # Generate method signatures
     method_signatures_str = []
     for method_signature in method_signatures:
+        if method_signature is None:
+            continue
         method_name = method_signature.name
-        if method_signature.method_type in [
-            resources_pb2.RunnerMethodType.UNARY_UNARY,
-            resources_pb2.RunnerMethodType.UNARY_STREAMING,
-        ]:
-            client_script_str = f'response = model.{method_name}('
-            annotations = _get_annotations_source(method_signature)
-            for param_name, (param_type, default_value) in annotations.items():
-                if param_name == "return":
-                    continue
-                if default_value is None:
-                    default_value = _set_default_value(param_type)
-                    if param_type == "str":
-                        default_value = repr(default_value)
-
-                client_script_str += f"{param_name}={default_value}, "
-            client_script_str = client_script_str.rstrip(", ") + ")"
-            if method_signature.method_type == resources_pb2.RunnerMethodType.UNARY_UNARY:
-                client_script_str += "\nprint(response)"
-            elif method_signature.method_type == resources_pb2.RunnerMethodType.UNARY_STREAMING:
-                client_script_str += "\nfor res in response:\n    print(res)"
-            client_script_str += "\n"
-            method_signatures_str.append(client_script_str)
+        client_script_str = f"response = model.{method_name}("
+        annotations = _get_annotations_source(method_signature)
+        param_lines = []
+        for idx, (param_name, (param_type, default_value, required)) in enumerate(
+            annotations.items()
+        ):
+            if param_name == "return":
+                continue
+            if default_value is None and required:
+                default_value = _set_default_value(param_type)
+            if not default_value and idx == 0:
+                default_value = _set_default_value(param_type)
+            if param_type == "str" and default_value is not None:
+                default_value = json.dumps(default_value)
+            if default_value is not None:
+                param_lines.append(f"    {param_name}={default_value},")
+        if param_lines:
+            client_script_str += "\n" + "\n".join(param_lines) + "\n)"
+        else:
+            client_script_str += ")"
+        if method_signature.method_type == resources_pb2.RunnerMethodType.UNARY_UNARY:
+            client_script_str += "\nprint(response)"
+        elif method_signature.method_type == resources_pb2.RunnerMethodType.UNARY_STREAMING:
+            client_script_str += "\nfor res in response:\n    print(res)"
+        client_script_str += "\n"
+        method_signatures_str.append(client_script_str)
 
     method_signatures_str = "\n".join(method_signatures_str)
     # Combine all parts
@@ -91,7 +199,7 @@ model = Model.from_current_context()"""
         )
     script_lines.append("# Example usage:")
     script_lines.append(client_template)
-    script_lines.append("# Example model prediction from different model methods: \n")
+    script_lines.append("# Example model prediction from different model methods:\n")
     script_lines.append(method_signatures_str)
     script_lines.append("")
     script = "\n".join(script_lines)
@@ -107,10 +215,9 @@ def _get_annotations_source(method_signature: resources_pb2.MethodSignature) -> 
         if input_field.iterator:
             param_type = f"Iterator[{param_type}]"
         default_value = None
-        if input_field.default:
+        if data_utils.Param.get_default(input_field):
             default_value = _parse_default_value(input_field)
-
-        annotations[param_name] = (param_type, default_value)
+        annotations[param_name] = (param_type, default_value, input_field.required)
     if not method_signature.output_fields:
         raise ValueError("MethodSignature must have at least one output field")
     for output_field in method_signature.output_fields:
@@ -118,7 +225,7 @@ def _get_annotations_source(method_signature: resources_pb2.MethodSignature) -> 
         param_type = _get_base_type(output_field)
         if output_field.iterator:
             param_type = f"Iterator[{param_type}]"
-        annotations[param_name] = (param_type, None)
+        annotations[param_name] = (param_type, None, output_field.required)
     return annotations
 
 
@@ -177,23 +284,21 @@ def _map_default_value(field_type):
     elif field_type == "bool":
         default_value = False
     elif field_type == "data_types.Image":
-        default_value = data_types.Image.from_url("https://samples.clarifai.com/metro-north.jpg")
+        default_value = 'data_types.Image.from_url("https://samples.clarifai.com/metro-north.jpg")'
     elif field_type == "data_types.Text":
-        default_value = data_types.Text("What's the future of AI?")
+        default_value = 'data_types.Text("What is the future of AI?")'
     elif field_type == "data_types.Audio":
-        default_value = data_types.Audio.from_url("https://samples.clarifai.com/audio.mp3")
+        default_value = 'data_types.Audio.from_url("https://samples.clarifai.com/audio.mp3")'
     elif field_type == "data_types.Video":
-        default_value = data_types.Video.from_url("https://samples.clarifai.com/video.mp4")
+        default_value = 'data_types.Video.from_url("https://samples.clarifai.com/video.mp4")'
     elif field_type == "data_types.Concept":
-        default_value = data_types.Concept(id="concept_id", name="dog", value=0.95)
+        default_value = 'data_types.Concept(id="concept_id", name="dog", value=0.95)'
     elif field_type == "data_types.Region":
-        default_value = data_types.Region(
-            box=[0.1, 0.1, 0.5, 0.5],
-        )
+        default_value = 'data_types.Region(box=[0.1, 0.1, 0.5, 0.5],)'
     elif field_type == "data_types.Frame":
-        default_value = data_types.Frame.from_url("https://samples.clarifai.com/video.mp4", 0)
+        default_value = 'data_types.Frame.from_url("https://samples.clarifai.com/video.mp4", 0)'
     elif field_type == "data_types.NDArray":
-        default_value = data_types.NDArray([1, 2, 3])
+        default_value = 'data_types.NDArray([1, 2, 3])'
     else:
         default_value = None
     return default_value
@@ -203,6 +308,10 @@ def _set_default_value(field_type):
     """
     Set the default value of a field if it is not set.
     """
+    is_iterator = False
+    if field_type.startswith("Iterator["):
+        is_iterator = True
+        field_type = field_type[9:-1]
     default_value = None
     default_value = _map_default_value(field_type)
     if field_type.startswith("List["):
@@ -219,6 +328,11 @@ def _set_default_value(field_type):
         element_type_defaults = [_map_default_value(et) for et in element_types]
         default_value = f"{{{', '.join([str(et) for et in element_type_defaults])}}}"
 
+    if is_iterator:
+        if field_type == "str":
+            default_value = f"iter(['{default_value}'])"
+        else:
+            default_value = f"iter([{default_value}])"
     return default_value
 
 
@@ -236,7 +350,7 @@ def _parse_default_value(field: resources_pb2.ModelTypeField):
         elif data_type == resources_pb2.ModelTypeField.DataType.BOOL:
             return 'True' if default_str.lower() == 'true' else 'False'
         elif data_type == resources_pb2.ModelTypeField.DataType.STR:
-            return repr(default_str)
+            return default_str
         elif data_type == resources_pb2.ModelTypeField.DataType.BYTES:
             return f"b{repr(default_str.encode('utf-8'))}"
         elif data_type == resources_pb2.ModelTypeField.DataType.JSON_DATA:

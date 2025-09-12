@@ -1,6 +1,5 @@
 import logging
 import os
-from collections import namedtuple
 
 import pytest
 
@@ -15,8 +14,6 @@ PDF_URL = "https://samples.clarifai.com/test_doc.pdf"
 
 CLARIFAI_API_BASE = os.environ.get("CLARIFAI_API_BASE", "https://api.clarifai.com")
 
-auth_obj = namedtuple("auth", "ui")
-
 
 def client():
     return User(user_id=CREATE_APP_USER_ID, base_url=CLARIFAI_API_BASE)
@@ -28,8 +25,7 @@ class TestRAG:
     def setup_class(self):
         self.rag = RAG.setup(user_id=CREATE_APP_USER_ID, base_url=CLARIFAI_API_BASE)
         wf = self.rag._prompt_workflow
-        auth = auth_obj(ui="https://clarifai.com")
-        self.workflow_url = ClarifaiUrlHelper(auth).clarifai_url(
+        self.workflow_url = ClarifaiUrlHelper().clarifai_url(
             wf.user_id, wf.app_id, "workflows", wf.id
         )
 

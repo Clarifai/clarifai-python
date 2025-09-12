@@ -41,7 +41,7 @@ class HuggingFaceLoader:
             return True
         except Exception as e:
             logger.error(
-                f"Error setting up Hugging Face token, please make sure you have the correct token: {e}"
+                f"Invalid Hugging Face token provided in the config file, this might cause issues with downloading the restricted model checkpoints. Failed reason: {e}"
             )
             return False
 
@@ -63,7 +63,6 @@ class HuggingFaceLoader:
             try:
                 is_hf_model_exists = self.validate_hf_model()
                 if not is_hf_model_exists:
-                    logger.error("Model %s not found on Hugging Face" % (self.repo_id))
                     return False
 
                 self.ignore_patterns = self._get_ignore_patterns()
@@ -72,6 +71,18 @@ class HuggingFaceLoader:
                         self.ignore_patterns.extend(ignore_file_patterns)
                     else:
                         self.ignore_patterns = ignore_file_patterns
+
+                repo_files_to_download = self.get_repo_files_list(
+                    allowed_file_patterns=allowed_file_patterns,
+                    ignore_file_patterns=self.ignore_patterns,
+                )
+                total_size = self.get_huggingface_checkpoint_total_size(
+                    self.repo_id, checkpoint_files_list=repo_files_to_download
+                )
+                total_size = total_size / (1024**2)
+                logger.info(f"Total download size: {total_size:.2f} MB")
+
+                logger.info("Downloading model checkpoints...")
                 snapshot_download(
                     repo_id=self.repo_id,
                     local_dir=checkpoint_path,
@@ -134,9 +145,7 @@ class HuggingFaceLoader:
         else:
             return repo_exists(self.repo_id)
 
-    def validate_download(
-        self, checkpoint_path: str, allowed_file_patterns: list, ignore_file_patterns: list
-    ):
+    def get_repo_files_list(self, allowed_file_patterns: list, ignore_file_patterns: list):
         # check if model exists on HF
         try:
             from huggingface_hub import list_repo_files
@@ -169,6 +178,14 @@ class HuggingFaceLoader:
                 return any(fnmatch.fnmatch(file_path, pattern) for pattern in patterns)
 
             repo_files = [f for f in repo_files if not should_ignore(f)]
+        return repo_files
+
+    def validate_download(
+        self, checkpoint_path: str, allowed_file_patterns: list, ignore_file_patterns: list
+    ):
+        repo_files = self.get_repo_files_list(
+            allowed_file_patterns=allowed_file_patterns, ignore_file_patterns=ignore_file_patterns
+        )
 
         # Check if downloaded files match the files we expect (ignoring ignored patterns)
         checkpoint_dir_files = []
@@ -197,6 +214,7 @@ class HuggingFaceLoader:
         if any(f.endswith(".safetensors") for f in repo_files):
             self.ignore_patterns = [
                 "**/original/*",
+                "original/*",
                 "**/*.pth",
                 "**/*.bin",
                 "*.pth",
@@ -204,6 +222,28 @@ class HuggingFaceLoader:
                 "**/.cache/*",
             ]
         return self.ignore_patterns
+
+    @classmethod
+    def validate_hf_repo_access(cls, repo_id: str, token: str = None) -> bool:
+        # check if model exists on HF
+        try:
+            from huggingface_hub import auth_check
+            from huggingface_hub.utils import GatedRepoError, RepositoryNotFoundError
+        except ImportError:
+            raise ImportError(cls.HF_DOWNLOAD_TEXT)
+
+        try:
+            auth_check(repo_id, token=token)
+            logger.info("Hugging Face repo access validated")
+            return True
+        except GatedRepoError:
+            logger.error(
+                "Hugging Face repo is gated. Please make sure you have access to the repo."
+            )
+            return False
+        except RepositoryNotFoundError:
+            logger.error("Hugging Face repo not found. Please make sure the repo exists.")
+            return False
 
     @staticmethod
     def validate_config(checkpoint_path: str):
@@ -235,13 +275,14 @@ class HuggingFaceLoader:
         return labels
 
     @staticmethod
-    def get_huggingface_checkpoint_total_size(repo_name):
+    def get_huggingface_checkpoint_total_size(repo_name, checkpoint_files_list=None):
         """
         Fetches the JSON data for a Hugging Face model using the API with `?blobs=true`.
         Calculates the total size from the JSON output.
 
         Args:
             repo_name (str): The name of the model on Hugging Face Hub. e.g. "casperhansen/llama-3-8b-instruct-awq"
+            checkpoint_files_list (list, optional): A list of specific files to include in the size calculation. If None, all files are included.
 
         Returns:
             int: The total size in bytes.
@@ -259,6 +300,8 @@ class HuggingFaceLoader:
 
             total_size = 0
             for file in data['siblings']:
+                if checkpoint_files_list and (file['rfilename'] not in checkpoint_files_list):
+                    continue
                 total_size += file['size']
             return total_size
         except Exception as e:

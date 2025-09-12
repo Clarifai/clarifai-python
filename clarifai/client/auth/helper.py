@@ -1,16 +1,18 @@
 import os
 import urllib.request
-from typing import Any, Dict
-from urllib.parse import urlparse
+from typing import Any, Dict, Tuple
 
+import grpc
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2_grpc
 
 from clarifai import __version__
-from clarifai.utils.constants import CLARIFAI_PAT_ENV_VAR, CLARIFAI_SESSION_TOKEN_ENV_VAR
-
-DEFAULT_BASE = "https://api.clarifai.com"
-DEFAULT_UI = "https://clarifai.com"
+from clarifai.utils.constants import (
+    CLARIFAI_PAT_ENV_VAR,
+    CLARIFAI_SESSION_TOKEN_ENV_VAR,
+    DEFAULT_BASE,
+    DEFAULT_UI,
+)
 
 REQUEST_ID_PREFIX_HEADER = "x-clarifai-request-id-prefix"
 REQUEST_ID_PREFIX = f"sdk-python-{__version__}"
@@ -40,28 +42,31 @@ def https_cache(cache: dict, url: str) -> str:
     elif url.startswith("http://"):
         url = url.replace("http://", "")
         cache[url] = HTTP
-    elif url not in cache:
+    elif url.endswith(":443"):
+        # If it ends with :443 then we know it's https.
+        # trim it off the right
+        url = url[:-4]
+        cache[url] = HTTPS
+    elif url.find('.clarifai.com') >= 0:
         # We know our endpoints are https.
-        host_name = urlparse(url).hostname
-        if host_name and host_name.endswith(".clarifai.com"):
-            cache[url] = HTTPS
-        else:  # need to test it.
-            try:  # make request to https endpoint.
-                urllib.request.urlopen("https://%s/v2/auth/methods" % url, timeout=1)
-                cache[url] = HTTPS  # cache it.
-            except Exception as e:
-                if "SSL" in str(e):  # if ssl error then we know it's http.
-                    cache[url] = HTTP
-                    # For http urls we need host:port format.
-                    if ":" not in url:
-                        raise Exception(
-                            "When providing an insecure url it must have both host:port format"
-                        )
-                else:
+        cache[url] = HTTPS
+    elif url not in cache:
+        # need to test ones that we don't have in the cache yet.
+        try:  # make request to https endpoint.
+            urllib.request.urlopen("https://%s/v2/auth/methods" % url, timeout=5)
+            cache[url] = HTTPS  # cache it.
+        except Exception as e:
+            if "SSL" in str(e):  # if ssl error then we know it's http.
+                cache[url] = HTTP
+                # For http urls we need host:port format.
+                if ":" not in url:
                     raise Exception(
-                        "Could not get a valid response from url: %s, is the API running there?"
-                        % url
-                    ) from e
+                        "When providing an insecure url it must have both host:port format"
+                    )
+            else:
+                raise Exception(
+                    "Could not get a valid response from url: %s, is the API running there?" % url
+                ) from e
     return url
 
 
@@ -149,7 +154,10 @@ class ClarifaiAuthHelper:
 
         # Then add in the query params.
         try:
-            auth.add_streamlit_query_params(dict(st.query_params))
+            if st.query_params:
+                auth.add_streamlit_query_params(st.query_params)
+            else:
+                auth.add_streamlit_query_params(st.session_state)
         except Exception as e:
             st.error(e)
             st.stop()
@@ -201,40 +209,25 @@ class ClarifaiAuthHelper:
                 base: as 'base' in query_params.
 
         Args:
-          query_params: the streamlit.experimental_get_query_params() response or an empty dict to fall
-        back to using env vars.
+          query_params: the streamlit.query_params response or streamlit.session_state.
         """
-        error_description = """
-Please check the following required query params are in the url:
- - 'user_id': the user ID accessing the module.
- - 'app_id': the app the module is being accessed from.
- - 'token' or 'pat': to authenticate the calling user with a session token or personal access token.
-
-Additionally, these optional params are supported:
- - 'base': the base domain for the API such as https://api.clarifai.com
- - 'ui': the overall UI domain for redirects such as https://clarifai.com
-"""
 
         if query_params == "":  # empty response from streamlit
             query_params = {}
-        for k in ["user_id", "app_id", "token", "pat"]:
-            if k in query_params and len(query_params[k]) != 1:
-                err_str = "There should only be 1 query param value for key '%s'" % k
-                raise Exception(err_str + error_description)
         if "user_id" in query_params:
-            self.user_id = query_params["user_id"][0]
+            self.user_id = query_params["user_id"]
         if "app_id" in query_params:
-            self.app_id = query_params["app_id"][0]
+            self.app_id = query_params["app_id"]
         if "token" in query_params:
-            self._token = query_params["token"][0]
+            self._token = query_params["token"]
         if "pat" in query_params:
-            self._pat = query_params["pat"][0]
+            self._pat = query_params["pat"]
         if "base" in query_params:
-            self.set_base(query_params["base"][0])
+            self.set_base(query_params["base"])
         if "ui" in query_params:
-            self.set_ui(query_params["ui"][0])
+            self.set_ui(query_params["ui"])
         if "root_certificates_path" in query_params:
-            self._root_certificates_path = query_params["root_certificates_path"][0]
+            self._root_certificates_path = query_params["root_certificates_path"]
 
     @classmethod
     def from_env(cls, validate: bool = True) -> "ClarifaiAuthHelper":
@@ -297,7 +290,11 @@ Additionally, these optional params are supported:
             )
 
     def get_stub(self) -> service_pb2_grpc.V2Stub:
-        """Get the API gRPC stub using the right channel based on the API endpoint base.
+        stub, channel = self.get_stub_and_channel()
+        return stub
+
+    def get_stub_and_channel(self) -> Tuple[service_pb2_grpc.V2Stub, grpc.Channel]:
+        """Get the API gRPC stub and channel based on the API endpoint base.
 
         Returns:
           stub: The service_pb2_grpc.V2Stub stub for the API.
@@ -317,6 +314,29 @@ Additionally, these optional params are supported:
                 host = self._base
                 port = 80
             channel = ClarifaiChannel.get_insecure_grpc_channel(base=host, port=port)
+        stub = service_pb2_grpc.V2Stub(channel)
+        return stub, channel
+
+    def get_async_stub(self) -> service_pb2_grpc.V2Stub:
+        """Get the API gRPC async stub using the right channel based on the API endpoint base.
+        Returns:
+        stub: The service_pb2_grpc.V2Stub stub for the API.
+        """
+        if self._base not in base_https_cache:
+            raise Exception("Cannot determine if base %s is https" % self._base)
+
+        https = base_https_cache[self._base]
+        if https:
+            channel = ClarifaiChannel.get_aio_grpc_channel(
+                base=self._base, root_certificates_path=self._root_certificates_path
+            )
+        else:
+            if self._base.find(":") >= 0:
+                host, port = self._base.split(":")
+            else:
+                host = self._base
+                port = 80
+            channel = ClarifaiChannel.get_aio_insecure_grpc_channel(base=host, port=port)
         stub = service_pb2_grpc.V2Stub(channel)
         return stub
 

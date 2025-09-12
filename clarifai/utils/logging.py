@@ -10,6 +10,8 @@ import traceback
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Union
 
+from clarifai.errors import UserError
+
 # The default logger to use throughout the SDK is defined at bottom of this file.
 
 # For the json logger.
@@ -80,8 +82,13 @@ def get_req_id_from_context():
 
 def display_workflow_tree(nodes_data: List[Dict]) -> None:
     """Displays a tree of the workflow nodes."""
-    from rich import print as rprint
-    from rich.tree import Tree
+    try:
+        from rich import print as rprint
+        from rich.tree import Tree
+    except ImportError:
+        raise UserError(
+            "Rich library is not installed. Please install it using pip install rich>=13.4.2"
+        )
 
     # Create a mapping of node_id to the list of node_ids that are connected to it.
     node_adj_mapping = defaultdict(list)
@@ -131,7 +138,12 @@ def display_workflow_tree(nodes_data: List[Dict]) -> None:
 
 def table_from_dict(data: List[Dict], column_names: List[str], title: str = "") -> 'rich.Table':  # noqa F821
     """Use this function for printing tables from a list of dicts."""
-    from rich.table import Table
+    try:
+        from rich.table import Table
+    except ImportError:
+        raise UserError(
+            "Rich library is not installed. Please install it using pip install rich>=13.4.2"
+        )
 
     table = Table(title=title, show_lines=False, show_header=True, header_style="blue")
     for column_name in column_names:
@@ -233,8 +245,13 @@ def display_concept_relations_tree(relations_dict: Dict[str, Any]) -> None:
     Args:
         relations_dict (dict): A dict of concept relations info.
     """
-    from rich import print as rprint
-    from rich.tree import Tree
+    try:
+        from rich import print as rprint
+        from rich.tree import Tree
+    except ImportError:
+        raise UserError(
+            "Rich library is not installed. Please install it using pip install rich>=13.4.2"
+        )
 
     for parent, children in relations_dict.items():
         tree = Tree(parent)

@@ -74,30 +74,10 @@ def build_function_signature(func):
     assert method_type in ('UNARY_UNARY', 'UNARY_STREAMING', 'STREAMING_STREAMING')
     # method_signature.method_type = method_type
     method_signature.description = inspect.cleandoc(func.__doc__ or '')
-    # method_signature.annotations_json = json.dumps(_get_annotations_source(func))
 
     method_signature.input_fields.extend(input_sigs)
     method_signature.output_fields.append(output_sig)
     return method_signature
-
-
-# def _get_annotations_source(func):
-#   """Extracts raw annotation strings from the function source."""
-#   source = inspect.getsource(func)  # Get function source code
-#   source = textwrap.dedent(source)  # Dedent source code
-#   tree = ast.parse(source)  # Parse into AST
-#   func_node = next(node for node in tree.body
-#                    if isinstance(node, ast.FunctionDef))  # Get function node
-
-#   annotations = {}
-#   for arg in func_node.args.args:  # Process arguments
-#     if arg.annotation:
-#       annotations[arg.arg] = ast.unparse(arg.annotation)  # Get raw annotation string
-
-#   if func_node.returns:  # Process return type
-#     annotations["return"] = ast.unparse(func_node.returns)
-
-#   return annotations
 
 
 def _process_input_field(field: resources_pb2.ModelTypeField) -> str:
@@ -161,10 +141,10 @@ def build_variable_signature(name, annotation, default=inspect.Parameter.empty, 
     if not is_output:
         sig.required = default is inspect.Parameter.empty
         if not sig.required:
-            if isinstance(default, data_utils.InputField):
+            if isinstance(default, data_utils.Param):
                 sig = default.to_proto(sig)
             else:
-                sig = data_utils.InputField.set_default(sig, default)
+                sig = data_utils.Param.set_default(sig, default)
 
     _fill_signature_type(sig, tp)
 
@@ -302,6 +282,9 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
                 raise TypeError(f'Missing required argument: {sig.name}')
             continue  # skip missing fields, they can be set to default on the server
         data = kwargs[sig.name]
+        default = data_utils.Param.get_default(sig)
+        if data is None and default is None:
+            continue
         serializer = serializer_from_signature(sig)
         # TODO determine if any (esp the first) var can go in the proto without parts
         # and whether to put this in the signature or dynamically determine it
@@ -312,7 +295,7 @@ def serialize(kwargs, signatures, proto=None, is_output=False):
     return proto
 
 
-def deserialize(proto, signatures, inference_params={}, is_output=False):
+def deserialize(proto, signatures, is_output=False):
     '''
     Deserialize the given proto into kwargs using the given signatures.
     '''
@@ -323,11 +306,8 @@ def deserialize(proto, signatures, inference_params={}, is_output=False):
     for sig_i, sig in enumerate(signatures):
         serializer = serializer_from_signature(sig)
         part = parts_by_name.get(sig.name)
-        inference_params_value = inference_params.get(sig.name)
         if part is not None:
             kwargs[sig.name] = serializer.deserialize(part.data)
-        elif inference_params_value is not None:
-            kwargs[sig.name] = inference_params_value
         else:
             if sig_i == 0:
                 # possible inlined first value
