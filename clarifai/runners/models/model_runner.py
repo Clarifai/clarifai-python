@@ -87,7 +87,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
 
         resp = self.model.predict_wrapper(request)
         logger.debug(
-            f'Request_id: {request.status.req_id}, ',
+            f'Processing request with ID: {request.status.req_id}'
         )
         if resp.status.code != status_code_pb2.SUCCESS:
             return service_pb2.RunnerItemOutput(multi_output_response=resp)
