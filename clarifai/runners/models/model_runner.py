@@ -1,10 +1,10 @@
 import time
-from typing import Iterator, Optional
+from typing import Iterator, Optional, Union
 
 from clarifai_grpc.grpc.api import service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from clarifai_protocol import BaseRunner
-from clarifai_protocol.utils.health import HealthProbeRequestHandler
+from clarifai_protocol.utils.health import HealthProbeRequestHandler, start_health_server_thread
 
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.utils.constants import STATUS_FAIL, STATUS_MIXED, STATUS_OK, STATUS_UNKNOWN
@@ -15,7 +15,7 @@ from ..utils.url_fetcher import ensure_urls_downloaded
 from .model_class import ModelClass
 
 
-class ModelRunner(BaseRunner, HealthProbeRequestHandler):
+class ModelRunner(BaseRunner):
     """
     This is a subclass of the runner class which will handle only the work items relevant to models.
     """
@@ -32,6 +32,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         pat: Optional[str] = None,
         token: Optional[str] = None,
         num_parallel_polls: int = 4,
+        health_check_port: Union[int, None] = 8080,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -70,9 +71,26 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
                 # If auth helper creation fails, proceed without authentication
                 self._auth_helper = None
 
+        # if the model has a handle_liveness_probe method, call it to determine liveness
+        # otherwise rely on self.is_alive from the protocol
+        if hasattr(self.model, 'handle_liveness_probe'):
+            HealthProbeRequestHandler.handle_liveness_probe = self.model.handle_liveness_probe
+
+        # if the model has a handle_readiness_probe method, call it to determine readiness
+        # otherwise rely on self.is_ready from the protocol
+        if hasattr(self.model, 'handle_readiness_probe'):
+            HealthProbeRequestHandler.handle_readiness_probe = self.model.handle_readiness_probe
+
+        # if the model has a handle_startup_probe method, call it to determine startup
+        # otherwise rely on self.is_startup from the protocol
+        if hasattr(self.model, 'handle_startup_probe'):
+            HealthProbeRequestHandler.handle_startup_probe = self.model.handle_startup_probe
+
         # After model load successfully set the health probe to ready and startup
         HealthProbeRequestHandler.is_ready = True
         HealthProbeRequestHandler.is_startup = True
+
+        start_health_server_thread(port=health_check_port, address='')
 
     def get_runner_item_output_for_status(
         self, status: status_pb2.Status
@@ -300,27 +318,6 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
     def set_model(self, model: ModelClass):
         """Set the model for this runner."""
         self.model = model
-
-    def handle_liveness_probe(self):
-        # if the model has a handle_liveness_probe method, call it to determine liveness
-        # otherwise rely on HealthProbeRequestHandler.is_alive from the protocol
-        if hasattr(self.model, 'handle_liveness_probe'):
-            HealthProbeRequestHandler.is_alive = self.model.handle_liveness_probe()
-        return super().handle_liveness_probe()
-
-    def handle_readiness_probe(self):
-        # if the model has a handle_readiness_probe method, call it to determine readiness
-        # otherwise rely on HealthProbeRequestHandler.is_ready from the protocol
-        if hasattr(self.model, 'handle_readiness_probe'):
-            HealthProbeRequestHandler.is_ready = self.model.handle_readiness_probe()
-        return super().handle_readiness_probe()
-
-    def handle_startup_probe(self):
-        # if the model has a handle_startup_probe method, call it to determine startup
-        # otherwise rely on HealthProbeRequestHandler.is_startup from the protocol
-        if hasattr(self.model, 'handle_startup_probe'):
-            HealthProbeRequestHandler.is_startup = self.model.handle_startup_probe()
-        return super().handle_startup_probe()
 
 
 def pmo_iterator(runner_item_iterator, auth_helper=None):
