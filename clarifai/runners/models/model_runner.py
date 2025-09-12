@@ -159,7 +159,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
         # Call the generate() method the underlying model implements.
         for resp in self.model.stream_wrapper(pmo_iterator(runner_item_iterator)):
             logger.debug(
-                f'Request_id: {resp.status.req_id}, ',
+                f'Processing request with ID: {resp.status.req_id}'
             )
             if resp.status.code != status_code_pb2.SUCCESS:
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
