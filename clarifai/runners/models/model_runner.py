@@ -123,7 +123,7 @@ class ModelRunner(BaseRunner, HealthProbeRequestHandler):
 
         for resp in self.model.generate_wrapper(request):
             logger.debug(
-                f'Request_id: {request.status.req_id}, ',
+                f'Processing request with ID: {request.status.req_id}'
             )
             if resp.status.code != status_code_pb2.SUCCESS:
                 yield service_pb2.RunnerItemOutput(multi_output_response=resp)
