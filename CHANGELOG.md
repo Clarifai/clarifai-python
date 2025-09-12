@@ -1,3 +1,8 @@
+## [[11.8.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.1) - [PyPI](https://pypi.org/project/clarifai/11.8.1/) - 2025-09-11
+
+### Changed
+- Minor internal improvements and bug fixes.
+
 ## [[11.8.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.0) - [PyPI](https://pypi.org/project/clarifai/11.8.0/) - 2025-09-11
 
 ### Added
