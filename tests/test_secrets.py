@@ -386,29 +386,145 @@ class TestSecretsSystem:
                 "Environment should be updated"
             )
 
-    def test_model_reload_error_handling(self, secrets_directory):
-        """Test error handling during model reload."""
+    def test_model_reload_calls_cleanup(self, secrets_directory):
+        """Test that model cleanup is called before creating new model instances."""
+        # Setup initial state
+        create_secret_in_directory(
+            secrets_directory, "cleanup-test-secret", "CLEANUP_TEST=initial_value\n"
+        )
+        os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_directory)
+
+        with patch('clarifai.runners.server.ModelBuilder') as mock_builder:
+            mock_model_instance = MagicMock()
+            mock_builder.return_value.create_model_instance.return_value = mock_model_instance
+
+            from clarifai.runners.server import ModelServer
+
+            server = ModelServer("dummy_path")
+
+            # Verify initial state - cleanup should not have been called yet
+            mock_model_instance.cleanup.assert_not_called()
+
+            # Update secrets and trigger reload
+            time.sleep(0.01)  # Ensure different mtime
+            create_secret_in_directory(
+                secrets_directory, "cleanup-test-secret", "CLEANUP_TEST=updated_value\n"
+            )
+
+            # Trigger reload sequence
+            server.reload_model_on_secrets_change()
+
+            # Verify cleanup was called on the original model instance
+            mock_model_instance.cleanup.assert_called_once()
+
+    def test_model_cleanup_on_shutdown(self, secrets_directory):
+        """Test that model cleanup is called during server shutdown."""
+        create_secret_in_directory(secrets_directory, "shutdown-secret", "SECRET=value\n")
+        os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_directory)
+
+        with patch('clarifai.runners.server.ModelBuilder') as mock_builder:
+            mock_model_instance = MagicMock()
+            mock_builder.return_value.create_model_instance.return_value = mock_model_instance
+
+            from clarifai.runners.server import ModelServer
+
+            server = ModelServer("dummy_path")
+
+            # Verify cleanup hasn't been called during initialization
+            mock_model_instance.cleanup.assert_not_called()
+
+            # Shutdown the server
+            server.shutdown()
+
+            # Verify cleanup was called
+            mock_model_instance.cleanup.assert_called_once()
+
+    def test_disable_secrets_reload_option(self, secrets_directory):
+        """Test that secrets watcher can be disabled to prevent automatic reloading."""
+        create_secret_in_directory(secrets_directory, "disabled-secret", "SECRET=initial\n")
+        os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_directory)
+
+        with patch('clarifai.runners.server.ModelBuilder') as mock_builder:
+            mock_model_instance = MagicMock()
+            mock_builder.return_value.create_model_instance.return_value = mock_model_instance
+
+            from clarifai.runners.server import ModelServer
+
+            # Create server with disabled secrets reload
+            server = ModelServer("dummy_path", disable_secrets_reload=True)
+
+            # Verify no watcher thread was started
+            assert server._watcher_thread is None
+
+            # Update secrets - this should NOT trigger automatic reload
+            time.sleep(0.01)
+            create_secret_in_directory(secrets_directory, "disabled-secret", "SECRET=updated\n")
+
+            # Manual reload should still work
+            initial_call_count = mock_builder.return_value.create_model_instance.call_count
+            server.reload_model_on_secrets_change()
+
+            # Should have created one more model instance
+            assert (
+                mock_builder.return_value.create_model_instance.call_count
+                == initial_call_count + 1
+            )
+
+    def test_disable_secrets_reload_via_env_var(self, secrets_directory):
+        """Test that secrets watcher can be disabled via environment variable."""
+        create_secret_in_directory(secrets_directory, "env-disabled-secret", "SECRET=initial\n")
+        os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_directory)
+        os.environ["CLARIFAI_DISABLE_SECRETS_RELOAD"] = "true"
+
+        try:
+            with patch('clarifai.runners.server.ModelBuilder') as mock_builder:
+                mock_model_instance = MagicMock()
+                mock_builder.return_value.create_model_instance.return_value = mock_model_instance
+
+                from clarifai.runners.server import ModelServer
+
+                # Create server - should automatically read env var
+                server = ModelServer("dummy_path")
+
+                # Verify no watcher thread was started
+                assert server._watcher_thread is None
+                assert server.disable_secrets_reload is True
+        finally:
+            # Clean up environment variable
+            if "CLARIFAI_DISABLE_SECRETS_RELOAD" in os.environ:
+                del os.environ["CLARIFAI_DISABLE_SECRETS_RELOAD"]
+
+    def test_model_cleanup_error_handling(self, secrets_directory):
+        """Test error handling when model cleanup fails."""
         create_secret_in_directory(secrets_directory, "error-secret", "SECRET=value\n")
         os.environ["CLARIFAI_SECRETS_PATH"] = str(secrets_directory)
 
         with patch('clarifai.runners.server.ModelBuilder') as mock_builder:
+            mock_model_instance = MagicMock()
+            # Make cleanup raise an exception
+            mock_model_instance.cleanup.side_effect = Exception("Cleanup failed")
+
+            # First call returns the failing model, second call returns a new working model
+            new_model_instance = MagicMock()
             mock_builder.return_value.create_model_instance.side_effect = [
-                MagicMock(),  # First call succeeds
-                Exception("Model creation failed"),  # Second call fails
+                mock_model_instance,
+                new_model_instance,
             ]
 
             from clarifai.runners.server import ModelServer
 
             server = ModelServer("dummy_path")
 
-            # Change secrets and trigger reload
+            # Update secrets and trigger reload
             create_secret_in_directory(secrets_directory, "new-secret", "NEW_SECRET=new_value\n")
 
-            # Should not crash even if model reload fails
+            # Should not crash even if cleanup fails
             server.reload_model_on_secrets_change()
 
-            # Verify it attempted to reload
+            # Verify cleanup was attempted and new model was created
+            mock_model_instance.cleanup.assert_called_once()
             assert mock_builder.return_value.create_model_instance.call_count == 2
+            assert server._current_model == new_model_instance
 
     def test_backward_compatibility_with_legacy_files(self, legacy_secrets_file):
         """Test that the system gracefully handles legacy .env files (if supported)."""

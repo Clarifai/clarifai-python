@@ -10,6 +10,15 @@ class MyModel(ModelClass):
     def load_model(self):
         """Load the model here."""
 
+    def cleanup(self):
+        """Example cleanup method - override in your model implementation.
+
+        For GPU-based models, you might want to:
+        - Clear CUDA cache: torch.cuda.empty_cache()
+        - Delete model from GPU: del self.model; torch.cuda.empty_cache()
+        - Terminate subprocesses if any
+        """
+
     @ModelClass.method
     def predict(self, text1: Text = "") -> Text:
         """This is the method that will be called when the runner is run. It takes in an input and

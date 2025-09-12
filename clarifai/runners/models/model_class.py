@@ -80,6 +80,22 @@ class ModelClass(ABC):
     def load_model(self):
         """Load the model."""
 
+    def cleanup(self):
+        """Clean up model resources including GPU memory and subprocesses.
+
+        This method should be overridden by model implementations to properly
+        clean up resources before the model instance is replaced or destroyed.
+
+        Examples of resources to clean up:
+        - GPU memory (e.g., clear CUDA cache, delete model from GPU)
+        - Subprocesses (e.g., terminate worker processes, cleanup queues)
+        - File handles and temporary files
+        - Network connections
+
+        The default implementation does nothing, but models should override
+        this method if they use significant resources that need explicit cleanup.
+        """
+
     def _handle_get_signatures_request(self) -> service_pb2.MultiOutputResponse:
         methods = self._get_method_infos()
         signatures = {
