@@ -4,7 +4,16 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from multiprocessing import cpu_count
-from typing import Dict, Generator, List, Optional, Tuple, Type, TypeVar, Union
+from typing import (
+    Dict,
+    Generator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
 
 import requests
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -122,10 +131,13 @@ class Dataset(Lister, BaseClient):
         Args:
             **kwargs: Additional keyword arguments to be passed to Dataset Version.
               - description (str): The description of the dataset version.
-              - metadata (dict): The metadata of the dataset version.
+              - metadata (Dict[str, Any]): The metadata dictionary for the dataset version.
 
         Returns:
-            Dataset: A Dataset object for the specified dataset ID.
+            Dataset: A Dataset object for the newly created dataset version.
+
+        Raises:
+            Exception: If the dataset version creation fails.
 
         Example:
             >>> from clarifai.client.dataset import Dataset
@@ -172,13 +184,13 @@ class Dataset(Lister, BaseClient):
         self.logger.info("\nDataset Version Deleted\n%s", response.status)
 
     def list_versions(
-        self, page_no: int = None, per_page: int = None
+        self, page_no: Optional[int] = None, per_page: Optional[int] = None
     ) -> Generator['Dataset', None, None]:
         """Lists all the versions for the dataset.
 
         Args:
-            page_no (int): The page number to list.
-            per_page (int): The number of items per page.
+            page_no (Optional[int]): The page number to list. If None, lists all pages.
+            per_page (Optional[int]): The number of items per page. If None, uses default.
 
         Yields:
             Dataset: Dataset objects for the versions of the dataset.

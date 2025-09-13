@@ -1,6 +1,6 @@
 import time
 import uuid
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
@@ -19,35 +19,35 @@ class Pipeline(Lister, BaseClient):
 
     def __init__(
         self,
-        url: str = None,
-        pipeline_id: str = None,
-        pipeline_version_id: str = None,
-        pipeline_version_run_id: str = None,
-        user_id: str = None,
-        app_id: str = None,
-        nodepool_id: str = None,
-        compute_cluster_id: str = None,
-        log_file: str = None,
+        url: Optional[str] = None,
+        pipeline_id: Optional[str] = None,
+        pipeline_version_id: Optional[str] = None,
+        pipeline_version_run_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        nodepool_id: Optional[str] = None,
+        compute_cluster_id: Optional[str] = None,
+        log_file: Optional[str] = None,
         base_url: str = DEFAULT_BASE,
-        pat: str = None,
-        token: str = None,
-        root_certificates_path: str = None,
+        pat: Optional[str] = None,
+        token: Optional[str] = None,
+        root_certificates_path: Optional[str] = None,
         **kwargs,
     ):
         """Initializes a Pipeline object.
 
         Args:
-            url (str): The URL to initialize the pipeline object.
-            pipeline_id (str): The Pipeline ID to interact with.
-            pipeline_version_id (str): The Pipeline Version ID to interact with.
-            pipeline_version_run_id (str): The Pipeline Version Run ID. If not provided, a UUID will be generated.
-            user_id (str): The User ID that owns the pipeline.
-            app_id (str): The App ID that contains the pipeline.
-            nodepool_id (str): The Nodepool ID to run the pipeline on.
-            compute_cluster_id (str): The Compute Cluster ID to run the pipeline on.
-            log_file (str): Path to file where logs should be written. If not provided, logs are displayed on console.
+            url (Optional[str]): The URL to initialize the pipeline object.
+            pipeline_id (Optional[str]): The Pipeline ID to interact with.
+            pipeline_version_id (Optional[str]): The Pipeline Version ID to interact with.
+            pipeline_version_run_id (Optional[str]): The Pipeline Version Run ID. If not provided, a UUID will be generated.
+            user_id (Optional[str]): The User ID that owns the pipeline.
+            app_id (Optional[str]): The App ID that contains the pipeline.
+            nodepool_id (Optional[str]): The Nodepool ID to run the pipeline on.
+            compute_cluster_id (Optional[str]): The Compute Cluster ID to run the pipeline on.
+            log_file (Optional[str]): Path to file where logs should be written. If not provided, logs are displayed on console.
             base_url (str): Base API url. Default "https://api.clarifai.com"
-            pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
+            pat (Optional[str]): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
             token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
             root_certificates_path (str): Path to the SSL root certificates file, used to establish secure gRPC connections.
             **kwargs: Additional keyword arguments to be passed to the Pipeline.

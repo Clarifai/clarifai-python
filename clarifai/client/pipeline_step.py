@@ -1,3 +1,5 @@
+from typing import Optional
+
 from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
 from clarifai.urls.helper import ClarifaiUrlHelper
@@ -9,31 +11,31 @@ class PipelineStep(Lister, BaseClient):
 
     def __init__(
         self,
-        url: str = None,
-        pipeline_step_id: str = None,
-        pipeline_step_version_id: str = None,
-        user_id: str = None,
-        app_id: str = None,
-        pipeline_id: str = None,
+        url: Optional[str] = None,
+        pipeline_step_id: Optional[str] = None,
+        pipeline_step_version_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        app_id: Optional[str] = None,
+        pipeline_id: Optional[str] = None,
         base_url: str = DEFAULT_BASE,
-        pat: str = None,
-        token: str = None,
-        root_certificates_path: str = None,
+        pat: Optional[str] = None,
+        token: Optional[str] = None,
+        root_certificates_path: Optional[str] = None,
         **kwargs,
     ):
         """Initializes a PipelineStep object.
 
         Args:
-            url (str): The URL to initialize the pipeline step object.
-            pipeline_step_id (str): The PipelineStep ID for the PipelineStep to interact with.
-            pipeline_step_version_id (str): The PipelineStep version ID for the PipelineStep to interact with.
-            user_id (str): The User ID for the PipelineStep to interact with.
-            app_id (str): The App ID for the PipelineStep to interact with.
-            pipeline_id (str): The Pipeline ID for the PipelineStep to interact with.
+            url (Optional[str]): The URL to initialize the pipeline step object.
+            pipeline_step_id (Optional[str]): The PipelineStep ID for the PipelineStep to interact with.
+            pipeline_step_version_id (Optional[str]): The PipelineStep version ID for the PipelineStep to interact with.
+            user_id (Optional[str]): The User ID for the PipelineStep to interact with.
+            app_id (Optional[str]): The App ID for the PipelineStep to interact with.
+            pipeline_id (Optional[str]): The Pipeline ID for the PipelineStep to interact with.
             base_url (str): Base API url. Default "https://api.clarifai.com"
-            pat (str): A personal access token for authentication.
-            token (str): A session token for authentication.
-            root_certificates_path (str): Path to the SSL root certificates file.
+            pat (Optional[str]): A personal access token for authentication.
+            token (Optional[str]): A session token for authentication.
+            root_certificates_path (Optional[str]): Path to the SSL root certificates file.
             **kwargs: Additional keyword arguments to be passed to the BaseClient.
         """
         if url:
