@@ -1,3 +1,61 @@
+## [[11.8.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.1) - [PyPI](https://pypi.org/project/clarifai/11.8.1/) - 2025-09-11
+
+### Changed
+- Minor internal improvements and bug fixes.
+
+## [[11.8.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.0) - [PyPI](https://pypi.org/project/clarifai/11.8.0/) - 2025-09-11
+
+### Added
+- Health probe support allowing `ModelClass` implementations to define liveness/readiness checks [(#783)](https://github.com/Clarifai/clarifai-python/pull/783)
+- Interactive `pipeline init` user prompts replacing placeholder TODO values [(#768)](https://github.com/Clarifai/clarifai-python/pull/768)
+- Git registry metadata capture during model upload with model‑scoped change detection [(#762)](https://github.com/Clarifai/clarifai-python/pull/762)
+- Comprehensive internal GitHub Copilot contributor instructions document [(#748)](https://github.com/Clarifai/clarifai-python/pull/748)
+
+### Changed
+- Local runner now uses latest local-dev model version automatically [(#777)](https://github.com/Clarifai/clarifai-python/pull/777)
+- Improved overall Model CLI UX (consolidated flags, clearer help, better error surfacing) [(#738)](https://github.com/Clarifai/clarifai-python/pull/738)
+- Updated `clarifai model predict` CLI to align with pythonic model changes [(#654)](https://github.com/Clarifai/clarifai-python/pull/654)
+- Updated local-runner default API base URL [(#770)](https://github.com/Clarifai/clarifai-python/pull/770)
+- Refined logging in model & pipeline step builders for clearer diagnostics [(#773)](https://github.com/Clarifai/clarifai-python/pull/773)
+
+### Fixed
+- Correct TypeError when parsing checkpoint size from environment variable [(#775)](https://github.com/Clarifai/clarifai-python/pull/775)
+- Secrets handling for request type secrets in runners / builders [(#774)](https://github.com/Clarifai/clarifai-python/pull/774)
+- Pipeline log monitoring pagination now returns all entries beyond first 50 [(#772)](https://github.com/Clarifai/clarifai-python/pull/772)
+
+### Internal / Docs
+- Added structured maintainer + contributor guidance for AI assistance workflows [(#748)](https://github.com/Clarifai/clarifai-python/pull/748)
+
+### Notes
+- This release focuses on developer ergonomics (CLI UX, logging clarity), operational robustness (health probes, pagination fix), and improved reproducibility (git registry metadata & latest local-dev model resolution).
+
+## [[11.7.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.5) - [PyPI](https://pypi.org/project/clarifai/11.7.5/) - 2025-08-28
+
+### Changed
+- Fix Local Runner CLI command [(#765)] (https://github.com/Clarifai/clarifai-python/pull/765)
+
+## [[11.7.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.4) - [PyPI](https://pypi.org/project/clarifai/11.7.4/) - 2025-08-27
+
+### Changed
+- update protocol and grpc versions [(#763)] (https://github.com/Clarifai/clarifai-python/pull/763)
+
+## [[11.7.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.3) - [PyPI](https://pypi.org/project/clarifai/11.7.3/) - 2025-08-22
+
+### Changed
+- avoid downloading original checkpoints [(#760)] (https://github.com/Clarifai/clarifai-python/pull/760)
+- integrate secrets into SDK [(#757)] (https://github.com/Clarifai/clarifai-python/pull/757)
+
+## [[11.7.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.2) - [PyPI](https://pypi.org/project/clarifai/11.7.2/) - 2025-08-19
+
+### Changed
+- fix num_threads setting fix pip checks [(#752)] (https://github.com/Clarifai/clarifai-python/pull/752)
+- fix pip checks when cache is broken [(#751)] (https://github.com/Clarifai/clarifai-python/pull/751)
+
+## [[11.7.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.1) - [PyPI](https://pypi.org/project/clarifai/11.7.1/) - 2025-08-18
+
+### Changed
+- fix usage setting on openai responses [(#750)] (https://github.com/Clarifai/clarifai-python/pull/750)
+
 ## [[11.7.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.0) - [PyPI](https://pypi.org/project/clarifai/11.7.0/) - 2025-08-18
 
 ### Changed

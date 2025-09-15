@@ -221,6 +221,26 @@ def clone_github_repo(repo_url, target_dir, github_pat=None, branch=None):
         return False
 
 
+def get_list_of_files_to_download(
+    downloader, owner, repo, folder_path, branch, files_to_download, depth=1
+):
+    data = downloader.get_folder_contents(owner, repo, folder_path, branch=branch)
+    for point in data:
+        if (point['type'] == 'dir') and (depth > 0):
+            files_to_download = get_list_of_files_to_download(
+                downloader,
+                owner,
+                repo,
+                point['path'],
+                branch,
+                files_to_download,
+                depth=(depth - 1),
+            )
+        else:
+            files_to_download.append(point['path'])
+    return files_to_download
+
+
 class GitHubDownloader:
     def __init__(
         self, max_retries: int = 3, backoff_factor: float = 0.3, github_token: str = None
