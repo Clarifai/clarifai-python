@@ -94,7 +94,7 @@ response = client.chat.completions.create(
             "content": "How do I check if a Python object is an instance of a class?",
         }},
     ],
-    temperature=0.7,
+    temperature=1.0,
     stream=False,  # stream=True also works, just iterator over the response
 )
 print(response)

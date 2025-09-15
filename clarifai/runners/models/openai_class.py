@@ -69,6 +69,24 @@ class OpenAIModelClass(ModelClass):
 
         return completion_args
 
+    def handle_liveness_probe(self) -> bool:
+        """Handle liveness probe by checking if the client can list models."""
+        try:
+            _ = self.client.models.list()
+            return True
+        except Exception as e:
+            logger.error(f"Liveness probe failed: {e}", exc_info=True)
+            return False
+
+    def handle_readiness_probe(self) -> bool:
+        """Handle readiness probe by checking if the client can list models."""
+        try:
+            _ = self.client.models.list()
+            return True
+        except Exception as e:
+            logger.error(f"Readiness probe failed: {e}", exc_info=True)
+            return False
+
     def _set_usage(self, resp):
         if resp.usage and resp.usage.prompt_tokens and resp.usage.completion_tokens:
             self.set_output_context(
@@ -133,10 +151,19 @@ class OpenAIModelClass(ModelClass):
             request_data['top_p'] = float(request_data['top_p'])
         # Note(zeiler): temporary fix for our playground sending additional fields.
         # FIXME: remove this once the playground is updated.
-        for m in request_data['messages']:
-            m.pop('id', None)
-            m.pop('file', None)
-            m.pop('panelId', None)
+        # Shouldn't need to do anything with the responses API since playground isn't yet using it.
+        if 'messages' in request_data:
+            for m in request_data['messages']:
+                m.pop('id', None)
+                m.pop('file', None)
+                m.pop('panelId', None)
+
+        # Handle the "Currently only named tools are supported." error we see from trt-llm
+        if 'tools' in request_data and request_data['tools'] is None:
+            request_data.pop('tools', None)
+        if 'tool_choice' in request_data and request_data['tool_choice'] is None:
+            request_data.pop('tool_choice', None)
+
         return request_data
 
     @ModelClass.method
@@ -187,6 +214,7 @@ class OpenAIModelClass(ModelClass):
                 # Handle responses endpoint
                 stream_response = self._route_request(endpoint, request_data)
                 for chunk in stream_response:
+                    self._set_usage(chunk)
                     yield chunk.model_dump_json()
             else:
                 completion_args = self._create_completion_args(request_data)
