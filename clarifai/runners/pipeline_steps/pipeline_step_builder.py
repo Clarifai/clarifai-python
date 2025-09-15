@@ -408,6 +408,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
         """
         max_checks = timeout_sec // interval_sec
         seen_logs = set()  # To avoid duplicate log messages
+        current_page = 1  # Track current page for log pagination
         st = time.time()
 
         for _ in range(max_checks):
@@ -434,14 +435,16 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                     user_app_id=self.client.user_app_id,
                     pipeline_step_id=self.pipeline_step_id,
                     pipeline_step_version_id=self.pipeline_step_version_id,
-                    page=1,
+                    page=current_page,
                     per_page=50,
                 )
                 logs = self.client.STUB.ListLogEntries(
                     logs_request, metadata=self.client.auth_helper.metadata
                 )
 
+                entries_count = 0
                 for log_entry in logs.log_entries:
+                    entries_count += 1
                     if log_entry.url not in seen_logs:
                         seen_logs.add(log_entry.url)
                         log_entry_msg = re.sub(
@@ -450,6 +453,12 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                             log_entry.message.strip(),
                         )
                         logger.info(log_entry_msg)
+
+                # If we got a full page (50 entries), there might be more logs on the next page
+                # If we got fewer than 50 entries, we've reached the end and should stay on current page
+                if entries_count == 50:
+                    current_page += 1
+                # else: stay on current_page
 
                 status = response.pipeline_step_version.status.code
                 if status in {

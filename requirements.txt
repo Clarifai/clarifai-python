@@ -1,5 +1,5 @@
-clarifai-grpc>=11.6.6
-clarifai-protocol>=0.0.25
+clarifai-grpc>=11.7.9
+clarifai-protocol>=0.0.30
 numpy>=1.22.0
 tqdm>=4.65.0
 PyYAML>=6.0.1
@@ -13,3 +13,5 @@ aiohttp>=3.10.0
 uv==0.7.12
 ruff==0.11.4
 psutil==7.0.0
+pydantic_core==2.33.2
+packaging==25.0

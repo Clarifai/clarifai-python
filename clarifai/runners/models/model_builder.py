@@ -10,7 +10,7 @@ import tarfile
 import time
 import webbrowser
 from string import Template
-from typing import Literal
+from typing import Any, Dict, Literal, Optional
 from unittest.mock import MagicMock
 
 import yaml
@@ -21,6 +21,7 @@ from google.protobuf import json_format
 from clarifai.client.base import BaseClient
 from clarifai.client.user import User
 from clarifai.runners.models.model_class import ModelClass
+from clarifai.runners.utils import code_script
 from clarifai.runners.utils.const import (
     AMD_PYTHON_BASE_IMAGE,
     AMD_TORCH_BASE_IMAGE,
@@ -101,13 +102,14 @@ class ModelBuilder:
         self.folder = self._validate_folder(folder)
         self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
         self._validate_config()
+        self._validate_stream_options()
         self.model_proto = self._get_model_proto()
         self.model_id = self.model_proto.id
         self.model_version_id = None
         self.inference_compute_info = self._get_inference_compute_info()
         self.is_v3 = True  # Do model build for v3
 
-    def create_model_instance(self, load_model=True, mocking=False):
+    def create_model_instance(self, load_model=True, mocking=False) -> ModelClass:
         """
         Create an instance of the model class, as specified in the config file.
         """
@@ -440,6 +442,89 @@ class ModelBuilder:
             num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 16))
             self.config["num_threads"] = num_threads
 
+    def _validate_stream_options(self):
+        """
+        Validate OpenAI streaming configuration for Clarifai models.
+        """
+        if not self._is_clarifai_internal():
+            return  # Skip validation for non-clarifai models
+
+        # Parse all Python files once
+        all_python_content = self._get_all_python_content()
+
+        if self._uses_openai_streaming(all_python_content):
+            logger.info(
+                "Detected OpenAI chat completions for Clarifai model streaming - validating stream_options..."
+            )
+
+            if not self.has_proper_usage_tracking(all_python_content):
+                logger.error(
+                    "Missing configuration to track usage for OpenAI chat completion calls. "
+                    "Go to your model scripts and make sure to set both: "
+                    "1) stream_options={'include_usage': True}"
+                    "2) set_output_context"
+                )
+
+    def _is_clarifai_internal(self):
+        """
+        Check if the current user is a Clarifai internal user based on email domain.
+
+        Returns:
+            bool: True if user is a Clarifai internal user, False otherwise
+        """
+        try:
+            # Get user info from Clarifai API
+            user_client = User(
+                pat=self.client.pat, user_id=self.config.get('model').get('user_id')
+            )
+            user_response = user_client.get_user_info()
+
+            if user_response.status.code != status_code_pb2.SUCCESS:
+                logger.debug("Could not retrieve user info for Clarifai internal user validation")
+                return False
+
+            user = user_response.user
+
+            # Check primary email domain
+            if hasattr(user, 'primary_email') and user.primary_email:
+                return user.primary_email.endswith('@clarifai.com')
+
+            return False
+
+        except Exception as e:
+            logger.debug(f"Employee validation failed: {e}")
+            return False
+
+    def _get_all_python_content(self):
+        """
+        Parse and concatenate all Python files in the model's 1/ subfolder.
+        """
+        model_folder = os.path.join(self.folder, '1')
+        if not os.path.exists(model_folder):
+            return ""
+
+        all_content = []
+        for root, _, files in os.walk(model_folder):
+            for file in files:
+                if file.endswith('.py'):
+                    file_path = os.path.join(root, file)
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            all_content.append(f.read())
+                    except Exception:
+                        continue
+        return "\n".join(all_content)
+
+    def _uses_openai_streaming(self, python_content):
+        return 'chat.completions.create' in python_content and 'generate(' in python_content
+
+    def has_proper_usage_tracking(self, python_content):
+        include_usage_patterns = ["'include_usage': True", '"include_usage": True']
+        has_include_usage = any(pattern in python_content for pattern in include_usage_patterns)
+        has_set_output_context = 'set_output_context' in python_content
+
+        return has_include_usage and has_set_output_context
+
     @staticmethod
     def _get_tar_file_content_size(tar_file_path):
         """
@@ -654,7 +739,7 @@ class ModelBuilder:
         logger.info(f"Setup: Validating requirements.txt file at {path} using uv pip compile")
         # Don't log the output of the comment unless it errors.
         result = subprocess.run(
-            f"uv pip compile {path} --universal --python {python_version} --no-header  --no-emit-index-url",
+            f"uv pip compile {path} --universal --python {python_version} --no-header --no-emit-index-url --no-cache-dir",
             shell=True,
             text=True,
             capture_output=True,
@@ -1020,7 +1105,7 @@ class ModelBuilder:
                 logger.error(f"Failed to download checkpoints for model {repo_id}")
                 sys.exit(1)
             else:
-                logger.info(f"Downloaded checkpoints for model {repo_id}")
+                logger.info(f"Downloaded checkpoints for model {repo_id} successfully to {path}")
         return path
 
     def _concepts_protos_from_concepts(self, concepts):
@@ -1053,13 +1138,123 @@ class ModelBuilder:
         concepts = config.get('concepts')
         logger.info(f"Updated config.yaml with {len(concepts)} concepts.")
 
-    def get_model_version_proto(self):
+    def _get_git_info(self) -> Optional[Dict[str, Any]]:
+        """
+        Get git repository information for the model path.
+
+        Returns:
+            Dict with git info (url, commit, branch) or None if not a git repository
+        """
+        try:
+            # Check if the folder is within a git repository
+            result = subprocess.run(
+                ['git', 'rev-parse', '--git-dir'],
+                cwd=self.folder,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            # Get git remote URL
+            remote_result = subprocess.run(
+                ['git', 'config', '--get', 'remote.origin.url'],
+                cwd=self.folder,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            # Get current commit hash
+            commit_result = subprocess.run(
+                ['git', 'rev-parse', 'HEAD'],
+                cwd=self.folder,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            # Get current branch
+            branch_result = subprocess.run(
+                ['git', 'branch', '--show-current'],
+                cwd=self.folder,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            git_info = {
+                'commit': commit_result.stdout.strip(),
+                'branch': branch_result.stdout.strip()
+                if branch_result.returncode == 0
+                else 'HEAD',
+            }
+
+            if remote_result.returncode == 0:
+                git_info['url'] = remote_result.stdout.strip()
+
+            return git_info
+
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Not a git repository or git not available
+            return None
+
+    def _check_git_status_and_prompt(self) -> bool:
+        """
+        Check for uncommitted changes in git repository within the model path and prompt user.
+
+        Returns:
+            True if should continue with upload, False if should abort
+        """
+        try:
+            # Check for uncommitted changes within the model path only
+            status_result = subprocess.run(
+                ['git', 'status', '--porcelain', '.'],
+                cwd=self.folder,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            if status_result.stdout.strip():
+                logger.warning("Uncommitted changes detected in model path:")
+                logger.warning(status_result.stdout)
+
+                response = input(
+                    "\nDo you want to continue upload with uncommitted changes? (y/N): "
+                )
+                return response.lower() in ['y', 'yes']
+            else:
+                logger.info("Model path has no uncommitted changes.")
+                return True
+
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Error checking git status, but we already know it's a git repo
+            logger.warning("Could not check git status, continuing with upload.")
+            return True
+
+    def get_model_version_proto(self, git_info: Optional[Dict[str, Any]] = None):
+        """
+        Create a ModelVersion protobuf message for the model.
+        Args:
+          git_info (Optional[Dict[str, Any]]): Git repository information to include in metadata.
+        Returns:
+          resources_pb2.ModelVersion: The ModelVersion protobuf message.
+        """
+
         signatures = self.get_method_signatures()
         model_version_proto = resources_pb2.ModelVersion(
             pretrained_model_config=resources_pb2.PretrainedModelConfig(),
             inference_compute_info=self.inference_compute_info,
             method_signatures=signatures,
         )
+
+        # Add git information to metadata if available
+        if git_info:
+            from google.protobuf.struct_pb2 import Struct
+
+            metadata_struct = Struct()
+            metadata_struct.update({'git_registry': git_info})
+            model_version_proto.metadata.CopyFrom(metadata_struct)
 
         model_type_id = self.config.get('model').get('model_type_id')
         if model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE:
@@ -1088,7 +1283,7 @@ class ModelBuilder:
                 )
         return model_version_proto
 
-    def upload_model_version(self):
+    def upload_model_version(self, git_info=None):
         file_path = f"{self.folder}.tar.gz"
         logger.debug(f"Will tar it into file: {file_path}")
 
@@ -1121,7 +1316,7 @@ class ModelBuilder:
                 )
                 return
 
-        model_version_proto = self.get_model_version_proto()
+        model_version_proto = self.get_model_version_proto(git_info)
 
         def filter_func(tarinfo):
             name = tarinfo.name
@@ -1141,7 +1336,7 @@ class ModelBuilder:
         if when != "upload" and self.config.get("checkpoints"):
             # Get the checkpoint size to add to the storage request.
             # First check for the env variable, then try querying huggingface. If all else fails, use the default.
-            checkpoint_size = os.environ.get('CHECKPOINT_SIZE_BYTES', 0)
+            checkpoint_size = int(os.environ.get('CHECKPOINT_SIZE_BYTES', 0))
             if not checkpoint_size:
                 _, repo_id, _, _, _, _ = self._validate_config_checkpoints()
                 checkpoint_size = HuggingFaceLoader.get_huggingface_checkpoint_total_size(repo_id)
@@ -1178,7 +1373,6 @@ class ModelBuilder:
             is_uploaded = self.monitor_model_build()
             if is_uploaded:
                 # python code to run the model.
-                from clarifai.runners.utils import code_script
 
                 method_signatures = self.get_method_signatures()
                 snippet = code_script.generate_client_script(
@@ -1246,22 +1440,22 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
         )
         return result
 
-    def get_model_build_logs(self):
+    def get_model_build_logs(self, current_page=1):
         logs_request = service_pb2.ListLogEntriesRequest(
             log_type="builder",
             user_app_id=self.client.user_app_id,
             model_id=self.model_proto.id,
             model_version_id=self.model_version_id,
-            page=1,
+            page=current_page,
             per_page=50,
         )
         response = self.client.STUB.ListLogEntries(logs_request)
-
         return response
 
     def monitor_model_build(self):
         st = time.time()
         seen_logs = set()  # To avoid duplicate log messages
+        current_page = 1  # Track current page for log pagination
         while True:
             resp = self.client.STUB.GetModelVersion(
                 service_pb2.GetModelVersionRequest(
@@ -1272,8 +1466,10 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
             )
 
             status_code = resp.model_version.status.code
-            logs = self.get_model_build_logs()
+            logs = self.get_model_build_logs(current_page)
+            entries_count = 0
             for log_entry in logs.log_entries:
+                entries_count += 1
                 if log_entry.url not in seen_logs:
                     seen_logs.add(log_entry.url)
                     log_entry_msg = re.sub(
@@ -1282,6 +1478,12 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                         log_entry.message.strip(),
                     )
                     logger.info(log_entry_msg)
+
+            # If we got a full page (50 entries), there might be more logs on the next page
+            # If we got fewer than 50 entries, we've reached the end and should stay on current page
+            if entries_count == 50:
+                current_page += 1
+            # else: stay on current_page
             if status_code == status_code_pb2.MODEL_BUILDING:
                 print(
                     f"Model is building... (elapsed {time.time() - st:.1f}s)", end='\r', flush=True
@@ -1329,17 +1531,30 @@ def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
             f"New model will be created at {builder.model_ui_url} with it's first version."
         )
 
+    # Check for git repository information
+    git_info = builder._get_git_info()
+    if git_info:
+        logger.info(f"Detected git repository: {git_info.get('url', 'local repository')}")
+        logger.info(f"Current commit: {git_info['commit']}")
+        logger.info(f"Current branch: {git_info['branch']}")
+
+        # Check for uncommitted changes and prompt user
+        if not builder._check_git_status_and_prompt():
+            logger.info("Upload cancelled by user due to uncommitted changes.")
+            return
     input("Press Enter to continue...")
-    model_version = builder.upload_model_version()
+
+    model_version = builder.upload_model_version(git_info)
 
     # Ask user if they want to deploy the model
-    deploy_model = input("Do you want to deploy the model? (y/n): ")
-    if deploy_model.lower() != 'y':
-        logger.info("Model uploaded successfully. Skipping deployment setup.")
-        return
+    if model_version is not None:  # if it comes back None then it failed.
+        deploy_model = input("Do you want to deploy the model? (y/n): ")
+        if deploy_model.lower() != 'y':
+            logger.info("Model uploaded successfully. Skipping deployment setup.")
+            return
 
-    # Setup deployment for the uploaded model
-    setup_deployment_for_model(builder)
+        # Setup deployment for the uploaded model
+        setup_deployment_for_model(builder)
 
 
 def setup_deployment_for_model(builder):
