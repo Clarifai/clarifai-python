@@ -290,6 +290,7 @@ class ModelServer:
                 model_id=context.model_id,
                 deployment_id=context.deployment_id,
                 base_url=context.api_base,
+                colorize=True,
             )
             logger.info(
                 "✅ Your model is running locally and is ready for requests from the API...\n"
@@ -301,7 +302,7 @@ class ModelServer:
                 f"> Playground:   To chat with your model, visit: {context.ui}/playground?model={context.model_id}__{context.model_version_id}&user_id={context.user_id}&app_id={context.app_id}\n"
             )
             logger.info(
-                f"> API URL:      To call your model via the API, use this model URL: {context.ui}/users/{context.user_id}/apps/{context.app_id}/models/{context.model_id}\n"
+                f"> API URL:      To call your model via the API, use this model URL: {context.ui}/{context.user_id}/{context.app_id}/models/{context.model_id}\n"
             )
             logger.info("Press CTRL+C to stop the runner.\n")
         self._runner.start()  # start the runner to fetch work from the API.
