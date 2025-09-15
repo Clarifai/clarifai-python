@@ -155,7 +155,7 @@ class Search(Lister, BaseClient):
                      - input_types (List[str]): List of input types ('image', 'text', 'audio', 'video')
                      - dataset_ids (List[str]): List of dataset IDs to filter by
                      - image_bytes (bytes): Raw image bytes
-                     - image_url (str): URL to an image  
+                     - image_url (str): URL to an image
                      - text_raw (str): Raw text content
                      - concepts (List[Dict]): List of concept dictionaries
                      - metadata (Dict): Metadata dictionary

@@ -178,7 +178,9 @@ class Model(Lister, BaseClient):
 
         return templates
 
-    def get_params(self, template: Optional[str] = None, save_to: str = 'params.yaml') -> Dict[str, Any]:
+    def get_params(
+        self, template: Optional[str] = None, save_to: str = 'params.yaml'
+    ) -> Dict[str, Any]:
         """Returns the model params for the model type and saves them to a yaml file.
 
         Args:

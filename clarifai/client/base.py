@@ -183,7 +183,7 @@ class BaseClient:
         """Converts a string to a Timestamp object.
 
         Args:
-            date_str (str): The date string to convert. Accepts formats like 
+            date_str (str): The date string to convert. Accepts formats like
                           '%Y-%m-%dT%H:%M:%S.%fZ' or '%Y-%m-%dT%H:%M:%SZ'.
 
         Returns:
@@ -205,7 +205,9 @@ class BaseClient:
 
         return timestamp_obj
 
-    def process_response_keys(self, old_dict: Dict[str, Any], listing_resource: Optional[str] = None) -> Dict[str, Any]:
+    def process_response_keys(
+        self, old_dict: Dict[str, Any], listing_resource: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Converts keys in a response dictionary to resource proto format.
 
         This method processes dictionary keys to match protobuf resource naming conventions,
@@ -213,7 +215,7 @@ class BaseClient:
 
         Args:
             old_dict (Dict[str, Any]): The dictionary to convert with keys to process.
-            listing_resource (Optional[str]): The resource type for which the keys are being 
+            listing_resource (Optional[str]): The resource type for which the keys are being
                                             processed (e.g., 'model', 'workflow'). If provided,
                                             renames 'id' to '{listing_resource}_id'.
 

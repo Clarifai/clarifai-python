@@ -53,7 +53,10 @@ class User(Lister, BaseClient):
         Lister.__init__(self)
 
     def list_apps(
-        self, filter_by: Dict[str, Any] = {}, page_no: Optional[int] = None, per_page: Optional[int] = None
+        self,
+        filter_by: Dict[str, Any] = {},
+        page_no: Optional[int] = None,
+        per_page: Optional[int] = None,
     ) -> Generator[App, None, None]:
         """Lists all the apps for the user.
 
