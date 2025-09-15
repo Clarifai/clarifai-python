@@ -389,3 +389,22 @@ def convert_timestamp_to_string(timestamp: Timestamp) -> str:
     datetime_obj = timestamp.ToDatetime()
 
     return datetime_obj.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def customize_huggingface_model(model_path, model_name):
+    config_path = os.path.join(model_path, 'config.yaml')
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+
+        # Update the repo_id in checkpoints section
+        if 'checkpoints' not in config:
+            config['checkpoints'] = {}
+        config['checkpoints']['repo_id'] = model_name
+
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+        logger.info(f"Updated Hugging Face model repo_id to: {model_name}")
+    else:
+        logger.warning(f"config.yaml not found at {config_path}, skipping model configuration")
