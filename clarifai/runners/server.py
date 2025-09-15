@@ -148,6 +148,7 @@ def serve(
                 model_id=context.model_id,
                 deployment_id=context.deployment_id,
                 base_url=context.api_base,
+                colorize=True,
             )
             logger.info(
                 "✅ Your model is running locally and is ready for requests from the API...\n"

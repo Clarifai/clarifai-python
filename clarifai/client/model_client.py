@@ -314,6 +314,7 @@ class ModelClient:
         self,
         base_url: str = None,
         use_ctx: bool = False,
+        colorize: bool = False,
     ) -> str:
         """Generate a client script for this model.
 
@@ -335,6 +336,7 @@ class ModelClient:
             compute_cluster_id=self.request_template.runner_selector.nodepool.compute_cluster.id,
             nodepool_id=self.request_template.runner_selector.nodepool.id,
             use_ctx=use_ctx,
+            colorize=colorize,
         )
 
     def _define_compatability_functions(self):

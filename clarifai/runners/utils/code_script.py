@@ -2,9 +2,6 @@ import json
 from typing import List
 
 from clarifai_grpc.grpc.api import resources_pb2
-from pygments import highlight
-from pygments.formatters import TerminalFormatter
-from pygments.lexers import PythonLexer
 
 from clarifai.runners.utils import data_utils
 from clarifai.urls.helper import ClarifaiUrlHelper
@@ -36,6 +33,7 @@ def generate_client_script(
     compute_cluster_id: str = None,
     nodepool_id: str = None,
     use_ctx: bool = False,
+    colorize: bool = False,
 ) -> str:
     url_helper = ClarifaiUrlHelper()
 
@@ -206,8 +204,16 @@ model = Model.from_current_context()
     script_lines.append(method_signatures_str)
     script_lines.append("")
     script = "\n".join(script_lines)
+    if colorize:
+        try:
+            from pygments import highlight  # type: ignore
+            from pygments.formatters import TerminalFormatter  # type: ignore
+            from pygments.lexers import PythonLexer  # type: ignore
 
-    script = highlight(script, PythonLexer(), TerminalFormatter())
+            return highlight(script, PythonLexer(), TerminalFormatter())
+        except Exception:
+            # Fallback to plain text if pygments is unavailable
+            return script
     return script
 
 

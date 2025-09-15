@@ -1272,6 +1272,7 @@ class ModelBuilder:
                     user_id=self.client.user_app_id.user_id,
                     app_id=self.client.user_app_id.app_id,
                     model_id=self.model_proto.id,
+                    colorize=True,
                 )
                 logger.info("""\n
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
