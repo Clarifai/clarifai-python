@@ -149,8 +149,8 @@ def inject_secrets(request: Optional[service_pb2.PostModelOutputsRequest]) -> No
         # Since only env type secrets are injected into the shared volume, we can read them directly.
         variables = get_env_variable(secrets_path)
     else:
-        # If no secrets path is set, assume no secrets and return the request as is.
-        return
+        # If no secrets path is set, use variables from the current environment
+        variables = dict(os.environ)
 
     if not request.HasField("model"):
         request.model.CopyFrom(resources_pb2.Model())
