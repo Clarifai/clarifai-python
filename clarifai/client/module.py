@@ -1,4 +1,4 @@
-from typing import Dict, Generator
+from typing import Dict, Generator, Optional
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 
@@ -15,25 +15,26 @@ class Module(Lister, BaseClient):
 
     def __init__(
         self,
-        url: str = None,
-        module_id: str = None,
-        module_version: Dict = {'id': ""},
+        url: Optional[str] = None,
+        module_id: Optional[str] = None,
+        module_version: Dict[str, str] = {'id': ""},
         base_url: str = DEFAULT_BASE,
-        pat: str = None,
-        token: str = None,
-        root_certificates_path: str = None,
+        pat: Optional[str] = None,
+        token: Optional[str] = None,
+        root_certificates_path: Optional[str] = None,
         **kwargs,
     ):
         """Initializes a Module object.
 
         Args:
-            url (str): The URL to initialize the module object.
-            module_id (str): The Module ID to interact with.
-            module_version (dict): The Module Version to interact with.
+            url (Optional[str]): The URL to initialize the module object.
+            module_id (Optional[str]): The Module ID to interact with.
+            module_version (Dict[str, str]): The Module Version to interact with.
+                                           Defaults to {'id': ""} for latest version.
             base_url (str): Base API url. Default "https://api.clarifai.com"
-            pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT.
-            token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN.
-            root_certificates_path (str): Path to the SSL root certificates file, used to establish secure gRPC connections.
+            pat (Optional[str]): A personal access token for authentication. Can be set as env var CLARIFAI_PAT.
+            token (Optional[str]): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN.
+            root_certificates_path (Optional[str]): Path to the SSL root certificates file, used to establish secure gRPC connections.
             **kwargs: Additional keyword arguments to be passed to the Module.
         """
         if url and module_id:
