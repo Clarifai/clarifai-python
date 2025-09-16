@@ -69,6 +69,24 @@ class OpenAIModelClass(ModelClass):
 
         return completion_args
 
+    def handle_liveness_probe(self) -> bool:
+        """Handle liveness probe by checking if the client can list models."""
+        try:
+            _ = self.client.models.list()
+            return True
+        except Exception as e:
+            logger.error(f"Liveness probe failed: {e}", exc_info=True)
+            return False
+
+    def handle_readiness_probe(self) -> bool:
+        """Handle readiness probe by checking if the client can list models."""
+        try:
+            _ = self.client.models.list()
+            return True
+        except Exception as e:
+            logger.error(f"Readiness probe failed: {e}", exc_info=True)
+            return False
+
     def _set_usage(self, resp):
         if resp.usage and resp.usage.prompt_tokens and resp.usage.completion_tokens:
             self.set_output_context(

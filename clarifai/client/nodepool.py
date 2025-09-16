@@ -334,7 +334,9 @@ class Nodepool(Lister, BaseClient):
             f"Runner with ID '{response.runners[0].id}' is created:\n{response.status}"
         )
 
-        dict_response = MessageToDict(response.runners[0], preserving_proto_field_name=True)
+        dict_response = MessageToDict(
+            response.runners[0], preserving_proto_field_name=True, use_integers_for_enums=True
+        )
         kwargs = self.process_response_keys(dict_response, 'runner')
         return Runner.from_auth_helper(auth=self.auth_helper, **kwargs)
 

@@ -21,8 +21,7 @@ DEFAULT_LOCAL_RUNNER_DEPLOYMENT_ID = "local-runner-deployment"
 DEFAULT_LOCAL_RUNNER_MODEL_ID = "local-runner-model"
 DEFAULT_LOCAL_RUNNER_APP_ID = "local-runner-app"
 
-# FIXME: should have any-to-any for these cases.
-DEFAULT_LOCAL_RUNNER_MODEL_TYPE = "text-to-text"
+DEFAULT_LOCAL_RUNNER_MODEL_TYPE = "any-to-any"
 
 DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG = {
     "compute_cluster": {
@@ -62,8 +61,9 @@ DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG = {
         "max_instances": 1,
     }
 }
-DEFAULT_OLLAMA_MODEL_REPO = "https://github.com/Clarifai/runners-examples"
+DEFAULT_TOOLKIT_MODEL_REPO = "https://github.com/Clarifai/runners-examples"
 DEFAULT_OLLAMA_MODEL_REPO_BRANCH = "ollama"
+DEFAULT_HF_MODEL_REPO_BRANCH = "huggingface"
 
 STATUS_OK = "200 OK"
 STATUS_MIXED = "207 MIXED"
