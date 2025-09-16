@@ -1,3 +1,5 @@
+# NOTE(alan): Most of this file is used to support hot reloading of secrets, which has been disabled for now.
+
 import os
 import time
 from contextlib import contextmanager
