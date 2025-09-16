@@ -152,7 +152,11 @@ def inject_secrets(request: Optional[service_pb2.PostModelOutputsRequest]) -> No
         variables = get_env_variable(secrets_path)
     else:
         # If no secrets path is set, use variables from the current environment
-        variables = dict(os.environ)
+        all_variables = dict(os.environ)
+        variables = {}
+        for key, value in all_variables.items():
+            if not key.startswith("CLARIFAI"):
+                variables[key] = value
 
     if not request.HasField("model"):
         request.model.CopyFrom(resources_pb2.Model())
