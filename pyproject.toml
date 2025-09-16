@@ -1,16 +1,17 @@
 [project]
 name = "clarifai"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dynamic = [
-    "version",
     "authors",
-    "license",
     "classifiers",
-    "scripts",
     "dependencies",
+    "license",
     "optional-dependencies",
-    "readme"  # For long_description
+    "readme",  # For long_description
+    "scripts",
+    "version",
 ]
+
 
 [tool.pytest.ini_options]
 markers = ["requires_secrets: mark a test as requiring secrets to run", "coverage_only: mark a test as required to run for coverage purpose only"]

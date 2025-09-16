@@ -76,7 +76,22 @@ class ModelClient:
     def __getattr__(self, name):
         if not self._defined:
             self.fetch()
-        return self.__getattribute__(name)
+        try:
+            return self.__getattribute__(name)
+        except AttributeError as e:
+            # Provide helpful error message with available methods
+            available_methods = []
+            if self._method_signatures:
+                available_methods = list(self._method_signatures.keys())
+
+            error_msg = f"'{self.__class__.__name__}' object has no attribute '{name}'"
+
+            if available_methods:
+                error_msg += f". Available methods: {available_methods}"
+                raise AttributeError(error_msg) from e
+            else:
+                error_msg += ". This model is a non-pythonic model. Please use the old inference methods i.e. predict_by_url, predict_by_bytes, etc."
+                raise Exception(error_msg) from e
 
     def _fetch_signatures(self):
         '''
@@ -148,6 +163,10 @@ class ModelClient:
             self._define_compatability_functions()
             return
         if response.status.code != status_code_pb2.SUCCESS:
+            if response.outputs[0].status.description.startswith("cannot identify image file"):
+                raise Exception(
+                    "Failed to fetch method signatures from model and backup method. This model is a non-pythonic model. Please use the old inference methods i.e. predict_by_url, predict_by_bytes, etc."
+                )
             raise Exception(f"Model failed with response {response!r}")
         self._method_signatures = signatures_from_json(response.outputs[0].data.text.raw)
 
@@ -295,6 +314,7 @@ class ModelClient:
         self,
         base_url: str = None,
         use_ctx: bool = False,
+        colorize: bool = False,
     ) -> str:
         """Generate a client script for this model.
 
@@ -316,6 +336,7 @@ class ModelClient:
             compute_cluster_id=self.request_template.runner_selector.nodepool.compute_cluster.id,
             nodepool_id=self.request_template.runner_selector.nodepool.id,
             use_ctx=use_ctx,
+            colorize=colorize,
         )
 
     def _define_compatability_functions(self):

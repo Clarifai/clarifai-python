@@ -4,6 +4,7 @@ from typing import Dict, List
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
+from google.protobuf import json_format
 
 from clarifai.client.base import BaseClient
 from clarifai.client.lister import Lister
@@ -11,22 +12,6 @@ from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.constants import DEFAULT_BASE
 from clarifai.utils.logging import logger
-
-
-def _get_status_name(status_code: int) -> str:
-    """Get the human-readable name for a status code."""
-    status_mapping = {
-        # Job status codes (these are the actual values based on the error message showing 64001)
-        64001: "JOB_QUEUED",
-        64002: "JOB_RUNNING",
-        64003: "JOB_COMPLETED",
-        64004: "JOB_FAILED",
-        64005: "JOB_UNEXPECTED_ERROR",
-        # Standard status codes
-        10000: "SUCCESS",
-        10010: "MIXED_STATUS",
-    }
-    return status_mapping.get(status_code, f"UNKNOWN_STATUS_{status_code}")
 
 
 class Pipeline(Lister, BaseClient):
@@ -82,12 +67,16 @@ class Pipeline(Lister, BaseClient):
 
         self.pipeline_id = pipeline_id
         self.pipeline_version_id = pipeline_version_id
-        self.pipeline_version_run_id = pipeline_version_run_id or str(uuid.uuid4())
+        self.pipeline_version_run_id = pipeline_version_run_id or str(uuid.uuid4().hex)
         self.user_id = user_id
         self.app_id = app_id
         self.nodepool_id = nodepool_id
         self.compute_cluster_id = compute_cluster_id
         self.log_file = log_file
+
+        # Store all kwargs as attributes for API data
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
         BaseClient.__init__(
             self,
@@ -152,9 +141,15 @@ class Pipeline(Lister, BaseClient):
         )
 
         if response.status.code != status_code_pb2.StatusCode.SUCCESS:
-            raise UserError(
-                f"Failed to start pipeline run: {response.status.description}. Details: {response.status.details}"
-            )
+            if response.status.code == status_code_pb2.StatusCode.CONN_DOES_NOT_EXIST:
+                logger.error(
+                    f"Pipeline {self.pipeline_id} does not exist, did you call 'clarifai pipeline upload' first? "
+                )
+                return json_format.MessageToDict(response, preserving_proto_field_name=True)
+            else:
+                raise UserError(
+                    f"Failed to start pipeline run: {response.status.description}. Details: {response.status.details}. Code: {status_code_pb2.StatusCode.Name(response.status.code)}."
+                )
 
         if not response.pipeline_version_runs:
             raise UserError("No pipeline version run was created")
@@ -198,6 +193,7 @@ class Pipeline(Lister, BaseClient):
         """
         start_time = time.time()
         seen_logs = set()
+        current_page = 1  # Track current page for log pagination.
 
         while time.time() - start_time < timeout:
             # Get run status
@@ -218,9 +214,12 @@ class Pipeline(Lister, BaseClient):
                     continue
 
                 pipeline_run = run_response.pipeline_version_run
+                pipeline_run_dict = json_format.MessageToDict(
+                    pipeline_run, preserving_proto_field_name=True
+                )
 
-                # Display new log entries
-                self._display_new_logs(run_id, seen_logs)
+                # Display new log entries and update current page
+                current_page = self._display_new_logs(run_id, seen_logs, current_page)
 
                 elapsed_time = time.time() - start_time
                 logger.info(f"Pipeline run monitoring... (elapsed {elapsed_time:.1f}s)")
@@ -233,7 +232,7 @@ class Pipeline(Lister, BaseClient):
                     orch_status = pipeline_run.orchestration_status
                     if hasattr(orch_status, 'status') and orch_status.status:
                         status_code = orch_status.status.code
-                        status_name = _get_status_name(status_code)
+                        status_name = status_code_pb2.StatusCode.Name(status_code)
                         logger.info(f"Pipeline run status: {status_code} ({status_name})")
 
                         # Display orchestration status details if available
@@ -241,23 +240,29 @@ class Pipeline(Lister, BaseClient):
                             logger.info(f"Orchestration status: {orch_status.description}")
 
                         # Success codes that allow continuation: JOB_RUNNING, JOB_QUEUED
-                        if status_code in [64001, 64002]:  # JOB_QUEUED, JOB_RUNNING
+                        if status_code in [
+                            status_code_pb2.JOB_QUEUED,
+                            status_code_pb2.JOB_RUNNING,
+                        ]:  # JOB_QUEUED, JOB_RUNNING
                             logger.info(f"Pipeline run in progress: {status_code} ({status_name})")
                             # Continue monitoring
                         # Successful terminal state: JOB_COMPLETED
-                        elif status_code == 64003:  # JOB_COMPLETED
+                        elif status_code == status_code_pb2.JOB_COMPLETED:  # JOB_COMPLETED
                             logger.info("Pipeline run completed successfully!")
-                            return {"status": "success", "pipeline_version_run": pipeline_run}
+                            return {"status": "success", "pipeline_version_run": pipeline_run_dict}
                         # Failure terminal states: JOB_UNEXPECTED_ERROR, JOB_FAILED
-                        elif status_code in [64004, 64005]:  # JOB_FAILED, JOB_UNEXPECTED_ERROR
+                        elif status_code in [
+                            status_code_pb2.JOB_FAILED,
+                            status_code_pb2.JOB_UNEXPECTED_ERROR,
+                        ]:  # JOB_FAILED, JOB_UNEXPECTED_ERROR
                             logger.error(
                                 f"Pipeline run failed with status: {status_code} ({status_name})"
                             )
-                            return {"status": "failed", "pipeline_version_run": pipeline_run}
+                            return {"status": "failed", "pipeline_version_run": pipeline_run_dict}
                         # Handle legacy SUCCESS status for backward compatibility
                         elif status_code == status_code_pb2.StatusCode.SUCCESS:
                             logger.info("Pipeline run completed successfully!")
-                            return {"status": "success", "pipeline_version_run": pipeline_run}
+                            return {"status": "success", "pipeline_version_run": pipeline_run_dict}
                         elif status_code != status_code_pb2.StatusCode.MIXED_STATUS:
                             # Log other unexpected statuses but continue monitoring
                             logger.warning(
@@ -272,12 +277,16 @@ class Pipeline(Lister, BaseClient):
         logger.error(f"Pipeline run timed out after {timeout} seconds")
         return {"status": "timeout"}
 
-    def _display_new_logs(self, run_id: str, seen_logs: set):
+    def _display_new_logs(self, run_id: str, seen_logs: set, current_page: int = 1) -> int:
         """Display new log entries for a pipeline version run.
 
         Args:
             run_id (str): The pipeline version run ID.
             seen_logs (set): Set of already seen log entry IDs.
+            current_page (int): The current page to fetch logs from.
+
+        Returns:
+            int: The next page number to fetch from in subsequent calls.
         """
         try:
             logs_request = service_pb2.ListLogEntriesRequest()
@@ -286,7 +295,7 @@ class Pipeline(Lister, BaseClient):
             logs_request.pipeline_version_id = self.pipeline_version_id or ""
             logs_request.pipeline_version_run_id = run_id
             logs_request.log_type = "pipeline.version.run"  # Set required log type
-            logs_request.page = 1
+            logs_request.page = current_page
             logs_request.per_page = 50
 
             logs_response = self.STUB.ListLogEntries(
@@ -294,7 +303,9 @@ class Pipeline(Lister, BaseClient):
             )
 
             if logs_response.status.code == status_code_pb2.StatusCode.SUCCESS:
+                entries_count = 0
                 for log_entry in logs_response.log_entries:
+                    entries_count += 1
                     # Use log entry URL or timestamp as unique identifier
                     log_id = log_entry.url or f"{log_entry.created_at.seconds}_{log_entry.message}"
                     if log_id not in seen_logs:
@@ -308,5 +319,14 @@ class Pipeline(Lister, BaseClient):
                         else:
                             logger.info(log_message)
 
+                # If we got a full page (50 entries), there might be more logs on the next page
+                # If we got fewer than 50 entries, we've reached the end and should stay on current page
+                if entries_count == 50:
+                    return current_page + 1
+                else:
+                    return current_page
+
         except Exception as e:
             logger.debug(f"Error fetching logs: {e}")
+            # Return current page on error to retry the same page next fetch
+            return current_page

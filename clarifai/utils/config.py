@@ -68,6 +68,19 @@ class Context(OrderedDict):
         except KeyError as e:
             raise AttributeError(f"'{type(self).__name__}' object has no attribute '{key}'") from e
 
+    def get(self, key, default=None):
+        """Get the key from the config. You can pass a lowercase
+        key like "pat" and it will check if the environment variable CLARIFAI_PAT set and use that
+        first.
+        If no env var, then it checks if that env var name is in the config and use that.
+        If not then checks if "pat" is in the config, if not then it falls back to CLARIFAI_PAT in
+        the environment variables, else returns the default value.
+        """
+        try:
+            return self.__getattr__(key)
+        except AttributeError:
+            return default
+
     def __hasattr__(self, key):
         if key == "name":
             return True

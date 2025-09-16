@@ -3,43 +3,55 @@
 from clarifai.versions import CLIENT_VERSION
 
 
-def get_pipeline_config_template():
+def get_pipeline_config_template(
+    pipeline_id="hello-world-pipeline",
+    user_id="your_user_id",
+    app_id="your_app_id",
+    step_names=None,
+):
     """Get the config.yaml template for pipelines."""
-    return """pipeline:
-  id: "hello-world-pipeline"  # TODO: please fill in
-  user_id: "your_user_id"  # TODO: please fill in
-  app_id: "your_app_id"  # TODO: please fill in
+    if step_names is None:
+        step_names = ["stepA", "stepB"]
+
+    step_directories = "\n".join(f"    - {step}" for step in step_names)
+
+    # Generate step templates for orchestration
+    step_templates = []
+    for i, step_name in enumerate(step_names):
+        step_templates.append(f"""          - - name: step-{i}
+              templateRef:
+                name: users/{user_id}/apps/{app_id}/pipeline_steps/{step_name}
+                template: users/{user_id}/apps/{app_id}/pipeline_steps/{step_name}""")
+
+    steps_yaml = "\n".join(step_templates)
+
+    return f"""pipeline:
+  id: "{pipeline_id}"
+  user_id: "{user_id}"
+  app_id: "{app_id}"
   step_directories:
-    - stepA
-    - stepB
+{step_directories}
   orchestration_spec:
     argo_orchestration_spec: |
       apiVersion: argoproj.io/v1alpha1
       kind: Workflow
       metadata:
-        generateName: hello-world-pipeline-
+        generateName: {pipeline_id}-
       spec:
         entrypoint: sequence
         templates:
         - name: sequence
           steps:
-          - - name: step-a
-              templateRef:
-                name: users/your_user_id/apps/your_app_id/pipeline-steps/stepA  # TODO: please fill in
-                template: users/your_user_id/apps/your_app_id/pipeline-steps/stepA  # TODO: please fill in
-          - - name: step-b
-              templateRef:
-                name: users/your_user_id/apps/your_app_id/pipeline-steps/stepB  # TODO: please fill in
-                template: users/your_user_id/apps/your_app_id/pipeline-steps/stepB  # TODO: please fill in
+{steps_yaml}
 """
 
 
-def get_pipeline_step_config_template(step_id: str):
+def get_pipeline_step_config_template(step_id: str, user_id="your_user_id", app_id="your_app_id"):
     """Get the config.yaml template for a pipeline step."""
     return f"""pipeline_step:
-  id: "{step_id}"  # TODO: please fill in
-  user_id: "your_user_id"  # TODO: please fill in
-  app_id: "your_app_id"  # TODO: please fill in
+  id: "{step_id}"
+  user_id: "{user_id}"
+  app_id: "{app_id}"
 
 pipeline_step_input_params:
   - name: input_text
@@ -60,7 +72,7 @@ def get_pipeline_step_template(step_id: str):
     return f'''import argparse
 
 import clarifai
-
+from clarifai.utils.logging import logger
 
 def main():
     parser = argparse.ArgumentParser(description='{step_id} processing step.')
@@ -68,10 +80,10 @@ def main():
 
     args = parser.parse_args()
 
-    print(clarifai.__version__)
+    logger.info(clarifai.__version__)
 
     # TODO: Implement your pipeline step logic here
-    print(f"{step_id} processed: {{args.input_text}}")
+    logger.info(f"{step_id} processed: {{args.input_text}}")
 
 
 if __name__ == "__main__":
@@ -114,17 +126,11 @@ This project contains a Clarifai pipeline with associated pipeline steps.
 
 ## Getting Started
 
-1. **Configure the pipeline**: Edit `config.yaml` and update the TODO fields:
-   - Set your `user_id` and `app_id`
-   - Update the pipeline `id`
-   - Modify the Argo orchestration spec as needed
-
-2. **Configure pipeline steps**: For each step directory (stepA, stepB):
-   - Edit `config.yaml` and fill in the TODO fields
+1. **Implement pipeline steps**: For each step directory:
    - Update `requirements.txt` with your dependencies
    - Implement your logic in `1/pipeline_step.py`
 
-3. **Upload the pipeline**:
+2. **Upload the pipeline**:
    ```bash
    clarifai pipeline upload config.yaml
    ```

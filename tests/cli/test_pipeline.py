@@ -82,12 +82,12 @@ spec:
     steps:
     - - name: step1
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepA
-          template: users/test-user/apps/test-app/pipeline-steps/stepA
+          name: users/test-user/apps/test-app/pipeline_steps/stepA
+          template: users/test-user/apps/test-app/pipeline_steps/stepA
     - - name: step2
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepB/versions/123
-          template: users/test-user/apps/test-app/pipeline-steps/stepB/versions/123
+          name: users/test-user/apps/test-app/pipeline_steps/stepB/versions/123
+          template: users/test-user/apps/test-app/pipeline_steps/stepB/versions/123
                     """
                 },
             }
@@ -113,8 +113,8 @@ spec:
     steps:
     - - name: step1
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepA
-          template: users/test-user/apps/test-app/pipeline-steps/stepB
+          name: users/test-user/apps/test-app/pipeline_steps/stepA
+          template: users/test-user/apps/test-app/pipeline_steps/stepB
                     """
                 },
             }
@@ -167,12 +167,12 @@ spec:
     steps:
     - - name: step1
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepA
-          template: users/test-user/apps/test-app/pipeline-steps/stepA
+          name: users/test-user/apps/test-app/pipeline_steps/stepA
+          template: users/test-user/apps/test-app/pipeline_steps/stepA
     - - name: step2
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepB/versions/123
-          template: users/test-user/apps/test-app/pipeline-steps/stepB/versions/123
+          name: users/test-user/apps/test-app/pipeline_steps/stepB/versions/123
+          template: users/test-user/apps/test-app/pipeline_steps/stepB/versions/123
                     """
                 },
             }
@@ -207,8 +207,8 @@ spec:
     steps:
     - - name: step1
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepA
-          template: users/test-user/apps/test-app/pipeline-steps/stepA
+          name: users/test-user/apps/test-app/pipeline_steps/stepA
+          template: users/test-user/apps/test-app/pipeline_steps/stepA
                     """
                 },
             }
@@ -311,7 +311,7 @@ spec:
         builder.config["pipeline"]["step_directories"] = []
 
         result = builder.upload_pipeline_steps()
-        assert result is True
+        assert result is False
 
     def test_update_config_with_versions(self, temp_config_file):
         """Test updating config with version information."""
@@ -327,7 +327,7 @@ spec:
 
         # Check that templateRef was updated
         template_ref = argo_spec["spec"]["templates"][0]["steps"][0][0]["templateRef"]
-        expected_name = "users/test-user/apps/test-app/pipeline-steps/stepA/versions/version-123"
+        expected_name = "users/test-user/apps/test-app/pipeline_steps/stepA/versions/version-123"
         assert template_ref["name"] == expected_name
         assert template_ref["template"] == expected_name
 
@@ -538,7 +538,7 @@ spec:
     steps:
     - - name: step1
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepA
+          name: users/test-user/apps/test-app/pipeline_steps/stepA
                     """
                 },
             }
@@ -566,8 +566,8 @@ spec:
     steps:
     - - name: step1
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepA/versions/123
-          template: users/test-user/apps/test-app/pipeline-steps/stepA/versions/123
+          name: users/test-user/apps/test-app/pipeline_steps/stepA/versions/123
+          template: users/test-user/apps/test-app/pipeline_steps/stepA/versions/123
                     """
                 },
             }
@@ -601,8 +601,8 @@ spec:
     steps:
     - - name: step1
         templateRef:
-          name: users/test-user/apps/test-app/pipeline-steps/stepA/versions/123
-          template: users/test-user/apps/test-app/pipeline-steps/stepA/versions/123
+          name: users/test-user/apps/test-app/pipeline_steps/stepA/versions/123
+          template: users/test-user/apps/test-app/pipeline_steps/stepA/versions/123
                     """
                 },
             }
@@ -627,7 +627,7 @@ spec:
 
         # Should handle missing step_directories gracefully
         result = builder.upload_pipeline_steps()
-        assert result is True
+        assert result is False
         assert builder.uploaded_step_versions == {}
 
     def test_update_config_with_no_versions(self, temp_config_file_no_dirs):
@@ -848,7 +848,9 @@ class TestPipelineInitCommand:
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ['.'])
+            # Provide inputs for the interactive prompts
+            inputs = "test-user\ntest-app\nhello-world-pipeline\n2\nstepA\nstepB\n"
+            result = runner.invoke(init, ['.'], input=inputs)
 
             assert result.exit_code == 0
 
@@ -867,12 +869,42 @@ class TestPipelineInitCommand:
             for file_path in expected_files:
                 assert os.path.exists(file_path), f"Expected file {file_path} was not created"
 
+    def test_init_command_with_custom_inputs(self):
+        """Test that init command works with custom user inputs."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        with runner.isolated_filesystem():
+            # Provide custom inputs
+            inputs = "custom-user\ncustom-app\ncustom-pipeline\n3\ndata-prep\nmodel-train\nmodel-deploy\n"
+            result = runner.invoke(init, ['.'], input=inputs)
+
+            assert result.exit_code == 0
+
+            # Check that custom step directories were created
+            assert os.path.exists('data-prep/config.yaml')
+            assert os.path.exists('model-train/config.yaml')
+            assert os.path.exists('model-deploy/config.yaml')
+
+            # Verify the pipeline config contains the custom values
+            with open('config.yaml', 'r') as f:
+                config = yaml.safe_load(f)
+
+            assert config['pipeline']['id'] == 'custom-pipeline'
+            assert config['pipeline']['user_id'] == 'custom-user'
+            assert config['pipeline']['app_id'] == 'custom-app'
+            assert config['pipeline']['step_directories'] == [
+                'data-prep',
+                'model-train',
+                'model-deploy',
+            ]
+
     def test_init_command_with_custom_path(self):
         """Test that init command works with custom path."""
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ['my_pipeline'])
+            inputs = "test-user\ntest-app\nhello-world-pipeline\n2\nstepA\nstepB\n"
+            result = runner.invoke(init, ['my_pipeline'], input=inputs)
 
             assert result.exit_code == 0
 
@@ -890,7 +922,8 @@ class TestPipelineInitCommand:
             with open('config.yaml', 'w') as f:
                 f.write('existing content')
 
-            result = runner.invoke(init, ['.'])
+            inputs = "test-user\ntest-app\nhello-world-pipeline\n2\nstepA\nstepB\n"
+            result = runner.invoke(init, ['.'], input=inputs)
 
             assert result.exit_code == 0
 
@@ -904,17 +937,19 @@ class TestPipelineInitCommand:
             assert os.path.exists('stepA/config.yaml')
 
     def test_init_command_creates_valid_pipeline_config(self):
-        """Test that the generated pipeline config is valid."""
+        """Test that the generated pipeline config is valid and has no TODO comments."""
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ['.'])
+            inputs = "test-user\ntest-app\ntest-pipeline\n2\nstepA\nstepB\n"
+            result = runner.invoke(init, ['.'], input=inputs)
 
             assert result.exit_code == 0
 
             # Load and validate the generated config
             with open('config.yaml', 'r') as f:
-                config = yaml.safe_load(f)
+                config_content = f.read()
+                config = yaml.safe_load(config_content)
 
             # Check that required sections exist
             assert 'pipeline' in config
@@ -928,31 +963,47 @@ class TestPipelineInitCommand:
             # Check step directories
             assert config['pipeline']['step_directories'] == ['stepA', 'stepB']
 
+            # Check that actual values are used, not placeholders
+            assert config['pipeline']['id'] == 'test-pipeline'
+            assert config['pipeline']['user_id'] == 'test-user'
+            assert config['pipeline']['app_id'] == 'test-app'
+
+            # Ensure no TODO comments exist
+            assert 'TODO' not in config_content
+
     def test_init_command_creates_valid_step_configs(self):
-        """Test that the generated step configs are valid."""
+        """Test that the generated step configs are valid and have no TODO comments."""
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ['.'])
+            inputs = "test-user\ntest-app\ntest-pipeline\n2\nstepA\nstepB\n"
+            result = runner.invoke(init, ['.'], input=inputs)
 
             assert result.exit_code == 0
 
             # Check stepA config
             with open('stepA/config.yaml', 'r') as f:
-                step_config = yaml.safe_load(f)
+                step_config_content = f.read()
+                step_config = yaml.safe_load(step_config_content)
 
             assert 'pipeline_step' in step_config
             assert step_config['pipeline_step']['id'] == 'stepA'
+            assert step_config['pipeline_step']['user_id'] == 'test-user'
+            assert step_config['pipeline_step']['app_id'] == 'test-app'
             assert 'pipeline_step_input_params' in step_config
             assert 'build_info' in step_config
             assert 'pipeline_step_compute_info' in step_config
+
+            # Ensure no TODO comments exist
+            assert 'TODO' not in step_config_content
 
     def test_init_command_includes_helpful_messages(self):
         """Test that init command works successfully."""
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
 
         with runner.isolated_filesystem():
-            result = runner.invoke(init, ['.'])
+            inputs = "test-user\ntest-app\ntest-pipeline\n2\nstepA\nstepB\n"
+            result = runner.invoke(init, ['.'], input=inputs)
 
             assert result.exit_code == 0
 
@@ -991,6 +1042,9 @@ class TestPipelineRunCommand:
             def __init__(self):
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
 
         class MockConfig:
             def __init__(self):
@@ -1054,6 +1108,9 @@ class TestPipelineRunCommand:
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
 
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
         class MockConfig:
             def __init__(self):
                 self.current = MockContext()
@@ -1096,6 +1153,9 @@ class TestPipelineRunCommand:
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
 
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
         class MockConfig:
             def __init__(self):
                 self.current = MockContext()
@@ -1135,6 +1195,9 @@ class TestPipelineRunCommand:
             def __init__(self):
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
 
         class MockConfig:
             def __init__(self):
@@ -1196,6 +1259,9 @@ class TestPipelineRunCommand:
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
 
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
         class MockConfig:
             def __init__(self):
                 self.current = MockContext()
@@ -1252,6 +1318,9 @@ class TestPipelineRunCommand:
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
 
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
         class MockConfig:
             def __init__(self):
                 self.current = MockContext()
@@ -1284,3 +1353,299 @@ class TestPipelineRunCommand:
             assert '--pipeline_version_run_id is required when using --monitor flag' in str(
                 result.exception
             )
+
+
+class TestPipelineListCommand:
+    """Test cases for the pipeline list CLI command."""
+
+    @patch('clarifai.cli.pipeline.validate_context')
+    @patch('clarifai.cli.pipeline.User')
+    @patch('clarifai.cli.pipeline.display_co_resources')
+    def test_list_command_success_no_app_id(self, mock_display, mock_user_class, mock_validate):
+        """Test that list command works without app_id (lists across all apps)."""
+        # Setup mocks
+        mock_validate.return_value = None
+        mock_user_instance = Mock()
+        mock_user_class.return_value = mock_user_instance
+        mock_user_instance.list_pipelines.return_value = [
+            {
+                'id': 'pipeline1',
+                'user_id': 'user1',
+                'app_id': 'app1',
+                'description': 'Test pipeline 1',
+            },
+            {
+                'id': 'pipeline2',
+                'user_id': 'user1',
+                'app_id': 'app2',
+                'description': 'Test pipeline 2',
+            },
+        ]
+
+        # Setup context
+        runner = CliRunner()
+        ctx_obj = Mock()
+        ctx_obj.current.user_id = 'test-user'
+        ctx_obj.current.pat = 'test-pat'
+        ctx_obj.current.api_base = 'https://api.clarifai.com'
+
+        # Import here to avoid circular imports in testing
+        from clarifai.cli.pipeline import list as list_command
+
+        result = runner.invoke(
+            list_command,
+            ['--page_no', '1', '--per_page', '10'],
+            obj=ctx_obj,
+        )
+
+        assert result.exit_code == 0
+        mock_validate.assert_called_once()
+        mock_user_class.assert_called_once_with(
+            user_id='test-user', pat='test-pat', base_url='https://api.clarifai.com'
+        )
+        mock_user_instance.list_pipelines.assert_called_once_with(page_no=1, per_page=10)
+        mock_display.assert_called_once()
+
+    @patch('clarifai.cli.pipeline.validate_context')
+    @patch('clarifai.cli.pipeline.App')
+    @patch('clarifai.cli.pipeline.display_co_resources')
+    def test_list_command_success_with_app_id(self, mock_display, mock_app_class, mock_validate):
+        """Test that list command works with app_id (lists within specific app)."""
+        # Setup mocks
+        mock_validate.return_value = None
+        mock_app_instance = Mock()
+        mock_app_class.return_value = mock_app_instance
+        mock_app_instance.list_pipelines.return_value = [
+            {
+                'id': 'pipeline1',
+                'user_id': 'user1',
+                'app_id': 'app1',
+                'description': 'Test pipeline 1',
+            },
+        ]
+
+        # Setup context
+        runner = CliRunner()
+        ctx_obj = Mock()
+        ctx_obj.current.user_id = 'test-user'
+        ctx_obj.current.pat = 'test-pat'
+        ctx_obj.current.api_base = 'https://api.clarifai.com'
+
+        # Import here to avoid circular imports in testing
+        from clarifai.cli.pipeline import list as list_command
+
+        result = runner.invoke(
+            list_command,
+            ['--app_id', 'test-app', '--page_no', '1', '--per_page', '5'],
+            obj=ctx_obj,
+        )
+
+        assert result.exit_code == 0
+        mock_validate.assert_called_once()
+        mock_app_class.assert_called_once_with(
+            app_id='test-app',
+            user_id='test-user',
+            pat='test-pat',
+            base_url='https://api.clarifai.com',
+        )
+        mock_app_instance.list_pipelines.assert_called_once_with(page_no=1, per_page=5)
+        mock_display.assert_called_once()
+
+    @patch('clarifai.cli.pipeline.validate_context')
+    def test_list_command_default_parameters(self, mock_validate):
+        """Test that list command uses default parameters correctly."""
+        # Setup mocks
+        mock_validate.return_value = None
+
+        # Setup context
+        runner = CliRunner()
+        ctx_obj = Mock()
+        ctx_obj.current.user_id = 'test-user'
+        ctx_obj.current.pat = 'test-pat'
+        ctx_obj.current.api_base = 'https://api.clarifai.com'
+
+        # Import here to avoid circular imports in testing
+        from clarifai.cli.pipeline import list as list_command
+
+        with patch('clarifai.cli.pipeline.User') as mock_user_class:
+            mock_user_instance = Mock()
+            mock_user_class.return_value = mock_user_instance
+            mock_user_instance.list_pipelines.return_value = []
+
+            with patch('clarifai.cli.pipeline.display_co_resources') as mock_display:
+                result = runner.invoke(list_command, [], obj=ctx_obj)
+
+                assert result.exit_code == 0
+                mock_user_instance.list_pipelines.assert_called_once_with(page_no=1, per_page=16)
+
+
+class TestPipelineStepListCommand:
+    """Test cases for the pipeline step list CLI command."""
+
+    @patch('clarifai.cli.pipeline_step.validate_context')
+    @patch('clarifai.cli.pipeline_step.User')
+    @patch('clarifai.cli.pipeline_step.display_co_resources')
+    def test_list_command_success_no_app_id(self, mock_display, mock_user_class, mock_validate):
+        """Test that list command works without app_id (lists across all apps)."""
+        # Setup mocks
+        mock_validate.return_value = None
+        mock_user_instance = Mock()
+        mock_user_class.return_value = mock_user_instance
+        mock_user_instance.list_pipeline_steps.return_value = [
+            {
+                'id': 'step1',
+                'user_id': 'user1',
+                'app_id': 'app1',
+                'pipeline_id': 'pipe1',
+                'description': 'Test step 1',
+            },
+            {
+                'id': 'step2',
+                'user_id': 'user1',
+                'app_id': 'app2',
+                'pipeline_id': 'pipe2',
+                'description': 'Test step 2',
+            },
+        ]
+
+        # Setup context
+        runner = CliRunner()
+        ctx_obj = Mock()
+        ctx_obj.current.user_id = 'test-user'
+        ctx_obj.current.pat = 'test-pat'
+        ctx_obj.current.api_base = 'https://api.clarifai.com'
+
+        # Import here to avoid circular imports in testing
+        from clarifai.cli.pipeline_step import list as list_command
+
+        result = runner.invoke(
+            list_command,
+            ['--page_no', '1', '--per_page', '10'],
+            obj=ctx_obj,
+        )
+
+        assert result.exit_code == 0
+        mock_validate.assert_called_once()
+        mock_user_class.assert_called_once_with(
+            user_id='test-user', pat='test-pat', base_url='https://api.clarifai.com'
+        )
+        mock_user_instance.list_pipeline_steps.assert_called_once_with(page_no=1, per_page=10)
+        mock_display.assert_called_once()
+
+    @patch('clarifai.cli.pipeline_step.validate_context')
+    @patch('clarifai.cli.pipeline_step.App')
+    @patch('clarifai.cli.pipeline_step.display_co_resources')
+    def test_list_command_success_with_app_id(self, mock_display, mock_app_class, mock_validate):
+        """Test that list command works with app_id (lists within specific app)."""
+        # Setup mocks
+        mock_validate.return_value = None
+        mock_app_instance = Mock()
+        mock_app_class.return_value = mock_app_instance
+        mock_app_instance.list_pipeline_steps.return_value = [
+            {
+                'id': 'step1',
+                'user_id': 'user1',
+                'app_id': 'app1',
+                'pipeline_id': 'pipe1',
+                'description': 'Test step 1',
+            },
+        ]
+
+        # Setup context
+        runner = CliRunner()
+        ctx_obj = Mock()
+        ctx_obj.current.user_id = 'test-user'
+        ctx_obj.current.pat = 'test-pat'
+        ctx_obj.current.api_base = 'https://api.clarifai.com'
+
+        # Import here to avoid circular imports in testing
+        from clarifai.cli.pipeline_step import list as list_command
+
+        result = runner.invoke(
+            list_command,
+            ['--app_id', 'test-app', '--page_no', '1', '--per_page', '5'],
+            obj=ctx_obj,
+        )
+
+        assert result.exit_code == 0
+        mock_validate.assert_called_once()
+        mock_app_class.assert_called_once_with(
+            app_id='test-app',
+            user_id='test-user',
+            pat='test-pat',
+            base_url='https://api.clarifai.com',
+        )
+        mock_app_instance.list_pipeline_steps.assert_called_once_with(
+            pipeline_id=None, page_no=1, per_page=5
+        )
+        mock_display.assert_called_once()
+
+    @patch('clarifai.cli.pipeline_step.validate_context')
+    @patch('clarifai.cli.pipeline_step.App')
+    @patch('clarifai.cli.pipeline_step.display_co_resources')
+    def test_list_command_success_with_pipeline_id(
+        self, mock_display, mock_app_class, mock_validate
+    ):
+        """Test that list command works with both app_id and pipeline_id."""
+        # Setup mocks
+        mock_validate.return_value = None
+        mock_app_instance = Mock()
+        mock_app_class.return_value = mock_app_instance
+        mock_app_instance.list_pipeline_steps.return_value = [
+            {
+                'id': 'step1',
+                'user_id': 'user1',
+                'app_id': 'app1',
+                'pipeline_id': 'pipe1',
+                'description': 'Test step 1',
+            },
+        ]
+
+        # Setup context
+        runner = CliRunner()
+        ctx_obj = Mock()
+        ctx_obj.current.user_id = 'test-user'
+        ctx_obj.current.pat = 'test-pat'
+        ctx_obj.current.api_base = 'https://api.clarifai.com'
+
+        # Import here to avoid circular imports in testing
+        from clarifai.cli.pipeline_step import list as list_command
+
+        result = runner.invoke(
+            list_command,
+            ['--app_id', 'test-app', '--pipeline_id', 'test-pipeline'],
+            obj=ctx_obj,
+        )
+
+        assert result.exit_code == 0
+        mock_validate.assert_called_once()
+        mock_app_class.assert_called_once_with(
+            app_id='test-app',
+            user_id='test-user',
+            pat='test-pat',
+            base_url='https://api.clarifai.com',
+        )
+        mock_app_instance.list_pipeline_steps.assert_called_once_with(
+            pipeline_id='test-pipeline', page_no=1, per_page=16
+        )
+        mock_display.assert_called_once()
+
+    def test_list_command_pipeline_id_without_app_id_error(self):
+        """Test that using pipeline_id without app_id raises an error."""
+        runner = CliRunner()
+        ctx_obj = Mock()
+        ctx_obj.current.user_id = 'test-user'
+        ctx_obj.current.pat = 'test-pat'
+        ctx_obj.current.api_base = 'https://api.clarifai.com'
+
+        # Import here to avoid circular imports in testing
+        from clarifai.cli.pipeline_step import list as list_command
+
+        result = runner.invoke(
+            list_command,
+            ['--pipeline_id', 'test-pipeline'],
+            obj=ctx_obj,
+        )
+
+        assert result.exit_code != 0
+        assert '--pipeline_id must be used together with --app_id' in result.output

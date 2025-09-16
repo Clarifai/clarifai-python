@@ -1,8 +1,9 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from clarifai_grpc.grpc.api import resources_pb2
-from clarifai_grpc.grpc.api.status import status_code_pb2
+from clarifai_grpc.grpc.api import resources_pb2, service_pb2
+from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
+from google.protobuf import json_format
 
 from clarifai.client.pipeline import Pipeline
 from clarifai.errors import UserError
@@ -145,17 +146,17 @@ class TestPipelineClient:
         pipeline.auth_helper.metadata = []
 
         # Mock successful GetPipelineVersionRun response
-        mock_get_response = Mock()
-        mock_get_response.status.code = status_code_pb2.StatusCode.SUCCESS
-        mock_run = Mock()
-        # Mock orchestration status with success
-        mock_orch_status = Mock()
-        mock_status = Mock()
-        mock_status.code = status_code_pb2.StatusCode.SUCCESS
-        mock_orch_status.status = mock_status
-        mock_run.orchestration_status = mock_orch_status
-        mock_get_response.pipeline_version_run = mock_run
-        pipeline.STUB.GetPipelineVersionRun.return_value = mock_get_response
+        # use real proto instead of mock for pipeline_version_run response
+        get_response = service_pb2.SinglePipelineVersionRunResponse(
+            status=status_pb2.Status(code=status_code_pb2.StatusCode.SUCCESS),
+            pipeline_version_run=resources_pb2.PipelineVersionRun(
+                id='test-run-123',
+                orchestration_status=resources_pb2.OrchestrationStatus(
+                    status=status_pb2.Status(code=status_code_pb2.StatusCode.SUCCESS)
+                ),
+            ),
+        )
+        pipeline.STUB.GetPipelineVersionRun.return_value = get_response
 
         # Mock log display
         pipeline._display_new_logs = Mock()
@@ -165,7 +166,9 @@ class TestPipelineClient:
 
         # Verify the result
         assert result["status"] == "success"
-        assert result["pipeline_version_run"] == mock_run
+        assert result["pipeline_version_run"] == json_format.MessageToDict(
+            get_response.pipeline_version_run, preserving_proto_field_name=True
+        )
         pipeline.STUB.GetPipelineVersionRun.assert_called_once()
         pipeline._display_new_logs.assert_called_once()
 
@@ -193,17 +196,17 @@ class TestPipelineClient:
         pipeline.auth_helper.metadata = []
 
         # Mock running GetPipelineVersionRun response
-        mock_get_response = Mock()
-        mock_get_response.status.code = status_code_pb2.StatusCode.SUCCESS
-        mock_run = Mock()
-        # Mock orchestration status with mixed status (running)
-        mock_orch_status = Mock()
-        mock_status = Mock()
-        mock_status.code = status_code_pb2.StatusCode.MIXED_STATUS
-        mock_orch_status.status = mock_status
-        mock_run.orchestration_status = mock_orch_status
-        mock_get_response.pipeline_version_run = mock_run
-        pipeline.STUB.GetPipelineVersionRun.return_value = mock_get_response
+        # use real proto instead of mock for pipeline_version_run response
+        get_response = service_pb2.SinglePipelineVersionRunResponse(
+            status=status_pb2.Status(code=status_code_pb2.StatusCode.SUCCESS),
+            pipeline_version_run=resources_pb2.PipelineVersionRun(
+                id='test-run-123',
+                orchestration_status=resources_pb2.OrchestrationStatus(
+                    status=status_pb2.Status(code=status_code_pb2.StatusCode.MIXED_STATUS)
+                ),
+            ),
+        )
+        pipeline.STUB.GetPipelineVersionRun.return_value = get_response
 
         # Mock log display
         pipeline._display_new_logs = Mock()
@@ -260,3 +263,69 @@ class TestPipelineClient:
             UserError, match="pipeline_version_run_id is required for monitoring existing runs"
         ):
             pipeline.monitor_only()
+
+    @patch('clarifai.client.pipeline.BaseClient.__init__')
+    def test_display_new_logs_pagination(self, mock_init):
+        """Test _display_new_logs pagination behavior."""
+        mock_init.return_value = None
+
+        pipeline = Pipeline(
+            pipeline_id='test-pipeline',
+            pipeline_version_id='test-version-123',
+            user_id='test-user',
+            app_id='test-app',
+            pat='test-pat',
+        )
+
+        # Mock the required attributes
+        pipeline.user_app_id = resources_pb2.UserAppIDSet(user_id="test-user", app_id="test-app")
+        pipeline.STUB = Mock()
+        pipeline.auth_helper = Mock()
+        pipeline.auth_helper.metadata = []
+
+        # Test Case 1: Full page (50 entries) should advance to next page
+        mock_response_full = Mock()
+        mock_response_full.status.code = status_code_pb2.StatusCode.SUCCESS
+        mock_response_full.log_entries = [Mock() for _ in range(50)]  # Full page
+
+        # Set up mock log entries with unique identifiers
+        for i, entry in enumerate(mock_response_full.log_entries):
+            entry.url = f"test-url-{i}"
+            entry.message = f"Test log message {i}"
+            entry.created_at.seconds = 1000 + i
+
+        pipeline.STUB.ListLogEntries.return_value = mock_response_full
+        seen_logs = set()
+
+        # Call with page 1, should return page 2
+        next_page = pipeline._display_new_logs('test-run-123', seen_logs, current_page=1)
+        assert next_page == 2
+        assert len(seen_logs) == 50
+
+        # Test Case 2: Partial page (less than 50 entries) should stay on current page
+        mock_response_partial = Mock()
+        mock_response_partial.status.code = status_code_pb2.StatusCode.SUCCESS
+        mock_response_partial.log_entries = [Mock() for _ in range(25)]  # Partial page
+
+        # Set up mock log entries with unique identifiers
+        for i, entry in enumerate(mock_response_partial.log_entries):
+            entry.url = f"test-url-partial-{i}"
+            entry.message = f"Test partial log message {i}"
+            entry.created_at.seconds = 2000 + i
+
+        pipeline.STUB.ListLogEntries.return_value = mock_response_partial
+        seen_logs_partial = set()
+
+        # Call with page 2, should stay on page 2
+        next_page = pipeline._display_new_logs('test-run-123', seen_logs_partial, current_page=2)
+        assert next_page == 2
+        assert len(seen_logs_partial) == 25
+
+        # Test Case 3: Error should return current page
+        pipeline.STUB.ListLogEntries.side_effect = Exception("Test error")
+        seen_logs_error = set()
+
+        # Call with page 3, should stay on page 3 due to error
+        next_page = pipeline._display_new_logs('test-run-123', seen_logs_error, current_page=3)
+        assert next_page == 3
+        assert len(seen_logs_error) == 0

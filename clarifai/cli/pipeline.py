@@ -4,15 +4,24 @@ import shutil
 import click
 
 from clarifai.cli.base import cli
+from clarifai.client.app import App
+from clarifai.client.user import User
+from clarifai.utils.cli import (
+    AliasedGroup,
+    convert_timestamp_to_string,
+    display_co_resources,
+    validate_context,
+)
 from clarifai.utils.logging import logger
 
 
 @cli.group(
     ['pipeline', 'pl'],
+    cls=AliasedGroup,
     context_settings={'max_content_width': shutil.get_terminal_size().columns - 10},
 )
 def pipeline():
-    """Manage pipelines: upload, init, etc"""
+    """Manage pipelines: upload, init, list, etc"""
 
 
 @pipeline.command()
@@ -113,6 +122,19 @@ def run(
         monitor_interval = config_data.get('monitor_interval', monitor_interval)
         log_file = config_data.get('log_file', log_file)
         monitor = config_data.get('monitor', monitor)
+    elif ctx.obj.current:
+        if not user_id:
+            user_id = ctx.obj.current.get('user_id', '')
+        if not app_id:
+            app_id = ctx.obj.current.get('app_id', '')
+        if not pipeline_id:
+            pipeline_id = ctx.obj.current.get('pipeline_id', '')
+        if not pipeline_version_id:
+            pipeline_version_id = ctx.obj.current.get('pipeline_version_id', '')
+        if not nodepool_id:
+            nodepool_id = ctx.obj.current.get('nodepool_id', '')
+        if not compute_cluster_id:
+            compute_cluster_id = ctx.obj.current.get('compute_cluster_id', '')
 
     # compute_cluster_id and nodepool_id are mandatory regardless of whether pipeline_url is provided
     if not compute_cluster_id or not nodepool_id:
@@ -207,12 +229,34 @@ def init(pipeline_path):
     # Create the pipeline directory if it doesn't exist
     os.makedirs(pipeline_path, exist_ok=True)
 
+    # Prompt for user inputs
+    click.echo("Welcome to Clarifai Pipeline Initialization!")
+    click.echo("Please provide the following information:")
+
+    user_id = click.prompt("User ID", type=str)
+    app_id = click.prompt("App ID", type=str)
+    pipeline_id = click.prompt("Pipeline ID", default="hello-world-pipeline", type=str)
+    num_steps = click.prompt("Number of pipeline steps", default=2, type=int)
+
+    # Get step names
+    step_names = []
+    default_names = ["stepA", "stepB", "stepC", "stepD", "stepE", "stepF"]
+
+    for i in range(num_steps):
+        default_name = default_names[i] if i < len(default_names) else f"step{i + 1}"
+        step_name = click.prompt(f"Name for step {i + 1}", default=default_name, type=str)
+        step_names.append(step_name)
+
+    click.echo(f"\nCreating pipeline '{pipeline_id}' with steps: {', '.join(step_names)}")
+
     # Create pipeline config.yaml
     config_path = os.path.join(pipeline_path, "config.yaml")
     if os.path.exists(config_path):
         logger.warning(f"File {config_path} already exists, skipping...")
     else:
-        config_template = get_pipeline_config_template()
+        config_template = get_pipeline_config_template(
+            pipeline_id=pipeline_id, user_id=user_id, app_id=app_id, step_names=step_names
+        )
         with open(config_path, 'w', encoding='utf-8') as f:
             f.write(config_template)
         logger.info(f"Created {config_path}")
@@ -227,8 +271,8 @@ def init(pipeline_path):
             f.write(readme_template)
         logger.info(f"Created {readme_path}")
 
-    # Create pipeline steps (stepA and stepB)
-    for step_id in ["stepA", "stepB"]:
+    # Create pipeline steps
+    for step_id in step_names:
         step_dir = os.path.join(pipeline_path, step_id)
         os.makedirs(step_dir, exist_ok=True)
 
@@ -241,7 +285,9 @@ def init(pipeline_path):
         if os.path.exists(step_config_path):
             logger.warning(f"File {step_config_path} already exists, skipping...")
         else:
-            step_config_template = get_pipeline_step_config_template(step_id)
+            step_config_template = get_pipeline_step_config_template(
+                step_id=step_id, user_id=user_id, app_id=app_id
+            )
             with open(step_config_path, 'w', encoding='utf-8') as f:
                 f.write(step_config_template)
             logger.info(f"Created {step_config_path}")
@@ -268,10 +314,53 @@ def init(pipeline_path):
 
     logger.info(f"Pipeline initialization complete in {pipeline_path}")
     logger.info("Next steps:")
-    logger.info("1. Search for '# TODO: please fill in' comments in the generated files")
-    logger.info("2. Update your user_id and app_id in all config.yaml files")
-    logger.info(
-        "3. Implement your pipeline step logic in stepA/1/pipeline_step.py and stepB/1/pipeline_step.py"
+    logger.info("1. Implement your pipeline step logic in the generated pipeline_step.py files")
+    logger.info("2. Add dependencies to requirements.txt files as needed")
+    logger.info("3. Run 'clarifai pipeline upload config.yaml' to upload your pipeline")
+
+
+@pipeline.command(['ls'])
+@click.option('--page_no', required=False, help='Page number to list.', default=1)
+@click.option('--per_page', required=False, help='Number of items per page.', default=16)
+@click.option(
+    '--app_id',
+    required=False,
+    help='App ID to list pipelines from. If not provided, lists across all apps.',
+)
+@click.pass_context
+def list(ctx, page_no, per_page, app_id):
+    """List all pipelines for the user."""
+    validate_context(ctx)
+
+    if app_id:
+        app = App(
+            app_id=app_id,
+            user_id=ctx.obj.current.user_id,
+            pat=ctx.obj.current.pat,
+            base_url=ctx.obj.current.api_base,
+        )
+        response = app.list_pipelines(page_no=page_no, per_page=per_page)
+    else:
+        user = User(
+            user_id=ctx.obj.current.user_id,
+            pat=ctx.obj.current.pat,
+            base_url=ctx.obj.current.api_base,
+        )
+        response = user.list_pipelines(page_no=page_no, per_page=per_page)
+
+    display_co_resources(
+        response,
+        custom_columns={
+            'ID': lambda p: getattr(p, 'pipeline_id', ''),
+            'USER_ID': lambda p: getattr(p, 'user_id', ''),
+            'APP_ID': lambda p: getattr(p, 'app_id', ''),
+            'VERSION_ID': lambda p: getattr(p, 'pipeline_version_id', ''),
+            'DESCRIPTION': lambda p: getattr(p, 'description', ''),
+            'CREATED_AT': lambda ps: convert_timestamp_to_string(getattr(ps, 'created_at', '')),
+            'MODIFIED_AT': lambda ps: convert_timestamp_to_string(getattr(ps, 'modified_at', '')),
+        },
+        sort_by_columns=[
+            ('CREATED_AT', 'desc'),
+            ('ID', 'asc'),
+        ],
     )
-    logger.info("4. Add dependencies to requirements.txt files as needed")
-    logger.info("5. Run 'clarifai pipeline upload config.yaml' to upload your pipeline")

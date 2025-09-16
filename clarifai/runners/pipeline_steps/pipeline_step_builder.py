@@ -8,6 +8,7 @@ from string import Template
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
+from google.protobuf import json_format
 
 from clarifai.client.base import BaseClient
 from clarifai.utils.logging import logger
@@ -106,16 +107,16 @@ class PipelineStepBuilder:
 
     def _get_pipeline_step_compute_info(self):
         """Get pipeline step compute info from config."""
+        assert "pipeline_step_compute_info" in self.config, (
+            "pipeline_step_compute_info not found in the config file"
+        )
         compute_config = self.config.get("pipeline_step_compute_info", {})
 
-        compute_info = resources_pb2.ComputeInfo()
+        # Ensure cpu_limit is a string if it exists and is an int
+        if 'cpu_limit' in compute_config and isinstance(compute_config['cpu_limit'], int):
+            compute_config['cpu_limit'] = str(compute_config['cpu_limit'])
 
-        if "cpu_limit" in compute_config:
-            compute_info.cpu_limit = compute_config["cpu_limit"]
-        if "cpu_memory" in compute_config:
-            compute_info.cpu_memory = compute_config["cpu_memory"]
-        if "num_accelerators" in compute_config:
-            compute_info.num_accelerators = compute_config["num_accelerators"]
+        compute_info = json_format.ParseDict(compute_config, resources_pb2.ComputeInfo())
 
         return compute_info
 
@@ -200,8 +201,11 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
             PYTHON_VERSION=python_version
         )
 
-        # Write Dockerfile
+        # Write Dockerfile if it doesn't exist
         dockerfile_path = os.path.join(self.folder, 'Dockerfile')
+        if os.path.exists(dockerfile_path):
+            logger.info(f"Dockerfile already exists at {dockerfile_path}, skipping creation.")
+            return
         with open(dockerfile_path, 'w') as dockerfile:
             dockerfile.write(dockerfile_content)
 
@@ -404,6 +408,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
         """
         max_checks = timeout_sec // interval_sec
         seen_logs = set()  # To avoid duplicate log messages
+        current_page = 1  # Track current page for log pagination
         st = time.time()
 
         for _ in range(max_checks):
@@ -430,14 +435,16 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                     user_app_id=self.client.user_app_id,
                     pipeline_step_id=self.pipeline_step_id,
                     pipeline_step_version_id=self.pipeline_step_version_id,
-                    page=1,
+                    page=current_page,
                     per_page=50,
                 )
                 logs = self.client.STUB.ListLogEntries(
                     logs_request, metadata=self.client.auth_helper.metadata
                 )
 
+                entries_count = 0
                 for log_entry in logs.log_entries:
+                    entries_count += 1
                     if log_entry.url not in seen_logs:
                         seen_logs.add(log_entry.url)
                         log_entry_msg = re.sub(
@@ -446,6 +453,12 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                             log_entry.message.strip(),
                         )
                         logger.info(log_entry_msg)
+
+                # If we got a full page (50 entries), there might be more logs on the next page
+                # If we got fewer than 50 entries, we've reached the end and should stay on current page
+                if entries_count == 50:
+                    current_page += 1
+                # else: stay on current_page
 
                 status = response.pipeline_step_version.status.code
                 if status in {
