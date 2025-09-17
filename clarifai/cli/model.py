@@ -29,6 +29,7 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_RUNNER_NODEPOOL_ID,
     DEFAULT_OLLAMA_MODEL_REPO_BRANCH,
     DEFAULT_TOOLKIT_MODEL_REPO,
+    DEFAULT_VLLM_MODEL_REPO_BRANCH,
 )
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import (
@@ -73,14 +74,14 @@ def model():
 )
 @click.option(
     '--toolkit',
-    type=click.Choice(['ollama', 'huggingface', 'lmstudio'], case_sensitive=False),
+    type=click.Choice(['ollama', 'huggingface', 'lmstudio', 'vllm'], case_sensitive=False),
     required=False,
-    help='Toolkit to use for model initialization. Currently supports "ollama", "huggingface", and "lmstudio".',
+    help='Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio" and "vllm"..',
 )
 @click.option(
     '--model-name',
     required=False,
-    help='Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "unsloth/Llama-3.2-1B-Instruct").\n For lmstudio toolkit, this sets the LM Studio model name (e.g., "qwen/qwen3-4b-thinking-2507").\n',
+    help='Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For vllm & huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "unsloth/Llama-3.2-1B-Instruct").\n For lmstudio toolkit, this sets the LM Studio model name (e.g., "qwen/qwen3-4b-thinking-2507").\n',
 )
 @click.option(
     '--port',
@@ -117,14 +118,16 @@ def init(
     when cloning private repositories. The --branch option can be used to specify a specific
     branch to clone from.
 
-    MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
-    MODEL_TYPE_ID: Type of model to create. If not specified, defaults to "text-to-text" for text models.
-    GITHUB_PAT: GitHub Personal Access Token for authentication when cloning private repositories.
-    GITHUB_URL: GitHub repository URL or "repo" format to clone a repository from. If provided, the entire repository contents will be copied to the target directory instead of using default templates.
-    TOOLKIT: Toolkit to use for model initialization. Currently supports "ollama", "huggingface", and "lmstudio".
-    MODEL_NAME: Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "Qwen/Qwen3-4B-Instruct-2507"). For lmstudio toolkit, this sets the LM Studio model name (e.g., "qwen/qwen3-4b-thinking-2507").
-    PORT: Port to run the (Ollama/lmstudio) server on. Defaults to 23333.
-    CONTEXT_LENGTH: Context length for the (Ollama/lmstudio) model. Defaults to 8192.
+    MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.\n
+
+    OPTIONS:\n
+    MODEL_TYPE_ID: Type of model to create. If not specified, defaults to "text-to-text" for text models.\n
+    GITHUB_PAT: GitHub Personal Access Token for authentication when cloning private repositories.\n
+    GITHUB_URL: GitHub repository URL or "repo" format to clone a repository from. If provided, the entire repository contents will be copied to the target directory instead of using default templates.\n
+    TOOLKIT: Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio" and "vllm".\n
+    MODEL_NAME: Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For vllm & huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "Qwen/Qwen3-4B-Instruct-2507"). For lmstudio toolkit, this sets the LM Studio model name (e.g., "qwen/qwen3-4b-thinking-2507").\n
+    PORT: Port to run the (Ollama/lmstudio) server on. Defaults to 23333.\n
+    CONTEXT_LENGTH: Context length for the (Ollama/lmstudio) model. Defaults to 8192.\n
     """
     # Resolve the absolute path
     model_path = os.path.abspath(model_path)
@@ -170,6 +173,9 @@ def init(
             raise click.Abort()
         github_url = DEFAULT_TOOLKIT_MODEL_REPO
         branch = DEFAULT_LMSTUDIO_MODEL_REPO_BRANCH
+    elif toolkit == 'vllm':
+        github_url = DEFAULT_TOOLKIT_MODEL_REPO
+        branch = DEFAULT_VLLM_MODEL_REPO_BRANCH
 
     if github_url:
         downloader = GitHubDownloader(
@@ -266,7 +272,7 @@ def init(
     if (model_name or port or context_length) and (toolkit == 'lmstudio'):
         customize_lmstudio_model(model_path, model_name, port, context_length)
 
-    if model_name and toolkit == 'huggingface':
+    if model_name and (toolkit == 'huggingface' or toolkit == 'vllm'):
         # Update the config.yaml file with the provided model name
         customize_huggingface_model(model_path, model_name)
 
