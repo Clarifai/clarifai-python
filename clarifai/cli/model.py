@@ -317,7 +317,7 @@ def init(
         if os.path.exists(config_path):
             logger.warning(f"File {config_path} already exists, skipping...")
         else:
-            config_model_type_id = "text-to-text"  # default
+            config_model_type_id = DEFAULT_LOCAL_RUNNER_MODEL_TYPE  # default
 
             config_template = get_config_template(config_model_type_id)
             with open(config_path, 'w') as f:
