@@ -1,5 +1,6 @@
 import os
 
+import yaml
 from click.testing import CliRunner
 
 import clarifai.cli.model as model_module
@@ -19,11 +20,7 @@ def test_model_init_lmstudio_toolkit(monkeypatch, tmp_path):
         os.makedirs(version_dir, exist_ok=True)
         model_py = os.path.join(version_dir, 'model.py')
         with open(model_py, 'w') as f:
-            f.write(
-                "LMS_MODEL_NAME = 'LiquidAI/LFM2-1.2B'\n"
-                "LMS_PORT = 11434\n"
-                "LMS_CONTEXT_LENGTH = 4096\n"
-            )
+            f.write('pass')
         with open(os.path.join(clone_dir, 'config.yaml'), 'w') as f:
             f.write('model:\n  id: dummy\n')
         with open(os.path.join(clone_dir, 'requirements.txt'), 'w') as f:
@@ -36,6 +33,7 @@ def test_model_init_lmstudio_toolkit(monkeypatch, tmp_path):
     monkeypatch.setattr(
         model_module, 'check_requirements_installed', lambda path: True, raising=False
     )
+    monkeypatch.setattr("builtins.input", lambda *args, **kwargs: "")
 
     model_dir = tmp_path / 'lmstudio_model'
 
@@ -59,22 +57,20 @@ def test_model_init_lmstudio_toolkit(monkeypatch, tmp_path):
     assert called['clone'] is True
     assert called['repo_url'] is not None
 
-    model_py_path = model_dir / '1' / 'model.py'
-    assert model_py_path.exists()
-    content = model_py_path.read_text()
+    cfg_path = model_dir / 'config.yaml'
+    assert cfg_path.exists(), 'config.yaml not created'
+    data = yaml.safe_load(cfg_path.read_text())
+    assert 'toolkit' in data and isinstance(data['toolkit'], dict), 'toolkit section missing'
 
     # New values
-    assert "LMS_MODEL_NAME = 'qwen/qwen3-4b'" in content
-    assert "LMS_PORT = 11888" in content
-    assert "LMS_CONTEXT_LENGTH = 16000" in content
+    assert data['toolkit']['model'] == 'qwen/qwen3-4b'
+    assert data['toolkit']['port'] == '11888'
+    assert data['toolkit']['context_length'] == '16000'
 
     # Originals removed
-    assert "LMS_MODEL_NAME = 'LiquidAI/LFM2-1.2B'" not in content
-    assert "LMS_PORT = 11434" not in content
-    assert "LMS_CONTEXT_LENGTH = 4096" not in content
-
-    # config.yaml present
-    assert (model_dir / 'config.yaml').read_text().startswith('model:')
+    assert data['toolkit']['model'] != 'LiquidAI/LFM2-1.2B'
+    assert data['toolkit']['port'] != '11434'
+    assert data['toolkit']['context_length'] != '2048'
 
 
 def test_model_init_lmstudio_defaults(monkeypatch, tmp_path):
@@ -102,6 +98,7 @@ def test_model_init_lmstudio_defaults(monkeypatch, tmp_path):
     monkeypatch.setattr(
         model_module, 'check_requirements_installed', lambda path: True, raising=False
     )
+    monkeypatch.setattr("builtins.input", lambda *args, **kwargs: "")
 
     model_dir = tmp_path / 'lmstudio_model_default'
     result = runner.invoke(

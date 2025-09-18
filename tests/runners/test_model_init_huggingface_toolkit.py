@@ -33,6 +33,7 @@ def test_model_init_huggingface_toolkit(monkeypatch, tmp_path):
     monkeypatch.setattr(
         model_module, 'check_requirements_installed', lambda path: True, raising=False
     )
+    monkeypatch.setattr("builtins.input", lambda *args, **kwargs: "")
 
     model_dir = tmp_path / 'hf_model'
     result = runner.invoke(
@@ -79,6 +80,7 @@ def test_model_init_hf_no_model_name(monkeypatch, tmp_path):
     monkeypatch.setattr(
         model_module, 'check_requirements_installed', lambda path: True, raising=False
     )
+    monkeypatch.setattr("builtins.input", lambda *args, **kwargs: "")
 
     model_dir = tmp_path / 'hf_model2'
     result = runner.invoke(

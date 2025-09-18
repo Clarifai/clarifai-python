@@ -36,6 +36,7 @@ def test_model_init_ollama_toolkit(monkeypatch, tmp_path):
     monkeypatch.setattr(
         model_module, 'check_requirements_installed', lambda path: True, raising=False
     )
+    monkeypatch.setattr("builtins.input", lambda *args, **kwargs: "")
 
     model_dir = tmp_path / 'ollama_model'
 
@@ -96,6 +97,7 @@ def test_model_init_ollama_defaults(monkeypatch, tmp_path):
     monkeypatch.setattr(
         model_module, 'check_requirements_installed', lambda path: True, raising=False
     )
+    monkeypatch.setattr("builtins.input", lambda *args, **kwargs: "")
 
     model_dir = tmp_path / 'ollama_model_defaults'
     result = runner.invoke(
