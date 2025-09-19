@@ -1,5 +1,6 @@
 import os
 
+import requests
 import yaml
 from click.testing import CliRunner
 
@@ -27,6 +28,36 @@ def test_model_init_huggingface_toolkit(monkeypatch, tmp_path):
         with open(os.path.join(clone_dir, 'requirements.txt'), 'w') as f:
             f.write('# none')
         return True
+
+    # --- NEW: stub GitHub API listing to avoid real network call ---
+    class _FakeResp:
+        def __init__(self, data, status_code=200):
+            self._data = data
+            self.status_code = status_code
+            self.text = 'ok'
+
+        def json(self):
+            return self._data
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise RuntimeError(f"HTTP {self.status_code}")
+
+    def fake_requests_get(url, *a, **kw):
+        # Simulate the directory listing the code expects
+        if "/contents" in url:
+            return _FakeResp(
+                [
+                    {'name': '1', 'type': 'dir', 'path': '1'},
+                    {'name': 'config.yaml', 'type': 'file', 'path': 'config.yaml'},
+                    {'name': 'requirements.txt', 'type': 'file', 'path': 'requirements.txt'},
+                ]
+            )
+        return _FakeResp({})
+
+    # Patch requests.get inside the module under test
+    monkeypatch.setattr(requests, "get", fake_requests_get, raising=True)
+    # ----------------------------------------------------------------
 
     # Patches
     monkeypatch.setattr(model_module, 'clone_github_repo', fake_clone)
