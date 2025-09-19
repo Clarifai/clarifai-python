@@ -21,8 +21,7 @@ DEFAULT_LOCAL_RUNNER_DEPLOYMENT_ID = "local-runner-deployment"
 DEFAULT_LOCAL_RUNNER_MODEL_ID = "local-runner-model"
 DEFAULT_LOCAL_RUNNER_APP_ID = "local-runner-app"
 
-# FIXME: should have any-to-any for these cases.
-DEFAULT_LOCAL_RUNNER_MODEL_TYPE = "text-to-text"
+DEFAULT_LOCAL_RUNNER_MODEL_TYPE = "any-to-any"
 
 DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG = {
     "compute_cluster": {

@@ -2,7 +2,7 @@ import itertools
 import json
 import os
 import time
-from typing import Any, Dict, Generator, Iterable, Iterator, List, Tuple, Union
+from typing import Any, Dict, Generator, Iterable, Iterator, List, Optional, Tuple, Union
 
 import numpy as np
 import requests
@@ -178,20 +178,26 @@ class Model(Lister, BaseClient):
 
         return templates
 
-    def get_params(self, template: str = None, save_to: str = 'params.yaml') -> Dict[str, Any]:
-        """Returns the model params for the model type and yaml file.
+    def get_params(
+        self, template: Optional[str] = None, save_to: str = 'params.yaml'
+    ) -> Dict[str, Any]:
+        """Returns the model params for the model type and saves them to a yaml file.
 
         Args:
-            template (str): The template to use for the model type.
-            yaml_file (str): The yaml file to save the model params.
+            template (Optional[str]): The template to use for the model type. Required for most
+                                    model types except 'clusterer' and 'embedding-classifier'.
+            save_to (str): The yaml file path to save the model params. Defaults to 'params.yaml'.
 
         Returns:
-            params (Dict): Dictionary of model params for the model type.
+            Dict[str, Any]: Dictionary of model params for the model type.
+
+        Raises:
+            UserError: If the model type is not trainable, or if template is required but not provided.
 
         Example:
             >>> from clarifai.client.model import Model
             >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-            >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
+            >>> model_params = model.get_params(template='template', save_to='model_params.yaml')
         """
         if not self.model_info.model_type_id:
             self.load_info()
@@ -260,19 +266,22 @@ class Model(Lister, BaseClient):
             find_and_replace_key(self.training_params, key, value)
 
     def get_param_info(self, param: str) -> Dict[str, Any]:
-        """Returns the param info for the param.
+        """Returns the parameter info for the specified parameter.
 
         Args:
-            param (str): The param to get the info for.
+            param (str): The parameter name to get information for.
 
         Returns:
-            param_info (Dict): Dictionary of model param info for the param.
+            Dict[str, Any]: Dictionary containing model parameter info for the specified param.
+
+        Raises:
+            UserError: If the model type is not trainable or if training params are not loaded.
 
         Example:
             >>> from clarifai.client.model import Model
             >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-            >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
-            >>> model.get_param_info('param')
+            >>> model_params = model.get_params(template='template', save_to='model_params.yaml')
+            >>> param_info = model.get_param_info('learning_rate')
         """
         if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
             raise UserError(f"Model type {self.model_info.model_type_id} is not trainable")

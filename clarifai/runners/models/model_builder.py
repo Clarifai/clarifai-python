@@ -102,6 +102,7 @@ class ModelBuilder:
         self.folder = self._validate_folder(folder)
         self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
         self._validate_config()
+        self._validate_config_secrets()
         self._validate_stream_options()
         self.model_proto = self._get_model_proto()
         self.model_id = self.model_proto.id
@@ -464,6 +465,115 @@ class ModelBuilder:
                     "1) stream_options={'include_usage': True}"
                     "2) set_output_context"
                 )
+
+    def _validate_config_secrets(self):
+        """
+        Validate the secrets section in the config file.
+        """
+        if "secrets" not in self.config:
+            return
+
+        secrets = self.config.get("secrets", [])
+        if not isinstance(secrets, list):
+            raise ValueError("The 'secrets' field must be an array.")
+
+        for i, secret in enumerate(secrets):
+            if not isinstance(secret, dict):
+                raise ValueError(f"Secret at index {i} must be a dictionary.")
+
+            # Validate required fields
+            if "id" not in secret or not secret["id"]:
+                raise ValueError(f"Secret at index {i} must have a non-empty 'id' field.")
+
+            if "type" not in secret or not secret["type"]:
+                secret["type"] = "env"
+
+            if "env_var" not in secret or not secret["env_var"]:
+                raise ValueError(f"Secret at index {i} must have a non-empty 'env_var' field.")
+            # Validate secret type
+            if secret["type"] != "env":
+                raise ValueError(
+                    f"Secret at index {i} has invalid type '{secret['type']}'. Must be 'env'."
+                )
+
+        logger.info(f"Validated {len(secrets)} secrets in config file.")
+
+    def _process_secrets(self):
+        """
+        Process secrets from config file and create/validate them using the User client.
+        Returns the processed secrets array for inclusion in ModelVersion.OutputInfo.Params.
+        """
+        if "secrets" not in self.config:
+            return []
+
+        secrets = self.config.get("secrets", [])
+        if not secrets:
+            return []
+
+        # Get user client for secret operations
+        user = User(
+            user_id=self.config.get('model').get('user_id'),
+            pat=self.client.pat,
+            token=self.client.token,
+            base_url=self.client.base,
+        )
+
+        processed_secrets = []
+        secrets_to_create = []
+
+        for secret in secrets:
+            secret_id = secret["id"]
+            secret_type = secret.get("type", "env")
+            env_var = secret["env_var"]
+            secret_value = secret.get("value")  # Optional for existing secrets
+
+            # Check if secret already exists
+            try:
+                existing_secret = user.get_secret(secret_id)
+                logger.info(f"Secret '{secret_id}' already exists, using existing secret.")
+
+                # Add to processed secrets without the value
+                processed_secret = {
+                    "id": secret_id,
+                    "type": secret_type,
+                    "env_var": env_var,
+                }
+                processed_secrets.append(processed_secret)
+
+            except Exception:
+                # Secret doesn't exist, need to create it
+                if secret_value:
+                    logger.info(f"Secret '{secret_id}' does not exist, will create it.")
+                    secrets_to_create.append(
+                        {
+                            "id": secret_id,
+                            "value": secret_value,
+                            "description": secret.get("description", f"Secret for {env_var}"),
+                        }
+                    )
+
+                    # Add to processed secrets
+                    processed_secret = {
+                        "id": secret_id,
+                        "type": secret_type,
+                        "env_var": env_var,
+                    }
+                    processed_secrets.append(processed_secret)
+                else:
+                    raise ValueError(
+                        f"Secret '{secret_id}' does not exist and no value provided for creation."
+                    )
+
+        # Create new secrets if any
+        if secrets_to_create:
+            try:
+                created_secrets = user.create_secrets(secrets_to_create)
+                logger.info(f"Successfully created {len(created_secrets)} new secrets.")
+            except Exception as e:
+                logger.error(f"Failed to create secrets: {e}")
+                raise
+
+        return processed_secrets
 
     def _is_clarifai_internal(self):
         """
@@ -891,19 +1001,21 @@ class ModelBuilder:
                     )
                 torch_version = dependencies.get('torch', None)
                 if 'torch' in dependencies:
-                    if python_version != DEFAULT_PYTHON_VERSION:
-                        raise Exception(
-                            f"torch is not supported with Python version {python_version}, please use Python version {DEFAULT_PYTHON_VERSION} in your config.yaml"
-                        )
                     if not torch_version:
                         logger.info(
                             f"Setup: torch version not found in requirements.txt, using the default version {DEFAULT_AMD_TORCH_VERSION}"
                         )
                         torch_version = DEFAULT_AMD_TORCH_VERSION
-                    if torch_version not in [DEFAULT_AMD_TORCH_VERSION]:
-                        raise Exception(
-                            f"torch version {torch_version} not supported, please use one of the following versions: {DEFAULT_AMD_TORCH_VERSION} in your requirements.txt"
-                        )
+                    elif torch_version not in [DEFAULT_AMD_TORCH_VERSION]:
+                        # Currently, we have only one vLLM image built with the DEFAULT_AMD_TORCH_VERSION.
+                        # If the user requests a different PyTorch version, that specific version will be
+                        # installed during the requirements.txt installation step
+                        torch_version = DEFAULT_AMD_TORCH_VERSION
+                else:
+                    logger.info(
+                        f"`torch` not found in requirements.txt, using the default torch=={DEFAULT_AMD_TORCH_VERSION}"
+                    )
+                    torch_version = DEFAULT_AMD_TORCH_VERSION
                 python_version = DEFAULT_PYTHON_VERSION
                 gpu_version = DEFAULT_AMD_GPU_VERSION
                 final_image = AMD_VLLM_BASE_IMAGE.format(
@@ -912,21 +1024,17 @@ class ModelBuilder:
                     gpu_version=gpu_version,
                 )
                 logger.info("Setup: Using vLLM base image to build the Docker image")
-            elif 'torch' in dependencies:
+            elif (
+                'torch' in dependencies
+                and (dependencies['torch'] in [None, DEFAULT_AMD_TORCH_VERSION])
+                and python_version == DEFAULT_PYTHON_VERSION
+            ):
                 torch_version = dependencies['torch']
-                if python_version != DEFAULT_PYTHON_VERSION:
-                    raise Exception(
-                        f"torch is not supported with Python version {python_version}, please use Python version {DEFAULT_PYTHON_VERSION} in your config.yaml"
-                    )
                 if not torch_version:
                     logger.info(
                         f"torch version not found in requirements.txt, using the default version {DEFAULT_AMD_TORCH_VERSION}"
                     )
                     torch_version = DEFAULT_AMD_TORCH_VERSION
-                if torch_version not in [DEFAULT_AMD_TORCH_VERSION]:
-                    raise Exception(
-                        f"torch version {torch_version} not supported, please use one of the following versions: {DEFAULT_AMD_TORCH_VERSION} in your requirements.txt"
-                    )
                 python_version = DEFAULT_PYTHON_VERSION
                 gpu_version = DEFAULT_AMD_GPU_VERSION
                 final_image = AMD_TORCH_BASE_IMAGE.format(
@@ -1257,6 +1365,29 @@ class ModelBuilder:
             metadata_struct = Struct()
             metadata_struct.update({'git_registry': git_info})
             model_version_proto.metadata.CopyFrom(metadata_struct)
+
+        # Process and add secrets to output_info.params
+        try:
+            processed_secrets = self._process_secrets()
+            if processed_secrets:
+                # Initialize output_info.params if not already present
+                if not model_version_proto.HasField("output_info"):
+                    model_version_proto.output_info.CopyFrom(resources_pb2.OutputInfo())
+
+                # Initialize params if not already present
+                if not model_version_proto.output_info.HasField("params"):
+                    from google.protobuf.struct_pb2 import Struct
+
+                    model_version_proto.output_info.params.CopyFrom(Struct())
+
+                # Add secrets to params
+                model_version_proto.output_info.params.update({"secrets": processed_secrets})
+                logger.info(
+                    f"Added {len(processed_secrets)} secrets to model version output_info.params"
+                )
+        except Exception as e:
+            logger.error(f"Failed to process secrets: {e}")
+            raise
 
         model_type_id = self.config.get('model').get('model_type_id')
         if model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE:

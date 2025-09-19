@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Dict, Generator, List
+from typing import Any, Dict, Generator, List, Optional
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import Input
@@ -25,29 +25,30 @@ class Workflow(Lister, BaseClient):
 
     def __init__(
         self,
-        url: str = None,
-        workflow_id: str = None,
-        workflow_version: Dict = {'id': ""},
-        output_config: Dict = {'min_value': 0},
+        url: Optional[str] = None,
+        workflow_id: Optional[str] = None,
+        workflow_version: Dict[str, str] = {'id': ""},
+        output_config: Dict[str, Any] = {'min_value': 0},
         base_url: str = DEFAULT_BASE,
-        pat: str = None,
-        token: str = None,
-        root_certificates_path: str = None,
+        pat: Optional[str] = None,
+        token: Optional[str] = None,
+        root_certificates_path: Optional[str] = None,
         **kwargs,
     ):
         """Initializes a Workflow object.
 
         Args:
-            url (str): The URL to initialize the workflow object.
-            workflow_id (str): The Workflow ID to interact with.
-            workflow_version (dict): The Workflow Version to interact with.
-            output_config (dict): The output config to interact with.
-              min_value (float): The minimum value of the prediction confidence to filter.
-              max_concepts (int): The maximum number of concepts to return.
-              select_concepts (list[Concept]): The concepts to select.
-              sample_ms (int): The number of milliseconds to sample.
+            url (Optional[str]): The URL to initialize the workflow object.
+            workflow_id (Optional[str]): The Workflow ID to interact with.
+            workflow_version (Dict[str, str]): The Workflow Version to interact with.
+                                              Defaults to {'id': ""} for latest version.
+            output_config (Dict[str, Any]): The output config to interact with.
+              - min_value (float): The minimum value of the prediction confidence to filter.
+              - max_concepts (int): The maximum number of concepts to return.
+              - select_concepts (List[Concept]): The concepts to select.
+              - sample_ms (int): The number of milliseconds to sample.
             base_url (str): Base API url. Default "https://api.clarifai.com"
-            pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
+            pat (Optional[str]): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
             token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
             root_certificates_path (str): Path to the SSL root certificates file, used to establish secure gRPC connections.
             **kwargs: Additional keyword arguments to be passed to the Workflow.

@@ -1,3 +1,5 @@
+# NOTE(alan): Most of this file is used to support hot reloading of secrets, which has been disabled for now.
+
 import os
 import time
 from contextlib import contextmanager
@@ -149,8 +151,11 @@ def inject_secrets(request: Optional[service_pb2.PostModelOutputsRequest]) -> No
         # Since only env type secrets are injected into the shared volume, we can read them directly.
         variables = get_env_variable(secrets_path)
     else:
-        # If no secrets path is set, assume no secrets and return the request as is.
-        return
+        # If no secrets path is set, use variables from the current environment
+        variables = {}
+        for key, value in os.environ.items():
+            if not key.startswith("CLARIFAI"):
+                variables[key] = value
 
     if not request.HasField("model"):
         request.model.CopyFrom(resources_pb2.Model())
