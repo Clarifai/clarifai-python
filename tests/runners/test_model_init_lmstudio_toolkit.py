@@ -1,6 +1,5 @@
 import os
 
-import requests
 import yaml
 from click.testing import CliRunner
 
@@ -28,35 +27,17 @@ def test_model_init_lmstudio_toolkit(monkeypatch, tmp_path):
             f.write('# none')
         return True
 
-    # --- NEW: stub GitHub API listing to avoid real network call ---
-    class _FakeResp:
-        def __init__(self, data, status_code=200):
-            self._data = data
-            self.status_code = status_code
-            self.text = 'ok'
-
-        def json(self):
-            return self._data
-
-        def raise_for_status(self):
-            if self.status_code >= 400:
-                raise RuntimeError(f"HTTP {self.status_code}")
-
-    def fake_requests_get(url, *a, **kw):
-        # Simulate the directory listing the code expects
-        if "/contents" in url:
-            return _FakeResp(
-                [
-                    {'name': '1', 'type': 'dir', 'path': '1'},
-                    {'name': 'config.yaml', 'type': 'file', 'path': 'config.yaml'},
-                    {'name': 'requirements.txt', 'type': 'file', 'path': 'requirements.txt'},
-                ]
-            )
-        return _FakeResp({})
-
-    # Patch requests.get inside the module under test
-    monkeypatch.setattr(requests, "get", fake_requests_get, raising=True)
-    # ----------------------------------------------------------------
+    # Stub remote GitHub folder listing
+    monkeypatch.setattr(
+        model_module.GitHubDownloader,
+        'get_folder_contents',
+        lambda self, owner, repo, path, branch: [
+            {'name': '1', 'type': 'dir', 'path': '1'},
+            {'name': 'config.yaml', 'type': 'file', 'path': 'config.yaml'},
+            {'name': 'requirements.txt', 'type': 'file', 'path': 'requirements.txt'},
+        ],
+        raising=True,
+    )
 
     # Patches
     monkeypatch.setattr(model_module, 'clone_github_repo', fake_clone)
@@ -64,7 +45,8 @@ def test_model_init_lmstudio_toolkit(monkeypatch, tmp_path):
     monkeypatch.setattr(
         model_module, 'check_requirements_installed', lambda path: True, raising=False
     )
-    monkeypatch.setattr("builtins.input", lambda *args, **kwargs: "")
+    # Simulate Enter key for interactive confirmation
+    monkeypatch.setattr('builtins.input', lambda *a, **k: '\n')
 
     model_dir = tmp_path / 'lmstudio_model'
 
@@ -125,16 +107,30 @@ def test_model_init_lmstudio_defaults(monkeypatch, tmp_path):
         return True
 
     monkeypatch.setattr(model_module, 'clone_github_repo', fake_clone)
+    monkeypatch.setattr(
+        model_module.GitHubDownloader,
+        'get_folder_contents',
+        lambda self, owner, repo, path, branch: [
+            {'name': '1', 'type': 'dir', 'path': '1'},
+            {'name': 'config.yaml', 'type': 'file', 'path': 'config.yaml'},
+            {'name': 'requirements.txt', 'type': 'file', 'path': 'requirements.txt'},
+        ],
+        raising=True,
+    )
     monkeypatch.setattr(model_module, 'check_lmstudio_installed', lambda: True)
     monkeypatch.setattr(
         model_module, 'check_requirements_installed', lambda path: True, raising=False
     )
-    monkeypatch.setattr("builtins.input", lambda *args, **kwargs: "")
+    monkeypatch.setattr('builtins.input', lambda *a, **k: '\n')
 
     model_dir = tmp_path / 'lmstudio_model_default'
     result = runner.invoke(
         model_init,
-        [str(model_dir), '--toolkit', 'lmstudio'],  # no customization args
+        [
+            str(model_dir),
+            '--toolkit',
+            'lmstudio',
+        ],  # no customization args
         standalone_mode=False,
     )
     assert result.exit_code == 0, result.output
