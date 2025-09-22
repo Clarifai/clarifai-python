@@ -76,7 +76,7 @@ def model():
     '--toolkit',
     type=click.Choice(['ollama', 'huggingface', 'lmstudio', 'vllm'], case_sensitive=False),
     required=False,
-    help='Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio" and "vllm"..',
+    help='Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio" and "vllm".',
 )
 @click.option(
     '--model-name',
