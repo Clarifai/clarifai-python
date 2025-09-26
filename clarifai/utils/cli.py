@@ -298,6 +298,20 @@ def check_ollama_installed():
         return False
 
 
+def check_lmstudio_installed():
+    """Check if the LM Studio CLI is installed."""
+    try:
+        import subprocess
+
+        result = subprocess.run(['lms', 'version'], capture_output=True, text=True, check=False)
+        if result.returncode == 0:
+            return True
+        else:
+            return False
+    except FileNotFoundError:
+        return False
+
+
 def _is_package_installed(package_name):
     """Helper function to check if a single package in requirements.txt is installed."""
     import importlib.metadata
@@ -389,3 +403,51 @@ def convert_timestamp_to_string(timestamp: Timestamp) -> str:
     datetime_obj = timestamp.ToDatetime()
 
     return datetime_obj.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def customize_huggingface_model(model_path, model_name):
+    config_path = os.path.join(model_path, 'config.yaml')
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+
+        # Update the repo_id in checkpoints section
+        if 'checkpoints' not in config:
+            config['checkpoints'] = {}
+        config['checkpoints']['repo_id'] = model_name
+
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+        logger.info(f"Updated Hugging Face model repo_id to: {model_name}")
+    else:
+        logger.warning(f"config.yaml not found at {config_path}, skipping model configuration")
+
+
+def customize_lmstudio_model(model_path, model_name, port, context_length):
+    """Customize the LM Studio model name in the cloned template files.
+    Args:
+     model_path: Path to the cloned model directory
+     model_name: The model name to set (e.g., 'qwen/qwen3-4b-thinking-2507') - optional
+     port: Port for LM Studio server - optional
+     context_length: Context length for the model - optional
+
+    """
+    config_path = os.path.join(model_path, 'config.yaml')
+
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        if 'toolkit' not in config or config['toolkit'] is None:
+            config['toolkit'] = {}
+        if model_name is not None:
+            config['toolkit']['model'] = model_name
+        if port is not None:
+            config['toolkit']['port'] = port
+        if context_length is not None:
+            config['toolkit']['context_length'] = context_length
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+        logger.info(f"Updated LM Studio model configuration in: {config_path}")
+    else:
+        logger.warning(f"config.yaml not found at {config_path}, skipping model configuration")

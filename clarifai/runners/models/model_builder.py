@@ -10,7 +10,7 @@ import tarfile
 import time
 import webbrowser
 from string import Template
-from typing import Literal
+from typing import Any, Dict, Literal, Optional
 from unittest.mock import MagicMock
 
 import yaml
@@ -102,6 +102,7 @@ class ModelBuilder:
         self.folder = self._validate_folder(folder)
         self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
         self._validate_config()
+        self._validate_config_secrets()
         self._validate_stream_options()
         self.model_proto = self._get_model_proto()
         self.model_id = self.model_proto.id
@@ -109,7 +110,7 @@ class ModelBuilder:
         self.inference_compute_info = self._get_inference_compute_info()
         self.is_v3 = True  # Do model build for v3
 
-    def create_model_instance(self, load_model=True, mocking=False):
+    def create_model_instance(self, load_model=True, mocking=False) -> ModelClass:
         """
         Create an instance of the model class, as specified in the config file.
         """
@@ -464,6 +465,115 @@ class ModelBuilder:
                     "1) stream_options={'include_usage': True}"
                     "2) set_output_context"
                 )
+
+    def _validate_config_secrets(self):
+        """
+        Validate the secrets section in the config file.
+        """
+        if "secrets" not in self.config:
+            return
+
+        secrets = self.config.get("secrets", [])
+        if not isinstance(secrets, list):
+            raise ValueError("The 'secrets' field must be an array.")
+
+        for i, secret in enumerate(secrets):
+            if not isinstance(secret, dict):
+                raise ValueError(f"Secret at index {i} must be a dictionary.")
+
+            # Validate required fields
+            if "id" not in secret or not secret["id"]:
+                raise ValueError(f"Secret at index {i} must have a non-empty 'id' field.")
+
+            if "type" not in secret or not secret["type"]:
+                secret["type"] = "env"
+
+            if "env_var" not in secret or not secret["env_var"]:
+                raise ValueError(f"Secret at index {i} must have a non-empty 'env_var' field.")
+            # Validate secret type
+            if secret["type"] != "env":
+                raise ValueError(
+                    f"Secret at index {i} has invalid type '{secret['type']}'. Must be 'env'."
+                )
+
+        logger.info(f"Validated {len(secrets)} secrets in config file.")
+
+    def _process_secrets(self):
+        """
+        Process secrets from config file and create/validate them using the User client.
+        Returns the processed secrets array for inclusion in ModelVersion.OutputInfo.Params.
+        """
+        if "secrets" not in self.config:
+            return []
+
+        secrets = self.config.get("secrets", [])
+        if not secrets:
+            return []
+
+        # Get user client for secret operations
+        user = User(
+            user_id=self.config.get('model').get('user_id'),
+            pat=self.client.pat,
+            token=self.client.token,
+            base_url=self.client.base,
+        )
+
+        processed_secrets = []
+        secrets_to_create = []
+
+        for secret in secrets:
+            secret_id = secret["id"]
+            secret_type = secret.get("type", "env")
+            env_var = secret["env_var"]
+            secret_value = secret.get("value")  # Optional for existing secrets
+
+            # Check if secret already exists
+            try:
+                existing_secret = user.get_secret(secret_id)
+                logger.info(f"Secret '{secret_id}' already exists, using existing secret.")
+
+                # Add to processed secrets without the value
+                processed_secret = {
+                    "id": secret_id,
+                    "type": secret_type,
+                    "env_var": env_var,
+                }
+                processed_secrets.append(processed_secret)
+
+            except Exception:
+                # Secret doesn't exist, need to create it
+                if secret_value:
+                    logger.info(f"Secret '{secret_id}' does not exist, will create it.")
+                    secrets_to_create.append(
+                        {
+                            "id": secret_id,
+                            "value": secret_value,
+                            "description": secret.get("description", f"Secret for {env_var}"),
+                        }
+                    )
+
+                    # Add to processed secrets
+                    processed_secret = {
+                        "id": secret_id,
+                        "type": secret_type,
+                        "env_var": env_var,
+                    }
+                    processed_secrets.append(processed_secret)
+                else:
+                    raise ValueError(
+                        f"Secret '{secret_id}' does not exist and no value provided for creation."
+                    )
+
+        # Create new secrets if any
+        if secrets_to_create:
+            try:
+                created_secrets = user.create_secrets(secrets_to_create)
+                logger.info(f"Successfully created {len(created_secrets)} new secrets.")
+            except Exception as e:
+                logger.error(f"Failed to create secrets: {e}")
+                raise
+
+        return processed_secrets
 
     def _is_clarifai_internal(self):
         """
@@ -891,19 +1001,21 @@ class ModelBuilder:
                     )
                 torch_version = dependencies.get('torch', None)
                 if 'torch' in dependencies:
-                    if python_version != DEFAULT_PYTHON_VERSION:
-                        raise Exception(
-                            f"torch is not supported with Python version {python_version}, please use Python version {DEFAULT_PYTHON_VERSION} in your config.yaml"
-                        )
                     if not torch_version:
                         logger.info(
                             f"Setup: torch version not found in requirements.txt, using the default version {DEFAULT_AMD_TORCH_VERSION}"
                         )
                         torch_version = DEFAULT_AMD_TORCH_VERSION
-                    if torch_version not in [DEFAULT_AMD_TORCH_VERSION]:
-                        raise Exception(
-                            f"torch version {torch_version} not supported, please use one of the following versions: {DEFAULT_AMD_TORCH_VERSION} in your requirements.txt"
-                        )
+                    elif torch_version not in [DEFAULT_AMD_TORCH_VERSION]:
+                        # Currently, we have only one vLLM image built with the DEFAULT_AMD_TORCH_VERSION.
+                        # If the user requests a different PyTorch version, that specific version will be
+                        # installed during the requirements.txt installation step
+                        torch_version = DEFAULT_AMD_TORCH_VERSION
+                else:
+                    logger.info(
+                        f"`torch` not found in requirements.txt, using the default torch=={DEFAULT_AMD_TORCH_VERSION}"
+                    )
+                    torch_version = DEFAULT_AMD_TORCH_VERSION
                 python_version = DEFAULT_PYTHON_VERSION
                 gpu_version = DEFAULT_AMD_GPU_VERSION
                 final_image = AMD_VLLM_BASE_IMAGE.format(
@@ -912,21 +1024,17 @@ class ModelBuilder:
                     gpu_version=gpu_version,
                 )
                 logger.info("Setup: Using vLLM base image to build the Docker image")
-            elif 'torch' in dependencies:
+            elif (
+                'torch' in dependencies
+                and (dependencies['torch'] in [None, DEFAULT_AMD_TORCH_VERSION])
+                and python_version == DEFAULT_PYTHON_VERSION
+            ):
                 torch_version = dependencies['torch']
-                if python_version != DEFAULT_PYTHON_VERSION:
-                    raise Exception(
-                        f"torch is not supported with Python version {python_version}, please use Python version {DEFAULT_PYTHON_VERSION} in your config.yaml"
-                    )
                 if not torch_version:
                     logger.info(
                         f"torch version not found in requirements.txt, using the default version {DEFAULT_AMD_TORCH_VERSION}"
                     )
                     torch_version = DEFAULT_AMD_TORCH_VERSION
-                if torch_version not in [DEFAULT_AMD_TORCH_VERSION]:
-                    raise Exception(
-                        f"torch version {torch_version} not supported, please use one of the following versions: {DEFAULT_AMD_TORCH_VERSION} in your requirements.txt"
-                    )
                 python_version = DEFAULT_PYTHON_VERSION
                 gpu_version = DEFAULT_AMD_GPU_VERSION
                 final_image = AMD_TORCH_BASE_IMAGE.format(
@@ -1107,7 +1215,7 @@ class ModelBuilder:
                 logger.error(f"Failed to download checkpoints for model {repo_id}")
                 sys.exit(1)
             else:
-                logger.info(f"Downloaded checkpoints for model {repo_id}")
+                logger.info(f"Downloaded checkpoints for model {repo_id} successfully to {path}")
         return path
 
     def _concepts_protos_from_concepts(self, concepts):
@@ -1140,13 +1248,146 @@ class ModelBuilder:
         concepts = config.get('concepts')
         logger.info(f"Updated config.yaml with {len(concepts)} concepts.")
 
-    def get_model_version_proto(self):
+    def _get_git_info(self) -> Optional[Dict[str, Any]]:
+        """
+        Get git repository information for the model path.
+
+        Returns:
+            Dict with git info (url, commit, branch) or None if not a git repository
+        """
+        try:
+            # Check if the folder is within a git repository
+            result = subprocess.run(
+                ['git', 'rev-parse', '--git-dir'],
+                cwd=self.folder,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            # Get git remote URL
+            remote_result = subprocess.run(
+                ['git', 'config', '--get', 'remote.origin.url'],
+                cwd=self.folder,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            # Get current commit hash
+            commit_result = subprocess.run(
+                ['git', 'rev-parse', 'HEAD'],
+                cwd=self.folder,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            # Get current branch
+            branch_result = subprocess.run(
+                ['git', 'branch', '--show-current'],
+                cwd=self.folder,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            git_info = {
+                'commit': commit_result.stdout.strip(),
+                'branch': branch_result.stdout.strip()
+                if branch_result.returncode == 0
+                else 'HEAD',
+            }
+
+            if remote_result.returncode == 0:
+                git_info['url'] = remote_result.stdout.strip()
+
+            return git_info
+
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Not a git repository or git not available
+            return None
+
+    def _check_git_status_and_prompt(self) -> bool:
+        """
+        Check for uncommitted changes in git repository within the model path and prompt user.
+
+        Returns:
+            True if should continue with upload, False if should abort
+        """
+        try:
+            # Check for uncommitted changes within the model path only
+            status_result = subprocess.run(
+                ['git', 'status', '--porcelain', '.'],
+                cwd=self.folder,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            if status_result.stdout.strip():
+                logger.warning("Uncommitted changes detected in model path:")
+                logger.warning(status_result.stdout)
+
+                response = input(
+                    "\nDo you want to continue upload with uncommitted changes? (y/N): "
+                )
+                return response.lower() in ['y', 'yes']
+            else:
+                logger.info("Model path has no uncommitted changes.")
+                return True
+
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Error checking git status, but we already know it's a git repo
+            logger.warning("Could not check git status, continuing with upload.")
+            return True
+
+    def get_model_version_proto(self, git_info: Optional[Dict[str, Any]] = None):
+        """
+        Create a ModelVersion protobuf message for the model.
+        Args:
+          git_info (Optional[Dict[str, Any]]): Git repository information to include in metadata.
+        Returns:
+          resources_pb2.ModelVersion: The ModelVersion protobuf message.
+        """
+
         signatures = self.get_method_signatures()
         model_version_proto = resources_pb2.ModelVersion(
             pretrained_model_config=resources_pb2.PretrainedModelConfig(),
             inference_compute_info=self.inference_compute_info,
             method_signatures=signatures,
         )
+
+        # Add git information to metadata if available
+        if git_info:
+            from google.protobuf.struct_pb2 import Struct
+
+            metadata_struct = Struct()
+            metadata_struct.update({'git_registry': git_info})
+            model_version_proto.metadata.CopyFrom(metadata_struct)
+
+        # Process and add secrets to output_info.params
+        try:
+            processed_secrets = self._process_secrets()
+            if processed_secrets:
+                # Initialize output_info.params if not already present
+                if not model_version_proto.HasField("output_info"):
+                    model_version_proto.output_info.CopyFrom(resources_pb2.OutputInfo())
+
+                # Initialize params if not already present
+                if not model_version_proto.output_info.HasField("params"):
+                    from google.protobuf.struct_pb2 import Struct
+
+                    model_version_proto.output_info.params.CopyFrom(Struct())
+
+                # Add secrets to params
+                model_version_proto.output_info.params.update({"secrets": processed_secrets})
+                logger.info(
+                    f"Added {len(processed_secrets)} secrets to model version output_info.params"
+                )
+        except Exception as e:
+            logger.error(f"Failed to process secrets: {e}")
+            raise
 
         model_type_id = self.config.get('model').get('model_type_id')
         if model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE:
@@ -1175,7 +1416,7 @@ class ModelBuilder:
                 )
         return model_version_proto
 
-    def upload_model_version(self):
+    def upload_model_version(self, git_info=None):
         file_path = f"{self.folder}.tar.gz"
         logger.debug(f"Will tar it into file: {file_path}")
 
@@ -1208,7 +1449,7 @@ class ModelBuilder:
                 )
                 return
 
-        model_version_proto = self.get_model_version_proto()
+        model_version_proto = self.get_model_version_proto(git_info)
 
         def filter_func(tarinfo):
             name = tarinfo.name
@@ -1228,7 +1469,7 @@ class ModelBuilder:
         if when != "upload" and self.config.get("checkpoints"):
             # Get the checkpoint size to add to the storage request.
             # First check for the env variable, then try querying huggingface. If all else fails, use the default.
-            checkpoint_size = os.environ.get('CHECKPOINT_SIZE_BYTES', 0)
+            checkpoint_size = int(os.environ.get('CHECKPOINT_SIZE_BYTES', 0))
             if not checkpoint_size:
                 _, repo_id, _, _, _, _ = self._validate_config_checkpoints()
                 checkpoint_size = HuggingFaceLoader.get_huggingface_checkpoint_total_size(repo_id)
@@ -1272,6 +1513,7 @@ class ModelBuilder:
                     user_id=self.client.user_app_id.user_id,
                     app_id=self.client.user_app_id.app_id,
                     model_id=self.model_proto.id,
+                    colorize=True,
                 )
                 logger.info("""\n
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -1332,13 +1574,13 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
         )
         return result
 
-    def get_model_build_logs(self):
+    def get_model_build_logs(self, current_page=1):
         logs_request = service_pb2.ListLogEntriesRequest(
             log_type="builder",
             user_app_id=self.client.user_app_id,
             model_id=self.model_proto.id,
             model_version_id=self.model_version_id,
-            page=1,
+            page=current_page,
             per_page=50,
         )
         response = self.client.STUB.ListLogEntries(logs_request)
@@ -1347,6 +1589,7 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     def monitor_model_build(self):
         st = time.time()
         seen_logs = set()  # To avoid duplicate log messages
+        current_page = 1  # Track current page for log pagination
         while True:
             resp = self.client.STUB.GetModelVersion(
                 service_pb2.GetModelVersionRequest(
@@ -1357,8 +1600,10 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
             )
 
             status_code = resp.model_version.status.code
-            logs = self.get_model_build_logs()
+            logs = self.get_model_build_logs(current_page)
+            entries_count = 0
             for log_entry in logs.log_entries:
+                entries_count += 1
                 if log_entry.url not in seen_logs:
                     seen_logs.add(log_entry.url)
                     log_entry_msg = re.sub(
@@ -1367,6 +1612,12 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                         log_entry.message.strip(),
                     )
                     logger.info(log_entry_msg)
+
+            # If we got a full page (50 entries), there might be more logs on the next page
+            # If we got fewer than 50 entries, we've reached the end and should stay on current page
+            if entries_count == 50:
+                current_page += 1
+            # else: stay on current_page
             if status_code == status_code_pb2.MODEL_BUILDING:
                 print(
                     f"Model is building... (elapsed {time.time() - st:.1f}s)", end='\r', flush=True
@@ -1414,8 +1665,20 @@ def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
             f"New model will be created at {builder.model_ui_url} with it's first version."
         )
 
+    # Check for git repository information
+    git_info = builder._get_git_info()
+    if git_info:
+        logger.info(f"Detected git repository: {git_info.get('url', 'local repository')}")
+        logger.info(f"Current commit: {git_info['commit']}")
+        logger.info(f"Current branch: {git_info['branch']}")
+
+        # Check for uncommitted changes and prompt user
+        if not builder._check_git_status_and_prompt():
+            logger.info("Upload cancelled by user due to uncommitted changes.")
+            return
     input("Press Enter to continue...")
-    model_version = builder.upload_model_version()
+
+    model_version = builder.upload_model_version(git_info)
 
     # Ask user if they want to deploy the model
     if model_version is not None:  # if it comes back None then it failed.

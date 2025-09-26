@@ -304,8 +304,8 @@ def view(ctx, output_format):
 def run(ctx, script, context=None):
     """Execute a script with the current context's environment"""
     context = ctx.obj.current if not context else context
-    cmd = f'CLARIFAI_USER_ID={context.user_id} CLARIFAI_API_BASE={context.base_url} CLARIFAI_PAT={context.pat} '
-    cmd += ' '.join([f'{k}={v}' for k, v in context.env.items()])
+    cmd = f'CLARIFAI_USER_ID={context.user_id} CLARIFAI_API_BASE={context.api_base} CLARIFAI_PAT={context.pat} '
+    cmd += ' '.join([f'{k}={v}' for k, v in context.to_serializable_dict().items()])
     cmd += f' {script}'
     os.system(cmd)
 
