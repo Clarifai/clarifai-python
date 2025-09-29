@@ -1,3 +1,4 @@
+import hashlib
 import os
 import re
 import sys
@@ -489,6 +490,133 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                 return False
 
         raise TimeoutError("Pipeline step build did not finish in time")
+
+    def hash_directory(self, directory=None, algo="md5"):
+        """
+        Compute a stable hash of all files in the pipeline-step directory.
+        
+        :param directory: Directory to hash (defaults to self.folder)
+        :param algo: Hash algorithm ('md5', 'sha1', 'sha256', etc.)
+        :return: Hash as lowercase hex digest string
+        """
+        if directory is None:
+            directory = self.folder
+            
+        hash_func = hashlib.new(algo)
+        
+        for root, _, files in os.walk(directory):
+            for name in sorted(files):
+                # Exclude config-lock.yaml itself from the hash calculation
+                if name == "config-lock.yaml":
+                    continue
+                    
+                filepath = os.path.join(root, name)
+                relative_path = os.path.relpath(filepath, directory)
+                
+                # Hash the relative path to detect renames
+                hash_func.update(relative_path.encode("utf-8"))
+                
+                # Hash the file size to detect empties
+                file_size = os.path.getsize(filepath)
+                hash_func.update(str(file_size).encode("utf-8"))
+                
+                # Hash the file contents (read in chunks for large files)
+                with open(filepath, "rb") as f:
+                    for chunk in iter(lambda: f.read(8192), b""):
+                        hash_func.update(chunk)
+        
+        return hash_func.hexdigest()
+
+    def load_config_lock(self):
+        """
+        Load existing config-lock.yaml if it exists.
+        
+        :return: Dictionary with config-lock data or None if file doesn't exist
+        """
+        config_lock_path = os.path.join(self.folder, "config-lock.yaml")
+        if os.path.exists(config_lock_path):
+            try:
+                with open(config_lock_path, 'r', encoding='utf-8') as f:
+                    return yaml.safe_load(f)
+            except Exception as e:
+                logger.warning(f"Failed to load config-lock.yaml: {e}")
+                return None
+        return None
+
+    def should_upload_step(self, algo="md5"):
+        """
+        Check if the pipeline step should be uploaded based on hash comparison.
+        
+        :param algo: Hash algorithm to use
+        :return: True if step should be uploaded, False otherwise
+        """
+        config_lock = self.load_config_lock()
+        
+        # If no config-lock.yaml exists, upload the step (first time upload)
+        if config_lock is None:
+            logger.info("No config-lock.yaml found, will upload pipeline step")
+            return True
+            
+        # Compare stored hash with freshly computed one
+        current_hash = self.hash_directory(algo=algo)
+        stored_hash_info = config_lock.get("hash", {})
+        stored_hash = stored_hash_info.get("value", "")
+        stored_algo = stored_hash_info.get("algo", "md5")
+        
+        # If algorithm changed, re-upload to update hash
+        if stored_algo != algo:
+            logger.info(f"Hash algorithm changed from {stored_algo} to {algo}, will upload pipeline step")
+            return True
+            
+        # If hash changed, upload
+        if current_hash != stored_hash:
+            logger.info(f"Hash changed (was: {stored_hash}, now: {current_hash}), will upload pipeline step")
+            return True
+            
+        logger.info(f"Hash unchanged ({current_hash}), skipping pipeline step upload")
+        return False
+
+    def generate_config_lock(self, version_id, algo="md5"):
+        """
+        Generate config-lock.yaml content for the pipeline step.
+        
+        :param version_id: Pipeline step version ID
+        :param algo: Hash algorithm used
+        :return: Dictionary with config-lock data
+        """
+        # Compute hash
+        hash_value = self.hash_directory(algo=algo)
+        
+        # Create config-lock structure
+        config_lock = {
+            "id": version_id,
+            "hash": {
+                "algo": algo,
+                "value": hash_value
+            }
+        }
+        
+        # Append the original config.yaml contents
+        config_lock.update(self.config)
+        
+        return config_lock
+
+    def save_config_lock(self, version_id, algo="md5"):
+        """
+        Save config-lock.yaml file with pipeline step metadata.
+        
+        :param version_id: Pipeline step version ID
+        :param algo: Hash algorithm used
+        """
+        config_lock_data = self.generate_config_lock(version_id, algo)
+        config_lock_path = os.path.join(self.folder, "config-lock.yaml")
+        
+        try:
+            with open(config_lock_path, 'w', encoding='utf-8') as f:
+                yaml.dump(config_lock_data, f, default_flow_style=False, allow_unicode=True)
+            logger.info(f"Generated config-lock.yaml at {config_lock_path}")
+        except Exception as e:
+            logger.error(f"Failed to save config-lock.yaml: {e}")
 
 
 def upload_pipeline_step(folder, skip_dockerfile=False):
