@@ -1,10 +1,10 @@
-import hashlib
 import os
 import re
 import sys
 import tarfile
 import time
 from string import Template
+from typing import List, Optional
 
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -12,6 +12,7 @@ from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf import json_format
 
 from clarifai.client.base import BaseClient
+from clarifai.utils.hashing import hash_directory
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import get_uuid
 from clarifai.versions import CLIENT_VERSION
@@ -23,12 +24,13 @@ UPLOAD_CHUNK_SIZE = 14 * 1024 * 1024
 class PipelineStepBuilder:
     """Pipeline Step Builder class for managing pipeline step upload to Clarifai."""
 
-    def __init__(self, folder: str):
+    def __init__(self, folder: str, hash_exclusions: Optional[List[str]] = None):
         """
         Initialize PipelineStepBuilder.
 
         :param folder: The folder containing the pipeline step files (config.yaml, requirements.txt,
                       dockerfile, and pipeline_step.py in 1/ subdirectory)
+        :param hash_exclusions: List of file names to exclude from hash calculation (defaults to ['config-lock.yaml'])
         """
         self._client = None
         self.folder = self._validate_folder(folder)
@@ -38,6 +40,8 @@ class PipelineStepBuilder:
         self.pipeline_step_id = self.pipeline_step_proto.id
         self.pipeline_step_version_id = None
         self.pipeline_step_compute_info = self._get_pipeline_step_compute_info()
+        # Configure files to exclude from hash calculation
+        self.hash_exclusions = hash_exclusions if hash_exclusions is not None else ['config-lock.yaml']
 
     @property
     def client(self):
@@ -491,41 +495,6 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
 
         raise TimeoutError("Pipeline step build did not finish in time")
 
-    def hash_directory(self, directory=None, algo="md5"):
-        """
-        Compute a stable hash of all files in the pipeline-step directory.
-        
-        :param directory: Directory to hash (defaults to self.folder)
-        :param algo: Hash algorithm ('md5', 'sha1', 'sha256', etc.)
-        :return: Hash as lowercase hex digest string
-        """
-        if directory is None:
-            directory = self.folder
-            
-        hash_func = hashlib.new(algo)
-        
-        for root, _, files in os.walk(directory):
-            for name in sorted(files):
-                # Exclude config-lock.yaml itself from the hash calculation
-                if name == "config-lock.yaml":
-                    continue
-                    
-                filepath = os.path.join(root, name)
-                relative_path = os.path.relpath(filepath, directory)
-                
-                # Hash the relative path to detect renames
-                hash_func.update(relative_path.encode("utf-8"))
-                
-                # Hash the file size to detect empties
-                file_size = os.path.getsize(filepath)
-                hash_func.update(str(file_size).encode("utf-8"))
-                
-                # Hash the file contents (read in chunks for large files)
-                with open(filepath, "rb") as f:
-                    for chunk in iter(lambda: f.read(8192), b""):
-                        hash_func.update(chunk)
-        
-        return hash_func.hexdigest()
 
     def load_config_lock(self):
         """
@@ -558,7 +527,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
             return True
             
         # Compare stored hash with freshly computed one
-        current_hash = self.hash_directory(algo=algo)
+        current_hash = hash_directory(self.folder, algo=algo, exclude_files=self.hash_exclusions)
         stored_hash_info = config_lock.get("hash", {})
         stored_hash = stored_hash_info.get("value", "")
         stored_algo = stored_hash_info.get("algo", "md5")
@@ -585,7 +554,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
         :return: Dictionary with config-lock data
         """
         # Compute hash
-        hash_value = self.hash_directory(algo=algo)
+        hash_value = hash_directory(self.folder, algo=algo, exclude_files=self.hash_exclusions)
         
         # Create config-lock structure
         config_lock = {
