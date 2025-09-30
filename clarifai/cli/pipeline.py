@@ -114,12 +114,12 @@ def run(
     # Try to load from config-lock.yaml first if no config is specified
     lockfile_path = os.path.join(os.getcwd(), "config-lock.yaml")
     if not config and os.path.exists(lockfile_path):
-        logger.info(f"Found config-lock.yaml, using it as default config source")
+        logger.info("Found config-lock.yaml, using it as default config source")
         config = lockfile_path
 
     if config:
         config_data = from_yaml(config)
-        
+
         # Handle both regular config format and lockfile format
         if 'pipeline' in config_data and isinstance(config_data['pipeline'], dict):
             pipeline_config = config_data['pipeline']
@@ -133,7 +133,7 @@ def run(
             pipeline_version_id = config_data.get('pipeline_version_id', pipeline_version_id)
             user_id = config_data.get('user_id', user_id)
             app_id = config_data.get('app_id', app_id)
-            
+
         pipeline_version_run_id = config_data.get(
             'pipeline_version_run_id', pipeline_version_run_id
         )
@@ -342,7 +342,9 @@ def init(pipeline_path):
 
 
 @pipeline.command()
-@click.argument("lockfile_path", type=click.Path(exists=True), required=False, default="config-lock.yaml")
+@click.argument(
+    "lockfile_path", type=click.Path(exists=True), required=False, default="config-lock.yaml"
+)
 def validate_lock(lockfile_path):
     """Validate a config-lock.yaml file for schema and reference consistency.
 
@@ -354,20 +356,20 @@ def validate_lock(lockfile_path):
     try:
         # Load the lockfile
         lockfile_data = from_yaml(lockfile_path)
-        
+
         # Validate required fields
         if "pipeline" not in lockfile_data:
             raise ValueError("'pipeline' section not found in lockfile")
-            
+
         pipeline = lockfile_data["pipeline"]
         required_fields = ["id", "user_id", "app_id", "version_id"]
-        
+
         for field in required_fields:
             if field not in pipeline:
                 raise ValueError(f"Required field '{field}' not found in pipeline section")
             if not pipeline[field]:
                 raise ValueError(f"Required field '{field}' cannot be empty")
-        
+
         # Validate orchestration spec if present
         if "orchestration_spec" in pipeline:
             # Create a temporary config structure for validation
@@ -376,20 +378,20 @@ def validate_lock(lockfile_path):
                     "id": pipeline["id"],
                     "user_id": pipeline["user_id"],
                     "app_id": pipeline["app_id"],
-                    "orchestration_spec": pipeline["orchestration_spec"]
+                    "orchestration_spec": pipeline["orchestration_spec"],
                 }
             }
-            
+
             # Use existing validator to check orchestration spec
             validator = PipelineConfigValidator()
             validator._validate_orchestration_spec(temp_config)
-            
+
         logger.info(f"✅ Lockfile {lockfile_path} is valid")
         logger.info(f"Pipeline: {pipeline['id']}")
         logger.info(f"User: {pipeline['user_id']}")
         logger.info(f"App: {pipeline['app_id']}")
         logger.info(f"Version: {pipeline['version_id']}")
-        
+
     except Exception as e:
         logger.error(f"❌ Lockfile validation failed: {e}")
         raise click.Abort()

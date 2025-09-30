@@ -313,8 +313,6 @@ spec:
         result = builder.upload_pipeline_steps()
         assert result is False
 
-
-
     @patch('clarifai.runners.pipelines.pipeline_builder.BaseClient')
     def test_create_pipeline_success(self, mock_base_client, temp_config_file):
         """Test successful pipeline creation."""

@@ -1,6 +1,5 @@
 import os
 import tempfile
-from unittest.mock import Mock, patch
 
 import pytest
 import yaml
@@ -59,20 +58,19 @@ spec:
         builder.uploaded_step_versions = {"stepA": "version-123"}
 
         lockfile_data = builder.generate_lockfile_data(
-            pipeline_id="test-pipeline",
-            pipeline_version_id="pipeline-version-456"
+            pipeline_id="test-pipeline", pipeline_version_id="pipeline-version-456"
         )
 
         # Verify lockfile structure
         assert "pipeline" in lockfile_data
         pipeline_data = lockfile_data["pipeline"]
-        
+
         assert pipeline_data["id"] == "test-pipeline"
         assert pipeline_data["user_id"] == "test-user"
         assert pipeline_data["app_id"] == "test-app"
         assert pipeline_data["version_id"] == "pipeline-version-456"
         assert "orchestration_spec" in pipeline_data
-        
+
         # Verify that templateRef was updated with version
         argo_spec_str = pipeline_data["orchestration_spec"]["argo_orchestration_spec"]
         argo_spec = yaml.safe_load(argo_spec_str)
@@ -87,20 +85,19 @@ spec:
         builder.uploaded_step_versions = {"stepA": "version-123"}
 
         lockfile_data = builder.generate_lockfile_data(
-            pipeline_id="test-pipeline",
-            pipeline_version_id="pipeline-version-456"
+            pipeline_id="test-pipeline", pipeline_version_id="pipeline-version-456"
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
             lockfile_path = os.path.join(temp_dir, "config-lock.yaml")
             builder.save_lockfile(lockfile_data, lockfile_path)
-            
+
             # Verify file was created and contains correct data
             assert os.path.exists(lockfile_path)
-            
+
             with open(lockfile_path, 'r') as f:
                 saved_data = yaml.safe_load(f)
-                
+
             assert saved_data["pipeline"]["id"] == "test-pipeline"
             assert saved_data["pipeline"]["version_id"] == "pipeline-version-456"
 
@@ -110,16 +107,14 @@ spec:
         # Don't set uploaded_step_versions
 
         lockfile_data = builder.generate_lockfile_data(
-            pipeline_id="test-pipeline",
-            pipeline_version_id="pipeline-version-456"
+            pipeline_id="test-pipeline", pipeline_version_id="pipeline-version-456"
         )
 
         # Should still generate lockfile data with basic info
         assert "pipeline" in lockfile_data
         pipeline_data = lockfile_data["pipeline"]
-        
+
         assert pipeline_data["id"] == "test-pipeline"
         assert pipeline_data["user_id"] == "test-user"
         assert pipeline_data["app_id"] == "test-app"
         assert pipeline_data["version_id"] == "pipeline-version-456"
-
