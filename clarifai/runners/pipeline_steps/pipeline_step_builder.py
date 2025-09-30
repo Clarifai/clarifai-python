@@ -9,6 +9,7 @@ import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf import json_format
+from packaging.requirements import Requirement
 
 from clarifai.client.base import BaseClient
 from clarifai.utils.logging import logger
@@ -229,14 +230,18 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                 continue
             try:
                 # Use packaging.requirements to properly parse package names
-                from packaging.requirements import Requirement
                 req = Requirement(line)
                 if req.name.lower() == 'clarifai':
                     has_clarifai = True
                     break
             except Exception:
                 # Fallback for malformed lines - check if line starts with "clarifai"
-                if line.lower().startswith('clarifai==') or line.lower().startswith('clarifai>=') or line.lower().startswith('clarifai<') or line.lower().startswith('clarifai '):
+                if (
+                    line.lower().startswith('clarifai==')
+                    or line.lower().startswith('clarifai>=')
+                    or line.lower().startswith('clarifai<')
+                    or line.lower().startswith('clarifai ')
+                ):
                     has_clarifai = True
                     break
 
