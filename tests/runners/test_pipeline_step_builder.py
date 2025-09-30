@@ -217,6 +217,37 @@ class TestPipelineStepBuilder:
         clarifai_count = content.count("clarifai")
         assert clarifai_count == 1
 
+    def test_ensure_clarifai_requirement_with_clarifai_grpc(
+        self, mock_base_client, setup_test_folder
+    ):
+        """Test that clarifai is added when clarifai-grpc is present but clarifai is not.
+        
+        This test covers the bug where 'clarifai' in 'clarifai-grpc' was incorrectly
+        detected as the clarifai package itself.
+        """
+        builder = PipelineStepBuilder(setup_test_folder)
+
+        # Add clarifai-grpc and other packages to requirements.txt (realistic scenario)
+        requirements_path = os.path.join(setup_test_folder, "requirements.txt")
+        with open(requirements_path, 'w') as f:
+            f.write("clarifai-grpc>=11.8.2\nclarifai-protocol>=0.0.32\nnumpy>=1.22.0\nrequests>=2.32.0\n")
+
+        # Call the method
+        builder._ensure_clarifai_requirement()
+
+        # Check that clarifai was added
+        with open(requirements_path, 'r') as f:
+            content = f.read()
+
+        # Verify clarifai was added (should contain both clarifai-grpc and clarifai)
+        assert "clarifai-grpc" in content  # Should still have clarifai-grpc
+        assert "clarifai==" in content  # Should have added clarifai
+        
+        # Make sure we have exactly one clarifai package (not matching clarifai-grpc)
+        lines = content.strip().split('\n')
+        clarifai_exact_lines = [line for line in lines if line.strip().startswith('clarifai==')]
+        assert len(clarifai_exact_lines) == 1, f"Expected exactly 1 clarifai== line, got {len(clarifai_exact_lines)}"
+
     def test_create_dockerfile(self, mock_base_client, setup_test_folder):
         """Test Dockerfile creation."""
         builder = PipelineStepBuilder(setup_test_folder)
