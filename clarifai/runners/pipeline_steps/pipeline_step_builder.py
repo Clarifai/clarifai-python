@@ -222,7 +222,23 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                 requirements = f.readlines()
 
         # Check if clarifai is already present
-        has_clarifai = any('clarifai' in line for line in requirements)
+        has_clarifai = False
+        for line in requirements:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                # Use packaging.requirements to properly parse package names
+                from packaging.requirements import Requirement
+                req = Requirement(line)
+                if req.name.lower() == 'clarifai':
+                    has_clarifai = True
+                    break
+            except Exception:
+                # Fallback for malformed lines - check if line starts with "clarifai"
+                if line.lower().startswith('clarifai==') or line.lower().startswith('clarifai>=') or line.lower().startswith('clarifai<') or line.lower().startswith('clarifai '):
+                    has_clarifai = True
+                    break
 
         if not has_clarifai:
             requirements.append(f'clarifai=={CLIENT_VERSION}\n')
