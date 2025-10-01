@@ -116,12 +116,32 @@ class PipelineBuilder:
         return True
 
     def _upload_pipeline_step_with_version_capture(self, step_path: str) -> tuple[bool, str]:
-        """Upload a pipeline step and capture its version ID."""
+        """
+        Upload a pipeline step and capture its version ID.
+        Implements hash-based optimization to only upload modified steps.
+        """
         try:
             # Use the existing pipeline step builder
             from clarifai.runners.pipeline_steps.pipeline_step_builder import PipelineStepBuilder
 
             builder = PipelineStepBuilder(step_path)
+
+            # Check if we should upload based on hash comparison
+            should_upload = builder.should_upload_step()
+
+            if not should_upload:
+                # Load existing version ID from config-lock.yaml
+                config_lock = builder.load_config_lock()
+                if config_lock and config_lock.get("id"):
+                    version_id = config_lock["id"]
+                    logger.info(
+                        f"Using existing pipeline step version {version_id} (no changes detected)"
+                    )
+                    return True, version_id
+                else:
+                    logger.warning(
+                        "Hash indicates no upload needed, but no version ID found in config-lock.yaml. Proceeding with upload."
+                    )
 
             # Create dockerfile if needed
             builder.create_dockerfile()
@@ -139,6 +159,11 @@ class PipelineBuilder:
             success = builder.upload_pipeline_step_version()
 
             if success and builder.pipeline_step_version_id:
+                # Generate config-lock.yaml with the new version ID
+                builder.save_config_lock(builder.pipeline_step_version_id)
+                logger.info(
+                    f"Generated config-lock.yaml for pipeline step with version {builder.pipeline_step_version_id}"
+                )
                 return True, builder.pipeline_step_version_id
             else:
                 logger.error("Failed to get pipeline step version ID after upload")
@@ -148,42 +173,105 @@ class PipelineBuilder:
             logger.error(f"Error uploading pipeline step: {e}")
             return False, ""
 
-    def update_config_with_versions(self) -> None:
-        """Update the config.yaml with uploaded pipeline step versions."""
+    def prepare_lockfile_with_step_versions(self) -> Dict[str, Any]:
+        """Prepare lockfile data with step versions after pipeline step upload."""
         if not self.uploaded_step_versions:
-            logger.info("No pipeline step versions to update in config")
-            return
+            logger.info("No pipeline step versions for lockfile")
 
-        logger.info("Updating config.yaml with pipeline step versions...")
-
-        # Update the orchestration spec
+        # Create a copy of the orchestration spec to modify
         pipeline_config = self.config["pipeline"]
-        orchestration_spec = pipeline_config["orchestration_spec"]
+        orchestration_spec = pipeline_config["orchestration_spec"].copy()
         argo_spec_str = orchestration_spec["argo_orchestration_spec"]
         argo_spec = yaml.safe_load(argo_spec_str)
 
         # Update templateRef names to include versions
         self._update_template_refs_with_versions(argo_spec)
 
-        # Update the config
-        orchestration_spec["argo_orchestration_spec"] = yaml.dump(
-            argo_spec, Dumper=LiteralBlockDumper, default_flow_style=False
-        )
+        # Create the partial lockfile data structure (without pipeline info)
+        lockfile_data = {
+            "pipeline": {
+                "id": self.pipeline_id,
+                "user_id": self.user_id,
+                "app_id": self.app_id,
+                "version_id": None,  # Will be filled in later
+                "orchestration_spec": {
+                    "argo_orchestration_spec": yaml.dump(
+                        argo_spec, Dumper=LiteralBlockDumper, default_flow_style=False
+                    )
+                },
+            }
+        }
 
-        # Remove uploaded directories from step_directories
-        remaining_dirs = []
-        for step_dir in pipeline_config.get("step_directories", []):
-            if step_dir not in self.uploaded_step_versions:
-                remaining_dirs.append(step_dir)
+        return lockfile_data
 
-        pipeline_config["step_directories"] = remaining_dirs
+    def update_lockfile_with_pipeline_info(
+        self, lockfile_data: Dict[str, Any], pipeline_version_id: str
+    ) -> Dict[str, Any]:
+        """Update the prepared lockfile data with pipeline version information."""
+        lockfile_data["pipeline"]["version_id"] = pipeline_version_id
+        return lockfile_data
 
-        # Save the updated config
-        self._save_config()
-        logger.info("Updated config.yaml with pipeline step versions")
+    def generate_lockfile_data(
+        self, pipeline_id: str = None, pipeline_version_id: str = None
+    ) -> Dict[str, Any]:
+        """Generate the complete lockfile data structure without modifying config.yaml.
+
+        This method is kept for backward compatibility. The recommended approach is to use
+        prepare_lockfile_with_step_versions() followed by update_lockfile_with_pipeline_info().
+        """
+        if not self.uploaded_step_versions:
+            logger.info("No pipeline step versions for lockfile")
+
+        # Create a copy of the orchestration spec to modify
+        pipeline_config = self.config["pipeline"]
+        orchestration_spec = pipeline_config["orchestration_spec"].copy()
+        argo_spec_str = orchestration_spec["argo_orchestration_spec"]
+        argo_spec = yaml.safe_load(argo_spec_str)
+
+        # Update templateRef names to include versions
+        self._update_template_refs_with_versions(argo_spec)
+
+        # Create the lockfile data structure
+        lockfile_data = {
+            "pipeline": {
+                "id": pipeline_id or self.pipeline_id,
+                "user_id": self.user_id,
+                "app_id": self.app_id,
+                "version_id": pipeline_version_id,
+                "orchestration_spec": {
+                    "argo_orchestration_spec": yaml.dump(
+                        argo_spec, Dumper=LiteralBlockDumper, default_flow_style=False
+                    )
+                },
+            }
+        }
+
+        return lockfile_data
+
+    def save_lockfile(self, lockfile_data: Dict[str, Any], lockfile_path: str = None) -> None:
+        """Save lockfile data to config-lock.yaml."""
+        if lockfile_path is None:
+            lockfile_path = os.path.join(self.config_dir, "config-lock.yaml")
+
+        try:
+            with open(lockfile_path, 'w', encoding="utf-8") as file:
+                yaml.dump(
+                    lockfile_data,
+                    file,
+                    Dumper=LiteralBlockDumper,
+                    default_flow_style=False,
+                    sort_keys=False,
+                )
+            logger.info(f"Generated lockfile: {lockfile_path}")
+        except Exception as e:
+            raise ValueError(f"Error saving lockfile {lockfile_path}: {e}")
 
     def _update_template_refs_with_versions(self, argo_spec: Dict[str, Any]) -> None:
-        """Update templateRef names in Argo spec to include version information."""
+        """
+        Update templateRef names in Argo spec to include version information.
+        The step versions should be resolved from the corresponding config-lock.yaml
+        file of each pipeline-step, located in the step_directories.
+        """
         for template in argo_spec["spec"]["templates"]:
             if "steps" in template:
                 for step_group in template["steps"]:
@@ -199,12 +287,19 @@ class PipelineBuilder:
                                 step_name = parts[-1]
                                 # The step name should match the directory name or be derivable from it
                                 version_id = self.uploaded_step_versions.get(step_name, None)
+
+                                # If not found in uploaded_step_versions, try to get from config-lock.yaml
+                                if version_id is None:
+                                    version_id = self._get_version_from_config_lock(step_name)
+
                                 if version_id is not None:
                                     # Update the templateRef to include version
                                     new_name = f"{name}/versions/{version_id}"
                                     template_ref["name"] = new_name
                                     template_ref["template"] = new_name
                                     logger.info(f"Updated templateRef from {name} to {new_name}")
+                                else:
+                                    logger.warning(f"Could not find version for step: {step_name}")
                             elif self.validator.TEMPLATE_REF_WITH_VERSION_PATTERN.match(name):
                                 # strip the /versions/{version_id} from the end of name
                                 # to get the name like above
@@ -215,6 +310,11 @@ class PipelineBuilder:
                                 # if it already has a version, make sure it matches the uploaded
                                 # version
                                 version_id = self.uploaded_step_versions.get(step_name, None)
+
+                                # If not found in uploaded_step_versions, try to get from config-lock.yaml
+                                if version_id is None:
+                                    version_id = self._get_version_from_config_lock(step_name)
+
                                 if version_id is not None:
                                     # Update the templateRef to include version
                                     new_name = f"{name}/versions/{version_id}"
@@ -223,9 +323,51 @@ class PipelineBuilder:
                                     logger.info(
                                         f"Updated templateRef from {orig_name} to {new_name}"
                                     )
+                                else:
+                                    logger.warning(f"Could not find version for step: {step_name}")
 
-    def create_pipeline(self) -> bool:
-        """Create the pipeline using PostPipelines RPC."""
+    def _get_version_from_config_lock(self, step_name: str) -> str:
+        """
+        Get version ID from config-lock.yaml file in the corresponding step directory.
+
+        :param step_name: Name of the pipeline step
+        :return: Version ID if found, None otherwise
+        """
+        pipeline_config = self.config["pipeline"]
+        step_directories = pipeline_config.get("step_directories", [])
+
+        for step_dir in step_directories:
+            # Check if step_dir matches step_name (handle both exact match and derivable cases)
+            if (
+                step_dir == step_name
+                or step_dir.endswith(f"/{step_name}")
+                or step_name in step_dir
+            ):
+                config_lock_path = os.path.join(self.config_dir, step_dir, "config-lock.yaml")
+
+                if os.path.exists(config_lock_path):
+                    try:
+                        with open(config_lock_path, 'r', encoding='utf-8') as f:
+                            config_lock = yaml.safe_load(f)
+                            version_id = config_lock.get("id")
+                            if version_id:
+                                logger.info(
+                                    f"Found version {version_id} for step {step_name} in {config_lock_path}"
+                                )
+                                return version_id
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to read config-lock.yaml at {config_lock_path}: {e}"
+                        )
+
+        return None
+
+    def create_pipeline(self) -> tuple[bool, str]:
+        """Create the pipeline using PostPipelines RPC.
+
+        Returns:
+            tuple[bool, str]: (success, pipeline_version_id)
+        """
         logger.info(f"Creating pipeline {self.pipeline_id}...")
 
         try:
@@ -242,6 +384,11 @@ class PipelineBuilder:
             # Parse the Argo spec to get API version
             argo_spec = yaml.safe_load(argo_spec_str)
             api_version = argo_spec.get("apiVersion", "argoproj.io/v1alpha1")
+
+            # Ensure that pipeline_config.argo_orchestration_spec_proto has the updated spec.templates.steps.templateRef values
+            # For each step, if the templateRef is missing a version, append the correct version at the end
+            # The step versions should be resolved from the corresponding config-lock.yaml file of each pipeline-step, located in the step_directories
+            self._update_template_refs_with_versions(argo_spec)
 
             # Create pipeline version with orchestration spec
             pipeline_version = resources_pb2.PipelineVersion()
@@ -269,29 +416,32 @@ class PipelineBuilder:
             if response.status.code == status_code_pb2.SUCCESS:
                 logger.info(f"Successfully created pipeline {self.pipeline_id}")
 
+                pipeline_version_id = ""
                 # Log pipeline and version IDs if available in response
                 if response.pipelines:
                     created_pipeline = response.pipelines[0]
                     logger.info(f"Pipeline ID: {created_pipeline.id}")
                     if created_pipeline.pipeline_version and created_pipeline.pipeline_version.id:
-                        logger.info(f"Pipeline version ID: {created_pipeline.pipeline_version.id}")
+                        pipeline_version_id = created_pipeline.pipeline_version.id
+                        logger.info(f"Pipeline version ID: {pipeline_version_id}")
 
-                return True
+                return True, pipeline_version_id
             else:
                 logger.error(f"Failed to create pipeline: {response.status.description}")
                 logger.error(f"Details: {response.status.details}")
-                return False
+                return False, ""
 
         except Exception as e:
             logger.error(f"Error creating pipeline: {e}")
-            return False
+            return False, ""
 
 
-def upload_pipeline(path: str):
+def upload_pipeline(path: str, no_lockfile: bool = False):
     """
     Upload a pipeline with associated pipeline steps to Clarifai.
 
     :param path: Path to the pipeline configuration file or directory containing config.yaml
+    :param no_lockfile: If True, skip creating config-lock.yaml
     """
     try:
         # Determine if path is a directory or file
@@ -311,15 +461,27 @@ def upload_pipeline(path: str):
             logger.error("Failed to upload pipeline steps")
             sys.exit(1)
 
-        # Step 2: Update config with version information
-        builder.update_config_with_versions()
+        # Step 2: Generate lockfile (unless --no-lockfile is specified)
+        # This will be used to update the versions of pipeline-steps that just got uploaded in Step 1
+        lockfile_data = None
+        if not no_lockfile:
+            lockfile_data = builder.prepare_lockfile_with_step_versions()
 
         # Step 3: Create the pipeline
-        if not builder.create_pipeline():
+        success, pipeline_version_id = builder.create_pipeline()
+        if not success:
             logger.error("Failed to create pipeline")
             sys.exit(1)
 
-        logger.info("Pipeline upload completed successfully!")
+        # Step 4: Update lockfile (unless --no-lockfile is specified)
+        if not no_lockfile and lockfile_data:
+            lockfile_data = builder.update_lockfile_with_pipeline_info(
+                lockfile_data, pipeline_version_id
+            )
+            builder.save_lockfile(lockfile_data)
+            logger.info("Pipeline upload completed successfully with lockfile!")
+        else:
+            logger.info("Pipeline upload completed successfully (lockfile skipped)!")
 
     except Exception as e:
         logger.error(f"Pipeline upload failed: {e}")

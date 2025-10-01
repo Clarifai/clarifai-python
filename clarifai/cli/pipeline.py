@@ -26,14 +26,19 @@ def pipeline():
 
 @pipeline.command()
 @click.argument("path", type=click.Path(exists=True), required=False, default=".")
-def upload(path):
+@click.option(
+    '--no-lockfile',
+    is_flag=True,
+    help='Skip creating config-lock.yaml file.',
+)
+def upload(path, no_lockfile):
     """Upload a pipeline with associated pipeline steps to Clarifai.
 
     PATH: Path to the pipeline configuration file or directory containing config.yaml. If not specified, the current directory is used by default.
     """
     from clarifai.runners.pipelines.pipeline_builder import upload_pipeline
 
-    upload_pipeline(path)
+    upload_pipeline(path, no_lockfile=no_lockfile)
 
 
 @pipeline.command()
@@ -106,15 +111,32 @@ def run(
 
     validate_context(ctx)
 
+    # Try to load from config-lock.yaml first if no config is specified
+    lockfile_path = os.path.join(os.getcwd(), "config-lock.yaml")
+    if not config and os.path.exists(lockfile_path):
+        logger.info("Found config-lock.yaml, using it as default config source")
+        config = lockfile_path
+
     if config:
         config_data = from_yaml(config)
-        pipeline_id = config_data.get('pipeline_id', pipeline_id)
-        pipeline_version_id = config_data.get('pipeline_version_id', pipeline_version_id)
+
+        # Handle both regular config format and lockfile format
+        if 'pipeline' in config_data and isinstance(config_data['pipeline'], dict):
+            pipeline_config = config_data['pipeline']
+            pipeline_id = pipeline_config.get('id', pipeline_id)
+            pipeline_version_id = pipeline_config.get('version_id', pipeline_version_id)
+            user_id = pipeline_config.get('user_id', user_id)
+            app_id = pipeline_config.get('app_id', app_id)
+        else:
+            # Fallback to flat config structure
+            pipeline_id = config_data.get('pipeline_id', pipeline_id)
+            pipeline_version_id = config_data.get('pipeline_version_id', pipeline_version_id)
+            user_id = config_data.get('user_id', user_id)
+            app_id = config_data.get('app_id', app_id)
+
         pipeline_version_run_id = config_data.get(
             'pipeline_version_run_id', pipeline_version_run_id
         )
-        user_id = config_data.get('user_id', user_id)
-        app_id = config_data.get('app_id', app_id)
         nodepool_id = config_data.get('nodepool_id', nodepool_id)
         compute_cluster_id = config_data.get('compute_cluster_id', compute_cluster_id)
         pipeline_url = config_data.get('pipeline_url', pipeline_url)
@@ -317,6 +339,62 @@ def init(pipeline_path):
     logger.info("1. Implement your pipeline step logic in the generated pipeline_step.py files")
     logger.info("2. Add dependencies to requirements.txt files as needed")
     logger.info("3. Run 'clarifai pipeline upload config.yaml' to upload your pipeline")
+
+
+@pipeline.command()
+@click.argument(
+    "lockfile_path", type=click.Path(exists=True), required=False, default="config-lock.yaml"
+)
+def validate_lock(lockfile_path):
+    """Validate a config-lock.yaml file for schema and reference consistency.
+
+    LOCKFILE_PATH: Path to the config-lock.yaml file. If not specified, looks for config-lock.yaml in current directory.
+    """
+    from clarifai.runners.utils.pipeline_validation import PipelineConfigValidator
+    from clarifai.utils.cli import from_yaml
+
+    try:
+        # Load the lockfile
+        lockfile_data = from_yaml(lockfile_path)
+
+        # Validate required fields
+        if "pipeline" not in lockfile_data:
+            raise ValueError("'pipeline' section not found in lockfile")
+
+        pipeline = lockfile_data["pipeline"]
+        required_fields = ["id", "user_id", "app_id", "version_id"]
+
+        for field in required_fields:
+            if field not in pipeline:
+                raise ValueError(f"Required field '{field}' not found in pipeline section")
+            if not pipeline[field]:
+                raise ValueError(f"Required field '{field}' cannot be empty")
+
+        # Validate orchestration spec if present
+        if "orchestration_spec" in pipeline:
+            # Create a temporary config structure for validation
+            temp_config = {
+                "pipeline": {
+                    "id": pipeline["id"],
+                    "user_id": pipeline["user_id"],
+                    "app_id": pipeline["app_id"],
+                    "orchestration_spec": pipeline["orchestration_spec"],
+                }
+            }
+
+            # Use existing validator to check orchestration spec
+            validator = PipelineConfigValidator()
+            validator._validate_orchestration_spec(temp_config)
+
+        logger.info(f"✅ Lockfile {lockfile_path} is valid")
+        logger.info(f"Pipeline: {pipeline['id']}")
+        logger.info(f"User: {pipeline['user_id']}")
+        logger.info(f"App: {pipeline['app_id']}")
+        logger.info(f"Version: {pipeline['version_id']}")
+
+    except Exception as e:
+        logger.error(f"❌ Lockfile validation failed: {e}")
+        raise click.Abort()
 
 
 @pipeline.command(['ls'])
