@@ -243,6 +243,7 @@ def get_model_template(model_type_id: str = None, **kwargs) -> str:
         template_func = MODEL_TYPE_TEMPLATES[model_type_id]
         # Check if the template function accepts additional parameters
         import inspect
+
         sig = inspect.signature(template_func)
         if len(sig.parameters) > 0:
             return template_func(**kwargs)
