@@ -14,14 +14,23 @@ Clarifai Python SDK
   </a>
   <a href="https://pypi.org/project/clarifai" target="_blank"> <img src="https://img.shields.io/pypi/dm/clarifai" alt="PyPI - Downloads">
   </a>
-  <a href="https://img.shields.io/pypi/pyversions/clarifai" target="_blank"> <img src="https://img.shields.io/pypi/pyversions/clarifai" alt="PyPI - Versions">
+  <a href="https://pypi.org/project/clarifai" target="_blank"> <img src="https://img.shields.io/pypi/pyversions/clarifai" alt="PyPI - Python Versions">
   </a>
 </p>
 
 
 
 
-This is the official Python client for interacting with our powerful [API](https://docs.clarifai.com). The Clarifai Python SDK offers a comprehensive set of tools to integrate Clarifai's AI platform to leverage computer vision capabilities like classification , detection ,segementation and natural language capabilities like classification , summarisation , generation , Q&A ,etc into your applications. With just a few lines of code, you can leverage cutting-edge artificial intelligence to unlock valuable insights from visual and textual content.
+This is the official Python client for interacting with our powerful [API](https://docs.clarifai.com). The Clarifai Python SDK offers a comprehensive set of tools to integrate Clarifai's AI platform to leverage computer vision capabilities like classification, detection, segmentation and natural language capabilities like classification, summarization, generation, Q&A, etc into your applications. With just a few lines of code, you can leverage cutting-edge artificial intelligence to unlock valuable insights from visual and textual content.
+
+**Key Features:**
+- 🚀 **Model Development & Deployment**: Complete model lifecycle management with local testing, upload, and deployment
+- 🔧 **CLI Tool**: Powerful command-line interface for model operations, compute orchestration, and pipeline management  
+- 🌐 **Compute Orchestration**: Streamlined infrastructure management for training, deploying, and scaling ML models
+- 🧠 **Multi-Modal AI**: Support for text, image, video, and audio processing with state-of-the-art models
+- 🔍 **Smart Search**: Vector-based search capabilities for visual and semantic similarity
+- 📊 **RAG (Retrieval Augmented Generation)**: Built-in support for document-based AI applications
+- 🔌 **Local Development**: Local model runners with support for vLLM, Hugging Face, LMStudio, and Ollama
 
 [Website](https://www.clarifai.com/) | [Schedule Demo](https://www.clarifai.com/company/schedule-demo) | [Signup for a Free Account](https://clarifai.com/signup) | [API Docs](https://docs.clarifai.com/) | [Clarifai Community](https://clarifai.com/explore) | [Python SDK Docs](https://docs.clarifai.com/resources/api-references/python) | [Examples](https://github.com/Clarifai/examples) | [Colab Notebooks](https://github.com/Clarifai/colab-notebooks) | [Discord](https://discord.gg/XAPE3Vtg)
 
@@ -34,10 +43,14 @@ Give the repo a star ⭐
 
 * **[Installation](#rocket-installation)**
 * **[Getting Started](#memo-getting-started)**
+* **[CLI Tool](#hammer_and_wrench-cli-tool)**
+  * [Model Operations](#model-operations)
+  * [Pipeline Operations](#pipeline-operations)
+  * [Local Development](#local-development)
 * **[Compute Orchestration](#rocket-compute-orchestration)**
   * [Cluster Operations](#cluster-operations)
   * [Nodepool Operations](#nodepool-operations)
-  * [Depolyment Operations](#deployment-operations)
+  * [Deployment Operations](#deployment-operations)
 * **[Interacting with Datasets](#floppy_disk-interacting-with-datasets)**
 * **[Interacting with Inputs](#floppy_disk-interacting-with-inputs)**
   * [Input Upload](#input-upload)
@@ -67,14 +80,15 @@ Give the repo a star ⭐
 
 ## :rocket: Installation
 
+**Requirements:** Python 3.9+ (supports 3.9, 3.10, 3.11, 3.12)
 
-Install from PyPi:
+### Install from PyPI (Recommended)
 
 ```bash
 pip install -U clarifai
 ```
 
-Install from Source:
+### Install from Source
 
 ```bash
 git clone https://github.com/Clarifai/clarifai-python.git
@@ -84,21 +98,33 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-#### Linting
+### Development Setup
 
-For developers, use the precommit hook `.pre-commit-config.yaml` to automate linting.
+For developers contributing to the project:
 
 ```bash
+# Install development dependencies
 pip install -r requirements-dev.txt
+
+# Install pre-commit hooks for automatic linting
 pre-commit install
+
+# Manual linting (uses ruff)
+ruff check . --fix
+ruff format .
+
+# Run pre-commit on all files
+pre-commit run --all-files
 ```
 
-Now every time you run `git commit` your code will be automatically linted and won't commit if it fails.
-
-You can also manually trigger linting using:
+### Verify Installation
 
 ```bash
-pre-commit run --all-files
+# Check installation
+python -c "import clarifai; print(f'Version: {clarifai.__version__}')"
+
+# Test CLI tool
+clarifai --help
 ```
 
 
@@ -136,6 +162,93 @@ from clarifai.client.user import User
 client = User(user_id="user_id", pat="your personal access token")
 ```
 
+## :hammer_and_wrench: CLI Tool
+
+The Clarifai CLI provides powerful commands for model development, compute orchestration, and pipeline management. All CLI operations work seamlessly with both local development and cloud deployment.
+
+### Model Operations
+
+#### Initialize a New Model
+```bash
+# Create a new model project structure
+clarifai model init my-model
+# Creates model.py, config.yaml, requirements.txt, and Dockerfile
+```
+
+#### Local Model Development & Testing
+```bash
+# Run model locally for development and debugging
+clarifai model local-runner
+
+# Run model with local gRPC server
+clarifai model local-grpc
+
+# Execute model unit tests
+clarifai model local-test
+
+# Generate model method signatures
+clarifai model signatures
+```
+
+#### Model Upload & Deployment
+```bash
+# Upload a trained model to Clarifai
+clarifai model upload
+
+# Download model checkpoints
+clarifai model download-checkpoints
+
+# List available models
+clarifai model list
+```
+
+### Pipeline Operations
+
+#### Initialize Pipeline Project
+```bash
+# Create new pipeline with interactive prompts
+clarifai pipeline init my-pipeline
+# Creates config.yaml, step directories, and documentation
+```
+
+#### Pipeline Management
+```bash
+# Upload pipeline to Clarifai
+clarifai pipeline upload
+
+# List all pipelines
+clarifai pipeline list
+
+# Run pipeline and monitor progress
+clarifai pipeline run
+
+# Validate pipeline configuration
+clarifai pipeline validate-lock
+```
+
+### Local Development
+
+The CLI supports multiple AI toolkits for local model development:
+
+- **vLLM**: High-performance LLM inference
+- **Hugging Face**: Extensive model library integration  
+- **LMStudio**: Local language model management
+- **Ollama**: Local LLM deployment
+
+### Compute Orchestration CLI
+```bash
+# Manage compute clusters
+clarifai computecluster create --config cluster-config.yaml
+clarifai computecluster list
+
+# Manage nodepools
+clarifai nodepool create --config nodepool-config.yaml
+clarifai nodepool list
+
+# Manage deployments
+clarifai deployment create --config deployment-config.yaml 
+clarifai deployment list
+```
 
 ## :rocket: Compute Orchestration
 
@@ -190,7 +303,7 @@ nodepool = Nodepool(user_id="user_id",nodepool_id="demo-nodepool-id")
 deployment = nodepool.create_deployment(deployment_id="demo-deployment-id",config_filepath="deployment_config.yaml")
 
 #Get a deployment
-deployment = nodepool.deployment(nodepool_id="demo-deployment-id")
+deployment = nodepool.deployment(deployment_id="demo-deployment-id")
 print(deployment)
 
 # List deployments
@@ -200,8 +313,11 @@ print(all_deployments)
 ```
 ##### [Example Deployment config](https://github.com/Clarifai/examples/blob/main/ComputeOrchestration/configs/deployment_config.yaml)
 
-#### Compute Orchestration CLI Operations
-Refer Here: https://github.com/Clarifai/clarifai-python/tree/master/clarifai/cli
+#### Recent Enhancements
+- **Health Probes**: Models can define custom liveness/readiness checks for better reliability
+- **Secrets Management**: CRUD operations for secrets with environment variable fallback
+- **Git Integration**: Automatic metadata capture during model uploads with change detection
+- **Enhanced Monitoring**: Improved logging and diagnostics across all compute operations
 
 
 ## :floppy_disk: Interacting with Datasets
@@ -554,30 +670,85 @@ for data in results:
 
 ## Retrieval Augmented Generation (RAG)
 
-You can setup and start your RAG pipeline in 4 lines of code. The setup method automatically creates a new app and the necessary components under the hood. By default it uses the [mistral-7B-Instruct](https://clarifai.com/mistralai/completion/models/mistral-7B-Instruct) model.
+Build powerful document-based AI applications with just a few lines of code. The RAG functionality automatically creates the necessary infrastructure and uses state-of-the-art language models.
 
+### Quick Setup
 ```python
 from clarifai.rag import RAG
 
+# Setup RAG pipeline (creates app and components automatically)
 rag_agent = RAG.setup(user_id="USER_ID")
+
+# Upload your documents
 rag_agent.upload(folder_path="~/docs")
-rag_agent.chat(messages=[{"role":"human", "content":"What is Clarifai"}])
+
+# Start chatting with your documents
+response = rag_agent.chat(messages=[{"role":"human", "content":"What is Clarifai?"}])
+print(response)
 ```
 
-If you have previously run the setup method, you can instantiate the RAG class with the prompter workflow URL:
-
+### Using Existing RAG Setup
 ```python
 from clarifai.rag import RAG
 
+# Connect to previously created RAG workflow
 rag_agent = RAG(workflow_url="WORKFLOW_URL")
+
+# Continue chatting
+rag_agent.chat(messages=[{"role":"human", "content":"Summarize the main features"}])
 ```
+
+### Key Features
+- **Automatic Setup**: Creates optimized workflows and infrastructure
+- **Multi-Format Support**: PDFs, text files, web pages, and more
+- **Advanced Models**: Uses latest language models like Mistral-7B-Instruct by default
+- **Custom Workflows**: Support for existing apps and custom workflow configurations
+- **Flexible Prompting**: Customizable prompt templates and parameters
 
 ## :pushpin: More Examples
 
 See many more code examples in this [repo](https://github.com/Clarifai/examples).
 Also see the official [Python SDK docs](https://clarifai-python.readthedocs.io/en/latest/index.html)
 
-## :open_file_folder: Model Upload
+## :open_file_folder: Model Upload & Development
 
-Examples for uploading models and runners have been moved to this [repo](https://github.com/Clarifai/runners-examples).
-Find our official documentation at [docs.clarifai.com/compute/models/upload](https://docs.clarifai.com/compute/models/upload).
+### Quick Start with CLI
+```bash
+# Initialize a new model project
+clarifai model init my-custom-model
+
+# This creates:
+# ├── config.yaml           # Model configuration
+# ├── requirements.txt      # Dependencies  
+# ├── 1/
+# │   └── model.py         # Model implementation
+# └── Dockerfile           # Container configuration
+```
+
+### Local Model Development
+```bash
+# Test your model locally
+clarifai model local-test
+
+# Run interactive development server
+clarifai model local-runner
+
+# Upload when ready
+clarifai model upload
+```
+
+### Supported Toolkits
+- **vLLM**: For high-performance LLM inference
+- **Hugging Face**: Extensive model library integration
+- **LMStudio**: Local language model management  
+- **Ollama**: Local LLM deployment
+
+### Advanced Features
+- **Health Probes**: Define custom liveness/readiness checks
+- **Secrets Management**: Secure handling of API keys and credentials
+- **Git Integration**: Automatic versioning with change detection
+- **Multi-Modal Support**: Text, image, video, and audio processing
+
+For detailed examples and tutorials, visit:
+- **[Model Examples Repository](https://github.com/Clarifai/runners-examples)**
+- **[Official Documentation](https://docs.clarifai.com/compute/models/upload)**
