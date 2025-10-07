@@ -99,9 +99,9 @@ class MyModel(MCPModelClass):
 '''
 
 
-def get_openai_model_class_template() -> str:
+def get_openai_model_class_template(model_id: str = "my-local-model", port: str = "8000") -> str:
     """Return the template for an OpenAIModelClass-based model."""
-    return '''from typing import List
+    return f'''from typing import List
 from openai import OpenAI
 from clarifai.runners.models.openai_class import OpenAIModelClass
 from clarifai.runners.utils.data_utils import Param
@@ -114,12 +114,12 @@ class MyModel(OpenAIModelClass):
     # Configure your OpenAI-compatible client for local model
     client = OpenAI(
         api_key="local-key",  # TODO: please fill in - use your local API key
-        base_url="http://localhost:8000/v1",  # TODO: please fill in - your local model server endpoint
+        base_url="http://localhost:{port}/v1",  # TODO: please fill in - your local model server endpoint
     )
 
     # TODO: please fill in
     # Specify the model name to use
-    model = "my-local-model"  # TODO: please fill in - replace with your local model name
+    model = "{model_id}"  # TODO: please fill in - replace with your local model name
 
     def load_model(self):
         """Optional: Add any additional model loading logic here."""
@@ -237,8 +237,15 @@ MODEL_TYPE_TEMPLATES = {
 }
 
 
-def get_model_template(model_type_id: str = None) -> str:
+def get_model_template(model_type_id: str = None, **kwargs) -> str:
     """Get the appropriate model template based on model_type_id."""
     if model_type_id in MODEL_TYPE_TEMPLATES:
-        return MODEL_TYPE_TEMPLATES[model_type_id]()
+        template_func = MODEL_TYPE_TEMPLATES[model_type_id]
+        # Check if the template function accepts additional parameters
+        import inspect
+        sig = inspect.signature(template_func)
+        if len(sig.parameters) > 0:
+            return template_func(**kwargs)
+        else:
+            return template_func()
     return get_model_class_template()
