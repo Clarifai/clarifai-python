@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tarfile
 import time
-import webbrowser
+import uuid
 from string import Template
 from typing import Any, Dict, Literal, Optional
 from unittest.mock import MagicMock
@@ -18,8 +18,10 @@ from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from google.protobuf import json_format
 
+from clarifai.client import Model, Nodepool
 from clarifai.client.base import BaseClient
 from clarifai.client.user import User
+from clarifai.errors import UserError
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils import code_script
 from clarifai.runners.utils.const import (
@@ -63,6 +65,88 @@ def is_related(object_class, main_class):
         if main_class in parent.__bases__:
             return True
     return False
+
+
+def get_user_input(prompt, required=True, default=None):
+    """Get user input with optional default value."""
+    if default:
+        prompt = f"{prompt} [{default}]: "
+    else:
+        prompt = f"{prompt}: "
+
+    while True:
+        value = input(prompt).strip()
+        if not value and default:
+            return default
+        if not value and required:
+            print("❌ This field is required. Please enter a value.")
+            continue
+        return value
+
+
+def get_yes_no_input(prompt, default=None):
+    """Get yes/no input from user."""
+    if default is not None:
+        prompt = f"{prompt} [{'Y/n' if default else 'y/N'}]: "
+    else:
+        prompt = f"{prompt} [y/n]: "
+
+    while True:
+        response = input(prompt).strip().lower()
+        if not response and default is not None:
+            return default
+        if response in ['y', 'yes']:
+            return True
+        if response in ['n', 'no']:
+            return False
+        print("❌ Please enter 'y' or 'n'.")
+
+
+def select_compute_option(user_id: str):
+    """
+    Dynamically list compute-clusters and node-pools that belong to `user_id`
+    and return a dict with nodepool_id, compute_cluster_id, cluster_user_id.
+    """
+    user = User(user_id=user_id)  # PAT / BASE URL are picked from env-vars
+    clusters = list(user.list_compute_clusters())
+    if not clusters:
+        print("❌ No compute clusters found for this user.")
+        return None
+    print("\n🖥️  Available Compute Clusters:")
+    for idx, cc in enumerate(clusters, 1):
+        desc = getattr(cc, "description", "") or "No description"
+        print(f"{idx}. {cc.id}  –  {desc}")
+    while True:
+        try:
+            sel = int(input("Select compute cluster (number): ")) - 1
+            if 0 <= sel < len(clusters):
+                cluster = clusters[sel]
+                break
+            print("❌ Invalid selection.")
+        except ValueError:
+            print("❌ Please enter a number.")
+    nodepools = list(cluster.list_nodepools())
+    if not nodepools:
+        print("❌ No nodepools in selected cluster.")
+        return None
+    print("\n📦  Available Nodepools:")
+    for idx, np in enumerate(nodepools, 1):
+        desc = getattr(np, "description", "") or "No description"
+        print(f"{idx}. {np.id}  –  {desc}")
+    while True:
+        try:
+            sel = int(input("Select nodepool (number): ")) - 1
+            if 0 <= sel < len(nodepools):
+                nodepool = nodepools[sel]
+                break
+            print("❌ Invalid selection.")
+        except ValueError:
+            print("❌ Please enter a number.")
+    return {
+        "nodepool_id": nodepool.id,
+        "compute_cluster_id": cluster.id,
+        "cluster_user_id": getattr(cluster, "user_id", user_id),
+    }
 
 
 class ModelBuilder:
@@ -1502,6 +1586,7 @@ class ModelBuilder:
         self.model_version_id = response.model_version_id
         logger.info(f"Created Model Version ID: {self.model_version_id}")
         logger.info(f"Full url to that version is: {self.model_ui_url}")
+        is_uploaded = False
         try:
             is_uploaded = self.monitor_model_build()
             if is_uploaded:
@@ -1516,15 +1601,21 @@ class ModelBuilder:
                     colorize=True,
                 )
                 logger.info("""\n
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 # Here is a code snippet to use this model:
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                 """)
                 logger.info(snippet)
+                logger.info("""\n
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+                """)
         finally:
             if os.path.exists(self.tar_file):
                 logger.debug(f"Cleaning up upload file: {self.tar_file}")
                 os.remove(self.tar_file)
+        if is_uploaded:
+            return self.model_version_id
 
     def model_version_stream_upload_iterator(self, model_version_proto, file_path):
         yield self.init_upload_model_version(model_version_proto, file_path)
@@ -1682,204 +1773,257 @@ def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
 
     # Ask user if they want to deploy the model
     if model_version is not None:  # if it comes back None then it failed.
-        deploy_model = input("Do you want to deploy the model? (y/n): ")
-        if deploy_model.lower() != 'y':
+        if get_yes_no_input("\n🔶 Do you want to deploy the model?", True):
+            # Setup deployment for the uploaded model
+            setup_deployment_for_model(builder)
+        else:
             logger.info("Model uploaded successfully. Skipping deployment setup.")
             return
 
-        # Setup deployment for the uploaded model
-        setup_deployment_for_model(builder)
+
+def deploy_model(
+    model_url=None,
+    model_id=None,
+    app_id=None,
+    user_id=None,
+    deployment_id=None,
+    model_version_id=None,
+    nodepool_id=None,
+    compute_cluster_id=None,
+    cluster_user_id=None,
+    min_replicas=0,
+    max_replicas=5,
+):
+    """
+    Deploy a model on Clarifai platform.
+    Args:
+        model_url (str): The full Clarifai model URL (optional if model_id is provided).
+        model_id (str): The ID of the model to be deployed (optional if model_url is provided).
+        app_id (str): The application ID where the model resides.
+        user_id (str): The user ID who owns the model.
+        deployment_id (str): The ID for the new deployment.
+        model_version_id (str): The version ID of the model to deploy. If not provided, the latest version will be used.
+        nodepool_id (str): The ID of the nodepool where the deployment will be created.
+        compute_cluster_id (str): The ID of the compute cluster to use for deployment.
+        cluster_user_id (str): The user ID that owns the compute cluster.
+        min_replicas (int): Minimum number of replicas for autoscaling.
+        max_replicas (int): Maximum number of replicas for autoscaling.
+    """
+    if model_url and model_id:
+        raise UserError("You can only specify one of url or model_id.")
+    if not model_url and not model_id:
+        raise UserError("You must specify one of url or model_id.")
+    if model_url:
+        user_id, app_id, _, model_id, _ = ClarifaiUrlHelper.split_clarifai_url(model_url)
+    if not model_version_id:
+        model = Model(model_id=model_id, app_id=app_id, user_id=user_id)
+        model_versions = [v for v in model.list_versions()]
+        if not model_versions:
+            raise UserError(f"No versions found for model {model_id}.")
+        if len(model_versions) > 1:
+            # model_version_id = model_versions[len(model_versions) - 1].model_version.id # Use the first version
+            model_version_id = model_versions[0].model_version.id  # latest version
+
+    # Construct the full deployment config
+    deployment_config = {
+        "deployment": {
+            "id": deployment_id,
+            "user_id": user_id,
+            "description": "Model deployment created to test Model upload",
+            "autoscale_config": {
+                "min_replicas": min_replicas,
+                "max_replicas": max_replicas,
+                "traffic_history_seconds": 600,
+                "scale_down_delay_seconds": 300,
+                "scale_to_zero_delay_seconds": 3600,
+                "scale_up_delay_seconds": 300,
+            },
+            "worker": {
+                "model": {
+                    "id": model_id,
+                    "model_version": {
+                        "id": model_version_id,
+                    },
+                    "user_id": user_id,
+                    "app_id": app_id,
+                }
+            },
+            "scheduling_choice": 4,  # "performance"
+            "nodepools": [
+                {
+                    "id": nodepool_id,
+                    "compute_cluster": {
+                        "id": compute_cluster_id,
+                        "user_id": cluster_user_id,
+                    },
+                }
+            ],
+            "visibility": {"gettable": 50},
+        }
+    }
+
+    try:
+        # Instantiate Nodepool and create the deployment
+        nodepool = Nodepool(nodepool_id=nodepool_id, user_id=user_id)
+        deployment = nodepool.create_deployment(
+            deployment_id=deployment_id, deployment_config=deployment_config
+        )
+
+        print(
+            f"✅ Deployment '{deployment_id}' successfully created for model '{model_id}' with version '{model_version_id}'."
+        )
+        return True
+    except Exception as e:
+        print(f"❌ Failed to create deployment '{deployment_id}': {e}")
+        return False
 
 
 def setup_deployment_for_model(builder):
     """
     Set up deployment for a model after upload.
 
-    :param builder: The ModelBuilder instance that has uploaded the model.
+    Args:
+        builder: The ModelBuilder instance that has uploaded the model.
     """
 
+    print("\n🚀 Model Deployment")
+    state = {
+        'uploaded': True,
+        'deployed': False,
+    }
     model = builder.config.get('model')
-    user_id = model.get('user_id')
-    app_id = model.get('app_id')
-    model_id = model.get('id')
-
-    # Set up the API client with the user's credentials
-    user = User(user_id=user_id, pat=builder.client.pat, base_url=builder.client.base)
-
-    # Step 1: Check for available compute clusters and let user choose or create a new one
-    logger.info("Checking for available compute clusters...")
-    compute_clusters = list(user.list_compute_clusters())
-
-    compute_cluster = None
-    if compute_clusters:
-        logger.info("Available compute clusters:")
-        for i, cc in enumerate(compute_clusters):
-            logger.info(
-                f"{i + 1}. {cc.id} ({cc.description if hasattr(cc, 'description') else 'No description'})"
-            )
-
-        choice = input(
-            f"Choose a compute cluster (1-{len(compute_clusters)}) or 'n' to create a new one: "
-        )
-        if choice.lower() == 'n':
-            create_new_cc = True
-        else:
-            try:
-                idx = int(choice) - 1
-                if 0 <= idx < len(compute_clusters):
-                    compute_cluster = compute_clusters[idx]
-                    create_new_cc = False
-                else:
-                    logger.info("Invalid choice. Creating a new compute cluster.")
-                    create_new_cc = True
-            except ValueError:
-                logger.info("Invalid choice. Creating a new compute cluster.")
-                create_new_cc = True
-    else:
-        logger.info("No compute clusters found.")
-        create_new_cc = True
-
-    if create_new_cc:
-        # Provide URL to create a new compute cluster
-        url_helper = ClarifaiUrlHelper()
-        compute_cluster_url = f"{url_helper.ui}/settings/compute/new"
-        logger.info(f"Please create a new compute cluster by visiting: {compute_cluster_url}")
-
-        # Ask if they want to open the URL in browser
-        open_browser = input(
-            "Do you want to open the compute cluster creation page in your browser? (y/n): "
-        )
-        if open_browser.lower() == 'y':
-            try:
-                webbrowser.open(compute_cluster_url)
-            except Exception as e:
-                logger.error(f"Failed to open browser: {e}")
-
-        input("After creating the compute cluster, press Enter to continue...")
-
-        # Re-fetch the compute clusters list after user has created one
-        logger.info("Re-checking for available compute clusters...")
-        compute_clusters = list(user.list_compute_clusters())
-
-        if not compute_clusters:
-            logger.info(
-                "No compute clusters found. Please make sure you have created a compute cluster and try again."
-            )
-            return
-
-        # Show the updated list and let user choose
-        logger.info("Available compute clusters:")
-        for i, cc in enumerate(compute_clusters):
-            logger.info(
-                f"{i + 1}. {cc.id} ({cc.description if hasattr(cc, 'description') else 'No description'})"
-            )
-
-        choice = input(f"Choose a compute cluster (1-{len(compute_clusters)}): ")
-        try:
-            idx = int(choice) - 1
-            if 0 <= idx < len(compute_clusters):
-                compute_cluster = compute_clusters[idx]
-            else:
-                logger.info("Invalid choice. Aborting deployment setup.")
-                return
-        except ValueError:
-            logger.info("Invalid choice. Aborting deployment setup.")
-            return
-
-    # Step 2: Check for available nodepools and let user choose or create a new one
-    logger.info(f"Checking for available nodepools in compute cluster '{compute_cluster.id}'...")
-    nodepools = list(compute_cluster.list_nodepools())
-
-    nodepool = None
-    if nodepools:
-        logger.info("Available nodepools:")
-        for i, np in enumerate(nodepools):
-            logger.info(
-                f"{i + 1}. {np.id} ({np.description if hasattr(np, 'description') else 'No description'})"
-            )
-
-        choice = input(f"Choose a nodepool (1-{len(nodepools)}) or 'n' to create a new one: ")
-        if choice.lower() == 'n':
-            create_new_np = True
-        else:
-            try:
-                idx = int(choice) - 1
-                if 0 <= idx < len(nodepools):
-                    nodepool = nodepools[idx]
-                    create_new_np = False
-                else:
-                    logger.info("Invalid choice. Creating a new nodepool.")
-                    create_new_np = True
-            except ValueError:
-                logger.info("Invalid choice. Creating a new nodepool.")
-                create_new_np = True
-    else:
-        logger.info("No nodepools found in this compute cluster.")
-        create_new_np = True
-
-    if create_new_np:
-        # Provide URL to create a new nodepool
-        url_helper = ClarifaiUrlHelper()
-        nodepool_url = f"{url_helper.ui}/settings/compute/{compute_cluster.id}/nodepools/new"
-        logger.info(f"Please create a new nodepool by visiting: {nodepool_url}")
-
-        # Ask if they want to open the URL in browser
-        open_browser = input(
-            "Do you want to open the nodepool creation page in your browser? (y/n): "
-        )
-        if open_browser.lower() == 'y':
-            try:
-                webbrowser.open(nodepool_url)
-            except Exception as e:
-                logger.error(f"Failed to open browser: {e}")
-
-        input("After creating the nodepool, press Enter to continue...")
-
-        # Re-fetch the nodepools list after user has created one
-        logger.info(
-            f"Re-checking for available nodepools in compute cluster '{compute_cluster.id}'..."
-        )
-        nodepools = list(compute_cluster.list_nodepools())
-
-        if not nodepools:
-            logger.info(
-                "No nodepools found. Please make sure you have created a nodepool in the selected compute cluster and try again."
-            )
-            return
-
-        # Show the updated list and let user choose
-        logger.info("Available nodepools:")
-        for i, np in enumerate(nodepools):
-            logger.info(
-                f"{i + 1}. {np.id} ({np.description if hasattr(np, 'description') else 'No description'})"
-            )
-
-        choice = input(f"Choose a nodepool (1-{len(nodepools)}): ")
-        try:
-            idx = int(choice) - 1
-            if 0 <= idx < len(nodepools):
-                nodepool = nodepools[idx]
-            else:
-                logger.info("Invalid choice. Aborting deployment setup.")
-                return
-        except ValueError:
-            logger.info("Invalid choice. Aborting deployment setup.")
-            return
-
-    # Step 3: Help create a new deployment by providing URL
-    # Provide URL to create a new deployment
-    url_helper = ClarifaiUrlHelper()
-    deployment_url = f"{url_helper.ui}/compute/deployments/create?computeClusterId={compute_cluster.id}&nodePoolId={nodepool.id}"
-    logger.info(f"Please create a new deployment by visiting: {deployment_url}")
-
-    # Ask if they want to open the URL in browser
-    open_browser = input(
-        "Do you want to open the deployment creation page in your browser? (y/n): "
+    state.update(
+        {
+            'user_id': model.get('user_id'),
+            'app_id': model.get('app_id'),
+            'model_id': model.get('id'),
+            'model_version_id': builder.model_version_id,
+        }
     )
-    if open_browser.lower() == 'y':
-        try:
-            webbrowser.open(deployment_url)
-        except Exception as e:
-            logger.error(f"Failed to open browser: {e}")
 
-    logger.info("After creating the deployment, your model will be ready for inference!")
+    # Select compute options
+    compute_config = select_compute_option(user_id=state['user_id'])
+
+    # Get deployment configuration
+    print("\n⌨️  Enter Deployment Configuration:")
+    deployment_id = get_user_input(
+        "Enter deployment ID", default=f"deploy-{state['model_id']}-{uuid.uuid4().hex[:6]}"
+    )
+    min_replicas = int(get_user_input("Enter minimum replicas", default="1"))
+    max_replicas = int(get_user_input("Enter maximum replicas", default="5"))
+
+    print("\n⏳ Deploying model...")
+
+    # Retry logic for deployment
+    max_retries = 1
+    for attempt in range(max_retries):
+        success = deploy_model(
+            model_id=state['model_id'],
+            app_id=state['app_id'],
+            user_id=state['user_id'],
+            deployment_id=deployment_id,
+            model_version_id=state['model_version_id'],
+            nodepool_id=compute_config['nodepool_id'],
+            compute_cluster_id=compute_config['compute_cluster_id'],
+            cluster_user_id=compute_config['cluster_user_id'],
+            min_replicas=min_replicas,
+            max_replicas=max_replicas,
+        )
+
+        if success:
+            state.update(
+                {
+                    'deployed': True,
+                    'deployment_id': deployment_id,
+                    'nodepool_id': compute_config['nodepool_id'],
+                }
+            )
+            print("Model deployed successfully! You can test it now.")
+            time.sleep(2)  # Give some time for the deployment to stabilize
+        elif attempt < max_retries - 1:
+            if get_yes_no_input("Deployment failed. Do you want to retry?", True):
+                continue
+
+    if get_yes_no_input("\n🗑️ Do you want to backtrack and clean up?", True):
+        backtrack_workflow(state)
+
+
+def delete_model_deployment(deployment_id, user_id, nodepool_id=None):
+    """
+    Delete a model deployment on Clarifai platform.
+
+    Args:
+        deployment_id (str): The ID of the deployment to be deleted.
+        nodepool_id (str): The ID of the nodepool where the deployment resides.
+        user_id (str): The Clarifai user ID (usually owner of the deployment).
+    """
+
+    # Instantiate the Nodepool object with given IDs
+    nodepool = Nodepool(nodepool_id=nodepool_id, user_id=user_id)
+    # The delete_deployments method expects a list of deployment IDs
+    try:
+        nodepool.delete_deployments([deployment_id])
+        print(f"✅ Deployment '{deployment_id}' has been successfully deleted.")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to delete deployment '{deployment_id}': {e}")
+        return False
+
+
+def delete_model_version(
+    model_url=None, model_id=None, app_id=None, user_id=None, model_version_id=None
+):
+    """
+    Delete a specific version of a model on Clarifai platform.
+    Args:
+        model_url (str): The full Clarifai model URL (optional if model_id is provided).
+        model_id (str): The ID of the model (optional if model_url is provided).
+        app_id (str): The ID of the application the model belongs to.
+        user_id (str): The ID of the user who owns the model.
+        model_version_id (str): The ID of the model version to be deleted.
+    """
+    if not model_version_id:
+        raise UserError("You must specify a model_version_id to delete.")
+    if model_url and model_id:
+        raise UserError("You can only specify one of url or model_id.")
+    if not model_url and not model_id:
+        raise UserError("You must specify one of url or model_id.")
+    if model_url:
+        user_id, app_id, _, model_id, _ = ClarifaiUrlHelper.split_clarifai_url(model_url)
+    model = Model(model_id=model_id, app_id=app_id, user_id=user_id)
+    try:
+        model.delete_version(version_id=model_version_id)
+        print(f"✅ Model version '{model_version_id}' successfully deleted.")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to delete model version '{model_version_id}': {e}")
+        return False
+
+
+def backtrack_workflow(state):
+    """Handle backtracking when operations fail."""
+    print("\n🔄 Starting backtrack process...")
+
+    # Delete deployment if it was created
+    if state.get('deployed') and state.get('deployment_id'):
+        if get_yes_no_input("Do you want to delete the deployment?", True):
+            success = delete_model_deployment(
+                deployment_id=state['deployment_id'],
+                user_id=state['user_id'],
+                nodepool_id=state.get('nodepool_id'),
+            )
+            if success:
+                state['deployed'] = False
+
+    # Delete model version if it was uploaded
+    if state.get('uploaded') and state.get('model_version_id'):
+        if get_yes_no_input("Do you want to delete the model version?", False):
+            success = delete_model_version(
+                model_id=state['model_id'],
+                app_id=state['app_id'],
+                user_id=state['user_id'],
+                model_version_id=state['model_version_id'],
+            )
+            if success:
+                state['uploaded'] = False
+                state['model_version_id'] = None
