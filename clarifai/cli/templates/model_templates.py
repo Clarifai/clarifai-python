@@ -99,7 +99,7 @@ class MyModel(MCPModelClass):
 '''
 
 
-def get_openai_model_class_template(model_id: str = "my-local-model", port: str = "8000") -> str:
+def get_openai_model_class_template(port: str = "8000") -> str:
     """Return the template for an OpenAIModelClass-based model."""
     return f'''from typing import List
 from openai import OpenAI
@@ -117,9 +117,8 @@ class MyModel(OpenAIModelClass):
         base_url="http://localhost:{port}/v1",  # TODO: please fill in - your local model server endpoint
     )
 
-    # TODO: please fill in
-    # Specify the model name to use
-    model = "{model_id}"  # TODO: please fill in - replace with your local model name
+    # Automatically get the first available model
+    model = client.models.list().data[0].id
 
     def load_model(self):
         """Optional: Add any additional model loading logic here."""

@@ -299,11 +299,8 @@ def init(
         template_kwargs = {}
         if model_type_id == "openai":
             logger.info("Configuring OpenAI local runner...")
-            model_id = input_or_default(
-                "Enter model-id (default: my-local-model): ", "my-local-model"
-            )
             port = input_or_default("Enter port (default: 8000): ", "8000")
-            template_kwargs = {"model_id": model_id, "port": port}
+            template_kwargs = {"port": port}
 
         # Create the 1/ subdirectory
         model_version_dir = os.path.join(model_path, "1")
