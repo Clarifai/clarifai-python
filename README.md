@@ -51,6 +51,7 @@ Give the repo a star ⭐
   * [Cluster Operations](#cluster-operations)
   * [Nodepool Operations](#nodepool-operations)
   * [Deployment Operations](#deployment-operations)
+* **[Model Upload & Development](#open_file_folder-model-upload--development)**
 * **[Interacting with Datasets](#floppy_disk-interacting-with-datasets)**
 * **[Interacting with Inputs](#floppy_disk-interacting-with-inputs)**
   * [Input Upload](#input-upload)
@@ -319,6 +320,48 @@ print(all_deployments)
 - **Git Integration**: Automatic metadata capture during model uploads with change detection
 - **Enhanced Monitoring**: Improved logging and diagnostics across all compute operations
 
+## :open_file_folder: Model Upload & Development
+
+### Quick Start with CLI
+```bash
+# Initialize a new model project
+clarifai model init my-custom-model
+
+# This creates:
+# ├── config.yaml           # Model configuration
+# ├── requirements.txt      # Dependencies  
+# ├── 1/
+# │   └── model.py         # Model implementation
+# └── Dockerfile           # Container configuration
+```
+
+### Local Model Development
+```bash
+# Test your model locally
+clarifai model local-test
+
+# Run interactive development server
+clarifai model local-runner
+
+# Upload when ready
+clarifai model upload
+```
+
+### Supported Toolkits
+- **vLLM**: For high-performance LLM inference
+- **Hugging Face**: Extensive model library integration
+- **LMStudio**: Local language model management  
+- **Ollama**: Local LLM deployment
+
+### Advanced Features
+- **Health Probes**: Define custom liveness/readiness checks
+- **Secrets Management**: Secure handling of API keys and credentials
+- **Git Integration**: Automatic versioning with change detection
+- **Multi-Modal Support**: Text, image, video, and audio processing
+
+For detailed examples and tutorials, visit:
+- **[Model Examples Repository](https://github.com/Clarifai/runners-examples)**
+- **[Official Documentation](https://docs.clarifai.com/compute/models/upload)**
 
 ## :floppy_disk: Interacting with Datasets
 
@@ -709,46 +752,3 @@ rag_agent.chat(messages=[{"role":"human", "content":"Summarize the main features
 
 See many more code examples in this [repo](https://github.com/Clarifai/examples).
 Also see the official [Python SDK docs](https://clarifai-python.readthedocs.io/en/latest/index.html)
-
-## :open_file_folder: Model Upload & Development
-
-### Quick Start with CLI
-```bash
-# Initialize a new model project
-clarifai model init my-custom-model
-
-# This creates:
-# ├── config.yaml           # Model configuration
-# ├── requirements.txt      # Dependencies  
-# ├── 1/
-# │   └── model.py         # Model implementation
-# └── Dockerfile           # Container configuration
-```
-
-### Local Model Development
-```bash
-# Test your model locally
-clarifai model local-test
-
-# Run interactive development server
-clarifai model local-runner
-
-# Upload when ready
-clarifai model upload
-```
-
-### Supported Toolkits
-- **vLLM**: For high-performance LLM inference
-- **Hugging Face**: Extensive model library integration
-- **LMStudio**: Local language model management  
-- **Ollama**: Local LLM deployment
-
-### Advanced Features
-- **Health Probes**: Define custom liveness/readiness checks
-- **Secrets Management**: Secure handling of API keys and credentials
-- **Git Integration**: Automatic versioning with change detection
-- **Multi-Modal Support**: Text, image, video, and audio processing
-
-For detailed examples and tutorials, visit:
-- **[Model Examples Repository](https://github.com/Clarifai/runners-examples)**
-- **[Official Documentation](https://docs.clarifai.com/compute/models/upload)**
