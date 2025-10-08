@@ -231,6 +231,44 @@ def init(
                     repo_url = format_github_repo_url(github_url)
                     repo_url = f"https://github.com/{owner}/{repo}"
 
+                try:
+                    # Create a temporary directory for cloning
+                    with tempfile.TemporaryDirectory(prefix="clarifai_model_") as clone_dir:
+                        # Clone the repository with explicit branch parameter
+                        if not clone_github_repo(repo_url, clone_dir, github_pat, branch):
+                            logger.error(f"Failed to clone repository from {repo_url}")
+                            github_url = None  # Fall back to template mode
+
+                        else:
+                            # Copy the entire repository content to target directory (excluding .git)
+                            for item in os.listdir(clone_dir):
+                                if item == '.git':
+                                    continue
+
+                                source_path = os.path.join(clone_dir, item)
+                                target_path = os.path.join(model_path, item)
+
+                                if os.path.isdir(source_path):
+                                    shutil.copytree(source_path, target_path, dirs_exist_ok=True)
+                                else:
+                                    shutil.copy2(source_path, target_path)
+
+                            logger.info(f"Successfully cloned repository to {model_path}")
+                            logger.info(
+                                "Model initialization complete with GitHub repository clone"
+                            )
+                            logger.info("Next steps:")
+                            logger.info("1. Review the model configuration")
+                            logger.info("2. Install any required dependencies manually")
+                            logger.info(
+                                "3. Test the model locally using 'clarifai model local-test'"
+                            )
+                            return
+
+                except Exception as e:
+                    logger.error(f"Failed to clone GitHub repository: {e}")
+                    github_url = None  # Fall back to template mode
+
     if toolkit:
         logger.info(f"Initializing model from GitHub repository: {github_url}")
 
@@ -240,31 +278,31 @@ def init(
         else:
             repo_url = format_github_repo_url(github_url)
 
-    try:
-        # Create a temporary directory for cloning
-        with tempfile.TemporaryDirectory(prefix="clarifai_model_") as clone_dir:
-            # Clone the repository with explicit branch parameter
-            if not clone_github_repo(repo_url, clone_dir, github_pat, branch):
-                logger.error(f"Failed to clone repository from {repo_url}")
-                github_url = None  # Fall back to template mode
+        try:
+            # Create a temporary directory for cloning
+            with tempfile.TemporaryDirectory(prefix="clarifai_model_") as clone_dir:
+                # Clone the repository with explicit branch parameter
+                if not clone_github_repo(repo_url, clone_dir, github_pat, branch):
+                    logger.error(f"Failed to clone repository from {repo_url}")
+                    github_url = None  # Fall back to template mode
 
-            else:
-                # Copy the entire repository content to target directory (excluding .git)
-                for item in os.listdir(clone_dir):
-                    if item == '.git':
-                        continue
+                else:
+                    # Copy the entire repository content to target directory (excluding .git)
+                    for item in os.listdir(clone_dir):
+                        if item == '.git':
+                            continue
 
-                    source_path = os.path.join(clone_dir, item)
-                    target_path = os.path.join(model_path, item)
+                        source_path = os.path.join(clone_dir, item)
+                        target_path = os.path.join(model_path, item)
 
-                    if os.path.isdir(source_path):
-                        shutil.copytree(source_path, target_path, dirs_exist_ok=True)
-                    else:
-                        shutil.copy2(source_path, target_path)
+                        if os.path.isdir(source_path):
+                            shutil.copytree(source_path, target_path, dirs_exist_ok=True)
+                        else:
+                            shutil.copy2(source_path, target_path)
 
-    except Exception as e:
-        logger.error(f"Failed to clone GitHub repository: {e}")
-        github_url = None
+        except Exception as e:
+            logger.error(f"Failed to clone GitHub repository: {e}")
+            github_url = None
 
     if (model_name or port or context_length) and (toolkit == 'ollama'):
         customize_ollama_model(model_path, model_name, port, context_length)
