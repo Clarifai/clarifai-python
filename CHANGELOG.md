@@ -1,3 +1,10 @@
+## [[11.8.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.3) - [PyPI](https://pypi.org/project/clarifai/11.8.3/) - 2025-10-09
+
+### Changed
+- Disabled `async_stub` in `ModelClient` initialization [(#804)](https://github.com/Clarifai/clarifai-python/pull/804)
+- Fixed `UnboundLocalError` in model init when using `--model-type-id` without toolkit [(#799)](https://github.com/Clarifai/clarifai-python/pull/799)
+- Added config-lock.yaml to clarifai pipeline upload [(#754)](https://github.com/Clarifai/clarifai-python/pull/754)
+
 ## [[11.8.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.2) - [PyPI](https://pypi.org/project/clarifai/11.8.2/) - 2025-09-24
 
 ### Changed
