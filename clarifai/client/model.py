@@ -522,8 +522,9 @@ class Model(Lister, BaseClient):
                 model=self.model_info,
                 runner_selector=self._runner_selector,
             )
+            # Pass in None for async stub will create it.
             self._client = ModelClient(
-                stub=self.STUB, async_stub=self.async_stub, request_template=request_template
+                stub=self.STUB, async_stub=None, request_template=request_template
             )
         return self._client
 
