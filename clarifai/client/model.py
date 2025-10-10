@@ -524,7 +524,6 @@ class Model(Lister, BaseClient):
                 runner_selector=self._runner_selector,
             )
             # Pass in None for async stub will create it.
-            print("######## inside client property created stub########", self.STUB)
             self._client = ModelClient(
                 stub=self.STUB, async_stub=None, request_template=request_template
             )
@@ -541,7 +540,6 @@ class Model(Lister, BaseClient):
                 model=self.model_info,
                 runner_selector=self._runner_selector,
             )
-            print("#######created async stub########", self.async_stub)
             # Create async client with async stub
             self._async_client = ModelClient(
                 stub=self.STUB, async_stub=self.async_stub, request_template=request_template
