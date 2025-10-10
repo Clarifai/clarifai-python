@@ -28,9 +28,9 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG,
     DEFAULT_LOCAL_RUNNER_NODEPOOL_ID,
     DEFAULT_OLLAMA_MODEL_REPO_BRANCH,
+    DEFAULT_PYTHON_MODEL_REPO_BRANCH,
     DEFAULT_TOOLKIT_MODEL_REPO,
     DEFAULT_VLLM_MODEL_REPO_BRANCH,
-    DEFAULT_PYTHON_MODEL_REPO_BRANCH,
 )
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import (
@@ -75,7 +75,9 @@ def model():
 )
 @click.option(
     '--toolkit',
-    type=click.Choice(['ollama', 'huggingface', 'lmstudio', 'vllm', 'python'], case_sensitive=False),
+    type=click.Choice(
+        ['ollama', 'huggingface', 'lmstudio', 'vllm', 'python'], case_sensitive=False
+    ),
     required=False,
     help='Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio", "vllm" and "python".',
 )
