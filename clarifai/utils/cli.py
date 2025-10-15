@@ -432,10 +432,11 @@ def customize_huggingface_model(model_path, user_id, model_name):
         # Update the user_id in the model section
         config['model']['user_id'] = user_id
 
-        # Update the repo_id in checkpoints section
-        if 'checkpoints' not in config:
-            config['checkpoints'] = {}
-        config['checkpoints']['repo_id'] = model_name
+        if model_name:
+            # Update the repo_id in checkpoints section
+            if 'checkpoints' not in config:
+                config['checkpoints'] = {}
+            config['checkpoints']['repo_id'] = model_name
 
         with open(config_path, 'w') as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
