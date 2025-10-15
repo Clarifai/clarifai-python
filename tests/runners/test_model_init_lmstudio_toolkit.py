@@ -4,12 +4,13 @@ import yaml
 from click.testing import CliRunner
 
 import clarifai.cli.model as model_module
-from clarifai.cli.model import init as model_init
+from clarifai.cli.base import cli
 
 
 def test_model_init_lmstudio_toolkit(monkeypatch, tmp_path):
     """Happy path: all customization flags provided; placeholders replaced."""
     runner = CliRunner()
+    runner.invoke(cli, ["login", "--user_id", "test_user"])
     called = {'clone': False, 'repo_url': None, 'branch': None}
 
     def fake_clone(repo_url, clone_dir, github_pat, branch):
@@ -51,8 +52,10 @@ def test_model_init_lmstudio_toolkit(monkeypatch, tmp_path):
     model_dir = tmp_path / 'lmstudio_model'
 
     result = runner.invoke(
-        model_init,
+        cli,
         [
+            'model',
+            'init',
             str(model_dir),
             '--toolkit',
             'lmstudio',
@@ -89,6 +92,7 @@ def test_model_init_lmstudio_toolkit(monkeypatch, tmp_path):
 def test_model_init_lmstudio_defaults(monkeypatch, tmp_path):
     """No customization flags: placeholders remain unchanged."""
     runner = CliRunner()
+    runner.invoke(cli, ["login", "--user_id", "test_user"])
     called = {'clone': True}
 
     def fake_clone(repo_url, clone_dir, github_pat, branch):
@@ -125,8 +129,10 @@ def test_model_init_lmstudio_defaults(monkeypatch, tmp_path):
 
     model_dir = tmp_path / 'lmstudio_model_default'
     result = runner.invoke(
-        model_init,
+        cli,
         [
+            'model',
+            'init',
             str(model_dir),
             '--toolkit',
             'lmstudio',
