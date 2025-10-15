@@ -229,7 +229,7 @@ def validate_context_auth(pat: str, user_id: str, api_base: str = None):
 
 
 def customize_ollama_model(
-    model_path, model_name=None, port=None, context_length=None, verbose=False
+    model_path, user_id, model_name=None, port=None, context_length=None, verbose=False
 ):
     """Customize the Ollama model name in the cloned template files.
     Args:
@@ -240,6 +240,24 @@ def customize_ollama_model(
      verbose: Whether to enable verbose logging - optional (defaults to False)
 
     """
+    config_path = os.path.join(model_path, 'config.yaml')
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+
+        # Update the user_id in the model section
+        config['model']['user_id'] = user_id
+        if 'toolkit' not in config or config['toolkit'] is None:
+            config['toolkit'] = {}
+        if model_name is not None:
+            config['toolkit']['model'] = model_name
+        if port is not None:
+            config['toolkit']['port'] = port
+        if context_length is not None:
+            config['toolkit']['context_length'] = context_length
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
     model_py_path = os.path.join(model_path, "1", "model.py")
 
     if not os.path.exists(model_py_path):
@@ -405,11 +423,14 @@ def convert_timestamp_to_string(timestamp: Timestamp) -> str:
     return datetime_obj.strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
-def customize_huggingface_model(model_path, model_name):
+def customize_huggingface_model(model_path, user_id, model_name):
     config_path = os.path.join(model_path, 'config.yaml')
     if os.path.exists(config_path):
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
+
+        # Update the user_id in the model section
+        config['model']['user_id'] = user_id
 
         # Update the repo_id in checkpoints section
         if 'checkpoints' not in config:
@@ -424,7 +445,7 @@ def customize_huggingface_model(model_path, model_name):
         logger.warning(f"config.yaml not found at {config_path}, skipping model configuration")
 
 
-def customize_lmstudio_model(model_path, model_name, port, context_length):
+def customize_lmstudio_model(model_path, user_id, model_name, port, context_length):
     """Customize the LM Studio model name in the cloned template files.
     Args:
      model_path: Path to the cloned model directory
@@ -438,6 +459,8 @@ def customize_lmstudio_model(model_path, model_name, port, context_length):
     if os.path.exists(config_path):
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
+        # Update the user_id in the model section
+        config['model']['user_id'] = user_id
         if 'toolkit' not in config or config['toolkit'] is None:
             config['toolkit'] = {}
         if model_name is not None:

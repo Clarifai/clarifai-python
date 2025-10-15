@@ -95,7 +95,9 @@ def model():
     help='Context length for the Ollama model. Defaults to 8192.',
     required=False,
 )
+@click.pass_context
 def init(
+    ctx,
     model_path,
     model_type_id,
     github_pat,
@@ -129,6 +131,8 @@ def init(
     PORT: Port to run the (Ollama/lmstudio) server on. Defaults to 23333.\n
     CONTEXT_LENGTH: Context length for the (Ollama/lmstudio) model. Defaults to 8192.\n
     """
+    validate_context(ctx)
+    user_id = ctx.obj.current.user_id
     # Resolve the absolute path
     model_path = os.path.abspath(model_path)
 
@@ -304,15 +308,15 @@ def init(
             logger.error(f"Failed to clone GitHub repository: {e}")
             github_url = None
 
-    if (model_name or port or context_length) and (toolkit == 'ollama'):
-        customize_ollama_model(model_path, model_name, port, context_length)
+    if (user_id or model_name or port or context_length) and (toolkit == 'ollama'):
+        customize_ollama_model(model_path, user_id, model_name, port, context_length)
 
-    if (model_name or port or context_length) and (toolkit == 'lmstudio'):
-        customize_lmstudio_model(model_path, model_name, port, context_length)
+    if (user_id or model_name or port or context_length) and (toolkit == 'lmstudio'):
+        customize_lmstudio_model(model_path, user_id, model_name, port, context_length)
 
-    if model_name and (toolkit == 'huggingface' or toolkit == 'vllm'):
+    if (user_id or model_name) and (toolkit == 'huggingface' or toolkit == 'vllm'):
         # Update the config.yaml file with the provided model name
-        customize_huggingface_model(model_path, model_name)
+        customize_huggingface_model(model_path, user_id, model_name)
 
     if github_url:
         logger.info("Model initialization complete with GitHub repository")
@@ -363,7 +367,7 @@ def init(
         else:
             config_model_type_id = DEFAULT_LOCAL_RUNNER_MODEL_TYPE  # default
 
-            config_template = get_config_template(config_model_type_id)
+            config_template = get_config_template(user_id=user_id, model_type_id=config_model_type_id)
             with open(config_path, 'w') as f:
                 f.write(config_template)
             logger.info(f"Created {config_path}")
