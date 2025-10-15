@@ -367,7 +367,9 @@ def init(
         else:
             config_model_type_id = DEFAULT_LOCAL_RUNNER_MODEL_TYPE  # default
 
-            config_template = get_config_template(user_id=user_id, model_type_id=config_model_type_id)
+            config_template = get_config_template(
+                user_id=user_id, model_type_id=config_model_type_id
+            )
             with open(config_path, 'w') as f:
                 f.write(config_template)
             logger.info(f"Created {config_path}")
