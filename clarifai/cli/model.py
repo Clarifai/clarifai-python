@@ -326,11 +326,19 @@ def init(
         logger.info("Initializing model with default templates...")
         input("Press Enter to continue...")
 
+        from clarifai.cli.base import input_or_default
         from clarifai.cli.templates.model_templates import (
             get_config_template,
             get_model_template,
             get_requirements_template,
         )
+
+        # Collect additional parameters for OpenAI template
+        template_kwargs = {}
+        if model_type_id == "openai":
+            logger.info("Configuring OpenAI local runner...")
+            port = input_or_default("Enter port (default: 8000): ", "8000")
+            template_kwargs = {"port": port}
 
         # Create the 1/ subdirectory
         model_version_dir = os.path.join(model_path, "1")
@@ -341,7 +349,7 @@ def init(
         if os.path.exists(model_py_path):
             logger.warning(f"File {model_py_path} already exists, skipping...")
         else:
-            model_template = get_model_template(model_type_id)
+            model_template = get_model_template(model_type_id, **template_kwargs)
             with open(model_py_path, 'w') as f:
                 f.write(model_template)
             logger.info(f"Created {model_py_path}")
