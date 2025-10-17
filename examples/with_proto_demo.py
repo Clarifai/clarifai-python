@@ -20,7 +20,9 @@ def demo_with_proto_functionality():
     # Note: Replace with actual model URL and credentials for real usage
     model_url = "https://clarifai.com/user/app/models/my-pythonic-model"
     deployment_id = "my-deployment-id"
-    pat = os.getenv('CLARIFAI_PAT', 'your-pat-token')
+    pat = os.getenv('CLARIFAI_PAT')
+    if not pat:
+        pat = 'your-pat-token'  # Placeholder for demo purposes
 
     try:
         # Initialize the model client
