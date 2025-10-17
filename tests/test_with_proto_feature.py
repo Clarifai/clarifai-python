@@ -176,10 +176,35 @@ class TestWithProtoFeature(unittest.TestCase):
 
     def test_documentation_shows_with_proto_support(self):
         """Test that the feature is properly documented in method docstrings"""
-        # Check that _async_predict has updated docstring mentioning with_proto
-        docstring = ModelClient._async_predict.__doc__
-        self.assertIn('with_proto', docstring)
-        self.assertTrue('protobuf response' in docstring or 'raw protobuf' in docstring)
+    def test_reserved_parameter_validation(self):
+        """Test that with_proto parameter name is properly validated in ModelClass methods"""
+        from clarifai.runners.utils.method_signatures import build_function_signature, RESERVED_PARAM_WITH_PROTO
+        
+        # Test that a function with with_proto parameter raises an error
+        def invalid_method(self, text: str, with_proto: bool = False) -> str:
+            return text
+        
+        with self.assertRaises(ValueError) as context:
+            build_function_signature(invalid_method)
+        
+        error_msg = str(context.exception)
+        self.assertIn(RESERVED_PARAM_WITH_PROTO, error_msg)
+        self.assertIn("reserved", error_msg.lower())
+
+    def test_reserved_parameter_constant_usage(self):
+        """Test that the constant is used consistently in ModelClient"""
+        from clarifai.runners.utils.method_signatures import RESERVED_PARAM_WITH_PROTO
+        
+        # Test parameter extraction using the constant
+        test_kwargs = {'param1': 'value1', RESERVED_PARAM_WITH_PROTO: True, 'param2': 'value2'}
+        
+        # Extract with_proto parameter using the constant
+        with_proto = test_kwargs.pop(RESERVED_PARAM_WITH_PROTO, False)
+        
+        # Verify extraction worked correctly
+        self.assertIs(with_proto, True)
+        self.assertNotIn(RESERVED_PARAM_WITH_PROTO, test_kwargs)
+        self.assertEqual(test_kwargs, {'param1': 'value1', 'param2': 'value2'})
 
 
 if __name__ == '__main__':

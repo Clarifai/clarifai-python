@@ -11,6 +11,7 @@ from clarifai.constants.model import MAX_MODEL_PREDICT_INPUTS
 from clarifai.errors import UserError
 from clarifai.runners.utils import code_script, method_signatures
 from clarifai.runners.utils.method_signatures import (
+    RESERVED_PARAM_WITH_PROTO,
     CompatibilitySerializer,
     deserialize,
     get_stream_from_signature,
@@ -205,7 +206,7 @@ class ModelClient:
             def bind_f(method_name, method_argnames, call_func, async_call_func):
                 def sync_f(*args, **kwargs):
                     # Extract with_proto parameter if present
-                    with_proto = kwargs.pop('with_proto', False)
+                    with_proto = kwargs.pop(RESERVED_PARAM_WITH_PROTO, False)
 
                     if len(args) > len(method_argnames):
                         raise TypeError(
@@ -237,7 +238,7 @@ class ModelClient:
                 async def async_f(*args, **kwargs):
                     # Async version to call the async function
                     # Extract with_proto parameter if present
-                    with_proto = kwargs.pop('with_proto', False)
+                    with_proto = kwargs.pop(RESERVED_PARAM_WITH_PROTO, False)
 
                     if len(args) > len(method_argnames):
                         raise TypeError(
@@ -908,11 +909,11 @@ class ModelClient:
 
             yield proto
 
-            # subsequent items are just the stream items
-            async for item in user_inputs_generator:
-                proto = resources_pb2.Input()
-                serialize({stream_argname: item}, [stream_sig], proto.data)
-                yield proto
+        # subsequent items are just the stream items
+        async for item in user_inputs_generator:
+            proto = resources_pb2.Input()
+            serialize({stream_argname: item}, [stream_sig], proto.data)
+            yield proto
 
         response_stream = await self._async_stream_by_proto(_input_proto_stream(), method_name)
 
