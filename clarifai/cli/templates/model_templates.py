@@ -177,13 +177,13 @@ class MyModel(OpenAIModelClass):
 '''
 
 
-def get_config_template(model_type_id: str = "any-to-any") -> str:
+def get_config_template(user_id: str = None, model_type_id: str = "any-to-any") -> str:
     """Return the template for config.yaml."""
     return f'''# Configuration file for your Clarifai model
 
 model:
   id: "my-model"  # TODO: please fill in - replace with your model ID
-  user_id: "user_id"  # TODO: please fill in - replace with your user ID
+  user_id: "{user_id}"  # TODO: please fill in - replace with your user ID
   app_id: "app_id"  # TODO: please fill in - replace with your app ID
   model_type_id: "{model_type_id}"  # TODO: please fill in - replace if different model type ID
 
