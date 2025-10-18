@@ -23,6 +23,9 @@ from clarifai.runners.utils.serializers import (
     TupleSerializer,
 )
 
+# Reserved parameter name for protobuf response access
+RESERVED_PARAM_WITH_PROTO = 'with_proto'
+
 
 def build_function_signature(func):
     '''
@@ -45,6 +48,12 @@ def build_function_signature(func):
     input_sigs = []
     input_streaming = []
     for p in sig.parameters.values():
+        # Validate that user methods don't use reserved parameter names
+        if p.name == RESERVED_PARAM_WITH_PROTO:
+            raise ValueError(
+                f"Parameter name '{RESERVED_PARAM_WITH_PROTO}' is reserved and cannot be used in model methods. "
+                f"This parameter is automatically added by the framework to provide access to protobuf responses."
+            )
         model_type_field, _, streaming = build_variable_signature(p.name, p.annotation, p.default)
         input_sigs.append(model_type_field)
         input_streaming.append(streaming)
