@@ -2,9 +2,10 @@
 """
 Example demonstrating the with_proto functionality in Clarifai Python SDK
 
-This feature allows pythonic models to return both the processed result 
+This feature allows pythonic models to return both the processed result
 and the raw protobuf response from the API.
 """
+
 import os
 
 from clarifai.client.model import Model
@@ -39,7 +40,7 @@ def demo_with_proto_functionality():
         print("   response = model.predict(prompt='What is AI?')")
         print("   # Returns only the processed result\n")
 
-        # Example 2: Predict with with_proto=True (NEW feature)  
+        # Example 2: Predict with with_proto=True (NEW feature)
         print("2. Predict with protobuf response (NEW feature):")
         print("   response, proto = model.predict(")
         print("       prompt='What is AI?',")
@@ -83,6 +84,7 @@ def demo_with_proto_functionality():
         # Show the implementation regardless
         show_implementation_details()
 
+
 def show_implementation_details():
     """Show technical implementation details"""
     print("\n=== Implementation Details ===\n")
@@ -98,6 +100,7 @@ def show_implementation_details():
     print("- Synchronous: predict(), generate(), stream(), custom_method()")
     print("- Asynchronous: async_predict(), async_generate(), async_stream()")
     print("- All methods support with_proto parameter consistently\n")
+
 
 def technical_example():
     """Show a technical example of what the protobuf response contains"""
@@ -128,6 +131,7 @@ def technical_example():
         print(f"Error: {proto.status.description}")
         print(f"Debug with Request ID: {proto.status.req_id}")
     """)
+
 
 if __name__ == '__main__':
     demo_with_proto_functionality()
