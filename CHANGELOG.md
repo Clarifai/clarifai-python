@@ -1,3 +1,11 @@
+## [[11.8.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.4) - [PyPI](https://pypi.org/project/clarifai/11.8.4/) - 2025-10-18
+
+### Changed
+- Added python toolkit to CLI init command [(#807)](https://github.com/Clarifai/clarifai-python/pull/807)
+- Added USER_ID to config of CLI Model Init [(#808)](https://github.com/Clarifai/clarifai-python/pull/808)
+- Add user input prompt for OpenAI local runner [(#801)](https://github.com/Clarifai/clarifai-python/pull/801)
+- Fixed async_client initialisation [(#806)](https://github.com/Clarifai/clarifai-python/pull/806)
+
 ## [[11.8.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.3) - [PyPI](https://pypi.org/project/clarifai/11.8.3/) - 2025-10-09
 
 ### Changed
