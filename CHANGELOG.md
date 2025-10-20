@@ -1,3 +1,8 @@
+## [[11.8.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.5) - [PyPI](https://pypi.org/project/clarifai/11.8.5/) - 2025-10-20
+
+### Added
+- Added optional protobuf response information in pythonic models with parameter validation [(#810)](https://github.com/Clarifai/clarifai-python/pull/810)
+
 ## [[11.8.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.4) - [PyPI](https://pypi.org/project/clarifai/11.8.4/) - 2025-10-18
 
 ### Changed
