@@ -41,7 +41,9 @@ from clarifai.runners.utils.loader import HuggingFaceLoader
 from clarifai.runners.utils.method_signatures import signatures_to_yaml
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
-from clarifai.versions import CLIENT_VERSION
+from clarifai.versions import get_latest_version_from_pypi
+
+CLARIFAI_LATEST_VERSION = get_latest_version_from_pypi()
 
 # parse the user's requirements.txt to determine the proper base image to build on top of, based on the torch and other large dependencies and it's versions
 # List of dependencies to look for
@@ -1068,26 +1070,28 @@ class ModelBuilder:
                         break
         if 'clarifai' not in dependencies:
             raise Exception(
-                f"clarifai not found in requirements.txt, please add clarifai to the requirements.txt file with a fixed version. Current version is clarifai=={CLIENT_VERSION}"
+                f"clarifai not found in requirements.txt, please add clarifai to the requirements.txt file with a fixed version. Current version is clarifai=={CLARIFAI_LATEST_VERSION}"
             )
         clarifai_version = dependencies['clarifai']
         if not clarifai_version:
             logger.warn(
-                f"clarifai version not found in requirements.txt, using the latest version {CLIENT_VERSION}"
+                f"clarifai version not found in requirements.txt, using the latest version {CLARIFAI_LATEST_VERSION}"
             )
-            clarifai_version = CLIENT_VERSION
+            clarifai_version = CLARIFAI_LATEST_VERSION
             lines = []
             with open(os.path.join(self.folder, 'requirements.txt'), 'r') as file:
                 for line in file:
                     # if the line without whitespace is "clarifai"
                     dependency, version = self._match_req_line(line)
                     if dependency and dependency == "clarifai":
-                        lines.append(line.replace("clarifai", f"clarifai=={CLIENT_VERSION}"))
+                        lines.append(
+                            line.replace("clarifai", f"clarifai=={CLARIFAI_LATEST_VERSION}")
+                        )
                     else:
                         lines.append(line)
             with open(os.path.join(self.folder, 'requirements.txt'), 'w') as file:
                 file.writelines(lines)
-            logger.warn(f"Updated requirements.txt to have clarifai=={CLIENT_VERSION}")
+            logger.warn(f"Updated requirements.txt to have clarifai=={CLARIFAI_LATEST_VERSION}")
 
         # Replace placeholders with actual values
         dockerfile_content = dockerfile_template.safe_substitute(
