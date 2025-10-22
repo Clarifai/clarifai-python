@@ -328,7 +328,7 @@ class ModelRunner(BaseRunner):
         self.model = model
 
 
-def pmo_iterator(runner_item_iterator, model_proto, auth_helper=None):
+def pmo_iterator(runner_item_iterator, model_proto=None, auth_helper=None):
     for runner_item in runner_item_iterator:
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
