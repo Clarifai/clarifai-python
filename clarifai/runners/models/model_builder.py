@@ -220,10 +220,13 @@ class ModelBuilder:
             request.version_id = self.model_version_id
         resp: service_pb2.SingleModelResponse = self.client.STUB.GetModel(request)
         if resp.status.code != status_code_pb2.SUCCESS:
-            raise UserError(
-                f"Failed to get model '{self.model_id}'"
-                f" version '{self.model_version_id}': {resp.status.details}"
-            )
+            if self.model_version_id is None:
+                raise UserError(f"Failed to get model '{self.model_id}': {resp.status.details}")
+            else:
+                raise UserError(
+                    f"Failed to get model '{self.model_id}'"
+                    f" version '{self.model_version_id}': {resp.status.details}"
+                )
         return resp.model
 
     def load_model_class(self, mocking=False):
