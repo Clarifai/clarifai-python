@@ -68,7 +68,7 @@ import os
 
 class ModelClass:
     def __init__(self):
-        self.model = os.environ.get("OLLAMA_MODEL_NAME", 'llama3.2')
+        self.model = os.environ.get("OLLAMA_MODEL_NAME", 'llama3.2:1b')
 
 PORT = '23333'
 context_length = '8192'
