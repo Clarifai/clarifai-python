@@ -21,7 +21,11 @@ def get_pipeline_config_template(
         step_templates.append(f"""          - - name: step-{i}
               templateRef:
                 name: users/{user_id}/apps/{app_id}/pipeline_steps/{step_name}
-                template: users/{user_id}/apps/{app_id}/pipeline_steps/{step_name}""")
+                template: users/{user_id}/apps/{app_id}/pipeline_steps/{step_name}
+              arguments:
+                parameters:
+                  - name: input_text
+                    value: "Input Text Here\"""")
 
     steps_yaml = "\n".join(step_templates)
 
@@ -35,8 +39,6 @@ def get_pipeline_config_template(
     argo_orchestration_spec: |
       apiVersion: argoproj.io/v1alpha1
       kind: Workflow
-      metadata:
-        generateName: {pipeline_id}-
       spec:
         entrypoint: sequence
         templates:
