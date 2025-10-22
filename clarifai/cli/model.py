@@ -13,6 +13,7 @@ from clarifai.utils.cli import (
     customize_huggingface_model,
     customize_lmstudio_model,
     customize_ollama_model,
+    customize_openai_model,
     parse_requirements,
     validate_context,
 )
@@ -28,6 +29,7 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG,
     DEFAULT_LOCAL_RUNNER_NODEPOOL_ID,
     DEFAULT_OLLAMA_MODEL_REPO_BRANCH,
+    DEFAULT_OPENAI_MODEL_REPO_BRANCH,
     DEFAULT_PYTHON_MODEL_REPO_BRANCH,
     DEFAULT_SGLANG_MODEL_REPO_BRANCH,
     DEFAULT_TOOLKIT_MODEL_REPO,
@@ -77,10 +79,10 @@ def model():
 @click.option(
     '--toolkit',
     type=click.Choice(
-        ['ollama', 'huggingface', 'lmstudio', 'vllm', 'sglang', 'python'], case_sensitive=False
+        ['ollama', 'huggingface', 'lmstudio', 'vllm', 'sglang', 'python', 'openai'], case_sensitive=False
     ),
     required=False,
-    help='Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio", "vllm", "sglang" and "python".',
+    help='Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio", "vllm", "sglang", "python", and "openai".',
 )
 @click.option(
     '--model-name',
@@ -190,6 +192,9 @@ def init(
     elif toolkit == 'python':
         github_url = DEFAULT_TOOLKIT_MODEL_REPO
         branch = DEFAULT_PYTHON_MODEL_REPO_BRANCH
+    elif toolkit == 'openai':
+        github_url = DEFAULT_TOOLKIT_MODEL_REPO
+        branch = DEFAULT_OPENAI_MODEL_REPO_BRANCH
 
     if github_url:
         downloader = GitHubDownloader(
@@ -330,6 +335,12 @@ def init(
         # Update the config.yaml file with the provided model name
         customize_huggingface_model(model_path, user_id, model_name)
 
+    if (user_id or model_name or port) and (toolkit == 'openai'):
+        # For openai toolkit, we need to prompt for host as well
+        from clarifai.cli.base import input_or_default
+        host = input_or_default("Enter host (default: localhost): ", "localhost")
+        customize_openai_model(model_path, user_id, model_name, host, port)
+
     if github_url:
         logger.info("Model initialization complete with GitHub repository")
         logger.info("Next steps:")
@@ -355,6 +366,12 @@ def init(
             logger.info("Configuring OpenAI local runner...")
             port = input_or_default("Enter port (default: 8000): ", "8000")
             template_kwargs = {"port": port}
+        elif toolkit == "openai":
+            logger.info("Configuring local OpenAI-compatible server...")
+            model_name_prompt = input_or_default("Enter model name (default: google/gemma-3n-e4b): ", "google/gemma-3n-e4b")
+            host_prompt = input_or_default("Enter host (default: localhost): ", "localhost") 
+            port_prompt = input_or_default("Enter port (default: 1234): ", "1234")
+            template_kwargs = {"model_name": model_name_prompt, "host": host_prompt, "port": port_prompt}
 
         # Create the 1/ subdirectory
         model_version_dir = os.path.join(model_path, "1")
@@ -365,7 +382,7 @@ def init(
         if os.path.exists(model_py_path):
             logger.warning(f"File {model_py_path} already exists, skipping...")
         else:
-            model_template = get_model_template(model_type_id, **template_kwargs)
+            model_template = get_model_template(model_type_id, toolkit=toolkit, **template_kwargs)
             with open(model_py_path, 'w') as f:
                 f.write(model_template)
             logger.info(f"Created {model_py_path}")

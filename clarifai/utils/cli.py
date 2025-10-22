@@ -475,3 +475,35 @@ def customize_lmstudio_model(model_path, user_id, model_name, port, context_leng
         logger.info(f"Updated LM Studio model configuration in: {config_path}")
     else:
         logger.warning(f"config.yaml not found at {config_path}, skipping model configuration")
+
+
+def customize_openai_model(model_path, user_id, model_name, host, port):
+    """Customize the OpenAI model configuration in the cloned template files.
+    Args:
+     model_path: Path to the cloned model directory
+     user_id: User ID for the model
+     model_name: The model name to set (e.g., 'google/gemma-3n-e4b') - optional
+     host: Host for OpenAI-compatible server - optional
+     port: Port for OpenAI-compatible server - optional
+
+    """
+    config_path = os.path.join(model_path, 'config.yaml')
+
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        # Update the user_id in the model section
+        config['model']['user_id'] = user_id
+        if 'toolkit' not in config or config['toolkit'] is None:
+            config['toolkit'] = {}
+        if model_name is not None:
+            config['toolkit']['model_name'] = model_name
+        if host is not None:
+            config['toolkit']['host'] = host
+        if port is not None:
+            config['toolkit']['port'] = port
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+        logger.info(f"Updated OpenAI model configuration in: {config_path}")
+    else:
+        logger.warning(f"config.yaml not found at {config_path}, skipping model configuration")

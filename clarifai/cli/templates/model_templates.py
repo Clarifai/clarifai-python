@@ -99,7 +99,7 @@ class MyModel(MCPModelClass):
 '''
 
 
-def get_openai_model_class_template(port: str = "8000") -> str:
+def get_openai_model_class_template(port: str = "8000", model_name: str = "google/gemma-3n-e4b", host: str = "localhost") -> str:
     """Return the template for an OpenAIModelClass-based model."""
     return f'''from typing import List, Iterator
 from openai import OpenAI
@@ -177,6 +177,22 @@ class MyModel(OpenAIModelClass):
 '''
 
 
+def get_local_openai_model_class_template(model_name: str = "google/gemma-3n-e4b", port: str = "1234", host: str = "localhost") -> str:
+    """Return the template for a local OpenAI-compatible server model."""
+    return f'''from clarifai.runners.models.openai_class import OpenAIModelClass
+from openai import OpenAI
+
+MODEL_NAME = "{model_name}"  # Default model name
+PORT = {port}  # Default port for the lmstudio server
+HOST = "{host}"
+
+class OpenAIClientModelClass(OpenAIModelClass):
+    def load_model(self):
+        self.model = MODEL_NAME
+        self.client = OpenAI(api_key="notset", base_url=f"http://{{HOST}}:{{PORT}}/v1")
+'''
+
+
 def get_config_template(user_id: str = None, model_type_id: str = "any-to-any") -> str:
     """Return the template for config.yaml."""
     return f'''# Configuration file for your Clarifai model
@@ -236,8 +252,12 @@ MODEL_TYPE_TEMPLATES = {
 }
 
 
-def get_model_template(model_type_id: str = None, **kwargs) -> str:
-    """Get the appropriate model template based on model_type_id."""
+def get_model_template(model_type_id: str = None, toolkit: str = None, **kwargs) -> str:
+    """Get the appropriate model template based on model_type_id and toolkit."""
+    # Special case for openai toolkit - use the local openai template
+    if toolkit == "openai":
+        return get_local_openai_model_class_template(**kwargs)
+    
     if model_type_id in MODEL_TYPE_TEMPLATES:
         template_func = MODEL_TYPE_TEMPLATES[model_type_id]
         # Check if the template function accepts additional parameters
