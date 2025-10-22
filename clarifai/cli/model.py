@@ -1010,6 +1010,7 @@ def local_runner(ctx, model_path, pool_size, verbose):
             logger.info("Customizing Ollama model with provided parameters...")
             customize_ollama_model(
                 model_path=model_path,
+                user_id=user_id,
                 verbose=True if verbose else False,
             )
         except Exception as e:
