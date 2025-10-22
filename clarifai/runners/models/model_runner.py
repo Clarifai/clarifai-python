@@ -129,7 +129,7 @@ class ModelRunner(BaseRunner):
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
-        if self.model_proto is not None:
+        if not request.HasField("model") and self.model_proto is not None:
             request.model.CopyFrom(self.model_proto)
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
         inject_secrets(request)
@@ -201,7 +201,7 @@ class ModelRunner(BaseRunner):
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
-        if self.model_proto is not None:
+        if self.model_proto is not None and not request.HasField("model"):
             request.model.CopyFrom(self.model_proto)
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
         inject_secrets(request)
@@ -272,14 +272,13 @@ class ModelRunner(BaseRunner):
         first_request = None
         runner_items = list(runner_item_iterator)  # Convert to list to avoid consuming iterator
         if runner_items:
-            if self.model_proto is not None:
-                for item in runner_items:
-                    item.post_model_outputs_request.model.CopyFrom(self.model_proto)
             first_request = runner_items[0].post_model_outputs_request
 
         # Use req_secrets_context based on the first request (secrets should be consistent across stream)
         with req_secrets_context(first_request):
-            for resp in self.model.stream_wrapper(pmo_iterator(iter(runner_items))):
+            for resp in self.model.stream_wrapper(
+                pmo_iterator(iter(runner_items), model_proto=self.model_proto)
+            ):
                 # if we have any non-successful code already it's an error we can return.
                 if (
                     resp.status.code != status_code_pb2.SUCCESS
@@ -329,10 +328,15 @@ class ModelRunner(BaseRunner):
         self.model = model
 
 
-def pmo_iterator(runner_item_iterator, auth_helper=None):
+def pmo_iterator(runner_item_iterator, model_proto, auth_helper=None):
     for runner_item in runner_item_iterator:
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
+        if (
+            runner_item.post_model_outputs_request.HasField("model") is not None
+            and model_proto is not None
+        ):
+            runner_item.post_model_outputs_request.model.CopyFrom(model_proto)
         ensure_urls_downloaded(runner_item.post_model_outputs_request, auth_helper=auth_helper)
         inject_secrets(runner_item.post_model_outputs_request)
         yield runner_item.post_model_outputs_request
