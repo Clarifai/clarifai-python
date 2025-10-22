@@ -1,3 +1,8 @@
+## [[11.9.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.9.0) - [PyPI](https://pypi.org/project/clarifai/11.9.0/) - 2025-10-22
+
+### Changed
+- Fixed Missing `user_id` argument issue in CLI `local-runner` command [(#816)](https://github.com/Clarifai/clarifai-python/pull/816)
+
 ## [[11.8.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.5) - [PyPI](https://pypi.org/project/clarifai/11.8.5/) - 2025-10-20
 
 ### Added
