@@ -274,10 +274,10 @@ class ModelRunner(BaseRunner):
         if runner_items:
             first_request = runner_items[0].post_model_outputs_request
             if self.model_proto is not None:
-                for item in runner_items:
-                    item.post_model_outputs_request.model.CopyFrom(self.model_proto)
+                first_request.model.CopyFrom(self.model_proto)
 
         # Use req_secrets_context based on the first request (secrets should be consistent across stream)
+        with req_secrets_context(first_request):
             for resp in self.model.stream_wrapper(pmo_iterator(iter(runner_items))):
                 # if we have any non-successful code already it's an error we can return.
                 if (
