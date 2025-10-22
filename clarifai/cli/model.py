@@ -29,6 +29,7 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_RUNNER_NODEPOOL_ID,
     DEFAULT_OLLAMA_MODEL_REPO_BRANCH,
     DEFAULT_PYTHON_MODEL_REPO_BRANCH,
+    DEFAULT_SGLANG_MODEL_REPO_BRANCH,
     DEFAULT_TOOLKIT_MODEL_REPO,
     DEFAULT_VLLM_MODEL_REPO_BRANCH,
 )
@@ -76,15 +77,15 @@ def model():
 @click.option(
     '--toolkit',
     type=click.Choice(
-        ['ollama', 'huggingface', 'lmstudio', 'vllm', 'python'], case_sensitive=False
+        ['ollama', 'huggingface', 'lmstudio', 'vllm', 'sglang', 'python'], case_sensitive=False
     ),
     required=False,
-    help='Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio", "vllm" and "python".',
+    help='Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio", "vllm", "sglang" and "python".',
 )
 @click.option(
     '--model-name',
     required=False,
-    help='Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For vllm & huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "unsloth/Llama-3.2-1B-Instruct").\n For lmstudio toolkit, this sets the LM Studio model name (e.g., "qwen/qwen3-4b-thinking-2507").\n',
+    help='Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For vllm, sglang & huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "unsloth/Llama-3.2-1B-Instruct").\n For lmstudio toolkit, this sets the LM Studio model name (e.g., "qwen/qwen3-4b-thinking-2507").\n',
 )
 @click.option(
     '--port',
@@ -129,8 +130,8 @@ def init(
     MODEL_TYPE_ID: Type of model to create. If not specified, defaults to "text-to-text" for text models.\n
     GITHUB_PAT: GitHub Personal Access Token for authentication when cloning private repositories.\n
     GITHUB_URL: GitHub repository URL or "repo" format to clone a repository from. If provided, the entire repository contents will be copied to the target directory instead of using default templates.\n
-    TOOLKIT: Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio", "vllm" and "python".\n
-    MODEL_NAME: Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For vllm & huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "Qwen/Qwen3-4B-Instruct-2507"). For lmstudio toolkit, this sets the LM Studio model name (e.g., "qwen/qwen3-4b-thinking-2507").\n
+    TOOLKIT: Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio", "vllm", "sglang" and "python".\n
+    MODEL_NAME: Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For vllm, sglang & huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "Qwen/Qwen3-4B-Instruct-2507"). For lmstudio toolkit, this sets the LM Studio model name (e.g., "qwen/qwen3-4b-thinking-2507").\n
     PORT: Port to run the (Ollama/lmstudio) server on. Defaults to 23333.\n
     CONTEXT_LENGTH: Context length for the (Ollama/lmstudio) model. Defaults to 8192.\n
     """
@@ -183,6 +184,9 @@ def init(
     elif toolkit == 'vllm':
         github_url = DEFAULT_TOOLKIT_MODEL_REPO
         branch = DEFAULT_VLLM_MODEL_REPO_BRANCH
+    elif toolkit == 'sglang':
+        github_url = DEFAULT_TOOLKIT_MODEL_REPO
+        branch = DEFAULT_SGLANG_MODEL_REPO_BRANCH
     elif toolkit == 'python':
         github_url = DEFAULT_TOOLKIT_MODEL_REPO
         branch = DEFAULT_PYTHON_MODEL_REPO_BRANCH
@@ -320,7 +324,9 @@ def init(
     if (user_id or model_name or port or context_length) and (toolkit == 'lmstudio'):
         customize_lmstudio_model(model_path, user_id, model_name, port, context_length)
 
-    if (user_id or model_name) and (toolkit == 'huggingface' or toolkit == 'vllm'):
+    if (user_id or model_name) and (
+        toolkit == 'huggingface' or toolkit == 'vllm' or toolkit == 'sglang'
+    ):
         # Update the config.yaml file with the provided model name
         customize_huggingface_model(model_path, user_id, model_name)
 
