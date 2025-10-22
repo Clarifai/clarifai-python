@@ -272,9 +272,10 @@ class ModelRunner(BaseRunner):
         first_request = None
         runner_items = list(runner_item_iterator)  # Convert to list to avoid consuming iterator
         if runner_items:
-            first_request = runner_items[0].post_model_outputs_request
             if self.model_proto is not None:
-                first_request.model.CopyFrom(self.model_proto)
+                for item in runner_items:
+                    item.post_model_outputs_request.model.CopyFrom(self.model_proto)
+            first_request = runner_items[0].post_model_outputs_request
 
         # Use req_secrets_context based on the first request (secrets should be consistent across stream)
         with req_secrets_context(first_request):
