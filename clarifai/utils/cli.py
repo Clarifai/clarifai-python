@@ -271,7 +271,7 @@ def customize_ollama_model(
         if model_name:
             # Replace the default model name in the load_model method
             content = content.replace(
-                'self.model = os.environ.get("OLLAMA_MODEL_NAME", \'llama3.2:1b\')',
+                'self.model = os.environ.get("OLLAMA_MODEL_NAME", \'llama3.2\')',
                 f'self.model = os.environ.get("OLLAMA_MODEL_NAME", \'{model_name}\')',
             )
 

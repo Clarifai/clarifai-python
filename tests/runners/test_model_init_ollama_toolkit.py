@@ -29,7 +29,7 @@ def test_model_init_ollama(monkeypatch, tmp_path, custom, model_name, port, cont
             f.write(
                 "# placeholder template\nimport os\n\nclass Dummy:\n"
                 "    def __init__(self):\n"
-                "        self.model = os.environ.get(\"OLLAMA_MODEL_NAME\", 'llama3.2:1b')\n\n"
+                "        self.model = os.environ.get(\"OLLAMA_MODEL_NAME\", 'llama3.2')\n\n"
                 "PORT = '23333'\ncontext_length = '8192'\n"
             )
         with open(os.path.join(clone_dir, 'config.yaml'), 'w') as f:
@@ -88,7 +88,7 @@ def test_model_init_ollama(monkeypatch, tmp_path, custom, model_name, port, cont
         assert "context_length = '8192'" not in content
     else:
         # defaults remain
-        assert "llama3.2:1b" in content
+        assert "llama3.2" in content
         assert "PORT = '23333'" in content
         assert "context_length = '8192'" in content
 
