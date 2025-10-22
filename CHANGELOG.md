@@ -1,7 +1,9 @@
 ## [[11.9.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.9.0) - [PyPI](https://pypi.org/project/clarifai/11.9.0/) - 2025-10-22
 
 ### Changed
-- Fixed Missing `user_id` argument issue in CLI `local-runner` command [(#816)](https://github.com/Clarifai/clarifai-python/pull/816)
+- Fixed Missing `user_id` parameter issue in CLI `local-runner` command [(#816)](https://github.com/Clarifai/clarifai-python/pull/816)
+- Added sglang toolkit to CLI init command [(#815)](https://github.com/Clarifai/clarifai-python/pull/815)
+- Added Model Deployment Workflow after Model Upload in CLI [(#802)](https://github.com/Clarifai/clarifai-python/pull/802)
 
 ## [[11.8.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.5) - [PyPI](https://pypi.org/project/clarifai/11.8.5/) - 2025-10-20
 
