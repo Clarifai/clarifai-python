@@ -1,7 +1,7 @@
 import time
 from typing import Iterator, Optional, Union
 
-from clarifai_grpc.grpc.api import service_pb2
+from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from clarifai_protocol import BaseRunner
 from clarifai_protocol.utils.health import HealthProbeRequestHandler, start_health_server_thread
@@ -33,6 +33,7 @@ class ModelRunner(BaseRunner):
         token: Optional[str] = None,
         num_parallel_polls: int = 4,
         health_check_port: Union[int, None] = 8080,
+        model_proto: Optional[resources_pb2.Model] = None,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -48,6 +49,7 @@ class ModelRunner(BaseRunner):
             **kwargs,
         )
         self.model = model
+        self.model_proto = model_proto
 
         # Store authentication parameters for URL fetching
         self._user_id = user_id
@@ -127,6 +129,8 @@ class ModelRunner(BaseRunner):
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
+        if self.model_proto is not None:
+            request.model.CopyFrom(self.model_proto)
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
         inject_secrets(request)
         start_time = time.time()
@@ -197,6 +201,8 @@ class ModelRunner(BaseRunner):
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
+        if self.model_proto is not None:
+            request.model.CopyFrom(self.model_proto)
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
         inject_secrets(request)
 
@@ -267,6 +273,8 @@ class ModelRunner(BaseRunner):
         runner_items = list(runner_item_iterator)  # Convert to list to avoid consuming iterator
         if runner_items:
             first_request = runner_items[0].post_model_outputs_request
+            if self.model_proto is not None:
+                first_request.model.CopyFrom(self.model_proto)
 
         # Use req_secrets_context based on the first request (secrets should be consistent across stream)
         with req_secrets_context(first_request):
