@@ -4,8 +4,6 @@ import shutil
 import click
 
 from clarifai.cli.base import cli
-from clarifai.client.app import App
-from clarifai.client.user import User
 from clarifai.utils.cli import (
     AliasedGroup,
     convert_timestamp_to_string,
@@ -133,6 +131,9 @@ def list(ctx, page_no, per_page, app_id, pipeline_id):
 
     if pipeline_id and not app_id:
         raise click.UsageError("--pipeline_id must be used together with --app_id")
+
+    from clarifai.client.app import App
+    from clarifai.client.user import User
 
     if app_id:
         app = App(
