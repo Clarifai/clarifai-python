@@ -1337,7 +1337,7 @@ class TestPipelineListCommand:
     """Test cases for the pipeline list CLI command."""
 
     @patch('clarifai.cli.pipeline.validate_context')
-    @patch('clarifai.cli.pipeline.User')
+    @patch('clarifai.client.user.User')
     @patch('clarifai.cli.pipeline.display_co_resources')
     def test_list_command_success_no_app_id(self, mock_display, mock_user_class, mock_validate):
         """Test that list command works without app_id (lists across all apps)."""
@@ -1385,7 +1385,7 @@ class TestPipelineListCommand:
         mock_display.assert_called_once()
 
     @patch('clarifai.cli.pipeline.validate_context')
-    @patch('clarifai.cli.pipeline.App')
+    @patch('clarifai.client.app.App')
     @patch('clarifai.cli.pipeline.display_co_resources')
     def test_list_command_success_with_app_id(self, mock_display, mock_app_class, mock_validate):
         """Test that list command works with app_id (lists within specific app)."""
@@ -1445,7 +1445,7 @@ class TestPipelineListCommand:
         # Import here to avoid circular imports in testing
         from clarifai.cli.pipeline import list as list_command
 
-        with patch('clarifai.cli.pipeline.User') as mock_user_class:
+        with patch('clarifai.client.user.User') as mock_user_class:
             mock_user_instance = Mock()
             mock_user_class.return_value = mock_user_instance
             mock_user_instance.list_pipelines.return_value = []
@@ -1455,6 +1455,3 @@ class TestPipelineListCommand:
 
                 assert result.exit_code == 0
                 mock_user_instance.list_pipelines.assert_called_once_with(page_no=1, per_page=16)
-
-
-
