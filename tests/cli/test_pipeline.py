@@ -1445,7 +1445,7 @@ class TestPipelineListCommand:
         # Import here to avoid circular imports in testing
         from clarifai.cli.pipeline import list as list_command
 
-        with patch('clarifai.cli.pipeline.User') as mock_user_class:
+        with patch('clarifai.client.user.User') as mock_user_class:
             mock_user_instance = Mock()
             mock_user_class.return_value = mock_user_instance
             mock_user_instance.list_pipelines.return_value = []
