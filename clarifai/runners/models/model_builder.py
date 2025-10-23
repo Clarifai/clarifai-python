@@ -209,8 +209,17 @@ class ModelBuilder:
         return model
 
     def get_model_proto(self) -> resources_pb2.Model:
-        """get_model_proto uses self.model_id and self.model_version_id to retrieve the model
-        and model version via a GetModel call. If self.model_version_id is None, it retrieves the latest version.
+        """
+        Retrieve the model and model version proto using self.model_id and self.model_version_id.
+
+        Args:
+            None
+
+        Returns:
+            resources_pb2.Model: The retrieved model proto.
+
+        Raises:
+            UserError: If the model or model version cannot be retrieved.
         """
         request = service_pb2.GetModelRequest(
             user_app_id=self.client.user_app_id,
