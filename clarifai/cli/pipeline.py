@@ -4,8 +4,6 @@ import shutil
 import click
 
 from clarifai.cli.base import cli
-from clarifai.client.app import App
-from clarifai.client.user import User
 from clarifai.utils.cli import (
     AliasedGroup,
     convert_timestamp_to_string,
@@ -409,6 +407,9 @@ def validate_lock(lockfile_path):
 def list(ctx, page_no, per_page, app_id):
     """List all pipelines for the user."""
     validate_context(ctx)
+
+    from clarifai.client.app import App
+    from clarifai.client.user import User
 
     if app_id:
         app = App(

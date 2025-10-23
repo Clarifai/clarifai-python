@@ -108,6 +108,7 @@ class Model(Lister, BaseClient):
         self.training_params = {}
         self.input_types = None
         self._client = None
+        self._async_client = None
         self._added_methods = False
         BaseClient.__init__(
             self,
@@ -522,10 +523,28 @@ class Model(Lister, BaseClient):
                 model=self.model_info,
                 runner_selector=self._runner_selector,
             )
+            # Pass in None for async stub will create it.
             self._client = ModelClient(
-                stub=self.STUB, async_stub=self.async_stub, request_template=request_template
+                stub=self.STUB, async_stub=None, request_template=request_template
             )
         return self._client
+
+    @property
+    def async_client(self):
+        """Get the asynchronous client instance (with async stub)."""
+        if self._async_client is None:
+            request_template = service_pb2.PostModelOutputsRequest(
+                user_app_id=self.user_app_id,
+                model_id=self.id,
+                version_id=self.model_version.id,
+                model=self.model_info,
+                runner_selector=self._runner_selector,
+            )
+            # Create async client with async stub
+            self._async_client = ModelClient(
+                stub=self.STUB, async_stub=self.async_stub, request_template=request_template
+            )
+        return self._async_client
 
     def predict(self, *args, **kwargs):
         """
@@ -573,16 +592,16 @@ class Model(Lister, BaseClient):
             )
             inference_params = kwargs.get('inference_params', {})
             output_config = kwargs.get('output_config', {})
-            return await self.client._async_predict_by_proto(
+            return await self.async_client._async_predict_by_proto(
                 inputs=inputs, inference_params=inference_params, output_config=output_config
             )
 
         # Adding try-except, since the await works differently with jupyter kernels and in regular python scripts.
         try:
-            return await self.client.predict(*args, **kwargs)
+            return await self.async_client.predict(*args, **kwargs)
         except TypeError:
             # In jupyter, it returns a str object instead of a co-routine.
-            return self.client.predict(*args, **kwargs)
+            return self.async_client.predict(*args, **kwargs)
 
     def __getattr__(self, name):
         try:
@@ -595,7 +614,10 @@ class Model(Lister, BaseClient):
             self.client.fetch()
             for method_name in self.client._method_signatures.keys():
                 if not hasattr(self, method_name):
-                    setattr(self, method_name, getattr(self.client, method_name))
+                    if method_name.startswith('async_'):
+                        setattr(self, method_name, getattr(self.async_client, method_name))
+                    else:
+                        setattr(self, method_name, getattr(self.client, method_name))
         if hasattr(self.client, name):
             return getattr(self.client, name)
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
@@ -838,11 +860,11 @@ class Model(Lister, BaseClient):
             )
             inference_params = kwargs.get('inference_params', {})
             output_config = kwargs.get('output_config', {})
-            return self.client._async_generate_by_proto(
+            return self.async_client._async_generate_by_proto(
                 inputs=inputs, inference_params=inference_params, output_config=output_config
             )
 
-        return self.client.generate(*args, **kwargs)
+        return self.async_client.generate(*args, **kwargs)
 
     def generate_by_filepath(
         self,
@@ -1047,11 +1069,11 @@ class Model(Lister, BaseClient):
                 )
                 inference_params = kwargs.get('inference_params', {})
                 output_config = kwargs.get('output_config', {})
-                return self.client._async_stream_by_proto(
+                return self.async_client._async_stream_by_proto(
                     inputs=inputs, inference_params=inference_params, output_config=output_config
                 )
 
-            return self.client.async_stream(*args, **kwargs)
+            return self.async_client.async_stream(*args, **kwargs)
 
     def stream_by_filepath(
         self,

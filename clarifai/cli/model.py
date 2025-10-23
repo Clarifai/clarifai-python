@@ -28,6 +28,8 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG,
     DEFAULT_LOCAL_RUNNER_NODEPOOL_ID,
     DEFAULT_OLLAMA_MODEL_REPO_BRANCH,
+    DEFAULT_PYTHON_MODEL_REPO_BRANCH,
+    DEFAULT_SGLANG_MODEL_REPO_BRANCH,
     DEFAULT_TOOLKIT_MODEL_REPO,
     DEFAULT_VLLM_MODEL_REPO_BRANCH,
 )
@@ -74,14 +76,16 @@ def model():
 )
 @click.option(
     '--toolkit',
-    type=click.Choice(['ollama', 'huggingface', 'lmstudio', 'vllm'], case_sensitive=False),
+    type=click.Choice(
+        ['ollama', 'huggingface', 'lmstudio', 'vllm', 'sglang', 'python'], case_sensitive=False
+    ),
     required=False,
-    help='Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio" and "vllm".',
+    help='Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio", "vllm", "sglang" and "python".',
 )
 @click.option(
     '--model-name',
     required=False,
-    help='Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For vllm & huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "unsloth/Llama-3.2-1B-Instruct").\n For lmstudio toolkit, this sets the LM Studio model name (e.g., "qwen/qwen3-4b-thinking-2507").\n',
+    help='Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For vllm, sglang & huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "unsloth/Llama-3.2-1B-Instruct").\n For lmstudio toolkit, this sets the LM Studio model name (e.g., "qwen/qwen3-4b-thinking-2507").\n',
 )
 @click.option(
     '--port',
@@ -95,7 +99,9 @@ def model():
     help='Context length for the Ollama model. Defaults to 8192.',
     required=False,
 )
+@click.pass_context
 def init(
+    ctx,
     model_path,
     model_type_id,
     github_pat,
@@ -124,11 +130,13 @@ def init(
     MODEL_TYPE_ID: Type of model to create. If not specified, defaults to "text-to-text" for text models.\n
     GITHUB_PAT: GitHub Personal Access Token for authentication when cloning private repositories.\n
     GITHUB_URL: GitHub repository URL or "repo" format to clone a repository from. If provided, the entire repository contents will be copied to the target directory instead of using default templates.\n
-    TOOLKIT: Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio" and "vllm".\n
-    MODEL_NAME: Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For vllm & huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "Qwen/Qwen3-4B-Instruct-2507"). For lmstudio toolkit, this sets the LM Studio model name (e.g., "qwen/qwen3-4b-thinking-2507").\n
+    TOOLKIT: Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio", "vllm", "sglang" and "python".\n
+    MODEL_NAME: Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For vllm, sglang & huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "Qwen/Qwen3-4B-Instruct-2507"). For lmstudio toolkit, this sets the LM Studio model name (e.g., "qwen/qwen3-4b-thinking-2507").\n
     PORT: Port to run the (Ollama/lmstudio) server on. Defaults to 23333.\n
     CONTEXT_LENGTH: Context length for the (Ollama/lmstudio) model. Defaults to 8192.\n
     """
+    validate_context(ctx)
+    user_id = ctx.obj.current.user_id
     # Resolve the absolute path
     model_path = os.path.abspath(model_path)
 
@@ -176,6 +184,12 @@ def init(
     elif toolkit == 'vllm':
         github_url = DEFAULT_TOOLKIT_MODEL_REPO
         branch = DEFAULT_VLLM_MODEL_REPO_BRANCH
+    elif toolkit == 'sglang':
+        github_url = DEFAULT_TOOLKIT_MODEL_REPO
+        branch = DEFAULT_SGLANG_MODEL_REPO_BRANCH
+    elif toolkit == 'python':
+        github_url = DEFAULT_TOOLKIT_MODEL_REPO
+        branch = DEFAULT_PYTHON_MODEL_REPO_BRANCH
 
     if github_url:
         downloader = GitHubDownloader(
@@ -231,6 +245,44 @@ def init(
                     repo_url = format_github_repo_url(github_url)
                     repo_url = f"https://github.com/{owner}/{repo}"
 
+                try:
+                    # Create a temporary directory for cloning
+                    with tempfile.TemporaryDirectory(prefix="clarifai_model_") as clone_dir:
+                        # Clone the repository with explicit branch parameter
+                        if not clone_github_repo(repo_url, clone_dir, github_pat, branch):
+                            logger.error(f"Failed to clone repository from {repo_url}")
+                            github_url = None  # Fall back to template mode
+
+                        else:
+                            # Copy the entire repository content to target directory (excluding .git)
+                            for item in os.listdir(clone_dir):
+                                if item == '.git':
+                                    continue
+
+                                source_path = os.path.join(clone_dir, item)
+                                target_path = os.path.join(model_path, item)
+
+                                if os.path.isdir(source_path):
+                                    shutil.copytree(source_path, target_path, dirs_exist_ok=True)
+                                else:
+                                    shutil.copy2(source_path, target_path)
+
+                            logger.info(f"Successfully cloned repository to {model_path}")
+                            logger.info(
+                                "Model initialization complete with GitHub repository clone"
+                            )
+                            logger.info("Next steps:")
+                            logger.info("1. Review the model configuration")
+                            logger.info("2. Install any required dependencies manually")
+                            logger.info(
+                                "3. Test the model locally using 'clarifai model local-test'"
+                            )
+                            return
+
+                except Exception as e:
+                    logger.error(f"Failed to clone GitHub repository: {e}")
+                    github_url = None  # Fall back to template mode
+
     if toolkit:
         logger.info(f"Initializing model from GitHub repository: {github_url}")
 
@@ -240,41 +292,43 @@ def init(
         else:
             repo_url = format_github_repo_url(github_url)
 
-    try:
-        # Create a temporary directory for cloning
-        with tempfile.TemporaryDirectory(prefix="clarifai_model_") as clone_dir:
-            # Clone the repository with explicit branch parameter
-            if not clone_github_repo(repo_url, clone_dir, github_pat, branch):
-                logger.error(f"Failed to clone repository from {repo_url}")
-                github_url = None  # Fall back to template mode
+        try:
+            # Create a temporary directory for cloning
+            with tempfile.TemporaryDirectory(prefix="clarifai_model_") as clone_dir:
+                # Clone the repository with explicit branch parameter
+                if not clone_github_repo(repo_url, clone_dir, github_pat, branch):
+                    logger.error(f"Failed to clone repository from {repo_url}")
+                    github_url = None  # Fall back to template mode
 
-            else:
-                # Copy the entire repository content to target directory (excluding .git)
-                for item in os.listdir(clone_dir):
-                    if item == '.git':
-                        continue
+                else:
+                    # Copy the entire repository content to target directory (excluding .git)
+                    for item in os.listdir(clone_dir):
+                        if item == '.git':
+                            continue
 
-                    source_path = os.path.join(clone_dir, item)
-                    target_path = os.path.join(model_path, item)
+                        source_path = os.path.join(clone_dir, item)
+                        target_path = os.path.join(model_path, item)
 
-                    if os.path.isdir(source_path):
-                        shutil.copytree(source_path, target_path, dirs_exist_ok=True)
-                    else:
-                        shutil.copy2(source_path, target_path)
+                        if os.path.isdir(source_path):
+                            shutil.copytree(source_path, target_path, dirs_exist_ok=True)
+                        else:
+                            shutil.copy2(source_path, target_path)
 
-    except Exception as e:
-        logger.error(f"Failed to clone GitHub repository: {e}")
-        github_url = None
+        except Exception as e:
+            logger.error(f"Failed to clone GitHub repository: {e}")
+            github_url = None
 
-    if (model_name or port or context_length) and (toolkit == 'ollama'):
-        customize_ollama_model(model_path, model_name, port, context_length)
+    if (user_id or model_name or port or context_length) and (toolkit == 'ollama'):
+        customize_ollama_model(model_path, user_id, model_name, port, context_length)
 
-    if (model_name or port or context_length) and (toolkit == 'lmstudio'):
-        customize_lmstudio_model(model_path, model_name, port, context_length)
+    if (user_id or model_name or port or context_length) and (toolkit == 'lmstudio'):
+        customize_lmstudio_model(model_path, user_id, model_name, port, context_length)
 
-    if model_name and (toolkit == 'huggingface' or toolkit == 'vllm'):
+    if (user_id or model_name) and (
+        toolkit == 'huggingface' or toolkit == 'vllm' or toolkit == 'sglang'
+    ):
         # Update the config.yaml file with the provided model name
-        customize_huggingface_model(model_path, model_name)
+        customize_huggingface_model(model_path, user_id, model_name)
 
     if github_url:
         logger.info("Model initialization complete with GitHub repository")
@@ -288,11 +342,19 @@ def init(
         logger.info("Initializing model with default templates...")
         input("Press Enter to continue...")
 
+        from clarifai.cli.base import input_or_default
         from clarifai.cli.templates.model_templates import (
             get_config_template,
             get_model_template,
             get_requirements_template,
         )
+
+        # Collect additional parameters for OpenAI template
+        template_kwargs = {}
+        if model_type_id == "openai":
+            logger.info("Configuring OpenAI local runner...")
+            port = input_or_default("Enter port (default: 8000): ", "8000")
+            template_kwargs = {"port": port}
 
         # Create the 1/ subdirectory
         model_version_dir = os.path.join(model_path, "1")
@@ -303,7 +365,7 @@ def init(
         if os.path.exists(model_py_path):
             logger.warning(f"File {model_py_path} already exists, skipping...")
         else:
-            model_template = get_model_template(model_type_id)
+            model_template = get_model_template(model_type_id, **template_kwargs)
             with open(model_py_path, 'w') as f:
                 f.write(model_template)
             logger.info(f"Created {model_py_path}")
@@ -325,7 +387,9 @@ def init(
         else:
             config_model_type_id = DEFAULT_LOCAL_RUNNER_MODEL_TYPE  # default
 
-            config_template = get_config_template(config_model_type_id)
+            config_template = get_config_template(
+                user_id=user_id, model_type_id=config_model_type_id
+            )
             with open(config_path, 'w') as f:
                 f.write(config_template)
             logger.info(f"Created {config_path}")
@@ -952,6 +1016,7 @@ def local_runner(ctx, model_path, pool_size, verbose):
             logger.info("Customizing Ollama model with provided parameters...")
             customize_ollama_model(
                 model_path=model_path,
+                user_id=user_id,
                 verbose=True if verbose else False,
             )
         except Exception as e:

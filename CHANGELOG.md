@@ -1,3 +1,30 @@
+## [[11.9.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.9.0) - [PyPI](https://pypi.org/project/clarifai/11.9.0/) - 2025-10-22
+
+### Changed
+- Fixed Missing `user_id` parameter issue in CLI `local-runner` command [(#816)](https://github.com/Clarifai/clarifai-python/pull/816)
+- Added sglang toolkit to CLI init command [(#815)](https://github.com/Clarifai/clarifai-python/pull/815)
+- Added Model Deployment Workflow after Model Upload in CLI [(#802)](https://github.com/Clarifai/clarifai-python/pull/802)
+
+## [[11.8.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.5) - [PyPI](https://pypi.org/project/clarifai/11.8.5/) - 2025-10-20
+
+### Added
+- Added optional protobuf response information in pythonic models with parameter validation [(#810)](https://github.com/Clarifai/clarifai-python/pull/810)
+
+## [[11.8.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.4) - [PyPI](https://pypi.org/project/clarifai/11.8.4/) - 2025-10-18
+
+### Changed
+- Added python toolkit to CLI init command [(#807)](https://github.com/Clarifai/clarifai-python/pull/807)
+- Added USER_ID to config of CLI Model Init [(#808)](https://github.com/Clarifai/clarifai-python/pull/808)
+- Add user input prompt for OpenAI local runner [(#801)](https://github.com/Clarifai/clarifai-python/pull/801)
+- Fixed async_client initialisation [(#806)](https://github.com/Clarifai/clarifai-python/pull/806)
+
+## [[11.8.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.3) - [PyPI](https://pypi.org/project/clarifai/11.8.3/) - 2025-10-09
+
+### Changed
+- Disabled `async_stub` in `ModelClient` initialization [(#804)](https://github.com/Clarifai/clarifai-python/pull/804)
+- Fixed `UnboundLocalError` in model init when using `--model-type-id` without toolkit [(#799)](https://github.com/Clarifai/clarifai-python/pull/799)
+- Added config-lock.yaml to clarifai pipeline upload [(#754)](https://github.com/Clarifai/clarifai-python/pull/754)
+
 ## [[11.8.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.2) - [PyPI](https://pypi.org/project/clarifai/11.8.2/) - 2025-09-24
 
 ### Changed

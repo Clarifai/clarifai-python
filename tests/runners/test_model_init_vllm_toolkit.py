@@ -9,12 +9,13 @@ import yaml
 from click.testing import CliRunner
 
 import clarifai.cli.model as model_module
-from clarifai.cli.model import init as model_init
+from clarifai.cli.base import cli
 
 
 def test_model_init_vllm_toolkit(monkeypatch, tmp_path):
     """Happy path: model-name provided -> checkpoints.repo_id created and set."""
     runner = CliRunner()
+    runner.invoke(cli, ["login", "--user_id", "test_user"])
     called = {'clone': False, 'repo_url': None, 'branch': None}
 
     def fake_clone(repo_url, clone_dir, github_pat, branch):
@@ -55,8 +56,16 @@ def test_model_init_vllm_toolkit(monkeypatch, tmp_path):
 
     model_dir = tmp_path / 'vllm_model'
     result = runner.invoke(
-        model_init,
-        [str(model_dir), '--toolkit', 'vllm', '--model-name', 'microsoft/phi-1_5'],
+        cli,
+        [
+            'model',
+            'init',
+            str(model_dir),
+            '--toolkit',
+            'vllm',
+            '--model-name',
+            'microsoft/phi-1_5',
+        ],
         standalone_mode=False,
     )
 
@@ -80,6 +89,7 @@ def test_model_init_vllm_toolkit(monkeypatch, tmp_path):
 def test_model_init_hf_no_model_name(monkeypatch, tmp_path):
     """No --model-name: checkpoints section should NOT be added (mirrors current logic)."""
     runner = CliRunner()
+    runner.invoke(cli, ["login", "--user_id", "test_user"])
     called = {'clone': False}
 
     def fake_clone(repo_url, clone_dir, github_pat, branch):
@@ -112,8 +122,8 @@ def test_model_init_hf_no_model_name(monkeypatch, tmp_path):
 
     model_dir = tmp_path / 'vllm_model2'
     result = runner.invoke(
-        model_init,
-        [str(model_dir), '--toolkit', 'vllm'],  # no --model-name
+        cli,
+        ['model', 'init', str(model_dir), '--toolkit', 'vllm'],  # no --model-name
         standalone_mode=False,
     )
 

@@ -4,7 +4,7 @@ import pytest
 from click.testing import CliRunner
 
 import clarifai.cli.model as model_module
-from clarifai.cli.model import init as model_init
+from clarifai.cli.base import cli
 
 
 @pytest.mark.parametrize(
@@ -17,6 +17,7 @@ from clarifai.cli.model import init as model_init
 def test_model_init_ollama(monkeypatch, tmp_path, custom, model_name, port, context_length):
     """Test ollama toolkit init with and without customization flags."""
     runner = CliRunner()
+    runner.invoke(cli, ["login", "--user_id", "test_user"])
     called = {'clone': False}
 
     def fake_clone(repo_url, clone_dir, github_pat, branch):
@@ -58,6 +59,8 @@ def test_model_init_ollama(monkeypatch, tmp_path, custom, model_name, port, cont
     monkeypatch.setattr('builtins.input', lambda *a, **k: '\n')
 
     args = [
+        'model',
+        'init',
         str(tmp_path / ('ollama_custom' if custom else 'ollama_default')),
         '--toolkit',
         'ollama',
@@ -67,7 +70,7 @@ def test_model_init_ollama(monkeypatch, tmp_path, custom, model_name, port, cont
             ['--model-name', model_name, '--port', port, '--context-length', context_length]
         )
 
-    result = runner.invoke(model_init, args, standalone_mode=False)
+    result = runner.invoke(cli, args, standalone_mode=False)
 
     assert result.exit_code == 0, result.output
     assert called['clone'] is True

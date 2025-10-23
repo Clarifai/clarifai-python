@@ -1,5 +1,10 @@
 import os
 
+"""Tests for model init with sglang toolkit.
+
+These tests run fully offline by setting CLARIFAI_SKIP_GITHUB_LISTING so the
+command won't attempt to hit the GitHub contents API (which could rate-limit in CI).
+"""
 import yaml
 from click.testing import CliRunner
 
@@ -7,8 +12,8 @@ import clarifai.cli.model as model_module
 from clarifai.cli.base import cli
 
 
-def test_model_init_lmstudio_toolkit(monkeypatch, tmp_path):
-    """Happy path: all customization flags provided; placeholders replaced."""
+def test_model_init_sglang_toolkit(monkeypatch, tmp_path):
+    """Happy path: model-name provided -> checkpoints.repo_id created and set."""
     runner = CliRunner()
     runner.invoke(cli, ["login", "--user_id", "test_user"])
     called = {'clone': False, 'repo_url': None, 'branch': None}
@@ -19,16 +24,17 @@ def test_model_init_lmstudio_toolkit(monkeypatch, tmp_path):
         called['branch'] = branch
         version_dir = os.path.join(clone_dir, '1')
         os.makedirs(version_dir, exist_ok=True)
-        model_py = os.path.join(version_dir, 'model.py')
-        with open(model_py, 'w') as f:
+        # minimal model file (content should remain unchanged by huggingface customization)
+        with open(os.path.join(version_dir, 'model.py'), 'w') as f:
             f.write('pass')
+        # config WITHOUT checkpoints so code path adds it
         with open(os.path.join(clone_dir, 'config.yaml'), 'w') as f:
             f.write('model:\n  id: dummy\n')
         with open(os.path.join(clone_dir, 'requirements.txt'), 'w') as f:
             f.write('# none')
         return True
 
-    # Stub remote GitHub folder listing
+    # Stub remote folder listing instead of relying on env flags
     monkeypatch.setattr(
         model_module.GitHubDownloader,
         'get_folder_contents',
@@ -42,15 +48,13 @@ def test_model_init_lmstudio_toolkit(monkeypatch, tmp_path):
 
     # Patches
     monkeypatch.setattr(model_module, 'clone_github_repo', fake_clone)
-    monkeypatch.setattr(model_module, 'check_lmstudio_installed', lambda: True)
     monkeypatch.setattr(
         model_module, 'check_requirements_installed', lambda path: True, raising=False
     )
-    # Simulate Enter key for interactive confirmation
+    # Simulate pressing Enter for interactive confirmation
     monkeypatch.setattr('builtins.input', lambda *a, **k: '\n')
 
-    model_dir = tmp_path / 'lmstudio_model'
-
+    model_dir = tmp_path / 'sglang_model'
     result = runner.invoke(
         cli,
         [
@@ -58,52 +62,42 @@ def test_model_init_lmstudio_toolkit(monkeypatch, tmp_path):
             'init',
             str(model_dir),
             '--toolkit',
-            'lmstudio',
+            'sglang',
             '--model-name',
-            'qwen/qwen3-4b',
-            '--port',
-            '11888',
-            '--context-length',
-            '16000',
+            'microsoft/phi-1_5',
         ],
         standalone_mode=False,
     )
 
     assert result.exit_code == 0, result.output
     assert called['clone'] is True
-    assert called['repo_url'] is not None
+    assert called['repo_url'] is not None  # sanity that our fake saw a value
 
     cfg_path = model_dir / 'config.yaml'
     assert cfg_path.exists(), 'config.yaml not created'
     data = yaml.safe_load(cfg_path.read_text())
-    assert 'toolkit' in data and isinstance(data['toolkit'], dict), 'toolkit section missing'
+    assert 'checkpoints' in data and isinstance(data['checkpoints'], dict), (
+        'checkpoints section missing'
+    )
+    assert data['checkpoints']['repo_id'] == 'microsoft/phi-1_5'
 
-    # New values
-    assert data['toolkit']['model'] == 'qwen/qwen3-4b'
-    assert data['toolkit']['port'] == '11888'
-    assert data['toolkit']['context_length'] == '16000'
-
-    # Originals removed
-    assert data['toolkit']['model'] != 'LiquidAI/LFM2-1.2B'
-    assert data['toolkit']['port'] != '11434'
-    assert data['toolkit']['context_length'] != '2048'
+    model_py = model_dir / '1' / 'model.py'
+    assert model_py.exists(), 'model.py missing'
+    assert model_py.read_text() == 'pass', 'model.py unexpectedly modified'
 
 
-def test_model_init_lmstudio_defaults(monkeypatch, tmp_path):
-    """No customization flags: placeholders remain unchanged."""
+def test_model_init_sglang_no_model_name(monkeypatch, tmp_path):
+    """No --model-name: checkpoints section should NOT be added (mirrors current logic)."""
     runner = CliRunner()
     runner.invoke(cli, ["login", "--user_id", "test_user"])
-    called = {'clone': True}
+    called = {'clone': False}
 
     def fake_clone(repo_url, clone_dir, github_pat, branch):
+        called['clone'] = True
         version_dir = os.path.join(clone_dir, '1')
         os.makedirs(version_dir, exist_ok=True)
         with open(os.path.join(version_dir, 'model.py'), 'w') as f:
-            f.write(
-                "LMS_MODEL_NAME = 'LiquidAI/LFM2-1.2B'\n"
-                "LMS_PORT = 11434\n"
-                "LMS_CONTEXT_LENGTH = 4096\n"
-            )
+            f.write('pass')
         with open(os.path.join(clone_dir, 'config.yaml'), 'w') as f:
             f.write('model:\n  id: dummy\n')
         with open(os.path.join(clone_dir, 'requirements.txt'), 'w') as f:
@@ -121,27 +115,22 @@ def test_model_init_lmstudio_defaults(monkeypatch, tmp_path):
         ],
         raising=True,
     )
-    monkeypatch.setattr(model_module, 'check_lmstudio_installed', lambda: True)
     monkeypatch.setattr(
         model_module, 'check_requirements_installed', lambda path: True, raising=False
     )
     monkeypatch.setattr('builtins.input', lambda *a, **k: '\n')
 
-    model_dir = tmp_path / 'lmstudio_model_default'
+    model_dir = tmp_path / 'sglang_model2'
     result = runner.invoke(
         cli,
-        [
-            'model',
-            'init',
-            str(model_dir),
-            '--toolkit',
-            'lmstudio',
-        ],  # no customization args
+        ['model', 'init', str(model_dir), '--toolkit', 'sglang'],  # no --model-name
         standalone_mode=False,
     )
-    assert result.exit_code == 0, result.output
 
-    content = (model_dir / '1' / 'model.py').read_text()
-    assert "LMS_MODEL_NAME = 'LiquidAI/LFM2-1.2B'" in content
-    assert "LMS_PORT = 11434" in content
-    assert "LMS_CONTEXT_LENGTH = 4096" in content
+    assert result.exit_code == 0, result.output
+    assert called['clone'] is True
+
+    cfg_path = model_dir / 'config.yaml'
+    data = yaml.safe_load(cfg_path.read_text())
+    assert 'checkpoints' not in data, 'checkpoints unexpectedly added without model-name'
+    assert (model_dir / '1' / 'model.py').exists()
