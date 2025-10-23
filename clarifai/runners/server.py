@@ -275,6 +275,7 @@ class ModelServer:
             base_url=base_url,
             pat=pat,
             num_parallel_polls=num_threads,
+            model_proto=self._builder.get_model_proto(),
         )
 
         if context is None:
