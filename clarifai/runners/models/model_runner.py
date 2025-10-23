@@ -129,7 +129,7 @@ class ModelRunner(BaseRunner):
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
-        if not request.HasField("model") and self.model_proto is not None:
+        if self.model_proto is not None and not request.HasField("model"):
             request.model.CopyFrom(self.model_proto)
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
         inject_secrets(request)
