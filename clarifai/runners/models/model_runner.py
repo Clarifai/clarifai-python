@@ -333,7 +333,7 @@ def pmo_iterator(runner_item_iterator, model_proto=None, auth_helper=None):
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         if (
-            runner_item.post_model_outputs_request.HasField("model") is not None
+            not runner_item.post_model_outputs_request.HasField("model")
             and model_proto is not None
         ):
             runner_item.post_model_outputs_request.model.CopyFrom(model_proto)
