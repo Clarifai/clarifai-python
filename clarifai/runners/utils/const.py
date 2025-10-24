@@ -49,4 +49,5 @@ CONCEPTS_REQUIRED_MODEL_TYPE = [
     'visual-detector',
     'visual-segmenter',
     'text-classifier',
+    'visual-keypointer',
 ]
