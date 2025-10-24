@@ -1,10 +1,7 @@
 """Tests for environment validation in model runners."""
 
-import os
-import sys
-import tempfile
-from pathlib import Path
 from unittest.mock import patch
+
 import pytest
 
 from clarifai.runners.models.model_run_locally import ModelRunLocally
@@ -15,11 +12,11 @@ def gpu_model_path(tmp_path):
     """Create a test model that requires GPU support."""
     model_path = tmp_path / "gpu_model"
     model_path.mkdir()
-    
+
     # Create version folder
     version_path = model_path / "1"
     version_path.mkdir()
-    
+
     # Create config.yaml requiring GPU
     config_content = """
 model:
@@ -39,11 +36,11 @@ inference_compute_info:
 """
     with open(model_path / "config.yaml", "w") as f:
         f.write(config_content)
-    
+
     # Create requirements.txt
     with open(model_path / "requirements.txt", "w") as f:
         f.write("clarifai>=10.0.0\n")
-    
+
     # Create model.py
     model_content = """
 from clarifai.runners.models.model_class import ModelClass
@@ -56,14 +53,14 @@ class MyModel(ModelClass):
     @ModelClass.method
     def predict(self, text1: Text = "") -> Text:
         return Text(text1.text + "Hello World")
-        
+
     def test(self):
         res = self.predict(Text("test"))
         assert res.text == "testHello World"
 """
     with open(version_path / "model.py", "w") as f:
         f.write(model_content)
-    
+
     return str(model_path)
 
 
@@ -72,11 +69,11 @@ def cpu_model_path(tmp_path):
     """Create a test model that only uses CPU."""
     model_path = tmp_path / "cpu_model"
     model_path.mkdir()
-    
+
     # Create version folder
     version_path = model_path / "1"
     version_path.mkdir()
-    
+
     # Create config.yaml for CPU-only
     config_content = """
 model:
@@ -95,11 +92,11 @@ inference_compute_info:
 """
     with open(model_path / "config.yaml", "w") as f:
         f.write(config_content)
-    
+
     # Create requirements.txt
     with open(model_path / "requirements.txt", "w") as f:
         f.write("clarifai>=10.0.0\n")
-    
+
     # Create model.py
     model_content = """
 from clarifai.runners.models.model_class import ModelClass
@@ -112,88 +109,98 @@ class MyModel(ModelClass):
     @ModelClass.method
     def predict(self, text1: Text = "") -> Text:
         return Text(text1.text + "Hello World")
-        
+
     def test(self):
         res = self.predict(Text("test"))
         assert res.text == "testHello World"
 """
     with open(version_path / "model.py", "w") as f:
         f.write(model_content)
-    
+
     return str(model_path)
 
 
 class TestEnvironmentValidation:
     """Test environment validation for unsupported configurations."""
-    
+
     def test_python_version_validation_current(self, gpu_model_path):
         """Test that current Python version passes validation."""
         manager = ModelRunLocally(gpu_model_path)
         # Should not raise SystemExit
         manager._validate_test_environment()
-    
+
     def test_python_version_validation_old(self, gpu_model_path):
         """Test that old Python versions fail validation."""
         manager = ModelRunLocally(gpu_model_path)
-        
+
         with patch('sys.version_info', (3, 7, 0)):
             with pytest.raises(SystemExit):
                 manager._validate_test_environment()
-    
+
     def test_macos_gpu_model_fails(self, gpu_model_path):
         """Test that macOS fails for GPU models without nvidia-smi."""
         manager = ModelRunLocally(gpu_model_path)
-        
-        with patch('platform.system', return_value='Darwin'), \
-             patch('shutil.which', return_value=None):  # No nvidia-smi
+
+        with patch('platform.system', return_value='Darwin'), patch(
+            'shutil.which', return_value=None
+        ):  # No nvidia-smi
             with pytest.raises(SystemExit):
                 manager._validate_test_environment()
-    
+
     def test_macos_cpu_model_warns(self, cpu_model_path):
         """Test that macOS shows warnings for CPU models."""
         manager = ModelRunLocally(cpu_model_path)
-        
-        with patch('platform.system', return_value='Darwin'), \
-             patch('shutil.which', return_value=None):  # No nvidia-smi or docker
+
+        with patch('platform.system', return_value='Darwin'), patch(
+            'shutil.which', return_value=None
+        ):  # No nvidia-smi or docker
             # Should pass but with warnings
             manager._validate_test_environment()
-    
+
     def test_linux_validation_passes(self, gpu_model_path):
         """Test that Linux generally passes validation."""
         manager = ModelRunLocally(gpu_model_path)
-        
+
         with patch('platform.system', return_value='Linux'):
             # Should pass without issues
             manager._validate_test_environment()
-    
+
     def test_validation_called_in_main(self, gpu_model_path):
         """Test that validation is called in the main function."""
         from clarifai.runners.models.model_run_locally import main
-        
-        with patch('clarifai.runners.models.model_run_locally.ModelRunLocally._validate_test_environment') as mock_validate, \
-             patch('clarifai.runners.models.model_run_locally.ModelRunLocally.create_temp_venv'), \
-             patch('clarifai.runners.models.model_run_locally.ModelRunLocally.install_requirements'), \
-             patch('clarifai.runners.models.model_run_locally.ModelRunLocally.test_model'), \
-             patch('clarifai.runners.models.model_run_locally.ModelRunLocally.clean_up'):
-            
+
+        with patch(
+            'clarifai.runners.models.model_run_locally.ModelRunLocally._validate_test_environment'
+        ) as mock_validate, patch(
+            'clarifai.runners.models.model_run_locally.ModelRunLocally.create_temp_venv'
+        ), patch(
+            'clarifai.runners.models.model_run_locally.ModelRunLocally.install_requirements'
+        ), patch('clarifai.runners.models.model_run_locally.ModelRunLocally.test_model'), patch(
+            'clarifai.runners.models.model_run_locally.ModelRunLocally.clean_up'
+        ):
             try:
                 main(gpu_model_path, keep_env=True)
             except:
                 pass  # We expect some exceptions due to mocking
-            
+
             # Ensure validation was called
             assert mock_validate.called, "Environment validation should be called in main()"
-    
+
     def test_validation_early_exit(self, gpu_model_path):
         """Test that validation causes early exit on failure."""
         from clarifai.runners.models.model_run_locally import main
-        
+
         # Mock validation to fail
-        with patch('clarifai.runners.models.model_run_locally.ModelRunLocally._validate_test_environment', side_effect=SystemExit(1)), \
-             patch('clarifai.runners.models.model_run_locally.ModelRunLocally.create_temp_venv') as mock_venv:
-            
+        with patch(
+            'clarifai.runners.models.model_run_locally.ModelRunLocally._validate_test_environment',
+            side_effect=SystemExit(1),
+        ), patch(
+            'clarifai.runners.models.model_run_locally.ModelRunLocally.create_temp_venv'
+        ) as mock_venv:
             with pytest.raises(SystemExit):
                 main(gpu_model_path)
-            
+
             # Ensure subsequent operations are not called
-            assert not mock_venv.called, "create_temp_venv should not be called if validation fails"
+            assert not mock_venv.called, (
+                "create_temp_venv should not be called if validation fails"
+            )

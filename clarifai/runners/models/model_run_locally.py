@@ -298,34 +298,32 @@ class ModelRunLocally:
             )
 
         # Check for GPU-related configurations on unsupported platforms
-        current_platform = platform.system().lower()
-        if current_platform == 'darwin':  # macOS
-            if not self._gpu_is_available():
-                # Check if model requires GPU acceleration
-                requires_gpu = False
-                if hasattr(self, 'config') and self.config:
-                    inference_compute_info = self.config.get('inference_compute_info', {})
-                    accelerator_types = inference_compute_info.get('accelerator_type', [])
-                    num_accelerators = inference_compute_info.get('num_accelerators', 0)
+        current_environment = platform.system().lower()
+        if current_environment == "darwin":
+            current_environment = "darwin (macOS)"
+        if not self._gpu_is_available():
+            # Check if model requires GPU acceleration
+            requires_gpu = False
+            if hasattr(self, 'config') and self.config:
+                inference_compute_info = self.config.get('inference_compute_info', {})
+                num_accelerators = inference_compute_info.get('num_accelerators', 0)
+                requires_gpu = (
+                    num_accelerators != 0
+                )  # Check if GPU is required based on num_accelerators
 
-                    # Check if GPU is required based on accelerator types or num_accelerators
-                    has_gpu_accelerator = any('nvidia' in acc.lower() or 'gpu' in acc.lower() 
-                                            for acc in accelerator_types)
-                    requires_gpu = has_gpu_accelerator or (num_accelerators != 0)
-
-                if requires_gpu:
-                    errors.append(
-                        "macOS does not support NVIDIA GPU acceleration for model testing. "
-                        "Your model configuration requires GPU support. "
-                        "Please test on a Linux system with NVIDIA GPU support, "
-                        "or modify your model configuration to use CPU-only inference."
-                    )
-                else:
-                    warnings.append(
-                        "Running on macOS without GPU support. "
-                        "If your model requires GPU acceleration, testing may fail. "
-                        "Consider testing on a Linux system with NVIDIA GPU support."
-                    )
+            if requires_gpu:
+                errors.append(
+                    f"Your current environment i.e. '{current_environment}' does not have NVIDIA GPU support. "
+                    "Your model configuration requires GPU support. "
+                    "Please test on a environment with NVIDIA GPU support, "
+                    "or modify your model configuration to use CPU-only inference."
+                )
+            else:
+                warnings.append(
+                    f"Running on '{current_environment}' without NVIDIA GPU support. "
+                    "If your model requires GPU support, testing may fail. "
+                    "Consider testing on an environment with NVIDIA GPU support."
+                )
 
         # Check for Docker availability when needed
         if hasattr(self, 'config') and self.config:
@@ -347,8 +345,8 @@ class ModelRunLocally:
                 logger.error(f"  {i}. {error}")
             logger.error(
                 "\n💡 To resolve these issues:\n"
-                "   • Update your Python version if needed\n"  
-                "   • Use a Linux system with NVIDIA drivers for GPU models\n"
+                "   • Update your Python version if needed\n"
+                "   • Use a system with NVIDIA drivers for GPU models\n"
                 "   • Modify your model configuration for CPU-only inference\n"
                 "   • Check the Clarifai documentation for supported environments"
             )
