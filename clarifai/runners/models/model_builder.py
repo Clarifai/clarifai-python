@@ -208,6 +208,36 @@ class ModelBuilder:
             model.load_model()
         return model
 
+    def get_model_proto(self) -> resources_pb2.Model:
+        """
+        Retrieve the model and model version proto using self.model_id and self.model_version_id.
+
+        Args:
+            None
+
+        Returns:
+            resources_pb2.Model: The retrieved model proto.
+
+        Raises:
+            UserError: If the model or model version cannot be retrieved.
+        """
+        request = service_pb2.GetModelRequest(
+            user_app_id=self.client.user_app_id,
+            model_id=self.model_id,
+        )
+        if self.model_version_id is not None:
+            request.version_id = self.model_version_id
+        resp: service_pb2.SingleModelResponse = self.client.STUB.GetModel(request)
+        if resp.status.code != status_code_pb2.SUCCESS:
+            if self.model_version_id is None:
+                raise UserError(f"Failed to get model '{self.model_id}': {resp.status.details}")
+            else:
+                raise UserError(
+                    f"Failed to get model '{self.model_id}'"
+                    f" version '{self.model_version_id}': {resp.status.details}"
+                )
+        return resp.model
+
     def load_model_class(self, mocking=False):
         """
         Import the model class from the model.py file, dynamically handling missing dependencies
