@@ -2,7 +2,7 @@ import itertools
 import json
 import os
 import time
-from typing import Any, Dict, Generator, Iterable, Iterator, List, Tuple, Union
+from typing import Any, Dict, Generator, Iterable, Iterator, List, Optional, Tuple, Union
 
 import numpy as np
 import requests
@@ -66,6 +66,7 @@ class Model(Lister, BaseClient):
         compute_cluster_id: str = None,
         nodepool_id: str = None,
         deployment_id: str = None,
+        deployment_user_id: str = None,
         **kwargs,
     ):
         """Initializes a Model object.
@@ -78,6 +79,10 @@ class Model(Lister, BaseClient):
             pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
             token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
             root_certificates_path (str): Path to the SSL root certificates file, used to establish secure gRPC connections.
+            compute_cluster_id (str): Compute cluster ID for runner selector.
+            nodepool_id (str): Nodepool ID for runner selector.
+            deployment_id (str): Deployment ID for runner selector.
+            deployment_user_id (str): User ID to use for runner selector (organization or user). If not provided, defaults to PAT owner user_id.
             **kwargs: Additional keyword arguments to be passed to the Model.
         """
         if url and model_id:
@@ -103,6 +108,7 @@ class Model(Lister, BaseClient):
         self.training_params = {}
         self.input_types = None
         self._client = None
+        self._async_client = None
         self._added_methods = False
         BaseClient.__init__(
             self,
@@ -115,10 +121,13 @@ class Model(Lister, BaseClient):
         )
         Lister.__init__(self)
 
+        self.deployment_user_id = deployment_user_id
+
         self._set_runner_selector(
             compute_cluster_id=compute_cluster_id,
             nodepool_id=nodepool_id,
             deployment_id=deployment_id,
+            deployment_user_id=deployment_user_id,
         )
 
     @classmethod
@@ -170,20 +179,26 @@ class Model(Lister, BaseClient):
 
         return templates
 
-    def get_params(self, template: str = None, save_to: str = 'params.yaml') -> Dict[str, Any]:
-        """Returns the model params for the model type and yaml file.
+    def get_params(
+        self, template: Optional[str] = None, save_to: str = 'params.yaml'
+    ) -> Dict[str, Any]:
+        """Returns the model params for the model type and saves them to a yaml file.
 
         Args:
-            template (str): The template to use for the model type.
-            yaml_file (str): The yaml file to save the model params.
+            template (Optional[str]): The template to use for the model type. Required for most
+                                    model types except 'clusterer' and 'embedding-classifier'.
+            save_to (str): The yaml file path to save the model params. Defaults to 'params.yaml'.
 
         Returns:
-            params (Dict): Dictionary of model params for the model type.
+            Dict[str, Any]: Dictionary of model params for the model type.
+
+        Raises:
+            UserError: If the model type is not trainable, or if template is required but not provided.
 
         Example:
             >>> from clarifai.client.model import Model
             >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-            >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
+            >>> model_params = model.get_params(template='template', save_to='model_params.yaml')
         """
         if not self.model_info.model_type_id:
             self.load_info()
@@ -252,19 +267,22 @@ class Model(Lister, BaseClient):
             find_and_replace_key(self.training_params, key, value)
 
     def get_param_info(self, param: str) -> Dict[str, Any]:
-        """Returns the param info for the param.
+        """Returns the parameter info for the specified parameter.
 
         Args:
-            param (str): The param to get the info for.
+            param (str): The parameter name to get information for.
 
         Returns:
-            param_info (Dict): Dictionary of model param info for the param.
+            Dict[str, Any]: Dictionary containing model parameter info for the specified param.
+
+        Raises:
+            UserError: If the model type is not trainable or if training params are not loaded.
 
         Example:
             >>> from clarifai.client.model import Model
             >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-            >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
-            >>> model.get_param_info('param')
+            >>> model_params = model.get_params(template='template', save_to='model_params.yaml')
+            >>> param_info = model.get_param_info('learning_rate')
         """
         if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
             raise UserError(f"Model type {self.model_info.model_type_id} is not trainable")
@@ -437,7 +455,9 @@ class Model(Lister, BaseClient):
         response = self._grpc_request(self.STUB.PostModelVersions, request)
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
-        self.logger.info("\nModel Version created\n%s", response.status)
+        self.logger.info(
+            f"Model Version with ID '{response.model.model_version.id}' is created:\n{response.status}"
+        )
 
         kwargs.update({'app_id': self.app_id, 'user_id': self.user_id})
         dict_response = MessageToDict(response, preserving_proto_field_name=True)
@@ -503,10 +523,28 @@ class Model(Lister, BaseClient):
                 model=self.model_info,
                 runner_selector=self._runner_selector,
             )
+            # Pass in None for async stub will create it.
             self._client = ModelClient(
-                stub=self.STUB, async_stub=self.async_stub, request_template=request_template
+                stub=self.STUB, async_stub=None, request_template=request_template
             )
         return self._client
+
+    @property
+    def async_client(self):
+        """Get the asynchronous client instance (with async stub)."""
+        if self._async_client is None:
+            request_template = service_pb2.PostModelOutputsRequest(
+                user_app_id=self.user_app_id,
+                model_id=self.id,
+                version_id=self.model_version.id,
+                model=self.model_info,
+                runner_selector=self._runner_selector,
+            )
+            # Create async client with async stub
+            self._async_client = ModelClient(
+                stub=self.STUB, async_stub=self.async_stub, request_template=request_template
+            )
+        return self._async_client
 
     def predict(self, *args, **kwargs):
         """
@@ -554,16 +592,16 @@ class Model(Lister, BaseClient):
             )
             inference_params = kwargs.get('inference_params', {})
             output_config = kwargs.get('output_config', {})
-            return await self.client._async_predict_by_proto(
+            return await self.async_client._async_predict_by_proto(
                 inputs=inputs, inference_params=inference_params, output_config=output_config
             )
 
         # Adding try-except, since the await works differently with jupyter kernels and in regular python scripts.
         try:
-            return await self.client.predict(*args, **kwargs)
+            return await self.async_client.predict(*args, **kwargs)
         except TypeError:
             # In jupyter, it returns a str object instead of a co-routine.
-            return self.client.predict(*args, **kwargs)
+            return self.async_client.predict(*args, **kwargs)
 
     def __getattr__(self, name):
         try:
@@ -576,7 +614,10 @@ class Model(Lister, BaseClient):
             self.client.fetch()
             for method_name in self.client._method_signatures.keys():
                 if not hasattr(self, method_name):
-                    setattr(self, method_name, getattr(self.client, method_name))
+                    if method_name.startswith('async_'):
+                        setattr(self, method_name, getattr(self.async_client, method_name))
+                    else:
+                        setattr(self, method_name, getattr(self.client, method_name))
         if hasattr(self.client, name):
             return getattr(self.client, name)
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
@@ -633,9 +674,13 @@ class Model(Lister, BaseClient):
         compute_cluster_id: str = None,
         nodepool_id: str = None,
         deployment_id: str = None,
+        deployment_user_id: str = None,
     ):
-        # Get UserID
-        if any([deployment_id, nodepool_id, compute_cluster_id]):
+        # Get UserID for runner selector
+        user_id = None
+        if deployment_user_id:
+            user_id = deployment_user_id
+        elif any([deployment_id, nodepool_id, compute_cluster_id]):
             from clarifai.client.user import User
 
             user_id = (
@@ -643,13 +688,11 @@ class Model(Lister, BaseClient):
                 .get_user_info(user_id='me')
                 .user.id
             )
-
         runner_selector = None
         if deployment_id and (compute_cluster_id or nodepool_id):
             raise UserError(
                 "You can only specify one of deployment_id or compute_cluster_id and nodepool_id."
             )
-
         if deployment_id:
             runner_selector = Deployment.get_runner_selector(
                 user_id=user_id, deployment_id=deployment_id
@@ -658,7 +701,6 @@ class Model(Lister, BaseClient):
             runner_selector = Nodepool.get_runner_selector(
                 user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id
             )
-
         # set the runner selector
         self._runner_selector = runner_selector
 
@@ -818,11 +860,11 @@ class Model(Lister, BaseClient):
             )
             inference_params = kwargs.get('inference_params', {})
             output_config = kwargs.get('output_config', {})
-            return self.client._async_generate_by_proto(
+            return self.async_client._async_generate_by_proto(
                 inputs=inputs, inference_params=inference_params, output_config=output_config
             )
 
-        return self.client.generate(*args, **kwargs)
+        return self.async_client.generate(*args, **kwargs)
 
     def generate_by_filepath(
         self,
@@ -1027,11 +1069,11 @@ class Model(Lister, BaseClient):
                 )
                 inference_params = kwargs.get('inference_params', {})
                 output_config = kwargs.get('output_config', {})
-                return self.client._async_stream_by_proto(
+                return self.async_client._async_stream_by_proto(
                     inputs=inputs, inference_params=inference_params, output_config=output_config
                 )
 
-            return self.client.async_stream(*args, **kwargs)
+            return self.async_client.async_stream(*args, **kwargs)
 
     def stream_by_filepath(
         self,
@@ -2089,4 +2131,34 @@ class Model(Lister, BaseClient):
             auth=self.auth_helper,
             model_id=self.id,
             model_version=dict(id=response.model.model_version.id),
+        )
+
+    def patch_version(self, version_id: str, **kwargs) -> 'Model':
+        """Patch the model version with the given version ID.
+        Args:
+            version_id (str): The version ID to patch.
+            **kwargs: Additional keyword arguments to update the model version.
+        Example:
+            >>> from clarifai.client.model import Model
+            >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
+            >>> model.patch_version(version_id='version_id', method_signatures=signatures)
+        """
+        request = service_pb2.PatchModelVersionsRequest(
+            user_app_id=self.user_app_id,
+            model_id=self.id,
+            action='merge',
+            model_versions=[
+                resources_pb2.ModelVersion(
+                    id=version_id,
+                    **kwargs,
+                )
+            ],
+        )
+        response = self._grpc_request(self.STUB.PatchModelVersions, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+        return Model.from_auth_helper(
+            auth=self.auth_helper,
+            model_id=self.id,
+            model_version=dict(id=version_id),
         )

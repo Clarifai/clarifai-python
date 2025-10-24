@@ -1,3 +1,212 @@
+## [[11.9.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.9.0) - [PyPI](https://pypi.org/project/clarifai/11.9.0/) - 2025-10-22
+
+### Changed
+- Fixed Missing `user_id` parameter issue in CLI `local-runner` command [(#816)](https://github.com/Clarifai/clarifai-python/pull/816)
+- Added sglang toolkit to CLI init command [(#815)](https://github.com/Clarifai/clarifai-python/pull/815)
+- Added Model Deployment Workflow after Model Upload in CLI [(#802)](https://github.com/Clarifai/clarifai-python/pull/802)
+
+## [[11.8.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.5) - [PyPI](https://pypi.org/project/clarifai/11.8.5/) - 2025-10-20
+
+### Added
+- Added optional protobuf response information in pythonic models with parameter validation [(#810)](https://github.com/Clarifai/clarifai-python/pull/810)
+
+## [[11.8.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.4) - [PyPI](https://pypi.org/project/clarifai/11.8.4/) - 2025-10-18
+
+### Changed
+- Added python toolkit to CLI init command [(#807)](https://github.com/Clarifai/clarifai-python/pull/807)
+- Added USER_ID to config of CLI Model Init [(#808)](https://github.com/Clarifai/clarifai-python/pull/808)
+- Add user input prompt for OpenAI local runner [(#801)](https://github.com/Clarifai/clarifai-python/pull/801)
+- Fixed async_client initialisation [(#806)](https://github.com/Clarifai/clarifai-python/pull/806)
+
+## [[11.8.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.3) - [PyPI](https://pypi.org/project/clarifai/11.8.3/) - 2025-10-09
+
+### Changed
+- Disabled `async_stub` in `ModelClient` initialization [(#804)](https://github.com/Clarifai/clarifai-python/pull/804)
+- Fixed `UnboundLocalError` in model init when using `--model-type-id` without toolkit [(#799)](https://github.com/Clarifai/clarifai-python/pull/799)
+- Added config-lock.yaml to clarifai pipeline upload [(#754)](https://github.com/Clarifai/clarifai-python/pull/754)
+
+## [[11.8.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.2) - [PyPI](https://pypi.org/project/clarifai/11.8.2/) - 2025-09-24
+
+### Changed
+- Added support for initializing models using the vLLM toolkit for local-runners [(#789)](https://github.com/Clarifai/clarifai-python/pull/789)
+- Modified the secret injection mechanism to support pulling secrets directly from the current environment when no secret files are available [(#788)](https://github.com/Clarifai/clarifai-python/pull/788)
+- Updated type hints and docstring descriptions across all major files in the clarifai/client folder to improve code quality, maintainability, and developer experience [(#781)](https://github.com/Clarifai/clarifai-python/pull/781)
+- Added comprehensive secrets management functionality to Clarifai's client, including CRUD operations for secrets and integration with model upload workflows [(#779)](https://github.com/Clarifai/clarifai-python/pull/779)
+- Added support for initializing models using the LMStudio toolkit for local-runners [(#760)](https://github.com/Clarifai/clarifai-python/pull/760)
+- Added support for initializing models using the Hugging Face toolkit for local-runners [(#740)](https://github.com/Clarifai/clarifai-python/pull/740)
+- A new `patch_version` method is added to the Model class and integrated method signatures into the local runner workflow [(#718)](https://github.com/Clarifai/clarifai-python/pull/718)
+- Highlights the code of example code script printed in logs of local runner workflow [(#707)](https://github.com/Clarifai/clarifai-python/pull/707)
+- Changed the default local development model type from "text-to-text" to "any-to-any" [(#680)](https://github.com/Clarifai/clarifai-python/pull/680)
+- Reduced friction while still leveraging a single prebuilt AMD base image [(#645)](https://github.com/Clarifai/clarifai-python/pull/645)
+- Bump setuptools from 70.0.0 to 78.1.1 in /.github/workflows [(#600)](https://github.com/Clarifai/clarifai-python/pull/600)
+- Fixes an issue with the conversion of gRPC response enums to integers for the runner creation process [(#576)](https://github.com/Clarifai/clarifai-python/pull/576)
+
+## [[11.8.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.1) - [PyPI](https://pypi.org/project/clarifai/11.8.1/) - 2025-09-11
+
+### Changed
+- Minor internal improvements and bug fixes.
+
+## [[11.8.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.0) - [PyPI](https://pypi.org/project/clarifai/11.8.0/) - 2025-09-11
+
+### Added
+- Health probe support allowing `ModelClass` implementations to define liveness/readiness checks [(#783)](https://github.com/Clarifai/clarifai-python/pull/783)
+- Interactive `pipeline init` user prompts replacing placeholder TODO values [(#768)](https://github.com/Clarifai/clarifai-python/pull/768)
+- Git registry metadata capture during model upload with model‑scoped change detection [(#762)](https://github.com/Clarifai/clarifai-python/pull/762)
+- Comprehensive internal GitHub Copilot contributor instructions document [(#748)](https://github.com/Clarifai/clarifai-python/pull/748)
+
+### Changed
+- Local runner now uses latest local-dev model version automatically [(#777)](https://github.com/Clarifai/clarifai-python/pull/777)
+- Improved overall Model CLI UX (consolidated flags, clearer help, better error surfacing) [(#738)](https://github.com/Clarifai/clarifai-python/pull/738)
+- Updated `clarifai model predict` CLI to align with pythonic model changes [(#654)](https://github.com/Clarifai/clarifai-python/pull/654)
+- Updated local-runner default API base URL [(#770)](https://github.com/Clarifai/clarifai-python/pull/770)
+- Refined logging in model & pipeline step builders for clearer diagnostics [(#773)](https://github.com/Clarifai/clarifai-python/pull/773)
+
+### Fixed
+- Correct TypeError when parsing checkpoint size from environment variable [(#775)](https://github.com/Clarifai/clarifai-python/pull/775)
+- Secrets handling for request type secrets in runners / builders [(#774)](https://github.com/Clarifai/clarifai-python/pull/774)
+- Pipeline log monitoring pagination now returns all entries beyond first 50 [(#772)](https://github.com/Clarifai/clarifai-python/pull/772)
+
+### Internal / Docs
+- Added structured maintainer + contributor guidance for AI assistance workflows [(#748)](https://github.com/Clarifai/clarifai-python/pull/748)
+
+### Notes
+- This release focuses on developer ergonomics (CLI UX, logging clarity), operational robustness (health probes, pagination fix), and improved reproducibility (git registry metadata & latest local-dev model resolution).
+
+## [[11.7.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.5) - [PyPI](https://pypi.org/project/clarifai/11.7.5/) - 2025-08-28
+
+### Changed
+- Fix Local Runner CLI command [(#765)] (https://github.com/Clarifai/clarifai-python/pull/765)
+
+## [[11.7.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.4) - [PyPI](https://pypi.org/project/clarifai/11.7.4/) - 2025-08-27
+
+### Changed
+- update protocol and grpc versions [(#763)] (https://github.com/Clarifai/clarifai-python/pull/763)
+
+## [[11.7.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.3) - [PyPI](https://pypi.org/project/clarifai/11.7.3/) - 2025-08-22
+
+### Changed
+- avoid downloading original checkpoints [(#760)] (https://github.com/Clarifai/clarifai-python/pull/760)
+- integrate secrets into SDK [(#757)] (https://github.com/Clarifai/clarifai-python/pull/757)
+
+## [[11.7.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.2) - [PyPI](https://pypi.org/project/clarifai/11.7.2/) - 2025-08-19
+
+### Changed
+- fix num_threads setting fix pip checks [(#752)] (https://github.com/Clarifai/clarifai-python/pull/752)
+- fix pip checks when cache is broken [(#751)] (https://github.com/Clarifai/clarifai-python/pull/751)
+
+## [[11.7.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.1) - [PyPI](https://pypi.org/project/clarifai/11.7.1/) - 2025-08-18
+
+### Changed
+- fix usage setting on openai responses [(#750)] (https://github.com/Clarifai/clarifai-python/pull/750)
+
+## [[11.7.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.7.0) - [PyPI](https://pypi.org/project/clarifai/11.7.0/) - 2025-08-18
+
+### Changed
+- add stream_options validation for internal streaming model upload [(#742)] (https://github.com/Clarifai/clarifai-python/pull/742)
+- add packaging dependency that was missing [(#743)] (https://github.com/Clarifai/clarifai-python/pull/743)
+- always return JSON errors on openAI calls [(#744)] (https://github.com/Clarifai/clarifai-python/pull/744)
+- use 32 threads by default [(#735)] (https://github.com/Clarifai/clarifai-python/pull/735)
+- [PR-754] Fix ruff and dependencies-related issues [(#737)] (https://github.com/Clarifai/clarifai-python/pull/737)
+- [PR-768]: Fix Model Upload Deployment [(#739)] (https://github.com/Clarifai/clarifai-python/pull/739)
+- [PR-765] Fix wrong url for python SDK in README [(#734)] (https://github.com/Clarifai/clarifai-python/pull/733)
+- [PR-734] Use Method signature for local-runner [(#718)] (https://github.com/Clarifai/clarifai-python/pull/718)
+- Prevent Dockerfile overwrite during model upload with user confirmation [(#715)] (https://github.com/Clarifai/clarifai-python/pull/715)
+
+
+## [[11.6.8]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.8) - [PyPI](https://pypi.org/project/clarifai/11.6.8/) - 2025-08-05
+
+### Changed
+- quickfix for local runner signatures [(#732)] (https://github.com/Clarifai/clarifai-python/pull/732)
+
+## [[11.6.7]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.7) - [PyPI](https://pypi.org/project/clarifai/11.6.7/) - 2025-08-04
+
+### Changed
+- skip code generation when context is None [(#730)] (https://github.com/Clarifai/clarifai-python/pull/730)
+- pipeline_steps should be used in templates [(#728)] (https://github.com/Clarifai/clarifai-python/pull/728)
+- Fix nodepool creation [(#729)] (https://github.com/Clarifai/clarifai-python/pull/729)
+- Fix pipeline status code checks [(#727)] (https://github.com/Clarifai/clarifai-python/pull/727)
+- various fixes for pipelines [(#726)] (https://github.com/Clarifai/clarifai-python/pull/726)
+- Add list / ls CLI command for pipeline and pipelinestep [(#667)] (https://github.com/Clarifai/clarifai-python/pull/667)
+- Fix PAT account settings link [(#724)] (https://github.com/Clarifai/clarifai-python/pull/724)
+
+## [[11.6.6]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.6) - [PyPI](https://pypi.org/project/clarifai/11.6.6/) - 2025-07-30
+
+### Changed
+- Added support for verbose logging of Ollama [(#717)] (https://github.com/Clarifai/clarifai-python/pull/717)
+- Improve error messages with pythonic models [(#721)] (https://github.com/Clarifai/clarifai-python/pull/721)
+- Improve login logging experience [(#719)] (https://github.com/Clarifai/clarifai-python/pull/719)
+- Improve Local Runner Logging [(#720)] (https://github.com/Clarifai/clarifai-python/pull/720)
+
+## [[11.6.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.5) - [PyPI](https://pypi.org/project/clarifai/11.6.5/) - 2025-07-23
+
+### Changed
+- Add CLI config context support to BaseClient authentication [(#704)] (https://github.com/Clarifai/clarifai-python/pull/704)
+- live logging functionality for model runner [(#711)] (https://github.com/Clarifai/clarifai-python/pull/711)
+- Unify Context Management Under a Single config Command [(#709)] (https://github.com/Clarifai/clarifai-python/pull/709)
+- Add func to return both stub and channel [(#713)] (https://github.com/Clarifai/clarifai-python/pull/713)
+- Added local-runner requirements validation step [(#712)] (https://github.com/Clarifai/clarifai-python/pull/712)
+- Improve URL Download error handling [(#710)] (https://github.com/Clarifai/clarifai-python/pull/710)
+- Added Playground URL to Local-Runner Logs [(#708)] (https://github.com/Clarifai/clarifai-python/pull/708)
+- Unit tests for toolkits [(#639)] (https://github.com/Clarifai/clarifai-python/pull/639)
+- Improve Local-Runner CLI Logging [(#706)] (https://github.com/Clarifai/clarifai-python/pull/706)
+- Improve client script formatting (black linter formatting) [(#705)] (https://github.com/Clarifai/clarifai-python/pull/705)
+- Add github folder download support and toolkit option in model init [(#699)] (https://github.com/Clarifai/clarifai-python/pull/699)
+- Improve Handling for PAT and USER_ID [(#702)] (https://github.com/Clarifai/clarifai-python/pull/702)
+
+## [[11.6.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.4) - [PyPI](https://pypi.org/project/clarifai/11.6.4/) - 2025-07-11
+
+### Changed
+- Fixed flag for local runner threads, add user validation error [(#698)] (https://github.com/Clarifai/clarifai-python/pull/698)
+- Added PAT token validation during clarifai login command [(#697)] (https://github.com/Clarifai/clarifai-python/pull/697)
+- Fixed Local Runners Name across SDK [(#695)] (https://github.com/Clarifai/clarifai-python/pull/695)
+
+## [[11.6.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.3) - [PyPI](https://pypi.org/project/clarifai/11.6.3/) - 2025-07-09
+
+### Changed
+- Added default template for ollama models in the local-runner ising `model init` command [(#693)] (https://github.com/Clarifai/clarifai-python/pull/693)
+- Fixed `pipelinestep upload` command to parse all compute-info params and preserve user Dockerfile
+- Fixed base model template import & return issues [(#690)] (https://github.com/Clarifai/clarifai-python/pull/690)
+- Add `pool_size` flag default to 1 for local dev runner threads [(#689)] (https://github.com/Clarifai/clarifai-python/pull/689)
+
+## [[11.6.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.2) - [PyPI](https://pypi.org/project/clarifai/11.6.2/) - 2025-07-08
+
+### Changed
+- Updated local-runner constants [(#684)] (https://github.com/Clarifai/clarifai-python/pull/684)
+
+## [[11.6.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.1) - [PyPI](https://pypi.org/project/clarifai/11.6.1/) - 2025-07-07
+
+### Changed
+- Added `--version` flag support to the Clarifai CLI [(#678)] (https://github.com/Clarifai/clarifai-python/pull/678)
+- Ensured better handling of `model_type_id` and improved configuration management [(#676)] (https://github.com/Clarifai/clarifai-python/pull/676)
+- Added support for specifying a `deployment_user_id` in the Model class to enhance runner selection functionality [(#675)] (https://github.com/Clarifai/clarifai-python/pull/675)
+- Added functionality to initialize a model directory from a GitHub repository, enhancing flexibility and usability in `model init` command [(#674)] (https://github.com/Clarifai/clarifai-python/pull/674)
+- Fixed CLI PATH for Windows [(#672)] (https://github.com/Clarifai/clarifai-python/pull/672)
+- Fixed code generation script [(#671)] (https://github.com/Clarifai/clarifai-python/pull/671)
+- Added an alias for the pipelinestep CLI command and significantly improved test coverage for the `clarifai.runners.pipeline_steps` module [(#665)] (https://github.com/Clarifai/clarifai-python/pull/665)
+- Improved CLI documentation and added descriptive help messages for various model-related commands [(#663)] (https://github.com/Clarifai/clarifai-python/pull/663)
+
+## [[11.6.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.6.0) - [PyPI](https://pypi.org/project/clarifai/11.6.0/) - 2025-07-01
+
+### Changed
+- Number of threads used for GRPC Server default to CLARIFAI_NUM_THREADS and 32 otherwise [(#661)] (https://github.com/Clarifai/clarifai-python/pull/661)
+- Use Configuration contexts in Model Upload CLI [(#649)] (https://github.com/Clarifai/clarifai-python/pull/649)
+- Add pipeline run CLI similar to model predict [(#644)] (https://github.com/Clarifai/clarifai-python/pull/644)
+- Update requirements.txt for protocol version [(#668)] (https://github.com/Clarifai/clarifai-python/pull/668)
+
+## [[11.5.6]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.6) - [PyPI](https://pypi.org/project/clarifai/11.5.6/) - 2025-06-30
+
+### Added
+- Per-output token context tracking for batch operations
+- New `set_output_context()` method for models to specify token usage per output
+
+### Changed
+- Improved token usage tracking in ModelClass with thread-local storage
+- Enhanced batch processing support with ordered token context queue
+
+### Fixed
+- Token context ordering in batch operations using FIFO queue approach
+- Temporarily disabled `test_client_batch_generate` while implementing token tracking features
+
 ## [[11.5.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.5.5) - [PyPI](https://pypi.org/project/clarifai/11.5.5/) - 2025-06-27
 
 ### Fixed

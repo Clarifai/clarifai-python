@@ -4,12 +4,15 @@ import sys
 import tarfile
 import time
 from string import Template
+from typing import List, Optional
 
 import yaml
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
+from google.protobuf import json_format
 
 from clarifai.client.base import BaseClient
+from clarifai.utils.hashing import hash_directory
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import get_uuid
 from clarifai.versions import CLIENT_VERSION
@@ -21,12 +24,13 @@ UPLOAD_CHUNK_SIZE = 14 * 1024 * 1024
 class PipelineStepBuilder:
     """Pipeline Step Builder class for managing pipeline step upload to Clarifai."""
 
-    def __init__(self, folder: str):
+    def __init__(self, folder: str, hash_exclusions: Optional[List[str]] = None):
         """
         Initialize PipelineStepBuilder.
 
         :param folder: The folder containing the pipeline step files (config.yaml, requirements.txt,
                       dockerfile, and pipeline_step.py in 1/ subdirectory)
+        :param hash_exclusions: List of file names to exclude from hash calculation (defaults to ['config-lock.yaml'])
         """
         self._client = None
         self.folder = self._validate_folder(folder)
@@ -36,6 +40,10 @@ class PipelineStepBuilder:
         self.pipeline_step_id = self.pipeline_step_proto.id
         self.pipeline_step_version_id = None
         self.pipeline_step_compute_info = self._get_pipeline_step_compute_info()
+        # Configure files to exclude from hash calculation
+        self.hash_exclusions = (
+            hash_exclusions if hash_exclusions is not None else ['config-lock.yaml']
+        )
 
     @property
     def client(self):
@@ -106,16 +114,16 @@ class PipelineStepBuilder:
 
     def _get_pipeline_step_compute_info(self):
         """Get pipeline step compute info from config."""
+        assert "pipeline_step_compute_info" in self.config, (
+            "pipeline_step_compute_info not found in the config file"
+        )
         compute_config = self.config.get("pipeline_step_compute_info", {})
 
-        compute_info = resources_pb2.ComputeInfo()
+        # Ensure cpu_limit is a string if it exists and is an int
+        if 'cpu_limit' in compute_config and isinstance(compute_config['cpu_limit'], int):
+            compute_config['cpu_limit'] = str(compute_config['cpu_limit'])
 
-        if "cpu_limit" in compute_config:
-            compute_info.cpu_limit = compute_config["cpu_limit"]
-        if "cpu_memory" in compute_config:
-            compute_info.cpu_memory = compute_config["cpu_memory"]
-        if "num_accelerators" in compute_config:
-            compute_info.num_accelerators = compute_config["num_accelerators"]
+        compute_info = json_format.ParseDict(compute_config, resources_pb2.ComputeInfo())
 
         return compute_info
 
@@ -200,8 +208,11 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
             PYTHON_VERSION=python_version
         )
 
-        # Write Dockerfile
+        # Write Dockerfile if it doesn't exist
         dockerfile_path = os.path.join(self.folder, 'Dockerfile')
+        if os.path.exists(dockerfile_path):
+            logger.info(f"Dockerfile already exists at {dockerfile_path}, skipping creation.")
+            return
         with open(dockerfile_path, 'w') as dockerfile:
             dockerfile.write(dockerfile_content)
 
@@ -404,6 +415,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
         """
         max_checks = timeout_sec // interval_sec
         seen_logs = set()  # To avoid duplicate log messages
+        current_page = 1  # Track current page for log pagination
         st = time.time()
 
         for _ in range(max_checks):
@@ -430,14 +442,16 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                     user_app_id=self.client.user_app_id,
                     pipeline_step_id=self.pipeline_step_id,
                     pipeline_step_version_id=self.pipeline_step_version_id,
-                    page=1,
+                    page=current_page,
                     per_page=50,
                 )
                 logs = self.client.STUB.ListLogEntries(
                     logs_request, metadata=self.client.auth_helper.metadata
                 )
 
+                entries_count = 0
                 for log_entry in logs.log_entries:
+                    entries_count += 1
                     if log_entry.url not in seen_logs:
                         seen_logs.add(log_entry.url)
                         log_entry_msg = re.sub(
@@ -446,6 +460,12 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                             log_entry.message.strip(),
                         )
                         logger.info(log_entry_msg)
+
+                # If we got a full page (50 entries), there might be more logs on the next page
+                # If we got fewer than 50 entries, we've reached the end and should stay on current page
+                if entries_count == 50:
+                    current_page += 1
+                # else: stay on current_page
 
                 status = response.pipeline_step_version.status.code
                 if status in {
@@ -476,6 +496,95 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
                 return False
 
         raise TimeoutError("Pipeline step build did not finish in time")
+
+    def load_config_lock(self):
+        """
+        Load existing config-lock.yaml if it exists.
+
+        :return: Dictionary with config-lock data or None if file doesn't exist
+        """
+        config_lock_path = os.path.join(self.folder, "config-lock.yaml")
+        if os.path.exists(config_lock_path):
+            try:
+                with open(config_lock_path, 'r', encoding='utf-8') as f:
+                    return yaml.safe_load(f)
+            except Exception as e:
+                logger.warning(f"Failed to load config-lock.yaml: {e}")
+                return None
+        return None
+
+    def should_upload_step(self, algo="md5"):
+        """
+        Check if the pipeline step should be uploaded based on hash comparison.
+
+        :param algo: Hash algorithm to use
+        :return: True if step should be uploaded, False otherwise
+        """
+        config_lock = self.load_config_lock()
+
+        # If no config-lock.yaml exists, upload the step (first time upload)
+        if config_lock is None:
+            logger.info("No config-lock.yaml found, will upload pipeline step")
+            return True
+
+        # Compare stored hash with freshly computed one
+        current_hash = hash_directory(self.folder, algo=algo, exclude_files=self.hash_exclusions)
+        stored_hash_info = config_lock.get("hash", {})
+        stored_hash = stored_hash_info.get("value", "")
+        stored_algo = stored_hash_info.get("algo", "md5")
+
+        # If algorithm changed, re-upload to update hash
+        if stored_algo != algo:
+            logger.info(
+                f"Hash algorithm changed from {stored_algo} to {algo}, will upload pipeline step"
+            )
+            return True
+
+        # If hash changed, upload
+        if current_hash != stored_hash:
+            logger.info(
+                f"Hash changed (was: {stored_hash}, now: {current_hash}), will upload pipeline step"
+            )
+            return True
+
+        logger.info(f"Hash unchanged ({current_hash}), skipping pipeline step upload")
+        return False
+
+    def generate_config_lock(self, version_id, algo="md5"):
+        """
+        Generate config-lock.yaml content for the pipeline step.
+
+        :param version_id: Pipeline step version ID
+        :param algo: Hash algorithm used
+        :return: Dictionary with config-lock data
+        """
+        # Compute hash
+        hash_value = hash_directory(self.folder, algo=algo, exclude_files=self.hash_exclusions)
+
+        # Create config-lock structure
+        config_lock = {"id": version_id, "hash": {"algo": algo, "value": hash_value}}
+
+        # Append the original config.yaml contents
+        config_lock.update(self.config)
+
+        return config_lock
+
+    def save_config_lock(self, version_id, algo="md5"):
+        """
+        Save config-lock.yaml file with pipeline step metadata.
+
+        :param version_id: Pipeline step version ID
+        :param algo: Hash algorithm used
+        """
+        config_lock_data = self.generate_config_lock(version_id, algo)
+        config_lock_path = os.path.join(self.folder, "config-lock.yaml")
+
+        try:
+            with open(config_lock_path, 'w', encoding='utf-8') as f:
+                yaml.dump(config_lock_data, f, default_flow_style=False, allow_unicode=True)
+            logger.info(f"Generated config-lock.yaml at {config_lock_path}")
+        except Exception as e:
+            logger.error(f"Failed to save config-lock.yaml: {e}")
 
 
 def upload_pipeline_step(folder, skip_dockerfile=False):

@@ -14,6 +14,6 @@ workflow:
           description: Custom crop model
           output_info:
             params:
-              margin: 1.33
+              margin: 1.3
       node_inputs:
         - node_id: detector

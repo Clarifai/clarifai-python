@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-import json
+
+
 import time
 
-import requests  # noqa
-from google.protobuf.json_format import MessageToDict
+import requests
 
 from clarifai.versions import CLIENT_VERSION, OS_VER, PYTHON_VERSION
 
@@ -27,6 +27,10 @@ class ApiError(Exception):
         self.error_desc = 'N/A'
         self.error_details = 'N/A'
         response_json = 'N/A'
+
+        import json
+
+        from google.protobuf.json_format import MessageToDict
 
         if response is not None:
             response_json_dict = MessageToDict(response)

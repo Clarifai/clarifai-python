@@ -1,6 +1,7 @@
 import inspect
 import itertools
 import os
+import threading
 import traceback
 from abc import ABC
 from collections import abc
@@ -59,15 +60,22 @@ class ModelClass(ABC):
             yield item.x + ' ' + str(item.y)
     '''
 
+    def __init__(self):
+        super().__init__()
+        self._thread_local = threading.local()
+
     @staticmethod
     def method(func):
         setattr(func, _METHOD_INFO_ATTR, _MethodInfo(func))
         return func
 
     def set_output_context(self, prompt_tokens=None, completion_tokens=None):
-        """This is used to set the prompt and completion tokens in the Output proto"""
-        self._prompt_tokens = prompt_tokens
-        self._completion_tokens = completion_tokens
+        """Set the prompt and completion tokens for the Output proto.
+        In batch mode, call this once per output, in order, before returning each output.
+        """
+        if not hasattr(self._thread_local, 'token_contexts'):
+            self._thread_local.token_contexts = []
+        self._thread_local.token_contexts.append((prompt_tokens, completion_tokens))
 
     def load_model(self):
         """Load the model."""
@@ -213,6 +221,7 @@ class ModelClass(ABC):
         self, request: service_pb2.PostModelOutputsRequest
     ) -> Iterator[service_pb2.MultiOutputResponse]:
         try:
+            assert len(request.inputs) == 1, "Generate requires exactly one input"
             method_name = 'generate'
             if len(request.inputs) > 0 and '_method_name' in request.inputs[0].data.metadata:
                 method_name = request.inputs[0].data.metadata['_method_name']
@@ -385,12 +394,18 @@ class ModelClass(ABC):
             data = DataConverter.convert_output_data_to_old_format(proto.data)
             proto.data.CopyFrom(data)
         proto.status.code = status_code_pb2.SUCCESS
-        if hasattr(self, "_prompt_tokens") and self._prompt_tokens is not None:
-            proto.prompt_tokens = self._prompt_tokens
-        if hasattr(self, "_completion_tokens") and self._completion_tokens is not None:
-            proto.completion_tokens = self._completion_tokens
-        self._prompt_tokens = None
-        self._completion_tokens = None
+        # Per-output token context support
+        token_contexts = getattr(self._thread_local, 'token_contexts', None)
+        prompt_tokens = completion_tokens = None
+        if token_contexts and len(token_contexts) > 0:
+            prompt_tokens, completion_tokens = token_contexts.pop(0)
+            # If this was the last, clean up
+            if len(token_contexts) == 0:
+                del self._thread_local.token_contexts
+        if prompt_tokens is not None:
+            proto.prompt_tokens = prompt_tokens
+        if completion_tokens is not None:
+            proto.completion_tokens = completion_tokens
         return proto
 
     @classmethod

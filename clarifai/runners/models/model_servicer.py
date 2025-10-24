@@ -6,6 +6,7 @@ from clarifai_grpc.grpc.api import service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
 from clarifai.client.auth.helper import ClarifaiAuthHelper
+from clarifai.utils.secrets import inject_secrets
 
 from ..utils.url_fetcher import ensure_urls_downloaded
 
@@ -56,6 +57,7 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
 
         # Download any urls that are not already bytes.
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
+        inject_secrets(request)
 
         try:
             return self.model.predict_wrapper(request)
@@ -80,6 +82,7 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
         """
         # Download any urls that are not already bytes.
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
+        inject_secrets(request)
 
         try:
             yield from self.model.generate_wrapper(request)
@@ -108,6 +111,7 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
         # Download any urls that are not already bytes.
         for req in request:
             ensure_urls_downloaded(req, auth_helper=self._auth_helper)
+            inject_secrets(req)
 
         try:
             yield from self.model.stream_wrapper(request_copy)
@@ -122,3 +126,6 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
                     internal_details=str(e),
                 )
             )
+
+    def set_model(self, model):
+        self.model = model

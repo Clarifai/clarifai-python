@@ -1,20 +1,29 @@
+import logging
 import os
 import shutil
 import uuid
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import yaml
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
 from clarifai.client import User
-from clarifai.runners.models.model_builder import ModelBuilder
+from clarifai.runners.models.model_builder import ModelBuilder, deploy_model
 
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "dummy_runner_models")
 CLARIFAI_USER_ID = os.environ["CLARIFAI_USER_ID"]
 CLARIFAI_PAT = os.environ["CLARIFAI_PAT"]
 NOW = uuid.uuid4().hex[:10]
 CREATE_APP_ID = f"pytest-model-upload-test-{NOW}"
+CREATE_COMPUTE_CLUSTER_ID = f"test-compute_cluster-{NOW}"
+CREATE_NODEPOOL_ID = f"test-nodepool-{NOW}"
+CREATE_DEPLOYMENT_ID = f"test-deployment-{NOW}"
+COMPUTE_CLUSTER_CONFIG_FILE = (
+    "tests/compute_orchestration/configs/example_compute_cluster_config.yaml"
+)
+NODEPOOL_CONFIG_FILE = "tests/compute_orchestration/configs/example_nodepool_config.yaml"
 
 
 def check_app_exists():
@@ -49,6 +58,15 @@ def create_app():
         print(f"Creating app '{CREATE_APP_ID}'...")
         user.create_app(app_id=CREATE_APP_ID)
     return CREATE_APP_ID, user
+
+
+@pytest.fixture
+def client():
+    return User(
+        user_id=CLARIFAI_USER_ID,
+        base_url=os.environ.get('CLARIFAI_API_BASE', 'https://api.clarifai.com'),
+        pat=CLARIFAI_PAT,
+    )
 
 
 @pytest.fixture(scope="module")
@@ -118,7 +136,7 @@ def test_init_valid_folder(model_builder):
     assert "config.yaml" in os.listdir(model_builder.folder)
 
 
-def test_model_uploader_flow(dummy_models_path):
+def test_model_uploader_flow(dummy_models_path, client):
     """
     End-to-end test that:
     1. Initializes the ModelBuilder on the dummy_runner_models folder
@@ -126,6 +144,8 @@ def test_model_uploader_flow(dummy_models_path):
     3. Creates or reuses an existing model
     4. Uploads a new model version
     5. Waits for the build
+    6. Deploy the model to test
+    7. Delete the deployment
     """
     # Initialize
     builder = ModelBuilder(folder=str(dummy_models_path))
@@ -154,7 +174,7 @@ def test_model_uploader_flow(dummy_models_path):
     assert builder.check_model_exists() is True, "Model should exist after creation"
 
     # Create the Dockerfile (not crucial for the actual build, but tested in the script)
-    builder.create_dockerfile()
+    builder.create_dockerfile(generate_dockerfile=True)
     dockerfile_path = Path(builder.folder) / "Dockerfile"
     assert dockerfile_path.exists(), "Dockerfile was not created."
 
@@ -165,6 +185,38 @@ def test_model_uploader_flow(dummy_models_path):
     assert builder.model_version_id is not None, "Model version upload failed to initialize"
 
     print(f"Test completed successfully with model_version_id={builder.model_version_id}")
+
+    model = builder.config.get('model')
+
+    # Setup compute cluster and nodepool
+    compute_cluster = client.create_compute_cluster(
+        compute_cluster_id=CREATE_COMPUTE_CLUSTER_ID,
+        config_filepath=COMPUTE_CLUSTER_CONFIG_FILE,
+    )
+    nodepool = compute_cluster.create_nodepool(
+        nodepool_id=CREATE_NODEPOOL_ID, config_filepath=NODEPOOL_CONFIG_FILE
+    )
+
+    success = deploy_model(
+        model_id=model.get('id'),
+        app_id=model.get('app_id'),
+        user_id=model.get('user_id'),
+        deployment_id=CREATE_DEPLOYMENT_ID,
+        model_version_id=builder.model_version_id,
+        nodepool_id=CREATE_NODEPOOL_ID,
+        compute_cluster_id=CREATE_COMPUTE_CLUSTER_ID,
+        cluster_user_id=CLARIFAI_USER_ID,
+        min_replicas=1,
+    )
+
+    assert success is True, "Model deployment failed"
+
+    print(f"Test completed successfully with deployment_id={CREATE_DEPLOYMENT_ID}")
+
+    # Clean up resources
+    nodepool.delete_deployments([CREATE_DEPLOYMENT_ID])
+    compute_cluster.delete_nodepools([CREATE_NODEPOOL_ID])
+    client.delete_compute_clusters([CREATE_COMPUTE_CLUSTER_ID])
 
 
 @pytest.fixture
@@ -240,3 +292,44 @@ def test_model_uploader_missing_app_action(tmp_path, monkeypatch):
     # Test non supported action
     with pytest.raises(AssertionError):
         ModelBuilder(target_folder, app_not_found_action="a")
+
+
+@patch('clarifai.runners.models.model_builder.ModelBuilder._is_clarifai_internal')
+def test_openai_stream_options_validation(mock_is_clarifai_internal, tmp_path, caplog):
+    """
+    Test that OpenAI models without proper stream_options configuration log an error.
+    """
+    # Mock _is_clarifai_internal to return True to trigger validation
+    mock_is_clarifai_internal.return_value = True
+
+    tests_dir = Path(__file__).parent.resolve()
+    original_dummy_path = tests_dir / "dummy_missing_stream_options_model"
+
+    if not original_dummy_path.exists():
+        pytest.skip(
+            "dummy_missing_stream_options_model not found, skipping OpenAI validation test"
+        )
+
+    # Copy the OpenAI model folder to tmp_path
+    target_folder = tmp_path / "dummy_missing_stream_options_model"
+    shutil.copytree(original_dummy_path, target_folder)
+
+    # Update config.yaml with test user/app info
+    config_yaml_path = target_folder / "config.yaml"
+    with config_yaml_path.open("r") as f:
+        config = yaml.safe_load(f)
+
+    NOW = uuid.uuid4().hex[:8]
+    config["model"]["user_id"] = CLARIFAI_USER_ID
+    config["model"]["app_id"] = "test-openai-validation" + NOW
+
+    with config_yaml_path.open("w") as f:
+        yaml.dump(config, f, sort_keys=False)
+
+    # Test that ModelBuilder logs error for missing stream_options
+    with caplog.at_level(logging.ERROR):
+        ModelBuilder(str(target_folder), validate_api_ids=False)
+
+    # Verify that the expected validation error message was logged
+    assert "include_usage" in caplog.text
+    assert "set_output_context" in caplog.text

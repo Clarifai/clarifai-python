@@ -1,7 +1,8 @@
 import os
 import urllib.request
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
+import grpc
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2_grpc
 
@@ -289,7 +290,11 @@ class ClarifaiAuthHelper:
             )
 
     def get_stub(self) -> service_pb2_grpc.V2Stub:
-        """Get the API gRPC stub using the right channel based on the API endpoint base.
+        stub, channel = self.get_stub_and_channel()
+        return stub
+
+    def get_stub_and_channel(self) -> Tuple[service_pb2_grpc.V2Stub, grpc.Channel]:
+        """Get the API gRPC stub and channel based on the API endpoint base.
 
         Returns:
           stub: The service_pb2_grpc.V2Stub stub for the API.
@@ -310,7 +315,7 @@ class ClarifaiAuthHelper:
                 port = 80
             channel = ClarifaiChannel.get_insecure_grpc_channel(base=host, port=port)
         stub = service_pb2_grpc.V2Stub(channel)
-        return stub
+        return stub, channel
 
     def get_async_stub(self) -> service_pb2_grpc.V2Stub:
         """Get the API gRPC async stub using the right channel based on the API endpoint base.
