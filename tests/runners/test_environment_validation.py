@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from clarifai.runners.models.model_run_locally import ModelRunLocally
+from clarifai.runners.models.model_run_locally import ModelRunLocally, main
 
 
 @pytest.fixture
@@ -32,7 +32,6 @@ inference_compute_info:
   cpu_limit: "1"
   cpu_memory: "1Gi"
   num_accelerators: 1
-  accelerator_type: ["NVIDIA-T4"]
 """
     with open(model_path / "config.yaml", "w") as f:
         f.write(config_content)
@@ -143,7 +142,7 @@ class TestEnvironmentValidation:
 
         with patch('platform.system', return_value='Darwin'), patch(
             'shutil.which', return_value=None
-        ):  # No nvidia-smi
+        ):  # No nvidia-smi (GPU not available)
             with pytest.raises(SystemExit):
                 manager._validate_test_environment()
 
@@ -154,7 +153,7 @@ class TestEnvironmentValidation:
         with patch('platform.system', return_value='Darwin'), patch(
             'shutil.which', return_value=None
         ):  # No nvidia-smi or docker
-            # Should pass but with warnings
+            # Should pass but with warnings (no GPU required, num_accelerators=0)
             manager._validate_test_environment()
 
     def test_linux_validation_passes(self, gpu_model_path):
@@ -167,7 +166,6 @@ class TestEnvironmentValidation:
 
     def test_validation_called_in_main(self, gpu_model_path):
         """Test that validation is called in the main function."""
-        from clarifai.runners.models.model_run_locally import main
 
         with patch(
             'clarifai.runners.models.model_run_locally.ModelRunLocally._validate_test_environment'
@@ -188,7 +186,6 @@ class TestEnvironmentValidation:
 
     def test_validation_early_exit(self, gpu_model_path):
         """Test that validation causes early exit on failure."""
-        from clarifai.runners.models.model_run_locally import main
 
         # Mock validation to fail
         with patch(
@@ -204,3 +201,71 @@ class TestEnvironmentValidation:
             assert not mock_venv.called, (
                 "create_temp_venv should not be called if validation fails"
             )
+
+    def test_num_accelerators_detection(self, tmp_path):
+        """Test that num_accelerators field correctly determines GPU requirement."""
+        # Create model with num_accelerators > 0
+        model_path = tmp_path / "gpu_model_num_acc"
+        model_path.mkdir()
+        version_path = model_path / "1"
+        version_path.mkdir()
+
+        config_content = """
+model:
+  id: "test-gpu-model-num-acc"
+  model_type_id: "text-to-text"
+  user_id: "test_user"
+  app_id: "test_app"
+
+build_info:
+  python_version: "3.12"
+
+inference_compute_info:
+  cpu_limit: "1"
+  cpu_memory: "1Gi"
+  num_accelerators: 2
+"""
+        with open(model_path / "config.yaml", "w") as f:
+            f.write(config_content)
+
+        with open(model_path / "requirements.txt", "w") as f:
+            f.write("clarifai>=10.0.0\n")
+
+        model_content = """
+from clarifai.runners.models.model_class import ModelClass
+from clarifai.runners.utils.data_types import Text
+
+class MyModel(ModelClass):
+    def load_model(self):
+        pass
+
+    @ModelClass.method
+    def predict(self, text1: Text = "") -> Text:
+        return Text(text1.text + "Hello World")
+
+    def test(self):
+        res = self.predict(Text("test"))
+        assert res.text == "testHello World"
+"""
+        with open(version_path / "model.py", "w") as f:
+            f.write(model_content)
+
+        manager = ModelRunLocally(str(model_path))
+
+        # Test on environment without GPU - should fail
+        with patch('platform.system', return_value='Darwin'), patch(
+            'shutil.which', return_value=None
+        ):  # No nvidia-smi
+            with pytest.raises(SystemExit):
+                manager._validate_test_environment()
+
+    def test_zero_accelerators_cpu_only(self, cpu_model_path):
+        """Test that num_accelerators=0 is treated as CPU-only and passes with warnings."""
+        manager = ModelRunLocally(cpu_model_path)
+
+        # Test on environment without GPU - should pass with warnings
+        with patch('platform.system', return_value='Darwin'), patch(
+            'shutil.which', return_value=None
+        ):  # No nvidia-smi or docker
+            # Should pass (CPU-only model) but with warnings about no GPU
+            manager._validate_test_environment()
