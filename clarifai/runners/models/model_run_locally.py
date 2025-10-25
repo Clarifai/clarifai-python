@@ -281,16 +281,17 @@ class ModelRunLocally:
         Validate that the current environment supports model testing.
         Provides immediate feedback for unsupported configurations.
         """
-        errors = []
         warnings = []
 
         # Check Python version compatibility
         current_python = sys.version_info[:2]
         if current_python < (3, 8):
-            errors.append(
+            logger.error(
+                "❌ Environment validation failed: "
                 f"Python {current_python[0]}.{current_python[1]} is not supported. "
                 "Please use Python 3.8 or higher for model testing."
             )
+            sys.exit(1)
         elif current_python < (3, 9):
             warnings.append(
                 f"Python {current_python[0]}.{current_python[1]} may have limited support. "
@@ -312,12 +313,14 @@ class ModelRunLocally:
                 )  # Check if GPU is required based on num_accelerators
 
             if requires_gpu:
-                errors.append(
+                logger.error(
+                    "❌ Environment validation failed: "
                     f"Your current environment i.e. '{current_environment}' does not have NVIDIA GPU support. "
                     "Your model configuration requires GPU support. "
                     "Please test on a environment with NVIDIA GPU support, "
                     "or modify your model configuration to use CPU-only inference."
                 )
+                sys.exit(1)
             else:
                 warnings.append(
                     f"Running on '{current_environment}' without NVIDIA GPU support. "
@@ -336,21 +339,7 @@ class ModelRunLocally:
 
         # Log warnings
         for warning in warnings:
-            logger.warning(f"Environment Warning: {warning}")
-
-        # Handle errors - exit immediately with clear feedback
-        if errors:
-            logger.error("❌ Environment validation failed:")
-            for i, error in enumerate(errors, 1):
-                logger.error(f"  {i}. {error}")
-            logger.error(
-                "\n💡 To resolve these issues:\n"
-                "   • Update your Python version if needed\n"
-                "   • Use a system with NVIDIA drivers for GPU models\n"
-                "   • Modify your model configuration for CPU-only inference\n"
-                "   • Check the Clarifai documentation for supported environments"
-            )
-            sys.exit(1)
+            logger.warning(f"⚠️ Environment Warning: {warning}")
 
         if warnings:
             logger.info("✅ Environment validation passed with warnings.")
