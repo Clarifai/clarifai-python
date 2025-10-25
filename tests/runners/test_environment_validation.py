@@ -140,8 +140,9 @@ class TestEnvironmentValidation:
         """Test that macOS fails for GPU models without nvidia-smi."""
         manager = ModelRunLocally(gpu_model_path)
 
-        with patch('platform.system', return_value='Darwin'), patch(
-            'shutil.which', return_value=None
+        with (
+            patch('platform.system', return_value='Darwin'),
+            patch('shutil.which', return_value=None),
         ):  # No nvidia-smi (GPU not available)
             with pytest.raises(SystemExit):
                 manager._validate_test_environment()
@@ -150,8 +151,9 @@ class TestEnvironmentValidation:
         """Test that macOS shows warnings for CPU models."""
         manager = ModelRunLocally(cpu_model_path)
 
-        with patch('platform.system', return_value='Darwin'), patch(
-            'shutil.which', return_value=None
+        with (
+            patch('platform.system', return_value='Darwin'),
+            patch('shutil.which', return_value=None),
         ):  # No nvidia-smi or docker
             # Should pass but with warnings (no GPU required, num_accelerators=0)
             manager._validate_test_environment()
@@ -167,14 +169,16 @@ class TestEnvironmentValidation:
     def test_validation_called_in_main(self, gpu_model_path):
         """Test that validation is called in the main function."""
 
-        with patch(
-            'clarifai.runners.models.model_run_locally.ModelRunLocally._validate_test_environment'
-        ) as mock_validate, patch(
-            'clarifai.runners.models.model_run_locally.ModelRunLocally.create_temp_venv'
-        ), patch(
-            'clarifai.runners.models.model_run_locally.ModelRunLocally.install_requirements'
-        ), patch('clarifai.runners.models.model_run_locally.ModelRunLocally.test_model'), patch(
-            'clarifai.runners.models.model_run_locally.ModelRunLocally.clean_up'
+        with (
+            patch(
+                'clarifai.runners.models.model_run_locally.ModelRunLocally._validate_test_environment'
+            ) as mock_validate,
+            patch('clarifai.runners.models.model_run_locally.ModelRunLocally.create_temp_venv'),
+            patch(
+                'clarifai.runners.models.model_run_locally.ModelRunLocally.install_requirements'
+            ),
+            patch('clarifai.runners.models.model_run_locally.ModelRunLocally.test_model'),
+            patch('clarifai.runners.models.model_run_locally.ModelRunLocally.clean_up'),
         ):
             try:
                 main(gpu_model_path, keep_env=True)
@@ -188,12 +192,15 @@ class TestEnvironmentValidation:
         """Test that validation causes early exit on failure."""
 
         # Mock validation to fail
-        with patch(
-            'clarifai.runners.models.model_run_locally.ModelRunLocally._validate_test_environment',
-            side_effect=SystemExit(1),
-        ), patch(
-            'clarifai.runners.models.model_run_locally.ModelRunLocally.create_temp_venv'
-        ) as mock_venv:
+        with (
+            patch(
+                'clarifai.runners.models.model_run_locally.ModelRunLocally._validate_test_environment',
+                side_effect=SystemExit(1),
+            ),
+            patch(
+                'clarifai.runners.models.model_run_locally.ModelRunLocally.create_temp_venv'
+            ) as mock_venv,
+        ):
             with pytest.raises(SystemExit):
                 main(gpu_model_path)
 
@@ -253,8 +260,9 @@ class MyModel(ModelClass):
         manager = ModelRunLocally(str(model_path))
 
         # Test on environment without GPU - should fail
-        with patch('platform.system', return_value='Darwin'), patch(
-            'shutil.which', return_value=None
+        with (
+            patch('platform.system', return_value='Darwin'),
+            patch('shutil.which', return_value=None),
         ):  # No nvidia-smi
             with pytest.raises(SystemExit):
                 manager._validate_test_environment()
@@ -264,8 +272,9 @@ class MyModel(ModelClass):
         manager = ModelRunLocally(cpu_model_path)
 
         # Test on environment without GPU - should pass with warnings
-        with patch('platform.system', return_value='Darwin'), patch(
-            'shutil.which', return_value=None
+        with (
+            patch('platform.system', return_value='Darwin'),
+            patch('shutil.which', return_value=None),
         ):  # No nvidia-smi or docker
             # Should pass (CPU-only model) but with warnings about no GPU
             manager._validate_test_environment()
