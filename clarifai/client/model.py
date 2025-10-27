@@ -67,6 +67,7 @@ class Model(Lister, BaseClient):
         nodepool_id: str = None,
         deployment_id: str = None,
         deployment_user_id: str = None,
+        validate: bool = True,
         **kwargs,
     ):
         """Initializes a Model object.
@@ -83,6 +84,7 @@ class Model(Lister, BaseClient):
             nodepool_id (str): Nodepool ID for runner selector.
             deployment_id (str): Deployment ID for runner selector.
             deployment_user_id (str): User ID to use for runner selector (organization or user). If not provided, defaults to PAT owner user_id.
+            validate (bool): Whether to validate that the model exists. Defaults to True. Set to False to skip validation (used internally when model existence is already confirmed).
             **kwargs: Additional keyword arguments to be passed to the Model.
 
         Raises:
@@ -135,8 +137,9 @@ class Model(Lister, BaseClient):
             deployment_user_id=deployment_user_id,
         )
 
-        # Validate that the model exists
-        self._validate_model_exists(original_url)
+        # Validate that the model exists (unless explicitly skipped)
+        if validate:
+            self._validate_model_exists(original_url)
 
     def _validate_model_exists(self, original_url: str = None) -> None:
         """Validates that the model exists by making a GetModel request.
@@ -518,7 +521,7 @@ class Model(Lister, BaseClient):
         dict_response = MessageToDict(response, preserving_proto_field_name=True)
         kwargs = self.process_response_keys(dict_response['model'], 'model')
 
-        return Model(base_url=self.base, pat=self.pat, token=self.token, **kwargs)
+        return Model(base_url=self.base, pat=self.pat, token=self.token, validate=False, **kwargs)
 
     def list_versions(
         self, page_no: int = None, per_page: int = None
@@ -565,6 +568,7 @@ class Model(Lister, BaseClient):
             yield Model.from_auth_helper(
                 auth=self.auth_helper,
                 model_id=self.id,
+                validate=False,
                 **dict(self.kwargs, model_version=model_version_info),
             )
 
@@ -2130,6 +2134,7 @@ class Model(Lister, BaseClient):
             auth=self.auth_helper,
             model_id=self.id,
             model_version=dict(id=cache_uploading_info.get('model_version')),
+            validate=False,
         )
 
     def create_version_by_url(
@@ -2186,6 +2191,7 @@ class Model(Lister, BaseClient):
             auth=self.auth_helper,
             model_id=self.id,
             model_version=dict(id=response.model.model_version.id),
+            validate=False,
         )
 
     def patch_version(self, version_id: str, **kwargs) -> 'Model':
@@ -2216,4 +2222,5 @@ class Model(Lister, BaseClient):
             auth=self.auth_helper,
             model_id=self.id,
             model_version=dict(id=version_id),
+            validate=False,
         )
