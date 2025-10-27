@@ -48,12 +48,12 @@ def upload(path, no_lockfile, step_secret):
     # Parse step secrets from CLI format
     step_secrets = {}
     if step_secret:
-        for secret_str in step_secret:
+        for idx, secret_str in enumerate(step_secret, 1):
             try:
                 # Format: step_ref:SECRET_NAME=secret_ref_path
                 if ':' not in secret_str or '=' not in secret_str:
                     logger.error(
-                        f"Invalid step secret format: '{secret_str}'. Expected format: step_ref:SECRET_NAME=secret_ref_path"
+                        f"Invalid step secret format at position {idx}. Expected format: step_ref:SECRET_NAME=secret_ref_path"
                     )
                     continue
 
@@ -65,7 +65,7 @@ def upload(path, no_lockfile, step_secret):
                 secret_ref = secret_ref.strip()
 
                 if not step_ref or not secret_name or not secret_ref:
-                    logger.error(f"Invalid step secret (empty values): '{secret_str}'")
+                    logger.error(f"Invalid step secret (empty values) at position {idx}.")
                     continue
 
                 if step_ref not in step_secrets:
@@ -76,7 +76,7 @@ def upload(path, no_lockfile, step_secret):
 
             except ValueError as e:
                 logger.error(
-                    f"Error parsing step secret '{secret_str}': {e}. Expected format: step_ref:SECRET_NAME=secret_ref_path"
+                    f"Error parsing step secret at position {idx}: {e}. Expected format: step_ref:SECRET_NAME=secret_ref_path"
                 )
 
     upload_pipeline(path, no_lockfile=no_lockfile, step_secrets=step_secrets or None)
