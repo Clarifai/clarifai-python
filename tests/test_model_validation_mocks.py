@@ -24,7 +24,7 @@ class TestModelValidationWithMocks:
         model = Model(model_id='test_model', user_id='test_user', app_id='test_app')
 
         # Verify validation was called once
-        assert mock_validate.call_count == 1
+        mock_validate.assert_called_once()
 
     @patch('clarifai.client.model.Model._validate_model_exists')
     @patch('clarifai.client.model.BaseClient.__init__', return_value=None)
