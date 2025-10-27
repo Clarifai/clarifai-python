@@ -1,4 +1,5 @@
 """Tests for Model initialization validation."""
+
 import os
 
 import pytest
@@ -82,9 +83,7 @@ class TestModelInitValidation:
         """Test that providing both url and model_id raises UserError."""
         url = f"https://clarifai.com/{MAIN_APP_USER_ID}/{MAIN_APP_ID}/models/{GENERAL_MODEL_ID}"
         with pytest.raises(UserError) as exc_info:
-            Model(
-                url=url, model_id=GENERAL_MODEL_ID, pat=CLARIFAI_PAT, base_url=CLARIFAI_API_BASE
-            )
+            Model(url=url, model_id=GENERAL_MODEL_ID, pat=CLARIFAI_PAT, base_url=CLARIFAI_API_BASE)
 
         error_msg = str(exc_info.value)
         assert "only specify one of url or model_id" in error_msg
