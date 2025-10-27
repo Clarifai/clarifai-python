@@ -362,6 +362,52 @@ class PipelineBuilder:
 
         return None
 
+    def _add_step_secrets_to_pipeline_version(
+        self, pipeline_version: resources_pb2.PipelineVersion, step_secrets_config: Dict[str, Any]
+    ) -> None:
+        """Add step secrets to pipeline version config.
+
+        Args:
+            pipeline_version: The PipelineVersion proto to modify
+            step_secrets_config: Dictionary mapping step refs to their secrets
+                Format: {
+                    'step1': {'API_KEY': 'users/user123/secrets/my-api-key'},
+                    'step2': {'EMAIL_TOKEN': 'users/user123/secrets/email-token'}
+                }
+        """
+        if not step_secrets_config:
+            return
+
+        try:
+            # Ensure config exists
+            if not pipeline_version.HasField("config"):
+                pipeline_version.config.CopyFrom(resources_pb2.PipelineVersionConfig())
+
+            # Add step secrets to config
+            for step_ref, secrets in step_secrets_config.items():
+                if not secrets:
+                    continue
+
+                # Create StepSecretConfig for this step
+                step_secret_config = resources_pb2.StepSecretConfig()
+                for secret_name, secret_ref in secrets.items():
+                    step_secret_config.secrets[secret_name] = secret_ref
+
+                # Add to pipeline version config
+                pipeline_version.config.step_version_secrets[step_ref].CopyFrom(step_secret_config)
+
+                logger.info(
+                    f"Added {len(secrets)} secret(s) to step '{step_ref}' in pipeline version"
+                )
+
+        except AttributeError as e:
+            logger.warning(
+                f"Step secrets not supported by current proto version. "
+                f"Please upgrade clarifai-grpc to >=11.9.8. Error: {e}"
+            )
+        except Exception as e:
+            logger.error(f"Error adding step secrets to pipeline version: {e}")
+
     def create_pipeline(self) -> tuple[bool, str]:
         """Create the pipeline using PostPipelines RPC.
 
@@ -404,6 +450,11 @@ class PipelineBuilder:
             )
             pipeline_version.orchestration_spec.CopyFrom(orchestration_spec_proto)
 
+            # Add step secrets if configured
+            step_secrets_config = pipeline_config.get("step_secrets", {})
+            if step_secrets_config:
+                self._add_step_secrets_to_pipeline_version(pipeline_version, step_secrets_config)
+
             pipeline.pipeline_version.CopyFrom(pipeline_version)
 
             # Make the RPC call
@@ -436,12 +487,14 @@ class PipelineBuilder:
             return False, ""
 
 
-def upload_pipeline(path: str, no_lockfile: bool = False):
+def upload_pipeline(path: str, no_lockfile: bool = False, step_secrets: Dict[str, Dict[str, str]] = None):
     """
     Upload a pipeline with associated pipeline steps to Clarifai.
 
     :param path: Path to the pipeline configuration file or directory containing config.yaml
     :param no_lockfile: If True, skip creating config-lock.yaml
+    :param step_secrets: Optional dictionary of step secrets to add to the pipeline
+        Format: {'step1': {'API_KEY': 'users/user123/secrets/my-key'}}
     """
     try:
         # Determine if path is a directory or file
@@ -453,6 +506,18 @@ def upload_pipeline(path: str, no_lockfile: bool = False):
             config_path = path
 
         builder = PipelineBuilder(config_path)
+
+        # Merge CLI step secrets with config file step secrets (CLI takes precedence)
+        if step_secrets:
+            if "step_secrets" not in builder.config["pipeline"]:
+                builder.config["pipeline"]["step_secrets"] = {}
+
+            for step_ref, secrets in step_secrets.items():
+                if step_ref not in builder.config["pipeline"]["step_secrets"]:
+                    builder.config["pipeline"]["step_secrets"][step_ref] = {}
+                builder.config["pipeline"]["step_secrets"][step_ref].update(secrets)
+
+            logger.info(f"Merged {len(step_secrets)} step secret configuration(s) from CLI")
 
         logger.info(f"Starting pipeline upload from config: {config_path}")
 

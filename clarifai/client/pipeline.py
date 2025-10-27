@@ -330,3 +330,106 @@ class Pipeline(Lister, BaseClient):
             logger.debug(f"Error fetching logs: {e}")
             # Return current page on error to retry the same page next fetch
             return current_page
+
+    def add_step_secret(
+        self, step_ref: str, secret_name: str, secret_ref: str
+    ) -> Dict[str, Dict[str, str]]:
+        """Add a secret to a specific pipeline step.
+
+        Args:
+            step_ref (str): Step reference (e.g., 'step1', 'step2')
+            secret_name (str): Name of the secret environment variable (e.g., 'API_KEY')
+            secret_ref (str): Reference path to the secret (e.g., 'users/user123/secrets/my-api-key')
+
+        Returns:
+            Dict[str, Dict[str, str]]: Updated step secrets configuration
+
+        Example:
+            >>> pipeline = Pipeline(pipeline_id='my-pipeline', user_id='user123', app_id='app456')
+            >>> pipeline.add_step_secret('step1', 'API_KEY', 'users/user123/secrets/my-api-key')
+            {'step1': {'API_KEY': 'users/user123/secrets/my-api-key'}}
+        """
+        if not hasattr(self, '_step_secrets'):
+            self._step_secrets = {}
+
+        if step_ref not in self._step_secrets:
+            self._step_secrets[step_ref] = {}
+
+        self._step_secrets[step_ref][secret_name] = secret_ref
+        logger.info(f"Added secret '{secret_name}' to step '{step_ref}'")
+
+        return self._step_secrets
+
+    def remove_step_secret(self, step_ref: str, secret_name: str) -> Dict[str, Dict[str, str]]:
+        """Remove a secret from a specific pipeline step.
+
+        Args:
+            step_ref (str): Step reference (e.g., 'step1', 'step2')
+            secret_name (str): Name of the secret to remove
+
+        Returns:
+            Dict[str, Dict[str, str]]: Updated step secrets configuration
+
+        Raises:
+            KeyError: If step_ref or secret_name doesn't exist
+
+        Example:
+            >>> pipeline = Pipeline(pipeline_id='my-pipeline', user_id='user123', app_id='app456')
+            >>> pipeline.remove_step_secret('step1', 'API_KEY')
+            {}
+        """
+        if not hasattr(self, '_step_secrets'):
+            self._step_secrets = {}
+
+        if step_ref not in self._step_secrets:
+            raise KeyError(f"Step reference '{step_ref}' not found")
+
+        if secret_name not in self._step_secrets[step_ref]:
+            raise KeyError(f"Secret '{secret_name}' not found in step '{step_ref}'")
+
+        del self._step_secrets[step_ref][secret_name]
+        logger.info(f"Removed secret '{secret_name}' from step '{step_ref}'")
+
+        # Clean up empty step entries
+        if not self._step_secrets[step_ref]:
+            del self._step_secrets[step_ref]
+
+        return self._step_secrets
+
+    def list_step_secrets(self, step_ref: str) -> Dict[str, str]:
+        """List all secrets for a specific pipeline step.
+
+        Args:
+            step_ref (str): Step reference (e.g., 'step1', 'step2')
+
+        Returns:
+            Dict[str, str]: Dictionary of secret names to secret references for the step
+
+        Example:
+            >>> pipeline = Pipeline(pipeline_id='my-pipeline', user_id='user123', app_id='app456')
+            >>> pipeline.list_step_secrets('step1')
+            {'API_KEY': 'users/user123/secrets/my-api-key', 'DB_PASSWORD': 'users/user123/secrets/db-secret'}
+        """
+        if not hasattr(self, '_step_secrets'):
+            self._step_secrets = {}
+
+        return self._step_secrets.get(step_ref, {})
+
+    def get_step_secrets(self) -> Dict[str, Dict[str, str]]:
+        """Get all step secrets for the pipeline.
+
+        Returns:
+            Dict[str, Dict[str, str]]: Dictionary mapping step references to their secrets
+
+        Example:
+            >>> pipeline = Pipeline(pipeline_id='my-pipeline', user_id='user123', app_id='app456')
+            >>> pipeline.get_step_secrets()
+            {
+                'step1': {'API_KEY': 'users/user123/secrets/my-api-key'},
+                'step2': {'EMAIL_TOKEN': 'users/user123/secrets/email-token'}
+            }
+        """
+        if not hasattr(self, '_step_secrets'):
+            self._step_secrets = {}
+
+        return self._step_secrets

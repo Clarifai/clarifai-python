@@ -29,14 +29,57 @@ def pipeline():
     is_flag=True,
     help='Skip creating config-lock.yaml file.',
 )
-def upload(path, no_lockfile):
+@click.option(
+    '--step-secret',
+    multiple=True,
+    help='Add step secret in format step_ref:SECRET_NAME=secret_ref_path. Can be specified multiple times.',
+)
+def upload(path, no_lockfile, step_secret):
     """Upload a pipeline with associated pipeline steps to Clarifai.
 
     PATH: Path to the pipeline configuration file or directory containing config.yaml. If not specified, the current directory is used by default.
+
+    Examples:
+        clarifai pipeline upload --step-secret step1:API_KEY=users/user123/secrets/my-key
+        clarifai pipeline upload --step-secret step1:API_KEY=users/user123/secrets/my-key --step-secret step2:TOKEN=users/user123/secrets/token
     """
     from clarifai.runners.pipelines.pipeline_builder import upload_pipeline
 
-    upload_pipeline(path, no_lockfile=no_lockfile)
+    # Parse step secrets from CLI format
+    step_secrets = {}
+    if step_secret:
+        for secret_str in step_secret:
+            try:
+                # Format: step_ref:SECRET_NAME=secret_ref_path
+                if ':' not in secret_str or '=' not in secret_str:
+                    logger.error(
+                        f"Invalid step secret format: '{secret_str}'. Expected format: step_ref:SECRET_NAME=secret_ref_path"
+                    )
+                    continue
+
+                step_part, secret_part = secret_str.split(':', 1)
+                secret_name, secret_ref = secret_part.split('=', 1)
+
+                step_ref = step_part.strip()
+                secret_name = secret_name.strip()
+                secret_ref = secret_ref.strip()
+
+                if not step_ref or not secret_name or not secret_ref:
+                    logger.error(f"Invalid step secret (empty values): '{secret_str}'")
+                    continue
+
+                if step_ref not in step_secrets:
+                    step_secrets[step_ref] = {}
+                step_secrets[step_ref][secret_name] = secret_ref
+
+                logger.info(f"Added step secret: {step_ref}:{secret_name}")
+
+            except ValueError as e:
+                logger.error(
+                    f"Error parsing step secret '{secret_str}': {e}. Expected format: step_ref:SECRET_NAME=secret_ref_path"
+                )
+
+    upload_pipeline(path, no_lockfile=no_lockfile, step_secrets=step_secrets or None)
 
 
 @pipeline.command()

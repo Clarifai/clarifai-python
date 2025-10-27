@@ -1627,3 +1627,161 @@ class TestPipelineStepListCommand:
 
         assert result.exit_code != 0
         assert '--pipeline_id must be used together with --app_id' in result.output
+
+
+class TestPipelineStepSecretsCliFlag:
+    """Test cases for --step-secret CLI flag."""
+
+    @patch('clarifai.cli.pipeline.upload_pipeline')
+    def test_upload_with_single_step_secret(self, mock_upload_pipeline):
+        """Test pipeline upload with a single step secret."""
+        runner = CliRunner()
+
+        with runner.isolated_filesystem():
+            # Create a minimal config file
+            config_content = {
+                "pipeline": {
+                    "id": "test-pipeline",
+                    "user_id": "test-user",
+                    "app_id": "test-app",
+                    "orchestration_spec": {
+                        "argo_orchestration_spec": "apiVersion: argoproj.io/v1alpha1\nkind: Workflow\nspec:\n  templates: []"
+                    },
+                    "step_directories": [],
+                }
+            }
+
+            with open("config.yaml", "w") as f:
+                yaml.dump(config_content, f)
+
+            # Run upload with step secret
+            result = runner.invoke(
+                upload,
+                ['config.yaml', '--step-secret', 'step1:API_KEY=users/user123/secrets/my-key'],
+            )
+
+            # Verify upload_pipeline was called with correct arguments
+            assert mock_upload_pipeline.called
+            call_args = mock_upload_pipeline.call_args
+            assert call_args[0][0] == 'config.yaml'
+            assert call_args[1]['step_secrets'] is not None
+            assert 'step1' in call_args[1]['step_secrets']
+            assert call_args[1]['step_secrets']['step1']['API_KEY'] == 'users/user123/secrets/my-key'
+
+    @patch('clarifai.cli.pipeline.upload_pipeline')
+    def test_upload_with_multiple_step_secrets(self, mock_upload_pipeline):
+        """Test pipeline upload with multiple step secrets."""
+        runner = CliRunner()
+
+        with runner.isolated_filesystem():
+            # Create a minimal config file
+            config_content = {
+                "pipeline": {
+                    "id": "test-pipeline",
+                    "user_id": "test-user",
+                    "app_id": "test-app",
+                    "orchestration_spec": {
+                        "argo_orchestration_spec": "apiVersion: argoproj.io/v1alpha1\nkind: Workflow\nspec:\n  templates: []"
+                    },
+                    "step_directories": [],
+                }
+            }
+
+            with open("config.yaml", "w") as f:
+                yaml.dump(config_content, f)
+
+            # Run upload with multiple step secrets
+            result = runner.invoke(
+                upload,
+                [
+                    'config.yaml',
+                    '--step-secret',
+                    'step1:API_KEY=users/user123/secrets/my-key',
+                    '--step-secret',
+                    'step1:DB_PASSWORD=users/user123/secrets/db-pass',
+                    '--step-secret',
+                    'step2:EMAIL_TOKEN=users/user123/secrets/email-token',
+                ],
+            )
+
+            # Verify upload_pipeline was called with correct arguments
+            assert mock_upload_pipeline.called
+            call_args = mock_upload_pipeline.call_args
+            step_secrets = call_args[1]['step_secrets']
+
+            # Verify step1 has 2 secrets
+            assert 'step1' in step_secrets
+            assert len(step_secrets['step1']) == 2
+            assert step_secrets['step1']['API_KEY'] == 'users/user123/secrets/my-key'
+            assert step_secrets['step1']['DB_PASSWORD'] == 'users/user123/secrets/db-pass'
+
+            # Verify step2 has 1 secret
+            assert 'step2' in step_secrets
+            assert len(step_secrets['step2']) == 1
+            assert step_secrets['step2']['EMAIL_TOKEN'] == 'users/user123/secrets/email-token'
+
+    @patch('clarifai.cli.pipeline.upload_pipeline')
+    def test_upload_with_invalid_step_secret_format(self, mock_upload_pipeline):
+        """Test pipeline upload with invalid step secret format."""
+        runner = CliRunner()
+
+        with runner.isolated_filesystem():
+            # Create a minimal config file
+            config_content = {
+                "pipeline": {
+                    "id": "test-pipeline",
+                    "user_id": "test-user",
+                    "app_id": "test-app",
+                    "orchestration_spec": {
+                        "argo_orchestration_spec": "apiVersion: argoproj.io/v1alpha1\nkind: Workflow\nspec:\n  templates: []"
+                    },
+                    "step_directories": [],
+                }
+            }
+
+            with open("config.yaml", "w") as f:
+                yaml.dump(config_content, f)
+
+            # Run upload with invalid format (missing colon)
+            result = runner.invoke(
+                upload,
+                ['config.yaml', '--step-secret', 'step1_API_KEY=users/user123/secrets/my-key'],
+            )
+
+            # The command should still call upload_pipeline but with None/empty step_secrets
+            assert mock_upload_pipeline.called
+            call_args = mock_upload_pipeline.call_args
+            # Since the format was invalid, step_secrets should be None or empty
+            step_secrets = call_args[1].get('step_secrets')
+            assert step_secrets is None or step_secrets == {}
+
+    @patch('clarifai.cli.pipeline.upload_pipeline')
+    def test_upload_without_step_secrets(self, mock_upload_pipeline):
+        """Test pipeline upload without step secrets (backward compatibility)."""
+        runner = CliRunner()
+
+        with runner.isolated_filesystem():
+            # Create a minimal config file
+            config_content = {
+                "pipeline": {
+                    "id": "test-pipeline",
+                    "user_id": "test-user",
+                    "app_id": "test-app",
+                    "orchestration_spec": {
+                        "argo_orchestration_spec": "apiVersion: argoproj.io/v1alpha1\nkind: Workflow\nspec:\n  templates: []"
+                    },
+                    "step_directories": [],
+                }
+            }
+
+            with open("config.yaml", "w") as f:
+                yaml.dump(config_content, f)
+
+            # Run upload without step secrets
+            result = runner.invoke(upload, ['config.yaml'])
+
+            # Verify upload_pipeline was called
+            assert mock_upload_pipeline.called
+            call_args = mock_upload_pipeline.call_args
+            # step_secrets should be None when not provided
+            assert call_args[1]['step_secrets'] is None

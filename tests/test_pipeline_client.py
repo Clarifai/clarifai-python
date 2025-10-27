@@ -329,3 +329,122 @@ class TestPipelineClient:
         next_page = pipeline._display_new_logs('test-run-123', seen_logs_error, current_page=3)
         assert next_page == 3
         assert len(seen_logs_error) == 0
+
+    @patch('clarifai.client.pipeline.BaseClient.__init__')
+    def test_add_step_secret(self, mock_init):
+        """Test adding step secrets to pipeline."""
+        mock_init.return_value = None
+
+        pipeline = Pipeline(
+            pipeline_id='test-pipeline',
+            user_id='test-user',
+            app_id='test-app',
+            pat='test-pat',
+        )
+
+        # Add first secret
+        result = pipeline.add_step_secret('step1', 'API_KEY', 'users/user123/secrets/my-key')
+        assert 'step1' in result
+        assert result['step1']['API_KEY'] == 'users/user123/secrets/my-key'
+
+        # Add another secret to same step
+        result = pipeline.add_step_secret('step1', 'DB_PASSWORD', 'users/user123/secrets/db-pass')
+        assert len(result['step1']) == 2
+        assert result['step1']['DB_PASSWORD'] == 'users/user123/secrets/db-pass'
+
+        # Add secret to different step
+        result = pipeline.add_step_secret('step2', 'EMAIL_TOKEN', 'users/user123/secrets/email')
+        assert 'step2' in result
+        assert result['step2']['EMAIL_TOKEN'] == 'users/user123/secrets/email'
+
+    @patch('clarifai.client.pipeline.BaseClient.__init__')
+    def test_remove_step_secret(self, mock_init):
+        """Test removing step secrets from pipeline."""
+        mock_init.return_value = None
+
+        pipeline = Pipeline(
+            pipeline_id='test-pipeline',
+            user_id='test-user',
+            app_id='test-app',
+            pat='test-pat',
+        )
+
+        # Add secrets first
+        pipeline.add_step_secret('step1', 'API_KEY', 'users/user123/secrets/my-key')
+        pipeline.add_step_secret('step1', 'DB_PASSWORD', 'users/user123/secrets/db-pass')
+        pipeline.add_step_secret('step2', 'EMAIL_TOKEN', 'users/user123/secrets/email')
+
+        # Remove one secret
+        result = pipeline.remove_step_secret('step1', 'API_KEY')
+        assert 'step1' in result
+        assert 'API_KEY' not in result['step1']
+        assert 'DB_PASSWORD' in result['step1']
+
+        # Remove last secret from step (should remove step entry)
+        result = pipeline.remove_step_secret('step1', 'DB_PASSWORD')
+        assert 'step1' not in result
+        assert 'step2' in result
+
+        # Test error when removing non-existent secret
+        with pytest.raises(KeyError, match="Step reference 'step3' not found"):
+            pipeline.remove_step_secret('step3', 'API_KEY')
+
+        with pytest.raises(KeyError, match="Secret 'INVALID' not found in step 'step2'"):
+            pipeline.remove_step_secret('step2', 'INVALID')
+
+    @patch('clarifai.client.pipeline.BaseClient.__init__')
+    def test_list_step_secrets(self, mock_init):
+        """Test listing step secrets."""
+        mock_init.return_value = None
+
+        pipeline = Pipeline(
+            pipeline_id='test-pipeline',
+            user_id='test-user',
+            app_id='test-app',
+            pat='test-pat',
+        )
+
+        # List when no secrets exist
+        result = pipeline.list_step_secrets('step1')
+        assert result == {}
+
+        # Add secrets and list
+        pipeline.add_step_secret('step1', 'API_KEY', 'users/user123/secrets/my-key')
+        pipeline.add_step_secret('step1', 'DB_PASSWORD', 'users/user123/secrets/db-pass')
+
+        result = pipeline.list_step_secrets('step1')
+        assert len(result) == 2
+        assert result['API_KEY'] == 'users/user123/secrets/my-key'
+        assert result['DB_PASSWORD'] == 'users/user123/secrets/db-pass'
+
+        # List non-existent step
+        result = pipeline.list_step_secrets('step2')
+        assert result == {}
+
+    @patch('clarifai.client.pipeline.BaseClient.__init__')
+    def test_get_step_secrets(self, mock_init):
+        """Test getting all step secrets."""
+        mock_init.return_value = None
+
+        pipeline = Pipeline(
+            pipeline_id='test-pipeline',
+            user_id='test-user',
+            app_id='test-app',
+            pat='test-pat',
+        )
+
+        # Get when no secrets exist
+        result = pipeline.get_step_secrets()
+        assert result == {}
+
+        # Add secrets and get all
+        pipeline.add_step_secret('step1', 'API_KEY', 'users/user123/secrets/my-key')
+        pipeline.add_step_secret('step1', 'DB_PASSWORD', 'users/user123/secrets/db-pass')
+        pipeline.add_step_secret('step2', 'EMAIL_TOKEN', 'users/user123/secrets/email')
+
+        result = pipeline.get_step_secrets()
+        assert len(result) == 2
+        assert 'step1' in result
+        assert 'step2' in result
+        assert len(result['step1']) == 2
+        assert len(result['step2']) == 1
