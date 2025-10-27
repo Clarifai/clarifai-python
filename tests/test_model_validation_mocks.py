@@ -12,72 +12,35 @@ from clarifai.errors import UserError
 class TestModelValidationWithMocks:
     """Test Model validation using mocks."""
 
-    @patch('clarifai.client.model.BaseClient.__init__')
-    @patch('clarifai.client.model.Lister.__init__')
-    def test_validation_called_by_default(self, mock_lister_init, mock_base_init):
-        """Test that validation is called by default."""
-        mock_base_init.return_value = None
-        mock_lister_init.return_value = None
+    @patch('clarifai.client.model.Model._validate_model_exists')
+    @patch('clarifai.client.model.BaseClient.__init__', return_value=None)
+    @patch('clarifai.client.model.Lister.__init__', return_value=None)
+    @patch('clarifai.client.model.Model._set_runner_selector')
+    def test_validation_called_by_default(
+        self, mock_runner_selector, mock_lister_init, mock_base_init, mock_validate
+    ):
+        """Test that validation is called by default when creating a Model."""
+        # Create Model with default validate=True
+        model = Model(model_id='test_model', user_id='test_user', app_id='test_app')
 
-        # Create a mock for the Model instance
-        with patch.object(Model, '_validate_model_exists') as mock_validate:
-            with patch.object(Model, '_set_runner_selector'):
-                with patch.object(Model, 'user_id', 'test_user'):
-                    with patch.object(Model, 'app_id', 'test_app'):
-                        model = Model.__new__(Model)
-                        model.kwargs = {}
-                        model.logger = MagicMock()
-                        model.training_params = {}
-                        model.input_types = None
-                        model._client = None
-                        model._async_client = None
-                        model._added_methods = False
-                        model.deployment_user_id = None
+        # Verify validation was called once
+        assert mock_validate.call_count == 1
 
-                        # Now call __init__ with validate=True (default)
-                        Model.__init__(
-                            model,
-                            model_id='test_model',
-                            user_id='test_user',
-                            app_id='test_app',
-                        )
-
-                        # Verify validation was called
-                        mock_validate.assert_called_once()
-
-    @patch('clarifai.client.model.BaseClient.__init__')
-    @patch('clarifai.client.model.Lister.__init__')
-    def test_validation_skipped_when_false(self, mock_lister_init, mock_base_init):
+    @patch('clarifai.client.model.Model._validate_model_exists')
+    @patch('clarifai.client.model.BaseClient.__init__', return_value=None)
+    @patch('clarifai.client.model.Lister.__init__', return_value=None)
+    @patch('clarifai.client.model.Model._set_runner_selector')
+    def test_validation_skipped_when_false(
+        self, mock_runner_selector, mock_lister_init, mock_base_init, mock_validate
+    ):
         """Test that validation is skipped when validate=False."""
-        mock_base_init.return_value = None
-        mock_lister_init.return_value = None
+        # Create Model with validate=False
+        model = Model(
+            model_id='test_model', user_id='test_user', app_id='test_app', validate=False
+        )
 
-        # Create a mock for the Model instance
-        with patch.object(Model, '_validate_model_exists') as mock_validate:
-            with patch.object(Model, '_set_runner_selector'):
-                with patch.object(Model, 'user_id', 'test_user'):
-                    with patch.object(Model, 'app_id', 'test_app'):
-                        model = Model.__new__(Model)
-                        model.kwargs = {}
-                        model.logger = MagicMock()
-                        model.training_params = {}
-                        model.input_types = None
-                        model._client = None
-                        model._async_client = None
-                        model._added_methods = False
-                        model.deployment_user_id = None
-
-                        # Now call __init__ with validate=False
-                        Model.__init__(
-                            model,
-                            model_id='test_model',
-                            user_id='test_user',
-                            app_id='test_app',
-                            validate=False,
-                        )
-
-                        # Verify validation was NOT called
-                        mock_validate.assert_not_called()
+        # Verify validation was NOT called
+        mock_validate.assert_not_called()
 
     def test_validate_model_exists_with_success(self):
         """Test _validate_model_exists when model exists."""
