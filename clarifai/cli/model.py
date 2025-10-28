@@ -714,7 +714,9 @@ def local_runner(ctx, model_path, pool_size, verbose):
         raise click.Abort()
     config = ModelBuilder._load_config(config_file)
 
-    model_type_id = config.get('model', {}).get('model_type_id', DEFAULT_LOCAL_RUNNER_MODEL_TYPE)
+    uploaded_model_type_id = config.get('model', {}).get(
+        'model_type_id', DEFAULT_LOCAL_RUNNER_MODEL_TYPE
+    )
 
     logger.info("> Verifying local runner setup...")
     logger.info(f"Current context: {ctx.obj.current.name}")
@@ -829,14 +831,15 @@ def local_runner(ctx, model_path, pool_size, verbose):
 
     try:
         model = app.model(model_id)
+        current_model_type_id = model.model_type_id
         try:
             model_id = ctx.obj.current.model_id
         except AttributeError:  # doesn't exist in context but does in API then update the context.
             ctx.obj.current.CLARIFAI_MODEL_ID = model.id
             ctx.obj.to_yaml()  # save to yaml file.
-        if model.model_type_id != model_type_id:
+        if current_model_type_id != uploaded_model_type_id:
             logger.warning(
-                f"Model type ID mismatch: expected '{model_type_id}', found '{model.model_type_id}'. Deleting the model."
+                f"Model type ID mismatch: expected '{uploaded_model_type_id}', found '{current_model_type_id}'. Deleting the model."
             )
             app.delete_model(model_id)
             raise Exception
@@ -848,8 +851,8 @@ def local_runner(ctx, model_path, pool_size, verbose):
         if y.lower() != 'y':
             raise click.Abort()
 
-        model = app.create_model(model_id, model_type_id=model_type_id)
-        ctx.obj.current.CLARIFAI_MODEL_TYPE_ID = model_type_id
+        model = app.create_model(model_id, model_type_id=uploaded_model_type_id)
+        ctx.obj.current.CLARIFAI_MODEL_TYPE_ID = uploaded_model_type_id
         ctx.obj.current.CLARIFAI_MODEL_ID = model_id
         ctx.obj.to_yaml()  # save to yaml file.
 
@@ -1000,7 +1003,7 @@ def local_runner(ctx, model_path, pool_size, verbose):
         if y.lower() != 'y':
             raise click.Abort()
         config = ModelBuilder._set_local_runner_model(
-            config, user_id, app_id, model_id, model_type_id
+            config, user_id, app_id, model_id, uploaded_model_type_id
         )
         ModelBuilder._backup_config(config_file)
         ModelBuilder._save_config(config_file, config)
