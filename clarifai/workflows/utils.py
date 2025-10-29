@@ -55,7 +55,7 @@ def is_dict_in_dict(d1: Dict, d2: Dict, ignore_keys: Set = None) -> bool:
         if isinstance(v, dict):
             if not isinstance(d2[k], dict):
                 return False
-            return is_dict_in_dict(d1[k], d2[k], None)
+            return is_dict_in_dict(v, d2[k], None)
         elif v != d2[k]:
             return False
 

@@ -67,6 +67,7 @@ class Model(Lister, BaseClient):
         nodepool_id: str = None,
         deployment_id: str = None,
         deployment_user_id: str = None,
+        validate: bool = True,
         **kwargs,
     ):
         """Initializes a Model object.
@@ -83,12 +84,18 @@ class Model(Lister, BaseClient):
             nodepool_id (str): Nodepool ID for runner selector.
             deployment_id (str): Deployment ID for runner selector.
             deployment_user_id (str): User ID to use for runner selector (organization or user). If not provided, defaults to PAT owner user_id.
+            validate (bool): Whether to validate that the model exists. Defaults to True. Set to False to skip validation (used internally when model existence is already confirmed).
             **kwargs: Additional keyword arguments to be passed to the Model.
+
+        Raises:
+            UserError: If the model URL is invalid or the model does not exist.
         """
         if url and model_id:
             raise UserError("You can only specify one of url or model_id.")
         if not url and not model_id:
             raise UserError("You must specify one of url or model_id.")
+
+        original_url = url  # Store the original URL for error messages
         if url:
             user_id, app_id, _, model_id, model_version_id = ClarifaiUrlHelper.split_clarifai_url(
                 url
@@ -129,6 +136,57 @@ class Model(Lister, BaseClient):
             deployment_id=deployment_id,
             deployment_user_id=deployment_user_id,
         )
+
+        # Validate that the model exists (unless explicitly skipped)
+        if validate:
+            self._validate_model_exists(original_url)
+
+    def _validate_model_exists(self, original_url: str = None) -> None:
+        """Validates that the model exists by making a GetModel request.
+
+        Args:
+            original_url (str): The original URL provided by the user (for error messages).
+
+        Raises:
+            UserError: If the model does not exist or cannot be accessed.
+        """
+        try:
+            request = service_pb2.GetModelRequest(
+                user_app_id=self.user_app_id,
+                model_id=self.id,
+                version_id=self.model_info.model_version.id,
+            )
+            response = self._grpc_request(self.STUB.GetModel, request)
+
+            if response.status.code != status_code_pb2.SUCCESS:
+                # Model does not exist or cannot be accessed
+                if original_url:
+                    error_msg = (
+                        f"Model does not exist or cannot be accessed at URL: {original_url}\n"
+                        f"Status: {response.status.description}\n"
+                        f"Details: {response.status.details}"
+                    )
+                else:
+                    error_msg = (
+                        f"Model '{self.id}' does not exist or cannot be accessed in app '{self.app_id}' "
+                        f"for user '{self.user_id}'.\n"
+                        f"Status: {response.status.description}\n"
+                        f"Details: {response.status.details}"
+                    )
+                raise UserError(error_msg)
+        except UserError:
+            # Re-raise UserError as-is
+            raise
+        except Exception as e:
+            # Handle unexpected errors during validation
+            if original_url:
+                error_msg = f"Failed to validate model at URL: {original_url}\nError: {str(e)}"
+            else:
+                error_msg = (
+                    f"Failed to validate model '{self.id}' in app '{self.app_id}' "
+                    f"for user '{self.user_id}'.\nError: {str(e)}"
+                )
+            raise UserError(error_msg)
 
     @classmethod
     def from_current_context(cls, **kwargs) -> 'Model':
@@ -463,7 +521,7 @@ class Model(Lister, BaseClient):
         dict_response = MessageToDict(response, preserving_proto_field_name=True)
         kwargs = self.process_response_keys(dict_response['model'], 'model')
 
-        return Model(base_url=self.base, pat=self.pat, token=self.token, **kwargs)
+        return Model(base_url=self.base, pat=self.pat, token=self.token, validate=False, **kwargs)
 
     def list_versions(
         self, page_no: int = None, per_page: int = None
@@ -510,6 +568,7 @@ class Model(Lister, BaseClient):
             yield Model.from_auth_helper(
                 auth=self.auth_helper,
                 model_id=self.id,
+                validate=False,
                 **dict(self.kwargs, model_version=model_version_info),
             )
 
@@ -2075,6 +2134,7 @@ class Model(Lister, BaseClient):
             auth=self.auth_helper,
             model_id=self.id,
             model_version=dict(id=cache_uploading_info.get('model_version')),
+            validate=False,
         )
 
     def create_version_by_url(
@@ -2131,6 +2191,7 @@ class Model(Lister, BaseClient):
             auth=self.auth_helper,
             model_id=self.id,
             model_version=dict(id=response.model.model_version.id),
+            validate=False,
         )
 
     def patch_version(self, version_id: str, **kwargs) -> 'Model':
@@ -2161,4 +2222,5 @@ class Model(Lister, BaseClient):
             auth=self.auth_helper,
             model_id=self.id,
             model_version=dict(id=version_id),
+            validate=False,
         )
