@@ -34,7 +34,6 @@ setuptools.setup(
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3 :: Only",
-        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
@@ -44,7 +43,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     license="Apache 2.0",
-    python_requires='>=3.8',
+    python_requires='>=3.9',
     install_requires=install_requires,
     extras_require={
         'all': ["pycocotools>=2.0.7"],

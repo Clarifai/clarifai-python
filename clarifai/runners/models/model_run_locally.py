@@ -13,6 +13,7 @@ import venv
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 
 from clarifai.runners.models.model_builder import ModelBuilder
+from clarifai.utils.constants import MIN_REQUIRED_PYTHON_VERSION
 from clarifai.utils.logging import logger
 
 
@@ -280,22 +281,25 @@ class ModelRunLocally:
         """
         Validate that the current environment supports model testing.
         Provides immediate feedback for unsupported configurations.
+        This function runs only during CLI commands:
+            1. clarifai model local-grpc
+            2. clarifai model local-test
         """
         warnings = []
 
         # Check Python version compatibility
         current_python = sys.version_info[:2]
-        if current_python < (3, 8):
+        if current_python < MIN_REQUIRED_PYTHON_VERSION:
             logger.error(
                 "❌ Environment validation failed: "
                 f"Python {current_python[0]}.{current_python[1]} is not supported. "
-                "Please use Python 3.8 or higher for model testing."
+                f"Please use Python {MIN_REQUIRED_PYTHON_VERSION[0]}.{MIN_REQUIRED_PYTHON_VERSION[1]} or higher for model testing."
             )
             sys.exit(1)
-        elif current_python < (3, 9):
+        elif current_python == MIN_REQUIRED_PYTHON_VERSION:
             warnings.append(
                 f"Python {current_python[0]}.{current_python[1]} may have limited support. "
-                "Consider upgrading to Python 3.9 or higher for optimal compatibility."
+                f"Consider upgrading to Python {MIN_REQUIRED_PYTHON_VERSION[0]}.{MIN_REQUIRED_PYTHON_VERSION[1]} or higher for optimal compatibility."
             )
 
         # Check for GPU-related configurations on unsupported platforms
@@ -315,9 +319,9 @@ class ModelRunLocally:
             if requires_gpu:
                 logger.error(
                     "❌ Environment validation failed: "
-                    f"Your current environment i.e. '{current_environment}' does not have NVIDIA GPU support. "
+                    f"Your current environment '{current_environment}' does not have NVIDIA GPU support. "
                     "Your model configuration requires GPU support. "
-                    "Please test on a environment with NVIDIA GPU support, "
+                    "Please test on an environment with NVIDIA GPU support, "
                     "or modify your model configuration to use CPU-only inference."
                 )
                 sys.exit(1)
