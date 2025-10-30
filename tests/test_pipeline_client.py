@@ -329,3 +329,184 @@ class TestPipelineClient:
         next_page = pipeline._display_new_logs('test-run-123', seen_logs_error, current_page=3)
         assert next_page == 3
         assert len(seen_logs_error) == 0
+
+    @patch('clarifai.client.pipeline.BaseClient.__init__')
+    def test_get_pipeline_version_with_step_secrets(self, mock_init):
+        """Test getting pipeline version with step secrets."""
+        mock_init.return_value = None
+
+        pipeline = Pipeline(
+            pipeline_id='test-pipeline',
+            pipeline_version_id='test-version-123',
+            user_id='test-user',
+            app_id='test-app',
+            pat='test-pat',
+        )
+
+        # Mock the required attributes
+        pipeline.user_app_id = resources_pb2.UserAppIDSet(user_id="test-user", app_id="test-app")
+        pipeline.STUB = Mock()
+        pipeline.auth_helper = Mock()
+        pipeline.auth_helper.metadata = []
+
+        # Create mock response with step secrets
+        mock_response = Mock()
+        mock_response.status.code = status_code_pb2.StatusCode.SUCCESS
+
+        pipeline_version = resources_pb2.PipelineVersion()
+        pipeline_version.id = 'test-version-123'
+
+        # Add step secrets
+        step_secret_config = resources_pb2.StepSecretConfig()
+        step_secret_config.secrets['API_KEY'] = 'users/test-user/secrets/my-api-key'
+        step_secret_config.secrets['DB_PASSWORD'] = 'users/test-user/secrets/db-secret'
+        pipeline_version.config.step_version_secrets['step-0'].CopyFrom(step_secret_config)
+
+        mock_response.pipeline_version = pipeline_version
+        pipeline.STUB.GetPipelineVersion.return_value = mock_response
+
+        # Execute
+        result = pipeline.get_pipeline_version()
+
+        # Verify
+        assert result['id'] == 'test-version-123'
+        assert 'config' in result
+        assert 'step_version_secrets' in result['config']
+        assert 'step-0' in result['config']['step_version_secrets']
+        secrets = result['config']['step_version_secrets']['step-0']['secrets']
+        assert secrets['API_KEY'] == 'users/test-user/secrets/my-api-key'
+        assert secrets['DB_PASSWORD'] == 'users/test-user/secrets/db-secret'
+
+    @patch('clarifai.client.pipeline.BaseClient.__init__')
+    def test_create_pipeline_version_with_step_secrets(self, mock_init):
+        """Test creating pipeline version with step secrets."""
+        mock_init.return_value = None
+
+        pipeline = Pipeline(
+            pipeline_id='test-pipeline',
+            user_id='test-user',
+            app_id='test-app',
+            pat='test-pat',
+        )
+
+        # Mock the required attributes
+        pipeline.user_app_id = resources_pb2.UserAppIDSet(user_id="test-user", app_id="test-app")
+        pipeline.STUB = Mock()
+        pipeline.auth_helper = Mock()
+        pipeline.auth_helper.metadata = []
+
+        # Create mock response
+        mock_response = Mock()
+        mock_response.status.code = status_code_pb2.StatusCode.SUCCESS
+        created_version = resources_pb2.PipelineVersion()
+        created_version.id = 'new-version-456'
+        mock_response.pipeline_versions = [created_version]
+        pipeline.STUB.PatchPipelineVersions.return_value = mock_response
+
+        # Execute
+        orchestration_spec = {
+            "argo_orchestration_spec": """
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+spec:
+  entrypoint: sequence
+  templates: []
+"""
+        }
+        step_version_secrets = {
+            "step-0": {"API_KEY": "users/test-user/secrets/my-api-key"},
+            "step-1": {"EMAIL_TOKEN": "users/test-user/secrets/email-token"},
+        }
+
+        version_id = pipeline.create_pipeline_version(
+            orchestration_spec=orchestration_spec,
+            step_version_secrets=step_version_secrets,
+            description="Test pipeline version",
+        )
+
+        # Verify
+        assert version_id == 'new-version-456'
+        pipeline.STUB.PatchPipelineVersions.assert_called_once()
+
+        # Verify the request has step secrets
+        call_args = pipeline.STUB.PatchPipelineVersions.call_args
+        request = call_args[0][0]
+        assert len(request.pipeline_versions) == 1
+        pv = request.pipeline_versions[0]
+        assert 'step-0' in pv.config.step_version_secrets
+        assert 'step-1' in pv.config.step_version_secrets
+        assert (
+            pv.config.step_version_secrets['step-0'].secrets['API_KEY']
+            == 'users/test-user/secrets/my-api-key'
+        )
+
+    @patch('clarifai.client.pipeline.BaseClient.__init__')
+    def test_list_step_secrets(self, mock_init):
+        """Test listing step secrets for a pipeline version."""
+        mock_init.return_value = None
+
+        pipeline = Pipeline(
+            pipeline_id='test-pipeline',
+            pipeline_version_id='test-version-123',
+            user_id='test-user',
+            app_id='test-app',
+            pat='test-pat',
+        )
+
+        # Mock the required attributes
+        pipeline.user_app_id = resources_pb2.UserAppIDSet(user_id="test-user", app_id="test-app")
+        pipeline.STUB = Mock()
+        pipeline.auth_helper = Mock()
+        pipeline.auth_helper.metadata = []
+
+        # Create mock response with step secrets
+        mock_response = Mock()
+        mock_response.status.code = status_code_pb2.StatusCode.SUCCESS
+
+        pipeline_version = resources_pb2.PipelineVersion()
+        pipeline_version.id = 'test-version-123'
+
+        # Add step secrets for multiple steps
+        step_secret_config_0 = resources_pb2.StepSecretConfig()
+        step_secret_config_0.secrets['API_KEY'] = 'users/test-user/secrets/my-api-key'
+        pipeline_version.config.step_version_secrets['step-0'].CopyFrom(step_secret_config_0)
+
+        step_secret_config_1 = resources_pb2.StepSecretConfig()
+        step_secret_config_1.secrets['EMAIL_TOKEN'] = 'users/test-user/secrets/email-token'
+        pipeline_version.config.step_version_secrets['step-1'].CopyFrom(step_secret_config_1)
+
+        mock_response.pipeline_version = pipeline_version
+        pipeline.STUB.GetPipelineVersion.return_value = mock_response
+
+        # Test listing all secrets
+        all_secrets = pipeline.list_step_secrets()
+        assert 'step-0' in all_secrets
+        assert 'step-1' in all_secrets
+        assert all_secrets['step-0']['API_KEY'] == 'users/test-user/secrets/my-api-key'
+        assert all_secrets['step-1']['EMAIL_TOKEN'] == 'users/test-user/secrets/email-token'
+
+        # Test listing secrets for specific step
+        step0_secrets = pipeline.list_step_secrets(step_ref='step-0')
+        assert 'step-0' in step0_secrets
+        assert 'step-1' not in step0_secrets
+        assert step0_secrets['step-0']['API_KEY'] == 'users/test-user/secrets/my-api-key'
+
+    @patch('clarifai.client.pipeline.BaseClient.__init__')
+    def test_add_step_secret_not_implemented(self, mock_init):
+        """Test that add_step_secret raises NotImplementedError."""
+        mock_init.return_value = None
+
+        pipeline = Pipeline(
+            pipeline_id='test-pipeline',
+            pipeline_version_id='test-version-123',
+            user_id='test-user',
+            app_id='test-app',
+            pat='test-pat',
+        )
+
+        # Verify it raises NotImplementedError
+        with pytest.raises(
+            NotImplementedError,
+            match="Adding secrets to existing pipeline versions is not supported",
+        ):
+            pipeline.add_step_secret('step-0', 'API_KEY', 'users/test-user/secrets/my-api-key')
