@@ -260,7 +260,6 @@ class ClarifaiAuthHelper:
 
         return cls(validate=validate, **kwargs)
 
-
     def get_user_app_id_proto(
         self,
         user_id: str = None,
