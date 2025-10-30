@@ -386,22 +386,24 @@ class PipelineBuilder:
             step_version_secrets: Dictionary mapping step references to their secret configs
                                  Format: {step_ref: {secrets: {secret_name: secret_path}}}
         """
-        logger.info(f"Adding step version secrets for {len(step_version_secrets)} steps")
+        logger.debug(f"Processing step version secrets for {len(step_version_secrets)} steps")
 
         for step_ref, step_config in step_version_secrets.items():
-            secrets = step_config.get("secrets", {})
-            if not secrets:
-                logger.warning(f"No secrets found for step {step_ref}, skipping")
+            # Note: 'secret_refs' contains only secret reference paths (not actual values)
+            # Secret references are like "users/user123/secrets/my-api-key" 
+            secret_refs = step_config.get("secrets", {})
+            if not secret_refs:
+                logger.debug(f"No secret references found for step {step_ref}, skipping")
                 continue
 
             # Create StepSecretConfig proto
             step_secret_config = resources_pb2.StepSecretConfig()
-            for secret_name, secret_ref in secrets.items():
+            for secret_name, secret_ref in secret_refs.items():
                 step_secret_config.secrets[secret_name] = secret_ref
-                logger.info(f"Added secret {secret_name} for step {step_ref}")
 
             # Add to pipeline version config
             pipeline_version.config.step_version_secrets[step_ref].CopyFrom(step_secret_config)
+            logger.debug(f"Configured secret references for step {step_ref}")
 
     def create_pipeline(self) -> tuple[bool, str]:
         """Create the pipeline using PostPipelines RPC.
