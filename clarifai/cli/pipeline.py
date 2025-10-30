@@ -84,6 +84,17 @@ def upload(path, no_lockfile):
     default=False,
     help='Monitor an existing pipeline run instead of starting a new one. Requires pipeline_version_run_id.',
 )
+@click.option(
+    '--set',
+    'set_params',
+    multiple=True,
+    help='Set input argument override (can be used multiple times). Format: key=value. Example: --set prompt="Hello" --set temperature="0.7"',
+)
+@click.option(
+    '--overrides-file',
+    type=click.Path(exists=True),
+    help='Path to JSON file containing input argument overrides. Inline --set parameters take precedence over file values.',
+)
 @click.pass_context
 def run(
     ctx,
@@ -100,14 +111,62 @@ def run(
     monitor_interval,
     log_file,
     monitor,
+    set_params,
+    overrides_file,
 ):
-    """Run a pipeline and monitor its progress."""
+    """Run a pipeline and monitor its progress.
+
+    Examples:
+
+        # Run with inline parameter overrides
+        clarifai pipeline run --compute_cluster_id=cc1 --nodepool_id=np1 \\
+            --set prompt="Summarize this" --set temperature="0.7"
+
+        # Run with file-based overrides
+        clarifai pipeline run --compute_cluster_id=cc1 --nodepool_id=np1 \\
+            --overrides-file overrides.json
+
+        # Combine both (inline takes precedence)
+        clarifai pipeline run --compute_cluster_id=cc1 --nodepool_id=np1 \\
+            --overrides-file overrides.json --set prompt="Override prompt"
+    """
     import json
 
     from clarifai.client.pipeline import Pipeline
     from clarifai.utils.cli import from_yaml, validate_context
+    from clarifai.utils.pipeline_overrides import (
+        load_overrides_from_file,
+        merge_override_parameters,
+        parse_set_parameter,
+    )
 
     validate_context(ctx)
+
+    # Parse input argument overrides
+    input_args_override = None
+    try:
+        # Parse inline --set parameters
+        inline_overrides = {}
+        if set_params:
+            for param in set_params:
+                key, value = parse_set_parameter(param)
+                inline_overrides[key] = value
+                logger.info(f"Inline override: {key}={value}")
+
+        # Load file-based overrides
+        file_overrides = {}
+        if overrides_file:
+            file_overrides = load_overrides_from_file(overrides_file)
+            logger.info(f"Loaded {len(file_overrides)} overrides from {overrides_file}")
+
+        # Merge overrides (inline takes precedence)
+        if inline_overrides or file_overrides:
+            input_args_override = merge_override_parameters(inline_overrides, file_overrides)
+            logger.info(f"Final overrides: {input_args_override}")
+
+    except (ValueError, FileNotFoundError) as e:
+        logger.error(f"Error processing input argument overrides: {e}")
+        raise click.Abort()
 
     # Try to load from config-lock.yaml first if no config is specified
     lockfile_path = os.path.join(os.getcwd(), "config-lock.yaml")
@@ -205,7 +264,11 @@ def run(
         result = pipeline.monitor_only(timeout=timeout, monitor_interval=monitor_interval)
     else:
         # Start new pipeline run and monitor it
-        result = pipeline.run(timeout=timeout, monitor_interval=monitor_interval)
+        result = pipeline.run(
+            timeout=timeout,
+            monitor_interval=monitor_interval,
+            input_args_override=input_args_override,
+        )
     click.echo(json.dumps(result, indent=2, default=str))
 
 

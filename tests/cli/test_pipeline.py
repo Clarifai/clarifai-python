@@ -1627,3 +1627,299 @@ class TestPipelineStepListCommand:
 
         assert result.exit_code != 0
         assert '--pipeline_id must be used together with --app_id' in result.output
+
+
+class TestPipelineRunWithOverrides:
+    """Test cases for pipeline run command with input argument overrides."""
+
+    @patch('clarifai.client.pipeline.Pipeline')
+    def test_run_with_inline_overrides(self, mock_pipeline_cls):
+        """Test pipeline run command with --set inline overrides."""
+        from clarifai.cli.pipeline import run
+
+        # Setup mock context
+        ctx_obj = Mock()
+        ctx_obj.current.pat = 'test-pat'
+        ctx_obj.current.api_base = 'https://api.clarifai.com'
+        ctx_obj.current.user_id = 'test-user'
+        ctx_obj.current.app_id = 'test-app'
+
+        # Mock Pipeline instance
+        mock_pipeline = Mock()
+        mock_pipeline.run.return_value = {
+            'status': 'success',
+            'pipeline_version_run': {'id': 'test-run-123'},
+        }
+        mock_pipeline_cls.return_value = mock_pipeline
+
+        runner = CliRunner()
+        result = runner.invoke(
+            run,
+            [
+                '--pipeline_id',
+                'test-pipeline',
+                '--pipeline_version_id',
+                'v1',
+                '--user_id',
+                'test-user',
+                '--app_id',
+                'test-app',
+                '--nodepool_id',
+                'np1',
+                '--compute_cluster_id',
+                'cc1',
+                '--set',
+                'prompt=Test prompt',
+                '--set',
+                'temperature=0.7',
+            ],
+            obj=ctx_obj,
+        )
+
+        assert result.exit_code == 0
+        # Verify Pipeline was called with overrides
+        mock_pipeline.run.assert_called_once()
+        call_kwargs = mock_pipeline.run.call_args[1]
+        assert 'input_args_override' in call_kwargs
+        assert call_kwargs['input_args_override']['prompt'] == 'Test prompt'
+        assert call_kwargs['input_args_override']['temperature'] == '0.7'
+
+    @patch('clarifai.client.pipeline.Pipeline')
+    def test_run_with_file_overrides(self, mock_pipeline_cls):
+        """Test pipeline run command with --overrides-file."""
+        import json
+        import tempfile
+
+        from clarifai.cli.pipeline import run
+
+        # Create temporary overrides file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump({"prompt": "File prompt", "temperature": "0.9"}, f)
+            overrides_file = f.name
+
+        try:
+            # Setup mock context
+            ctx_obj = Mock()
+            ctx_obj.current.pat = 'test-pat'
+            ctx_obj.current.api_base = 'https://api.clarifai.com'
+            ctx_obj.current.user_id = 'test-user'
+            ctx_obj.current.app_id = 'test-app'
+
+            # Mock Pipeline instance
+            mock_pipeline = Mock()
+            mock_pipeline.run.return_value = {
+                'status': 'success',
+                'pipeline_version_run': {'id': 'test-run-123'},
+            }
+            mock_pipeline_cls.return_value = mock_pipeline
+
+            runner = CliRunner()
+            result = runner.invoke(
+                run,
+                [
+                    '--pipeline_id',
+                    'test-pipeline',
+                    '--pipeline_version_id',
+                    'v1',
+                    '--user_id',
+                    'test-user',
+                    '--app_id',
+                    'test-app',
+                    '--nodepool_id',
+                    'np1',
+                    '--compute_cluster_id',
+                    'cc1',
+                    '--overrides-file',
+                    overrides_file,
+                ],
+                obj=ctx_obj,
+            )
+
+            assert result.exit_code == 0
+            # Verify Pipeline was called with overrides
+            mock_pipeline.run.assert_called_once()
+            call_kwargs = mock_pipeline.run.call_args[1]
+            assert 'input_args_override' in call_kwargs
+            assert call_kwargs['input_args_override']['prompt'] == 'File prompt'
+            assert call_kwargs['input_args_override']['temperature'] == '0.9'
+        finally:
+            os.unlink(overrides_file)
+
+    @patch('clarifai.client.pipeline.Pipeline')
+    def test_run_with_mixed_overrides_inline_precedence(self, mock_pipeline_cls):
+        """Test that inline --set overrides take precedence over file overrides."""
+        import json
+        import tempfile
+
+        from clarifai.cli.pipeline import run
+
+        # Create temporary overrides file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump({"prompt": "File prompt", "temperature": "0.9", "max_tokens": "100"}, f)
+            overrides_file = f.name
+
+        try:
+            # Setup mock context
+            ctx_obj = Mock()
+            ctx_obj.current.pat = 'test-pat'
+            ctx_obj.current.api_base = 'https://api.clarifai.com'
+            ctx_obj.current.user_id = 'test-user'
+            ctx_obj.current.app_id = 'test-app'
+
+            # Mock Pipeline instance
+            mock_pipeline = Mock()
+            mock_pipeline.run.return_value = {
+                'status': 'success',
+                'pipeline_version_run': {'id': 'test-run-123'},
+            }
+            mock_pipeline_cls.return_value = mock_pipeline
+
+            runner = CliRunner()
+            result = runner.invoke(
+                run,
+                [
+                    '--pipeline_id',
+                    'test-pipeline',
+                    '--pipeline_version_id',
+                    'v1',
+                    '--user_id',
+                    'test-user',
+                    '--app_id',
+                    'test-app',
+                    '--nodepool_id',
+                    'np1',
+                    '--compute_cluster_id',
+                    'cc1',
+                    '--overrides-file',
+                    overrides_file,
+                    '--set',
+                    'prompt=Inline prompt',  # Should override file value
+                ],
+                obj=ctx_obj,
+            )
+
+            assert result.exit_code == 0
+            # Verify Pipeline was called with merged overrides
+            mock_pipeline.run.assert_called_once()
+            call_kwargs = mock_pipeline.run.call_args[1]
+            assert 'input_args_override' in call_kwargs
+            assert call_kwargs['input_args_override']['prompt'] == 'Inline prompt'  # Inline wins
+            assert call_kwargs['input_args_override']['temperature'] == '0.9'  # From file
+            assert call_kwargs['input_args_override']['max_tokens'] == '100'  # From file
+        finally:
+            os.unlink(overrides_file)
+
+    def test_run_with_invalid_set_parameter(self):
+        """Test that invalid --set parameter format is rejected."""
+        from clarifai.cli.pipeline import run
+
+        # Setup mock context
+        ctx_obj = Mock()
+        ctx_obj.current.pat = 'test-pat'
+        ctx_obj.current.api_base = 'https://api.clarifai.com'
+
+        runner = CliRunner()
+        result = runner.invoke(
+            run,
+            [
+                '--pipeline_id',
+                'test-pipeline',
+                '--pipeline_version_id',
+                'v1',
+                '--user_id',
+                'test-user',
+                '--app_id',
+                'test-app',
+                '--nodepool_id',
+                'np1',
+                '--compute_cluster_id',
+                'cc1',
+                '--set',
+                'invalid_parameter_without_equals',
+            ],
+            obj=ctx_obj,
+        )
+
+        assert result.exit_code != 0
+        # The error message is logged, not in output
+        # Just verify it fails
+        assert result.exit_code == 1
+
+    def test_run_with_invalid_overrides_file(self):
+        """Test that invalid overrides file is rejected."""
+        from clarifai.cli.pipeline import run
+
+        # Setup mock context
+        ctx_obj = Mock()
+        ctx_obj.current.pat = 'test-pat'
+        ctx_obj.current.api_base = 'https://api.clarifai.com'
+
+        runner = CliRunner()
+        result = runner.invoke(
+            run,
+            [
+                '--pipeline_id',
+                'test-pipeline',
+                '--pipeline_version_id',
+                'v1',
+                '--user_id',
+                'test-user',
+                '--app_id',
+                'test-app',
+                '--nodepool_id',
+                'np1',
+                '--compute_cluster_id',
+                'cc1',
+                '--overrides-file',
+                '/path/to/nonexistent/file.json',
+            ],
+            obj=ctx_obj,
+        )
+
+        # Click validates file existence, so this will fail at the click level
+        assert result.exit_code != 0
+
+    @patch('clarifai.client.pipeline.Pipeline')
+    def test_run_without_overrides_backward_compatibility(self, mock_pipeline_cls):
+        """Test that pipeline run works without overrides (backward compatibility)."""
+        from clarifai.cli.pipeline import run
+
+        # Setup mock context
+        ctx_obj = Mock()
+        ctx_obj.current.pat = 'test-pat'
+        ctx_obj.current.api_base = 'https://api.clarifai.com'
+
+        # Mock Pipeline instance
+        mock_pipeline = Mock()
+        mock_pipeline.run.return_value = {
+            'status': 'success',
+            'pipeline_version_run': {'id': 'test-run-123'},
+        }
+        mock_pipeline_cls.return_value = mock_pipeline
+
+        runner = CliRunner()
+        result = runner.invoke(
+            run,
+            [
+                '--pipeline_id',
+                'test-pipeline',
+                '--pipeline_version_id',
+                'v1',
+                '--user_id',
+                'test-user',
+                '--app_id',
+                'test-app',
+                '--nodepool_id',
+                'np1',
+                '--compute_cluster_id',
+                'cc1',
+            ],
+            obj=ctx_obj,
+        )
+
+        assert result.exit_code == 0
+        # Verify Pipeline was called without overrides
+        mock_pipeline.run.assert_called_once()
+        call_kwargs = mock_pipeline.run.call_args[1]
+        # input_args_override should be None when not provided
+        assert call_kwargs.get('input_args_override') is None
