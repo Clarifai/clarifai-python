@@ -202,12 +202,12 @@ class PipelineBuilder:
             }
         }
 
-        # Include step_version_secrets if present in config
-        step_version_secrets = orchestration_spec.get("step_version_secrets", {})
+        # Include step_version_secrets if present in pipeline config (not orchestration_spec)
+        step_version_secrets = pipeline_config.get("config", {}).get("step_version_secrets", {})
         if step_version_secrets:
-            lockfile_data["pipeline"]["orchestration_spec"]["step_version_secrets"] = (
-                step_version_secrets
-            )
+            if "config" not in lockfile_data["pipeline"]:
+                lockfile_data["pipeline"]["config"] = {}
+            lockfile_data["pipeline"]["config"]["step_version_secrets"] = step_version_secrets
 
         return lockfile_data
 
@@ -253,12 +253,12 @@ class PipelineBuilder:
             }
         }
 
-        # Include step_version_secrets if present in config
-        step_version_secrets = orchestration_spec.get("step_version_secrets", {})
+        # Include step_version_secrets if present in pipeline config (not orchestration_spec)
+        step_version_secrets = pipeline_config.get("config", {}).get("step_version_secrets", {})
         if step_version_secrets:
-            lockfile_data["pipeline"]["orchestration_spec"]["step_version_secrets"] = (
-                step_version_secrets
-            )
+            if "config" not in lockfile_data["pipeline"]:
+                lockfile_data["pipeline"]["config"] = {}
+            lockfile_data["pipeline"]["config"]["step_version_secrets"] = step_version_secrets
 
         return lockfile_data
 
@@ -390,7 +390,7 @@ class PipelineBuilder:
 
         for step_ref, step_config in step_version_secrets.items():
             # Note: 'secret_refs' contains only secret reference paths (not actual values)
-            # Secret references are like "users/user123/secrets/my-api-key" 
+            # Secret references are like "users/user123/secrets/my-api-key"
             secret_refs = step_config.get("secrets", {})
             if not secret_refs:
                 logger.debug(f"No secret references found for step {step_ref}, skipping")
@@ -447,8 +447,10 @@ class PipelineBuilder:
             )
             pipeline_version.orchestration_spec.CopyFrom(orchestration_spec_proto)
 
-            # Add step_version_secrets if present in config
-            step_version_secrets = orchestration_spec.get("step_version_secrets", {})
+            # Add step_version_secrets if present in pipeline config (not orchestration_spec)
+            step_version_secrets = pipeline_config.get("config", {}).get(
+                "step_version_secrets", {}
+            )
             if step_version_secrets:
                 self._add_step_version_secrets(pipeline_version, step_version_secrets)
 

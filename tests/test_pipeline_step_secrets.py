@@ -37,6 +37,8 @@ spec:
             name: users/test-user/apps/test-app/pipeline_steps/step1
             template: users/test-user/apps/test-app/pipeline_steps/step1
 """,
+                },
+                "config": {
                     "step_version_secrets": {
                         "step-0": {
                             "secrets": {
@@ -61,9 +63,10 @@ spec:
             with patch('clarifai.runners.pipelines.pipeline_builder.BaseClient'):
                 builder = PipelineBuilder(config_path)
 
-            # Verify config was loaded with step secrets
-            assert "step_version_secrets" in builder.config["pipeline"]["orchestration_spec"]
-            step_secrets = builder.config["pipeline"]["orchestration_spec"]["step_version_secrets"]
+            # Verify config was loaded with step secrets in the config section
+            assert "config" in builder.config["pipeline"]
+            assert "step_version_secrets" in builder.config["pipeline"]["config"]
+            step_secrets = builder.config["pipeline"]["config"]["step_version_secrets"]
             assert "step-0" in step_secrets
             assert "step-1" in step_secrets
             assert (
@@ -147,6 +150,8 @@ spec:
   entrypoint: sequence
   templates: []
 """,
+                },
+                "config": {
                     "step_version_secrets": {
                         "step-0": {"secrets": {"API_KEY": "users/test-user/secrets/my-api-key"}}
                     },
@@ -165,10 +170,10 @@ spec:
             # Generate lockfile data
             lockfile_data = builder.prepare_lockfile_with_step_versions()
 
-            # Verify step secrets are in lockfile
-            assert "orchestration_spec" in lockfile_data["pipeline"]
-            assert "step_version_secrets" in lockfile_data["pipeline"]["orchestration_spec"]
-            step_secrets = lockfile_data["pipeline"]["orchestration_spec"]["step_version_secrets"]
+            # Verify step secrets are in lockfile config section
+            assert "config" in lockfile_data["pipeline"]
+            assert "step_version_secrets" in lockfile_data["pipeline"]["config"]
+            step_secrets = lockfile_data["pipeline"]["config"]["step_version_secrets"]
             assert "step-0" in step_secrets
             assert (
                 step_secrets["step-0"]["secrets"]["API_KEY"]
@@ -199,6 +204,8 @@ spec:
             name: users/test-user/apps/test-app/pipeline_steps/step1/versions/v1
             template: users/test-user/apps/test-app/pipeline_steps/step1/versions/v1
 """,
+                },
+                "config": {
                     "step_version_secrets": {
                         "step-0": {
                             "secrets": {
@@ -294,7 +301,8 @@ spec:
             # Generate lockfile data without secrets
             lockfile_data = builder.prepare_lockfile_with_step_versions()
 
-            # Verify no step_version_secrets in lockfile when not provided
-            assert "step_version_secrets" not in lockfile_data["pipeline"]["orchestration_spec"]
+            # Verify no config or step_version_secrets in lockfile when not provided
+            # The config key should not exist if there are no secrets
+            assert "config" not in lockfile_data["pipeline"]
         finally:
             Path(config_path).unlink()

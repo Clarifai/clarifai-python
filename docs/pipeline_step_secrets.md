@@ -8,7 +8,7 @@ Pipeline step secrets allow different pipeline steps to access distinct sets of 
 
 ## Configuration Format
 
-Define step secrets in your pipeline `config.yaml` file within the `orchestration_spec` section:
+Define step secrets in your pipeline `config.yaml` file in a `config` section at the pipeline level:
 
 ```yaml
 pipeline:
@@ -35,8 +35,9 @@ pipeline:
                 templateRef:
                   name: users/user123/apps/app456/pipeline_steps/step2
                   template: users/user123/apps/app456/pipeline_steps/step2
-    
-    # Define secrets for each step
+  
+  # Define secrets for each step in the config section
+  config:
     step_version_secrets:
       step-0:
         secrets:
