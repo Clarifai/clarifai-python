@@ -930,8 +930,8 @@ class ModelBuilder:
             pkg, version = line.split("@", 1)
         else:
             pkg, version = line, None  # No version specified
+        pkg = pkg.strip()
         for dep in dependencies:
-            pkg = pkg.strip()
             if dep == pkg:
                 if (
                     dep == 'torch' and line.find('whl/cpu') > 0
