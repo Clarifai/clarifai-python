@@ -89,6 +89,8 @@ clarifai pipeline run \
 
 ## Python SDK Usage
 
+**Note on Format**: The Python SDK uses a simplified format for step secrets compared to the YAML configuration. In YAML, secrets are nested under a `secrets` key, but in the Python API you provide them directly as a dictionary.
+
 ### Get Pipeline Version with Secrets
 
 ```python
@@ -156,7 +158,9 @@ spec:
 """
 }
 
-# Define step secrets
+# Define step secrets (simplified format for Python API)
+# Note: The Python API accepts a simplified format where you provide
+# the secrets directly without the 'secrets' wrapper key
 step_version_secrets = {
     "step-0": {
         "API_KEY": "users/user123/secrets/my-api-key",
