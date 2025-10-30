@@ -108,12 +108,13 @@ print(f"Pipeline run status: {result['status']}")
 import json
 from clarifai.client.pipeline import Pipeline
 
-# Load overrides from file
+# Load overrides from file (values are automatically converted to strings)
 with open('overrides.json', 'r') as f:
     overrides = json.load(f)
 
-# Convert values to strings (Argo convention)
-overrides = {k: str(v) for k, v in overrides.items()}
+# Note: load_overrides_from_file helper can be used instead
+# from clarifai.utils.pipeline_overrides import load_overrides_from_file
+# overrides = load_overrides_from_file('overrides.json')
 
 # Run pipeline with overrides
 pipeline = Pipeline(
@@ -188,6 +189,13 @@ is_valid, error = validate_override_parameters(
     final_overrides,
     allowed_params={"prompt", "temperature", "max_tokens"}
 )
+
+if not is_valid:
+    print(f"Validation error: {error}")
+    # Handle error appropriately
+else:
+    print("Parameters are valid")
+    # Proceed with pipeline run
 
 # Build Argo-compatible structure
 argo_override = build_argo_args_override(final_overrides)
