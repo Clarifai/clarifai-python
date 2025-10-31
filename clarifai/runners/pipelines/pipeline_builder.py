@@ -202,6 +202,13 @@ class PipelineBuilder:
             }
         }
 
+        # Include step_version_secrets if present in pipeline config (not orchestration_spec)
+        step_version_secrets = pipeline_config.get("config", {}).get("step_version_secrets", {})
+        if step_version_secrets:
+            if "config" not in lockfile_data["pipeline"]:
+                lockfile_data["pipeline"]["config"] = {}
+            lockfile_data["pipeline"]["config"]["step_version_secrets"] = step_version_secrets
+
         return lockfile_data
 
     def update_lockfile_with_pipeline_info(
@@ -245,6 +252,13 @@ class PipelineBuilder:
                 },
             }
         }
+
+        # Include step_version_secrets if present in pipeline config (not orchestration_spec)
+        step_version_secrets = pipeline_config.get("config", {}).get("step_version_secrets", {})
+        if step_version_secrets:
+            if "config" not in lockfile_data["pipeline"]:
+                lockfile_data["pipeline"]["config"] = {}
+            lockfile_data["pipeline"]["config"]["step_version_secrets"] = step_version_secrets
 
         return lockfile_data
 
@@ -362,6 +376,35 @@ class PipelineBuilder:
 
         return None
 
+    def _add_step_version_secrets(
+        self, pipeline_version: resources_pb2.PipelineVersion, step_version_secrets: Dict[str, Any]
+    ) -> None:
+        """Add step_version_secrets to the pipeline version config.
+
+        Args:
+            pipeline_version: The PipelineVersion proto to update
+            step_version_secrets: Dictionary mapping step references to their secret configs
+                                 Format: {step_ref: {secrets: {secret_name: secret_path}}}
+        """
+        logger.debug(f"Processing step version secrets for {len(step_version_secrets)} steps")
+
+        for step_ref, step_config in step_version_secrets.items():
+            # Note: 'secret_refs' contains only secret reference paths (not actual values)
+            # Secret references are like "users/user123/secrets/my-api-key"
+            secret_refs = step_config.get("secrets", {})
+            if not secret_refs:
+                logger.debug(f"No secret references found for step {step_ref}, skipping")
+                continue
+
+            # Create StepSecretConfig proto
+            step_secret_config = resources_pb2.StepSecretConfig()
+            for secret_name, secret_ref in secret_refs.items():
+                step_secret_config.secrets[secret_name] = secret_ref
+
+            # Add to pipeline version config
+            pipeline_version.config.step_version_secrets[step_ref].CopyFrom(step_secret_config)
+            logger.debug(f"Configured secret references for step {step_ref}")
+
     def create_pipeline(self) -> tuple[bool, str]:
         """Create the pipeline using PostPipelines RPC.
 
@@ -403,6 +446,13 @@ class PipelineBuilder:
                 argo_orchestration_spec_proto
             )
             pipeline_version.orchestration_spec.CopyFrom(orchestration_spec_proto)
+
+            # Add step_version_secrets if present in pipeline config (not orchestration_spec)
+            step_version_secrets = pipeline_config.get("config", {}).get(
+                "step_version_secrets", {}
+            )
+            if step_version_secrets:
+                self._add_step_version_secrets(pipeline_version, step_version_secrets)
 
             pipeline.pipeline_version.CopyFrom(pipeline_version)
 
