@@ -119,6 +119,10 @@ class OpenAIModelClass(ModelClass):
             else:
                 prompt_tokens = getattr(resp.response.usage, "input_tokens", 0)
                 completion_tokens = getattr(resp.response.usage, "output_tokens", 0)
+            if prompt_tokens is None:
+                prompt_tokens = 0
+            if completion_tokens is None:
+                completion_tokens = 0
             assert prompt_tokens > 0 or completion_tokens > 0, ValueError(
                 f"Invalid token usage: prompt_tokens={prompt_tokens}, completion_tokens={completion_tokens}. Must be greater than 0."
             )
