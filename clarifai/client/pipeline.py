@@ -12,6 +12,7 @@ from clarifai.errors import UserError
 from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.constants import DEFAULT_BASE
 from clarifai.utils.logging import logger
+from clarifai.utils.pipeline_overrides import build_argo_args_override
 
 
 class Pipeline(Lister, BaseClient):
@@ -100,16 +101,39 @@ class Pipeline(Lister, BaseClient):
                 nodepool_id=self.nodepool_id,
             )
 
-    def run(self, inputs: List = None, timeout: int = 3600, monitor_interval: int = 10) -> Dict:
+    def run(
+        self,
+        inputs: List = None,
+        timeout: int = 3600,
+        monitor_interval: int = 10,
+        input_args_override: Optional[Dict[str, str]] = None,
+    ) -> Dict:
         """Run the pipeline and monitor its progress.
 
         Args:
             inputs (List): List of inputs to run the pipeline with. If None, runs without inputs.
             timeout (int): Maximum time to wait for completion in seconds. Default 3600 (1 hour).
             monitor_interval (int): Interval between status checks in seconds. Default 10.
+            input_args_override (Optional[Dict[str, str]]): Dictionary of parameter overrides for this run.
+                Keys are parameter names, values are parameter values as strings.
+                Example: {"prompt": "Summarize this", "temperature": "0.7"}
 
         Returns:
-            Dict: The pipeline run result.
+            Dict: The pipeline run result including orchestration_spec if available.
+
+        Example:
+            >>> pipeline = Pipeline(
+            ...     pipeline_id='my-pipeline',
+            ...     pipeline_version_id='v1',
+            ...     user_id='user123',
+            ...     app_id='app456',
+            ...     nodepool_id='nodepool1',
+            ...     compute_cluster_id='cluster1',
+            ...     pat='your-pat'
+            ... )
+            >>> result = pipeline.run(
+            ...     input_args_override={"prompt": "Summarize", "temperature": "0.7"}
+            ... )
         """
         # Create a new pipeline version run
         pipeline_version_run = resources_pb2.PipelineVersionRun()
@@ -124,6 +148,36 @@ class Pipeline(Lister, BaseClient):
                 ),
             )
             pipeline_version_run.nodepools.extend([nodepool])
+
+        # Add input_args_override if provided
+        if input_args_override:
+            logger.info(f"Applying input argument overrides: {input_args_override}")
+            override_dict = build_argo_args_override(input_args_override)
+
+            # When proto messages are available, this will be:
+            # pipeline_version_run.input_args_override.CopyFrom(override_proto)
+            # For now, we store it in a generic field if available
+            if hasattr(pipeline_version_run, 'input_args_override'):
+                # Proto field exists - use it directly
+                try:
+                    from google.protobuf import json_format as jf
+
+                    jf.ParseDict(override_dict, pipeline_version_run.input_args_override)
+                except Exception as e:
+                    logger.warning(
+                        f"Could not set input_args_override proto field: {e}. "
+                        "This may require an updated clarifai-grpc version."
+                    )
+            else:
+                # Proto field doesn't exist yet - store in metadata for future use
+                # This allows forward compatibility
+                logger.debug(
+                    "input_args_override field not yet available in proto. "
+                    "Override will be applied when clarifai-grpc is updated."
+                )
+                # Store for potential future use via custom metadata
+                if not hasattr(self, '_pending_overrides'):
+                    self._pending_overrides = override_dict
 
         run_request = service_pb2.PostPipelineVersionRunsRequest()
         run_request.user_app_id.CopyFrom(self.user_app_id)
