@@ -224,6 +224,7 @@ class ModelBuilder:
         request = service_pb2.GetModelRequest(
             user_app_id=self.client.user_app_id,
             model_id=self.model_id,
+            additional_fields="secrets",
         )
         if self.model_version_id is not None:
             request.version_id = self.model_version_id
