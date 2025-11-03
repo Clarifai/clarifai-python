@@ -1238,6 +1238,19 @@ class Model(Lister, BaseClient):
         return [concept_info['concept_id'] for concept_info in all_concepts_infos]
 
     def load_info(self, validate: bool = False) -> None:
+        """Loads the model information from the Clarifai API.
+
+        This method makes a gRPC call to the GetModel endpoint to fetch the latest
+        information for the model instance and updates its attributes.
+
+        Args:
+            validate (bool, optional): If True, the method will only validate the existence
+                of the model on the backend without updating the local object's attributes.
+                Defaults to False.
+
+        Raises:
+            Exception: If the gRPC API call fails.
+        """
         """Loads the model info."""
         request = service_pb2.GetModelRequest(
             user_app_id=self.user_app_id,
