@@ -123,6 +123,8 @@ class Model(Lister, BaseClient):
 
         self.deployment_user_id = deployment_user_id
 
+        self.load_info(validate=True)
+
         self._set_runner_selector(
             compute_cluster_id=compute_cluster_id,
             nodepool_id=nodepool_id,
@@ -1235,7 +1237,7 @@ class Model(Lister, BaseClient):
         )
         return [concept_info['concept_id'] for concept_info in all_concepts_infos]
 
-    def load_info(self) -> None:
+    def load_info(self, validate: bool = False) -> None:
         """Loads the model info."""
         request = service_pb2.GetModelRequest(
             user_app_id=self.user_app_id,
@@ -1247,10 +1249,11 @@ class Model(Lister, BaseClient):
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
 
-        dict_response = MessageToDict(response, preserving_proto_field_name=True)
-        self.kwargs = self.process_response_keys(dict_response['model'])
-        self.model_info = resources_pb2.Model()
-        dict_to_protobuf(self.model_info, self.kwargs)
+        if not validate:
+            dict_response = MessageToDict(response, preserving_proto_field_name=True)
+            self.kwargs = self.process_response_keys(dict_response['model'])
+            self.model_info = resources_pb2.Model()
+            dict_to_protobuf(self.model_info, self.kwargs)
 
     def __str__(self):
         if len(self.kwargs) < 10:
