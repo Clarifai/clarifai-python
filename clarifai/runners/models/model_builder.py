@@ -225,6 +225,8 @@ class ModelBuilder:
             user_app_id=self.client.user_app_id,
             model_id=self.model_id,
         )
+        # Add secrets to additional_fields to get request-type secrets
+        request.additional_fields.append("secrets")
         if self.model_version_id is not None:
             request.version_id = self.model_version_id
         resp: service_pb2.SingleModelResponse = self.client.STUB.GetModel(request)

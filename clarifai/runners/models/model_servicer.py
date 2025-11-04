@@ -18,13 +18,15 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
     This is the servicer that will handle the gRPC requests from either the dev server or runner loop.
     """
 
-    def __init__(self, model):
+    def __init__(self, model, model_proto=None):
         """
         Args:
             model: The class that will handle the model logic. Must implement predict(),
         generate(), stream().
+            model_proto: The model proto containing model configuration including secrets.
         """
         self.model = model
+        self.model_proto = model_proto
 
         # Try to create auth helper from environment variables if available
         self._auth_helper = None
@@ -55,6 +57,10 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
         returns an output.
         """
 
+        # Inject model proto if available and not already in request
+        if self.model_proto is not None and not request.HasField("model"):
+            request.model.CopyFrom(self.model_proto)
+
         # Download any urls that are not already bytes.
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
         inject_secrets(request)
@@ -80,6 +86,10 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
         This is the method that will be called when the servicer is run. It takes in an input and
         returns an output.
         """
+        # Inject model proto if available and not already in request
+        if self.model_proto is not None and not request.HasField("model"):
+            request.model.CopyFrom(self.model_proto)
+
         # Download any urls that are not already bytes.
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
         inject_secrets(request)
@@ -108,8 +118,11 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
         # Duplicate the iterator
         request, request_copy = tee(request)
 
-        # Download any urls that are not already bytes.
+        # Download any urls that are not already bytes and inject model proto
         for req in request:
+            # Inject model proto if available and not already in request
+            if self.model_proto is not None and not req.HasField("model"):
+                req.model.CopyFrom(self.model_proto)
             ensure_urls_downloaded(req, auth_helper=self._auth_helper)
             inject_secrets(req)
 
