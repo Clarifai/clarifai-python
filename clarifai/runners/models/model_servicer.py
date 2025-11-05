@@ -2,7 +2,7 @@ import os
 from itertools import tee
 from typing import Iterator
 
-from clarifai_grpc.grpc.api import service_pb2, service_pb2_grpc
+from clarifai_grpc.grpc.api import resources_pb2, service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 
 from clarifai.client.auth.helper import ClarifaiAuthHelper
@@ -57,9 +57,13 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
         returns an output.
         """
 
-        # Inject model proto if available and not already in request
-        if self.model_proto is not None and not request.HasField("model"):
-            request.model.CopyFrom(self.model_proto)
+        # Merge cached model proto with request model proto
+        if self.model_proto is not None:
+            temp = resources_pb2.Model()
+            temp.MergeFrom(self.model_proto)
+            if request.HasField("model"):
+                temp.MergeFrom(request.model)
+            request.model.CopyFrom(temp)
 
         # Download any urls that are not already bytes.
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
@@ -86,9 +90,13 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
         This is the method that will be called when the servicer is run. It takes in an input and
         returns an output.
         """
-        # Inject model proto if available and not already in request
-        if self.model_proto is not None and not request.HasField("model"):
-            request.model.CopyFrom(self.model_proto)
+        # Merge cached model proto with request model proto
+        if self.model_proto is not None:
+            temp = resources_pb2.Model()
+            temp.MergeFrom(self.model_proto)
+            if request.HasField("model"):
+                temp.MergeFrom(request.model)
+            request.model.CopyFrom(temp)
 
         # Download any urls that are not already bytes.
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
@@ -118,11 +126,15 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
         # Duplicate the iterator
         request, request_copy = tee(request)
 
-        # Download any urls that are not already bytes and inject model proto
+        # Download any urls that are not already bytes and merge model proto
         for req in request:
-            # Inject model proto if available and not already in request
-            if self.model_proto is not None and not req.HasField("model"):
-                req.model.CopyFrom(self.model_proto)
+            # Merge cached model proto with request model proto
+            if self.model_proto is not None:
+                temp = resources_pb2.Model()
+                temp.MergeFrom(self.model_proto)
+                if req.HasField("model"):
+                    temp.MergeFrom(req.model)
+                req.model.CopyFrom(temp)
             ensure_urls_downloaded(req, auth_helper=self._auth_helper)
             inject_secrets(req)
 

@@ -129,8 +129,12 @@ class ModelRunner(BaseRunner):
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
-        if self.model_proto is not None and not request.HasField("model"):
-            request.model.CopyFrom(self.model_proto)
+        if self.model_proto is not None:
+            temp = resources_pb2.Model()
+            temp.MergeFrom(self.model_proto)
+            if request.HasField("model"):
+                temp.MergeFrom(request.model)
+            request.model.CopyFrom(temp)
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
         inject_secrets(request)
         start_time = time.time()
@@ -201,8 +205,12 @@ class ModelRunner(BaseRunner):
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
-        if self.model_proto is not None and not request.HasField("model"):
-            request.model.CopyFrom(self.model_proto)
+        if self.model_proto is not None:
+            temp = resources_pb2.Model()
+            temp.MergeFrom(self.model_proto)
+            if request.HasField("model"):
+                temp.MergeFrom(request.model)
+            request.model.CopyFrom(temp)
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
         inject_secrets(request)
 
@@ -332,11 +340,12 @@ def pmo_iterator(runner_item_iterator, model_proto=None, auth_helper=None):
     for runner_item in runner_item_iterator:
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
-        if (
-            not runner_item.post_model_outputs_request.HasField("model")
-            and model_proto is not None
-        ):
-            runner_item.post_model_outputs_request.model.CopyFrom(model_proto)
+        if model_proto is not None:
+            temp = resources_pb2.Model()
+            temp.MergeFrom(model_proto)
+            if runner_item.post_model_outputs_request.HasField("model"):
+                temp.MergeFrom(runner_item.post_model_outputs_request.model)
+            runner_item.post_model_outputs_request.model.CopyFrom(temp)
         ensure_urls_downloaded(runner_item.post_model_outputs_request, auth_helper=auth_helper)
         inject_secrets(runner_item.post_model_outputs_request)
         yield runner_item.post_model_outputs_request
