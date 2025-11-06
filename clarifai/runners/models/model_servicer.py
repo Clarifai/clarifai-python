@@ -59,11 +59,13 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
 
         # Merge cached model proto with request model proto
         if self.model_proto is not None:
-            temp = resources_pb2.Model()
-            temp.MergeFrom(self.model_proto)
-            if request.HasField("model"):
-                temp.MergeFrom(request.model)
-            request.model.CopyFrom(temp)
+            if not request.HasField("model"):
+                request.model.CopyFrom(self.model_proto)
+            else:
+                merged_model = resources_pb2.Model()
+                merged_model.CopyFrom(self.model_proto)
+                merged_model.MergeFrom(request.model)
+                request.model.CopyFrom(merged_model)
 
         # Download any urls that are not already bytes.
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
@@ -92,11 +94,13 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
         """
         # Merge cached model proto with request model proto
         if self.model_proto is not None:
-            temp = resources_pb2.Model()
-            temp.MergeFrom(self.model_proto)
-            if request.HasField("model"):
-                temp.MergeFrom(request.model)
-            request.model.CopyFrom(temp)
+            if not request.HasField("model"):
+                request.model.CopyFrom(self.model_proto)
+            else:
+                merged_model = resources_pb2.Model()
+                merged_model.CopyFrom(self.model_proto)
+                merged_model.MergeFrom(request.model)
+                request.model.CopyFrom(merged_model)
 
         # Download any urls that are not already bytes.
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
@@ -130,11 +134,13 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
         for req in request:
             # Merge cached model proto with request model proto
             if self.model_proto is not None:
-                temp = resources_pb2.Model()
-                temp.MergeFrom(self.model_proto)
-                if req.HasField("model"):
-                    temp.MergeFrom(req.model)
-                req.model.CopyFrom(temp)
+                if not req.HasField("model"):
+                    req.model.CopyFrom(self.model_proto)
+                else:
+                    merged_model = resources_pb2.Model()
+                    merged_model.CopyFrom(self.model_proto)
+                    merged_model.MergeFrom(req.model)
+                    req.model.CopyFrom(merged_model)
             ensure_urls_downloaded(req, auth_helper=self._auth_helper)
             inject_secrets(req)
 
