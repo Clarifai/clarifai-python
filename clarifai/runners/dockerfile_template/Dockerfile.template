@@ -23,8 +23,7 @@ COPY --link config.yaml /home/nonroot/main/
 #####
 RUN ["python", "-m", "clarifai.cli", "model", "download-checkpoints", "/home/nonroot/main", "--out_path", "/home/nonroot/main/1/checkpoints", "--stage", "build"]
 
-# Copy in the actual files like config.yaml, requirements.txt, and most importantly 1/model.py
-# for the actual model.
+# Copy in requirements.txt and 1/model.py for the actual model.
 # If checkpoints aren't downloaded since a checkpoints: block is not provided, then they will
 # be in the build context and copied here as well.
 COPY --link 1 /home/nonroot/main/1
