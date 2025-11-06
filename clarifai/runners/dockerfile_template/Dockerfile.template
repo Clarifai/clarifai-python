@@ -4,10 +4,10 @@
 # Stage 1: Model Assets
 # Architecture-agnostic stage. Runs ONCE on the build node.
 #############################
-FROM --platform=$BUILDPLATFORM python:${PYTHON_VERSION}-slim as model-assets
+FROM --platform=$BUILDPLATFORM ${DOWNLOADER_IMAGE} as model-assets
 
 # Install minimal tools needed for download
-RUN pip install --no-cache-dir clarifai huggingface_hub
+RUN pip install --no-cache-dir clarifai==${CLARIFAI_VERSION} huggingface_hub
 
 WORKDIR /home/nonroot/main
 
