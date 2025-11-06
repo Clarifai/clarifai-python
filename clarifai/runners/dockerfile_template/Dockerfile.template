@@ -7,7 +7,7 @@
 FROM --platform=$BUILDPLATFORM python:3.11-slim as model-assets
 
 # Install minimal tools needed for download
-RUN pip install --no-cache-dir clarifai
+RUN pip install --no-cache-dir clarifai huggingface_hub
 
 WORKDIR /home/nonroot/main
 
