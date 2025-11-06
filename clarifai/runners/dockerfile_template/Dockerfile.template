@@ -57,7 +57,7 @@ ENV NUMBA_CACHE_DIR=/tmp/numba_cache \
 #####
 # Copy ALL pre-built data from Stage 1 in one go.
 #####
-COPY --link --chown=nonroot:nonroot --from=model-assets /home/nonroot/main /home/nonroot/main
+COPY --link --chown=65532:65532 --from=model-assets /home/nonroot/main /home/nonroot/main
 
 # Add the model directory to the python path.
 ENV PYTHONPATH=${PYTHONPATH}:/home/nonroot/main \
