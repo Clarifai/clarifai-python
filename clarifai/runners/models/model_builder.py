@@ -1218,6 +1218,7 @@ class ModelBuilder:
             FINAL_IMAGE=final_image,  # for pip requirements
             DOWNLOADER_IMAGE=downloader_image,  # for downloading checkpoints
             CLARIFAI_VERSION=clarifai_version,  # for clarifai
+            PYTHON_VERSION=python_version,  # for checkpoint download image
         )
 
         return dockerfile_content
