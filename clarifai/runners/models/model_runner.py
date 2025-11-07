@@ -1,7 +1,7 @@
 import time
 from typing import Iterator, Optional, Union
 
-from clarifai_grpc.grpc.api import resources_pb2, service_pb2
+from clarifai_grpc.grpc.api import service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from clarifai_protocol import BaseRunner
 from clarifai_protocol.utils.health import HealthProbeRequestHandler, start_health_server_thread
@@ -33,7 +33,6 @@ class ModelRunner(BaseRunner):
         token: Optional[str] = None,
         num_parallel_polls: int = 4,
         health_check_port: Union[int, None] = 8080,
-        model_proto: Optional[resources_pb2.Model] = None,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -49,7 +48,6 @@ class ModelRunner(BaseRunner):
             **kwargs,
         )
         self.model = model
-        self.model_proto = model_proto
 
         # Store authentication parameters for URL fetching
         self._user_id = user_id
@@ -129,14 +127,6 @@ class ModelRunner(BaseRunner):
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
-        if self.model_proto is not None:
-            if not request.HasField("model"):
-                request.model.CopyFrom(self.model_proto)
-            else:
-                merged_model = resources_pb2.Model()
-                merged_model.CopyFrom(self.model_proto)
-                merged_model.MergeFrom(request.model)
-                request.model.CopyFrom(merged_model)
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
         inject_secrets(request)
         start_time = time.time()
@@ -207,14 +197,6 @@ class ModelRunner(BaseRunner):
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
-        if self.model_proto is not None:
-            if not request.HasField("model"):
-                request.model.CopyFrom(self.model_proto)
-            else:
-                merged_model = resources_pb2.Model()
-                merged_model.CopyFrom(self.model_proto)
-                merged_model.MergeFrom(request.model)
-                request.model.CopyFrom(merged_model)
         ensure_urls_downloaded(request, auth_helper=self._auth_helper)
         inject_secrets(request)
 
@@ -289,7 +271,7 @@ class ModelRunner(BaseRunner):
         # Use req_secrets_context based on the first request (secrets should be consistent across stream)
         with req_secrets_context(first_request):
             for resp in self.model.stream_wrapper(
-                pmo_iterator(iter(runner_items), model_proto=self.model_proto)
+                pmo_iterator(iter(runner_items), auth_helper=self._auth_helper)
             ):
                 # if we have any non-successful code already it's an error we can return.
                 if (
@@ -340,18 +322,10 @@ class ModelRunner(BaseRunner):
         self.model = model
 
 
-def pmo_iterator(runner_item_iterator, model_proto=None, auth_helper=None):
+def pmo_iterator(runner_item_iterator, auth_helper=None):
     for runner_item in runner_item_iterator:
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
-        if model_proto is not None:
-            if not runner_item.post_model_outputs_request.HasField("model"):
-                runner_item.post_model_outputs_request.model.CopyFrom(model_proto)
-            else:
-                merged_model = resources_pb2.Model()
-                merged_model.CopyFrom(model_proto)
-                merged_model.MergeFrom(runner_item.post_model_outputs_request.model)
-                runner_item.post_model_outputs_request.model.CopyFrom(merged_model)
         ensure_urls_downloaded(runner_item.post_model_outputs_request, auth_helper=auth_helper)
         inject_secrets(runner_item.post_model_outputs_request)
         yield runner_item.post_model_outputs_request
