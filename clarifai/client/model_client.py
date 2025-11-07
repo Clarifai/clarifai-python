@@ -11,6 +11,7 @@ from clarifai.constants.model import MAX_MODEL_PREDICT_INPUTS
 from clarifai.errors import UserError
 from clarifai.runners.utils import code_script, method_signatures
 from clarifai.runners.utils.method_signatures import (
+    RESERVED_PARAM_WITH_PROTO,
     CompatibilitySerializer,
     deserialize,
     get_stream_from_signature,
@@ -204,6 +205,9 @@ class ModelClient:
 
             def bind_f(method_name, method_argnames, call_func, async_call_func):
                 def sync_f(*args, **kwargs):
+                    # Extract with_proto parameter if present
+                    with_proto = kwargs.pop(RESERVED_PARAM_WITH_PROTO, False)
+
                     if len(args) > len(method_argnames):
                         raise TypeError(
                             f"{method_name}() takes {len(method_argnames)} positional arguments but {len(args)} were given"
@@ -221,7 +225,7 @@ class ModelClient:
                         )
                         if is_batch_input_valid and (not is_openai_chat_format(batch_inputs)):
                             # If the batch input is valid, call the function with the batch inputs and the method name
-                            return call_func(batch_inputs, method_name)
+                            return call_func(batch_inputs, method_name, with_proto=with_proto)
 
                     for name, arg in zip(
                         method_argnames, args
@@ -229,10 +233,13 @@ class ModelClient:
                         if name in kwargs:
                             raise TypeError(f"Multiple values for argument {name}")
                         kwargs[name] = arg
-                    return call_func(kwargs, method_name)
+                    return call_func(kwargs, method_name, with_proto=with_proto)
 
                 async def async_f(*args, **kwargs):
                     # Async version to call the async function
+                    # Extract with_proto parameter if present
+                    with_proto = kwargs.pop(RESERVED_PARAM_WITH_PROTO, False)
+
                     if len(args) > len(method_argnames):
                         raise TypeError(
                             f"{method_name}() takes {len(method_argnames)} positional arguments but {len(args)} were given"
@@ -249,7 +256,9 @@ class ModelClient:
                         )
                         if is_batch_input_valid and (not is_openai_chat_format(batch_inputs)):
                             # If the batch input is valid, call the function with the batch inputs and the method name
-                            return async_call_func(batch_inputs, method_name)
+                            return async_call_func(
+                                batch_inputs, method_name, with_proto=with_proto
+                            )
 
                     for name, arg in zip(
                         method_argnames, args
@@ -258,7 +267,7 @@ class ModelClient:
                             raise TypeError(f"Multiple values for argument {name}")
                         kwargs[name] = arg
 
-                    return async_call_func(kwargs, method_name)
+                    return async_call_func(kwargs, method_name, with_proto=with_proto)
 
                 class MethodWrapper:
                     def __call__(self, *args, **kwargs):
@@ -314,6 +323,7 @@ class ModelClient:
         self,
         base_url: str = None,
         use_ctx: bool = False,
+        colorize: bool = False,
     ) -> str:
         """Generate a client script for this model.
 
@@ -335,6 +345,7 @@ class ModelClient:
             compute_cluster_id=self.request_template.runner_selector.nodepool.compute_cluster.id,
             nodepool_id=self.request_template.runner_selector.nodepool.id,
             use_ctx=use_ctx,
+            colorize=colorize,
         )
 
     def _define_compatability_functions(self):
@@ -362,6 +373,7 @@ class ModelClient:
         self,
         inputs,  # TODO set up functions according to fetched signatures?
         method_name: str = 'predict',
+        with_proto: bool = False,
     ) -> Any:
         input_signature = self._method_signatures[method_name].input_fields
         output_signature = self._method_signatures[method_name].output_fields
@@ -383,9 +395,12 @@ class ModelClient:
         outputs = []
         for output in response.outputs:
             outputs.append(deserialize(output.data, output_signature, is_output=True))
-        if batch_input:
-            return outputs
-        return outputs[0]
+
+        result = outputs if batch_input else outputs[0]
+
+        if with_proto:
+            return result, response
+        return result
 
     def _predict_by_proto(
         self,
@@ -446,15 +461,17 @@ class ModelClient:
         self,
         inputs,
         method_name: str = 'predict',
+        with_proto: bool = False,
     ) -> Any:
         """Asynchronously process inputs and make predictions.
 
         Args:
             inputs: Input data to process
             method_name (str): Name of the method to call
+            with_proto (bool): If True, return both the processed result and the raw protobuf response
 
         Returns:
-            Processed prediction results
+            Processed prediction results, optionally with protobuf response
         """
         # method_name is set to 'predict' by default, this is because to replicate the input and output signature behaviour of sync to async predict.
         input_signature = self._method_signatures[method_name].input_fields
@@ -475,7 +492,11 @@ class ModelClient:
         for output in response.outputs:
             outputs.append(deserialize(output.data, output_signature, is_output=True))
 
-        return outputs if batch_input else outputs[0]
+        result = outputs if batch_input else outputs[0]
+
+        if with_proto:
+            return result, response
+        return result
 
     async def _async_predict_by_proto(
         self,
@@ -549,6 +570,7 @@ class ModelClient:
         self,
         inputs,  # TODO set up functions according to fetched signatures?
         method_name: str = 'generate',
+        with_proto: bool = False,
     ) -> Any:
         input_signature = self._method_signatures[method_name].input_fields
         output_signature = self._method_signatures[method_name].output_fields
@@ -570,10 +592,13 @@ class ModelClient:
             outputs = []
             for output in response.outputs:
                 outputs.append(deserialize(output.data, output_signature, is_output=True))
-            if batch_input:
-                yield outputs
+
+            result = outputs if batch_input else outputs[0]
+
+            if with_proto:
+                yield result, response
             else:
-                yield outputs[0]
+                yield result
 
     def _generate_by_proto(
         self,
@@ -639,6 +664,7 @@ class ModelClient:
         self,
         inputs,
         method_name: str = 'generate',
+        with_proto: bool = False,
     ) -> Any:
         # method_name is set to 'generate' by default, this is because to replicate the input and output signature behaviour of sync to async generate.
         input_signature = self._method_signatures[method_name].input_fields
@@ -652,18 +678,21 @@ class ModelClient:
         proto_inputs = []
         for input in inputs:
             proto = resources_pb2.Input()
-        serialize(input, input_signature, proto.data)
-        proto_inputs.append(proto)
+            serialize(input, input_signature, proto.data)
+            proto_inputs.append(proto)
         response_stream = self._async_generate_by_proto(proto_inputs, method_name)
 
         async for response in response_stream:
             outputs = []
             for output in response.outputs:
                 outputs.append(deserialize(output.data, output_signature, is_output=True))
-            if batch_input:
-                yield outputs
+
+            result = outputs if batch_input else outputs[0]
+
+            if with_proto:
+                yield result, response
             else:
-                yield outputs[0]
+                yield result
 
     async def _async_generate_by_proto(
         self,
@@ -732,6 +761,7 @@ class ModelClient:
         self,
         inputs,
         method_name: str = 'stream',
+        with_proto: bool = False,
     ) -> Any:
         input_signature = self._method_signatures[method_name].input_fields
         output_signature = self._method_signatures[method_name].output_fields
@@ -773,7 +803,12 @@ class ModelClient:
 
         for response in response_stream:
             assert len(response.outputs) == 1, 'streaming methods must have exactly one output'
-            yield deserialize(response.outputs[0].data, output_signature, is_output=True)
+            result = deserialize(response.outputs[0].data, output_signature, is_output=True)
+
+            if with_proto:
+                yield result, response
+            else:
+                yield result
 
     def _req_iterator(
         self,
@@ -841,6 +876,7 @@ class ModelClient:
         self,
         inputs,
         method_name: str = 'stream',
+        with_proto: bool = False,
     ) -> Any:
         # method_name is set to 'stream' by default, this is because to replicate the input and output signature behaviour of sync to async stream.
         input_signature = self._method_signatures[method_name].input_fields
@@ -883,7 +919,12 @@ class ModelClient:
 
         async for response in response_stream:
             assert len(response.outputs) == 1, 'streaming methods must have exactly one output'
-            yield deserialize(response.outputs[0].data, output_signature, is_output=True)
+            result = deserialize(response.outputs[0].data, output_signature, is_output=True)
+
+            if with_proto:
+                yield result, response
+            else:
+                yield result
 
     async def _async_stream_by_proto(
         self,

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any, Callable, Dict, Optional
 
 from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf import struct_pb2
@@ -77,7 +77,7 @@ class BaseClient:
 
         kwargs.update({'token': token, 'pat': pat})
 
-        self.auth_helper = ClarifaiAuthHelper(**kwargs, validate=False)
+        self.auth_helper = ClarifaiAuthHelper.from_env(**kwargs, validate=False)
         self.STUB = create_stub(self.auth_helper)
         self._async_stub = None
         self.metadata = self.auth_helper.metadata
@@ -88,20 +88,46 @@ class BaseClient:
         self.root_certificates_path = self.auth_helper._root_certificates_path
 
     @property
-    def async_stub(self):
+    def async_stub(self) -> Any:
         """Returns the asynchronous gRPC stub for the API interaction.
-        Lazy initialization of async stub"""
+
+        Returns:
+            Any: The async gRPC stub object for making asynchronous API calls.
+
+        Note:
+            Uses lazy initialization - stub is created on first access.
+        """
         if self._async_stub is None:
             self._async_stub = create_stub(self.auth_helper, is_async=True)
         return self._async_stub
 
     @classmethod
-    def from_env(cls, validate: bool = False):
+    def from_env(cls, validate: bool = False) -> 'BaseClient':
+        """Creates a BaseClient instance from environment variables.
+
+        Args:
+            validate (bool): Whether to validate the authentication credentials.
+                           Defaults to False.
+
+        Returns:
+            BaseClient: A new BaseClient instance configured from environment variables.
+        """
         auth = ClarifaiAuthHelper.from_env(validate=validate)
         return cls.from_auth_helper(auth)
 
     @classmethod
-    def from_auth_helper(cls, auth: ClarifaiAuthHelper, **kwargs):
+    def from_auth_helper(cls, auth: ClarifaiAuthHelper, **kwargs) -> 'BaseClient':
+        """Creates a BaseClient instance from a ClarifaiAuthHelper.
+
+        Args:
+            auth (ClarifaiAuthHelper): The authentication helper containing credentials.
+            **kwargs: Additional keyword arguments to override auth helper values.
+                     Supported keys: user_id, app_id, pat, token, root_certificates_path,
+                     base, ui, url.
+
+        Returns:
+            BaseClient: A new BaseClient instance configured from the auth helper.
+        """
         default_kwargs = {
             "user_id": kwargs.get("user_id", None) or auth.user_id,
             "app_id": kwargs.get("app_id", None) or auth.app_id,
@@ -132,15 +158,18 @@ class BaseClient:
 
         return cls(**kwargs)
 
-    def _grpc_request(self, method: Callable, argument: Any):
+    def _grpc_request(self, method: Callable[..., Any], argument: Any) -> Any:
         """Makes a gRPC request to the API.
 
         Args:
-            method (Callable): The gRPC method to call.
-            argument (Any): The argument to pass to the gRPC method.
+            method (Callable[..., Any]): The gRPC stub method to call.
+            argument (Any): The protobuf request object to pass to the gRPC method.
 
         Returns:
-            res (Any): The result of the gRPC method call.
+            Any: The protobuf response object from the gRPC method call.
+
+        Raises:
+            Exception: If the API request fails.
         """
 
         try:
@@ -150,14 +179,16 @@ class BaseClient:
         except ApiError:
             raise Exception("ApiError")
 
-    def convert_string_to_timestamp(self, date_str) -> Timestamp:
+    def convert_string_to_timestamp(self, date_str: str) -> Timestamp:
         """Converts a string to a Timestamp object.
 
         Args:
-            date_str (str): The string to convert.
+            date_str (str): The date string to convert. Accepts formats like
+                          '%Y-%m-%dT%H:%M:%S.%fZ' or '%Y-%m-%dT%H:%M:%SZ'.
 
         Returns:
-            Timestamp: The converted Timestamp object.
+            Timestamp: The converted protobuf Timestamp object. Returns empty Timestamp
+                      if the date string format is invalid.
         """
         # Parse the string into a Python datetime object
         try:
@@ -174,15 +205,22 @@ class BaseClient:
 
         return timestamp_obj
 
-    def process_response_keys(self, old_dict, listing_resource=None):
+    def process_response_keys(
+        self, old_dict: Dict[str, Any], listing_resource: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Converts keys in a response dictionary to resource proto format.
 
+        This method processes dictionary keys to match protobuf resource naming conventions,
+        particularly for converting 'id' to '{resource}_id' format.
+
         Args:
-            old_dict (dict): The dictionary to convert.
-            listing_resource (str, optional): The resource type for which the keys are being processed.
+            old_dict (Dict[str, Any]): The dictionary to convert with keys to process.
+            listing_resource (Optional[str]): The resource type for which the keys are being
+                                            processed (e.g., 'model', 'workflow'). If provided,
+                                            renames 'id' to '{listing_resource}_id'.
 
         Returns:
-            new_dict (dict): The dictionary with processed keys.
+            Dict[str, Any]: The dictionary with processed keys and converted values.
         """
         if listing_resource:
             old_dict[f'{listing_resource}_id'] = old_dict['id']

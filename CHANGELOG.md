@@ -1,3 +1,46 @@
+## [[11.9.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.9.0) - [PyPI](https://pypi.org/project/clarifai/11.9.0/) - 2025-10-22
+
+### Changed
+- Fixed Missing `user_id` parameter issue in CLI `local-runner` command [(#816)](https://github.com/Clarifai/clarifai-python/pull/816)
+- Added sglang toolkit to CLI init command [(#815)](https://github.com/Clarifai/clarifai-python/pull/815)
+- Added Model Deployment Workflow after Model Upload in CLI [(#802)](https://github.com/Clarifai/clarifai-python/pull/802)
+
+## [[11.8.5]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.5) - [PyPI](https://pypi.org/project/clarifai/11.8.5/) - 2025-10-20
+
+### Added
+- Added optional protobuf response information in pythonic models with parameter validation [(#810)](https://github.com/Clarifai/clarifai-python/pull/810)
+
+## [[11.8.4]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.4) - [PyPI](https://pypi.org/project/clarifai/11.8.4/) - 2025-10-18
+
+### Changed
+- Added python toolkit to CLI init command [(#807)](https://github.com/Clarifai/clarifai-python/pull/807)
+- Added USER_ID to config of CLI Model Init [(#808)](https://github.com/Clarifai/clarifai-python/pull/808)
+- Add user input prompt for OpenAI local runner [(#801)](https://github.com/Clarifai/clarifai-python/pull/801)
+- Fixed async_client initialisation [(#806)](https://github.com/Clarifai/clarifai-python/pull/806)
+
+## [[11.8.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.3) - [PyPI](https://pypi.org/project/clarifai/11.8.3/) - 2025-10-09
+
+### Changed
+- Disabled `async_stub` in `ModelClient` initialization [(#804)](https://github.com/Clarifai/clarifai-python/pull/804)
+- Fixed `UnboundLocalError` in model init when using `--model-type-id` without toolkit [(#799)](https://github.com/Clarifai/clarifai-python/pull/799)
+- Added config-lock.yaml to clarifai pipeline upload [(#754)](https://github.com/Clarifai/clarifai-python/pull/754)
+
+## [[11.8.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.2) - [PyPI](https://pypi.org/project/clarifai/11.8.2/) - 2025-09-24
+
+### Changed
+- Added support for initializing models using the vLLM toolkit for local-runners [(#789)](https://github.com/Clarifai/clarifai-python/pull/789)
+- Modified the secret injection mechanism to support pulling secrets directly from the current environment when no secret files are available [(#788)](https://github.com/Clarifai/clarifai-python/pull/788)
+- Updated type hints and docstring descriptions across all major files in the clarifai/client folder to improve code quality, maintainability, and developer experience [(#781)](https://github.com/Clarifai/clarifai-python/pull/781)
+- Added comprehensive secrets management functionality to Clarifai's client, including CRUD operations for secrets and integration with model upload workflows [(#779)](https://github.com/Clarifai/clarifai-python/pull/779)
+- Added support for initializing models using the LMStudio toolkit for local-runners [(#760)](https://github.com/Clarifai/clarifai-python/pull/760)
+- Added support for initializing models using the Hugging Face toolkit for local-runners [(#740)](https://github.com/Clarifai/clarifai-python/pull/740)
+- A new `patch_version` method is added to the Model class and integrated method signatures into the local runner workflow [(#718)](https://github.com/Clarifai/clarifai-python/pull/718)
+- Highlights the code of example code script printed in logs of local runner workflow [(#707)](https://github.com/Clarifai/clarifai-python/pull/707)
+- Changed the default local development model type from "text-to-text" to "any-to-any" [(#680)](https://github.com/Clarifai/clarifai-python/pull/680)
+- Reduced friction while still leveraging a single prebuilt AMD base image [(#645)](https://github.com/Clarifai/clarifai-python/pull/645)
+- Bump setuptools from 70.0.0 to 78.1.1 in /.github/workflows [(#600)](https://github.com/Clarifai/clarifai-python/pull/600)
+- Fixes an issue with the conversion of gRPC response enums to integers for the runner creation process [(#576)](https://github.com/Clarifai/clarifai-python/pull/576)
+
 ## [[11.8.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.8.1) - [PyPI](https://pypi.org/project/clarifai/11.8.1/) - 2025-09-11
 
 ### Changed

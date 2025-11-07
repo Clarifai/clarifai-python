@@ -313,27 +313,6 @@ spec:
         result = builder.upload_pipeline_steps()
         assert result is False
 
-    def test_update_config_with_versions(self, temp_config_file):
-        """Test updating config with version information."""
-        builder = PipelineBuilder(temp_config_file)
-        builder.uploaded_step_versions = {"stepA": "version-123"}
-
-        builder.update_config_with_versions()
-
-        # Verify config was updated
-        updated_config = builder.config
-        argo_spec_str = updated_config["pipeline"]["orchestration_spec"]["argo_orchestration_spec"]
-        argo_spec = yaml.safe_load(argo_spec_str)
-
-        # Check that templateRef was updated
-        template_ref = argo_spec["spec"]["templates"][0]["steps"][0][0]["templateRef"]
-        expected_name = "users/test-user/apps/test-app/pipeline_steps/stepA/versions/version-123"
-        assert template_ref["name"] == expected_name
-        assert template_ref["template"] == expected_name
-
-        # Check that step_directories was cleared
-        assert updated_config["pipeline"]["step_directories"] == []
-
     @patch('clarifai.runners.pipelines.pipeline_builder.BaseClient')
     def test_create_pipeline_success(self, mock_base_client, temp_config_file):
         """Test successful pipeline creation."""
@@ -361,9 +340,10 @@ spec:
         mock_client_instance.user_app_id = mock_user_app_id
 
         builder = PipelineBuilder(temp_config_file)
-        result = builder.create_pipeline()
+        success, version_id = builder.create_pipeline()
 
-        assert result is True
+        assert success is True
+        assert version_id == "version-123"
         mock_client_instance.STUB.PostPipelines.assert_called_once()
 
     @patch('clarifai.runners.pipelines.pipeline_builder.BaseClient')
@@ -386,9 +366,10 @@ spec:
         mock_client_instance.user_app_id = mock_user_app_id
 
         builder = PipelineBuilder(temp_config_file)
-        result = builder.create_pipeline()
+        success, version_id = builder.create_pipeline()
 
-        assert result is False
+        assert success is False
+        assert version_id == ""
 
 
 class TestPipelineCLIIntegration:
@@ -631,13 +612,10 @@ spec:
         assert builder.uploaded_step_versions == {}
 
     def test_update_config_with_no_versions(self, temp_config_file_no_dirs):
-        """Test updating config when no versions were uploaded."""
+        """Test that config remains unchanged when no versions were uploaded."""
         builder = PipelineBuilder(temp_config_file_no_dirs)
 
-        # Should handle no uploaded versions gracefully
-        builder.update_config_with_versions()
-
-        # Config should be unchanged
+        # Config should be unchanged when no versions are available
         assert "step_directories" not in builder.config["pipeline"]
 
 
@@ -651,15 +629,15 @@ class TestUploadPipeline:
         mock_builder_class.return_value = mock_builder
 
         mock_builder.upload_pipeline_steps.return_value = True
-        mock_builder.create_pipeline.return_value = True
+        mock_builder.create_pipeline.return_value = (True, "version-123")
 
         # Should not raise any exception
         upload_pipeline("test-config.yaml")
 
         mock_builder_class.assert_called_once_with("test-config.yaml")
         mock_builder.upload_pipeline_steps.assert_called_once()
-        mock_builder.update_config_with_versions.assert_called_once()
         mock_builder.create_pipeline.assert_called_once()
+        # Note: config.yaml is no longer modified during pipeline upload
 
     @patch('clarifai.runners.pipelines.pipeline_builder.PipelineBuilder')
     @patch('os.path.isdir')
@@ -674,7 +652,7 @@ class TestUploadPipeline:
         mock_exists.return_value = True  # config.yaml exists in directory
 
         mock_builder.upload_pipeline_steps.return_value = True
-        mock_builder.create_pipeline.return_value = True
+        mock_builder.create_pipeline.return_value = (True, "version-123")
 
         # Should not raise any exception
         path_to_dir = "/path/to/directory"
@@ -683,8 +661,8 @@ class TestUploadPipeline:
         # Should call PipelineBuilder with the config.yaml path
         mock_builder_class.assert_called_once_with(os.path.join(path_to_dir, "config.yaml"))
         mock_builder.upload_pipeline_steps.assert_called_once()
-        mock_builder.update_config_with_versions.assert_called_once()
         mock_builder.create_pipeline.assert_called_once()
+        # Note: config.yaml is no longer modified during pipeline upload
 
     @patch('os.path.isdir')
     @patch('os.path.exists')
@@ -707,14 +685,14 @@ class TestUploadPipeline:
         mock_builder_class.return_value = mock_builder
 
         mock_builder.upload_pipeline_steps.return_value = True
-        mock_builder.create_pipeline.return_value = True
+        mock_builder.create_pipeline.return_value = (True, "version-123")
 
         # Should not raise any exception
         upload_pipeline("test-config.yaml")
 
         mock_builder.upload_pipeline_steps.assert_called_once()
-        mock_builder.update_config_with_versions.assert_called_once()
         mock_builder.create_pipeline.assert_called_once()
+        # Note: config.yaml is no longer modified during pipeline upload
 
     @patch('clarifai.runners.pipelines.pipeline_builder.PipelineBuilder')
     @patch('sys.exit')
@@ -741,7 +719,7 @@ class TestUploadPipeline:
         mock_builder_class.return_value = mock_builder
 
         mock_builder.upload_pipeline_steps.return_value = True
-        mock_builder.create_pipeline.return_value = False
+        mock_builder.create_pipeline.return_value = (False, "")
 
         upload_pipeline("test-config.yaml")
 
@@ -784,7 +762,7 @@ spec:
                 mock_builder = Mock()
                 mock_builder_class.return_value = mock_builder
                 mock_builder.upload_pipeline_steps.return_value = True
-                mock_builder.create_pipeline.return_value = True
+                mock_builder.create_pipeline.return_value = (True, "version-123")
 
                 pipeline_dir_path = 'pipeline_dir'
                 result = runner.invoke(upload, [pipeline_dir_path])
@@ -828,7 +806,7 @@ spec:
                 mock_builder = Mock()
                 mock_builder_class.return_value = mock_builder
                 mock_builder.upload_pipeline_steps.return_value = True
-                mock_builder.create_pipeline.return_value = True
+                mock_builder.create_pipeline.return_value = (True, "version-123")
 
                 result = runner.invoke(upload, ['my-config.yaml'])
 
@@ -1359,7 +1337,7 @@ class TestPipelineListCommand:
     """Test cases for the pipeline list CLI command."""
 
     @patch('clarifai.cli.pipeline.validate_context')
-    @patch('clarifai.cli.pipeline.User')
+    @patch('clarifai.client.user.User')
     @patch('clarifai.cli.pipeline.display_co_resources')
     def test_list_command_success_no_app_id(self, mock_display, mock_user_class, mock_validate):
         """Test that list command works without app_id (lists across all apps)."""
@@ -1407,7 +1385,7 @@ class TestPipelineListCommand:
         mock_display.assert_called_once()
 
     @patch('clarifai.cli.pipeline.validate_context')
-    @patch('clarifai.cli.pipeline.App')
+    @patch('clarifai.client.app.App')
     @patch('clarifai.cli.pipeline.display_co_resources')
     def test_list_command_success_with_app_id(self, mock_display, mock_app_class, mock_validate):
         """Test that list command works with app_id (lists within specific app)."""
@@ -1467,7 +1445,7 @@ class TestPipelineListCommand:
         # Import here to avoid circular imports in testing
         from clarifai.cli.pipeline import list as list_command
 
-        with patch('clarifai.cli.pipeline.User') as mock_user_class:
+        with patch('clarifai.client.user.User') as mock_user_class:
             mock_user_instance = Mock()
             mock_user_class.return_value = mock_user_instance
             mock_user_instance.list_pipelines.return_value = []
@@ -1483,7 +1461,7 @@ class TestPipelineStepListCommand:
     """Test cases for the pipeline step list CLI command."""
 
     @patch('clarifai.cli.pipeline_step.validate_context')
-    @patch('clarifai.cli.pipeline_step.User')
+    @patch('clarifai.client.user.User')
     @patch('clarifai.cli.pipeline_step.display_co_resources')
     def test_list_command_success_no_app_id(self, mock_display, mock_user_class, mock_validate):
         """Test that list command works without app_id (lists across all apps)."""
@@ -1533,7 +1511,7 @@ class TestPipelineStepListCommand:
         mock_display.assert_called_once()
 
     @patch('clarifai.cli.pipeline_step.validate_context')
-    @patch('clarifai.cli.pipeline_step.App')
+    @patch('clarifai.client.app.App')
     @patch('clarifai.cli.pipeline_step.display_co_resources')
     def test_list_command_success_with_app_id(self, mock_display, mock_app_class, mock_validate):
         """Test that list command works with app_id (lists within specific app)."""
@@ -1581,7 +1559,7 @@ class TestPipelineStepListCommand:
         mock_display.assert_called_once()
 
     @patch('clarifai.cli.pipeline_step.validate_context')
-    @patch('clarifai.cli.pipeline_step.App')
+    @patch('clarifai.client.app.App')
     @patch('clarifai.cli.pipeline_step.display_co_resources')
     def test_list_command_success_with_pipeline_id(
         self, mock_display, mock_app_class, mock_validate

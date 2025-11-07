@@ -2,7 +2,7 @@ import itertools
 import json
 import os
 import time
-from typing import Any, Dict, Generator, Iterable, Iterator, List, Tuple, Union
+from typing import Any, Dict, Generator, Iterable, Iterator, List, Optional, Tuple, Union
 
 import numpy as np
 import requests
@@ -108,6 +108,7 @@ class Model(Lister, BaseClient):
         self.training_params = {}
         self.input_types = None
         self._client = None
+        self._async_client = None
         self._added_methods = False
         BaseClient.__init__(
             self,
@@ -121,6 +122,8 @@ class Model(Lister, BaseClient):
         Lister.__init__(self)
 
         self.deployment_user_id = deployment_user_id
+
+        self.load_info(validate=True)
 
         self._set_runner_selector(
             compute_cluster_id=compute_cluster_id,
@@ -178,20 +181,26 @@ class Model(Lister, BaseClient):
 
         return templates
 
-    def get_params(self, template: str = None, save_to: str = 'params.yaml') -> Dict[str, Any]:
-        """Returns the model params for the model type and yaml file.
+    def get_params(
+        self, template: Optional[str] = None, save_to: str = 'params.yaml'
+    ) -> Dict[str, Any]:
+        """Returns the model params for the model type and saves them to a yaml file.
 
         Args:
-            template (str): The template to use for the model type.
-            yaml_file (str): The yaml file to save the model params.
+            template (Optional[str]): The template to use for the model type. Required for most
+                                    model types except 'clusterer' and 'embedding-classifier'.
+            save_to (str): The yaml file path to save the model params. Defaults to 'params.yaml'.
 
         Returns:
-            params (Dict): Dictionary of model params for the model type.
+            Dict[str, Any]: Dictionary of model params for the model type.
+
+        Raises:
+            UserError: If the model type is not trainable, or if template is required but not provided.
 
         Example:
             >>> from clarifai.client.model import Model
             >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-            >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
+            >>> model_params = model.get_params(template='template', save_to='model_params.yaml')
         """
         if not self.model_info.model_type_id:
             self.load_info()
@@ -260,19 +269,22 @@ class Model(Lister, BaseClient):
             find_and_replace_key(self.training_params, key, value)
 
     def get_param_info(self, param: str) -> Dict[str, Any]:
-        """Returns the param info for the param.
+        """Returns the parameter info for the specified parameter.
 
         Args:
-            param (str): The param to get the info for.
+            param (str): The parameter name to get information for.
 
         Returns:
-            param_info (Dict): Dictionary of model param info for the param.
+            Dict[str, Any]: Dictionary containing model parameter info for the specified param.
+
+        Raises:
+            UserError: If the model type is not trainable or if training params are not loaded.
 
         Example:
             >>> from clarifai.client.model import Model
             >>> model = Model(model_id='model_id', user_id='user_id', app_id='app_id')
-            >>> model_params = model.get_params(template='template', yaml_file='model_params.yaml')
-            >>> model.get_param_info('param')
+            >>> model_params = model.get_params(template='template', save_to='model_params.yaml')
+            >>> param_info = model.get_param_info('learning_rate')
         """
         if self.model_info.model_type_id not in TRAINABLE_MODEL_TYPES:
             raise UserError(f"Model type {self.model_info.model_type_id} is not trainable")
@@ -513,10 +525,28 @@ class Model(Lister, BaseClient):
                 model=self.model_info,
                 runner_selector=self._runner_selector,
             )
+            # Pass in None for async stub will create it.
             self._client = ModelClient(
-                stub=self.STUB, async_stub=self.async_stub, request_template=request_template
+                stub=self.STUB, async_stub=None, request_template=request_template
             )
         return self._client
+
+    @property
+    def async_client(self):
+        """Get the asynchronous client instance (with async stub)."""
+        if self._async_client is None:
+            request_template = service_pb2.PostModelOutputsRequest(
+                user_app_id=self.user_app_id,
+                model_id=self.id,
+                version_id=self.model_version.id,
+                model=self.model_info,
+                runner_selector=self._runner_selector,
+            )
+            # Create async client with async stub
+            self._async_client = ModelClient(
+                stub=self.STUB, async_stub=self.async_stub, request_template=request_template
+            )
+        return self._async_client
 
     def predict(self, *args, **kwargs):
         """
@@ -564,16 +594,16 @@ class Model(Lister, BaseClient):
             )
             inference_params = kwargs.get('inference_params', {})
             output_config = kwargs.get('output_config', {})
-            return await self.client._async_predict_by_proto(
+            return await self.async_client._async_predict_by_proto(
                 inputs=inputs, inference_params=inference_params, output_config=output_config
             )
 
         # Adding try-except, since the await works differently with jupyter kernels and in regular python scripts.
         try:
-            return await self.client.predict(*args, **kwargs)
+            return await self.async_client.predict(*args, **kwargs)
         except TypeError:
             # In jupyter, it returns a str object instead of a co-routine.
-            return self.client.predict(*args, **kwargs)
+            return self.async_client.predict(*args, **kwargs)
 
     def __getattr__(self, name):
         try:
@@ -586,7 +616,10 @@ class Model(Lister, BaseClient):
             self.client.fetch()
             for method_name in self.client._method_signatures.keys():
                 if not hasattr(self, method_name):
-                    setattr(self, method_name, getattr(self.client, method_name))
+                    if method_name.startswith('async_'):
+                        setattr(self, method_name, getattr(self.async_client, method_name))
+                    else:
+                        setattr(self, method_name, getattr(self.client, method_name))
         if hasattr(self.client, name):
             return getattr(self.client, name)
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
@@ -829,11 +862,11 @@ class Model(Lister, BaseClient):
             )
             inference_params = kwargs.get('inference_params', {})
             output_config = kwargs.get('output_config', {})
-            return self.client._async_generate_by_proto(
+            return self.async_client._async_generate_by_proto(
                 inputs=inputs, inference_params=inference_params, output_config=output_config
             )
 
-        return self.client.generate(*args, **kwargs)
+        return self.async_client.generate(*args, **kwargs)
 
     def generate_by_filepath(
         self,
@@ -1038,11 +1071,11 @@ class Model(Lister, BaseClient):
                 )
                 inference_params = kwargs.get('inference_params', {})
                 output_config = kwargs.get('output_config', {})
-                return self.client._async_stream_by_proto(
+                return self.async_client._async_stream_by_proto(
                     inputs=inputs, inference_params=inference_params, output_config=output_config
                 )
 
-            return self.client.async_stream(*args, **kwargs)
+            return self.async_client.async_stream(*args, **kwargs)
 
     def stream_by_filepath(
         self,
@@ -1204,7 +1237,20 @@ class Model(Lister, BaseClient):
         )
         return [concept_info['concept_id'] for concept_info in all_concepts_infos]
 
-    def load_info(self) -> None:
+    def load_info(self, validate: bool = False) -> None:
+        """Loads the model information from the Clarifai API.
+
+        This method makes a gRPC call to the GetModel endpoint to fetch the latest
+        information for the model instance and updates its attributes.
+
+        Args:
+            validate (bool, optional): If True, the method will only validate the existence
+                of the model on the backend without updating the local object's attributes.
+                Defaults to False.
+
+        Raises:
+            Exception: If the gRPC API call fails.
+        """
         """Loads the model info."""
         request = service_pb2.GetModelRequest(
             user_app_id=self.user_app_id,
@@ -1216,10 +1262,11 @@ class Model(Lister, BaseClient):
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
 
-        dict_response = MessageToDict(response, preserving_proto_field_name=True)
-        self.kwargs = self.process_response_keys(dict_response['model'])
-        self.model_info = resources_pb2.Model()
-        dict_to_protobuf(self.model_info, self.kwargs)
+        if not validate:
+            dict_response = MessageToDict(response, preserving_proto_field_name=True)
+            self.kwargs = self.process_response_keys(dict_response['model'])
+            self.model_info = resources_pb2.Model()
+            dict_to_protobuf(self.model_info, self.kwargs)
 
     def __str__(self):
         if len(self.kwargs) < 10:

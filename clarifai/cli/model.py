@@ -7,13 +7,18 @@ import click
 
 from clarifai.cli.base import cli, pat_display
 from clarifai.utils.cli import (
+    check_lmstudio_installed,
     check_ollama_installed,
     check_requirements_installed,
+    customize_huggingface_model,
+    customize_lmstudio_model,
     customize_ollama_model,
     parse_requirements,
     validate_context,
 )
 from clarifai.utils.constants import (
+    DEFAULT_HF_MODEL_REPO_BRANCH,
+    DEFAULT_LMSTUDIO_MODEL_REPO_BRANCH,
     DEFAULT_LOCAL_RUNNER_APP_ID,
     DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_CONFIG,
     DEFAULT_LOCAL_RUNNER_COMPUTE_CLUSTER_ID,
@@ -22,8 +27,11 @@ from clarifai.utils.constants import (
     DEFAULT_LOCAL_RUNNER_MODEL_TYPE,
     DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG,
     DEFAULT_LOCAL_RUNNER_NODEPOOL_ID,
-    DEFAULT_OLLAMA_MODEL_REPO,
     DEFAULT_OLLAMA_MODEL_REPO_BRANCH,
+    DEFAULT_PYTHON_MODEL_REPO_BRANCH,
+    DEFAULT_SGLANG_MODEL_REPO_BRANCH,
+    DEFAULT_TOOLKIT_MODEL_REPO,
+    DEFAULT_VLLM_MODEL_REPO_BRANCH,
 )
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import (
@@ -68,14 +76,16 @@ def model():
 )
 @click.option(
     '--toolkit',
-    type=click.Choice(['ollama'], case_sensitive=False),
+    type=click.Choice(
+        ['ollama', 'huggingface', 'lmstudio', 'vllm', 'sglang', 'python'], case_sensitive=False
+    ),
     required=False,
-    help='Toolkit to use for model initialization. Currently supports "ollama".',
+    help='Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio", "vllm", "sglang" and "python".',
 )
 @click.option(
     '--model-name',
     required=False,
-    help='Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.).',
+    help='Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For vllm, sglang & huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "unsloth/Llama-3.2-1B-Instruct").\n For lmstudio toolkit, this sets the LM Studio model name (e.g., "qwen/qwen3-4b-thinking-2507").\n',
 )
 @click.option(
     '--port',
@@ -89,7 +99,9 @@ def model():
     help='Context length for the Ollama model. Defaults to 8192.',
     required=False,
 )
+@click.pass_context
 def init(
+    ctx,
     model_path,
     model_type_id,
     github_pat,
@@ -112,15 +124,19 @@ def init(
     when cloning private repositories. The --branch option can be used to specify a specific
     branch to clone from.
 
-    MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.
-    MODEL_TYPE_ID: Type of model to create. If not specified, defaults to "text-to-text" for text models.
-    GITHUB_PAT: GitHub Personal Access Token for authentication when cloning private repositories.
-    GITHUB_URL: GitHub repository URL or "repo" format to clone a repository from. If provided, the entire repository contents will be copied to the target directory instead of using default templates.
-    TOOLKIT: Toolkit to use for model initialization. Currently supports "ollama".
-    MODEL_NAME: Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.).
-    PORT: Port to run the Ollama server on. Defaults to 23333.
-    CONTEXT_LENGTH: Context length for the Ollama model. Defaults to 8192.
+    MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.\n
+
+    OPTIONS:\n
+    MODEL_TYPE_ID: Type of model to create. If not specified, defaults to "text-to-text" for text models.\n
+    GITHUB_PAT: GitHub Personal Access Token for authentication when cloning private repositories.\n
+    GITHUB_URL: GitHub repository URL or "repo" format to clone a repository from. If provided, the entire repository contents will be copied to the target directory instead of using default templates.\n
+    TOOLKIT: Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio", "vllm", "sglang" and "python".\n
+    MODEL_NAME: Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For vllm, sglang & huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "Qwen/Qwen3-4B-Instruct-2507"). For lmstudio toolkit, this sets the LM Studio model name (e.g., "qwen/qwen3-4b-thinking-2507").\n
+    PORT: Port to run the (Ollama/lmstudio) server on. Defaults to 23333.\n
+    CONTEXT_LENGTH: Context length for the (Ollama/lmstudio) model. Defaults to 8192.\n
     """
+    validate_context(ctx)
+    user_id = ctx.obj.current.user_id
     # Resolve the absolute path
     model_path = os.path.abspath(model_path)
 
@@ -152,8 +168,28 @@ def init(
                 "Ollama is not installed. Please install it from `https://ollama.com/` to use the Ollama toolkit."
             )
             raise click.Abort()
-        github_url = DEFAULT_OLLAMA_MODEL_REPO
+        github_url = DEFAULT_TOOLKIT_MODEL_REPO
         branch = DEFAULT_OLLAMA_MODEL_REPO_BRANCH
+    elif toolkit == 'huggingface':
+        github_url = DEFAULT_TOOLKIT_MODEL_REPO
+        branch = DEFAULT_HF_MODEL_REPO_BRANCH
+    elif toolkit == 'lmstudio':
+        if not check_lmstudio_installed():
+            logger.error(
+                "LM Studio is not installed. Please install it from `https://lmstudio.com/` to use the LM Studio toolkit."
+            )
+            raise click.Abort()
+        github_url = DEFAULT_TOOLKIT_MODEL_REPO
+        branch = DEFAULT_LMSTUDIO_MODEL_REPO_BRANCH
+    elif toolkit == 'vllm':
+        github_url = DEFAULT_TOOLKIT_MODEL_REPO
+        branch = DEFAULT_VLLM_MODEL_REPO_BRANCH
+    elif toolkit == 'sglang':
+        github_url = DEFAULT_TOOLKIT_MODEL_REPO
+        branch = DEFAULT_SGLANG_MODEL_REPO_BRANCH
+    elif toolkit == 'python':
+        github_url = DEFAULT_TOOLKIT_MODEL_REPO
+        branch = DEFAULT_PYTHON_MODEL_REPO_BRANCH
 
     if github_url:
         downloader = GitHubDownloader(
@@ -209,6 +245,44 @@ def init(
                     repo_url = format_github_repo_url(github_url)
                     repo_url = f"https://github.com/{owner}/{repo}"
 
+                try:
+                    # Create a temporary directory for cloning
+                    with tempfile.TemporaryDirectory(prefix="clarifai_model_") as clone_dir:
+                        # Clone the repository with explicit branch parameter
+                        if not clone_github_repo(repo_url, clone_dir, github_pat, branch):
+                            logger.error(f"Failed to clone repository from {repo_url}")
+                            github_url = None  # Fall back to template mode
+
+                        else:
+                            # Copy the entire repository content to target directory (excluding .git)
+                            for item in os.listdir(clone_dir):
+                                if item == '.git':
+                                    continue
+
+                                source_path = os.path.join(clone_dir, item)
+                                target_path = os.path.join(model_path, item)
+
+                                if os.path.isdir(source_path):
+                                    shutil.copytree(source_path, target_path, dirs_exist_ok=True)
+                                else:
+                                    shutil.copy2(source_path, target_path)
+
+                            logger.info(f"Successfully cloned repository to {model_path}")
+                            logger.info(
+                                "Model initialization complete with GitHub repository clone"
+                            )
+                            logger.info("Next steps:")
+                            logger.info("1. Review the model configuration")
+                            logger.info("2. Install any required dependencies manually")
+                            logger.info(
+                                "3. Test the model locally using 'clarifai model local-test'"
+                            )
+                            return
+
+                except Exception as e:
+                    logger.error(f"Failed to clone GitHub repository: {e}")
+                    github_url = None  # Fall back to template mode
+
     if toolkit:
         logger.info(f"Initializing model from GitHub repository: {github_url}")
 
@@ -218,34 +292,43 @@ def init(
         else:
             repo_url = format_github_repo_url(github_url)
 
-    try:
-        # Create a temporary directory for cloning
-        with tempfile.TemporaryDirectory(prefix="clarifai_model_") as clone_dir:
-            # Clone the repository with explicit branch parameter
-            if not clone_github_repo(repo_url, clone_dir, github_pat, branch):
-                logger.error(f"Failed to clone repository from {repo_url}")
-                github_url = None  # Fall back to template mode
+        try:
+            # Create a temporary directory for cloning
+            with tempfile.TemporaryDirectory(prefix="clarifai_model_") as clone_dir:
+                # Clone the repository with explicit branch parameter
+                if not clone_github_repo(repo_url, clone_dir, github_pat, branch):
+                    logger.error(f"Failed to clone repository from {repo_url}")
+                    github_url = None  # Fall back to template mode
 
-            else:
-                # Copy the entire repository content to target directory (excluding .git)
-                for item in os.listdir(clone_dir):
-                    if item == '.git':
-                        continue
+                else:
+                    # Copy the entire repository content to target directory (excluding .git)
+                    for item in os.listdir(clone_dir):
+                        if item == '.git':
+                            continue
 
-                    source_path = os.path.join(clone_dir, item)
-                    target_path = os.path.join(model_path, item)
+                        source_path = os.path.join(clone_dir, item)
+                        target_path = os.path.join(model_path, item)
 
-                    if os.path.isdir(source_path):
-                        shutil.copytree(source_path, target_path, dirs_exist_ok=True)
-                    else:
-                        shutil.copy2(source_path, target_path)
+                        if os.path.isdir(source_path):
+                            shutil.copytree(source_path, target_path, dirs_exist_ok=True)
+                        else:
+                            shutil.copy2(source_path, target_path)
 
-    except Exception as e:
-        logger.error(f"Failed to clone GitHub repository: {e}")
-        github_url = None
+        except Exception as e:
+            logger.error(f"Failed to clone GitHub repository: {e}")
+            github_url = None
 
-    if (model_name or port or context_length) and (toolkit == 'ollama'):
-        customize_ollama_model(model_path, model_name, port, context_length)
+    if (user_id or model_name or port or context_length) and (toolkit == 'ollama'):
+        customize_ollama_model(model_path, user_id, model_name, port, context_length)
+
+    if (user_id or model_name or port or context_length) and (toolkit == 'lmstudio'):
+        customize_lmstudio_model(model_path, user_id, model_name, port, context_length)
+
+    if (user_id or model_name) and (
+        toolkit == 'huggingface' or toolkit == 'vllm' or toolkit == 'sglang'
+    ):
+        # Update the config.yaml file with the provided model name
+        customize_huggingface_model(model_path, user_id, model_name)
 
     if github_url:
         logger.info("Model initialization complete with GitHub repository")
@@ -259,11 +342,19 @@ def init(
         logger.info("Initializing model with default templates...")
         input("Press Enter to continue...")
 
+        from clarifai.cli.base import input_or_default
         from clarifai.cli.templates.model_templates import (
             get_config_template,
             get_model_template,
             get_requirements_template,
         )
+
+        # Collect additional parameters for OpenAI template
+        template_kwargs = {}
+        if model_type_id == "openai":
+            logger.info("Configuring OpenAI local runner...")
+            port = input_or_default("Enter port (default: 8000): ", "8000")
+            template_kwargs = {"port": port}
 
         # Create the 1/ subdirectory
         model_version_dir = os.path.join(model_path, "1")
@@ -274,7 +365,7 @@ def init(
         if os.path.exists(model_py_path):
             logger.warning(f"File {model_py_path} already exists, skipping...")
         else:
-            model_template = get_model_template(model_type_id)
+            model_template = get_model_template(model_type_id, **template_kwargs)
             with open(model_py_path, 'w') as f:
                 f.write(model_template)
             logger.info(f"Created {model_py_path}")
@@ -294,9 +385,11 @@ def init(
         if os.path.exists(config_path):
             logger.warning(f"File {config_path} already exists, skipping...")
         else:
-            config_model_type_id = "text-to-text"  # default
+            config_model_type_id = DEFAULT_LOCAL_RUNNER_MODEL_TYPE  # default
 
-            config_template = get_config_template(config_model_type_id)
+            config_template = get_config_template(
+                user_id=user_id, model_type_id=config_model_type_id
+            )
             with open(config_path, 'w') as f:
                 f.write(config_template)
             logger.info(f"Created {config_path}")
@@ -612,6 +705,19 @@ def local_runner(ctx, model_path, pool_size, verbose):
             )
             raise click.Abort()
 
+    # Load model config
+    config_file = os.path.join(model_path, 'config.yaml')
+    if not os.path.exists(config_file):
+        logger.error(
+            f"config.yaml not found in {model_path}. Please ensure you are passing the correct directory."
+        )
+        raise click.Abort()
+    config = ModelBuilder._load_config(config_file)
+
+    uploaded_model_type_id = config.get('model', {}).get(
+        'model_type_id', DEFAULT_LOCAL_RUNNER_MODEL_TYPE
+    )
+
     logger.info("> Verifying local runner setup...")
     logger.info(f"Current context: {ctx.obj.current.name}")
     user_id = ctx.obj.current.user_id
@@ -725,11 +831,18 @@ def local_runner(ctx, model_path, pool_size, verbose):
 
     try:
         model = app.model(model_id)
+        current_model_type_id = model.model_type_id
         try:
             model_id = ctx.obj.current.model_id
         except AttributeError:  # doesn't exist in context but does in API then update the context.
             ctx.obj.current.CLARIFAI_MODEL_ID = model.id
             ctx.obj.to_yaml()  # save to yaml file.
+        if current_model_type_id != uploaded_model_type_id:
+            logger.warning(
+                f"Model type ID mismatch: expected '{uploaded_model_type_id}', found '{current_model_type_id}'. Deleting the model."
+            )
+            app.delete_model(model_id)
+            raise Exception
     except Exception as e:
         logger.warning(f"Failed to get model with ID '{model_id}':\n{e}")
         y = input(
@@ -737,13 +850,9 @@ def local_runner(ctx, model_path, pool_size, verbose):
         )
         if y.lower() != 'y':
             raise click.Abort()
-        try:
-            model_type_id = ctx.obj.current.model_type_id
-        except AttributeError:
-            model_type_id = DEFAULT_LOCAL_RUNNER_MODEL_TYPE
 
-        model = app.create_model(model_id, model_type_id=model_type_id)
-        ctx.obj.current.CLARIFAI_MODEL_TYPE_ID = model_type_id
+        model = app.create_model(model_id, model_type_id=uploaded_model_type_id)
+        ctx.obj.current.CLARIFAI_MODEL_TYPE_ID = uploaded_model_type_id
         ctx.obj.current.CLARIFAI_MODEL_ID = model_id
         ctx.obj.to_yaml()  # save to yaml file.
 
@@ -885,14 +994,6 @@ def local_runner(ctx, model_path, pool_size, verbose):
 
     # Now that we have all the context in ctx.obj, we need to update the config.yaml in
     # the model_path directory with the model object containing user_id, app_id, model_id, version_id
-    config_file = os.path.join(model_path, 'config.yaml')
-    if not os.path.exists(config_file):
-        logger.error(
-            f"config.yaml not found in {model_path}. Please ensure you are passing the correct directory."
-        )
-        raise click.Abort()
-    config = ModelBuilder._load_config(config_file)
-    model_type_id = config.get('model', {}).get('model_type_id', DEFAULT_LOCAL_RUNNER_MODEL_TYPE)
     # The config.yaml doens't match what we created above.
     if 'model' in config and model_id != config['model'].get('id'):
         logger.info(f"Current model section of config.yaml: {config.get('model', {})}")
@@ -902,7 +1003,7 @@ def local_runner(ctx, model_path, pool_size, verbose):
         if y.lower() != 'y':
             raise click.Abort()
         config = ModelBuilder._set_local_runner_model(
-            config, user_id, app_id, model_id, model_type_id
+            config, user_id, app_id, model_id, uploaded_model_type_id
         )
         ModelBuilder._backup_config(config_file)
         ModelBuilder._save_config(config_file, config)
@@ -923,6 +1024,7 @@ def local_runner(ctx, model_path, pool_size, verbose):
             logger.info("Customizing Ollama model with provided parameters...")
             customize_ollama_model(
                 model_path=model_path,
+                user_id=user_id,
                 verbose=True if verbose else False,
             )
         except Exception as e:
