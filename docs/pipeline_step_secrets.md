@@ -40,12 +40,10 @@ pipeline:
   config:
     step_version_secrets:
       step-0:
-        secrets:
-          API_KEY: users/user123/secrets/my-api-key
-          DB_PASSWORD: users/user123/secrets/db-secret
+        API_KEY: users/user123/secrets/my-api-key
+        DB_PASSWORD: users/user123/secrets/db-secret
       step-1:
-        secrets:
-          EMAIL_TOKEN: users/user123/secrets/email-token
+        EMAIL_TOKEN: users/user123/secrets/email-token
 ```
 
 ## Secret Reference Format

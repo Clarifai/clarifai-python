@@ -482,10 +482,13 @@ class Pipeline(Lister, BaseClient):
 
         if step_ref:
             # Return only the specified step's secrets
+            # Proto response has nested 'secrets' field in StepSecretConfig
             return {step_ref: step_version_secrets.get(step_ref, {}).get("secrets", {})}
 
         # Return all step secrets
+        # Extract the 'secrets' dict from each step's StepSecretConfig
         result = {}
-        for step, config in step_version_secrets.items():
-            result[step] = config.get("secrets", {})
+        for step, step_config in step_version_secrets.items():
+            result[step] = step_config.get("secrets", {})
+        return result
         return result

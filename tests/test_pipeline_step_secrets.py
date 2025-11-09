@@ -41,14 +41,10 @@ spec:
                 "config": {
                     "step_version_secrets": {
                         "step-0": {
-                            "secrets": {
-                                "API_KEY": "users/test-user/secrets/my-api-key",
-                                "DB_PASSWORD": "users/test-user/secrets/db-secret",
-                            }
+                            "API_KEY": "users/test-user/secrets/my-api-key",
+                            "DB_PASSWORD": "users/test-user/secrets/db-secret",
                         },
-                        "step-1": {
-                            "secrets": {"EMAIL_TOKEN": "users/test-user/secrets/email-token"}
-                        },
+                        "step-1": {"EMAIL_TOKEN": "users/test-user/secrets/email-token"},
                     },
                 },
             }
@@ -69,10 +65,7 @@ spec:
             step_secrets = builder.config["pipeline"]["config"]["step_version_secrets"]
             assert "step-0" in step_secrets
             assert "step-1" in step_secrets
-            assert (
-                step_secrets["step-0"]["secrets"]["API_KEY"]
-                == "users/test-user/secrets/my-api-key"
-            )
+            assert step_secrets["step-0"]["API_KEY"] == "users/test-user/secrets/my-api-key"
         finally:
             Path(config_path).unlink()
 
@@ -107,15 +100,13 @@ spec:
             # Create pipeline version proto
             pipeline_version = resources_pb2.PipelineVersion()
 
-            # Define step secrets
+            # Define step secrets (flattened structure - no nested 'secrets' key)
             step_version_secrets = {
                 "step-0": {
-                    "secrets": {
-                        "API_KEY": "users/test-user/secrets/my-api-key",
-                        "DB_PASSWORD": "users/test-user/secrets/db-secret",
-                    }
+                    "API_KEY": "users/test-user/secrets/my-api-key",
+                    "DB_PASSWORD": "users/test-user/secrets/db-secret",
                 },
-                "step-1": {"secrets": {"EMAIL_TOKEN": "users/test-user/secrets/email-token"}},
+                "step-1": {"EMAIL_TOKEN": "users/test-user/secrets/email-token"},
             }
 
             # Call the helper method
@@ -153,7 +144,7 @@ spec:
                 },
                 "config": {
                     "step_version_secrets": {
-                        "step-0": {"secrets": {"API_KEY": "users/test-user/secrets/my-api-key"}}
+                        "step-0": {"API_KEY": "users/test-user/secrets/my-api-key"}
                     },
                 },
             }
@@ -175,10 +166,7 @@ spec:
             assert "step_version_secrets" in lockfile_data["pipeline"]["config"]
             step_secrets = lockfile_data["pipeline"]["config"]["step_version_secrets"]
             assert "step-0" in step_secrets
-            assert (
-                step_secrets["step-0"]["secrets"]["API_KEY"]
-                == "users/test-user/secrets/my-api-key"
-            )
+            assert step_secrets["step-0"]["API_KEY"] == "users/test-user/secrets/my-api-key"
         finally:
             Path(config_path).unlink()
 
@@ -208,10 +196,8 @@ spec:
                 "config": {
                     "step_version_secrets": {
                         "step-0": {
-                            "secrets": {
-                                "API_KEY": "users/test-user/secrets/my-api-key",
-                                "DB_PASSWORD": "users/test-user/secrets/db-secret",
-                            }
+                            "API_KEY": "users/test-user/secrets/my-api-key",
+                            "DB_PASSWORD": "users/test-user/secrets/db-secret",
                         }
                     },
                 },

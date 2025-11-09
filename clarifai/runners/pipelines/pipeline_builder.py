@@ -384,21 +384,20 @@ class PipelineBuilder:
         Args:
             pipeline_version: The PipelineVersion proto to update
             step_version_secrets: Dictionary mapping step references to their secret configs
-                                 Format: {step_ref: {secrets: {secret_name: secret_path}}}
+                                 Format: {step_ref: {secret_name: secret_path}}
         """
         logger.debug(f"Processing step version secrets for {len(step_version_secrets)} steps")
 
         for step_ref, step_config in step_version_secrets.items():
-            # Note: 'secret_refs' contains only secret reference paths (not actual values)
+            # Note: 'step_config' contains the secret mappings directly (not nested under 'secrets')
             # Secret references are like "users/user123/secrets/my-api-key"
-            secret_refs = step_config.get("secrets", {})
-            if not secret_refs:
+            if not step_config:
                 logger.debug(f"No secret references found for step {step_ref}, skipping")
                 continue
 
             # Create StepSecretConfig proto
             step_secret_config = resources_pb2.StepSecretConfig()
-            for secret_name, secret_ref in secret_refs.items():
+            for secret_name, secret_ref in step_config.items():
                 step_secret_config.secrets[secret_name] = secret_ref
 
             # Add to pipeline version config
