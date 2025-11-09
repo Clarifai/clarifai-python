@@ -88,11 +88,49 @@ class OpenAIModelClass(ModelClass):
             return False
 
     def _set_usage(self, resp):
-        if resp.usage and resp.usage.prompt_tokens and resp.usage.completion_tokens:
-            self.set_output_context(
-                prompt_tokens=resp.usage.prompt_tokens,
-                completion_tokens=resp.usage.completion_tokens,
+        """Set token usage {prompt_tokens, completion_tokens} from response object.
+
+        Args:
+            resp (Union[Response, ResponseStreamEvent, ChatCompletion, ChatCompletionChunk]):
+        """
+        # logger.info(f"response received: {resp}")
+        # of stream and non-stream chat.completions.create, non-stream responses.create
+        # {ChatCompletion, ChatCompletionChunk, Response}.usage
+        has_usage = getattr(resp, "usage", None)
+        # of stream responses.create
+        # ResponseStreamEvent.response.usage
+        has_response_usage = getattr(resp, "response", None) and getattr(
+            resp.response, "usage", None
+        )
+        assert not (has_response_usage and has_usage), (
+            "Both resp.usage and resp.response.usage are present, ambiguous which to use."
+        )
+        if has_response_usage or has_usage:
+            prompt_tokens = 0
+            completion_tokens = 0
+            if has_usage:
+                prompt_tokens = getattr(resp.usage, "prompt_tokens", 0) or getattr(
+                    resp.usage, "input_tokens", 0
+                )
+                completion_tokens = getattr(resp.usage, "completion_tokens", 0) or getattr(
+                    resp.usage, "output_tokens", 0
+                )
+            # stream responses.create
+            else:
+                prompt_tokens = getattr(resp.response.usage, "input_tokens", 0)
+                completion_tokens = getattr(resp.response.usage, "output_tokens", 0)
+            if prompt_tokens is None:
+                prompt_tokens = 0
+            if completion_tokens is None:
+                completion_tokens = 0
+            assert prompt_tokens > 0 or completion_tokens > 0, ValueError(
+                f"Invalid token usage: prompt_tokens={prompt_tokens}, completion_tokens={completion_tokens}. Must be greater than 0."
             )
+            self.set_output_context(
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+            )
+            # logger.info(f"Token usage - prompt_tokens: {prompt_tokens}, completion_tokens: {completion_tokens}")
 
     def _handle_chat_completions(self, request_data: Dict[str, Any]):
         """Handle chat completion requests."""
@@ -120,6 +158,7 @@ class OpenAIModelClass(ModelClass):
         response_args = {**request_data}
         response_args.update({"model": self.model})
         response = self.client.responses.create(**response_args)
+        self._set_usage(response)
         return response
 
     def _route_request(self, endpoint: str, request_data: Dict[str, Any]):

@@ -225,6 +225,8 @@ class ModelBuilder:
             user_app_id=self.client.user_app_id,
             model_id=self.model_id,
         )
+        # Add secrets to additional_fields to get request-type secrets
+        request.additional_fields.append("secrets")
         if self.model_version_id is not None:
             request.version_id = self.model_version_id
         resp: service_pb2.SingleModelResponse = self.client.STUB.GetModel(request)
@@ -926,15 +928,18 @@ class ModelBuilder:
             pkg, version = line.split("<=")
         elif "<" in line:
             pkg, version = line.split("<")
+        elif "@" in line:
+            pkg, version = line.split("@", 1)
         else:
             pkg, version = line, None  # No version specified
+        pkg = pkg.strip()
         for dep in dependencies:
             if dep == pkg:
                 if (
                     dep == 'torch' and line.find('whl/cpu') > 0
                 ):  # Ignore torch-cpu whl files, use base mage.
                     return None, None
-                return dep.strip(), version.strip() if version else None
+                return pkg, version.strip() if version else None
         return None, None
 
     def _parse_requirements(self):
