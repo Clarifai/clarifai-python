@@ -69,6 +69,12 @@ class TestPipelineClient:
         pipeline.auth_helper = Mock()
         pipeline.auth_helper.metadata = []
 
+        # Mock GetPipelineVersion response
+        mock_version_response = Mock()
+        mock_version_response.status.code = status_code_pb2.StatusCode.SUCCESS
+        mock_version_response.pipeline_version.orchestration_spec = None
+        pipeline.STUB.GetPipelineVersion.return_value = mock_version_response
+
         # Mock PostPipelineVersionRuns response
         mock_run_response = Mock()
         mock_run_response.status.code = status_code_pb2.StatusCode.SUCCESS
@@ -86,6 +92,7 @@ class TestPipelineClient:
 
         # Verify the result
         assert result == expected_result
+        pipeline.STUB.GetPipelineVersion.assert_called_once()
         pipeline.STUB.PostPipelineVersionRuns.assert_called_once()
         pipeline._monitor_pipeline_run.assert_called_once_with('test-run-123', 3600, 10)
 
@@ -107,6 +114,12 @@ class TestPipelineClient:
         pipeline.STUB = Mock()
         pipeline.auth_helper = Mock()
         pipeline.auth_helper.metadata = []
+
+        # Mock GetPipelineVersion response
+        mock_version_response = Mock()
+        mock_version_response.status.code = status_code_pb2.StatusCode.SUCCESS
+        mock_version_response.pipeline_version.orchestration_spec = None
+        pipeline.STUB.GetPipelineVersion.return_value = mock_version_response
 
         # Mock failed PostPipelineVersionRuns response
         mock_response = Mock()

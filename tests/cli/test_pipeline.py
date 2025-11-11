@@ -1000,6 +1000,46 @@ class TestPipelineInitCommand:
             for file_path in expected_files:
                 assert os.path.exists(file_path), f"Expected file {file_path} was not created"
 
+    def test_init_command_creates_workflow_arguments_template(self):
+        """Test that the generated pipeline config includes workflow-level arguments template."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        with runner.isolated_filesystem():
+            inputs = "test-user\ntest-app\ntest-pipeline\n2\nstepA\nstepB\n"
+            result = runner.invoke(init, ['.'], input=inputs)
+
+            assert result.exit_code == 0
+
+            # Load and validate the generated config
+            with open('config.yaml', 'r') as f:
+                config_content = f.read()
+                config = yaml.safe_load(config_content)
+
+            # Check that argo orchestration spec has workflow arguments
+            argo_spec = config['pipeline']['orchestration_spec']['argo_orchestration_spec']
+            parsed_argo = yaml.safe_load(argo_spec)
+
+            # Verify workflow-level arguments exist
+            assert 'spec' in parsed_argo
+            assert 'arguments' in parsed_argo['spec']
+            assert 'parameters' in parsed_argo['spec']['arguments']
+
+            # Check that template reference is used in step parameters
+            step_templates = parsed_argo['spec']['templates']
+            sequence_template = next(t for t in step_templates if t['name'] == 'sequence')
+
+            # Find a step that uses workflow parameters
+            step_found = False
+            for step_group in sequence_template['steps']:
+                for step in step_group:
+                    if 'arguments' in step and 'parameters' in step['arguments']:
+                        for param in step['arguments']['parameters']:
+                            if 'value' in param and '{{workflow.parameters.' in param['value']:
+                                step_found = True
+                                break
+
+            assert step_found, "Expected to find template references to workflow parameters in step arguments"
+
 
 class TestPipelineRunCommand:
     """Test cases for the pipeline run CLI command."""
