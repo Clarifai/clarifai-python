@@ -112,46 +112,11 @@ class Pipeline(Lister, BaseClient):
         Returns:
             Dict: The pipeline run result.
         """
-        # First, fetch the pipeline version to get its orchestration_spec
-        get_version_request = service_pb2.GetPipelineVersionRequest()
-        get_version_request.user_app_id.CopyFrom(self.user_app_id)
-        get_version_request.pipeline_id = self.pipeline_id
-        get_version_request.pipeline_version_id = self.pipeline_version_id or ""
-
-        logger.info(f"Fetching pipeline version {self.pipeline_version_id or 'latest'} for pipeline {self.pipeline_id}")
-        version_response = self.STUB.GetPipelineVersion(
-            get_version_request, metadata=self.auth_helper.metadata
-        )
-
-        if version_response.status.code != status_code_pb2.StatusCode.SUCCESS:
-            raise UserError(
-                f"Failed to fetch pipeline version: {version_response.status.description}. Details: {version_response.status.details}. Code: {status_code_pb2.StatusCode.Name(version_response.status.code)}."
-            )
-
-        pipeline_version = version_response.pipeline_version
-
         # Create a new pipeline version run
         pipeline_version_run = resources_pb2.PipelineVersionRun()
         pipeline_version_run.id = self.pipeline_version_run_id
 
-        # Set the pipeline_version and orchestration_spec from the fetched pipeline version
-        pipeline_version_run.pipeline_version.CopyFrom(pipeline_version)
-        if pipeline_version.orchestration_spec:
-            # Create a copy of the orchestration spec to modify
-            merged_orchestration_spec = resources_pb2.OrchestrationSpec()
-            merged_orchestration_spec.CopyFrom(pipeline_version.orchestration_spec)
-
-            # Merge input override parameters into the orchestration spec if provided
-            if input_args_override and input_args_override.HasField('argo_args_override'):
-                self._merge_argo_parameters_into_orchestration_spec(
-                    merged_orchestration_spec, 
-                    input_args_override.argo_args_override.parameters
-                )
-
-            # Set the merged orchestration spec
-            pipeline_version_run.orchestration_spec.CopyFrom(merged_orchestration_spec)
-
-        # Set input arguments override if provided
+        # Set input arguments override if provided (server will handle merging)
         if input_args_override:
             pipeline_version_run.input_args_override.CopyFrom(input_args_override)
 
@@ -176,9 +141,16 @@ class Pipeline(Lister, BaseClient):
             run_request.runner_selector.CopyFrom(self._runner_selector)
 
         logger.info(f"Starting pipeline run for pipeline {self.pipeline_id}")
+
+        # Log the entire request for debugging
+        logger.info(f"PostPipelineVersionRuns request::: {json_format.MessageToDict(run_request, preserving_proto_field_name=True)}")
+
         response = self.STUB.PostPipelineVersionRuns(
             run_request, metadata=self.auth_helper.metadata
         )
+
+        # Log the entire response for debugging
+        logger.info(f"PostPipelineVersionRuns response::: {json_format.MessageToDict(response, preserving_proto_field_name=True)}")
 
         if response.status.code != status_code_pb2.StatusCode.SUCCESS:
             if response.status.code == status_code_pb2.StatusCode.CONN_DOES_NOT_EXIST:
@@ -370,68 +342,3 @@ class Pipeline(Lister, BaseClient):
             logger.debug(f"Error fetching logs: {e}")
             # Return current page on error to retry the same page next fetch
             return current_page
-
-    def _merge_argo_parameters_into_orchestration_spec(self, orchestration_spec: "resources_pb2.OrchestrationSpec", override_parameters: List["resources_pb2.ArgoParameterOverride"]) -> None:
-        """Merge override parameters into the Argo orchestration spec's workflow arguments.
-
-        Args:
-            orchestration_spec: The orchestration spec to modify
-            override_parameters: List of parameter overrides to merge
-        """
-        if not orchestration_spec.HasField('argo_orchestration_spec'):
-            logger.warning("No Argo orchestration spec found to merge parameters into")
-            return
-
-        try:
-            import json
-
-            # Get the Argo spec JSON
-            argo_spec_json = orchestration_spec.argo_orchestration_spec.spec_json
-            if not argo_spec_json:
-                logger.warning("No Argo spec JSON found to merge parameters into")
-                return
-
-            # Parse the JSON
-            argo_spec = json.loads(argo_spec_json)
-
-            # Ensure the spec has the arguments structure
-            if 'spec' not in argo_spec:
-                argo_spec['spec'] = {}
-            if 'arguments' not in argo_spec['spec']:
-                argo_spec['spec']['arguments'] = {}
-            if 'parameters' not in argo_spec['spec']['arguments']:
-                argo_spec['spec']['arguments']['parameters'] = []
-
-            # Create a map of existing parameters for easy lookup
-            existing_params = {}
-            for param in argo_spec['spec']['arguments']['parameters']:
-                if isinstance(param, dict) and 'name' in param:
-                    existing_params[param['name']] = param
-
-            # Validate and merge override parameters
-            for override_param in override_parameters:
-                param_name = override_param.name
-                param_value = override_param.value
-
-                # Validation: Ensure parameter value is a string (Argo requirement)
-                if not isinstance(param_value, str):
-                    raise UserError(f"Parameter '{param_name}' value must be a string. Received: {type(param_value).__name__}")
-
-                # Validation: Parameter must exist in the PipelineVersion spec
-                if param_name not in existing_params:
-                    raise UserError(f"Unknown parameter '{param_name}'. Parameter must exist in the PipelineVersion orchestration spec.")
-
-                # Update existing parameter
-                existing_params[param_name]['value'] = param_value
-                logger.info(f"Updated workflow parameter '{param_name}' to '{param_value}'")
-
-            # Convert back to JSON and update the orchestration spec
-            updated_json = json.dumps(argo_spec, separators=(',', ':'))
-            orchestration_spec.argo_orchestration_spec.spec_json = updated_json
-
-        except UserError:
-            # Re-raise validation errors so they reach the user
-            raise
-        except Exception as e:
-            logger.error(f"Failed to merge parameters into orchestration spec: {e}")
-            # Don't raise non-validation errors - proceed with the original spec
