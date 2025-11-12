@@ -142,15 +142,9 @@ class Pipeline(Lister, BaseClient):
 
         logger.info(f"Starting pipeline run for pipeline {self.pipeline_id}")
 
-        # Log the entire request for debugging
-        logger.info(f"PostPipelineVersionRuns request::: {json_format.MessageToDict(run_request, preserving_proto_field_name=True)}")
-
         response = self.STUB.PostPipelineVersionRuns(
             run_request, metadata=self.auth_helper.metadata
         )
-
-        # Log the entire response for debugging
-        logger.info(f"PostPipelineVersionRuns response::: {json_format.MessageToDict(response, preserving_proto_field_name=True)}")
 
         if response.status.code != status_code_pb2.StatusCode.SUCCESS:
             if response.status.code == status_code_pb2.StatusCode.CONN_DOES_NOT_EXIST:
