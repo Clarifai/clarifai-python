@@ -1109,7 +1109,9 @@ class TestPipelineRunCommand:
                 base_url='https://api.clarifai.com',
                 log_file=None,
             )
-            mock_pipeline.run.assert_called_once_with(timeout=300, monitor_interval=5)
+            mock_pipeline.run.assert_called_once_with(
+                timeout=300, monitor_interval=5, input_args_override=None
+            )
 
     @patch('clarifai.client.pipeline.Pipeline')
     @patch('clarifai.utils.cli.validate_context')
@@ -1161,7 +1163,9 @@ class TestPipelineRunCommand:
                 compute_cluster_id='test-cluster',
                 log_file=None,
             )
-            mock_pipeline.run.assert_called_once_with(timeout=3600, monitor_interval=10)
+            mock_pipeline.run.assert_called_once_with(
+                timeout=3600, monitor_interval=10, input_args_override=None
+            )
 
     def test_run_command_missing_required_args(self):
         """Test that run command fails when required arguments are missing."""
@@ -1258,7 +1262,9 @@ class TestPipelineRunCommand:
                 base_url='https://api.clarifai.com',
                 log_file=None,
             )
-            mock_pipeline.run.assert_called_once_with(timeout=3600, monitor_interval=10)
+            mock_pipeline.run.assert_called_once_with(
+                timeout=3600, monitor_interval=10, input_args_override=None
+            )
 
     @patch('clarifai.client.pipeline.Pipeline')
     @patch('clarifai.utils.cli.validate_context')

@@ -43,10 +43,16 @@ class TestPipelineRunCommandInputArgsOverride:
                 [
                     '--pipeline_id',
                     'test-pipeline',
+                    '--pipeline_version_id',
+                    'test-version-123',
                     '--user_id',
                     'test-user',
                     '--app_id',
                     'test-app',
+                    '--nodepool_id',
+                    'test-nodepool',
+                    '--compute_cluster_id',
+                    'test-cluster',
                     '--set',
                     'prompt=Summarize this text',
                     '--set',
@@ -120,10 +126,16 @@ class TestPipelineRunCommandInputArgsOverride:
                 [
                     '--pipeline_id',
                     'test-pipeline',
+                    '--pipeline_version_id',
+                    'test-version-123',
                     '--user_id',
                     'test-user',
                     '--app_id',
                     'test-app',
+                    '--nodepool_id',
+                    'test-nodepool',
+                    '--compute_cluster_id',
+                    'test-cluster',
                     '--overrides-file',
                     'overrides.json',
                 ],
@@ -197,10 +209,16 @@ class TestPipelineRunCommandInputArgsOverride:
                 [
                     '--pipeline_id',
                     'test-pipeline',
+                    '--pipeline_version_id',
+                    'test-version-123',
                     '--user_id',
                     'test-user',
                     '--app_id',
                     'test-app',
+                    '--nodepool_id',
+                    'test-nodepool',
+                    '--compute_cluster_id',
+                    'test-cluster',
                     '--overrides-file',
                     'overrides.yaml',
                 ],
@@ -250,6 +268,9 @@ class TestPipelineRunCommandInputArgsOverride:
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
 
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
         class MockConfig:
             def __init__(self):
                 self.current = MockContext()
@@ -269,10 +290,16 @@ class TestPipelineRunCommandInputArgsOverride:
                 [
                     '--pipeline_id',
                     'test-pipeline',
+                    '--pipeline_version_id',
+                    'test-version-123',
                     '--user_id',
                     'test-user',
                     '--app_id',
                     'test-app',
+                    '--nodepool_id',
+                    'test-nodepool',
+                    '--compute_cluster_id',
+                    'test-cluster',
                     '--overrides-file',
                     'overrides.json',
                     '--set',
@@ -309,6 +336,9 @@ class TestPipelineRunCommandInputArgsOverride:
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
 
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
         class MockConfig:
             def __init__(self):
                 self.current = MockContext()
@@ -320,10 +350,16 @@ class TestPipelineRunCommandInputArgsOverride:
             [
                 '--pipeline_id',
                 'test-pipeline',
+                '--pipeline_version_id',
+                'test-version-123',
                 '--user_id',
                 'test-user',
                 '--app_id',
                 'test-app',
+                '--nodepool_id',
+                'test-nodepool',
+                '--compute_cluster_id',
+                'test-cluster',
                 '--set',
                 'invalid_format_no_equals',  # Missing =
             ],
@@ -343,6 +379,9 @@ class TestPipelineRunCommandInputArgsOverride:
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
 
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
         class MockConfig:
             def __init__(self):
                 self.current = MockContext()
@@ -359,10 +398,16 @@ class TestPipelineRunCommandInputArgsOverride:
                 [
                     '--pipeline_id',
                     'test-pipeline',
+                    '--pipeline_version_id',
+                    'test-version-123',
                     '--user_id',
                     'test-user',
                     '--app_id',
                     'test-app',
+                    '--nodepool_id',
+                    'test-nodepool',
+                    '--compute_cluster_id',
+                    'test-cluster',
                     '--overrides-file',
                     'invalid.json',
                 ],
@@ -391,6 +436,9 @@ class TestPipelineRunCommandInputArgsOverride:
                 self.pat = 'test-pat'
                 self.api_base = 'https://api.clarifai.com'
 
+            def get(self, key, default=None):
+                return getattr(self, key, default)
+
         class MockConfig:
             def __init__(self):
                 self.current = MockContext()
@@ -399,7 +447,20 @@ class TestPipelineRunCommandInputArgsOverride:
 
         result = runner.invoke(
             run,
-            ['--pipeline_id', 'test-pipeline', '--user_id', 'test-user', '--app_id', 'test-app'],
+            [
+                '--pipeline_id',
+                'test-pipeline',
+                '--pipeline_version_id',
+                'test-version-123',
+                '--user_id',
+                'test-user',
+                '--app_id',
+                'test-app',
+                '--nodepool_id',
+                'test-nodepool',
+                '--compute_cluster_id',
+                'test-cluster',
+            ],
             obj=ctx_obj,
         )
 
