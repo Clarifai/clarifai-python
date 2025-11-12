@@ -35,7 +35,7 @@ class TestPipelineInputArgsOverride:
             argo_args_override=resources_pb2.ArgoArgsOverride(
                 parameters=[
                     resources_pb2.ArgoParameterOverride(name="prompt", value="Updated prompt"),
-                    resources_pb2.ArgoParameterOverride(name="model", value="gpt-3.5-turbo")
+                    resources_pb2.ArgoParameterOverride(name="model", value="gpt-3.5-turbo"),
                 ]
             )
         )
@@ -66,10 +66,22 @@ class TestPipelineInputArgsOverride:
         pipeline_version_run = call_args.pipeline_version_runs[0]
 
         # Verify input_args_override is set correctly
-        assert pipeline_version_run.input_args_override.argo_args_override.parameters[0].name == "prompt"
-        assert pipeline_version_run.input_args_override.argo_args_override.parameters[0].value == "Updated prompt"
-        assert pipeline_version_run.input_args_override.argo_args_override.parameters[1].name == "model"
-        assert pipeline_version_run.input_args_override.argo_args_override.parameters[1].value == "gpt-3.5-turbo"
+        assert (
+            pipeline_version_run.input_args_override.argo_args_override.parameters[0].name
+            == "prompt"
+        )
+        assert (
+            pipeline_version_run.input_args_override.argo_args_override.parameters[0].value
+            == "Updated prompt"
+        )
+        assert (
+            pipeline_version_run.input_args_override.argo_args_override.parameters[1].name
+            == "model"
+        )
+        assert (
+            pipeline_version_run.input_args_override.argo_args_override.parameters[1].value
+            == "gpt-3.5-turbo"
+        )
 
         # Verify that no orchestration_spec is set in the request (readonly field)
         assert not pipeline_version_run.HasField('orchestration_spec')

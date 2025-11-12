@@ -100,7 +100,13 @@ class Pipeline(Lister, BaseClient):
                 nodepool_id=self.nodepool_id,
             )
 
-    def run(self, inputs: List = None, timeout: int = 3600, monitor_interval: int = 10, input_args_override: Optional["resources_pb2.OrchestrationArgsOverride"] = None) -> Dict:
+    def run(
+        self,
+        inputs: List = None,
+        timeout: int = 3600,
+        monitor_interval: int = 10,
+        input_args_override: Optional["resources_pb2.OrchestrationArgsOverride"] = None,
+    ) -> Dict:
         """Run the pipeline and monitor its progress.
 
         Args:

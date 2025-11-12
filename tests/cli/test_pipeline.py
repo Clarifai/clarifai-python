@@ -1038,7 +1038,9 @@ class TestPipelineInitCommand:
                                 step_found = True
                                 break
 
-            assert step_found, "Expected to find template references to workflow parameters in step arguments"
+            assert step_found, (
+                "Expected to find template references to workflow parameters in step arguments"
+            )
 
 
 class TestPipelineRunCommand:

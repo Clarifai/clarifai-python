@@ -230,6 +230,7 @@ def run(
                     file_overrides = from_yaml(overrides_file)
                 else:  # assume JSON
                     import json
+
                     with open(overrides_file, 'r') as f:
                         file_overrides = json.load(f)
 
@@ -248,15 +249,15 @@ def run(
         if all_overrides:
             parameters = []
             for key, value in all_overrides.items():
-                parameters.append(resources_pb2.ArgoParameterOverride(
-                    name=key,
-                    value=str(value)  # Argo parameters are always strings
-                ))
+                parameters.append(
+                    resources_pb2.ArgoParameterOverride(
+                        name=key,
+                        value=str(value),  # Argo parameters are always strings
+                    )
+                )
 
             input_args_override = resources_pb2.OrchestrationArgsOverride(
-                argo_args_override=resources_pb2.ArgoArgsOverride(
-                    parameters=parameters
-                )
+                argo_args_override=resources_pb2.ArgoArgsOverride(parameters=parameters)
             )
 
     if monitor:
@@ -264,7 +265,11 @@ def run(
         result = pipeline.monitor_only(timeout=timeout, monitor_interval=monitor_interval)
     else:
         # Start new pipeline run and monitor it
-        result = pipeline.run(timeout=timeout, monitor_interval=monitor_interval, input_args_override=input_args_override)
+        result = pipeline.run(
+            timeout=timeout,
+            monitor_interval=monitor_interval,
+            input_args_override=input_args_override,
+        )
     click.echo(json.dumps(result, indent=2, default=str))
 
 

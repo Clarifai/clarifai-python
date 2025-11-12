@@ -41,11 +41,16 @@ class TestPipelineRunCommandInputArgsOverride:
             result = runner.invoke(
                 run,
                 [
-                    '--pipeline_id', 'test-pipeline',
-                    '--user_id', 'test-user',
-                    '--app_id', 'test-app',
-                    '--set', 'prompt=Summarize this text',
-                    '--set', 'model=gpt-4'
+                    '--pipeline_id',
+                    'test-pipeline',
+                    '--user_id',
+                    'test-user',
+                    '--app_id',
+                    'test-app',
+                    '--set',
+                    'prompt=Summarize this text',
+                    '--set',
+                    'model=gpt-4',
                 ],
                 obj=ctx_obj,
             )
@@ -68,13 +73,17 @@ class TestPipelineRunCommandInputArgsOverride:
             input_args_override = call_kwargs['input_args_override']
             assert input_args_override is not None
             assert input_args_override.argo_args_override.parameters[0].name == 'prompt'
-            assert input_args_override.argo_args_override.parameters[0].value == 'Summarize this text'
+            assert (
+                input_args_override.argo_args_override.parameters[0].value == 'Summarize this text'
+            )
             assert input_args_override.argo_args_override.parameters[1].name == 'model'
             assert input_args_override.argo_args_override.parameters[1].value == 'gpt-4'
 
     @patch('clarifai.client.pipeline.Pipeline')
     @patch('clarifai.utils.cli.validate_context')
-    def test_run_command_with_overrides_file_json(self, mock_validate_context, mock_pipeline_class):
+    def test_run_command_with_overrides_file_json(
+        self, mock_validate_context, mock_pipeline_class
+    ):
         """Test run command with --overrides-file (JSON format)."""
         # Mock the pipeline instance
         mock_pipeline = Mock()
@@ -99,10 +108,7 @@ class TestPipelineRunCommandInputArgsOverride:
         ctx_obj = MockConfig()
 
         # Create a temporary overrides file
-        overrides_data = {
-            "prompt": "Analyze this document",
-            "temperature": "0.7"
-        }
+        overrides_data = {"prompt": "Analyze this document", "temperature": "0.7"}
 
         with runner.isolated_filesystem():
             # Write overrides file
@@ -112,10 +118,14 @@ class TestPipelineRunCommandInputArgsOverride:
             result = runner.invoke(
                 run,
                 [
-                    '--pipeline_id', 'test-pipeline',
-                    '--user_id', 'test-user',
-                    '--app_id', 'test-app',
-                    '--overrides-file', 'overrides.json'
+                    '--pipeline_id',
+                    'test-pipeline',
+                    '--user_id',
+                    'test-user',
+                    '--app_id',
+                    'test-app',
+                    '--overrides-file',
+                    'overrides.json',
                 ],
                 obj=ctx_obj,
             )
@@ -136,16 +146,18 @@ class TestPipelineRunCommandInputArgsOverride:
 
             # Check parameters (order might vary)
             param_map = {
-                param.name: param.value 
+                param.name: param.value
                 for param in input_args_override.argo_args_override.parameters
             }
             assert param_map['prompt'] == 'Analyze this document'
             assert param_map['temperature'] == '0.7'
 
     @patch('clarifai.client.pipeline.Pipeline')
-    @patch('clarifai.utils.cli.validate_context') 
+    @patch('clarifai.utils.cli.validate_context')
     @patch('clarifai.utils.cli.from_yaml')
-    def test_run_command_with_overrides_file_yaml(self, mock_from_yaml, mock_validate_context, mock_pipeline_class):
+    def test_run_command_with_overrides_file_yaml(
+        self, mock_from_yaml, mock_validate_context, mock_pipeline_class
+    ):
         """Test run command with --overrides-file (YAML format)."""
         # Mock the pipeline instance
         mock_pipeline = Mock()
@@ -155,7 +167,7 @@ class TestPipelineRunCommandInputArgsOverride:
         # Mock YAML loading
         mock_from_yaml.return_value = {
             "system_prompt": "You are a helpful assistant",
-            "max_tokens": "150"
+            "max_tokens": "150",
         }
 
         runner = CliRunner()
@@ -183,10 +195,14 @@ class TestPipelineRunCommandInputArgsOverride:
             result = runner.invoke(
                 run,
                 [
-                    '--pipeline_id', 'test-pipeline',
-                    '--user_id', 'test-user',
-                    '--app_id', 'test-app',
-                    '--overrides-file', 'overrides.yaml'
+                    '--pipeline_id',
+                    'test-pipeline',
+                    '--user_id',
+                    'test-user',
+                    '--app_id',
+                    'test-app',
+                    '--overrides-file',
+                    'overrides.yaml',
                 ],
                 obj=ctx_obj,
             )
@@ -209,7 +225,7 @@ class TestPipelineRunCommandInputArgsOverride:
 
             # Check parameters
             param_map = {
-                param.name: param.value 
+                param.name: param.value
                 for param in input_args_override.argo_args_override.parameters
             }
             assert param_map['system_prompt'] == 'You are a helpful assistant'
@@ -217,7 +233,9 @@ class TestPipelineRunCommandInputArgsOverride:
 
     @patch('clarifai.client.pipeline.Pipeline')
     @patch('clarifai.utils.cli.validate_context')
-    def test_run_command_set_overrides_precedence(self, mock_validate_context, mock_pipeline_class):
+    def test_run_command_set_overrides_precedence(
+        self, mock_validate_context, mock_pipeline_class
+    ):
         """Test that --set parameters take precedence over --overrides-file."""
         # Mock the pipeline instance
         mock_pipeline = Mock()
@@ -239,10 +257,7 @@ class TestPipelineRunCommandInputArgsOverride:
         ctx_obj = MockConfig()
 
         # Create file with conflicting parameter
-        overrides_data = {
-            "prompt": "File prompt",
-            "model": "file-model"
-        }
+        overrides_data = {"prompt": "File prompt", "model": "file-model"}
 
         with runner.isolated_filesystem():
             # Write overrides file
@@ -252,11 +267,16 @@ class TestPipelineRunCommandInputArgsOverride:
             result = runner.invoke(
                 run,
                 [
-                    '--pipeline_id', 'test-pipeline',
-                    '--user_id', 'test-user',
-                    '--app_id', 'test-app',
-                    '--overrides-file', 'overrides.json',
-                    '--set', 'prompt=CLI prompt override'  # Should override file value
+                    '--pipeline_id',
+                    'test-pipeline',
+                    '--user_id',
+                    'test-user',
+                    '--app_id',
+                    'test-app',
+                    '--overrides-file',
+                    'overrides.json',
+                    '--set',
+                    'prompt=CLI prompt override',  # Should override file value
                 ],
                 obj=ctx_obj,
             )
@@ -270,7 +290,7 @@ class TestPipelineRunCommandInputArgsOverride:
             # Verify the override parameters
             input_args_override = call_kwargs['input_args_override']
             param_map = {
-                param.name: param.value 
+                param.name: param.value
                 for param in input_args_override.argo_args_override.parameters
             }
 
@@ -298,10 +318,14 @@ class TestPipelineRunCommandInputArgsOverride:
         result = runner.invoke(
             run,
             [
-                '--pipeline_id', 'test-pipeline',
-                '--user_id', 'test-user',
-                '--app_id', 'test-app',
-                '--set', 'invalid_format_no_equals'  # Missing = 
+                '--pipeline_id',
+                'test-pipeline',
+                '--user_id',
+                'test-user',
+                '--app_id',
+                'test-app',
+                '--set',
+                'invalid_format_no_equals',  # Missing =
             ],
             obj=ctx_obj,
         )
@@ -333,10 +357,14 @@ class TestPipelineRunCommandInputArgsOverride:
             result = runner.invoke(
                 run,
                 [
-                    '--pipeline_id', 'test-pipeline',
-                    '--user_id', 'test-user',
-                    '--app_id', 'test-app',
-                    '--overrides-file', 'invalid.json'
+                    '--pipeline_id',
+                    'test-pipeline',
+                    '--user_id',
+                    'test-user',
+                    '--app_id',
+                    'test-app',
+                    '--overrides-file',
+                    'invalid.json',
                 ],
                 obj=ctx_obj,
             )
@@ -346,7 +374,9 @@ class TestPipelineRunCommandInputArgsOverride:
 
     @patch('clarifai.client.pipeline.Pipeline')
     @patch('clarifai.utils.cli.validate_context')
-    def test_run_command_without_overrides_succeeds(self, mock_validate_context, mock_pipeline_class):
+    def test_run_command_without_overrides_succeeds(
+        self, mock_validate_context, mock_pipeline_class
+    ):
         """Test that run command works without any override parameters."""
         # Mock the pipeline instance
         mock_pipeline = Mock()
@@ -369,11 +399,7 @@ class TestPipelineRunCommandInputArgsOverride:
 
         result = runner.invoke(
             run,
-            [
-                '--pipeline_id', 'test-pipeline',
-                '--user_id', 'test-user',
-                '--app_id', 'test-app'
-            ],
+            ['--pipeline_id', 'test-pipeline', '--user_id', 'test-user', '--app_id', 'test-app'],
             obj=ctx_obj,
         )
 
