@@ -386,23 +386,21 @@ class PipelineBuilder:
             step_version_secrets: Dictionary mapping step references to their secret configs
                                  Format: {step_ref: {secret_name: secret_path}}
         """
-        logger.debug(f"Processing step version secrets for {len(step_version_secrets)} steps")
-
         for step_ref, step_config in step_version_secrets.items():
             # Note: 'step_config' contains the secret mappings directly (not nested under 'secrets')
             # Secret references are like "users/user123/secrets/my-api-key"
             if not step_config:
-                logger.debug(f"No secret references found for step {step_ref}, skipping")
                 continue
 
-            # Create StepSecretConfig proto
-            step_secret_config = resources_pb2.StepSecretConfig()
-            for secret_name, secret_ref in step_config.items():
-                step_secret_config.secrets[secret_name] = secret_ref
+            # Create Struct for the step secrets (new proto format)
+            # Using google.protobuf.Struct to create flat JSON structure: {secretName: secretPath}
+            from google.protobuf.struct_pb2 import Struct
 
-            # Add to pipeline version config
-            pipeline_version.config.step_version_secrets[step_ref].CopyFrom(step_secret_config)
-            logger.debug(f"Configured secret references for step {step_ref}")
+            step_secrets_struct = Struct()
+            step_secrets_struct.update(step_config)
+
+            # Add to pipeline version config using the new proto format
+            pipeline_version.config.step_version_secrets[step_ref].CopyFrom(step_secrets_struct)
 
     def create_pipeline(self) -> tuple[bool, str]:
         """Create the pipeline using PostPipelines RPC.
@@ -439,7 +437,18 @@ class PipelineBuilder:
             # Create Argo orchestration spec proto
             argo_orchestration_spec_proto = resources_pb2.ArgoOrchestrationSpec()
             argo_orchestration_spec_proto.api_version = api_version
-            argo_orchestration_spec_proto.spec_json = json.dumps(argo_spec)
+
+            argo_spec_json_str = json.dumps(argo_spec)
+
+            # Validate JSON string before setting
+            try:
+                # Test that we can parse it back
+                test_parse = json.loads(argo_spec_json_str)
+            except json.JSONDecodeError as json_error:
+                logger.error(f"Argo spec JSON validation failed: {json_error}")
+                raise
+
+            argo_orchestration_spec_proto.spec_json = argo_spec_json_str
 
             orchestration_spec_proto.argo_orchestration_spec.CopyFrom(
                 argo_orchestration_spec_proto
@@ -455,12 +464,13 @@ class PipelineBuilder:
 
             pipeline.pipeline_version.CopyFrom(pipeline_version)
 
-            # Make the RPC call
-            response = self.client.STUB.PostPipelines(
-                service_pb2.PostPipelinesRequest(
-                    user_app_id=self.client.user_app_id, pipelines=[pipeline]
-                )
+            # Create the request object
+            post_request = service_pb2.PostPipelinesRequest(
+                user_app_id=self.client.user_app_id, pipelines=[pipeline]
             )
+
+            # Make the RPC call
+            response = self.client.STUB.PostPipelines(post_request)
 
             if response.status.code == status_code_pb2.SUCCESS:
                 logger.info(f"Successfully created pipeline {self.pipeline_id}")
@@ -482,6 +492,17 @@ class PipelineBuilder:
 
         except Exception as e:
             logger.error(f"Error creating pipeline: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            # Log additional details if it's a gRPC error
+            if hasattr(e, 'code') and hasattr(e, 'details'):
+                logger.error(f"gRPC status code: {e.code()}")
+                logger.error(f"gRPC details: {e.details()}")
+            if hasattr(e, 'debug_error_string'):
+                logger.error(f"gRPC debug error string: {e.debug_error_string()}")
+            # Log stack trace for debugging
+            import traceback
+
+            logger.error(f"Stack trace: {traceback.format_exc()}")
             return False, ""
 
 

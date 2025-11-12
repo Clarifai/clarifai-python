@@ -116,11 +116,16 @@ spec:
             assert "step-0" in pipeline_version.config.step_version_secrets
             assert "step-1" in pipeline_version.config.step_version_secrets
 
-            step0_secrets = pipeline_version.config.step_version_secrets["step-0"].secrets
+            # With new proto format using google.protobuf.Struct, secrets are directly accessible
+            from google.protobuf import json_format
+
+            step0_secrets_struct = pipeline_version.config.step_version_secrets["step-0"]
+            step0_secrets = json_format.MessageToDict(step0_secrets_struct)
             assert step0_secrets["API_KEY"] == "users/test-user/secrets/my-api-key"
             assert step0_secrets["DB_PASSWORD"] == "users/test-user/secrets/db-secret"
 
-            step1_secrets = pipeline_version.config.step_version_secrets["step-1"].secrets
+            step1_secrets_struct = pipeline_version.config.step_version_secrets["step-1"]
+            step1_secrets = json_format.MessageToDict(step1_secrets_struct)
             assert step1_secrets["EMAIL_TOKEN"] == "users/test-user/secrets/email-token"
         finally:
             Path(config_path).unlink()
@@ -248,9 +253,14 @@ spec:
                 pipeline = request.pipelines[0]
                 assert pipeline.pipeline_version.HasField("config")
                 assert "step-0" in pipeline.pipeline_version.config.step_version_secrets
-                step_secrets = pipeline.pipeline_version.config.step_version_secrets[
+
+                # With new proto format using google.protobuf.Struct, secrets are directly accessible
+                from google.protobuf import json_format
+
+                step_secrets_struct = pipeline.pipeline_version.config.step_version_secrets[
                     "step-0"
-                ].secrets
+                ]
+                step_secrets = json_format.MessageToDict(step_secrets_struct)
                 assert step_secrets["API_KEY"] == "users/test-user/secrets/my-api-key"
                 assert step_secrets["DB_PASSWORD"] == "users/test-user/secrets/db-secret"
         finally:

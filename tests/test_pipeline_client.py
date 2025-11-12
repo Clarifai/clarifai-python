@@ -356,11 +356,17 @@ class TestPipelineClient:
         pipeline_version = resources_pb2.PipelineVersion()
         pipeline_version.id = 'test-version-123'
 
-        # Add step secrets
-        step_secret_config = resources_pb2.StepSecretConfig()
-        step_secret_config.secrets['API_KEY'] = 'users/test-user/secrets/my-api-key'
-        step_secret_config.secrets['DB_PASSWORD'] = 'users/test-user/secrets/db-secret'
-        pipeline_version.config.step_version_secrets['step-0'].CopyFrom(step_secret_config)
+        # Add step secrets using new proto format (google.protobuf.Struct)
+        from google.protobuf.struct_pb2 import Struct
+
+        step_secrets_struct = Struct()
+        step_secrets_struct.update(
+            {
+                'API_KEY': 'users/test-user/secrets/my-api-key',
+                'DB_PASSWORD': 'users/test-user/secrets/db-secret',
+            }
+        )
+        pipeline_version.config.step_version_secrets['step-0'].CopyFrom(step_secrets_struct)
 
         mock_response.pipeline_version = pipeline_version
         pipeline.STUB.GetPipelineVersion.return_value = mock_response
@@ -373,9 +379,10 @@ class TestPipelineClient:
         assert 'config' in result
         assert 'step_version_secrets' in result['config']
         assert 'step-0' in result['config']['step_version_secrets']
-        secrets = result['config']['step_version_secrets']['step-0']['secrets']
-        assert secrets['API_KEY'] == 'users/test-user/secrets/my-api-key'
-        assert secrets['DB_PASSWORD'] == 'users/test-user/secrets/db-secret'
+        # With new proto format, secrets are directly in the step config
+        step_secrets = result['config']['step_version_secrets']['step-0']
+        assert step_secrets['API_KEY'] == 'users/test-user/secrets/my-api-key'
+        assert step_secrets['DB_PASSWORD'] == 'users/test-user/secrets/db-secret'
 
     @patch('clarifai.client.pipeline.BaseClient.__init__')
     def test_create_pipeline_version_with_step_secrets(self, mock_init):
@@ -435,10 +442,13 @@ spec:
         pv = request.pipeline_versions[0]
         assert 'step-0' in pv.config.step_version_secrets
         assert 'step-1' in pv.config.step_version_secrets
-        assert (
-            pv.config.step_version_secrets['step-0'].secrets['API_KEY']
-            == 'users/test-user/secrets/my-api-key'
-        )
+
+        # With new proto format using google.protobuf.Struct, secrets are directly accessible
+        from google.protobuf import json_format
+
+        step0_secrets_struct = pv.config.step_version_secrets['step-0']
+        step0_secrets = json_format.MessageToDict(step0_secrets_struct)
+        assert step0_secrets['API_KEY'] == 'users/test-user/secrets/my-api-key'
 
     @patch('clarifai.client.pipeline.BaseClient.__init__')
     def test_list_step_secrets(self, mock_init):
@@ -466,14 +476,16 @@ spec:
         pipeline_version = resources_pb2.PipelineVersion()
         pipeline_version.id = 'test-version-123'
 
-        # Add step secrets for multiple steps
-        step_secret_config_0 = resources_pb2.StepSecretConfig()
-        step_secret_config_0.secrets['API_KEY'] = 'users/test-user/secrets/my-api-key'
-        pipeline_version.config.step_version_secrets['step-0'].CopyFrom(step_secret_config_0)
+        # Add step secrets for multiple steps using new proto format (google.protobuf.Struct)
+        from google.protobuf.struct_pb2 import Struct
 
-        step_secret_config_1 = resources_pb2.StepSecretConfig()
-        step_secret_config_1.secrets['EMAIL_TOKEN'] = 'users/test-user/secrets/email-token'
-        pipeline_version.config.step_version_secrets['step-1'].CopyFrom(step_secret_config_1)
+        step_secrets_struct_0 = Struct()
+        step_secrets_struct_0.update({'API_KEY': 'users/test-user/secrets/my-api-key'})
+        pipeline_version.config.step_version_secrets['step-0'].CopyFrom(step_secrets_struct_0)
+
+        step_secrets_struct_1 = Struct()
+        step_secrets_struct_1.update({'EMAIL_TOKEN': 'users/test-user/secrets/email-token'})
+        pipeline_version.config.step_version_secrets['step-1'].CopyFrom(step_secrets_struct_1)
 
         mock_response.pipeline_version = pipeline_version
         pipeline.STUB.GetPipelineVersion.return_value = mock_response

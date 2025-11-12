@@ -405,15 +405,18 @@ class Pipeline(Lister, BaseClient):
             )
             pipeline_version.orchestration_spec.CopyFrom(orchestration_spec_proto)
 
-        # Add step_version_secrets if provided
+        # Add step_version_secrets if provided (updated for new proto format)
         if step_version_secrets:
+            from google.protobuf.struct_pb2 import Struct
+
             for step_ref, secrets in step_version_secrets.items():
                 if not secrets:
                     continue
-                step_secret_config = resources_pb2.StepSecretConfig()
-                for secret_name, secret_path in secrets.items():
-                    step_secret_config.secrets[secret_name] = secret_path
-                pipeline_version.config.step_version_secrets[step_ref].CopyFrom(step_secret_config)
+                step_secrets_struct = Struct()
+                step_secrets_struct.update(secrets)
+                pipeline_version.config.step_version_secrets[step_ref].CopyFrom(
+                    step_secrets_struct
+                )
 
         # Make the API call using PatchPipelineVersions
         # This creates a new version for an existing pipeline
@@ -482,13 +485,12 @@ class Pipeline(Lister, BaseClient):
 
         if step_ref:
             # Return only the specified step's secrets
-            # Proto response has nested 'secrets' field in StepSecretConfig
-            return {step_ref: step_version_secrets.get(step_ref, {}).get("secrets", {})}
+            # With new proto format, secrets are directly in the step config (no nested 'secrets' field)
+            return {step_ref: step_version_secrets.get(step_ref, {})}
 
         # Return all step secrets
-        # Extract the 'secrets' dict from each step's StepSecretConfig
+        # With new proto format using Struct, secrets are directly accessible
         result = {}
         for step, step_config in step_version_secrets.items():
-            result[step] = step_config.get("secrets", {})
-        return result
+            result[step] = step_config if isinstance(step_config, dict) else {}
         return result
