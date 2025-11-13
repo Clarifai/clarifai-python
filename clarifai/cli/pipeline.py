@@ -84,6 +84,17 @@ def upload(path, no_lockfile):
     default=False,
     help='Monitor an existing pipeline run instead of starting a new one. Requires pipeline_version_run_id.',
 )
+@click.option(
+    '--set',
+    'override_params',
+    multiple=True,
+    help='Override parameter values inline. Format: --set key=value. Can be used multiple times.',
+)
+@click.option(
+    '--overrides-file',
+    type=click.Path(exists=True),
+    help='Path to JSON/YAML file containing parameter overrides.',
+)
 @click.pass_context
 def run(
     ctx,
@@ -100,6 +111,8 @@ def run(
     monitor_interval,
     log_file,
     monitor,
+    override_params,
+    overrides_file,
 ):
     """Run a pipeline and monitor its progress."""
     import json
@@ -200,12 +213,63 @@ def run(
             log_file=log_file,
         )
 
+    # Process input argument overrides
+    input_args_override = None
+    if override_params or overrides_file:
+        from clarifai_grpc.grpc.api import resources_pb2
+
+        # Start with an empty dict for all overrides
+        all_overrides = {}
+
+        # Load overrides from file if provided
+        if overrides_file:
+            from clarifai.utils.cli import from_yaml
+
+            try:
+                if overrides_file.endswith(('.yaml', '.yml')):
+                    file_overrides = from_yaml(overrides_file)
+                else:  # assume JSON
+                    import json
+
+                    with open(overrides_file, 'r') as f:
+                        file_overrides = json.load(f)
+
+                all_overrides.update(file_overrides)
+            except Exception as e:
+                raise ValueError(f"Failed to load overrides file {overrides_file}: {e}")
+
+        # Process inline --set parameters (these take precedence over file)
+        for param in override_params:
+            if '=' not in param:
+                raise ValueError(f"Invalid --set format: {param}. Expected format: key=value")
+            key, value = param.split('=', 1)
+            all_overrides[key] = value
+
+        # Build the OrchestrationArgsOverride proto if we have any overrides
+        if all_overrides:
+            parameters = []
+            for key, value in all_overrides.items():
+                parameters.append(
+                    resources_pb2.ArgoParameterOverride(
+                        name=key,
+                        value=str(value),  # Argo parameters are always strings
+                    )
+                )
+
+            input_args_override = resources_pb2.OrchestrationArgsOverride(
+                argo_args_override=resources_pb2.ArgoArgsOverride(parameters=parameters)
+            )
+
     if monitor:
         # Monitor existing pipeline run instead of starting new one
         result = pipeline.monitor_only(timeout=timeout, monitor_interval=monitor_interval)
     else:
         # Start new pipeline run and monitor it
-        result = pipeline.run(timeout=timeout, monitor_interval=monitor_interval)
+        result = pipeline.run(
+            timeout=timeout,
+            monitor_interval=monitor_interval,
+            input_args_override=input_args_override,
+        )
     click.echo(json.dumps(result, indent=2, default=str))
 
 
