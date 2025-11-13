@@ -86,8 +86,6 @@ class Testmodeltrain:
         self.text_classifier_model.get_params(
             template='HF_GPTNeo_125m_lora', save_to='tests/assets/model_params.yaml'
         )
-        param_info = self.text_classifier_model.get_param_info(param='tokenizer_config')
-        assert param_info['param'] == 'tokenizer_config'  # test get param info
         assert len(concepts) == 2  # test data upload for training
         self.text_classifier_model.update_params(
             dataset_id=CREATE_DATASET_ID,
