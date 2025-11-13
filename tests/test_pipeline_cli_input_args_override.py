@@ -367,7 +367,7 @@ class TestPipelineRunCommandInputArgsOverride:
         )
 
         assert result.exit_code != 0
-        assert "Invalid --set format" in result.output
+        assert "Invalid --set format" in str(result.exception)
 
     def test_run_command_invalid_overrides_file(self):
         """Test run command with invalid --overrides-file."""
@@ -415,7 +415,7 @@ class TestPipelineRunCommandInputArgsOverride:
             )
 
             assert result.exit_code != 0
-            assert "Failed to load overrides file" in result.output
+            assert "Failed to load overrides file" in str(result.exception)
 
     @patch('clarifai.client.pipeline.Pipeline')
     @patch('clarifai.utils.cli.validate_context')
