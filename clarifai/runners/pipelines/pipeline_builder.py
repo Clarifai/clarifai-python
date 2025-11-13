@@ -492,17 +492,6 @@ class PipelineBuilder:
 
         except Exception as e:
             logger.error(f"Error creating pipeline: {e}")
-            logger.error(f"Exception type: {type(e).__name__}")
-            # Log additional details if it's a gRPC error
-            if hasattr(e, 'code') and hasattr(e, 'details'):
-                logger.error(f"gRPC status code: {e.code()}")
-                logger.error(f"gRPC details: {e.details()}")
-            if hasattr(e, 'debug_error_string'):
-                logger.error(f"gRPC debug error string: {e.debug_error_string()}")
-            # Log stack trace for debugging
-            import traceback
-
-            logger.error(f"Stack trace: {traceback.format_exc()}")
             return False, ""
 
 
