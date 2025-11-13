@@ -25,7 +25,7 @@ def get_pipeline_config_template(
               arguments:
                 parameters:
                   - name: input_text
-                    value: "Input Text Here\"""")
+                    value: "{{{{workflow.parameters.input_text}}}}\"""")
 
     steps_yaml = "\n".join(step_templates)
 
@@ -41,6 +41,10 @@ def get_pipeline_config_template(
       kind: Workflow
       spec:
         entrypoint: sequence
+        arguments:
+          parameters:
+            - name: input_text
+              value: "Input Text Here"
         templates:
         - name: sequence
           steps:
