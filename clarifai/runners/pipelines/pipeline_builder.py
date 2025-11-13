@@ -464,13 +464,12 @@ class PipelineBuilder:
 
             pipeline.pipeline_version.CopyFrom(pipeline_version)
 
-            # Create the request object
-            post_request = service_pb2.PostPipelinesRequest(
-                user_app_id=self.client.user_app_id, pipelines=[pipeline]
-            )
-
             # Make the RPC call
-            response = self.client.STUB.PostPipelines(post_request)
+            response = self.client.STUB.PostPipelines(
+                service_pb2.PostPipelinesRequest(
+                    user_app_id=self.client.user_app_id, pipelines=[pipeline]
+                )
+            )
 
             if response.status.code == status_code_pb2.SUCCESS:
                 logger.info(f"Successfully created pipeline {self.pipeline_id}")
