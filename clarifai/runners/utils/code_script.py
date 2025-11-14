@@ -122,8 +122,10 @@ print(response)
     # Determine deployment_user_id: use provided value or model's user_id
     if not deployment_user_id and any([deployment_id, nodepool_id, compute_cluster_id]):
         deployment_user_id = 'os.environ.get("CLARIFAI_DEPLOYMENT_USER_ID", None)'
-    else:
+    elif deployment_user_id:
         deployment_user_id = repr(deployment_user_id)
+    else:
+        deployment_user_id = None
 
     deployment_line = (
         f'deployment_id={deployment_id},  # Only needed for dedicated deployed models'
@@ -139,7 +141,7 @@ print(response)
         else ""
     )
     deployment_user_id_line = (
-        f'deployment_user_id="{deployment_user_id}",  # Organization or user ID for deployment/nodepool'
+        f'deployment_user_id={deployment_user_id},  # Organization or user ID for deployment/nodepool'
         if deployment_user_id
         else ""
     )
