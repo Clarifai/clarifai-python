@@ -9,6 +9,7 @@ import requests
 from clarifai_grpc.grpc.api import resources_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeEnumOption, ModelTypeRangeInfo
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeField as ParamProto
+from google.protobuf import struct_pb2
 from PIL import Image as PILImage
 
 from clarifai.runners.utils.data_types import Audio, Image, MessageData, Video
@@ -535,8 +536,6 @@ class DataConverter:
             # Handle conversion from old string_value to new struct_value
             elif old_data.HasField('string_value') and old_data.string_value:
                 try:
-                    from google.protobuf import struct_pb2
-
                     json_dict = json.loads(old_data.string_value)
                     struct = struct_pb2.Struct()
                     struct.update(json_dict)

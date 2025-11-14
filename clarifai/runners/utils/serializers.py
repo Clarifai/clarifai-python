@@ -3,6 +3,7 @@ from typing import Dict, Iterable
 import numpy as np
 from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf import struct_pb2
+from google.protobuf.json_format import MessageToDict
 
 from clarifai.runners.utils import data_types
 
@@ -116,19 +117,26 @@ class JSONSerializer(Serializer):
         #  raise TypeError(f"Expected {self.type}, got {type(value)}")
         try:
             struct = struct_pb2.Struct()
-            struct.update(value)
+            # Struct.update() only works for dicts, so for lists we wrap them
+            if isinstance(value, list):
+                # Wrap list in a dict with a special key to preserve list structure
+                struct.update({"_list": value})
+            else:
+                struct.update(value)
             setattr(data_proto, self.field_name, struct)
         except (TypeError, ValueError) as e:
             raise TypeError(f"Incompatible type for {self.field_name}: {type(value)}") from e
 
     def deserialize(self, data_proto):
-        struct = getattr(data_proto, self.field_name)
-        if not struct or not struct.fields:
+        if not data_proto.HasField(self.field_name):
             return None
+        struct = getattr(data_proto, self.field_name)
         # Convert Struct to dict using MessageToDict
-        from google.protobuf.json_format import MessageToDict
-
-        return MessageToDict(struct)
+        result = MessageToDict(struct)
+        # Unwrap lists that were wrapped during serialization
+        if isinstance(result, dict) and len(result) == 1 and "_list" in result:
+            return result["_list"]
+        return result
 
 
 class ListSerializer(Serializer):
