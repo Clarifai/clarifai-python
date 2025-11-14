@@ -292,6 +292,7 @@ class ModelServer:
                 app_id=context.app_id,
                 model_id=context.model_id,
                 deployment_id=context.deployment_id,
+                deployment_user_id=context.user_id,
                 base_url=context.api_base,
                 colorize=True,
             )
