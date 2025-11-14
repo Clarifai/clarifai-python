@@ -443,7 +443,7 @@ class PipelineBuilder:
             # Validate JSON string before setting
             try:
                 # Test that we can parse it back
-                test_parse = json.loads(argo_spec_json_str)
+                json.loads(argo_spec_json_str)
             except json.JSONDecodeError as json_error:
                 logger.error(f"Argo spec JSON validation failed: {json_error}")
                 raise
