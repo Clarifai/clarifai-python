@@ -53,10 +53,10 @@ def get_pipeline_config_template(
   # config:
   #   step_version_secrets:
   #     step-0:
-  #       API_KEY: users/{user_id}/secrets/my-api-key
-  #       DB_PASSWORD: users/{user_id}/secrets/db-secret
+  #       API_KEY: users/{user_id}/apps//secrets/my-api-key
+  #       DB_PASSWORD: users/{user_id}/apps/secrets/db-secret
   #     step-1:
-  #       EMAIL_TOKEN: users/{user_id}/secrets/email-token
+  #       EMAIL_TOKEN: users/{user_id}/apps/secrets/email-token
 """
 
 
