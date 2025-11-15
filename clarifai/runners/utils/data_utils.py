@@ -9,6 +9,7 @@ import requests
 from clarifai_grpc.grpc.api import resources_pb2
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeEnumOption, ModelTypeRangeInfo
 from clarifai_grpc.grpc.api.resources_pb2 import ModelTypeField as ParamProto
+from google.protobuf import struct_pb2
 from PIL import Image as PILImage
 
 from clarifai.runners.utils.data_types import Audio, Image, MessageData, Video
@@ -463,6 +464,9 @@ class DataConverter:
             if old_data.HasField('text'):
                 new_data.string_value = old_data.text.raw
                 old_data.ClearField('text')
+            elif old_data.string_value:
+                new_data.string_value = old_data.string_value
+                old_data.string_value = ""
             return new_data
         elif data_type == resources_pb2.ModelTypeField.DataType.IMAGE:
             if old_data.HasField('image'):
@@ -525,6 +529,22 @@ class DataConverter:
                 new_data.frames.extend(old_data.frames)
                 old_data.ClearField('frames')
             return new_data
+        elif data_type == resources_pb2.ModelTypeField.DataType.JSON_DATA:
+            if old_data.HasField('struct_value'):
+                new_data.struct_value.CopyFrom(old_data.struct_value)
+                old_data.ClearField('struct_value')
+            # Handle conversion from old string_value to new struct_value
+            elif old_data.HasField('string_value') and old_data.string_value:
+                try:
+                    json_dict = json.loads(old_data.string_value)
+                    struct = struct_pb2.Struct()
+                    struct.update(json_dict)
+                    new_data.struct_value.CopyFrom(struct)
+                    old_data.ClearField('string_value')
+                except (json.JSONDecodeError, ValueError):
+                    # If parsing fails, keep as string_value for backward compatibility
+                    pass
+            return new_data
         elif data_type == resources_pb2.ModelTypeField.DataType.LIST:
             if not field.type_args:
                 raise ValueError("LIST type requires type_args")
@@ -561,6 +581,7 @@ class DataConverter:
             'bytes_value',
             'bool_value',
             'string_value',
+            'struct_value',
         ]
         for field in singular_fields:
             if data.HasField(field):
@@ -600,7 +621,16 @@ class DataConverter:
     @classmethod
     def _is_data_set(cls, data_msg):
         # Singular message fields
-        singular_fields = ["image", "video", "metadata", "geo", "text", "audio", "ndarray"]
+        singular_fields = [
+            "image",
+            "video",
+            "metadata",
+            "geo",
+            "text",
+            "audio",
+            "ndarray",
+            "struct_value",
+        ]
         for field in singular_fields:
             if data_msg.HasField(field):
                 return True
