@@ -160,13 +160,27 @@ def ensure_config_exists_for_upload(ctx, model_path: str) -> None:
             fg="yellow",
         )
     )
-
-    click.echo(
-        click.style(
-            f"ℹ️  We'll create one now. For more details on each field, check out the config guide at {CONFIG_GUIDE_URL}",
-            fg="yellow",
-        )
+    # field which asks whether the user wants to create a new config.yaml file by themselves using the guide or not
+    create_config = prompt_yes_no(
+        "Do you want to create a new config.yaml file by yourself using the guide?",
+        default=True,
     )
+    if create_config:
+        click.echo(
+            click.style(
+                f"Please refer to the config guide -> {CONFIG_GUIDE_URL} to create a new config.yaml file.",
+                fg="yellow",
+            )
+        )
+        raise click.Abort()
+
+    else:
+        click.echo(
+            click.style(
+                f"ℹ️  We'll create one now interactively. For more details on each field, check out the config guide at -> {CONFIG_GUIDE_URL} ",
+                fg="yellow",
+            )
+        )
 
     ctx_config = getattr(ctx, "obj", None)
     current_context = None
