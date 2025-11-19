@@ -407,6 +407,7 @@ def _ensure_hf_token(ctx, model_path):
     Ensure HF_TOKEN is present in CLI context.
     """
     import yaml
+
     try:
         config_path = os.path.join(model_path, "config.yaml")
         if os.path.isfile(config_path):
@@ -577,7 +578,9 @@ def signatures(model_path, out_path):
     help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
 @click.pass_context
-def test_locally(ctx, model_path, keep_env=False, keep_image=False, mode='env', skip_dockerfile=False):
+def test_locally(
+    ctx, model_path, keep_env=False, keep_image=False, mode='env', skip_dockerfile=False
+):
     """Test model locally.
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
