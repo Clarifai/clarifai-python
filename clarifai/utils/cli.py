@@ -369,32 +369,36 @@ def parse_requirements(model_path: str):
     return deps
 
 
-def check_requirements_installed(model_path):
-    """Check if all dependencies in requirements.txt are installed."""
-
+def check_requirements_installed(model_path: str = None, dependencies: dict = None):
+    """Check if all dependencies in requirements.txt are installed. 
+    Args:
+        model_path: Path to the model directory
+        dependencies: Dictionary of dependencies
+    Returns:
+        True if all dependencies are installed, False otherwise
+    """
+    
+    if model_path and dependencies:
+        logger.warning("model_path and dependencies cannot be provided together, using dependencies instead")
+        dependencies = parse_requirements(model_path)
+        
     try:
-        # Getting package name and version (for logging)
-        requirements = parse_requirements(model_path)
-
-        if not requirements:
-            logger.info("No dependencies found in requirements.txt")
-            return True
-
-        logger.info(f"Checking {len(requirements)} dependencies...")
-
+        
+        if not dependencies:
+            dependencies = parse_requirements(model_path)
         missing = [
             full_req
-            for package_name, full_req in requirements.items()
+            for package_name, full_req in dependencies.items()
             if not _is_package_installed(package_name)
         ]
 
         if not missing:
-            logger.info(f"✅ All {len(requirements)} dependencies are installed!")
+            logger.info(f"✅ All {len(dependencies)} dependencies are installed!")
             return True
 
         # Report missing packages
         logger.error(
-            f"❌ {len(missing)} of {len(requirements)} required packages are missing in the current environment"
+            f"❌ {len(missing)} of {len(dependencies)} required packages are missing in the current environment"
         )
         logger.error("\n".join(f"  - {pkg}" for pkg in missing))
         requirements_path = Path(model_path) / "requirements.txt"
