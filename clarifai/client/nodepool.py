@@ -340,6 +340,46 @@ class Nodepool(Lister, BaseClient):
         kwargs = self.process_response_keys(dict_response, 'runner')
         return Runner.from_auth_helper(auth=self.auth_helper, **kwargs)
 
+    def list_runners(
+        self, model_version_ids: List[str] = None, page_no: int = None, per_page: int = None
+    ) -> Generator[Runner, None, None]:
+        """Lists all the available runners for the model version in the nodepool.
+
+        Args:
+            config_filepath (str): The path to the runner config file.
+            runner_config (Dict[str, Any]): The runner config dictionary.
+            filter_by (Dict[str, Any]): The filter to apply to the list of runners.
+            page_no (int): The page number to list.
+            per_page (int): The number of items per page.
+
+        returns:
+            Runner: Runner objects for the nodepool in the compute cluster.
+
+        Example:
+            >>> from clarifai.client.nodepool import Nodepool
+            >>> nodepool = Nodepool(nodepool_id="nodepool_id", user_id="user_id")
+            >>> all_runners = list(nodepool.list_runners())
+        """
+        if isinstance(model_version_ids, str):
+            model_version_ids = [model_version_ids]
+
+        request_data = dict(
+            user_app_id=self.user_app_id,
+            compute_cluster_id=self.compute_cluster.id,
+            nodepool_id=self.id,
+            model_version_ids=model_version_ids,
+        )
+        all_runners_info = self.list_pages_generator(
+            self.STUB.ListRunners,
+            service_pb2.ListRunnersRequest,
+            request_data,
+            per_page=per_page,
+            page_no=page_no,
+        )
+
+        for runner_info in all_runners_info:
+            yield Runner.from_auth_helper(auth=self.auth_helper, **runner_info)
+
     def delete_runners(self, runner_ids: List[str]) -> None:
         """Deletes list of runners for the nodepool.
 
