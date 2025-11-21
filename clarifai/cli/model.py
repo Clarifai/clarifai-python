@@ -40,7 +40,6 @@ from clarifai.utils.misc import (
     format_github_repo_url,
     get_list_of_files_to_download,
 )
-from matplotlib.style import context
 
 
 @cli.group(
@@ -1105,6 +1104,7 @@ def local_runner(ctx, model_path, pool_size, verbose, mode, keep_image, keep_env
                                          container_name=container_name,
                                          port=port,
                                          is_local_runner=True,
+                                         env_vars={"CLARIFAI_PAT": ctx.obj.current.pat},
                                          **serving_args)
         
         finally:
@@ -1115,7 +1115,8 @@ def local_runner(ctx, model_path, pool_size, verbose, mode, keep_image, keep_env
                 manager.remove_docker_image(image_name=image_name)
 
     # This reads the config.yaml from the model_path so we alter it above first.
-    server = ModelServer(model_path=model_path, model_runner_local=manager)
+    model_runner_local = manager if mode == 'container' else None
+    server = ModelServer(model_path=model_path, model_runner_local=model_runner_local)
     server.serve(**serving_args)
     
 

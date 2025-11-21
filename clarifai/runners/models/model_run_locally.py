@@ -381,7 +381,7 @@ class ModelRunLocally:
             # update the CMD to run the server
             if is_local_runner:
                 kwargs.pop("pool_size", None)  # remove pool_size if exists
-                cmd.extend(["--model_path", "/home/nonroot/main", "--port", str(port),"--compute_cluster_id", str(kwargs.get("compute_cluster_id", None)), 
+                cmd.extend(["--model_path", "/home/nonroot/main", "--compute_cluster_id", str(kwargs.get("compute_cluster_id", None)), 
                             "--user_id", str(kwargs.get("user_id", None)), "--nodepool_id", str(kwargs.get("nodepool_id", None)),
                             "--runner_id", str(kwargs.get("runner_id", None)), "--base_url", str(kwargs.get("base_url", None)), "--pat", str(kwargs.get("pat", None)), "--num_threads", str(kwargs.get("num_threads", 0))])
             else:

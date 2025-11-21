@@ -108,11 +108,17 @@ def main():
         default=0,
         help='The number of threads for the runner to use (default: 0, which means read from config.yaml).',
     )
-
-    parsed_args = parser.parse_args()
-
-    server = ModelServer(parsed_args.model_path)
     
+    parser.add_argument(
+        '--is_local_runner',
+        type=bool,
+        default=False,
+        help='Indicates if the runner is a local runner.',
+    )
+        
+    parsed_args = parser.parse_args()
+    server = ModelServer(parsed_args.model_path)
+
     if not parsed_args.grpc:
         server.serve(    
             compute_cluster_id=parsed_args.compute_cluster_id,
