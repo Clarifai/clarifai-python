@@ -25,7 +25,7 @@ class ModelRunLocally:
         # ModelBuilder contains multiple useful methods to interact with the model
         self.builder = ModelBuilder(self.model_path, download_validation_only=True)
         self.config = self.builder.config
-    
+
     def _get_method_signatures(self):
         """Get the method signatures for the model."""
         return self.builder.get_method_signatures()
@@ -357,7 +357,11 @@ class ModelRunLocally:
         return True
 
     def run_docker_container(
-        self, image_name, container_name="clarifai-model-container", port=8080, env_vars=None,
+        self,
+        image_name,
+        container_name="clarifai-model-container",
+        port=8080,
+        env_vars=None,
         is_local_runner: bool = False,
         **kwargs,
     ):
@@ -381,9 +385,26 @@ class ModelRunLocally:
             # update the CMD to run the server
             if is_local_runner:
                 kwargs.pop("pool_size", None)  # remove pool_size if exists
-                cmd.extend(["--model_path", "/home/nonroot/main", "--compute_cluster_id", str(kwargs.get("compute_cluster_id", None)), 
-                            "--user_id", str(kwargs.get("user_id", None)), "--nodepool_id", str(kwargs.get("nodepool_id", None)),
-                            "--runner_id", str(kwargs.get("runner_id", None)), "--base_url", str(kwargs.get("base_url", None)), "--pat", str(kwargs.get("pat", None)), "--num_threads", str(kwargs.get("num_threads", 0))])
+                cmd.extend(
+                    [
+                        "--model_path",
+                        "/home/nonroot/main",
+                        "--compute_cluster_id",
+                        str(kwargs.get("compute_cluster_id", None)),
+                        "--user_id",
+                        str(kwargs.get("user_id", None)),
+                        "--nodepool_id",
+                        str(kwargs.get("nodepool_id", None)),
+                        "--runner_id",
+                        str(kwargs.get("runner_id", None)),
+                        "--base_url",
+                        str(kwargs.get("base_url", None)),
+                        "--pat",
+                        str(kwargs.get("pat", None)),
+                        "--num_threads",
+                        str(kwargs.get("num_threads", 0)),
+                    ]
+                )
             else:
                 cmd.extend(["--model_path", "/home/nonroot/main", "--grpc", "--port", str(port)])
             # Run the container

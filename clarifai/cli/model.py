@@ -689,13 +689,13 @@ def local_runner(ctx, model_path, pool_size, verbose, mode, keep_image, keep_env
     that starts up in the local runner is the same as the one you intend to call in the API.
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
-    MODE: Specifies how to run the model: "env" for virtual environment or "container" for Docker container. Defaults to "env". 
+    MODE: Specifies how to run the model: "env" for virtual environment or "container" for Docker container. Defaults to "env".
     SKIP_DOCKERFILE: Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.
     """
     from clarifai.client.user import User
     from clarifai.runners.models.model_builder import ModelBuilder
-    from clarifai.runners.server import ModelServer
     from clarifai.runners.models.model_run_locally import ModelRunLocally
+    from clarifai.runners.server import ModelServer
 
     validate_context(ctx)
     builder = ModelBuilder(model_path, download_validation_only=True)
@@ -705,7 +705,7 @@ def local_runner(ctx, model_path, pool_size, verbose, mode, keep_image, keep_env
     if mode == "env":
         manager.create_temp_venv()
         manager.install_requirements()
-    
+
     dependencies = parse_requirements(model_path)
     if not mode == "container" and not mode == "env":
         logger.info("> Checking local runner requirements...")
@@ -713,7 +713,7 @@ def local_runner(ctx, model_path, pool_size, verbose, mode, keep_image, keep_env
         if not check_requirements_installed(dependencies=dependencies):
             logger.error(f"Requirements not installed for model at {model_path}.")
             raise click.Abort()
-    
+
     if "ollama" in dependencies or builder.config.get('toolkit', {}).get('provider') == 'ollama':
         logger.info("Verifying Ollama installation...")
         if not check_ollama_installed():
@@ -876,7 +876,6 @@ def local_runner(ctx, model_path, pool_size, verbose, mode, keep_image, keep_env
     # Now we need to create a version for the model if no version exists. Only need one version that
     # mentions it's a local runner.
     model_versions = list(model.list_versions())
-    logger.info(f"all context available: {ctx.obj.current}")
     method_signatures = manager._get_method_signatures()
 
     create_new_version = False
@@ -1025,8 +1024,6 @@ def local_runner(ctx, model_path, pool_size, verbose, mode, keep_image, keep_env
         )
         ModelBuilder._backup_config(config_file)
         ModelBuilder._save_config(config_file, config)
-    
-    
 
     # Post check while running `clarifai model local-runner` we check if the toolkit is ollama
     if builder.config.get('toolkit', {}).get('provider') == 'ollama':
@@ -1042,9 +1039,9 @@ def local_runner(ctx, model_path, pool_size, verbose, mode, keep_image, keep_env
             raise click.Abort()
 
     logger.info("✅ Starting local runner...")
-    
+
     if ctx.obj.current is None:
-            logger.debug("Context is None. Skipping code snippet generation.")
+        logger.debug("Context is None. Skipping code snippet generation.")
     else:
         from clarifai.runners.utils import code_script
 
@@ -1057,9 +1054,7 @@ def local_runner(ctx, model_path, pool_size, verbose, mode, keep_image, keep_env
             base_url=ctx.obj.current.api_base,
             colorize=True,
         )
-        logger.info(
-            "✅ Your model is running locally and is ready for requests from the API...\n"
-        )
+        logger.info("✅ Your model is running locally and is ready for requests from the API...\n")
         logger.info(
             f"> Code Snippet: To call your model via the API, use this code snippet:\n{snippet}"
         )
@@ -1081,16 +1076,13 @@ def local_runner(ctx, model_path, pool_size, verbose, mode, keep_image, keep_env
         "base_url": ctx.obj.current.api_base,
         "pat": ctx.obj.current.pat,
         "context": ctx.obj.current,
-        
     }
-    
-    logger.info(f"Serving args: {serving_args}")
-    
+
     if mode == "container":
         try:
             if not manager.is_docker_installed():
                 raise click.abort()
-            
+
             image_tag = manager._docker_hash()
             model_id = manager.config['model']['id'].lower()
             # must be in lowercase
@@ -1098,15 +1090,17 @@ def local_runner(ctx, model_path, pool_size, verbose, mode, keep_image, keep_env
             container_name = model_id
             if not manager.docker_image_exists(image_name):
                 manager.build_docker_image(image_name=image_name)
-            
+
             manager.build_docker_image(image_name=image_name)
-            manager.run_docker_container(image_name=image_name,
-                                         container_name=container_name,
-                                         port=port,
-                                         is_local_runner=True,
-                                         env_vars={"CLARIFAI_PAT": ctx.obj.current.pat},
-                                         **serving_args)
-        
+            manager.run_docker_container(
+                image_name=image_name,
+                container_name=container_name,
+                port=port,
+                is_local_runner=True,
+                env_vars={"CLARIFAI_PAT": ctx.obj.current.pat},
+                **serving_args,
+            )
+
         finally:
             if manager.container_exists(container_name):
                 manager.stop_docker_container(container_name)
@@ -1118,7 +1112,7 @@ def local_runner(ctx, model_path, pool_size, verbose, mode, keep_image, keep_env
     model_runner_local = manager if mode == 'container' else None
     server = ModelServer(model_path=model_path, model_runner_local=model_runner_local)
     server.serve(**serving_args)
-    
+
 
 def _parse_json_param(param_value, param_name):
     """Parse JSON parameter with error handling.

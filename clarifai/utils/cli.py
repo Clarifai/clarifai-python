@@ -370,20 +370,21 @@ def parse_requirements(model_path: str):
 
 
 def check_requirements_installed(model_path: str = None, dependencies: dict = None):
-    """Check if all dependencies in requirements.txt are installed. 
+    """Check if all dependencies in requirements.txt are installed.
     Args:
         model_path: Path to the model directory
         dependencies: Dictionary of dependencies
     Returns:
         True if all dependencies are installed, False otherwise
     """
-    
+
     if model_path and dependencies:
-        logger.warning("model_path and dependencies cannot be provided together, using dependencies instead")
+        logger.warning(
+            "model_path and dependencies cannot be provided together, using dependencies instead"
+        )
         dependencies = parse_requirements(model_path)
-        
+
     try:
-        
         if not dependencies:
             dependencies = parse_requirements(model_path)
         missing = [

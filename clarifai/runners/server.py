@@ -12,9 +12,9 @@ from clarifai_grpc.grpc.api import service_pb2_grpc
 from clarifai_protocol.utils.grpc_server import GRPCServer
 
 from clarifai.runners.models.model_builder import ModelBuilder
+from clarifai.runners.models.model_run_locally import ModelRunLocally
 from clarifai.runners.models.model_runner import ModelRunner
 from clarifai.runners.models.model_servicer import ModelServicer
-from clarifai.runners.models.model_run_locally import ModelRunLocally
 from clarifai.utils.logging import logger
 from clarifai.utils.secrets import get_secrets_path, load_secrets, start_secrets_watcher
 
@@ -26,7 +26,7 @@ def main():
         type=int,
         default=8000,
         help="The port to host the gRPC server at.",
-        #choices=range(1024, 65535),
+        choices=range(1024, 65535),
     )
     parser.add_argument(
         '--pool_size',
@@ -96,7 +96,7 @@ def main():
         default=None,
         help='The base URL for the Clarifai API.',
     )
-    parser.add_argument(    
+    parser.add_argument(
         '--pat',
         type=str,
         default=None,
@@ -108,19 +108,19 @@ def main():
         default=0,
         help='The number of threads for the runner to use (default: 0, which means read from config.yaml).',
     )
-    
+
     parser.add_argument(
         '--is_local_runner',
         type=bool,
         default=False,
         help='Indicates if the runner is a local runner.',
     )
-        
+
     parsed_args = parser.parse_args()
     server = ModelServer(parsed_args.model_path)
 
     if not parsed_args.grpc:
-        server.serve(    
+        server.serve(
             compute_cluster_id=parsed_args.compute_cluster_id,
             user_id=parsed_args.user_id,
             nodepool_id=parsed_args.nodepool_id,
@@ -160,7 +160,9 @@ class ModelServer:
         # Build model after secrets are loaded
         self._builder = ModelBuilder(model_path, download_validation_only=True)
         if self.model_runner_local:
-            self._current_model = self.model_runner_local.builder.create_model_instance(mocking=True)
+            self._current_model = self.model_runner_local.builder.create_model_instance(
+                mocking=True
+            )
         else:
             self._current_model = self._builder.create_model_instance()
         logger.info("ModelServer initialized successfully")
