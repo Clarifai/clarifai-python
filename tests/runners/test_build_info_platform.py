@@ -252,7 +252,8 @@ class MyModel(ModelClass):
 
     @ModelClass.method
     def predict(self, text1: Text = "") -> Text:
-        return Text("test")
+        # Simple test model that echoes input
+        return Text(text1.text if text1 else "test")
 """
         with open(version_path / "model.py", "w") as f:
             f.write(model_content)

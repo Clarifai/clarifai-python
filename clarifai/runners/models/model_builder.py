@@ -1485,6 +1485,7 @@ class ModelBuilder:
         build_info_config = self.config.get('build_info', {})
         if 'platform' in build_info_config:
             platform = build_info_config['platform']
+            # Check if platform is not None and not an empty string
             if platform:
                 # Create BuildInfo and set platform if the field is available
                 build_info = resources_pb2.BuildInfo()
