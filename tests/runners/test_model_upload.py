@@ -112,6 +112,11 @@ def dummy_models_path(tmp_path, clarifai_app):
     config["model"]["user_id"] = CLARIFAI_USER_ID
     config["model"]["app_id"] = clarifai_app
 
+    # Add platform specification for testing
+    if "build_info" not in config:
+        config["build_info"] = {}
+    config["build_info"]["platform"] = "linux/amd64,linux/arm64"
+
     # Rewrite config.yaml
     with config_yaml_path.open("w") as f:
         yaml.dump(config, f, sort_keys=False)
@@ -185,6 +190,29 @@ def test_model_uploader_flow(dummy_models_path, client):
     assert builder.model_version_id is not None, "Model version upload failed to initialize"
 
     print(f"Test completed successfully with model_version_id={builder.model_version_id}")
+
+    # Verify the platform was set correctly using GetModelVersion
+    from clarifai_grpc.grpc.api import service_pb2
+
+    get_model_version_req = service_pb2.GetModelVersionRequest(
+        user_app_id=builder.client.user_app_id,
+        model_id=builder.model_proto.id,
+        version_id=builder.model_version_id,
+    )
+    mv_response = builder.client.STUB.GetModelVersion(get_model_version_req)
+    assert mv_response.status.code == status_code_pb2.SUCCESS, (
+        f"GetModelVersion failed: {mv_response.status}"
+    )
+
+    # Verify the platform field is set correctly
+    build_info = mv_response.model_version.build_info
+    if hasattr(build_info, 'platform'):
+        assert build_info.platform == "linux/amd64,linux/arm64", (
+            f"Platform mismatch: expected 'linux/amd64,linux/arm64', got '{build_info.platform}'"
+        )
+        print(f"✓ Platform verified: {build_info.platform}")
+    else:
+        print("⚠ Platform field not available in clarifai-grpc version")
 
     model = builder.config.get('model')
 
