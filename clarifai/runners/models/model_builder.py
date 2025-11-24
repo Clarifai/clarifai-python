@@ -1481,6 +1481,24 @@ class ModelBuilder:
             method_signatures=signatures,
         )
 
+        # Add build_info with platform if specified in config
+        build_info_config = self.config.get('build_info', {})
+        if 'platform' in build_info_config:
+            platform = build_info_config['platform']
+            # Check if platform is not None and not an empty string
+            if platform:
+                # Create BuildInfo and set platform if the field is available
+                build_info = resources_pb2.BuildInfo()
+                if hasattr(build_info, 'platform'):
+                    build_info.platform = platform
+                    model_version_proto.build_info.CopyFrom(build_info)
+                    logger.info(f"Set build platform to: {platform}")
+                else:
+                    logger.warning(
+                        f"Platform '{platform}' specified in config.yaml but not supported "
+                        "in current clarifai-grpc version. Please update clarifai-grpc to use this feature."
+                    )
+
         # Add git information to metadata if available
         if git_info:
             from google.protobuf.struct_pb2 import Struct
