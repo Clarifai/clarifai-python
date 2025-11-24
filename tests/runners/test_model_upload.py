@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 import yaml
+from clarifai_grpc.grpc.api import service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
 from clarifai.client import User
@@ -192,8 +193,6 @@ def test_model_uploader_flow(dummy_models_path, client):
     print(f"Test completed successfully with model_version_id={builder.model_version_id}")
 
     # Verify the platform was set correctly using GetModelVersion
-    from clarifai_grpc.grpc.api import service_pb2
-
     get_model_version_req = service_pb2.GetModelVersionRequest(
         user_app_id=builder.client.user_app_id,
         model_id=builder.model_proto.id,
