@@ -710,6 +710,16 @@ def local_runner(ctx, model_path, pool_size, verbose):
                 "Ollama application is not installed. Please install it from `https://ollama.com/` to use the Ollama toolkit."
             )
             raise click.Abort()
+    elif (
+        "lmstudio" in dependencies
+        or builder.config.get('toolkit', {}).get('provider') == 'lmstudio'
+    ):
+        logger.info("Verifying LM Studio installation...")
+        if not check_lmstudio_installed():
+            logger.error(
+                "LM Studio application is not installed. Please install it from `https://lmstudio.com/` to use the LM Studio toolkit."
+            )
+            raise click.Abort()
 
     # Load model config
     config_file = os.path.join(model_path, 'config.yaml')
@@ -1014,18 +1024,8 @@ def local_runner(ctx, model_path, pool_size, verbose):
         ModelBuilder._backup_config(config_file)
         ModelBuilder._save_config(config_file, config)
 
-    if not check_requirements_installed(model_path):
-        logger.error(f"Requirements not installed for model at {model_path}.")
-        raise click.Abort()
-
     # Post check while running `clarifai model local-runner` we check if the toolkit is ollama
     if builder.config.get('toolkit', {}).get('provider') == 'ollama':
-        if not check_ollama_installed():
-            logger.error(
-                "Ollama is not installed. Please install it from `https://ollama.com/` to use the Ollama toolkit."
-            )
-            raise click.Abort()
-
         try:
             logger.info("Customizing Ollama model with provided parameters...")
             customize_ollama_model(
@@ -1035,6 +1035,17 @@ def local_runner(ctx, model_path, pool_size, verbose):
             )
         except Exception as e:
             logger.error(f"Failed to customize Ollama model: {e}")
+            raise click.Abort()
+    elif builder.config.get('toolkit', {}).get('provider') == 'lmstudio':
+        try:
+            logger.info("Customizing LM Studio model with provided parameters...")
+            customize_lmstudio_model(
+                model_path=model_path,
+                user_id=user_id,
+                verbose=True if verbose else False,
+            )
+        except Exception as e:
+            logger.error(f"Failed to customize LM Studio model: {e}")
             raise click.Abort()
 
     logger.info("✅ Starting local runner...")
