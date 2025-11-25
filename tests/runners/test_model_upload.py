@@ -400,7 +400,6 @@ def test_cli_platform_override(tmp_path):
         assert model_version_proto_config.build_info.platform == "linux/amd64", (
             f"Expected platform 'linux/amd64' from config, got '{model_version_proto_config.build_info.platform}'"
         )
-        print("✓ Platform from config.yaml verified")
     else:
         pytest.skip("Platform field not available in clarifai-grpc version")
 
@@ -412,7 +411,6 @@ def test_cli_platform_override(tmp_path):
         assert model_version_proto_cli.build_info.platform == cli_platform, (
             f"Expected platform '{cli_platform}' from CLI, got '{model_version_proto_cli.build_info.platform}'"
         )
-        print(f"✓ CLI platform override verified: {cli_platform}")
     else:
         pytest.skip("Platform field not available in clarifai-grpc version")
 
@@ -426,6 +424,5 @@ def test_cli_platform_override(tmp_path):
         assert model_version_proto_multi.build_info.platform == cli_platform_multi, (
             f"Expected platform '{cli_platform_multi}' from CLI, got '{model_version_proto_multi.build_info.platform}'"
         )
-        print(f"✓ CLI multi-platform override verified: {cli_platform_multi}")
     else:
         pytest.skip("Platform field not available in clarifai-grpc version")

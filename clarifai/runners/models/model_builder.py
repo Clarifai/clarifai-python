@@ -160,9 +160,9 @@ class ModelBuilder:
         validate_api_ids: bool = True,
         download_validation_only: bool = False,
         app_not_found_action: Literal["auto_create", "prompt", "error"] = "error",
-        platform: str = None,
-        pat: str = None,
-        base_url: str = None,
+        platform: Optional[str] = None,
+        pat: Optional[str] = None,
+        base_url: Optional[str] = None,
     ):
         """
         :param folder: The folder containing the model.py, config.yaml, requirements.txt and
@@ -1799,7 +1799,14 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                 return False
 
 
-def upload_model(folder, stage, skip_dockerfile, platform=None, pat=None, base_url=None):
+def upload_model(
+    folder,
+    stage,
+    skip_dockerfile,
+    platform: Optional[str] = None,
+    pat: Optional[str] = None,
+    base_url: Optional[str] = None,
+):
     """
     Uploads a model to Clarifai.
 
