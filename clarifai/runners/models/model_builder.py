@@ -1496,7 +1496,7 @@ class ModelBuilder:
                 platform = build_info_config['platform']
                 if platform:
                     logger.info(f"Using platform from config.yaml: {platform}")
-        
+
         # Check if platform is not None and not an empty string
         if platform:
             # Create BuildInfo and set platform if the field is available
