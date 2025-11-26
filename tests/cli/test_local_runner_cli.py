@@ -55,7 +55,7 @@ class TestLocalRunnerCLI:
 
         # Mock ModelBuilder to return a basic config
         mock_builder = MagicMock()
-        mock_builder.config = {"model": {"model_type_id": "text-to-text"}, "toolkit": {}}
+        mock_builder.config = {"model": {"model_type_id": "multimodal-to-text"}, "toolkit": {}}
         mock_builder_class.return_value = mock_builder
 
         runner = CliRunner()
@@ -96,7 +96,7 @@ class TestLocalRunnerCLI:
 
         # Mock ModelBuilder
         mock_builder = MagicMock()
-        mock_builder.config = {"model": {"model_type_id": "text-to-text"}, "toolkit": {}}
+        mock_builder.config = {"model": {"model_type_id": "multimodal-to-text"}, "toolkit": {}}
         mock_builder_class.return_value = mock_builder
         mock_builder_class._load_config.return_value = mock_builder.config
 

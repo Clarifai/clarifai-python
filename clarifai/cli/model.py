@@ -1042,7 +1042,6 @@ def local_runner(ctx, model_path, pool_size, verbose):
             customize_lmstudio_model(
                 model_path=model_path,
                 user_id=user_id,
-                verbose=True if verbose else False,
             )
         except Exception as e:
             logger.error(f"Failed to customize LM Studio model: {e}")
