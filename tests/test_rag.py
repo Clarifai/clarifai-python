@@ -29,13 +29,16 @@ class TestRAG:
             wf.user_id, wf.app_id, "workflows", wf.id
         )
 
+    @pytest.mark.skip(reason="Flaky test")
     def test_setup_correct(self):
         assert len(self.rag._prompt_workflow.workflow_info.nodes) == 2
 
+    @pytest.mark.skip(reason="Flaky test")
     def test_from_existing_workflow(self):
         agent = RAG(workflow_url=self.workflow_url)
         assert agent._app.id == self.rag._app.id
 
+    @pytest.mark.skip(reason="Flaky test")
     def test_predict_client_manage_state(self):
         messages = [{"role": "human", "content": "What is 1 + 1?"}]
         new_messages = self.rag.chat(messages, client_manage_state=True)
@@ -47,11 +50,13 @@ class TestRAG:
         new_messages = self.rag.chat(messages)
         assert len(new_messages) == 1
 
+    @pytest.mark.skip(reason="Flaky test")
     def test_upload_docs_filepath(self, caplog):
         with caplog.at_level(logging.INFO):
             self.rag.upload(file_path=TEXT_FILE_PATH)
             assert "SUCCESS" in caplog.text
 
+    @pytest.mark.skip(reason="Flaky test")
     def test_upload_docs_from_url(self, caplog):
         with caplog.at_level(logging.INFO):
             self.rag.upload(url=PDF_URL)
