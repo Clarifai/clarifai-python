@@ -417,8 +417,13 @@ def init(
     is_flag=True,
     help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
+@click.option(
+    '--platform',
+    required=False,
+    help='Target platform(s) for Docker image build (e.g., "linux/amd64" or "linux/amd64,linux/arm64"). This overrides the platform specified in config.yaml.',
+)
 @click.pass_context
-def upload(ctx, model_path, stage, skip_dockerfile):
+def upload(ctx, model_path, stage, skip_dockerfile, platform):
     """Upload a model to Clarifai.
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
@@ -430,6 +435,7 @@ def upload(ctx, model_path, stage, skip_dockerfile):
         model_path,
         stage,
         skip_dockerfile,
+        platform=platform,
         pat=ctx.obj.current.pat,
         base_url=ctx.obj.current.api_base,
     )

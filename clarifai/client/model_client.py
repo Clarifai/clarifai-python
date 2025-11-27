@@ -335,6 +335,19 @@ class ModelClient:
         method_signatures = []
         for _, method_signature in self._method_signatures.items():
             method_signatures.append(method_signature)
+        # Extract deployment_user_id from runner_selector if available
+        deployment_user_id = None
+        if self.request_template.runner_selector:
+            if self.request_template.runner_selector.deployment.id:
+                deployment_user_id = self.request_template.runner_selector.deployment.user_id
+            elif (
+                self.request_template.runner_selector.nodepool.id
+                and self.request_template.runner_selector.nodepool.compute_cluster.id
+            ):
+                deployment_user_id = (
+                    self.request_template.runner_selector.nodepool.compute_cluster.user_id
+                )
+
         return code_script.generate_client_script(
             method_signatures,
             user_id=self.request_template.user_app_id.user_id,
@@ -344,6 +357,7 @@ class ModelClient:
             deployment_id=self.request_template.runner_selector.deployment.id,
             compute_cluster_id=self.request_template.runner_selector.nodepool.compute_cluster.id,
             nodepool_id=self.request_template.runner_selector.nodepool.id,
+            deployment_user_id=deployment_user_id,
             use_ctx=use_ctx,
             colorize=colorize,
         )

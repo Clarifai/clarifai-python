@@ -1,3 +1,16 @@
+## [[11.10.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.10.2) - [PyPI](https://pypi.org/project/clarifai/11.10.2/) - 2025-11-14
+
+### Changed
+- Add support for including deployment user ID [(#848)](https://github.com/Clarifai/clarifai-python/pull/848)
+- Remove model proto caching from ModelRunner, ModelServicer, and server [(#838)](https://github.com/Clarifai/clarifai-python/pull/838)
+
+## [[11.10.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.10.1) - [PyPI](https://pypi.org/project/clarifai/11.10.1/) - 2025-11-14
+
+### Added
+- Add Pipeline Step Secrets support in SDK and CLI [(#830)](https://github.com/Clarifai/clarifai-python/pull/830)
+- Bump dockerfile base image git hash [(#844)](https://github.com/Clarifai/clarifai-python/pull/844)
+- Add input argument overrides for pipeline runs via CLI and SDK [(#841)](https://github.com/Clarifai/clarifai-python/pull/841)
+
 ## [[11.10.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.10.0) - [PyPI](https://pypi.org/project/clarifai/11.10.0/) - 2025-11-11
 
 ### Changed

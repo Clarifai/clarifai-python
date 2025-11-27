@@ -303,9 +303,7 @@ class ModelServer:
 
     def start_servicer(self, port, pool_size, max_queue_size, max_msg_length, enable_tls):
         # initialize the servicer with the runner so that it gets the predict(), generate(), stream() classes.
-        self._servicer = ModelServicer(
-            self._current_model, model_proto=self._builder.get_model_proto()
-        )
+        self._servicer = ModelServicer(self._current_model)
 
         server = GRPCServer(
             futures.ThreadPoolExecutor(
@@ -347,9 +345,37 @@ class ModelServer:
             base_url=base_url,
             pat=pat,
             num_parallel_polls=num_threads,
-            model_proto=self._builder.get_model_proto(),
         )
 
+        if context is None:
+            logger.debug("Context is None. Skipping code snippet generation.")
+        else:
+            method_signatures = self._builder.get_method_signatures(mocking=False)
+            from clarifai.runners.utils import code_script
+
+            snippet = code_script.generate_client_script(
+                method_signatures,
+                user_id=context.user_id,
+                app_id=context.app_id,
+                model_id=context.model_id,
+                deployment_id=context.deployment_id,
+                deployment_user_id=context.user_id,
+                base_url=context.api_base,
+                colorize=True,
+            )
+            logger.info(
+                "✅ Your model is running locally and is ready for requests from the API...\n"
+            )
+            logger.info(
+                f"> Code Snippet: To call your model via the API, use this code snippet:\n{snippet}"
+            )
+            logger.info(
+                f"> Playground:   To chat with your model, visit: {context.ui}/playground?model={context.model_id}__{context.model_version_id}&user_id={context.user_id}&app_id={context.app_id}\n"
+            )
+            logger.info(
+                f"> API URL:      To call your model via the API, use this model URL: {context.ui}/{context.user_id}/{context.app_id}/models/{context.model_id}\n"
+            )
+            logger.info("Press CTRL+C to stop the runner.\n")
         self._runner.start()  # start the runner to fetch work from the API.
 
 

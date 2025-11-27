@@ -691,18 +691,40 @@ class Model(Lister, BaseClient):
                 .user.id
             )
         runner_selector = None
-        if deployment_id and (compute_cluster_id or nodepool_id):
-            raise UserError(
-                "You can only specify one of deployment_id or compute_cluster_id and nodepool_id."
-            )
-        if deployment_id:
-            runner_selector = Deployment.get_runner_selector(
-                user_id=user_id, deployment_id=deployment_id
-            )
-        elif compute_cluster_id and nodepool_id:
-            runner_selector = Nodepool.get_runner_selector(
-                user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id
-            )
+        if any([deployment_id, compute_cluster_id, nodepool_id]):
+            if deployment_id and (compute_cluster_id or nodepool_id):
+                raise UserError(
+                    "You can only specify one of deployment_id or compute_cluster_id and nodepool_id."
+                )
+            user_app_id = self.auth_helper.get_user_app_id_proto(user_id=user_id, app_id="")
+            if deployment_id:
+                request = service_pb2.GetDeploymentRequest(
+                    user_app_id=user_app_id, deployment_id=deployment_id
+                )
+                response = self._grpc_request(self.STUB.GetDeployment, request)
+                if response.status.code != status_code_pb2.SUCCESS:
+                    raise UserError(
+                        f"Deployment '{deployment_id}' not found for user_id '{user_id}'. "
+                        f"Status: {response.status.description}"
+                    )
+                runner_selector = Deployment.get_runner_selector(
+                    user_id=user_id, deployment_id=deployment_id
+                )
+            elif compute_cluster_id and nodepool_id:
+                request = service_pb2.GetNodepoolRequest(
+                    user_app_id=user_app_id,
+                    compute_cluster_id=compute_cluster_id,
+                    nodepool_id=nodepool_id,
+                )
+                response = self._grpc_request(self.STUB.GetNodepool, request)
+                if response.status.code != status_code_pb2.SUCCESS:
+                    raise UserError(
+                        f"Nodepool '{nodepool_id}' not found for user_id '{user_id}' "
+                        f"in compute cluster '{compute_cluster_id}'. Status: {response.status.description}"
+                    )
+                runner_selector = Nodepool.get_runner_selector(
+                    user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id
+                )
         # set the runner selector
         self._runner_selector = runner_selector
 

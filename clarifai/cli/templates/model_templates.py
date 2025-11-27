@@ -189,6 +189,7 @@ model:
 
 build_info:
   python_version: "3.12"
+  # platform: "linux/amd64,linux/arm64"  # Optional: Specify target platform(s) for Docker image build
 
 # TODO: please fill in - adjust compute requirements for your model
 inference_compute_info:
