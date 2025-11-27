@@ -230,7 +230,7 @@ class ClarifaiAuthHelper:
             self._root_certificates_path = query_params["root_certificates_path"]
 
     @classmethod
-    def from_env(cls, validate: bool = True) -> "ClarifaiAuthHelper":
+    def from_env(cls, validate: bool = True, **kwargs) -> "ClarifaiAuthHelper":
         """Will look for the following env vars:
         user_id: CLARIFAI_USER_ID env var.
         app_id: CLARIFAI_APP_ID env var.
@@ -240,14 +240,25 @@ class ClarifaiAuthHelper:
         base: CLARIFAI_API_BASE env var.
         root_certificates_path: CLARIFAI_ROOT_CERTIFICATES_PATH env var.
         """
-        user_id = os.environ.get("CLARIFAI_USER_ID", "")
-        app_id = os.environ.get("CLARIFAI_APP_ID", "")
-        token = os.environ.get(CLARIFAI_SESSION_TOKEN_ENV_VAR, "")
-        pat = os.environ.get(CLARIFAI_PAT_ENV_VAR, "")
-        base = os.environ.get("CLARIFAI_API_BASE", DEFAULT_BASE)
-        ui = os.environ.get("CLARIFAI_UI", DEFAULT_UI)
-        root_certificates_path = os.environ.get("CLARIFAI_ROOT_CERTIFICATES_PATH", None)
-        return cls(user_id, app_id, pat, token, base, ui, root_certificates_path, validate)
+
+        for arg_key, env_var_key in {
+            'user_id': 'CLARIFAI_USER_ID',
+            'app_id': 'CLARIFAI_APP_ID',
+            'token': CLARIFAI_SESSION_TOKEN_ENV_VAR,
+            'pat': CLARIFAI_PAT_ENV_VAR,
+            'base': 'CLARIFAI_API_BASE',
+            'ui': 'CLARIFAI_UI',
+            'root_certificates_path': 'CLARIFAI_ROOT_CERTIFICATES_PATH',
+        }.items():
+            if kwargs.get(arg_key):
+                continue
+
+            # Set argument from env, if present
+            env_value = os.environ.get(env_var_key, None)
+            if env_value:
+                kwargs[arg_key] = env_value
+
+        return cls(validate=validate, **kwargs)
 
     def get_user_app_id_proto(
         self,

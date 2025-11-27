@@ -2,7 +2,7 @@ import os
 
 registry = os.environ.get('CLARIFAI_BASE_IMAGE_REGISTRY', 'public.ecr.aws/clarifai-models')
 
-GIT_SHA = "42938da8e33b0f37ee7db16b83631da94c2348b9"
+GIT_SHA = "a008c5fdd0690ce7ac44d04ec54f02722837dfc5"
 
 AMD_GIT_SHA = "81e942130173f54927e7c9a65aabc7e32780616d"
 
@@ -49,4 +49,5 @@ CONCEPTS_REQUIRED_MODEL_TYPE = [
     'visual-detector',
     'visual-segmenter',
     'text-classifier',
+    'visual-keypointer',
 ]

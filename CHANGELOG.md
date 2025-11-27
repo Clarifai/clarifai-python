@@ -1,3 +1,31 @@
+## [[11.10.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.10.2) - [PyPI](https://pypi.org/project/clarifai/11.10.2/) - 2025-11-14
+
+### Changed
+- Add support for including deployment user ID [(#848)](https://github.com/Clarifai/clarifai-python/pull/848)
+- Remove model proto caching from ModelRunner, ModelServicer, and server [(#838)](https://github.com/Clarifai/clarifai-python/pull/838)
+
+## [[11.10.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.10.1) - [PyPI](https://pypi.org/project/clarifai/11.10.1/) - 2025-11-14
+
+### Added
+- Add Pipeline Step Secrets support in SDK and CLI [(#830)](https://github.com/Clarifai/clarifai-python/pull/830)
+- Bump dockerfile base image git hash [(#844)](https://github.com/Clarifai/clarifai-python/pull/844)
+- Add input argument overrides for pipeline runs via CLI and SDK [(#841)](https://github.com/Clarifai/clarifai-python/pull/841)
+
+## [[11.10.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.10.0) - [PyPI](https://pypi.org/project/clarifai/11.10.0/) - 2025-11-11
+
+### Changed
+- Refactored the `Dockerfile.template` used for building Clarifai model runner images by introducing of a multi-stage build that separates model asset downloading from final image creation, resulting in a cleaner and more efficient build process [(#839)](https://github.com/Clarifai/clarifai-python/pull/839)
+- Fixed an issue by ensuring the model proto with secrets is loaded once during server initialization and is available for all predict requests [(#837)](https://github.com/Clarifai/clarifai-python/pull/837)
+- Added comprehensive support for the OpenAI `responses` API (both streaming and non-streaming) to the dummy model implementation, improved token usage accounting for both `chat.completions` and `responses` endpoints, and introduces thorough tests for the new functionality [(#836)](https://github.com/Clarifai/clarifai-python/pull/836)
+- Added a validation mechanism to the model loading process in `Model` class, improving reliability during model initialization [(#835)](https://github.com/Clarifai/clarifai-python/pull/835)
+- Improved how package names and versions are parsed from requirement lines, specifically adding support for dependencies specified with the `@` symbol and ensuring consistent whitespace handling [(#834)](https://github.com/Clarifai/clarifai-python/pull/834)
+- Centralized and streamlined the logic for reading environment variables and passing them to the `ClarifaiAuthHelper`, making the codebase more maintainable and flexible [(#833)](https://github.com/Clarifai/clarifai-python/pull/833)
+- Added `visual-keypointer` to concepts-required model types list [(#824)](https://github.com/Clarifai/clarifai-python/pull/824)
+- Improved the robustness of the `clarifai model local-runner` command by ensuring that model configuration is loaded and validated earlier in the process, and by adding stricter checks for model type consistency [(#823)](https://github.com/Clarifai/clarifai-python/pull/823)
+- Optimized model runner performance by loading the model proto once at initialization instead of expecting it with every predict request from the API [(#822)](https://github.com/Clarifai/clarifai-python/pull/822)
+- Improved the `clarifai pipeline init` command by updating the Argo workflow template generation to include input arguments and remove unnecessary metadata fields [(#819)](https://github.com/Clarifai/clarifai-python/pull/819)
+- Added comprehensive environment validation to provide immediate feedback when users attempt to run model tests on unsupported environments, helping them understand limitations and avoid confusion when tests fail [(#658)](https://github.com/Clarifai/clarifai-python/pull/658)
+
 ## [[11.9.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.9.0) - [PyPI](https://pypi.org/project/clarifai/11.9.0/) - 2025-10-22
 
 ### Changed

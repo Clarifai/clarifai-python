@@ -108,7 +108,7 @@ class ModelServicer(service_pb2_grpc.V2Servicer):
         # Duplicate the iterator
         request, request_copy = tee(request)
 
-        # Download any urls that are not already bytes.
+        # Download any urls that are not already bytes
         for req in request:
             ensure_urls_downloaded(req, auth_helper=self._auth_helper)
             inject_secrets(req)

@@ -22,6 +22,7 @@ pipeline_step_input_params:
 
 build_info:
   python_version: "3.12"
+  # platform: "linux/amd64,linux/arm64"  # Optional: Specify target platform(s) for Docker image build
 
 pipeline_step_compute_info:
   cpu_limit: "500m"

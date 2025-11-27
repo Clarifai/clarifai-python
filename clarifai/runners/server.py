@@ -275,7 +275,6 @@ class ModelServer:
             base_url=base_url,
             pat=pat,
             num_parallel_polls=num_threads,
-            model_proto=self._builder.get_model_proto(),
         )
 
         if context is None:
@@ -290,6 +289,7 @@ class ModelServer:
                 app_id=context.app_id,
                 model_id=context.model_id,
                 deployment_id=context.deployment_id,
+                deployment_user_id=context.user_id,
                 base_url=context.api_base,
                 colorize=True,
             )

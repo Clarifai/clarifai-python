@@ -160,8 +160,9 @@ class ModelBuilder:
         validate_api_ids: bool = True,
         download_validation_only: bool = False,
         app_not_found_action: Literal["auto_create", "prompt", "error"] = "error",
-        pat: str = None,
-        base_url: str = None,
+        platform: Optional[str] = None,
+        pat: Optional[str] = None,
+        base_url: Optional[str] = None,
     ):
         """
         :param folder: The folder containing the model.py, config.yaml, requirements.txt and
@@ -172,6 +173,7 @@ class ModelBuilder:
         just downloading a checkpoint.
         :param app_not_found_action: Defines how to handle the case when the app is not found.
         Options: 'auto_create' - create automatically, 'prompt' - ask user, 'error' - raise exception.
+        :param platform: Target platform(s) for Docker image build (e.g., "linux/amd64" or "linux/amd64,linux/arm64"). This overrides the platform specified in config.yaml.
         :param pat: Personal access token for authentication. If None, will use environment variables.
         :param base_url: Base URL for the API. If None, will use environment variables.
         """
@@ -182,6 +184,7 @@ class ModelBuilder:
         self._client = None
         self._pat = pat
         self._base_url = base_url
+        self._cli_platform = platform
         if not validate_api_ids:  # for backwards compatibility
             download_validation_only = True
         self.download_validation_only = download_validation_only
@@ -225,6 +228,8 @@ class ModelBuilder:
             user_app_id=self.client.user_app_id,
             model_id=self.model_id,
         )
+        # Add secrets to additional_fields to get request-type secrets
+        request.additional_fields.append("secrets")
         if self.model_version_id is not None:
             request.version_id = self.model_version_id
         resp: service_pb2.SingleModelResponse = self.client.STUB.GetModel(request)
@@ -926,15 +931,18 @@ class ModelBuilder:
             pkg, version = line.split("<=")
         elif "<" in line:
             pkg, version = line.split("<")
+        elif "@" in line:
+            pkg, version = line.split("@", 1)
         else:
             pkg, version = line, None  # No version specified
+        pkg = pkg.strip()
         for dep in dependencies:
             if dep == pkg:
                 if (
                     dep == 'torch' and line.find('whl/cpu') > 0
                 ):  # Ignore torch-cpu whl files, use base mage.
                     return None, None
-                return dep.strip(), version.strip() if version else None
+                return pkg, version.strip() if version else None
         return None, None
 
     def _parse_requirements(self):
@@ -1476,6 +1484,33 @@ class ModelBuilder:
             method_signatures=signatures,
         )
 
+        # Add build_info with platform if specified in CLI or config
+        # CLI platform takes precedence over config platform
+        platform = None
+        if self._cli_platform:
+            platform = self._cli_platform
+            logger.info(f"Using platform from CLI: {platform}")
+        else:
+            build_info_config = self.config.get('build_info', {})
+            if 'platform' in build_info_config:
+                platform = build_info_config['platform']
+                if platform:
+                    logger.info(f"Using platform from config.yaml: {platform}")
+
+        # Check if platform is not None and not an empty string
+        if platform:
+            # Create BuildInfo and set platform if the field is available
+            build_info = resources_pb2.BuildInfo()
+            if hasattr(build_info, 'platform'):
+                build_info.platform = platform
+                model_version_proto.build_info.CopyFrom(build_info)
+                logger.info(f"Set build platform to: {platform}")
+            else:
+                logger.warning(
+                    f"Platform '{platform}' specified but not supported "
+                    "in current clarifai-grpc version. Please update clarifai-grpc to use this feature."
+                )
+
         # Add git information to metadata if available
         if git_info:
             from google.protobuf.struct_pb2 import Struct
@@ -1764,17 +1799,27 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                 return False
 
 
-def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
+def upload_model(
+    folder,
+    stage,
+    skip_dockerfile,
+    platform: Optional[str] = None,
+    pat: Optional[str] = None,
+    base_url: Optional[str] = None,
+):
     """
     Uploads a model to Clarifai.
 
     :param folder: The folder containing the model files.
     :param stage: The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.
     :param skip_dockerfile: If True, will skip Dockerfile generation entirely. If False or not provided, intelligently handle existing Dockerfiles with user confirmation.
+    :param platform: Target platform(s) for Docker image build (e.g., "linux/amd64" or "linux/amd64,linux/arm64"). This overrides the platform specified in config.yaml.
     :param pat: Personal access token for authentication. If None, will use environment variables.
     :param base_url: Base URL for the API. If None, will use environment variables.
     """
-    builder = ModelBuilder(folder, app_not_found_action="prompt", pat=pat, base_url=base_url)
+    builder = ModelBuilder(
+        folder, app_not_found_action="prompt", platform=platform, pat=pat, base_url=base_url
+    )
     builder.download_checkpoints(stage=stage)
 
     if not skip_dockerfile:

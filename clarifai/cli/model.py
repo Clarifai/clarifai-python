@@ -417,8 +417,13 @@ def init(
     is_flag=True,
     help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
+@click.option(
+    '--platform',
+    required=False,
+    help='Target platform(s) for Docker image build (e.g., "linux/amd64" or "linux/amd64,linux/arm64"). This overrides the platform specified in config.yaml.',
+)
 @click.pass_context
-def upload(ctx, model_path, stage, skip_dockerfile):
+def upload(ctx, model_path, stage, skip_dockerfile, platform):
     """Upload a model to Clarifai.
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
@@ -430,6 +435,7 @@ def upload(ctx, model_path, stage, skip_dockerfile):
         model_path,
         stage,
         skip_dockerfile,
+        platform=platform,
         pat=ctx.obj.current.pat,
         base_url=ctx.obj.current.api_base,
     )
@@ -705,6 +711,19 @@ def local_runner(ctx, model_path, pool_size, verbose):
             )
             raise click.Abort()
 
+    # Load model config
+    config_file = os.path.join(model_path, 'config.yaml')
+    if not os.path.exists(config_file):
+        logger.error(
+            f"config.yaml not found in {model_path}. Please ensure you are passing the correct directory."
+        )
+        raise click.Abort()
+    config = ModelBuilder._load_config(config_file)
+
+    uploaded_model_type_id = config.get('model', {}).get(
+        'model_type_id', DEFAULT_LOCAL_RUNNER_MODEL_TYPE
+    )
+
     logger.info("> Verifying local runner setup...")
     logger.info(f"Current context: {ctx.obj.current.name}")
     user_id = ctx.obj.current.user_id
@@ -818,11 +837,18 @@ def local_runner(ctx, model_path, pool_size, verbose):
 
     try:
         model = app.model(model_id)
+        current_model_type_id = model.model_type_id
         try:
             model_id = ctx.obj.current.model_id
         except AttributeError:  # doesn't exist in context but does in API then update the context.
             ctx.obj.current.CLARIFAI_MODEL_ID = model.id
             ctx.obj.to_yaml()  # save to yaml file.
+        if current_model_type_id != uploaded_model_type_id:
+            logger.warning(
+                f"Model type ID mismatch: expected '{uploaded_model_type_id}', found '{current_model_type_id}'. Deleting the model."
+            )
+            app.delete_model(model_id)
+            raise Exception
     except Exception as e:
         logger.warning(f"Failed to get model with ID '{model_id}':\n{e}")
         y = input(
@@ -830,13 +856,9 @@ def local_runner(ctx, model_path, pool_size, verbose):
         )
         if y.lower() != 'y':
             raise click.Abort()
-        try:
-            model_type_id = ctx.obj.current.model_type_id
-        except AttributeError:
-            model_type_id = DEFAULT_LOCAL_RUNNER_MODEL_TYPE
 
-        model = app.create_model(model_id, model_type_id=model_type_id)
-        ctx.obj.current.CLARIFAI_MODEL_TYPE_ID = model_type_id
+        model = app.create_model(model_id, model_type_id=uploaded_model_type_id)
+        ctx.obj.current.CLARIFAI_MODEL_TYPE_ID = uploaded_model_type_id
         ctx.obj.current.CLARIFAI_MODEL_ID = model_id
         ctx.obj.to_yaml()  # save to yaml file.
 
@@ -978,14 +1000,6 @@ def local_runner(ctx, model_path, pool_size, verbose):
 
     # Now that we have all the context in ctx.obj, we need to update the config.yaml in
     # the model_path directory with the model object containing user_id, app_id, model_id, version_id
-    config_file = os.path.join(model_path, 'config.yaml')
-    if not os.path.exists(config_file):
-        logger.error(
-            f"config.yaml not found in {model_path}. Please ensure you are passing the correct directory."
-        )
-        raise click.Abort()
-    config = ModelBuilder._load_config(config_file)
-    model_type_id = config.get('model', {}).get('model_type_id', DEFAULT_LOCAL_RUNNER_MODEL_TYPE)
     # The config.yaml doens't match what we created above.
     if 'model' in config and model_id != config['model'].get('id'):
         logger.info(f"Current model section of config.yaml: {config.get('model', {})}")
@@ -995,7 +1009,7 @@ def local_runner(ctx, model_path, pool_size, verbose):
         if y.lower() != 'y':
             raise click.Abort()
         config = ModelBuilder._set_local_runner_model(
-            config, user_id, app_id, model_id, model_type_id
+            config, user_id, app_id, model_id, uploaded_model_type_id
         )
         ModelBuilder._backup_config(config_file)
         ModelBuilder._save_config(config_file, config)
