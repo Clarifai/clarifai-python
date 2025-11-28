@@ -82,12 +82,10 @@ class TestArtifactCLI:
             mock_builder.return_value = mock_instance
             mock_instance.list_artifacts.return_value = [
                 {'id': 'artifact1', 'description': 'Test artifact 1'},
-                {'id': 'artifact2', 'description': 'Test artifact 2'}
+                {'id': 'artifact2', 'description': 'Test artifact 2'},
             ]
 
-            result = self.runner.invoke(artifact, [
-                'list', 'users/test_user/apps/test_app'
-            ])
+            result = self.runner.invoke(artifact, ['list', 'users/test_user/apps/test_app'])
 
             assert result.exit_code == 0
             assert 'artifact1' in result.output
@@ -111,14 +109,13 @@ class TestArtifactCLI:
             mock_builder.return_value = mock_instance
             mock_instance.list_artifact_versions.return_value = [
                 {'id': 'version1', 'artifact_id': 'test_artifact'},
-                {'id': 'version2', 'artifact_id': 'test_artifact'}
+                {'id': 'version2', 'artifact_id': 'test_artifact'},
             ]
 
-            result = self.runner.invoke(artifact, [
-                'list', 
-                'users/test_user/apps/test_app/artifacts/test_artifact',
-                '--versions'
-            ])
+            result = self.runner.invoke(
+                artifact,
+                ['list', 'users/test_user/apps/test_app/artifacts/test_artifact', '--versions'],
+            )
 
             assert result.exit_code == 0
 
@@ -133,12 +130,12 @@ class TestArtifactCLI:
             mock_instance.get_artifact_info.return_value = {
                 'id': 'test_artifact',
                 'description': 'Test artifact',
-                'created_at': '2023-01-01T00:00:00Z'
+                'created_at': '2023-01-01T00:00:00Z',
             }
 
-            result = self.runner.invoke(artifact, [
-                'get', 'users/test_user/apps/test_app/artifacts/test_artifact'
-            ])
+            result = self.runner.invoke(
+                artifact, ['get', 'users/test_user/apps/test_app/artifacts/test_artifact']
+            )
 
             assert result.exit_code == 0
             assert 'test_artifact' in result.output
@@ -162,9 +159,11 @@ class TestArtifactCLI:
             mock_instance.delete_artifact.return_value = True
 
             # Use input to simulate user confirmation
-            result = self.runner.invoke(artifact, [
-                'delete', 'users/test_user/apps/test_app/artifacts/test_artifact'
-            ], input='y\n')
+            result = self.runner.invoke(
+                artifact,
+                ['delete', 'users/test_user/apps/test_app/artifacts/test_artifact'],
+                input='y\n',
+            )
 
             assert result.exit_code == 0
 
@@ -173,9 +172,11 @@ class TestArtifactCLI:
         """Test delete command with user cancellation."""
         mock_validate.return_value = None
 
-        result = self.runner.invoke(artifact, [
-            'delete', 'users/test_user/apps/test_app/artifacts/test_artifact'
-        ], input='n\n')
+        result = self.runner.invoke(
+            artifact,
+            ['delete', 'users/test_user/apps/test_app/artifacts/test_artifact'],
+            input='n\n',
+        )
 
         assert result.exit_code == 0
         assert "Operation cancelled" in result.output
@@ -192,15 +193,14 @@ class TestArtifactCLI:
             mock_builder.return_value = mock_instance
             mock_instance.upload_from_path.return_value = Mock(id="uploaded_version")
 
-            result = self.runner.invoke(artifact, [
-                'cp', 
-                './test_file.txt',
-                'users/test_user/apps/test_app/artifacts/test_artifact'
-            ])
+            result = self.runner.invoke(
+                artifact,
+                ['cp', './test_file.txt', 'users/test_user/apps/test_app/artifacts/test_artifact'],
+            )
 
             assert result.exit_code == 0
 
-    @patch('clarifai.cli.artifact.validate_context') 
+    @patch('clarifai.cli.artifact.validate_context')
     def test_cp_command_download_success(self, mock_validate):
         """Test successful download via cp command."""
         mock_validate.return_value = None
@@ -210,11 +210,14 @@ class TestArtifactCLI:
             mock_builder.return_value = mock_instance
             mock_instance.download_from_path.return_value = "./downloaded_file.txt"
 
-            result = self.runner.invoke(artifact, [
-                'cp',
-                'users/test_user/apps/test_app/artifacts/test_artifact',
-                './downloaded_file.txt'
-            ])
+            result = self.runner.invoke(
+                artifact,
+                [
+                    'cp',
+                    'users/test_user/apps/test_app/artifacts/test_artifact',
+                    './downloaded_file.txt',
+                ],
+            )
 
             assert result.exit_code == 0
 
@@ -229,11 +232,9 @@ class TestArtifactCLI:
         assert "One of source or destination must be a local path" in result.output
 
         # Both paths are remote
-        result = self.runner.invoke(artifact, [
-            'cp', 
-            'users/u1/apps/a1/artifacts/art1', 
-            'users/u2/apps/a2/artifacts/art2'
-        ])
+        result = self.runner.invoke(
+            artifact, ['cp', 'users/u1/apps/a1/artifacts/art1', 'users/u2/apps/a2/artifacts/art2']
+        )
         assert result.exit_code != 0
         assert "One of source or destination must be a local path" in result.output
 
@@ -244,11 +245,14 @@ class TestArtifactCLI:
         mock_validate.return_value = None
         mock_exists.return_value = False
 
-        result = self.runner.invoke(artifact, [
-            'cp',
-            './nonexistent_file.txt',
-            'users/test_user/apps/test_app/artifacts/test_artifact'
-        ])
+        result = self.runner.invoke(
+            artifact,
+            [
+                'cp',
+                './nonexistent_file.txt',
+                'users/test_user/apps/test_app/artifacts/test_artifact',
+            ],
+        )
 
         assert result.exit_code != 0
         assert "File does not exist" in result.output
@@ -288,31 +292,31 @@ class TestArtifactCLIIntegration:
             ]
 
             # Test list
-            result = self.runner.invoke(artifact, [
-                'list', 'users/test_user/apps/test_app'
-            ])
+            result = self.runner.invoke(artifact, ['list', 'users/test_user/apps/test_app'])
             assert result.exit_code == 0
 
             # Mock get response
             mock_instance.get_artifact_info.return_value = {
                 'id': 'test_artifact',
                 'description': 'Test artifact',
-                'created_at': '2023-01-01T00:00:00Z'
+                'created_at': '2023-01-01T00:00:00Z',
             }
 
             # Test get
-            result = self.runner.invoke(artifact, [
-                'get', 'users/test_user/apps/test_app/artifacts/test_artifact'
-            ])
+            result = self.runner.invoke(
+                artifact, ['get', 'users/test_user/apps/test_app/artifacts/test_artifact']
+            )
             assert result.exit_code == 0
 
             # Mock delete response
             mock_instance.delete_artifact.return_value = True
 
             # Test delete with confirmation
-            result = self.runner.invoke(artifact, [
-                'delete', 'users/test_user/apps/test_app/artifacts/test_artifact'
-            ], input='y\n')
+            result = self.runner.invoke(
+                artifact,
+                ['delete', 'users/test_user/apps/test_app/artifacts/test_artifact'],
+                input='y\n',
+            )
             assert result.exit_code == 0
 
     @patch('clarifai.cli.artifact.validate_context')
@@ -327,9 +331,9 @@ class TestArtifactCLIIntegration:
             # Simulate an error
             mock_instance.get_artifact_info.side_effect = UserError("Artifact not found")
 
-            result = self.runner.invoke(artifact, [
-                'get', 'users/test_user/apps/test_app/artifacts/nonexistent'
-            ])
+            result = self.runner.invoke(
+                artifact, ['get', 'users/test_user/apps/test_app/artifacts/nonexistent']
+            )
 
             assert result.exit_code != 0
             assert "Artifact not found" in result.output

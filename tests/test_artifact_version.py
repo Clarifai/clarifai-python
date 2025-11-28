@@ -19,7 +19,7 @@ class TestArtifactVersion:
                 artifact_id="test_artifact",
                 version_id="test_version",
                 user_id="test_user",
-                app_id="test_app"
+                app_id="test_app",
             )
 
             assert version.artifact_id == "test_artifact"
@@ -35,7 +35,7 @@ class TestArtifactVersion:
                 artifact_id="test_artifact",
                 user_id="test_user",
                 app_id="test_app",
-                base_url="https://api.clarifai.com"
+                base_url="https://api.clarifai.com",
             )
             assert version.artifact_id == "test_artifact"
 
@@ -46,7 +46,7 @@ class TestArtifactVersion:
                 artifact_id="test_artifact",
                 version_id="test_version",
                 user_id="test_user",
-                app_id="test_app"
+                app_id="test_app",
             )
 
             repr_str = repr(version)
@@ -63,16 +63,15 @@ class TestArtifactVersion:
         mock_artifact_version.id = "new_version"
         mock_response.artifact_versions = [mock_artifact_version]
 
-        with patch('clarifai.client.base.BaseClient.__init__'), \
-             patch.object(ArtifactVersion, 'V2_STUB'):
-
+        with (
+            patch('clarifai.client.base.BaseClient.__init__'),
+            patch.object(ArtifactVersion, 'V2_STUB'),
+        ):
             mock_handle_grpc_error.return_value = mock_response
 
             version = ArtifactVersion()
             result = version.create(
-                artifact_id="test_artifact",
-                user_id="test_user",
-                app_id="test_app"
+                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
             )
 
             assert isinstance(result, ArtifactVersion)
@@ -101,10 +100,11 @@ class TestArtifactVersion:
         mock_artifact_version.id = "uploaded_version"
         mock_response.artifact_versions = [mock_artifact_version]
 
-        with patch('clarifai.client.base.BaseClient.__init__'), \
-             patch.object(ArtifactVersion, 'V2_STUB'), \
-             patch.object(ArtifactVersion, '_streaming_upload_with_retry') as mock_upload:
-
+        with (
+            patch('clarifai.client.base.BaseClient.__init__'),
+            patch.object(ArtifactVersion, 'V2_STUB'),
+            patch.object(ArtifactVersion, '_streaming_upload_with_retry') as mock_upload,
+        ):
             mock_handle_grpc_error.return_value = mock_response
             mock_upload.return_value = mock_response
 
@@ -113,7 +113,7 @@ class TestArtifactVersion:
                 file_path="test_file.txt",
                 artifact_id="test_artifact",
                 user_id="test_user",
-                app_id="test_app"
+                app_id="test_app",
             )
 
             assert isinstance(result, ArtifactVersion)
@@ -131,7 +131,7 @@ class TestArtifactVersion:
                     file_path="nonexistent_file.txt",
                     artifact_id="test_artifact",
                     user_id="test_user",
-                    app_id="test_app"
+                    app_id="test_app",
                 )
 
     def test_upload_missing_params(self):
@@ -151,17 +151,18 @@ class TestArtifactVersion:
         mock_response = Mock()
         mock_response.data.chunks = [b"chunk1", b"chunk2", b"chunk3"]
 
-        with patch('clarifai.client.base.BaseClient.__init__'), \
-             patch.object(ArtifactVersion, 'V2_STUB'), \
-             patch.object(ArtifactVersion, '_download_with_retry') as mock_download:
-
+        with (
+            patch('clarifai.client.base.BaseClient.__init__'),
+            patch.object(ArtifactVersion, 'V2_STUB'),
+            patch.object(ArtifactVersion, '_download_with_retry') as mock_download,
+        ):
             mock_download.return_value = mock_response
 
             version = ArtifactVersion(
                 artifact_id="test_artifact",
                 version_id="test_version",
                 user_id="test_user",
-                app_id="test_app"
+                app_id="test_app",
             )
 
             result = version.download(file_path="test_download.txt")
@@ -181,16 +182,17 @@ class TestArtifactVersion:
         mock_response = Mock()
         mock_response.status.code = 10000  # SUCCESS
 
-        with patch('clarifai.client.base.BaseClient.__init__'), \
-             patch.object(ArtifactVersion, 'V2_STUB'):
-
+        with (
+            patch('clarifai.client.base.BaseClient.__init__'),
+            patch.object(ArtifactVersion, 'V2_STUB'),
+        ):
             mock_handle_grpc_error.return_value = mock_response
 
             version = ArtifactVersion(
                 artifact_id="test_artifact",
                 version_id="test_version",
                 user_id="test_user",
-                app_id="test_app"
+                app_id="test_app",
             )
 
             result = version.delete()
@@ -220,16 +222,17 @@ class TestArtifactVersion:
         mock_artifact_version.modified_at = mock_timestamp
         mock_response.artifact_versions = [mock_artifact_version]
 
-        with patch('clarifai.client.base.BaseClient.__init__'), \
-             patch.object(ArtifactVersion, 'V2_STUB'):
-
+        with (
+            patch('clarifai.client.base.BaseClient.__init__'),
+            patch.object(ArtifactVersion, 'V2_STUB'),
+        ):
             mock_handle_grpc_error.return_value = mock_response
 
             version = ArtifactVersion(
                 artifact_id="test_artifact",
                 version_id="test_version",
                 user_id="test_user",
-                app_id="test_app"
+                app_id="test_app",
             )
 
             result = version.info()
@@ -245,17 +248,16 @@ class TestArtifactVersion:
         mock_version2.id = "version2"
         mock_response.artifact_versions = [mock_version1, mock_version2]
 
-        with patch('clarifai.client.base.BaseClient.__init__'), \
-             patch.object(ArtifactVersion, 'V2_STUB'):
-
+        with (
+            patch('clarifai.client.base.BaseClient.__init__'),
+            patch.object(ArtifactVersion, 'V2_STUB'),
+        ):
             mock_handle_grpc_error.return_value = mock_response
 
             version = ArtifactVersion()
-            results = list(version.list(
-                artifact_id="test_artifact",
-                user_id="test_user",
-                app_id="test_app"
-            ))
+            results = list(
+                version.list(artifact_id="test_artifact", user_id="test_user", app_id="test_app")
+            )
 
             assert len(results) == 2
 
@@ -289,7 +291,7 @@ class TestArtifactVersionHelpers:
                 user_id="test_user",
                 app_id="test_app",
                 version_id="test_version",
-                description="Test description"
+                description="Test description",
             )
 
             assert config.artifact_id == "test_artifact"
@@ -321,9 +323,9 @@ class TestArtifactVersionHelpers:
         with patch('clarifai.client.base.BaseClient.__init__'):
             version = ArtifactVersion(
                 artifact_id="test_artifact",
-                version_id="test_version", 
+                version_id="test_version",
                 user_id="test_user",
-                app_id="test_app"
+                app_id="test_app",
             )
 
             params = version._get_client_params()
@@ -331,7 +333,7 @@ class TestArtifactVersionHelpers:
                 'artifact_id': 'test_artifact',
                 'version_id': 'test_version',
                 'user_id': 'test_user',
-                'app_id': 'test_app'
+                'app_id': 'test_app',
             }
             assert params == expected
 
@@ -365,7 +367,7 @@ class TestArtifactVersionValidation:
                     file_path="",
                     artifact_id="test_artifact",
                     user_id="test_user",
-                    app_id="test_app"
+                    app_id="test_app",
                 )
 
 

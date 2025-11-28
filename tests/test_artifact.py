@@ -14,11 +14,7 @@ class TestArtifact:
 
     def test_init(self):
         """Test artifact initialization."""
-        artifact = Artifact(
-            artifact_id="test_artifact",
-            user_id="test_user",
-            app_id="test_app"
-        )
+        artifact = Artifact(artifact_id="test_artifact", user_id="test_user", app_id="test_app")
 
         assert artifact.artifact_id == "test_artifact"
         assert artifact.user_id == "test_user"
@@ -30,19 +26,15 @@ class TestArtifact:
         with patch('clarifai.client.base.BaseClient.__init__'):
             artifact = Artifact(
                 artifact_id="test_artifact",
-                user_id="test_user", 
+                user_id="test_user",
                 app_id="test_app",
-                base_url="https://api.clarifai.com"
+                base_url="https://api.clarifai.com",
             )
             assert artifact.artifact_id == "test_artifact"
 
     def test_repr(self):
         """Test artifact string representation."""
-        artifact = Artifact(
-            artifact_id="test_artifact",
-            user_id="test_user",
-            app_id="test_app"
-        )
+        artifact = Artifact(artifact_id="test_artifact", user_id="test_user", app_id="test_app")
 
         repr_str = repr(artifact)
         assert "test_artifact" in repr_str
@@ -60,16 +52,15 @@ class TestArtifact:
         mock_artifact.app_id = "test_app"
         mock_response.artifacts = [mock_artifact]
 
-        with patch('clarifai.client.base.BaseClient.__init__'), \
-             patch.object(Artifact, 'V2_STUB') as mock_stub:
-
+        with (
+            patch('clarifai.client.base.BaseClient.__init__'),
+            patch.object(Artifact, 'V2_STUB') as mock_stub,
+        ):
             mock_handle_grpc_error.return_value = mock_response
 
             artifact = Artifact()
             result = artifact.create(
-                artifact_id="new_artifact",
-                user_id="test_user",
-                app_id="test_app"
+                artifact_id="new_artifact", user_id="test_user", app_id="test_app"
             )
 
             assert isinstance(result, Artifact)
@@ -83,17 +74,15 @@ class TestArtifact:
         mock_artifact.id = "new_artifact"
         mock_response.artifacts = [mock_artifact]
 
-        with patch('clarifai.client.base.BaseClient.__init__'), \
-             patch.object(Artifact, 'V2_STUB'):
-
+        with patch('clarifai.client.base.BaseClient.__init__'), patch.object(Artifact, 'V2_STUB'):
             mock_handle_grpc_error.return_value = mock_response
 
             artifact = Artifact()
             artifact.create(
                 artifact_id="new_artifact",
-                user_id="test_user", 
+                user_id="test_user",
                 app_id="test_app",
-                description="Test artifact description"
+                description="Test artifact description",
             )
 
             # Verify the call was made with description
@@ -108,21 +97,17 @@ class TestArtifact:
             with pytest.raises(UserError, match="artifact_id is required"):
                 artifact.create()
 
-    @patch('clarifai.client.artifact.handle_grpc_error') 
+    @patch('clarifai.client.artifact.handle_grpc_error')
     def test_delete_success(self, mock_handle_grpc_error):
         """Test successful artifact deletion."""
         mock_response = Mock()
         mock_response.status.code = 10000  # SUCCESS
 
-        with patch('clarifai.client.base.BaseClient.__init__'), \
-             patch.object(Artifact, 'V2_STUB'):
-
+        with patch('clarifai.client.base.BaseClient.__init__'), patch.object(Artifact, 'V2_STUB'):
             mock_handle_grpc_error.return_value = mock_response
 
             artifact = Artifact(
-                artifact_id="test_artifact",
-                user_id="test_user",
-                app_id="test_app"
+                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
             )
 
             result = artifact.delete()
@@ -154,15 +139,11 @@ class TestArtifact:
         mock_artifact.modified_at = mock_timestamp
         mock_response.artifacts = [mock_artifact]
 
-        with patch('clarifai.client.base.BaseClient.__init__'), \
-             patch.object(Artifact, 'V2_STUB'):
-
+        with patch('clarifai.client.base.BaseClient.__init__'), patch.object(Artifact, 'V2_STUB'):
             mock_handle_grpc_error.return_value = mock_response
 
             artifact = Artifact(
-                artifact_id="test_artifact",
-                user_id="test_user", 
-                app_id="test_app"
+                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
             )
 
             result = artifact.info()
@@ -175,13 +156,11 @@ class TestArtifact:
         mock_response = Mock()
         mock_artifact1 = Mock()
         mock_artifact1.id = "artifact1"
-        mock_artifact2 = Mock() 
+        mock_artifact2 = Mock()
         mock_artifact2.id = "artifact2"
         mock_response.artifacts = [mock_artifact1, mock_artifact2]
 
-        with patch('clarifai.client.base.BaseClient.__init__'), \
-             patch.object(Artifact, 'V2_STUB'):
-
+        with patch('clarifai.client.base.BaseClient.__init__'), patch.object(Artifact, 'V2_STUB'):
             mock_handle_grpc_error.return_value = mock_response
 
             artifact = Artifact()
@@ -198,15 +177,11 @@ class TestArtifact:
         mock_artifact.id = "test_artifact"
         mock_response.artifacts = [mock_artifact]
 
-        with patch('clarifai.client.base.BaseClient.__init__'), \
-             patch.object(Artifact, 'V2_STUB'):
-
+        with patch('clarifai.client.base.BaseClient.__init__'), patch.object(Artifact, 'V2_STUB'):
             mock_handle_grpc_error.return_value = mock_response
 
             artifact = Artifact(
-                artifact_id="test_artifact",
-                user_id="test_user",
-                app_id="test_app"
+                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
             )
 
             result = artifact.exists()
@@ -218,15 +193,11 @@ class TestArtifact:
         mock_response = Mock()
         mock_response.artifacts = []
 
-        with patch('clarifai.client.base.BaseClient.__init__'), \
-             patch.object(Artifact, 'V2_STUB'):
-
+        with patch('clarifai.client.base.BaseClient.__init__'), patch.object(Artifact, 'V2_STUB'):
             mock_handle_grpc_error.return_value = mock_response
 
             artifact = Artifact(
-                artifact_id="test_artifact",
-                user_id="test_user", 
-                app_id="test_app"
+                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
             )
 
             result = artifact.exists()
@@ -240,16 +211,14 @@ class TestArtifactValidation:
         """Test client parameter extraction."""
         with patch('clarifai.client.base.BaseClient.__init__'):
             artifact = Artifact(
-                artifact_id="test_artifact",
-                user_id="test_user",
-                app_id="test_app"
+                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
             )
 
             params = artifact._get_client_params()
             expected = {
                 'artifact_id': 'test_artifact',
-                'user_id': 'test_user', 
-                'app_id': 'test_app'
+                'user_id': 'test_user',
+                'app_id': 'test_app',
             }
             assert params == expected
 
@@ -262,7 +231,7 @@ class TestArtifactValidation:
             with pytest.raises(UserError, match="artifact_id is required"):
                 artifact.create()
 
-            with pytest.raises(UserError, match="artifact_id is required"): 
+            with pytest.raises(UserError, match="artifact_id is required"):
                 artifact.delete()
 
             with pytest.raises(UserError, match="artifact_id is required"):

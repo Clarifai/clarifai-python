@@ -68,7 +68,7 @@ class TestArtifactPathParsing:
         parsed = parse_artifact_path(path)
 
         assert parsed['user_id'] == 'user-123'
-        assert parsed['app_id'] == 'app_456' 
+        assert parsed['app_id'] == 'app_456'
         assert parsed['artifact_id'] == 'my-artifact_v2'
 
     def test_is_local_path(self):
@@ -117,7 +117,7 @@ class TestArtifactBuilder:
 
         result = self.builder.upload_from_path(
             source_path="./test_file.txt",
-            destination_path="users/u123/apps/a456/artifacts/my_artifact"
+            destination_path="users/u123/apps/a456/artifacts/my_artifact",
         )
 
         assert result.id == "new_version"
@@ -131,15 +131,14 @@ class TestArtifactBuilder:
         with pytest.raises(UserError, match="File does not exist"):
             self.builder.upload_from_path(
                 source_path="./nonexistent_file.txt",
-                destination_path="users/u123/apps/a456/artifacts/my_artifact"
+                destination_path="users/u123/apps/a456/artifacts/my_artifact",
             )
 
     def test_upload_from_path_invalid_destination(self):
         """Test upload from path with invalid destination path."""
         with pytest.raises(UserError, match="Invalid artifact path format"):
             self.builder.upload_from_path(
-                source_path="./test_file.txt",
-                destination_path="invalid/path"
+                source_path="./test_file.txt", destination_path="invalid/path"
             )
 
     @patch('os.path.exists')
@@ -154,7 +153,7 @@ class TestArtifactBuilder:
         result = self.builder.upload_from_path(
             source_path="./test_file.txt",
             destination_path="users/u123/apps/a456/artifacts/my_artifact",
-            description="Custom version description"
+            description="Custom version description",
         )
 
         # Verify upload was called with description
@@ -168,7 +167,7 @@ class TestArtifactBuilder:
 
         result = self.builder.download_from_path(
             source_path="users/u123/apps/a456/artifacts/my_artifact",
-            destination_path="./downloaded_file.txt"
+            destination_path="./downloaded_file.txt",
         )
 
         assert result == "./downloaded_file.txt"
@@ -178,8 +177,7 @@ class TestArtifactBuilder:
         """Test download from path with invalid source path."""
         with pytest.raises(UserError, match="Invalid artifact path format"):
             self.builder.download_from_path(
-                source_path="invalid/path",
-                destination_path="./downloaded_file.txt"
+                source_path="invalid/path", destination_path="./downloaded_file.txt"
             )
 
     @patch('clarifai.client.artifact_version.ArtifactVersion.download')
@@ -189,7 +187,7 @@ class TestArtifactBuilder:
 
         result = self.builder.download_from_path(
             source_path="users/u123/apps/a456/artifacts/my_artifact/versions/v789",
-            destination_path="./downloaded_file.txt"
+            destination_path="./downloaded_file.txt",
         )
 
         assert result == "./downloaded_file.txt"
@@ -211,10 +209,7 @@ class TestArtifactBuilder:
 
         mock_list.return_value = [mock_artifact1, mock_artifact2]
 
-        result = self.builder.list_artifacts(
-            user_id="u123",
-            app_id="a456"
-        )
+        result = self.builder.list_artifacts(user_id="u123", app_id="a456")
 
         artifacts = list(result)
         assert len(artifacts) == 2
@@ -236,9 +231,7 @@ class TestArtifactBuilder:
         mock_list.return_value = [mock_version1, mock_version2]
 
         result = self.builder.list_artifact_versions(
-            artifact_id="test_artifact",
-            user_id="u123",
-            app_id="a456"
+            artifact_id="test_artifact", user_id="u123", app_id="a456"
         )
 
         versions = list(result)
@@ -256,9 +249,7 @@ class TestArtifactBuilder:
         mock_info.return_value = mock_artifact
 
         result = self.builder.get_artifact_info(
-            artifact_id="test_artifact",
-            user_id="u123",
-            app_id="a456"
+            artifact_id="test_artifact", user_id="u123", app_id="a456"
         )
 
         assert result['id'] == "test_artifact"
@@ -274,10 +265,7 @@ class TestArtifactBuilder:
         mock_info.return_value = mock_version
 
         result = self.builder.get_artifact_version_info(
-            artifact_id="test_artifact",
-            version_id="test_version",
-            user_id="u123",
-            app_id="a456"
+            artifact_id="test_artifact", version_id="test_version", user_id="u123", app_id="a456"
         )
 
         assert result['id'] == "test_version"
@@ -289,9 +277,7 @@ class TestArtifactBuilder:
         mock_delete.return_value = True
 
         result = self.builder.delete_artifact(
-            artifact_id="test_artifact",
-            user_id="u123",
-            app_id="a456"
+            artifact_id="test_artifact", user_id="u123", app_id="a456"
         )
 
         assert result is True
@@ -303,10 +289,7 @@ class TestArtifactBuilder:
         mock_delete.return_value = True
 
         result = self.builder.delete_artifact_version(
-            artifact_id="test_artifact",
-            version_id="test_version",
-            user_id="u123",
-            app_id="a456"
+            artifact_id="test_artifact", version_id="test_version", user_id="u123", app_id="a456"
         )
 
         assert result is True
@@ -326,30 +309,25 @@ class TestArtifactBuilderErrorHandling:
         # Test upload without required parameters
         with pytest.raises(UserError, match="source_path is required"):
             self.builder.upload_from_path(
-                source_path="",
-                destination_path="users/u123/apps/a456/artifacts/my_artifact"
+                source_path="", destination_path="users/u123/apps/a456/artifacts/my_artifact"
             )
 
         with pytest.raises(UserError, match="destination_path is required"):
-            self.builder.upload_from_path(
-                source_path="./test_file.txt",
-                destination_path=""
-            )
+            self.builder.upload_from_path(source_path="./test_file.txt", destination_path="")
 
     def test_invalid_paths_error_handling(self):
         """Test error handling for invalid paths."""
         # Test upload with both local paths
         with pytest.raises(UserError, match="destination_path must be an artifact path"):
             self.builder.upload_from_path(
-                source_path="./file1.txt",
-                destination_path="./file2.txt"
+                source_path="./file1.txt", destination_path="./file2.txt"
             )
 
-        # Test download with both remote paths  
+        # Test download with both remote paths
         with pytest.raises(UserError, match="destination_path must be a local path"):
             self.builder.download_from_path(
                 source_path="users/u123/apps/a456/artifacts/art1",
-                destination_path="users/u123/apps/a456/artifacts/art2"
+                destination_path="users/u123/apps/a456/artifacts/art2",
             )
 
 
@@ -363,7 +341,7 @@ class TestConvenienceFunctions:
 
         result = upload_artifact(
             source_path="./test_file.txt",
-            destination_path="users/u123/apps/a456/artifacts/my_artifact"
+            destination_path="users/u123/apps/a456/artifacts/my_artifact",
         )
 
         assert result.id == "new_version"
@@ -376,7 +354,7 @@ class TestConvenienceFunctions:
 
         result = download_artifact(
             source_path="users/u123/apps/a456/artifacts/my_artifact",
-            destination_path="./downloaded_file.txt"
+            destination_path="./downloaded_file.txt",
         )
 
         assert result == "./downloaded_file.txt"
@@ -396,8 +374,9 @@ class TestArtifactBuilderIntegration:
     @patch('clarifai.client.artifact_version.ArtifactVersion.upload')
     @patch('clarifai.client.artifact_version.ArtifactVersion.list')
     @patch('clarifai.client.artifact_version.ArtifactVersion.download')
-    def test_complete_workflow_simulation(self, mock_download, mock_list, mock_upload, 
-                                        mock_create, mock_exists):
+    def test_complete_workflow_simulation(
+        self, mock_download, mock_list, mock_upload, mock_create, mock_exists
+    ):
         """Test complete artifact workflow simulation."""
         mock_exists.return_value = True
         mock_create.return_value = Mock()
@@ -406,7 +385,7 @@ class TestArtifactBuilderIntegration:
         mock_upload.return_value = Mock(id="v1")
         result = self.builder.upload_from_path(
             source_path="./test_file.txt",
-            destination_path="users/u123/apps/a456/artifacts/my_artifact"
+            destination_path="users/u123/apps/a456/artifacts/my_artifact",
         )
         assert result.id == "v1"
 
@@ -415,11 +394,11 @@ class TestArtifactBuilderIntegration:
         mock_version.id = "v1"
         mock_list.return_value = [mock_version]
 
-        versions = list(self.builder.list_artifact_versions(
-            artifact_id="my_artifact",
-            user_id="u123",
-            app_id="a456"
-        ))
+        versions = list(
+            self.builder.list_artifact_versions(
+                artifact_id="my_artifact", user_id="u123", app_id="a456"
+            )
+        )
         assert len(versions) == 1
         assert versions[0]['id'] == "v1"
 
@@ -427,7 +406,7 @@ class TestArtifactBuilderIntegration:
         mock_download.return_value = "./downloaded_file.txt"
         result = self.builder.download_from_path(
             source_path="users/u123/apps/a456/artifacts/my_artifact/versions/v1",
-            destination_path="./downloaded_file.txt"
+            destination_path="./downloaded_file.txt",
         )
         assert result == "./downloaded_file.txt"
 

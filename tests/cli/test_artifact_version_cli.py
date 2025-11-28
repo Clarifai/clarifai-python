@@ -29,21 +29,20 @@ class TestArtifactVersionCLI:
                     'id': 'version1',
                     'artifact_id': 'test_artifact',
                     'created_at': '2023-01-01T00:00:00Z',
-                    'size': 1024
+                    'size': 1024,
                 },
                 {
-                    'id': 'version2', 
+                    'id': 'version2',
                     'artifact_id': 'test_artifact',
                     'created_at': '2023-01-02T00:00:00Z',
-                    'size': 2048
-                }
+                    'size': 2048,
+                },
             ]
 
-            result = self.runner.invoke(artifact, [
-                'list', 
-                'users/test_user/apps/test_app/artifacts/test_artifact',
-                '--versions'
-            ])
+            result = self.runner.invoke(
+                artifact,
+                ['list', 'users/test_user/apps/test_app/artifacts/test_artifact', '--versions'],
+            )
 
             assert result.exit_code == 0
             assert 'version1' in result.output
@@ -62,13 +61,16 @@ class TestArtifactVersionCLI:
                 'artifact_id': 'test_artifact',
                 'created_at': '2023-01-01T00:00:00Z',
                 'size': 1024,
-                'description': 'Test version'
+                'description': 'Test version',
             }
 
-            result = self.runner.invoke(artifact, [
-                'get', 
-                'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version'
-            ])
+            result = self.runner.invoke(
+                artifact,
+                [
+                    'get',
+                    'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version',
+                ],
+            )
 
             assert result.exit_code == 0
             assert 'test_version' in result.output
@@ -84,10 +86,14 @@ class TestArtifactVersionCLI:
             mock_builder.return_value = mock_instance
             mock_instance.delete_artifact_version.return_value = True
 
-            result = self.runner.invoke(artifact, [
-                'delete', 
-                'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version'
-            ], input='y\n')
+            result = self.runner.invoke(
+                artifact,
+                [
+                    'delete',
+                    'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version',
+                ],
+                input='y\n',
+            )
 
             assert result.exit_code == 0
 
@@ -96,10 +102,14 @@ class TestArtifactVersionCLI:
         """Test delete version command with user cancellation."""
         mock_validate.return_value = None
 
-        result = self.runner.invoke(artifact, [
-            'delete',
-            'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version'
-        ], input='n\n')
+        result = self.runner.invoke(
+            artifact,
+            [
+                'delete',
+                'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version',
+            ],
+            input='n\n',
+        )
 
         assert result.exit_code == 0
         assert "Operation cancelled" in result.output
@@ -116,12 +126,16 @@ class TestArtifactVersionCLI:
             mock_builder.return_value = mock_instance
             mock_instance.upload_from_path.return_value = Mock(id="new_version")
 
-            result = self.runner.invoke(artifact, [
-                'cp',
-                './test_file.txt',
-                'users/test_user/apps/test_app/artifacts/test_artifact',
-                '--description', 'New version upload'
-            ])
+            result = self.runner.invoke(
+                artifact,
+                [
+                    'cp',
+                    './test_file.txt',
+                    'users/test_user/apps/test_app/artifacts/test_artifact',
+                    '--description',
+                    'New version upload',
+                ],
+            )
 
             assert result.exit_code == 0
 
@@ -135,11 +149,14 @@ class TestArtifactVersionCLI:
             mock_builder.return_value = mock_instance
             mock_instance.download_from_path.return_value = "./downloaded_version.txt"
 
-            result = self.runner.invoke(artifact, [
-                'cp',
-                'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version',
-                './downloaded_version.txt'
-            ])
+            result = self.runner.invoke(
+                artifact,
+                [
+                    'cp',
+                    'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version',
+                    './downloaded_version.txt',
+                ],
+            )
 
             assert result.exit_code == 0
 
@@ -149,10 +166,10 @@ class TestArtifactVersionCLI:
         mock_validate.return_value = None
 
         # Test invalid version path format
-        result = self.runner.invoke(artifact, [
-            'get',
-            'users/test_user/apps/test_app/artifacts/test_artifact/invalid_versions_path'
-        ])
+        result = self.runner.invoke(
+            artifact,
+            ['get', 'users/test_user/apps/test_app/artifacts/test_artifact/invalid_versions_path'],
+        )
 
         assert result.exit_code != 0
 
@@ -168,10 +185,13 @@ class TestArtifactVersionCLI:
             # Simulate version not found error
             mock_instance.get_artifact_version_info.side_effect = UserError("Version not found")
 
-            result = self.runner.invoke(artifact, [
-                'get',
-                'users/test_user/apps/test_app/artifacts/test_artifact/versions/nonexistent'
-            ])
+            result = self.runner.invoke(
+                artifact,
+                [
+                    'get',
+                    'users/test_user/apps/test_app/artifacts/test_artifact/versions/nonexistent',
+                ],
+            )
 
             assert result.exit_code != 0
             assert "Version not found" in result.output
@@ -194,11 +214,10 @@ class TestArtifactVersionCLIEdgeCases:
             mock_builder.return_value = mock_instance
             mock_instance.list_artifact_versions.return_value = []
 
-            result = self.runner.invoke(artifact, [
-                'list',
-                'users/test_user/apps/test_app/artifacts/test_artifact', 
-                '--versions'
-            ])
+            result = self.runner.invoke(
+                artifact,
+                ['list', 'users/test_user/apps/test_app/artifacts/test_artifact', '--versions'],
+            )
 
             assert result.exit_code == 0
             assert "No versions found" in result.output
@@ -209,10 +228,9 @@ class TestArtifactVersionCLIEdgeCases:
         mock_validate.return_value = None
 
         # Path that ends with '/versions/' but no version ID
-        result = self.runner.invoke(artifact, [
-            'get',
-            'users/test_user/apps/test_app/artifacts/test_artifact/versions/'
-        ])
+        result = self.runner.invoke(
+            artifact, ['get', 'users/test_user/apps/test_app/artifacts/test_artifact/versions/']
+        )
 
         assert result.exit_code != 0
 
@@ -223,9 +241,10 @@ class TestArtifactVersionCLIEdgeCases:
         mock_validate.return_value = None
         mock_exists.return_value = True
 
-        with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder, \
-             patch('os.path.getsize') as mock_getsize:
-
+        with (
+            patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder,
+            patch('os.path.getsize') as mock_getsize,
+        ):
             # Simulate large file (1GB)
             mock_getsize.return_value = 1024 * 1024 * 1024
 
@@ -233,11 +252,14 @@ class TestArtifactVersionCLIEdgeCases:
             mock_builder.return_value = mock_instance
             mock_instance.upload_from_path.return_value = Mock(id="large_file_version")
 
-            result = self.runner.invoke(artifact, [
-                'cp',
-                './large_file.txt',
-                'users/test_user/apps/test_app/artifacts/test_artifact'
-            ])
+            result = self.runner.invoke(
+                artifact,
+                [
+                    'cp',
+                    './large_file.txt',
+                    'users/test_user/apps/test_app/artifacts/test_artifact',
+                ],
+            )
 
             assert result.exit_code == 0
 
@@ -246,9 +268,10 @@ class TestArtifactVersionCLIEdgeCases:
         """Test download when target file exists and overwrite not forced."""
         mock_validate.return_value = None
 
-        with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder, \
-             patch('os.path.exists') as mock_exists:
-
+        with (
+            patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder,
+            patch('os.path.exists') as mock_exists,
+        ):
             # Simulate target file exists
             mock_exists.return_value = True
 
@@ -257,11 +280,14 @@ class TestArtifactVersionCLIEdgeCases:
             # Simulate the builder would raise an error about file existing
             mock_instance.download_from_path.side_effect = UserError("File already exists")
 
-            result = self.runner.invoke(artifact, [
-                'cp',
-                'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version',
-                './existing_file.txt'
-            ])
+            result = self.runner.invoke(
+                artifact,
+                [
+                    'cp',
+                    'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version',
+                    './existing_file.txt',
+                ],
+            )
 
             assert result.exit_code != 0
             assert "File already exists" in result.output
@@ -278,13 +304,16 @@ class TestArtifactVersionCLIEdgeCases:
                 'id': 'v1.0.0-alpha.1',
                 'artifact_id': 'my-model-v2',
                 'created_at': '2023-01-01T00:00:00Z',
-                'size': 1024
+                'size': 1024,
             }
 
-            result = self.runner.invoke(artifact, [
-                'get',
-                'users/test_user/apps/test_app/artifacts/my-model-v2/versions/v1.0.0-alpha.1'
-            ])
+            result = self.runner.invoke(
+                artifact,
+                [
+                    'get',
+                    'users/test_user/apps/test_app/artifacts/my-model-v2/versions/v1.0.0-alpha.1',
+                ],
+            )
 
             assert result.exit_code == 0
             assert 'v1.0.0-alpha.1' in result.output
@@ -310,42 +339,47 @@ class TestArtifactVersionCLIIntegration:
 
             # 1. Upload new version
             mock_instance.upload_from_path.return_value = Mock(id="new_version")
-            result = self.runner.invoke(artifact, [
-                'cp',
-                './test_file.txt',
-                'users/test_user/apps/test_app/artifacts/test_artifact'
-            ])
+            result = self.runner.invoke(
+                artifact,
+                ['cp', './test_file.txt', 'users/test_user/apps/test_app/artifacts/test_artifact'],
+            )
             assert result.exit_code == 0
 
             # 2. List versions
             mock_instance.list_artifact_versions.return_value = [
                 {'id': 'new_version', 'artifact_id': 'test_artifact'}
             ]
-            result = self.runner.invoke(artifact, [
-                'list',
-                'users/test_user/apps/test_app/artifacts/test_artifact',
-                '--versions'
-            ])
+            result = self.runner.invoke(
+                artifact,
+                ['list', 'users/test_user/apps/test_app/artifacts/test_artifact', '--versions'],
+            )
             assert result.exit_code == 0
 
             # 3. Get version info
             mock_instance.get_artifact_version_info.return_value = {
                 'id': 'new_version',
                 'artifact_id': 'test_artifact',
-                'created_at': '2023-01-01T00:00:00Z'
+                'created_at': '2023-01-01T00:00:00Z',
             }
-            result = self.runner.invoke(artifact, [
-                'get',
-                'users/test_user/apps/test_app/artifacts/test_artifact/versions/new_version'
-            ])
+            result = self.runner.invoke(
+                artifact,
+                [
+                    'get',
+                    'users/test_user/apps/test_app/artifacts/test_artifact/versions/new_version',
+                ],
+            )
             assert result.exit_code == 0
 
             # 4. Delete version
             mock_instance.delete_artifact_version.return_value = True
-            result = self.runner.invoke(artifact, [
-                'delete',
-                'users/test_user/apps/test_app/artifacts/test_artifact/versions/new_version'
-            ], input='y\n')
+            result = self.runner.invoke(
+                artifact,
+                [
+                    'delete',
+                    'users/test_user/apps/test_app/artifacts/test_artifact/versions/new_version',
+                ],
+                input='y\n',
+            )
             assert result.exit_code == 0
 
 

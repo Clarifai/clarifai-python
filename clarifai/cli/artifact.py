@@ -6,7 +6,10 @@ from clarifai.cli.base import cli
 from clarifai.client.artifact import Artifact
 from clarifai.client.artifact_version import ArtifactVersion
 from clarifai.errors import UserError
-from clarifai.runners.artifacts.artifact_builder import parse_artifact_path, parse_rfc3339_timestamp
+from clarifai.runners.artifacts.artifact_builder import (
+    parse_artifact_path,
+    parse_rfc3339_timestamp,
+)
 from clarifai.utils.cli import AliasedGroup, TableFormatter, validate_context
 from clarifai.utils.logging import logger
 
@@ -17,9 +20,9 @@ def is_local_path(path: str) -> bool:
 
 
 @cli.group(
-    ['artifact', 'af'], 
+    ['artifact', 'af'],
     cls=AliasedGroup,
-    context_settings={'max_content_width': shutil.get_terminal_size().columns - 10}
+    context_settings={'max_content_width': shutil.get_terminal_size().columns - 10},
 )
 def artifact():
     """Manage Artifacts: create, upload, download, list, get, delete"""
@@ -193,6 +196,8 @@ def get(ctx, path, user_id, app_id, artifact_id, version_id):
     except Exception as e:
         click.echo(f"Error getting artifact information: {e}", err=True)
         raise click.Abort()
+
+
 @artifact.command()
 @click.argument('path')
 @click.option('--user-id', help='User ID')

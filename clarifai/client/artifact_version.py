@@ -1,5 +1,4 @@
 import os
-from datetime import datetime
 from typing import Dict, Generator, Optional
 
 import requests
@@ -56,15 +55,6 @@ def handle_grpc_error(func, *args, **kwargs):
         if hasattr(e, 'code') and hasattr(e, 'details'):
             raise UserError(f"API Error: {e.details()}")
         raise UserError(f"Request failed: {e}")
-
-
-def format_bytes(size: int) -> str:
-    """Format byte size in human readable format."""
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-        if size < 1024.0:
-            return f"{size:.1f} {unit}"
-        size /= 1024.0
-    return f"{size:.1f} PB"
 
 
 class ArtifactVersion(BaseClient):
