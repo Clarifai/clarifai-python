@@ -160,8 +160,9 @@ class ModelBuilder:
         validate_api_ids: bool = True,
         download_validation_only: bool = False,
         app_not_found_action: Literal["auto_create", "prompt", "error"] = "error",
-        pat: str = None,
-        base_url: str = None,
+        platform: Optional[str] = None,
+        pat: Optional[str] = None,
+        base_url: Optional[str] = None,
     ):
         """
         :param folder: The folder containing the model.py, config.yaml, requirements.txt and
@@ -172,6 +173,7 @@ class ModelBuilder:
         just downloading a checkpoint.
         :param app_not_found_action: Defines how to handle the case when the app is not found.
         Options: 'auto_create' - create automatically, 'prompt' - ask user, 'error' - raise exception.
+        :param platform: Target platform(s) for Docker image build (e.g., "linux/amd64" or "linux/amd64,linux/arm64"). This overrides the platform specified in config.yaml.
         :param pat: Personal access token for authentication. If None, will use environment variables.
         :param base_url: Base URL for the API. If None, will use environment variables.
         """
@@ -182,6 +184,7 @@ class ModelBuilder:
         self._client = None
         self._pat = pat
         self._base_url = base_url
+        self._cli_platform = platform
         if not validate_api_ids:  # for backwards compatibility
             download_validation_only = True
         self.download_validation_only = download_validation_only
@@ -259,6 +262,8 @@ class ModelBuilder:
         sys.modules[module_name] = module
 
         original_import = builtins.__import__
+        # Prevent __pycache__ folder generation during module execution
+        original_dont_write_bytecode = sys.dont_write_bytecode
 
         def custom_import(name, globals=None, locals=None, fromlist=(), level=0):
             # Allow standard libraries and clarifai
@@ -273,13 +278,16 @@ class ModelBuilder:
             builtins.__import__ = custom_import
 
         try:
+            # Set sys.dont_write_bytecode to prevent __pycache__ folder generation
+            sys.dont_write_bytecode = True
             spec.loader.exec_module(module)
         except Exception as e:
             logger.error(f"Error loading model.py: {e}")
             raise
         finally:
-            # Restore the original __import__ function
+            # Restore the original __import__ function and bytecode setting
             builtins.__import__ = original_import
+            sys.dont_write_bytecode = original_dont_write_bytecode
 
         # Find all classes in the model.py file that are subclasses of ModelClass
         classes = [
@@ -1035,7 +1043,8 @@ class ModelBuilder:
         else:
             logger.info(f"Setup: Linting Python files: {python_files}")
         # Run ruff to lint the python code.
-        command = "ruff check --select=F"
+        # Use --no-cache to prevent .ruff_cache folder generation in model directories
+        command = "ruff check --select=F --no-cache"
         result = subprocess.run(
             f"{command} {' '.join(python_files)}",
             shell=True,
@@ -1481,6 +1490,33 @@ class ModelBuilder:
             method_signatures=signatures,
         )
 
+        # Add build_info with platform if specified in CLI or config
+        # CLI platform takes precedence over config platform
+        platform = None
+        if self._cli_platform:
+            platform = self._cli_platform
+            logger.info(f"Using platform from CLI: {platform}")
+        else:
+            build_info_config = self.config.get('build_info', {})
+            if 'platform' in build_info_config:
+                platform = build_info_config['platform']
+                if platform:
+                    logger.info(f"Using platform from config.yaml: {platform}")
+
+        # Check if platform is not None and not an empty string
+        if platform:
+            # Create BuildInfo and set platform if the field is available
+            build_info = resources_pb2.BuildInfo()
+            if hasattr(build_info, 'platform'):
+                build_info.platform = platform
+                model_version_proto.build_info.CopyFrom(build_info)
+                logger.info(f"Set build platform to: {platform}")
+            else:
+                logger.warning(
+                    f"Platform '{platform}' specified but not supported "
+                    "in current clarifai-grpc version. Please update clarifai-grpc to use this feature."
+                )
+
         # Add git information to metadata if available
         if git_info:
             from google.protobuf.struct_pb2 import Struct
@@ -1576,7 +1612,7 @@ class ModelBuilder:
 
         def filter_func(tarinfo):
             name = tarinfo.name
-            exclude = [self.tar_file, "*~", "*.pyc", "*.pyo", "__pycache__"]
+            exclude = [self.tar_file, "*~", "*.pyc", "*.pyo", "__pycache__", ".ruff_cache"]
             if when != "upload":
                 exclude.append(self.checkpoint_suffix)
             return None if any(name.endswith(ex) for ex in exclude) else tarinfo
@@ -1769,17 +1805,27 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
                 return False
 
 
-def upload_model(folder, stage, skip_dockerfile, pat=None, base_url=None):
+def upload_model(
+    folder,
+    stage,
+    skip_dockerfile,
+    platform: Optional[str] = None,
+    pat: Optional[str] = None,
+    base_url: Optional[str] = None,
+):
     """
     Uploads a model to Clarifai.
 
     :param folder: The folder containing the model files.
     :param stage: The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.
     :param skip_dockerfile: If True, will skip Dockerfile generation entirely. If False or not provided, intelligently handle existing Dockerfiles with user confirmation.
+    :param platform: Target platform(s) for Docker image build (e.g., "linux/amd64" or "linux/amd64,linux/arm64"). This overrides the platform specified in config.yaml.
     :param pat: Personal access token for authentication. If None, will use environment variables.
     :param base_url: Base URL for the API. If None, will use environment variables.
     """
-    builder = ModelBuilder(folder, app_not_found_action="prompt", pat=pat, base_url=base_url)
+    builder = ModelBuilder(
+        folder, app_not_found_action="prompt", platform=platform, pat=pat, base_url=base_url
+    )
     builder.download_checkpoints(stage=stage)
 
     if not skip_dockerfile:
