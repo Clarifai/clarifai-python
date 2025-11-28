@@ -1,3 +1,12 @@
+## [[11.10.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.10.3) - [PyPI](https://pypi.org/project/clarifai/11.10.3/) - 2025-11-27
+
+### Added
+- Add platform specification support to config.yaml for model versions [(#855)](https://github.com/Clarifai/clarifai-python/pull/855)
+- Add --platform CLI option for model upload [(#857)](https://github.com/Clarifai/clarifai-python/pull/857)
+
+### Changed
+- Add support for new struct_value field in runner data utils [(#847)](https://github.com/Clarifai/clarifai-python/pull/847)
+
 ## [[11.10.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.10.2) - [PyPI](https://pypi.org/project/clarifai/11.10.2/) - 2025-11-14
 
 ### Changed

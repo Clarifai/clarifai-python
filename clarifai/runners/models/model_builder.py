@@ -262,6 +262,8 @@ class ModelBuilder:
         sys.modules[module_name] = module
 
         original_import = builtins.__import__
+        # Prevent __pycache__ folder generation during module execution
+        original_dont_write_bytecode = sys.dont_write_bytecode
 
         def custom_import(name, globals=None, locals=None, fromlist=(), level=0):
             # Allow standard libraries and clarifai
@@ -276,13 +278,16 @@ class ModelBuilder:
             builtins.__import__ = custom_import
 
         try:
+            # Set sys.dont_write_bytecode to prevent __pycache__ folder generation
+            sys.dont_write_bytecode = True
             spec.loader.exec_module(module)
         except Exception as e:
             logger.error(f"Error loading model.py: {e}")
             raise
         finally:
-            # Restore the original __import__ function
+            # Restore the original __import__ function and bytecode setting
             builtins.__import__ = original_import
+            sys.dont_write_bytecode = original_dont_write_bytecode
 
         # Find all classes in the model.py file that are subclasses of ModelClass
         classes = [
@@ -1038,7 +1043,8 @@ class ModelBuilder:
         else:
             logger.info(f"Setup: Linting Python files: {python_files}")
         # Run ruff to lint the python code.
-        command = "ruff check --select=F"
+        # Use --no-cache to prevent .ruff_cache folder generation in model directories
+        command = "ruff check --select=F --no-cache"
         result = subprocess.run(
             f"{command} {' '.join(python_files)}",
             shell=True,
@@ -1606,7 +1612,7 @@ class ModelBuilder:
 
         def filter_func(tarinfo):
             name = tarinfo.name
-            exclude = [self.tar_file, "*~", "*.pyc", "*.pyo", "__pycache__"]
+            exclude = [self.tar_file, "*~", "*.pyc", "*.pyo", "__pycache__", ".ruff_cache"]
             if when != "upload":
                 exclude.append(self.checkpoint_suffix)
             return None if any(name.endswith(ex) for ex in exclude) else tarinfo

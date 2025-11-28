@@ -15,7 +15,6 @@ BEER_VIDEO_URL = "https://samples.clarifai.com/beer.mp4"
 MAIN_APP_ID = "main"
 MAIN_APP_USER_ID = "clarifai"
 GENERAL_MODEL_ID = "aaa03c23b3724a16a56b629203edc62c"
-CLIP_EMBED_MODEL_ID = "multimodal-clip-embed"
 
 RAW_TEXT = "Hi my name is Jim."
 RAW_TEXT_BYTES = b"Hi my name is Jim."
@@ -30,17 +29,6 @@ def model():
         user_id=MAIN_APP_USER_ID,
         app_id=MAIN_APP_ID,
         model_id=GENERAL_MODEL_ID,
-        pat=CLARIFAI_PAT,
-        base_url=CLARIFAI_API_BASE,
-    )
-
-
-@pytest.fixture
-def clip_embed_model():
-    return Model(
-        user_id=MAIN_APP_USER_ID,
-        app_id=MAIN_APP_ID,
-        model_id=CLIP_EMBED_MODEL_ID,
         pat=CLARIFAI_PAT,
         base_url=CLARIFAI_API_BASE,
     )
@@ -118,21 +106,3 @@ class TestModelPredict:
         for frame in response.outputs[0].data.frames:
             assert frame.frame_info.time == expected_time
             expected_time += 2000
-
-    @pytest.mark.skip(reason="Flaky test")
-    def test_text_embed_predict_with_raw_text(self, clip_embed_model):
-        clip_dim = 512
-        input_text_proto = Inputs.get_input_from_bytes(
-            "", text_bytes=RAW_TEXT.encode(encoding='UTF-8')
-        )
-        response = clip_embed_model.predict([input_text_proto])
-        assert response.outputs[0].data.embeddings[0].num_dimensions == clip_dim
-
-        response = clip_embed_model.predict([input_text_proto])
-        assert response.outputs[0].data.embeddings[0].num_dimensions == clip_dim
-
-    @pytest.mark.skip(reason="Flaky test")
-    def test_model_load_info(self, clip_embed_model):
-        assert len(clip_embed_model.kwargs) == 4
-        clip_embed_model.load_info()
-        assert len(clip_embed_model.kwargs) > 10
