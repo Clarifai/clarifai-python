@@ -255,7 +255,14 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
 
         def filter_func(tarinfo):
             name = tarinfo.name
-            exclude = [os.path.basename(self.tar_file), "*~", "*.pyc", "*.pyo", "__pycache__"]
+            exclude = [
+                os.path.basename(self.tar_file),
+                "*~",
+                "*.pyc",
+                "*.pyo",
+                "__pycache__",
+                ".ruff_cache",
+            ]
             return None if any(name.endswith(ex) for ex in exclude) else tarinfo
 
         with tarfile.open(file_path, "w:gz") as tar:
