@@ -1,5 +1,6 @@
 """Tests for clarifai.cli.pipeline_step module."""
 
+import logging
 import os
 from unittest.mock import Mock, patch
 
@@ -109,21 +110,20 @@ class TestPipelineStepInitCommand:
                 assert 'def main():' in content
                 assert 'ArgumentParser' in content
 
-    def test_init_command_includes_helpful_messages(self):
+    def test_init_command_includes_helpful_messages(self, caplog):
         """Test that init command outputs helpful messages."""
         runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+        caplog.set_level(logging.INFO)
 
         with runner.isolated_filesystem():
             result = runner.invoke(init, ['.'])
 
-            assert result.exit_code == 0
+            assert result.exit_code == 0, result.output
 
-            # Check that helpful messages are included in output
-            output = result.output
-            assert 'Pipeline step initialization complete' in output
-            assert 'Next steps:' in output
-            assert 'TODO: please fill in' in output
-
+        log_messages = caplog.messages
+        assert any('Pipeline step initialization complete' in output for output in log_messages)
+        assert any('Next steps:' in output for output in log_messages)
+        assert any('TODO: please fill in' in output for output in log_messages)
 
 class TestPipelineStepUploadCommand:
     """Test cases for the pipeline step upload CLI command."""
