@@ -1,0 +1,777 @@
+import os
+from datetime import datetime
+from typing import Dict, Generator, Optional
+
+import requests
+from clarifai_grpc.grpc.api import resources_pb2, service_pb2
+from clarifai_grpc.grpc.api.status import status_code_pb2
+from google.protobuf.timestamp_pb2 import Timestamp
+from tqdm import tqdm
+
+from clarifai.client.base import BaseClient
+from clarifai.constants.artifact import (
+    DEFAULT_ARTIFACT_VISIBILITY,
+    DEFAULT_ARTIFACTS_PAGE_SIZE,
+    UPLOAD_CHUNK_SIZE,
+)
+from clarifai.errors import UserError
+from clarifai.utils.logging import logger
+
+
+def format_bytes(size: int) -> str:
+    """Format byte size in human readable format."""
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size < 1024.0:
+            return f"{size:.1f} {unit}"
+        size /= 1024.0
+    return f"{size:.1f} PB"
+
+
+def handle_grpc_error(func, *args, **kwargs):
+    """Handle gRPC errors with graceful fallbacks for missing APIs.
+
+    Args:
+        func: The gRPC function to call
+        *args: Arguments to pass to the function
+        **kwargs: Keyword arguments to pass to the function
+
+    Returns:
+        The result of the function call
+
+    Raises:
+        UserError: If the API is not available or other errors occur
+    """
+    try:
+        return func(*args, **kwargs)
+    except AttributeError as e:
+        if "has no attribute" in str(e) and any(
+            name in str(e) for name in ["Artifact", "PostArtifact", "ListArtifact"]
+        ):
+            raise UserError(
+                "Artifact API is not yet available in the current gRPC client version. Please update your clarifai-grpc package."
+            )
+        raise UserError(f"gRPC method not found: {e}")
+    except Exception as e:
+        # Handle other gRPC errors
+        if hasattr(e, 'code') and hasattr(e, 'details'):
+            raise UserError(f"API Error: {e.details()}")
+        raise UserError(f"Request failed: {e}")
+
+
+def format_bytes(size: int) -> str:
+    """Format byte size in human readable format."""
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size < 1024.0:
+            return f"{size:.1f} {unit}"
+        size /= 1024.0
+    return f"{size:.1f} PB"
+
+
+class ArtifactVersion(BaseClient):
+    """ArtifactVersion client for managing artifact versions in Clarifai."""
+
+    def __init__(
+        self,
+        artifact_id: str = "",
+        version_id: str = "",
+        user_id: str = "",
+        app_id: str = "",
+        **kwargs,
+    ):
+        """Initialize the ArtifactVersion client.
+
+        Args:
+            artifact_id: The artifact ID.
+            version_id: The artifact version ID.
+            user_id: The user ID.
+            app_id: The app ID.
+            **kwargs: Additional keyword arguments to be passed to the BaseClient.
+        """
+        super().__init__(**kwargs)
+        self.artifact_id = artifact_id
+        self.version_id = version_id
+        self.user_id = user_id or self.auth_helper.user_id
+        self.app_id = app_id
+
+    @property
+    def id(self) -> str:
+        """Get the artifact version ID."""
+        return self.version_id
+
+    def __repr__(self) -> str:
+        init_params = [f"artifact_id='{self.artifact_id}'", f"version_id='{self.version_id}'"]
+        if self.user_id:
+            init_params.append(f"user_id='{self.user_id}'")
+        if self.app_id:
+            init_params.append(f"app_id='{self.app_id}'")
+        return f"ArtifactVersion({', '.join(init_params)})"
+
+    def create(
+        self,
+        file_path: str,
+        artifact_id: str = "",
+        description: str = "",
+        visibility: str = DEFAULT_ARTIFACT_VISIBILITY,
+        expires_at: Optional[Timestamp] = None,
+        version_id: str = "",
+        user_id: str = "",
+        app_id: str = "",
+    ) -> "ArtifactVersion":
+        """Create a new artifact version by uploading a file.
+
+        Args:
+            file_path: Path to the file to upload.
+            artifact_id: The artifact ID. Defaults to the artifact ID from initialization.
+            description: Description for the artifact version.
+            visibility: Visibility setting ("private" or "public"). Defaults to "private".
+            expires_at: Optional expiration timestamp.
+            version_id: Optional version ID to assign.
+            user_id: The user ID. Defaults to the user ID from initialization.
+            app_id: The app ID. Defaults to the app ID from initialization.
+
+        Returns:
+            An ArtifactVersion object for the created version.
+
+        Raises:
+            Exception: If the creation fails.
+        """
+        return self.upload(
+            file_path=file_path,
+            artifact_id=artifact_id,
+            description=description,
+            visibility=visibility,
+            expires_at=expires_at,
+            version_id=version_id,
+            user_id=user_id,
+            app_id=app_id,
+        )
+
+    def upload(
+        self,
+        file_path: str,
+        artifact_id: str = "",
+        description: str = "",
+        visibility: str = DEFAULT_ARTIFACT_VISIBILITY,
+        expires_at: Optional[Timestamp] = None,
+        version_id: str = "",
+        user_id: str = "",
+        app_id: str = "",
+    ) -> "ArtifactVersion":
+        """Upload a file as a new artifact version with streaming support.
+
+        Args:
+            file_path: Path to the file to upload.
+            artifact_id: The artifact ID. Defaults to the artifact ID from initialization.
+            description: Description for the artifact version.
+            visibility: Visibility setting ("private" or "public"). Defaults to "private".
+            expires_at: Optional expiration timestamp.
+            version_id: Optional version ID to assign.
+            user_id: The user ID. Defaults to the user ID from initialization.
+            app_id: The app ID. Defaults to the app ID from initialization.
+
+        Returns:
+            An ArtifactVersion object for the uploaded version.
+
+        Raises:
+            Exception: If the upload fails.
+        """
+        artifact_id = artifact_id or self.artifact_id
+        user_id = user_id or self.user_id
+        app_id = app_id or self.app_id
+
+        if not artifact_id:
+            raise UserError("artifact_id is required")
+        if not user_id:
+            raise UserError("user_id is required")
+        if not app_id:
+            raise UserError("app_id is required")
+        if not os.path.exists(file_path):
+            raise UserError(f"File does not exist: {file_path}")
+
+        file_size = os.path.getsize(file_path)
+        if file_size == 0:
+            raise UserError(f"File is empty: {file_path}")
+
+        logger.info(f"Uploading file: {file_path} ({format_bytes(file_size)})")
+
+        try:
+            # Perform streaming upload with retry logic
+            return self._streaming_upload_with_retry(
+                file_path=file_path,
+                artifact_id=artifact_id,
+                description=description,
+                visibility=visibility,
+                expires_at=expires_at,
+                version_id=version_id,
+                user_id=user_id,
+                app_id=app_id,
+            )
+        except Exception as e:
+            logger.error(f"Upload failed: {e}")
+            raise
+
+    def _streaming_upload_with_retry(
+        self,
+        file_path: str,
+        artifact_id: str,
+        description: str,
+        visibility: str,
+        expires_at: Optional[Timestamp],
+        version_id: str,
+        user_id: str,
+        app_id: str,
+        max_retries: int = 3,
+    ) -> "ArtifactVersion":
+        """Perform streaming upload with retry logic and automatic progress tracking."""
+        file_size = os.path.getsize(file_path)
+
+        for attempt in range(max_retries):
+            try:
+                logger.debug(f"Upload attempt {attempt + 1}/{max_retries}")
+
+                # Calculate total chunks using fixed chunk size (same as pipeline_step)
+                total_chunks = (file_size + UPLOAD_CHUNK_SIZE - 1) // UPLOAD_CHUNK_SIZE
+
+                # Progress bar setup - always show for better UX
+                progress_bar = tqdm(total=file_size, unit='B', unit_scale=True, desc="Uploading")
+
+                try:
+                    uploaded_bytes = 0
+                    chunk_count = 0
+                    final_version_id = version_id
+
+                    # Perform streaming upload following pipeline_step pattern
+                    for response in handle_grpc_error(
+                        self.STUB.PostArtifactVersionsUpload,
+                        self._artifact_version_upload_iterator(
+                            file_path,
+                            artifact_id,
+                            description,
+                            visibility,
+                            expires_at,
+                            version_id,
+                            user_id,
+                            app_id,
+                        ),
+                    ):
+                        if chunk_count == 0:
+                            # First response is config upload - extract version ID
+                            if hasattr(response, 'artifact_version_id'):
+                                final_version_id = response.artifact_version_id
+                                logger.info(f"Created artifact version: {final_version_id}")
+                        else:
+                            # Update progress for data chunks (same logic as pipeline_step)
+                            chunk_bytes = min(UPLOAD_CHUNK_SIZE, file_size - uploaded_bytes)
+                            uploaded_bytes += chunk_bytes
+                            progress_bar.update(chunk_bytes)
+
+                        chunk_count += 1
+
+                        # Check for errors
+                        if (
+                            hasattr(response, 'status')
+                            and response.status.code != status_code_pb2.SUCCESS
+                        ):
+                            if response.status.code not in [status_code_pb2.UPLOAD_IN_PROGRESS]:
+                                raise Exception(f"Upload failed: {response.status.description}")
+
+                    progress_bar.close()
+                    logger.info(f"Upload completed successfully: {final_version_id}")
+
+                    return ArtifactVersion(
+                        artifact_id=artifact_id,
+                        version_id=final_version_id,
+                        user_id=user_id,
+                        app_id=app_id,
+                        **self._get_client_params(),
+                    )
+
+                except Exception as e:
+                    progress_bar.close()
+                    if attempt < max_retries - 1:
+                        wait_time = 2**attempt  # Exponential backoff
+                        logger.warning(
+                            f"Upload attempt {attempt + 1} failed, retrying in {wait_time}s: {e}"
+                        )
+                        import time
+
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        raise
+
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise Exception(f"Upload failed after {max_retries} attempts: {e}")
+
+        raise Exception("Upload failed: exceeded maximum retries")
+
+    def _artifact_version_upload_iterator(
+        self,
+        file_path: str,
+        artifact_id: str,
+        description: str,
+        visibility: str,
+        expires_at: Optional[Timestamp],
+        version_id: str,
+        user_id: str,
+        app_id: str,
+    ):
+        """Iterator for uploading artifact version in chunks (following pipeline_step pattern)."""
+        file_size = os.path.getsize(file_path)
+
+        # First yield the upload config
+        yield self._create_upload_config(
+            artifact_id=artifact_id,
+            description=description,
+            visibility=visibility,
+            expires_at=expires_at,
+            version_id=version_id,
+            user_id=user_id,
+            app_id=app_id,
+            file_size=file_size,
+        )
+
+        # Then yield file content in chunks (same as pipeline_step)
+        with open(file_path, "rb") as f:
+            logger.info("Uploading artifact content...")
+            logger.debug(f"File size: {file_size}")
+            logger.debug(f"Chunk size: {UPLOAD_CHUNK_SIZE}")
+
+            offset = 0
+            part_id = 1
+            while offset < file_size:
+                try:
+                    current_chunk_size = min(UPLOAD_CHUNK_SIZE, file_size - offset)
+                    chunk = f.read(current_chunk_size)
+                    if not chunk:
+                        break
+
+                    yield service_pb2.PostArtifactVersionsUploadRequest(
+                        content_part=resources_pb2.UploadContentPart(
+                            data=chunk,
+                            part_number=part_id,
+                            range_start=offset,
+                        )
+                    )
+                    offset += len(chunk)
+                    part_id += 1
+                except Exception as e:
+                    logger.exception(f"\nError uploading file: {e}")
+                    break
+
+        if offset == file_size:
+            logger.info("Upload complete!")
+
+    def _create_upload_config(
+        self,
+        artifact_id: str,
+        description: str,
+        visibility: str,
+        expires_at: Optional[Timestamp],
+        version_id: str,
+        user_id: str,
+        app_id: str,
+        file_size: int,
+    ):
+        """Create upload config message."""
+        # Convert visibility string to enum
+        visibility_enum = (
+            resources_pb2.PRIVATE if visibility == "private" else resources_pb2.PUBLIC
+        )
+
+        artifact_version = resources_pb2.ArtifactVersion(
+            description=description,
+            visibility=visibility_enum,
+            expires_at=expires_at,
+        )
+
+        if version_id:
+            artifact_version.id = version_id
+
+        return service_pb2.PostArtifactVersionsUploadRequest(
+            upload_config=service_pb2.PostArtifactVersionsUploadConfig(
+                user_app_id=self.auth_helper.get_user_app_id_proto(user_id=user_id, app_id=app_id),
+                artifact_id=artifact_id,
+                artifact_version=artifact_version,
+                total_size=file_size,
+                storage_request_size=file_size,  # For now, same as total size
+            )
+        )
+
+    def download(
+        self,
+        output_path: str = "",
+        artifact_id: str = "",
+        version_id: str = "",
+        user_id: str = "",
+        app_id: str = "",
+        force: bool = False,
+    ) -> str:
+        """Download an artifact version with automatic progress tracking and retry logic.
+
+        Args:
+            output_path: The local path to save the file. If not provided, uses the original filename.
+            artifact_id: The artifact ID. Defaults to the artifact ID from initialization.
+            version_id: The artifact version ID. Defaults to the version ID from initialization.
+            user_id: The user ID. Defaults to the user ID from initialization.
+            app_id: The app ID. Defaults to the app ID from initialization.
+            force: Whether to overwrite existing files without prompting.
+
+        Returns:
+            The path where the file was saved.
+
+        Raises:
+            Exception: If the download fails.
+        """
+        artifact_id = artifact_id or self.artifact_id
+        version_id = version_id or self.version_id
+        user_id = user_id or self.user_id
+        app_id = app_id or self.app_id
+
+        if not artifact_id:
+            raise UserError("artifact_id is required")
+        if not user_id:
+            raise UserError("user_id is required")
+        if not app_id:
+            raise UserError("app_id is required")
+
+        # Get artifact version info
+        version_info = self.info(
+            artifact_id=artifact_id, version_id=version_id, user_id=user_id, app_id=app_id
+        )
+
+        upload_info = version_info.get("upload", {})
+        content_url = upload_info.get("content_url")
+        content_name = upload_info.get("content_name", "downloaded_file")
+        total_size = upload_info.get("content_length", 0)
+
+        if not content_url:
+            raise UserError("No download URL available for this artifact version")
+
+        # Determine output path
+        if not output_path:
+            output_path = content_name
+        elif os.path.isdir(output_path):
+            output_path = os.path.join(output_path, content_name)
+
+        return self._download_with_retry(content_url, output_path, total_size, force)
+
+    def _download_with_retry(
+        self,
+        content_url: str,
+        output_path: str,
+        total_size: int,
+        force: bool,
+        max_retries: int = 3,
+    ) -> str:
+        """Download file with automatic retry logic and resume support."""
+        for attempt in range(max_retries):
+            try:
+                logger.debug(f"Download attempt {attempt + 1}/{max_retries}")
+
+                # Handle existing file and resume
+                resume_byte_pos = 0
+                if os.path.exists(output_path):
+                    if total_size > 0:
+                        existing_size = os.path.getsize(output_path)
+                        if existing_size < total_size:
+                            resume_byte_pos = existing_size
+                            logger.info(f"Resuming download from byte {resume_byte_pos}")
+                        elif existing_size == total_size:
+                            logger.info("File already downloaded completely")
+                            return output_path
+
+                    if resume_byte_pos == 0:
+                        if not force:
+                            import click
+
+                            if not click.confirm(
+                                f"File '{output_path}' already exists. Overwrite?"
+                            ):
+                                raise UserError("Download cancelled by user")
+
+                # Prepare download headers for resume
+                headers = {}
+                if resume_byte_pos > 0:
+                    headers['Range'] = f'bytes={resume_byte_pos}-'
+
+                # Download the file with progress tracking
+                logger.info(f"Downloading to {output_path}")
+
+                response = requests.get(content_url, stream=True, headers=headers)
+                response.raise_for_status()
+
+                # Check if server supports range requests
+                if resume_byte_pos > 0 and response.status_code != 206:
+                    logger.warning("Server does not support resume, starting fresh download")
+                    resume_byte_pos = 0
+                    response = requests.get(content_url, stream=True)
+                    response.raise_for_status()
+
+                # Get content length
+                content_length = total_size
+                if 'content-length' in response.headers:
+                    content_length = int(response.headers['content-length'])
+                    if resume_byte_pos > 0:
+                        content_length += resume_byte_pos
+
+                # Progress bar setup - always show for better UX
+                progress_bar = tqdm(
+                    total=content_length,
+                    initial=resume_byte_pos,
+                    unit='B',
+                    unit_scale=True,
+                    desc="Downloading",
+                )
+
+                try:
+                    # Write file
+                    mode = 'ab' if resume_byte_pos > 0 else 'wb'
+                    with open(output_path, mode) as f:
+                        for chunk in response.iter_content(
+                            chunk_size=8192
+                        ):  # 8KB chunks for downloads
+                            if chunk:  # Filter out keep-alive chunks
+                                f.write(chunk)
+                                progress_bar.update(len(chunk))
+
+                    progress_bar.close()
+
+                    # Verify file size if known
+                    if total_size > 0:
+                        actual_size = os.path.getsize(output_path)
+                        if actual_size != total_size:
+                            logger.warning(
+                                f"Downloaded file size ({actual_size}) does not match expected size ({total_size})"
+                            )
+
+                    logger.info(f"Download completed: {output_path}")
+                    return output_path
+
+                except Exception as e:
+                    progress_bar.close()
+                    if attempt < max_retries - 1:
+                        wait_time = 2**attempt  # Exponential backoff
+                        logger.warning(
+                            f"Download attempt {attempt + 1} failed, retrying in {wait_time}s: {e}"
+                        )
+                        import time
+
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        raise
+
+            except requests.RequestException as e:
+                if attempt == max_retries - 1:
+                    raise UserError(f"Download failed after {max_retries} attempts: {e}")
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise
+
+        raise UserError("Download failed: exceeded maximum retries")
+
+    def delete(
+        self,
+        artifact_id: str = "",
+        version_id: str = "",
+        user_id: str = "",
+        app_id: str = "",
+    ) -> bool:
+        """Delete an artifact version.
+
+        Args:
+            artifact_id: The artifact ID. Defaults to the artifact ID from initialization.
+            version_id: The artifact version ID. Defaults to the version ID from initialization.
+            user_id: The user ID. Defaults to the user ID from initialization.
+            app_id: The app ID. Defaults to the app ID from initialization.
+
+        Returns:
+            True if deletion was successful.
+
+        Raises:
+            Exception: If the artifact version deletion fails.
+        """
+        artifact_id = artifact_id or self.artifact_id
+        version_id = version_id or self.version_id
+        user_id = user_id or self.user_id
+        app_id = app_id or self.app_id
+
+        if not artifact_id:
+            raise UserError("artifact_id is required")
+        if not version_id:
+            raise UserError("version_id is required")
+        if not user_id:
+            raise UserError("user_id is required")
+        if not app_id:
+            raise UserError("app_id is required")
+
+        request = service_pb2.DeleteArtifactVersionRequest(
+            user_app_id=self.auth_helper.get_user_app_id_proto(user_id=user_id, app_id=app_id),
+            artifact_id=artifact_id,
+            artifact_version_id=version_id,
+        )
+
+        response = handle_grpc_error(self._grpc_request, self.STUB.DeleteArtifactVersion, request)
+
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(f"Failed to delete artifact version: {response.status.description}")
+
+        return True
+
+    def info(
+        self,
+        artifact_id: str = "",
+        version_id: str = "",
+        user_id: str = "",
+        app_id: str = "",
+    ) -> Dict:
+        """Get information about an artifact version.
+
+        Args:
+            artifact_id: The artifact ID. Defaults to the artifact ID from initialization.
+            version_id: The artifact version ID. Defaults to the version ID from initialization.
+            user_id: The user ID. Defaults to the user ID from initialization.
+            app_id: The app ID. Defaults to the app ID from initialization.
+
+        Returns:
+            A dictionary containing the artifact version information.
+
+        Raises:
+            Exception: If the artifact version retrieval fails.
+        """
+        artifact_id = artifact_id or self.artifact_id
+        version_id = version_id or self.version_id
+        user_id = user_id or self.user_id
+        app_id = app_id or self.app_id
+
+        if not artifact_id:
+            raise UserError("artifact_id is required")
+        if not version_id:
+            raise UserError("version_id is required")
+        if not user_id:
+            raise UserError("user_id is required")
+        if not app_id:
+            raise UserError("app_id is required")
+
+        request = service_pb2.GetArtifactVersionRequest(
+            user_app_id=self.auth_helper.get_user_app_id_proto(user_id=user_id, app_id=app_id),
+            artifact_id=artifact_id,
+            artifact_version_id=version_id,
+        )
+
+        response = handle_grpc_error(self._grpc_request, self.STUB.GetArtifactVersion, request)
+
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(f"Failed to get artifact version: {response.status.description}")
+
+        artifact_version = response.artifact_version
+        return {
+            "id": artifact_version.id,
+            "description": artifact_version.description,
+            "visibility": artifact_version.visibility.name
+            if artifact_version.visibility
+            else "UNKNOWN",
+            "expires_at": artifact_version.expires_at.ToDatetime()
+            if artifact_version.expires_at
+            else None,
+            "created_at": artifact_version.created_at.ToDatetime()
+            if artifact_version.created_at
+            else None,
+            "modified_at": artifact_version.modified_at.ToDatetime()
+            if artifact_version.modified_at
+            else None,
+            "deleted_at": artifact_version.deleted_at.ToDatetime()
+            if artifact_version.deleted_at
+            else None,
+            "artifact": {
+                "id": artifact_version.artifact.id,
+                "user_id": artifact_version.artifact.user_id,
+                "app_id": artifact_version.artifact.app_id,
+            }
+            if artifact_version.artifact
+            else None,
+            "upload": {
+                "id": artifact_version.upload.id,
+                "content_name": artifact_version.upload.content_name,
+                "content_length": artifact_version.upload.content_length,
+                "content_url": artifact_version.upload.content_url,
+                "status": artifact_version.upload.status.description
+                if artifact_version.upload.status
+                else "UNKNOWN",
+                "created_at": artifact_version.upload.created_at.ToDatetime()
+                if artifact_version.upload.created_at
+                else None,
+                "modified_at": artifact_version.upload.modified_at.ToDatetime()
+                if artifact_version.upload.modified_at
+                else None,
+                "expires_at": artifact_version.upload.expires_at.ToDatetime()
+                if artifact_version.upload.expires_at
+                else None,
+            }
+            if artifact_version.upload
+            else None,
+        }
+
+    @staticmethod
+    def list(
+        artifact_id: str,
+        user_id: str,
+        app_id: str,
+        page: int = 1,
+        per_page: int = DEFAULT_ARTIFACTS_PAGE_SIZE,
+        **kwargs,
+    ) -> Generator["ArtifactVersion", None, None]:
+        """List artifact versions.
+
+        Args:
+            artifact_id: The artifact ID.
+            user_id: The user ID.
+            app_id: The app ID.
+            page: The page number for pagination. Defaults to 1.
+            per_page: The number of results per page. Defaults to 20.
+            **kwargs: Additional keyword arguments to be passed to the BaseClient.
+
+        Yields:
+            ArtifactVersion objects.
+
+        Raises:
+            Exception: If the artifact version listing fails.
+        """
+        client = BaseClient(**kwargs)
+
+        request = service_pb2.ListArtifactVersionsRequest(
+            user_app_id=client.auth_helper.get_user_app_id_proto(user_id=user_id, app_id=app_id),
+            artifact_id=artifact_id,
+            page=page,
+            per_page=per_page,
+        )
+
+        response = handle_grpc_error(
+            client._grpc_request, client.STUB.ListArtifactVersions, request
+        )
+
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(f"Failed to list artifact versions: {response.status.description}")
+
+        for version_pb in response.artifact_versions:
+            yield ArtifactVersion(
+                artifact_id=artifact_id,
+                version_id=version_pb.id,
+                user_id=user_id,
+                app_id=app_id,
+                **kwargs,
+            )
+
+    def _get_client_params(self) -> Dict:
+        """Get the client parameters for creating new instances."""
+        return {
+            "user_id": self.user_id,
+            "app_id": self.app_id,
+        }
+        """Get the client parameters for creating new instances."""
+        return {
+            "user_id": self.user_id,
+            "app_id": self.app_id,
+        }

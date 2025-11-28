@@ -1,4 +1,6 @@
 from clarifai.client.app import App
+from clarifai.client.artifact import Artifact
+from clarifai.client.artifact_version import ArtifactVersion
 from clarifai.client.auth.register import V2Stub
 from clarifai.client.auth.stub import create_stub
 from clarifai.client.base import BaseClient
@@ -34,4 +36,6 @@ __all__ = [
     'ComputeCluster',
     'Nodepool',
     'Deployment',
+    'Artifact',
+    'ArtifactVersion',
 ]
