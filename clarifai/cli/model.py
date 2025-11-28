@@ -402,6 +402,50 @@ def init(
         logger.info("4. Implement your model logic in 1/model.py")
 
 
+def _ensure_hf_token(ctx, model_path):
+    """
+    Ensure HF_TOKEN is present in CLI context.
+    """
+    import yaml
+
+    try:
+        config_path = os.path.join(model_path, "config.yaml")
+        if os.path.isfile(config_path):
+            with open(config_path, 'r') as file:
+                config = yaml.safe_load(file)
+            config_hf_token = None
+            try:
+                config_hf_token = config.get("checkpoints").get("hf_token")
+            except Exception:
+                logger.warning("Failed to read HF_TOKEN from config.yaml.")
+        else:
+            logger.error("`config.yaml` not found in model path.")
+            raise click.Abort()
+
+        hf_token = getattr(ctx.obj.current, "CLARIFAI_HF_TOKEN", None)
+        if hf_token:
+            logger.debug("CLARIFAI_HF_TOKEN already present in context.")
+        else:
+            hf_token = os.getenv("HF_TOKEN", None)
+            if hf_token:
+                logger.info("Loaded HF_TOKEN from environment.")
+                ctx.obj.current.CLARIFAI_HF_TOKEN = hf_token
+                ctx.obj.to_yaml()
+            elif config_hf_token:
+                logger.info("Extracted HF_TOKEN from config.yaml.")
+                ctx.obj.current.CLARIFAI_HF_TOKEN = config_hf_token
+                ctx.obj.to_yaml()
+                return
+            else:
+                logger.debug("config.yaml not found; skipping HF_TOKEN extraction.")
+        if not config_hf_token:
+            if 'checkpoints' not in config:
+                config['checkpoints'] = {}
+            config["checkpoints"]["hf_token"] = hf_token
+    except Exception as e:
+        logger.warning(f"Unexpected error ensuring HF_TOKEN: {e}")
+
+
 @model.command(help="Upload a trained model.")
 @click.argument("model_path", type=click.Path(exists=True), required=False, default=".")
 @click.option(
@@ -431,6 +475,7 @@ def upload(ctx, model_path, stage, skip_dockerfile, platform):
     from clarifai.runners.models.model_builder import upload_model
 
     validate_context(ctx)
+    _ensure_hf_token(ctx, model_path)
     upload_model(
         model_path,
         stage,
@@ -463,7 +508,8 @@ def upload(ctx, model_path, stage, skip_dockerfile, platform):
     show_default=True,
     help='The stage we are calling download checkpoints from. Typically this would be in the build stage which is the default. Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.',
 )
-def download_checkpoints(model_path, out_path, stage):
+@click.pass_context
+def download_checkpoints(ctx, model_path, out_path, stage):
     """Download checkpoints from external source to local model_path
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
@@ -471,6 +517,8 @@ def download_checkpoints(model_path, out_path, stage):
 
     from clarifai.runners.models.model_builder import ModelBuilder
 
+    validate_context(ctx)
+    _ensure_hf_token(ctx, model_path)
     builder = ModelBuilder(model_path, download_validation_only=True)
     builder.download_checkpoints(stage=stage, checkpoint_path_override=out_path)
 
@@ -535,7 +583,10 @@ def signatures(model_path, out_path):
     is_flag=True,
     help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
-def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_dockerfile=False):
+@click.pass_context
+def test_locally(
+    ctx, model_path, keep_env=False, keep_image=False, mode='env', skip_dockerfile=False
+):
     """Test model locally.
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
@@ -543,6 +594,8 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_
     try:
         from clarifai.runners.models import model_run_locally
 
+        validate_context(ctx)
+        _ensure_hf_token(ctx, model_path)
         if mode == 'env' and keep_image:
             raise ValueError("'keep_image' is applicable only for 'container' mode")
         if mode == 'container' and keep_env:
@@ -602,7 +655,8 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_
     is_flag=True,
     help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
-def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=False):
+@click.pass_context
+def run_locally(ctx, model_path, port, mode, keep_env, keep_image, skip_dockerfile=False):
     """Run the model locally and start a gRPC server to serve the model.
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
@@ -610,6 +664,8 @@ def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=Fa
     try:
         from clarifai.runners.models import model_run_locally
 
+        validate_context(ctx)
+        _ensure_hf_token(ctx, model_path)
         if mode == 'env' and keep_image:
             raise ValueError("'keep_image' is applicable only for 'container' mode")
         if mode == 'container' and keep_env:
@@ -695,6 +751,7 @@ def local_runner(ctx, model_path, pool_size, verbose):
     from clarifai.runners.server import ModelServer
 
     validate_context(ctx)
+    _ensure_hf_token(ctx, model_path)
     builder = ModelBuilder(model_path, download_validation_only=True)
     logger.info("> Checking local runner requirements...")
     if not check_requirements_installed(model_path):
