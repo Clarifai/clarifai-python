@@ -191,7 +191,7 @@ class TestPipelineStepListCommand:
     """Test cases for the pipeline step list CLI command."""
 
     @patch('clarifai.cli.pipeline_step.validate_context')
-    @patch('clarifai.cli.pipeline_step.User')
+    @patch('clarifai.client.user.User')
     @patch('clarifai.cli.pipeline_step.display_co_resources')
     def test_list_command_success_no_app_id(self, mock_display, mock_user_class, mock_validate):
         """Test that list command works without app_id (lists across all apps)."""
@@ -238,7 +238,7 @@ class TestPipelineStepListCommand:
         mock_display.assert_called_once()
 
     @patch('clarifai.cli.pipeline_step.validate_context')
-    @patch('clarifai.cli.pipeline_step.App')
+    @patch('clarifai.client.app.App')
     @patch('clarifai.cli.pipeline_step.display_co_resources')
     def test_list_command_success_with_app_id(self, mock_display, mock_app_class, mock_validate):
         """Test that list command works with app_id (lists within specific app)."""
@@ -283,7 +283,7 @@ class TestPipelineStepListCommand:
         mock_display.assert_called_once()
 
     @patch('clarifai.cli.pipeline_step.validate_context')
-    @patch('clarifai.cli.pipeline_step.App')
+    @patch('clarifai.client.app.App')
     @patch('clarifai.cli.pipeline_step.display_co_resources')
     def test_list_command_success_with_pipeline_id(
         self, mock_display, mock_app_class, mock_validate
@@ -359,7 +359,7 @@ class TestPipelineStepListCommand:
         ctx_obj.current.pat = 'test-pat'
         ctx_obj.current.api_base = 'https://api.clarifai.com'
 
-        with patch('clarifai.cli.pipeline_step.User') as mock_user_class:
+        with patch('clarifai.client.user.User') as mock_user_class:
             mock_user_instance = Mock()
             mock_user_class.return_value = mock_user_instance
             mock_user_instance.list_pipeline_steps.return_value = []
