@@ -125,6 +125,7 @@ class TestPipelineStepInitCommand:
         assert any('Next steps:' in output for output in log_messages)
         assert any('TODO: please fill in' in output for output in log_messages)
 
+
 class TestPipelineStepUploadCommand:
     """Test cases for the pipeline step upload CLI command."""
 
