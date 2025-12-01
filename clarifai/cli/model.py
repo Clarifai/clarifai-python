@@ -704,12 +704,12 @@ def run_locally(ctx, model_path, port, mode, keep_env, keep_image, skip_dockerfi
     help="The number of threads to use. On community plan, the compute time allocation is drained at a rate proportional to the number of threads.",
 )  # pylint: disable=range-builtin-not-iterating
 @click.option(
-    '--verbose',
+    '--suppress-toolkit-logs',
     is_flag=True,
     help='Show detailed logs including Ollama server output. By default, Ollama logs are suppressed.',
 )
 @click.pass_context
-def local_runner(ctx, model_path, pool_size, verbose):
+def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs):
     """Run the model as a local runner to help debug your model connected to the API or to
     leverage local compute resources manually. This relies on many variables being present in the env
     of the currently selected context. If they are not present then default values will be used to
@@ -999,16 +999,28 @@ def local_runner(ctx, model_path, pool_size, verbose):
         logger.info(
             f"Creating the local runner tying this '{user_id}/{app_id}/models/{model.id}' model (version: {version.id}) to the '{user_id}/{compute_cluster_id}/{nodepool_id}' nodepool."
         )
-        runner = nodepool.create_runner(
-            runner_config={
-                "runner": {
-                    "description": "local runner for model testing",
-                    "worker": worker,
-                    "num_replicas": 1,
+        try:
+            logger.info("Checking for existing runners in the nodepool...")
+            runners = nodepool.list_runners(
+                model_version_ids=[version.id],
+            )
+            for runner in runners:
+                logger.info(
+                    f"Found existing runner {runner.id} for model version {version.id}. Reusing it."
+                )
+                runner_id = runner.id
+        except len(runner) == 0:
+            logger.warning("Failed to get existing runners in nodepool...Creating a new one.\n")
+            runner = nodepool.create_runner(
+                runner_config={
+                    "runner": {
+                        "description": "local runner for model testing",
+                        "worker": worker,
+                        "num_replicas": 1,
+                    }
                 }
-            }
-        )
-        runner_id = runner.id
+            )
+            runner_id = runner.id
         ctx.obj.current.CLARIFAI_RUNNER_ID = runner.id
         ctx.obj.to_yaml()
 
@@ -1088,7 +1100,7 @@ def local_runner(ctx, model_path, pool_size, verbose):
             customize_ollama_model(
                 model_path=model_path,
                 user_id=user_id,
-                verbose=True if verbose else False,
+                verbose=False if suppress_toolkit_logs else True,
             )
         except Exception as e:
             logger.error(f"Failed to customize Ollama model: {e}")
