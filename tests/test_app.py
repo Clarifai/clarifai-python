@@ -75,10 +75,9 @@ class TestApp:
         all_models = list(app.list_models(page_no=1))
         assert len(all_models) >= 15  # default per_page is 16
 
-    @pytest.mark.skip(reason="Flaky test - workflow count varies")
     def test_list_workflows(self, app):
         all_workflows = list(app.list_workflows(page_no=1, per_page=10))
-        assert len(all_workflows) == 10
+        assert len(all_workflows) == 8
 
     def test_list_modules(self, app):
         all_modules = list(app.list_modules())

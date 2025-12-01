@@ -451,7 +451,7 @@ def customize_huggingface_model(model_path, user_id, model_name):
         logger.warning(f"config.yaml not found at {config_path}, skipping model configuration")
 
 
-def customize_lmstudio_model(model_path, user_id, model_name, port, context_length):
+def customize_lmstudio_model(model_path, user_id, model_name=None, port=None, context_length=None):
     """Customize the LM Studio model name in the cloned template files.
     Args:
      model_path: Path to the cloned model directory
