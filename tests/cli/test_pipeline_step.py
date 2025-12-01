@@ -2,8 +2,10 @@
 
 import logging
 import os
+import sys
 from unittest.mock import Mock, patch
 
+import pytest
 from click.testing import CliRunner
 
 from clarifai.cli.pipeline_step import init, list, upload
@@ -402,6 +404,9 @@ class TestPipelineStepCommandIntegration:
 class TestPipelineStepCLIEdgeCases:
     """Test edge cases and error conditions for pipeline step CLI commands."""
 
+    @pytest.mark.skipif(
+        sys.platform == 'win32', reason="Test not relevant for Windows environment"
+    )
     def test_init_with_invalid_path_permissions(self):
         """Test init command behavior with permission issues."""
         runner = CliRunner()
