@@ -26,37 +26,6 @@ def format_bytes(size: int) -> str:
     return f"{size:.1f} PB"
 
 
-def handle_grpc_error(func, *args, **kwargs):
-    """Handle gRPC errors with graceful fallbacks for missing APIs.
-
-    Args:
-        func: The gRPC function to call
-        *args: Arguments to pass to the function
-        **kwargs: Keyword arguments to pass to the function
-
-    Returns:
-        The result of the function call
-
-    Raises:
-        UserError: If the API is not available or other errors occur
-    """
-    try:
-        return func(*args, **kwargs)
-    except AttributeError as e:
-        if "has no attribute" in str(e) and any(
-            name in str(e) for name in ["Artifact", "PostArtifact", "ListArtifact"]
-        ):
-            raise UserError(
-                "Artifact API is not yet available in the current gRPC client version. Please update your clarifai-grpc package."
-            )
-        raise UserError(f"gRPC method not found: {e}")
-    except Exception as e:
-        # Handle other gRPC errors
-        if hasattr(e, 'code') and hasattr(e, 'details'):
-            raise UserError(f"API Error: {e.details()}")
-        raise UserError(f"Request failed: {e}")
-
-
 class ArtifactVersion(BaseClient):
     """ArtifactVersion client for managing artifact versions in Clarifai."""
 
@@ -231,8 +200,7 @@ class ArtifactVersion(BaseClient):
                     final_version_id = version_id
 
                     # Perform streaming upload following pipeline_step pattern
-                    for response in handle_grpc_error(
-                        self.STUB.PostArtifactVersionsUpload,
+                    for response in self._grpc_request_stream("PostArtifactVersionsUpload",
                         self._artifact_version_upload_iterator(
                             file_path,
                             artifact_id,
@@ -603,7 +571,7 @@ class ArtifactVersion(BaseClient):
             artifact_version_id=version_id,
         )
 
-        response = handle_grpc_error(self._grpc_request, self.STUB.DeleteArtifactVersion, request)
+        response = self._grpc_request("DeleteArtifactVersion", request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to delete artifact version: {response.status.description}")
@@ -651,7 +619,7 @@ class ArtifactVersion(BaseClient):
             artifact_version_id=version_id,
         )
 
-        response = handle_grpc_error(self._grpc_request, self.STUB.GetArtifactVersion, request)
+        response = self._grpc_request("GetArtifactVersion", request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to get artifact version: {response.status.description}")
@@ -738,9 +706,7 @@ class ArtifactVersion(BaseClient):
             per_page=per_page,
         )
 
-        response = handle_grpc_error(
-            client._grpc_request, client.STUB.ListArtifactVersions, request
-        )
+        response = client._grpc_request("ListArtifactVersions", request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to list artifact versions: {response.status.description}")
@@ -755,11 +721,6 @@ class ArtifactVersion(BaseClient):
             )
 
     def _get_client_params(self) -> Dict:
-        """Get the client parameters for creating new instances."""
-        return {
-            "user_id": self.user_id,
-            "app_id": self.app_id,
-        }
         """Get the client parameters for creating new instances."""
         return {
             "user_id": self.user_id,

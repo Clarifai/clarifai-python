@@ -10,37 +10,6 @@ from clarifai.constants.artifact import (
 from clarifai.errors import UserError
 
 
-def handle_grpc_error(func, *args, **kwargs):
-    """Handle gRPC errors with graceful fallbacks for missing APIs.
-
-    Args:
-        func: The gRPC function to call
-        *args: Arguments to pass to the function
-        **kwargs: Keyword arguments to pass to the function
-
-    Returns:
-        The result of the function call
-
-    Raises:
-        UserError: If the API is not available or other errors occur
-    """
-    try:
-        return func(*args, **kwargs)
-    except AttributeError as e:
-        if "has no attribute" in str(e) and any(
-            name in str(e) for name in ["Artifact", "PostArtifact", "ListArtifact"]
-        ):
-            raise UserError(
-                "Artifact API is not yet available in the current gRPC client version. Please update your clarifai-grpc package."
-            )
-        raise UserError(f"gRPC method not found: {e}")
-    except Exception as e:
-        # Handle other gRPC errors
-        if hasattr(e, 'code') and hasattr(e, 'details'):
-            raise UserError(f"API Error: {e.details()}")
-        raise UserError(f"Request failed: {e}")
-
-
 class Artifact(BaseClient):
     """Artifact client for managing artifacts in Clarifai."""
 
@@ -109,7 +78,7 @@ class Artifact(BaseClient):
             ],
         )
 
-        response = handle_grpc_error(self._grpc_request, self.STUB.PostArtifacts, request)
+        response = self._grpc_request("PostArtifacts", request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to create artifact: {response.status.description}")
@@ -153,7 +122,7 @@ class Artifact(BaseClient):
             id=artifact_id,
         )
 
-        response = handle_grpc_error(self._grpc_request, self.STUB.DeleteArtifact, request)
+        response = self._grpc_request("DeleteArtifact", request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to delete artifact: {response.status.description}")
@@ -195,7 +164,7 @@ class Artifact(BaseClient):
             id=artifact_id,
         )
 
-        response = handle_grpc_error(self._grpc_request, self.STUB.GetArtifact, request)
+        response = self._grpc_request("GetArtifact", request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to get artifact: {response.status.description}")
@@ -252,7 +221,7 @@ class Artifact(BaseClient):
             per_page=per_page,
         )
 
-        response = handle_grpc_error(client._grpc_request, client.STUB.ListArtifacts, request)
+        response = client._grpc_request("ListArtifacts", request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to list artifacts: {response.status.description}")
@@ -288,10 +257,3 @@ class Artifact(BaseClient):
             return True
         except Exception:
             return False
-
-    def _get_client_params(self) -> Dict:
-        """Get the client parameters for creating new instances."""
-        return {
-            "user_id": self.user_id,
-            "app_id": self.app_id,
-        }
