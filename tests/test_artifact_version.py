@@ -77,9 +77,9 @@ class TestArtifactVersion:
             version = ArtifactVersion()
             result = version.create(
                 file_path="test_file.txt",
-                artifact_id="test_artifact", 
-                user_id="test_user", 
-                app_id="test_app"
+                artifact_id="test_artifact",
+                user_id="test_user",
+                app_id="test_app",
             )
 
             assert isinstance(result, ArtifactVersion)
@@ -155,8 +155,8 @@ class TestArtifactVersion:
         mock_info_response.status.code = 10000  # SUCCESS
         mock_info_response.artifact_version.upload = {
             "content_url": "https://example.com/file.txt",
-            "content_name": "test_file.txt", 
-            "content_length": 1024
+            "content_name": "test_file.txt",
+            "content_length": 1024,
         }
 
         with (

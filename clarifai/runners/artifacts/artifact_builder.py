@@ -14,7 +14,6 @@ from clarifai.constants.artifact import (
 )
 from clarifai.errors import UserError
 from clarifai.utils.logging import logger
-from clarifai.utils.misc import format_bytes
 
 
 def parse_artifact_path(path: str) -> Dict[str, Optional[str]]:
@@ -126,7 +125,7 @@ class ArtifactBuilder(BaseClient):
             raise UserError("source_path is required")
         if not destination_path:
             raise UserError("destination_path is required")
-            
+
         if not os.path.exists(source_path):
             raise UserError(f"Source file does not exist: {source_path}")
 
@@ -193,7 +192,7 @@ class ArtifactBuilder(BaseClient):
             raise UserError("source_path is required")
         if not destination_path:
             raise UserError("destination_path is required")
-            
+
         # Parse source path
         parsed = parse_artifact_path(source_path)
         user_id = user_id or parsed['user_id']

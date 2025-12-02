@@ -191,7 +191,8 @@ class ArtifactVersion(BaseClient):
                     final_version_id = version_id
 
                     # Perform streaming upload following pipeline_step pattern
-                    for response in self._grpc_request_stream("PostArtifactVersionsUpload",
+                    for response in self._grpc_request_stream(
+                        "PostArtifactVersionsUpload",
                         self._artifact_version_upload_iterator(
                             file_path,
                             artifact_id,
