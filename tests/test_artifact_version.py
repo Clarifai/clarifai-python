@@ -5,8 +5,9 @@ from unittest.mock import Mock, mock_open, patch
 import pytest
 from google.protobuf import timestamp_pb2
 
-from clarifai.client.artifact_version import ArtifactVersion, format_bytes
+from clarifai.client.artifact_version import ArtifactVersion
 from clarifai.errors import UserError
+from clarifai.utils.misc import format_bytes
 
 
 class TestArtifactVersion:
@@ -90,7 +91,7 @@ class TestArtifactVersion:
             version = ArtifactVersion()
 
             with pytest.raises(UserError, match="artifact_id is required"):
-                version.create()
+                version.create(file_path="test.txt")
 
     @patch('os.path.exists')
     @patch('os.path.getsize')
@@ -305,10 +306,13 @@ class TestArtifactVersionHelpers:
 
             config = version._create_upload_config(
                 artifact_id="test_artifact",
+                description="Test description",
+                visibility="private",
+                expires_at=None,
+                version_id="test_version",
                 user_id="test_user",
                 app_id="test_app",
-                version_id="test_version",
-                description="Test description",
+                file_size=1024,
             )
 
             assert config.artifact_id == "test_artifact"
@@ -324,35 +328,19 @@ class TestArtifactVersionHelpers:
         with patch('clarifai.client.base.BaseClient.__init__'):
             version = ArtifactVersion()
 
-            # Create a mock upload config
-            upload_config = Mock()
-            upload_config.artifact_id = "test_artifact"
-
             iterator = version._artifact_version_upload_iterator(
-                "test_file.txt", upload_config, chunk_size=4
-            )
-
-            chunks = list(iterator)
-            assert len(chunks) >= 1  # At least the config chunk
-
-    def test_get_client_params(self):
-        """Test client parameter extraction."""
-        with patch('clarifai.client.base.BaseClient.__init__'):
-            version = ArtifactVersion(
+                file_path="test_file.txt",
                 artifact_id="test_artifact",
+                description="Test description",
+                visibility="private",
+                expires_at=None,
                 version_id="test_version",
                 user_id="test_user",
                 app_id="test_app",
             )
 
-            params = version._get_client_params()
-            expected = {
-                'artifact_id': 'test_artifact',
-                'version_id': 'test_version',
-                'user_id': 'test_user',
-                'app_id': 'test_app',
-            }
-            assert params == expected
+            chunks = list(iterator)
+            assert len(chunks) >= 1  # At least the config chunk
 
 
 class TestArtifactVersionValidation:
@@ -365,7 +353,7 @@ class TestArtifactVersionValidation:
 
             # Test various missing parameter scenarios
             with pytest.raises(UserError, match="artifact_id is required"):
-                version.create()
+                version.create(file_path="test.txt")
 
             with pytest.raises(UserError, match="artifact_id is required"):
                 version.upload(file_path="test.txt")
@@ -386,7 +374,3 @@ class TestArtifactVersionValidation:
                     user_id="test_user",
                     app_id="test_app",
                 )
-
-
-if __name__ == "__main__":
-    pytest.main([__file__])

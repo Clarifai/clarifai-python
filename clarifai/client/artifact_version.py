@@ -15,15 +15,7 @@ from clarifai.constants.artifact import (
 )
 from clarifai.errors import UserError
 from clarifai.utils.logging import logger
-
-
-def format_bytes(size: int) -> str:
-    """Format byte size in human readable format."""
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-        if size < 1024.0:
-            return f"{size:.1f} {unit}"
-        size /= 1024.0
-    return f"{size:.1f} PB"
+from clarifai.utils.misc import format_bytes
 
 
 class ArtifactVersion(BaseClient):
@@ -144,6 +136,8 @@ class ArtifactVersion(BaseClient):
             raise UserError("user_id is required")
         if not app_id:
             raise UserError("app_id is required")
+        if not file_path:
+            raise UserError("file_path is required")
         if not os.path.exists(file_path):
             raise UserError(f"File does not exist: {file_path}")
 
@@ -187,9 +181,6 @@ class ArtifactVersion(BaseClient):
         for attempt in range(max_retries):
             try:
                 logger.debug(f"Upload attempt {attempt + 1}/{max_retries}")
-
-                # Calculate total chunks using fixed chunk size (same as pipeline_step)
-                total_chunks = (file_size + UPLOAD_CHUNK_SIZE - 1) // UPLOAD_CHUNK_SIZE
 
                 # Progress bar setup - always show for better UX
                 progress_bar = tqdm(total=file_size, unit='B', unit_scale=True, desc="Uploading")
@@ -241,7 +232,6 @@ class ArtifactVersion(BaseClient):
                         version_id=final_version_id,
                         user_id=user_id,
                         app_id=app_id,
-                        **self._get_client_params(),
                     )
 
                 except Exception as e:
@@ -719,10 +709,3 @@ class ArtifactVersion(BaseClient):
                 app_id=app_id,
                 **kwargs,
             )
-
-    def _get_client_params(self) -> Dict:
-        """Get the client parameters for creating new instances."""
-        return {
-            "user_id": self.user_id,
-            "app_id": self.app_id,
-        }

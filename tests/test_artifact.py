@@ -75,7 +75,7 @@ class TestArtifact:
             artifact = Artifact()
 
             with pytest.raises(UserError, match="user_id is required"):
-                artifact.create("")
+                artifact.create(artifact_id="")
 
     def test_delete_success(self):
         """Test successful artifact deletion."""
@@ -225,7 +225,3 @@ class TestArtifactValidation:
 
             with pytest.raises(UserError, match="artifact_id is required"):
                 artifact.info(artifact_id="", user_id="test_user", app_id="test_app")
-
-
-if __name__ == "__main__":
-    pytest.main([__file__])

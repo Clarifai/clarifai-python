@@ -83,9 +83,7 @@ class Artifact(BaseClient):
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to create artifact: {response.status.description}")
 
-        return Artifact(
-            artifact_id=artifact_id, user_id=user_id, app_id=app_id, **self._get_client_params()
-        )
+        return Artifact(artifact_id=artifact_id, user_id=user_id, app_id=app_id)
 
     def delete(
         self,
@@ -228,13 +226,6 @@ class Artifact(BaseClient):
 
         for artifact_pb in response.artifacts:
             yield Artifact(artifact_id=artifact_pb.id, user_id=user_id, app_id=app_id, **kwargs)
-
-    def _get_client_params(self) -> Dict:
-        """Get the client parameters for creating new instances."""
-        return {
-            "user_id": self.user_id,
-            "app_id": self.app_id,
-        }
 
     def exists(
         self,

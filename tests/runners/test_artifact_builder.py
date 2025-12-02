@@ -150,7 +150,7 @@ class TestArtifactBuilder:
         mock_create.return_value = Mock()
         mock_upload.return_value = Mock(id="new_version")
 
-        result = self.builder.upload_from_path(
+        self.builder.upload_from_path(
             source_path="./test_file.txt",
             destination_path="users/u123/apps/a456/artifacts/my_artifact",
             description="Custom version description",

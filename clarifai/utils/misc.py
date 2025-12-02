@@ -32,6 +32,15 @@ def status_is_retryable(status_code: int) -> bool:
     return status_code in RETRYABLE_CODES
 
 
+def format_bytes(size: int) -> str:
+    """Format byte size in human readable format."""
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size < 1024.0:
+            return f"{size:.1f} {unit}"
+        size /= 1024.0
+    return f"{size:.1f} PB"
+
+
 class Chunker:
     """Split an input sequence into small chunks."""
 
