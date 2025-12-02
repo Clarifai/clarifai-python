@@ -3,7 +3,6 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from google.protobuf import timestamp_pb2
 
 from clarifai.client.artifact import Artifact
 from clarifai.errors import UserError
