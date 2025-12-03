@@ -1,3 +1,16 @@
+## [[11.12.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.12.0) - [PyPI](https://pypi.org/project/clarifai/11.12.0/) - 2025-12-02
+
+### Changed
+- Fixed local-runner to handle duplicate runner id errors [(#850)](https://github.com/Clarifai/clarifai-python/pull/850)
+- Added CLARIFAI_HF_TOKEN to CLI Context [(#851)](https://github.com/Clarifai/clarifai-python/pull/851)
+
+### Added
+- Add comprehensive test coverage for cli.pipeline_step module [(#795)](https://github.com/Clarifai/clarifai-python/pull/795)
+- Add tests for local-runner CLI command [(#853)](https://github.com/Clarifai/clarifai-python/pull/853)
+
+### Removed
+- Remove auto-generating file [(#854)](https://github.com/Clarifai/clarifai-python/pull/854)
+
 ## [[11.10.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.10.3) - [PyPI](https://pypi.org/project/clarifai/11.10.3/) - 2025-11-27
 
 ### Added
