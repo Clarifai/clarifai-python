@@ -731,7 +731,7 @@ def run_locally(ctx, model_path, port, mode, keep_env, keep_image, skip_dockerfi
     help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
 @click.pass_context
-def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_image, keep_env, skip_dockerfile):
+def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_image):
     """Run the model as a local runner to help debug your model connected to the API or to
       # for where the local runner should be in a compute cluster
       # note the user_id of the compute cluster is the same as the user_id of the model.
