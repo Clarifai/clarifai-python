@@ -69,7 +69,7 @@ class TestPipelineClient:
         pipeline.auth_helper = Mock()
         pipeline.auth_helper.metadata = []
 
-        # Mock PostPipelineVersionRuns response
+        # Mock PostPipelineVersionRuns response (no GetPipelineVersion needed since server handles merging)
         mock_run_response = Mock()
         mock_run_response.status.code = status_code_pb2.StatusCode.SUCCESS
         mock_run = Mock()
@@ -108,7 +108,7 @@ class TestPipelineClient:
         pipeline.auth_helper = Mock()
         pipeline.auth_helper.metadata = []
 
-        # Mock failed PostPipelineVersionRuns response
+        # Mock failed PostPipelineVersionRuns response (no GetPipelineVersion needed)
         mock_response = Mock()
         mock_response.status.code = (
             status_code_pb2.StatusCode.MIXED_STATUS

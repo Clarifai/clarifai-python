@@ -32,6 +32,7 @@ def generate_client_script(
     deployment_id: str = None,
     compute_cluster_id: str = None,
     nodepool_id: str = None,
+    deployment_user_id: str = None,
     use_ctx: bool = False,
     colorize: bool = False,
 ) -> str:
@@ -118,6 +119,14 @@ print(response)
             else repr(deployment_id)
         )
 
+    # Determine deployment_user_id: use provided value or model's user_id
+    if not deployment_user_id and any([deployment_id, nodepool_id, compute_cluster_id]):
+        deployment_user_id = 'os.environ.get("CLARIFAI_DEPLOYMENT_USER_ID", None)'
+    elif deployment_user_id:
+        deployment_user_id = repr(deployment_user_id)
+    else:
+        deployment_user_id = None
+
     deployment_line = (
         f'deployment_id={deployment_id},  # Only needed for dedicated deployed models'
         if deployment_id
@@ -131,6 +140,11 @@ print(response)
         if nodepool_id
         else ""
     )
+    deployment_user_id_line = (
+        f'deployment_user_id={deployment_user_id},  # Organization or user ID for deployment/nodepool'
+        if deployment_user_id
+        else ""
+    )
 
     base_url_str = ""
     if base_url is not None:
@@ -139,7 +153,13 @@ print(response)
     # Join all non-empty lines
     optional_lines = "\n    ".join(
         line
-        for line in [deployment_line, compute_cluster_line, nodepool_line, base_url_str]
+        for line in [
+            deployment_line,
+            compute_cluster_line,
+            nodepool_line,
+            deployment_user_id_line,
+            base_url_str,
+        ]
         if line
     )
 
