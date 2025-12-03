@@ -1,3 +1,10 @@
+## [[11.12.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.12.1) - [PyPI](https://pypi.org/project/clarifai/11.12.1/) - 2025-12-03
+
+### Fixed
+- Fix TypeError when accelerator_type is None in config.yaml [(#864)](https://github.com/Clarifai/clarifai-python/pull/864)
+  - Added null check before iterating over accelerator_type
+  - Prevents crash during model upload for CPU-only models
+
 ## [[11.12.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.12.0) - [PyPI](https://pypi.org/project/clarifai/11.12.0/) - 2025-12-02
 
 ### Changed
