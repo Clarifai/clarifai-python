@@ -1006,11 +1006,13 @@ class ModelBuilder:
         if "inference_compute_info" in self.config:
             inference_compute_info = self.config.get('inference_compute_info')
             if 'accelerator_type' in inference_compute_info:
-                for accelerator in inference_compute_info['accelerator_type']:
-                    if 'amd' in accelerator.lower():
-                        is_amd_gpu = True
-                    elif 'nvidia' in accelerator.lower():
-                        is_nvidia_gpu = True
+                accelerator_type = inference_compute_info['accelerator_type']
+                if accelerator_type:  # Check if not None or empty
+                    for accelerator in accelerator_type:
+                        if 'amd' in accelerator.lower():
+                            is_amd_gpu = True
+                        elif 'nvidia' in accelerator.lower():
+                            is_nvidia_gpu = True
         if is_amd_gpu and is_nvidia_gpu:
             raise Exception(
                 "Both AMD and NVIDIA GPUs are specified in the config file, please use only one type of GPU."
