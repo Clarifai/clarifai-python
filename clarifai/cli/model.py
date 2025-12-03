@@ -716,19 +716,9 @@ def run_locally(ctx, model_path, port, mode, keep_env, keep_image, skip_dockerfi
     help='Specifies how to run the model: "env" for virtual environment or "container" for Docker container. Defaults to "env".',
 )
 @click.option(
-    '--keep_env',
-    is_flag=True,
-    help='Keep the virtual environment after testing the model locally (applicable for virtualenv mode). Defaults to False.',
-)
-@click.option(
     '--keep_image',
     is_flag=True,
     help='Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.',
-)
-@click.option(
-    "--skip_dockerfile",
-    is_flag=True,
-    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
 @click.pass_context
 def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_image):
@@ -770,7 +760,7 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
         manager.install_requirements()
 
     dependencies = parse_requirements(model_path)
-    if not mode == "container" and not mode == "env":
+    if mode != "container":
         logger.info("> Checking local runner requirements...")
         # Post check while running `clarifai model local-runner` we check if the toolkit is ollama
         if not check_requirements_installed(dependencies=dependencies):
