@@ -1447,13 +1447,29 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs):
             runners = nodepool.list_runners(
                 model_version_ids=[version.id],
             )
+            runner_id = None
             for runner in runners:
                 logger.info(
                     f"Found existing runner {runner.id} for model version {version.id}. Reusing it."
                 )
                 runner_id = runner.id
-        except len(runner) == 0:
-            logger.warning("Failed to get existing runners in nodepool...Creating a new one.\n")
+                break  # use the first one we find.
+            if runner_id is None:
+                logger.warning("No existing runners found in nodepool. Creating a new one.\n")
+                runner = nodepool.create_runner(
+                    runner_config={
+                        "runner": {
+                            "description": "local runner for model testing",
+                            "worker": worker,
+                            "num_replicas": 1,
+                        }
+                    }
+                )
+                runner_id = runner.id
+        except Exception as e:
+            logger.warning(
+                f"Failed to list existing runners in nodepool {e}...Creating a new one.\n"
+            )
             runner = nodepool.create_runner(
                 runner_config={
                     "runner": {
