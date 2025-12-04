@@ -3,7 +3,6 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from google.protobuf import timestamp_pb2
 
 from clarifai.client.artifact import Artifact
 from clarifai.errors import UserError
@@ -41,8 +40,7 @@ class TestArtifact:
         assert "test_user" in repr_str
         assert "test_app" in repr_str
 
-    @patch('clarifai.client.artifact.handle_grpc_error')
-    def test_create_success(self, mock_handle_grpc_error):
+    def test_create_success(self):
         """Test successful artifact creation."""
         # Mock the response
         mock_response = Mock()
@@ -51,12 +49,13 @@ class TestArtifact:
         mock_artifact.user_id = "test_user"
         mock_artifact.app_id = "test_app"
         mock_response.artifacts = [mock_artifact]
+        mock_response.status.code = 10000  # SUCCESS
 
         with (
             patch('clarifai.client.base.BaseClient.__init__'),
-            patch.object(Artifact, 'V2_STUB') as mock_stub,
+            patch.object(Artifact, '_grpc_request') as mock_grpc_request,
         ):
-            mock_handle_grpc_error.return_value = mock_response
+            mock_grpc_request.return_value = mock_response
 
             artifact = Artifact()
             result = artifact.create(
@@ -64,179 +63,164 @@ class TestArtifact:
             )
 
             assert isinstance(result, Artifact)
-            mock_handle_grpc_error.assert_called_once()
-
-    @patch('clarifai.client.artifact.handle_grpc_error')
-    def test_create_with_description(self, mock_handle_grpc_error):
-        """Test artifact creation with description."""
-        mock_response = Mock()
-        mock_artifact = Mock()
-        mock_artifact.id = "new_artifact"
-        mock_response.artifacts = [mock_artifact]
-
-        with patch('clarifai.client.base.BaseClient.__init__'), patch.object(Artifact, 'V2_STUB'):
-            mock_handle_grpc_error.return_value = mock_response
-
-            artifact = Artifact()
-            artifact.create(
-                artifact_id="new_artifact",
-                user_id="test_user",
-                app_id="test_app",
-                description="Test artifact description",
-            )
-
-            # Verify the call was made with description
-            call_args = mock_handle_grpc_error.call_args[0]
-            assert "Test artifact description" in str(call_args)
+            mock_grpc_request.assert_called_once()
+            # Verify the call was made with the correct method name
+            call_args = mock_grpc_request.call_args
+            assert call_args[0][0] == "PostArtifacts"
 
     def test_create_missing_params(self):
         """Test artifact creation with missing parameters."""
         with patch('clarifai.client.base.BaseClient.__init__'):
             artifact = Artifact()
 
-            with pytest.raises(UserError, match="artifact_id is required"):
-                artifact.create()
+            with pytest.raises(UserError, match="user_id is required"):
+                artifact.create(artifact_id="")
 
-    @patch('clarifai.client.artifact.handle_grpc_error')
-    def test_delete_success(self, mock_handle_grpc_error):
+    def test_delete_success(self):
         """Test successful artifact deletion."""
         mock_response = Mock()
         mock_response.status.code = 10000  # SUCCESS
 
-        with patch('clarifai.client.base.BaseClient.__init__'), patch.object(Artifact, 'V2_STUB'):
-            mock_handle_grpc_error.return_value = mock_response
+        with (
+            patch('clarifai.client.base.BaseClient.__init__'),
+            patch.object(Artifact, '_grpc_request') as mock_grpc_request,
+        ):
+            mock_grpc_request.return_value = mock_response
 
-            artifact = Artifact(
-                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
-            )
-
-            result = artifact.delete()
-            assert result is True
-            mock_handle_grpc_error.assert_called_once()
-
-    def test_delete_missing_params(self):
-        """Test artifact deletion with missing parameters."""
-        with patch('clarifai.client.base.BaseClient.__init__'):
             artifact = Artifact()
-
-            with pytest.raises(UserError, match="artifact_id is required"):
-                artifact.delete()
-
-    @patch('clarifai.client.artifact.handle_grpc_error')
-    def test_info_success(self, mock_handle_grpc_error):
-        """Test successful artifact info retrieval."""
-        # Create mock timestamp
-        mock_timestamp = timestamp_pb2.Timestamp()
-        mock_timestamp.GetCurrentTime()
-
-        mock_response = Mock()
-        mock_artifact = Mock()
-        mock_artifact.id = "test_artifact"
-        mock_artifact.user_id = "test_user"
-        mock_artifact.app_id = "test_app"
-        mock_artifact.description = "Test description"
-        mock_artifact.created_at = mock_timestamp
-        mock_artifact.modified_at = mock_timestamp
-        mock_response.artifacts = [mock_artifact]
-
-        with patch('clarifai.client.base.BaseClient.__init__'), patch.object(Artifact, 'V2_STUB'):
-            mock_handle_grpc_error.return_value = mock_response
-
-            artifact = Artifact(
+            result = artifact.delete(
                 artifact_id="test_artifact", user_id="test_user", app_id="test_app"
             )
 
-            result = artifact.info()
-            assert result is not None
-            mock_handle_grpc_error.assert_called_once()
+            assert result is True
+            mock_grpc_request.assert_called_once()
+            call_args = mock_grpc_request.call_args
+            assert call_args[0][0] == "DeleteArtifact"
 
-    @patch('clarifai.client.artifact.handle_grpc_error')
-    def test_list_success(self, mock_handle_grpc_error):
+    def test_info_success(self):
+        """Test successful artifact info retrieval."""
+        mock_response = Mock()
+        mock_response.status.code = 10000  # SUCCESS
+        mock_response.artifact.id = "test_artifact"
+        mock_response.artifact.user_id = "test_user"
+        mock_response.artifact.app_id = "test_app"
+        mock_response.artifact.created_at.ToDatetime.return_value = "2024-01-01"
+        mock_response.artifact.modified_at = None
+        mock_response.artifact.deleted_at = None
+        mock_response.artifact.artifact_version = None
+
+        with (
+            patch('clarifai.client.base.BaseClient.__init__'),
+            patch.object(Artifact, '_grpc_request') as mock_grpc_request,
+        ):
+            mock_grpc_request.return_value = mock_response
+
+            artifact = Artifact()
+            info = artifact.info(
+                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
+            )
+
+            assert info["id"] == "test_artifact"
+            assert info["user_id"] == "test_user"
+            assert info["app_id"] == "test_app"
+            mock_grpc_request.assert_called_once()
+            call_args = mock_grpc_request.call_args
+            assert call_args[0][0] == "GetArtifact"
+
+    def test_list_success(self):
         """Test successful artifact listing."""
         mock_response = Mock()
-        mock_artifact1 = Mock()
-        mock_artifact1.id = "artifact1"
-        mock_artifact2 = Mock()
-        mock_artifact2.id = "artifact2"
-        mock_response.artifacts = [mock_artifact1, mock_artifact2]
-
-        with patch('clarifai.client.base.BaseClient.__init__'), patch.object(Artifact, 'V2_STUB'):
-            mock_handle_grpc_error.return_value = mock_response
-
-            artifact = Artifact()
-            results = list(artifact.list(user_id="test_user", app_id="test_app"))
-
-            assert len(results) == 2
-            mock_handle_grpc_error.assert_called_once()
-
-    @patch('clarifai.client.artifact.handle_grpc_error')
-    def test_exists_true(self, mock_handle_grpc_error):
-        """Test artifact exists method returns True."""
-        mock_response = Mock()
+        mock_response.status.code = 10000  # SUCCESS
         mock_artifact = Mock()
         mock_artifact.id = "test_artifact"
         mock_response.artifacts = [mock_artifact]
 
-        with patch('clarifai.client.base.BaseClient.__init__'), patch.object(Artifact, 'V2_STUB'):
-            mock_handle_grpc_error.return_value = mock_response
+        with (
+            patch('clarifai.client.base.BaseClient.__init__'),
+            patch.object(Artifact, '_grpc_request') as mock_grpc_request,
+        ):
+            mock_grpc_request.return_value = mock_response
 
-            artifact = Artifact(
-                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
-            )
+            artifacts = list(Artifact.list(user_id="test_user", app_id="test_app"))
 
-            result = artifact.exists()
-            assert result is True
+            assert len(artifacts) == 1
+            assert artifacts[0].artifact_id == "test_artifact"
+            mock_grpc_request.assert_called_once()
+            call_args = mock_grpc_request.call_args
+            assert call_args[0][0] == "ListArtifacts"
 
-    @patch('clarifai.client.artifact.handle_grpc_error')
-    def test_exists_false(self, mock_handle_grpc_error):
-        """Test artifact exists method returns False."""
+    def test_exists_true(self):
+        """Test artifact exists returns True when artifact is found."""
         mock_response = Mock()
-        mock_response.artifacts = []
+        mock_response.status.code = 10000  # SUCCESS
+        mock_response.artifact.id = "test_artifact"
+        mock_response.artifact.user_id = "test_user"
+        mock_response.artifact.app_id = "test_app"
+        mock_response.artifact.created_at = None
+        mock_response.artifact.modified_at = None
+        mock_response.artifact.deleted_at = None
+        mock_response.artifact.artifact_version = None
 
-        with patch('clarifai.client.base.BaseClient.__init__'), patch.object(Artifact, 'V2_STUB'):
-            mock_handle_grpc_error.return_value = mock_response
+        with (
+            patch('clarifai.client.base.BaseClient.__init__'),
+            patch.object(Artifact, '_grpc_request') as mock_grpc_request,
+        ):
+            mock_grpc_request.return_value = mock_response
 
-            artifact = Artifact(
+            artifact = Artifact()
+            exists = artifact.exists(
                 artifact_id="test_artifact", user_id="test_user", app_id="test_app"
             )
 
-            result = artifact.exists()
-            assert result is False
+            assert exists is True
+
+    def test_exists_false(self):
+        """Test artifact exists returns False when artifact is not found."""
+        with (
+            patch('clarifai.client.base.BaseClient.__init__'),
+            patch.object(Artifact, '_grpc_request') as mock_grpc_request,
+        ):
+            mock_grpc_request.side_effect = Exception("Not found")
+
+            artifact = Artifact()
+            exists = artifact.exists(
+                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
+            )
+
+            assert exists is False
 
 
 class TestArtifactValidation:
-    """Test class for artifact input validation."""
+    """Test class for artifact validation."""
 
-    def test_get_client_params(self):
-        """Test client parameter extraction."""
-        with patch('clarifai.client.base.BaseClient.__init__'):
-            artifact = Artifact(
-                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
-            )
-
-            params = artifact._get_client_params()
-            expected = {
-                'artifact_id': 'test_artifact',
-                'user_id': 'test_user',
-                'app_id': 'test_app',
-            }
-            assert params == expected
-
-    def test_missing_required_fields(self):
-        """Test validation with missing required fields."""
+    def test_create_missing_user_id(self):
+        """Test artifact creation with missing user_id."""
         with patch('clarifai.client.base.BaseClient.__init__'):
             artifact = Artifact()
 
-            # Test various missing parameter scenarios
-            with pytest.raises(UserError, match="artifact_id is required"):
-                artifact.create()
+            with pytest.raises(UserError, match="user_id is required"):
+                artifact.create(artifact_id="test", user_id="", app_id="test_app")
+
+    def test_create_missing_app_id(self):
+        """Test artifact creation with missing app_id."""
+        with patch('clarifai.client.base.BaseClient.__init__'):
+            artifact = Artifact()
+
+            with pytest.raises(UserError, match="app_id is required"):
+                artifact.create(artifact_id="test", user_id="test_user", app_id="")
+
+    def test_delete_missing_artifact_id(self):
+        """Test artifact deletion with missing artifact_id."""
+        with patch('clarifai.client.base.BaseClient.__init__'):
+            artifact = Artifact()
 
             with pytest.raises(UserError, match="artifact_id is required"):
-                artifact.delete()
+                artifact.delete(artifact_id="", user_id="test_user", app_id="test_app")
+
+    def test_info_missing_artifact_id(self):
+        """Test artifact info with missing artifact_id."""
+        with patch('clarifai.client.base.BaseClient.__init__'):
+            artifact = Artifact()
 
             with pytest.raises(UserError, match="artifact_id is required"):
-                artifact.info()
-
-
-if __name__ == "__main__":
-    pytest.main([__file__])
+                artifact.info(artifact_id="", user_id="test_user", app_id="test_app")

@@ -79,15 +79,6 @@ def parse_rfc3339_timestamp(timestamp_str: str) -> Timestamp:
         )
 
 
-def format_bytes(size: int) -> str:
-    """Format byte size in human readable format."""
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-        if size < 1024.0:
-            return f"{size:.1f} {unit}"
-        size /= 1024.0
-    return f"{size:.1f} PB"
-
-
 class ArtifactBuilder(BaseClient):
     """Artifact Builder for complex artifact workflows like upload/download with path parsing."""
 
@@ -130,6 +121,11 @@ class ArtifactBuilder(BaseClient):
         Raises:
             UserError: If source file doesn't exist or path is invalid
         """
+        if not source_path:
+            raise UserError("source_path is required")
+        if not destination_path:
+            raise UserError("destination_path is required")
+
         if not os.path.exists(source_path):
             raise UserError(f"Source file does not exist: {source_path}")
 
@@ -192,6 +188,11 @@ class ArtifactBuilder(BaseClient):
         Raises:
             UserError: If path is invalid or artifact not found
         """
+        if not source_path:
+            raise UserError("source_path is required")
+        if not destination_path:
+            raise UserError("destination_path is required")
+
         # Parse source path
         parsed = parse_artifact_path(source_path)
         user_id = user_id or parsed['user_id']

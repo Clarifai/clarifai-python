@@ -5,8 +5,9 @@ from unittest.mock import Mock, mock_open, patch
 import pytest
 from google.protobuf import timestamp_pb2
 
-from clarifai.client.artifact_version import ArtifactVersion, format_bytes
+from clarifai.client.artifact_version import ArtifactVersion
 from clarifai.errors import UserError
+from clarifai.utils.misc import format_bytes
 
 
 class TestArtifactVersion:
@@ -55,27 +56,34 @@ class TestArtifactVersion:
             assert "test_user" in repr_str
             assert "test_app" in repr_str
 
-    @patch('clarifai.client.artifact_version.handle_grpc_error')
-    def test_create_success(self, mock_handle_grpc_error):
+    @patch('os.path.exists')
+    @patch('os.path.getsize')
+    def test_create_success(self, mock_getsize, mock_exists):
         """Test successful artifact version creation."""
+        mock_exists.return_value = True
+        mock_getsize.return_value = 1024
+
+        # Mock successful upload responses
         mock_response = Mock()
-        mock_artifact_version = Mock()
-        mock_artifact_version.id = "new_version"
-        mock_response.artifact_versions = [mock_artifact_version]
+        mock_response.artifact_version_id = "new_version"
+        mock_response.status.code = 10000  # SUCCESS
 
         with (
             patch('clarifai.client.base.BaseClient.__init__'),
-            patch.object(ArtifactVersion, 'V2_STUB'),
+            patch.object(ArtifactVersion, '_grpc_request_stream') as mock_grpc_stream,
         ):
-            mock_handle_grpc_error.return_value = mock_response
+            mock_grpc_stream.return_value = [mock_response]
 
             version = ArtifactVersion()
             result = version.create(
-                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
+                file_path="test_file.txt",
+                artifact_id="test_artifact",
+                user_id="test_user",
+                app_id="test_app",
             )
 
             assert isinstance(result, ArtifactVersion)
-            mock_handle_grpc_error.assert_called_once()
+            mock_grpc_stream.assert_called_once()
 
     def test_create_missing_params(self):
         """Test artifact version creation with missing parameters."""
@@ -83,30 +91,25 @@ class TestArtifactVersion:
             version = ArtifactVersion()
 
             with pytest.raises(UserError, match="artifact_id is required"):
-                version.create()
+                version.create(file_path="test.txt")
 
     @patch('os.path.exists')
     @patch('os.path.getsize')
-    @patch('builtins.open', new_callable=mock_open, read_data=b"test content")
-    @patch('clarifai.client.artifact_version.handle_grpc_error')
-    def test_upload_success(self, mock_handle_grpc_error, mock_file, mock_getsize, mock_exists):
+    def test_upload_success(self, mock_getsize, mock_exists):
         """Test successful file upload."""
         mock_exists.return_value = True
         mock_getsize.return_value = 1024
 
         # Mock successful upload response
         mock_response = Mock()
-        mock_artifact_version = Mock()
-        mock_artifact_version.id = "uploaded_version"
-        mock_response.artifact_versions = [mock_artifact_version]
+        mock_response.artifact_version_id = "uploaded_version"
+        mock_response.status.code = 10000  # SUCCESS
 
         with (
             patch('clarifai.client.base.BaseClient.__init__'),
-            patch.object(ArtifactVersion, 'V2_STUB'),
-            patch.object(ArtifactVersion, '_streaming_upload_with_retry') as mock_upload,
+            patch.object(ArtifactVersion, '_grpc_request_stream') as mock_grpc_stream,
         ):
-            mock_handle_grpc_error.return_value = mock_response
-            mock_upload.return_value = mock_response
+            mock_grpc_stream.return_value = [mock_response]
 
             version = ArtifactVersion()
             result = version.upload(
@@ -117,6 +120,7 @@ class TestArtifactVersion:
             )
 
             assert isinstance(result, ArtifactVersion)
+            mock_grpc_stream.assert_called_once()
 
     @patch('os.path.exists')
     def test_upload_missing_file(self, mock_exists):
@@ -144,19 +148,24 @@ class TestArtifactVersion:
 
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.makedirs')
-    @patch('clarifai.client.artifact_version.handle_grpc_error')
-    def test_download_success(self, mock_handle_grpc_error, mock_makedirs, mock_file):
+    def test_download_success(self, mock_makedirs, mock_file):
         """Test successful file download."""
-        # Mock download response with streaming data
-        mock_response = Mock()
-        mock_response.data.chunks = [b"chunk1", b"chunk2", b"chunk3"]
+        # Mock the info response first
+        mock_info_response = Mock()
+        mock_info_response.status.code = 10000  # SUCCESS
+        mock_info_response.artifact_version.upload = {
+            "content_url": "https://example.com/file.txt",
+            "content_name": "test_file.txt",
+            "content_length": 1024,
+        }
 
         with (
             patch('clarifai.client.base.BaseClient.__init__'),
-            patch.object(ArtifactVersion, 'V2_STUB'),
+            patch.object(ArtifactVersion, '_grpc_request') as mock_grpc_request,
             patch.object(ArtifactVersion, '_download_with_retry') as mock_download,
         ):
-            mock_download.return_value = mock_response
+            mock_grpc_request.return_value = mock_info_response
+            mock_download.return_value = "test_download.txt"
 
             version = ArtifactVersion(
                 artifact_id="test_artifact",
@@ -165,8 +174,11 @@ class TestArtifactVersion:
                 app_id="test_app",
             )
 
-            result = version.download(file_path="test_download.txt")
+            result = version.download(output_path="test_download.txt")
             assert result == "test_download.txt"
+            mock_grpc_request.assert_called_once()
+            call_args = mock_grpc_request.call_args
+            assert call_args[0][0] == "GetArtifactVersion"
 
     def test_download_missing_params(self):
         """Test download with missing required parameters."""
@@ -174,19 +186,18 @@ class TestArtifactVersion:
             version = ArtifactVersion()
 
             with pytest.raises(UserError, match="artifact_id is required"):
-                version.download(file_path="test.txt")
+                version.download(output_path="test.txt")
 
-    @patch('clarifai.client.artifact_version.handle_grpc_error')
-    def test_delete_success(self, mock_handle_grpc_error):
+    def test_delete_success(self):
         """Test successful artifact version deletion."""
         mock_response = Mock()
         mock_response.status.code = 10000  # SUCCESS
 
         with (
             patch('clarifai.client.base.BaseClient.__init__'),
-            patch.object(ArtifactVersion, 'V2_STUB'),
+            patch.object(ArtifactVersion, '_grpc_request') as mock_grpc_request,
         ):
-            mock_handle_grpc_error.return_value = mock_response
+            mock_grpc_request.return_value = mock_response
 
             version = ArtifactVersion(
                 artifact_id="test_artifact",
@@ -197,6 +208,9 @@ class TestArtifactVersion:
 
             result = version.delete()
             assert result is True
+            mock_grpc_request.assert_called_once()
+            call_args = mock_grpc_request.call_args
+            assert call_args[0][0] == "DeleteArtifactVersion"
 
     def test_delete_missing_params(self):
         """Test artifact version deletion with missing parameters."""
@@ -206,27 +220,25 @@ class TestArtifactVersion:
             with pytest.raises(UserError, match="artifact_id is required"):
                 version.delete()
 
-    @patch('clarifai.client.artifact_version.handle_grpc_error')
-    def test_info_success(self, mock_handle_grpc_error):
+    def test_info_success(self):
         """Test successful artifact version info retrieval."""
         mock_timestamp = timestamp_pb2.Timestamp()
         mock_timestamp.GetCurrentTime()
 
         mock_response = Mock()
-        mock_artifact_version = Mock()
-        mock_artifact_version.id = "test_version"
-        mock_artifact_version.artifact_id = "test_artifact"
-        mock_artifact_version.user_id = "test_user"
-        mock_artifact_version.app_id = "test_app"
-        mock_artifact_version.created_at = mock_timestamp
-        mock_artifact_version.modified_at = mock_timestamp
-        mock_response.artifact_versions = [mock_artifact_version]
+        mock_response.status.code = 10000  # SUCCESS
+        mock_response.artifact_version.id = "test_version"
+        mock_response.artifact_version.artifact_id = "test_artifact"
+        mock_response.artifact_version.user_id = "test_user"
+        mock_response.artifact_version.app_id = "test_app"
+        mock_response.artifact_version.created_at = mock_timestamp
+        mock_response.artifact_version.modified_at = mock_timestamp
 
         with (
             patch('clarifai.client.base.BaseClient.__init__'),
-            patch.object(ArtifactVersion, 'V2_STUB'),
+            patch.object(ArtifactVersion, '_grpc_request') as mock_grpc_request,
         ):
-            mock_handle_grpc_error.return_value = mock_response
+            mock_grpc_request.return_value = mock_response
 
             version = ArtifactVersion(
                 artifact_id="test_artifact",
@@ -237,11 +249,14 @@ class TestArtifactVersion:
 
             result = version.info()
             assert result is not None
+            mock_grpc_request.assert_called_once()
+            call_args = mock_grpc_request.call_args
+            assert call_args[0][0] == "GetArtifactVersion"
 
-    @patch('clarifai.client.artifact_version.handle_grpc_error')
-    def test_list_success(self, mock_handle_grpc_error):
+    def test_list_success(self):
         """Test successful artifact version listing."""
         mock_response = Mock()
+        mock_response.status.code = 10000  # SUCCESS
         mock_version1 = Mock()
         mock_version1.id = "version1"
         mock_version2 = Mock()
@@ -250,9 +265,9 @@ class TestArtifactVersion:
 
         with (
             patch('clarifai.client.base.BaseClient.__init__'),
-            patch.object(ArtifactVersion, 'V2_STUB'),
+            patch.object(ArtifactVersion, '_grpc_request') as mock_grpc_request,
         ):
-            mock_handle_grpc_error.return_value = mock_response
+            mock_grpc_request.return_value = mock_response
 
             version = ArtifactVersion()
             results = list(
@@ -260,6 +275,9 @@ class TestArtifactVersion:
             )
 
             assert len(results) == 2
+            mock_grpc_request.assert_called_once()
+            call_args = mock_grpc_request.call_args
+            assert call_args[0][0] == "ListArtifactVersions"
 
     def test_list_missing_params(self):
         """Test list with missing required parameters."""
@@ -288,10 +306,13 @@ class TestArtifactVersionHelpers:
 
             config = version._create_upload_config(
                 artifact_id="test_artifact",
+                description="Test description",
+                visibility="private",
+                expires_at=None,
+                version_id="test_version",
                 user_id="test_user",
                 app_id="test_app",
-                version_id="test_version",
-                description="Test description",
+                file_size=1024,
             )
 
             assert config.artifact_id == "test_artifact"
@@ -307,35 +328,19 @@ class TestArtifactVersionHelpers:
         with patch('clarifai.client.base.BaseClient.__init__'):
             version = ArtifactVersion()
 
-            # Create a mock upload config
-            upload_config = Mock()
-            upload_config.artifact_id = "test_artifact"
-
             iterator = version._artifact_version_upload_iterator(
-                "test_file.txt", upload_config, chunk_size=4
-            )
-
-            chunks = list(iterator)
-            assert len(chunks) >= 1  # At least the config chunk
-
-    def test_get_client_params(self):
-        """Test client parameter extraction."""
-        with patch('clarifai.client.base.BaseClient.__init__'):
-            version = ArtifactVersion(
+                file_path="test_file.txt",
                 artifact_id="test_artifact",
+                description="Test description",
+                visibility="private",
+                expires_at=None,
                 version_id="test_version",
                 user_id="test_user",
                 app_id="test_app",
             )
 
-            params = version._get_client_params()
-            expected = {
-                'artifact_id': 'test_artifact',
-                'version_id': 'test_version',
-                'user_id': 'test_user',
-                'app_id': 'test_app',
-            }
-            assert params == expected
+            chunks = list(iterator)
+            assert len(chunks) >= 1  # At least the config chunk
 
 
 class TestArtifactVersionValidation:
@@ -348,7 +353,7 @@ class TestArtifactVersionValidation:
 
             # Test various missing parameter scenarios
             with pytest.raises(UserError, match="artifact_id is required"):
-                version.create()
+                version.create(file_path="test.txt")
 
             with pytest.raises(UserError, match="artifact_id is required"):
                 version.upload(file_path="test.txt")
@@ -369,7 +374,3 @@ class TestArtifactVersionValidation:
                     user_id="test_user",
                     app_id="test_app",
                 )
-
-
-if __name__ == "__main__":
-    pytest.main([__file__])
