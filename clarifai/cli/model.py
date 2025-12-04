@@ -1166,9 +1166,23 @@ def run_locally(ctx, model_path, port, mode, keep_env, keep_image, skip_dockerfi
 @click.pass_context
 def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_image):
     """Run the model as a local runner to help debug your model connected to the API or to
+      leverage local compute resources manually. This relies on many variables being present in the env
+      of the currently selected context. If they are not present then default values will be used to
+      ease the setup of a local runner and your context yaml will be updated in place. The required
+      env vars are:
+
+    \b
+      CLARIFAI_PAT:
+
+    \b
+      # for where the model that represents the local runner should be:
+    \b
+      CLARIFAI_USER_ID:
+      CLARIFAI_APP_ID:
+      CLARIFAI_MODEL_ID:
+    \b
       # for where the local runner should be in a compute cluster
       # note the user_id of the compute cluster is the same as the user_id of the model.
-
     \b
       CLARIFAI_COMPUTE_CLUSTER_ID:
       CLARIFAI_NODEPOOL_ID:
@@ -1185,7 +1199,7 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
     MODE: Specifies how to run the model: "env" for virtual environment or "container" for Docker container. Defaults to "env".
-    SKIP_DOCKERFILE: Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.
+    KEEP_IMAGE: Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.
     """
     from clarifai.client.user import User
     from clarifai.runners.models.model_builder import ModelBuilder
