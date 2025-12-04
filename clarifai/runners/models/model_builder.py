@@ -705,10 +705,6 @@ class ModelBuilder:
             )
             user_response = user_client.get_user_info()
 
-            if user_response.status.code != status_code_pb2.SUCCESS:
-                logger.debug("Could not retrieve user info for Clarifai internal user validation")
-                return False
-
             user = user_response.user
 
             # Check primary email domain
@@ -718,7 +714,12 @@ class ModelBuilder:
             return False
 
         except Exception as e:
-            logger.debug(f"Employee validation failed: {e}")
+            # Gracefully handle insufficient scopes (dev environment) or any other errors
+            error_msg = str(e)
+            if "CONN_INSUFFICIENT_SCOPES" in error_msg:
+                logger.debug("Skipping user validation due to insufficient scopes")
+            else:
+                logger.debug(f"User validation failed (skip validation and continue): {e}")
             return False
 
     def _get_all_python_content(self):
