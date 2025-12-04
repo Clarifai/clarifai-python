@@ -11,6 +11,17 @@ from clarifai.errors import UserError
 class TestArtifact:
     """Test class for Artifact client."""
 
+    def _create_mock_artifact(self):
+        """Helper method to create an Artifact with properly mocked dependencies."""
+        with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
+            artifact = Artifact()
+            # Mock the auth_helper attribute that would normally be set by BaseClient.__init__
+            mock_auth_helper = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            mock_auth_helper.user_id = "mock_user"
+            artifact.auth_helper = mock_auth_helper
+            return artifact
+
     def test_init(self):
         """Test artifact initialization."""
         artifact = Artifact(artifact_id="test_artifact", user_id="test_user", app_id="test_app")
@@ -52,12 +63,17 @@ class TestArtifact:
         mock_response.status.code = 10000  # SUCCESS
 
         with (
-            patch('clarifai.client.base.BaseClient.__init__'),
+            patch('clarifai.client.base.BaseClient.__init__', return_value=None),
             patch.object(Artifact, '_grpc_request') as mock_grpc_request,
         ):
             mock_grpc_request.return_value = mock_response
 
             artifact = Artifact()
+            # Mock the auth_helper attribute that would normally be set by BaseClient.__init__
+            mock_auth_helper = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            artifact.auth_helper = mock_auth_helper
+            
             result = artifact.create(
                 artifact_id="new_artifact", user_id="test_user", app_id="test_app"
             )
@@ -70,8 +86,11 @@ class TestArtifact:
 
     def test_create_missing_params(self):
         """Test artifact creation with missing parameters."""
-        with patch('clarifai.client.base.BaseClient.__init__'):
+        with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
             artifact = Artifact()
+            # Mock the auth_helper attribute
+            mock_auth_helper = Mock()
+            artifact.auth_helper = mock_auth_helper
 
             with pytest.raises(UserError, match="user_id is required"):
                 artifact.create(artifact_id="")
@@ -82,12 +101,17 @@ class TestArtifact:
         mock_response.status.code = 10000  # SUCCESS
 
         with (
-            patch('clarifai.client.base.BaseClient.__init__'),
+            patch('clarifai.client.base.BaseClient.__init__', return_value=None),
             patch.object(Artifact, '_grpc_request') as mock_grpc_request,
         ):
             mock_grpc_request.return_value = mock_response
 
             artifact = Artifact()
+            # Mock the auth_helper attribute
+            mock_auth_helper = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            artifact.auth_helper = mock_auth_helper
+
             result = artifact.delete(
                 artifact_id="test_artifact", user_id="test_user", app_id="test_app"
             )
@@ -110,12 +134,17 @@ class TestArtifact:
         mock_response.artifact.artifact_version = None
 
         with (
-            patch('clarifai.client.base.BaseClient.__init__'),
+            patch('clarifai.client.base.BaseClient.__init__', return_value=None),
             patch.object(Artifact, '_grpc_request') as mock_grpc_request,
         ):
             mock_grpc_request.return_value = mock_response
 
             artifact = Artifact()
+            # Mock the auth_helper attribute
+            mock_auth_helper = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            artifact.auth_helper = mock_auth_helper
+
             info = artifact.info(
                 artifact_id="test_artifact", user_id="test_user", app_id="test_app"
             )
@@ -136,10 +165,19 @@ class TestArtifact:
         mock_response.artifacts = [mock_artifact]
 
         with (
-            patch('clarifai.client.base.BaseClient.__init__'),
+            patch('clarifai.client.base.BaseClient.__init__', return_value=None),
             patch.object(Artifact, '_grpc_request') as mock_grpc_request,
+            patch('clarifai.client.artifact.BaseClient') as mock_base_client_class,
         ):
             mock_grpc_request.return_value = mock_response
+
+            # Create a mock BaseClient instance for the static method
+            mock_base_client = Mock()
+            mock_auth_helper = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            mock_base_client.auth_helper = mock_auth_helper
+            mock_base_client._grpc_request = mock_grpc_request
+            mock_base_client_class.return_value = mock_base_client
 
             artifacts = list(Artifact.list(user_id="test_user", app_id="test_app"))
 
@@ -162,12 +200,17 @@ class TestArtifact:
         mock_response.artifact.artifact_version = None
 
         with (
-            patch('clarifai.client.base.BaseClient.__init__'),
+            patch('clarifai.client.base.BaseClient.__init__', return_value=None),
             patch.object(Artifact, '_grpc_request') as mock_grpc_request,
         ):
             mock_grpc_request.return_value = mock_response
 
             artifact = Artifact()
+            # Mock the auth_helper attribute
+            mock_auth_helper = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            artifact.auth_helper = mock_auth_helper
+
             exists = artifact.exists(
                 artifact_id="test_artifact", user_id="test_user", app_id="test_app"
             )
@@ -177,12 +220,17 @@ class TestArtifact:
     def test_exists_false(self):
         """Test artifact exists returns False when artifact is not found."""
         with (
-            patch('clarifai.client.base.BaseClient.__init__'),
+            patch('clarifai.client.base.BaseClient.__init__', return_value=None),
             patch.object(Artifact, '_grpc_request') as mock_grpc_request,
         ):
             mock_grpc_request.side_effect = Exception("Not found")
 
             artifact = Artifact()
+            # Mock the auth_helper attribute
+            mock_auth_helper = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            artifact.auth_helper = mock_auth_helper
+
             exists = artifact.exists(
                 artifact_id="test_artifact", user_id="test_user", app_id="test_app"
             )
@@ -195,32 +243,44 @@ class TestArtifactValidation:
 
     def test_create_missing_user_id(self):
         """Test artifact creation with missing user_id."""
-        with patch('clarifai.client.base.BaseClient.__init__'):
+        with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
             artifact = Artifact()
+            # Mock the auth_helper attribute
+            mock_auth_helper = Mock()
+            artifact.auth_helper = mock_auth_helper
 
             with pytest.raises(UserError, match="user_id is required"):
                 artifact.create(artifact_id="test", user_id="", app_id="test_app")
 
     def test_create_missing_app_id(self):
         """Test artifact creation with missing app_id."""
-        with patch('clarifai.client.base.BaseClient.__init__'):
+        with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
             artifact = Artifact()
+            # Mock the auth_helper attribute
+            mock_auth_helper = Mock()
+            artifact.auth_helper = mock_auth_helper
 
             with pytest.raises(UserError, match="app_id is required"):
                 artifact.create(artifact_id="test", user_id="test_user", app_id="")
 
     def test_delete_missing_artifact_id(self):
         """Test artifact deletion with missing artifact_id."""
-        with patch('clarifai.client.base.BaseClient.__init__'):
+        with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
             artifact = Artifact()
+            # Mock the auth_helper attribute
+            mock_auth_helper = Mock()
+            artifact.auth_helper = mock_auth_helper
 
             with pytest.raises(UserError, match="artifact_id is required"):
                 artifact.delete(artifact_id="", user_id="test_user", app_id="test_app")
 
     def test_info_missing_artifact_id(self):
         """Test artifact info with missing artifact_id."""
-        with patch('clarifai.client.base.BaseClient.__init__'):
+        with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
             artifact = Artifact()
+            # Mock the auth_helper attribute
+            mock_auth_helper = Mock()
+            artifact.auth_helper = mock_auth_helper
 
             with pytest.raises(UserError, match="artifact_id is required"):
                 artifact.info(artifact_id="", user_id="test_user", app_id="test_app")

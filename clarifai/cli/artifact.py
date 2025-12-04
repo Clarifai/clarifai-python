@@ -16,7 +16,13 @@ from clarifai.utils.logging import logger
 
 def is_local_path(path: str) -> bool:
     """Check if a path refers to a local file/directory."""
-    return not path.startswith('users/')
+    # Check for URL schemes
+    if path.startswith(('http://', 'https://', 'ftp://', 'ftps://')):
+        return False
+    # Check for artifact paths
+    if path.startswith('users/'):
+        return False
+    return True
 
 
 @cli.group(

@@ -191,8 +191,7 @@ class ArtifactVersion(BaseClient):
                     final_version_id = version_id
 
                     # Perform streaming upload following pipeline_step pattern
-                    for response in self._grpc_request_stream(
-                        "PostArtifactVersionsUpload",
+                    for response in self.auth_helper.get_stub().PostArtifactVersionsUpload(
                         self._artifact_version_upload_iterator(
                             file_path,
                             artifact_id,
@@ -203,6 +202,7 @@ class ArtifactVersion(BaseClient):
                             user_id,
                             app_id,
                         ),
+                        metadata=self.auth_helper.metadata,
                     ):
                         if chunk_count == 0:
                             # First response is config upload - extract version ID

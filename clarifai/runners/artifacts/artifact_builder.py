@@ -90,6 +90,11 @@ class ArtifactBuilder(BaseClient):
         """
         super().__init__(**kwargs)
 
+    @property
+    def pat(self) -> str:
+        """Get the personal access token from auth_helper."""
+        return self.auth_helper.pat
+
     def upload_from_path(
         self,
         source_path: str,
@@ -235,6 +240,95 @@ class ArtifactBuilder(BaseClient):
 
         # Download the file
         return version.download(output_path=destination_path, force=force)
+
+    def list_artifacts(self, user_id: str, app_id: str, **kwargs):
+        """List artifacts in an app.
+
+        Args:
+            user_id: The user ID
+            app_id: The app ID
+            **kwargs: Additional arguments
+
+        Returns:
+            Generator of Artifact objects
+        """
+        return Artifact.list(user_id=user_id, app_id=app_id, **kwargs)
+
+    def list_artifact_versions(self, artifact_id: str, user_id: str, app_id: str, **kwargs):
+        """List artifact versions.
+
+        Args:
+            artifact_id: The artifact ID
+            user_id: The user ID
+            app_id: The app ID
+            **kwargs: Additional arguments
+
+        Returns:
+            Generator of ArtifactVersion objects
+        """
+        return ArtifactVersion.list(artifact_id=artifact_id, user_id=user_id, app_id=app_id, **kwargs)
+
+    def get_artifact_info(self, artifact_id: str, user_id: str, app_id: str, **kwargs):
+        """Get artifact information.
+
+        Args:
+            artifact_id: The artifact ID
+            user_id: The user ID
+            app_id: The app ID
+            **kwargs: Additional arguments
+
+        Returns:
+            Artifact info dictionary
+        """
+        artifact = Artifact(artifact_id=artifact_id, user_id=user_id, app_id=app_id, **kwargs)
+        return artifact.info()
+
+    def get_artifact_version_info(self, artifact_id: str, version_id: str, user_id: str, app_id: str, **kwargs):
+        """Get artifact version information.
+
+        Args:
+            artifact_id: The artifact ID
+            version_id: The version ID
+            user_id: The user ID
+            app_id: The app ID
+            **kwargs: Additional arguments
+
+        Returns:
+            Artifact version info dictionary
+        """
+        version = ArtifactVersion(artifact_id=artifact_id, version_id=version_id, user_id=user_id, app_id=app_id, **kwargs)
+        return version.info()
+
+    def delete_artifact(self, artifact_id: str, user_id: str, app_id: str, **kwargs):
+        """Delete an artifact.
+
+        Args:
+            artifact_id: The artifact ID
+            user_id: The user ID
+            app_id: The app ID
+            **kwargs: Additional arguments
+
+        Returns:
+            Boolean indicating success
+        """
+        artifact = Artifact(artifact_id=artifact_id, user_id=user_id, app_id=app_id, **kwargs)
+        return artifact.delete()
+
+    def delete_artifact_version(self, artifact_id: str, version_id: str, user_id: str, app_id: str, **kwargs):
+        """Delete an artifact version.
+
+        Args:
+            artifact_id: The artifact ID
+            version_id: The version ID
+            user_id: The user ID
+            app_id: The app ID
+            **kwargs: Additional arguments
+
+        Returns:
+            Boolean indicating success
+        """
+        version = ArtifactVersion(artifact_id=artifact_id, version_id=version_id, user_id=user_id, app_id=app_id, **kwargs)
+        return version.delete()
 
     def _get_client_params(self) -> Dict:
         """Get the client parameters for creating new instances."""

@@ -76,16 +76,33 @@ class TestArtifactCLI:
     def test_list_command_success(self, mock_validate):
         """Test successful list command."""
         mock_validate.return_value = None
+        
+        # Set up mock context object
+        mock_current = Mock()
+        mock_current.to_grpc.return_value = {}
+        mock_obj = Mock()
+        mock_obj.current = mock_current
 
-        with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
-            mock_instance = Mock()
-            mock_builder.return_value = mock_instance
-            mock_instance.list_artifacts.return_value = [
-                {'id': 'artifact1', 'description': 'Test artifact 1'},
-                {'id': 'artifact2', 'description': 'Test artifact 2'},
-            ]
+        with patch('clarifai.client.artifact.Artifact.list') as mock_list:
+            mock_artifact1 = Mock()
+            mock_artifact1.artifact_id = 'artifact1'
+            mock_artifact1.info.return_value = {
+                'user_id': 'test_user',
+                'app_id': 'test_app', 
+                'created_at': '2024-01-01'
+            }
+            
+            mock_artifact2 = Mock()
+            mock_artifact2.artifact_id = 'artifact2'
+            mock_artifact2.info.return_value = {
+                'user_id': 'test_user',
+                'app_id': 'test_app',
+                'created_at': '2024-01-01'
+            }
+            
+            mock_list.return_value = [mock_artifact1, mock_artifact2]
 
-            result = self.runner.invoke(artifact, ['list', 'users/test_user/apps/test_app'])
+            result = self.runner.invoke(artifact, ['list', 'users/test_user/apps/test_app'], obj=mock_obj)
 
             assert result.exit_code == 0
             assert 'artifact1' in result.output
