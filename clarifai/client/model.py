@@ -123,6 +123,8 @@ class Model(Lister, BaseClient):
 
         self.deployment_user_id = deployment_user_id
 
+        self.load_info(validate=True)
+
         self._set_runner_selector(
             compute_cluster_id=compute_cluster_id,
             nodepool_id=nodepool_id,
@@ -689,18 +691,40 @@ class Model(Lister, BaseClient):
                 .user.id
             )
         runner_selector = None
-        if deployment_id and (compute_cluster_id or nodepool_id):
-            raise UserError(
-                "You can only specify one of deployment_id or compute_cluster_id and nodepool_id."
-            )
-        if deployment_id:
-            runner_selector = Deployment.get_runner_selector(
-                user_id=user_id, deployment_id=deployment_id
-            )
-        elif compute_cluster_id and nodepool_id:
-            runner_selector = Nodepool.get_runner_selector(
-                user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id
-            )
+        if any([deployment_id, compute_cluster_id, nodepool_id]):
+            if deployment_id and (compute_cluster_id or nodepool_id):
+                raise UserError(
+                    "You can only specify one of deployment_id or compute_cluster_id and nodepool_id."
+                )
+            user_app_id = self.auth_helper.get_user_app_id_proto(user_id=user_id, app_id="")
+            if deployment_id:
+                request = service_pb2.GetDeploymentRequest(
+                    user_app_id=user_app_id, deployment_id=deployment_id
+                )
+                response = self._grpc_request(self.STUB.GetDeployment, request)
+                if response.status.code != status_code_pb2.SUCCESS:
+                    raise UserError(
+                        f"Deployment '{deployment_id}' not found for user_id '{user_id}'. "
+                        f"Status: {response.status.description}"
+                    )
+                runner_selector = Deployment.get_runner_selector(
+                    user_id=user_id, deployment_id=deployment_id
+                )
+            elif compute_cluster_id and nodepool_id:
+                request = service_pb2.GetNodepoolRequest(
+                    user_app_id=user_app_id,
+                    compute_cluster_id=compute_cluster_id,
+                    nodepool_id=nodepool_id,
+                )
+                response = self._grpc_request(self.STUB.GetNodepool, request)
+                if response.status.code != status_code_pb2.SUCCESS:
+                    raise UserError(
+                        f"Nodepool '{nodepool_id}' not found for user_id '{user_id}' "
+                        f"in compute cluster '{compute_cluster_id}'. Status: {response.status.description}"
+                    )
+                runner_selector = Nodepool.get_runner_selector(
+                    user_id=user_id, compute_cluster_id=compute_cluster_id, nodepool_id=nodepool_id
+                )
         # set the runner selector
         self._runner_selector = runner_selector
 
@@ -1235,7 +1259,20 @@ class Model(Lister, BaseClient):
         )
         return [concept_info['concept_id'] for concept_info in all_concepts_infos]
 
-    def load_info(self) -> None:
+    def load_info(self, validate: bool = False) -> None:
+        """Loads the model information from the Clarifai API.
+
+        This method makes a gRPC call to the GetModel endpoint to fetch the latest
+        information for the model instance and updates its attributes.
+
+        Args:
+            validate (bool, optional): If True, the method will only validate the existence
+                of the model on the backend without updating the local object's attributes.
+                Defaults to False.
+
+        Raises:
+            Exception: If the gRPC API call fails.
+        """
         """Loads the model info."""
         request = service_pb2.GetModelRequest(
             user_app_id=self.user_app_id,
@@ -1247,10 +1284,11 @@ class Model(Lister, BaseClient):
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
 
-        dict_response = MessageToDict(response, preserving_proto_field_name=True)
-        self.kwargs = self.process_response_keys(dict_response['model'])
-        self.model_info = resources_pb2.Model()
-        dict_to_protobuf(self.model_info, self.kwargs)
+        if not validate:
+            dict_response = MessageToDict(response, preserving_proto_field_name=True)
+            self.kwargs = self.process_response_keys(dict_response['model'])
+            self.model_info = resources_pb2.Model()
+            dict_to_protobuf(self.model_info, self.kwargs)
 
     def __str__(self):
         if len(self.kwargs) < 10:

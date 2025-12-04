@@ -140,3 +140,77 @@ class TestOpenAIModelClass:
         model = DummyOpenAIModel()
         result = model.test_method("test input")
         assert result == "Test: test input"
+
+    def test_openai_stream_responses_api(self):
+        model = DummyOpenAIModel()
+        model.load_model()
+        request = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Hello, world!"},
+            ],
+            "stream": True,
+            "openai_endpoint": model.ENDPOINT_RESPONSES,
+        }
+        response_iter = model.openai_stream_transport(json.dumps(request))
+
+        events = [json.loads(each) for each in response_iter]
+
+        # Should have 5 events
+        assert len(events) == 5
+
+        # Check event types in order
+        expected_types = [
+            "response.created",
+            "response.content.started",
+            "response.content.delta",
+            "response.content.completed",
+            "response.completed",
+        ]
+
+        actual_types = [event["type"] for event in events]
+        assert actual_types == expected_types
+
+        ## Test usage
+        final_event = events[-1]
+
+        assert final_event["type"] == "response.completed"
+        usage = final_event["response"].get("usage")
+
+        assert usage is not None
+        assert usage['input_tokens'] > 0
+        assert usage['output_tokens'] > 0
+        assert usage['total_tokens'] == usage['input_tokens'] + usage['output_tokens']
+        received_in_toks, received_out_toks = getattr(
+            model._thread_local, "token_contexts", [(None, None)]
+        )[0]
+        assert usage['input_tokens'] == received_in_toks
+        assert usage['output_tokens'] == received_out_toks
+
+    def test_openai_transport_responses_api(self):
+        """Test OpenAI transport method with streaming request."""
+        model = DummyOpenAIModel()
+        model.load_model()
+
+        # Create a simple chat request with streaming
+        request = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Hello, world!"},
+            ],
+            "stream": False,
+            "openai_endpoint": model.ENDPOINT_RESPONSES,
+        }
+
+        # Call the transport method
+        response_str = model.openai_transport(json.dumps(request))
+        response = json.loads(response_str)
+        assert "id" in response
+        assert "created_at" in response
+        assert "model" in response
+        assert "output" in response
+        assert len(response["output"]) > 0
+        if response["output_text"]:
+            assert "Echo: Hello, world!" in response["output_text"]

@@ -1,9 +1,12 @@
 import json
 import os
 import shutil
+import subprocess
 import tempfile
+from typing import Any, Dict, Optional
 
 import click
+import yaml
 
 from clarifai.cli.base import cli, pat_display
 from clarifai.utils.cli import (
@@ -14,9 +17,18 @@ from clarifai.utils.cli import (
     customize_lmstudio_model,
     customize_ollama_model,
     parse_requirements,
+    print_field_help,
+    print_section,
+    prompt_int_field,
+    prompt_optional_field,
+    prompt_required_field,
+    prompt_yes_no,
     validate_context,
 )
+from clarifai.utils.config import Config, Context
 from clarifai.utils.constants import (
+    CLI_LOGIN_DOC_URL,
+    CONFIG_GUIDE_URL,
     DEFAULT_HF_MODEL_REPO_BRANCH,
     DEFAULT_LMSTUDIO_MODEL_REPO_BRANCH,
     DEFAULT_LOCAL_RUNNER_APP_ID,
@@ -40,6 +52,435 @@ from clarifai.utils.misc import (
     format_github_repo_url,
     get_list_of_files_to_download,
 )
+
+
+def _select_context(ctx_config: Config) -> Optional[Context]:
+    contexts_map = getattr(ctx_config, "contexts", {}) or {}
+    if not contexts_map:
+        return None
+
+    context_names = [name for name in contexts_map.keys() if name and name != "_empty_"]
+    if not context_names:
+        return None
+
+    current_name = getattr(ctx_config, "current_context", None)
+
+    click.echo()
+    click.echo(click.style("Available Clarifai CLI contexts:", fg="bright_cyan", bold=True))
+    for idx, name in enumerate(context_names, start=1):
+        marker = click.style(" (current)", fg="yellow") if name == current_name else ""
+        click.echo(f"  [{idx}] {name}{marker}")
+    create_idx = len(context_names) + 1
+    click.echo(f"  [{create_idx}] Create new context")
+
+    selection = input(
+        "Enter the context number or name to use (press Enter to keep current): "
+    ).strip()
+    if selection == "":
+        return contexts_map.get(current_name)
+    if selection.isdigit() and int(selection) == create_idx:
+        click.echo(click.style("Launching `clarifai login` to create a new context.", fg="yellow"))
+        try:
+            subprocess.run(["clarifai", "login"], check=True)
+        except subprocess.CalledProcessError as exc:
+            click.echo(
+                click.style(
+                    "`clarifai login` exited with an error. Continuing with existing contexts.",
+                    fg="red",
+                ),
+                err=True,
+            )
+            return contexts_map.get(current_name)
+
+        try:
+            refreshed = Config.from_yaml(filename=ctx_config.filename)
+            ctx_config.contexts = refreshed.contexts
+            ctx_config.current_context = refreshed.current_context
+            ctx_config.to_yaml()
+        except Exception as exc:
+            click.echo(
+                click.style(
+                    "Failed to reload contexts after login. Continuing with existing contexts.",
+                    fg="red",
+                ),
+                err=True,
+            )
+            logger.debug(f"Unable to reload contexts after login: {exc}")
+            return contexts_map.get(current_name)
+        return ctx_config.contexts.get(ctx_config.current_context)
+
+    if not selection:
+        return contexts_map.get(current_name)
+
+    chosen_name: Optional[str] = None
+    if selection.isdigit():
+        idx = int(selection)
+        if 1 <= idx <= len(context_names):
+            chosen_name = context_names[idx - 1]
+    elif selection in context_names:
+        chosen_name = selection
+
+    if not chosen_name:
+        click.echo(
+            click.style(
+                "Unrecognized selection. Continuing with the current context.",
+                fg="yellow",
+            )
+        )
+        return contexts_map.get(current_name)
+
+    if chosen_name != current_name:
+        ctx_config.current_context = chosen_name
+        try:
+            ctx_config.to_yaml()
+        except Exception as exc:
+            logger.debug(f"Unable to context switch: {exc}")
+        click.echo(click.style(f"Using context '{chosen_name}' for this upload.", fg="green"))
+
+    return ctx_config.contexts[chosen_name]
+
+
+def ensure_config_exists_for_upload(ctx, model_path: str) -> None:
+    """Ensure config.yaml exists before attempting upload; create interactively if missing."""
+    config_path = os.path.join(model_path, "config.yaml")
+    if os.path.exists(config_path):
+        try:
+            is_empty = os.path.getsize(config_path) == 0
+            if not is_empty:
+                with open(config_path, "r", encoding="utf-8") as config_file:
+                    data = config_file.read().strip()
+                if data:
+                    return
+        except OSError:
+            pass
+
+    click.echo(
+        click.style(
+            "⚠️  config.yaml is missing or empty in this model directory.",
+            fg="yellow",
+        )
+    )
+    # field which asks whether the user wants to create a new config.yaml file by themselves using the guide or not
+    create_config = prompt_yes_no(
+        "Do you want to create a new config.yaml file by yourself using the guide?",
+        default=True,
+    )
+    if create_config:
+        click.echo(
+            click.style(
+                f"Please refer to the config guide -> {CONFIG_GUIDE_URL} to create a new config.yaml file.",
+                fg="yellow",
+            )
+        )
+        raise click.Abort()
+
+    else:
+        click.echo(
+            click.style(
+                f"ℹ️  We'll create one now interactively. For more details on each field, check out the config guide at -> {CONFIG_GUIDE_URL} ",
+                fg="yellow",
+            )
+        )
+
+    ctx_config = getattr(ctx, "obj", None)
+    current_context = None
+    if ctx_config is not None:
+        contexts_map = getattr(ctx_config, "contexts", {}) or {}
+        current_name = getattr(ctx_config, "current_context", None)
+        current_context = contexts_map.get(current_name)
+
+    if current_context is None:
+        click.echo(
+            click.style(
+                "No Clarifai CLI context detected. Launching `clarifai login` to configure one now.",
+                fg="yellow",
+            )
+        )
+        try:
+            subprocess.run(["clarifai", "login"], check=True)
+        except subprocess.CalledProcessError as exc:
+            click.echo(
+                click.style(
+                    "`clarifai login` exited with an error. Aborting upload.",
+                    fg="red",
+                ),
+                err=True,
+            )
+            raise click.Abort() from exc
+
+        config_filename = getattr(ctx_config, "filename", None) if ctx_config else None
+        try:
+            refreshed_config = (
+                Config.from_yaml(filename=config_filename)
+                if config_filename
+                else Config.from_yaml()
+            )
+        except Exception as exc:
+            click.echo(
+                click.style(
+                    "Unable to reload Clarifai CLI configuration after login.",
+                    fg="red",
+                ),
+                err=True,
+            )
+            raise click.Abort() from exc
+
+        ctx.obj = refreshed_config
+        ctx_config = refreshed_config
+        contexts_map = getattr(ctx_config, "contexts", {}) or {}
+        current_name = getattr(ctx_config, "current_context", None)
+        current_context = contexts_map.get(current_name)
+
+        if current_context is None:
+            click.echo(
+                click.style(
+                    "Login did not create a usable context. Please run `clarifai login` manually and retry.",
+                    fg="red",
+                ),
+                err=True,
+            )
+            raise click.Abort()
+
+    if ctx_config is not None:
+        selected_context = _select_context(ctx_config)
+        if selected_context is not None:
+            current_context = selected_context
+        elif current_context is None:
+            contexts_map = getattr(ctx_config, "contexts", {}) or {}
+            current_context = contexts_map.get(getattr(ctx_config, "current_context", None))
+
+    if current_context is None:
+        click.echo(
+            click.style(
+                "No Clarifai context available. Please run `clarifai login` and retry.",
+                fg="red",
+            ),
+            err=True,
+        )
+        raise click.Abort()
+
+    default_user_id = getattr(current_context, "user_id", None)
+    default_app_id = getattr(current_context, "app_id", None)
+    current_pat = getattr(current_context, "pat", None)
+
+    default_model_id = os.path.basename(os.path.abspath(model_path))
+    if not default_model_id or default_model_id == os.path.sep:
+        default_model_id = "my-model"
+
+    try:
+        print_section(
+            "Clarifai Authentication",
+            (
+                "We can reuse credentials from your active Clarifai CLI context. "
+                "If these values are missing or outdated, run `clarifai login` to create or refresh a context."
+            ),
+            note=f"Reference: {CLI_LOGIN_DOC_URL}",
+        )
+        if not all([default_user_id, default_app_id, current_pat]):
+            click.echo(
+                click.style(
+                    "⚠️  Some context details are missing. Run `clarifai login` if the prompts below are empty.",
+                    fg="yellow",
+                )
+            )
+
+        print_field_help(
+            "Model ID",
+            "Unique identifier for this Clarifai model. Use lowercase letters, numbers, or hyphens.",
+        )
+        model_id = prompt_required_field("Model ID", default_model_id)
+
+        print_field_help(
+            "Clarifai user ID",
+            "Owner of the model. Defaults to your active CLI context's user ID.",
+        )
+        user_id = prompt_required_field("Clarifai user ID", default_user_id)
+
+        print_field_help(
+            "Clarifai app ID",
+            "Application where the model will live. You can find your app ID (name of your project) in the Clarifai dashboard under projects section. Defaults to the current context's app ID.",
+        )
+        app_id = prompt_required_field("Clarifai app ID", default_app_id)
+
+        print_field_help(
+            "Model type ID",
+            "Clarifai model type (e.g., any-to-any, text-to-text, visual-classifier).",
+        )
+        model_type_id = prompt_required_field("Model type ID", "any-to-any")
+
+        print_section(
+            "Build Info",
+            (
+                "Specify the environment used to build the model. This helps ensure dependency "
+                "compatibility between development and deployment environments."
+            ),
+            note="Supported Python versions: 3.11 and 3.12 (default).",
+        )
+        print_field_help(
+            "Python version for build",
+            "Python version used in the build container. Defaults to 3.12.",
+        )
+        python_version = prompt_required_field("Python version for build", "3.12")
+
+        print_section(
+            "Inference Compute Resources",
+            (
+                "Minimum compute requirements for dedicated Clarifai deployments. "
+                "For purely local execution, you may leave these defaults as-is."
+            ),
+            note=(
+                "Specify requests and limits using Kubernetes notation. For GPU workloads, "
+                "use wildcard accelerator patterns like ['NVIDIA-*'] to stay flexible."
+            ),
+        )
+        print_field_help(
+            "CPU limit",
+            "Total CPU cores available to the container (e.g., '1', '2', '4.5').",
+        )
+        cpu_limit = prompt_required_field("CPU limit", "1")
+
+        print_field_help(
+            "CPU memory limit",
+            "Upper bound of CPU memory usage (e.g., '2Gi', '1500Mi').",
+        )
+        cpu_memory = prompt_required_field("CPU memory limit", "2Gi")
+
+        print_field_help(
+            "CPU requests",
+            "Guaranteed CPU allocation. Uses Kubernetes notation (default 500m ≈ 0.5 CPU).",
+        )
+        cpu_requests = prompt_required_field("CPU requests", "1")
+
+        print_field_help(
+            "CPU memory requests",
+            "Guaranteed CPU memory allocation (e.g., '1Gi', '750Mi').",
+        )
+        cpu_memory_requests = prompt_required_field("CPU memory requests", "1Gi")
+
+        print_field_help(
+            "Number of accelerators",
+            "Number of GPUs/TPUs requested for inference. Use 0 for CPU-only workloads.",
+        )
+        num_accelerators = prompt_int_field("Number of accelerators", 1)
+
+        accelerator_types = ["NVIDIA-*"]
+        accelerator_memory = None
+        if num_accelerators > 0:
+            print_field_help(
+                "Accelerator types",
+                "Comma-separated list of accelerator patterns (e.g., 'NVIDIA-*', 'NVIDIA-A10G').",
+            )
+            accelerator_types_input = prompt_optional_field(
+                "Accelerator types (comma separated)", "NVIDIA-*"
+            )
+
+            print_field_help(
+                "Accelerator memory",
+                "Minimum GPU/TPU memory required (e.g., '15Gi').",
+            )
+            accelerator_memory = prompt_optional_field("Accelerator memory", "15Gi")
+
+            if accelerator_types_input:
+                accelerator_types = [
+                    item.strip() for item in accelerator_types_input.split(',') if item.strip()
+                ]
+            if not accelerator_types:
+                accelerator_types = ["NVIDIA-*"]
+
+        inference_compute_info: Dict[str, Any] = {
+            "cpu_limit": cpu_limit,
+            "cpu_memory": cpu_memory,
+            "cpu_requests": cpu_requests,
+            "cpu_memory_requests": cpu_memory_requests,
+            "num_accelerators": num_accelerators,
+        }
+        if num_accelerators > 0:
+            inference_compute_info["accelerator_type"] = accelerator_types
+            inference_compute_info["accelerator_memory"] = accelerator_memory
+
+        config_data: Dict[str, Any] = {
+            "model": {
+                "id": model_id,
+                "user_id": user_id,
+                "app_id": app_id,
+                "model_type_id": model_type_id,
+            },
+            "build_info": {
+                "python_version": python_version,
+            },
+            "inference_compute_info": inference_compute_info,
+        }
+
+        if prompt_yes_no("Do you want to configure a checkpoints download?", default=False):
+            print_field_help(
+                "Checkpoint loader type",
+                "Source used to pull checkpoints (currently 'huggingface' is supported).",
+            )
+            loader_type = prompt_required_field("Checkpoint loader type", "huggingface")
+
+            print_field_help(
+                "Checkpoint repo_id",
+                "Repository or model identifier (e.g., 'owner/model-name').",
+            )
+            repo_id = prompt_required_field("Checkpoint repo_id (e.g. owner/model)", None)
+
+            print_field_help(
+                "Download stage",
+                "When checkpoints should be downloaded: upload, build, or runtime.",
+            )
+            when = prompt_required_field(
+                "When to download checkpoints (upload/build/runtime)", "runtime"
+            )
+
+            print_field_help(
+                "Hugging Face token",
+                "Optional token for private Hugging Face repos. Leave blank for public models.",
+            )
+            hf_token = prompt_optional_field("Hugging Face token (optional)") or None
+
+            checkpoints_section: Dict[str, Any] = {
+                "type": loader_type,
+                "repo_id": repo_id,
+                "when": when,
+            }
+            if hf_token:
+                checkpoints_section["hf_token"] = hf_token
+
+            allowed_patterns = prompt_optional_field(
+                "Allowed file patterns (comma separated, optional)"
+            )
+            if allowed_patterns:
+                checkpoints_section["allowed_file_patterns"] = [
+                    pattern.strip() for pattern in allowed_patterns.split(',') if pattern.strip()
+                ]
+
+            ignored_patterns = prompt_optional_field(
+                "Ignored file patterns (comma separated, optional)"
+            )
+            if ignored_patterns:
+                checkpoints_section["ignore_file_patterns"] = [
+                    pattern.strip() for pattern in ignored_patterns.split(',') if pattern.strip()
+                ]
+
+            config_data["checkpoints"] = checkpoints_section
+
+        if prompt_yes_no("Would you like to set a fixed num_threads value?", default=False):
+            print_field_help(
+                "num_threads",
+                "Optional override for threads used by the local runner. Leave unset to use defaults.",
+            )
+            num_threads = prompt_int_field("num_threads")
+            config_data["num_threads"] = num_threads
+
+        with open(config_path, "w", encoding="utf-8") as handle:
+            yaml.safe_dump(config_data, handle, sort_keys=False)
+
+        click.echo(f"✅ Created config.yaml at {config_path}.")
+        click.echo("   Review and adjust any values before continuing.")
+
+    except (KeyboardInterrupt, EOFError) as exc:
+        click.echo("\nOperation cancelled. Aborting upload.", err=True)
+        raise click.Abort() from exc
 
 
 @cli.group(
@@ -402,6 +843,50 @@ def init(
         logger.info("4. Implement your model logic in 1/model.py")
 
 
+def _ensure_hf_token(ctx, model_path):
+    """
+    Ensure HF_TOKEN is present in CLI context.
+    """
+    import yaml
+
+    try:
+        config_path = os.path.join(model_path, "config.yaml")
+        if os.path.isfile(config_path):
+            with open(config_path, 'r') as file:
+                config = yaml.safe_load(file)
+            config_hf_token = None
+            try:
+                config_hf_token = config.get("checkpoints").get("hf_token")
+            except Exception:
+                logger.warning("Failed to read HF_TOKEN from config.yaml.")
+        else:
+            logger.error("`config.yaml` not found in model path.")
+            raise click.Abort()
+
+        hf_token = getattr(ctx.obj.current, "CLARIFAI_HF_TOKEN", None)
+        if hf_token:
+            logger.debug("CLARIFAI_HF_TOKEN already present in context.")
+        else:
+            hf_token = os.getenv("HF_TOKEN", None)
+            if hf_token:
+                logger.info("Loaded HF_TOKEN from environment.")
+                ctx.obj.current.CLARIFAI_HF_TOKEN = hf_token
+                ctx.obj.to_yaml()
+            elif config_hf_token:
+                logger.info("Extracted HF_TOKEN from config.yaml.")
+                ctx.obj.current.CLARIFAI_HF_TOKEN = config_hf_token
+                ctx.obj.to_yaml()
+                return
+            else:
+                logger.debug("config.yaml not found; skipping HF_TOKEN extraction.")
+        if not config_hf_token:
+            if 'checkpoints' not in config:
+                config['checkpoints'] = {}
+            config["checkpoints"]["hf_token"] = hf_token
+    except Exception as e:
+        logger.warning(f"Unexpected error ensuring HF_TOKEN: {e}")
+
+
 @model.command(help="Upload a trained model.")
 @click.argument("model_path", type=click.Path(exists=True), required=False, default=".")
 @click.option(
@@ -417,8 +902,13 @@ def init(
     is_flag=True,
     help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
+@click.option(
+    '--platform',
+    required=False,
+    help='Target platform(s) for Docker image build (e.g., "linux/amd64" or "linux/amd64,linux/arm64"). This overrides the platform specified in config.yaml.',
+)
 @click.pass_context
-def upload(ctx, model_path, stage, skip_dockerfile):
+def upload(ctx, model_path, stage, skip_dockerfile, platform):
     """Upload a model to Clarifai.
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
@@ -426,10 +916,14 @@ def upload(ctx, model_path, stage, skip_dockerfile):
     from clarifai.runners.models.model_builder import upload_model
 
     validate_context(ctx)
+    model_path = os.path.abspath(model_path)
+    ensure_config_exists_for_upload(ctx, model_path)
+    _ensure_hf_token(ctx, model_path)
     upload_model(
         model_path,
         stage,
         skip_dockerfile,
+        platform=platform,
         pat=ctx.obj.current.pat,
         base_url=ctx.obj.current.api_base,
     )
@@ -457,7 +951,8 @@ def upload(ctx, model_path, stage, skip_dockerfile):
     show_default=True,
     help='The stage we are calling download checkpoints from. Typically this would be in the build stage which is the default. Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.',
 )
-def download_checkpoints(model_path, out_path, stage):
+@click.pass_context
+def download_checkpoints(ctx, model_path, out_path, stage):
     """Download checkpoints from external source to local model_path
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
@@ -465,6 +960,8 @@ def download_checkpoints(model_path, out_path, stage):
 
     from clarifai.runners.models.model_builder import ModelBuilder
 
+    validate_context(ctx)
+    _ensure_hf_token(ctx, model_path)
     builder = ModelBuilder(model_path, download_validation_only=True)
     builder.download_checkpoints(stage=stage, checkpoint_path_override=out_path)
 
@@ -529,7 +1026,10 @@ def signatures(model_path, out_path):
     is_flag=True,
     help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
-def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_dockerfile=False):
+@click.pass_context
+def test_locally(
+    ctx, model_path, keep_env=False, keep_image=False, mode='env', skip_dockerfile=False
+):
     """Test model locally.
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
@@ -537,6 +1037,8 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_
     try:
         from clarifai.runners.models import model_run_locally
 
+        validate_context(ctx)
+        _ensure_hf_token(ctx, model_path)
         if mode == 'env' and keep_image:
             raise ValueError("'keep_image' is applicable only for 'container' mode")
         if mode == 'container' and keep_env:
@@ -596,7 +1098,8 @@ def test_locally(model_path, keep_env=False, keep_image=False, mode='env', skip_
     is_flag=True,
     help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
 )
-def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=False):
+@click.pass_context
+def run_locally(ctx, model_path, port, mode, keep_env, keep_image, skip_dockerfile=False):
     """Run the model locally and start a gRPC server to serve the model.
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
@@ -604,6 +1107,8 @@ def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=Fa
     try:
         from clarifai.runners.models import model_run_locally
 
+        validate_context(ctx)
+        _ensure_hf_token(ctx, model_path)
         if mode == 'env' and keep_image:
             raise ValueError("'keep_image' is applicable only for 'container' mode")
         if mode == 'container' and keep_env:
@@ -642,12 +1147,12 @@ def run_locally(model_path, port, mode, keep_env, keep_image, skip_dockerfile=Fa
     help="The number of threads to use. On community plan, the compute time allocation is drained at a rate proportional to the number of threads.",
 )  # pylint: disable=range-builtin-not-iterating
 @click.option(
-    '--verbose',
+    '--suppress-toolkit-logs',
     is_flag=True,
     help='Show detailed logs including Ollama server output. By default, Ollama logs are suppressed.',
 )
 @click.pass_context
-def local_runner(ctx, model_path, pool_size, verbose):
+def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs):
     """Run the model as a local runner to help debug your model connected to the API or to
     leverage local compute resources manually. This relies on many variables being present in the env
     of the currently selected context. If they are not present then default values will be used to
@@ -689,6 +1194,7 @@ def local_runner(ctx, model_path, pool_size, verbose):
     from clarifai.runners.server import ModelServer
 
     validate_context(ctx)
+    _ensure_hf_token(ctx, model_path)
     builder = ModelBuilder(model_path, download_validation_only=True)
     logger.info("> Checking local runner requirements...")
     if not check_requirements_installed(model_path):
@@ -702,6 +1208,16 @@ def local_runner(ctx, model_path, pool_size, verbose):
         if not check_ollama_installed():
             logger.error(
                 "Ollama application is not installed. Please install it from `https://ollama.com/` to use the Ollama toolkit."
+            )
+            raise click.Abort()
+    elif (
+        "lmstudio" in dependencies
+        or builder.config.get('toolkit', {}).get('provider') == 'lmstudio'
+    ):
+        logger.info("Verifying LM Studio installation...")
+        if not check_lmstudio_installed():
+            logger.error(
+                "LM Studio application is not installed. Please install it from `https://lmstudio.com/` to use the LM Studio toolkit."
             )
             raise click.Abort()
 
@@ -926,16 +1442,44 @@ def local_runner(ctx, model_path, pool_size, verbose):
         logger.info(
             f"Creating the local runner tying this '{user_id}/{app_id}/models/{model.id}' model (version: {version.id}) to the '{user_id}/{compute_cluster_id}/{nodepool_id}' nodepool."
         )
-        runner = nodepool.create_runner(
-            runner_config={
-                "runner": {
-                    "description": "local runner for model testing",
-                    "worker": worker,
-                    "num_replicas": 1,
+        try:
+            logger.info("Checking for existing runners in the nodepool...")
+            runners = nodepool.list_runners(
+                model_version_ids=[version.id],
+            )
+            runner_id = None
+            for runner in runners:
+                logger.info(
+                    f"Found existing runner {runner.id} for model version {version.id}. Reusing it."
+                )
+                runner_id = runner.id
+                break  # use the first one we find.
+            if runner_id is None:
+                logger.warning("No existing runners found in nodepool. Creating a new one.\n")
+                runner = nodepool.create_runner(
+                    runner_config={
+                        "runner": {
+                            "description": "local runner for model testing",
+                            "worker": worker,
+                            "num_replicas": 1,
+                        }
+                    }
+                )
+                runner_id = runner.id
+        except Exception as e:
+            logger.warning(
+                f"Failed to list existing runners in nodepool {e}...Creating a new one.\n"
+            )
+            runner = nodepool.create_runner(
+                runner_config={
+                    "runner": {
+                        "description": "local runner for model testing",
+                        "worker": worker,
+                        "num_replicas": 1,
+                    }
                 }
-            }
-        )
-        runner_id = runner.id
+            )
+            runner_id = runner.id
         ctx.obj.current.CLARIFAI_RUNNER_ID = runner.id
         ctx.obj.to_yaml()
 
@@ -1008,27 +1552,27 @@ def local_runner(ctx, model_path, pool_size, verbose):
         ModelBuilder._backup_config(config_file)
         ModelBuilder._save_config(config_file, config)
 
-    if not check_requirements_installed(model_path):
-        logger.error(f"Requirements not installed for model at {model_path}.")
-        raise click.Abort()
-
     # Post check while running `clarifai model local-runner` we check if the toolkit is ollama
     if builder.config.get('toolkit', {}).get('provider') == 'ollama':
-        if not check_ollama_installed():
-            logger.error(
-                "Ollama is not installed. Please install it from `https://ollama.com/` to use the Ollama toolkit."
-            )
-            raise click.Abort()
-
         try:
             logger.info("Customizing Ollama model with provided parameters...")
             customize_ollama_model(
                 model_path=model_path,
                 user_id=user_id,
-                verbose=True if verbose else False,
+                verbose=False if suppress_toolkit_logs else True,
             )
         except Exception as e:
             logger.error(f"Failed to customize Ollama model: {e}")
+            raise click.Abort()
+    elif builder.config.get('toolkit', {}).get('provider') == 'lmstudio':
+        try:
+            logger.info("Customizing LM Studio model with provided parameters...")
+            customize_lmstudio_model(
+                model_path=model_path,
+                user_id=user_id,
+            )
+        except Exception as e:
+            logger.error(f"Failed to customize LM Studio model: {e}")
             raise click.Abort()
 
     logger.info("✅ Starting local runner...")

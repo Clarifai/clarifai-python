@@ -73,3 +73,8 @@ STATUS_OK = "200 OK"
 STATUS_MIXED = "207 MIXED"
 STATUS_FAIL = "500 FAIL"
 STATUS_UNKNOWN = "UNKNOWN"
+
+MIN_REQUIRED_PYTHON_VERSION = (3, 9)
+
+CONFIG_GUIDE_URL = "https://docs.clarifai.com/compute/upload/#prepare-configyaml"
+CLI_LOGIN_DOC_URL = "https://docs.clarifai.com/resources/api-overview/cli/#clarifai-login"

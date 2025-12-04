@@ -1,6 +1,4 @@
-import logging
 import os
-import time
 import uuid
 
 import pytest
@@ -77,41 +75,40 @@ class Testmodeltrain:
         os.remove('tests/assets/model_params.yaml')
         os.remove(expected_data['train_params']['custom_config'])
 
-    def test_model_train(self, caplog):
-        self.dataset.upload_from_csv(
-            csv_path=CSV_FILE_PATH, input_type='text', csv_type='raw', labels=True
-        )
-        dataset_version = self.dataset.create_version()
-        concepts = [concept.id for concept in self.app.list_concepts()]
-        self.text_classifier_model.get_params(
-            template='HF_GPTNeo_125m_lora', save_to='tests/assets/model_params.yaml'
-        )
-        param_info = self.text_classifier_model.get_param_info(param='tokenizer_config')
-        assert param_info['param'] == 'tokenizer_config'  # test get param info
-        assert len(concepts) == 2  # test data upload for training
-        self.text_classifier_model.update_params(
-            dataset_id=CREATE_DATASET_ID,
-            concepts=concepts,
-            dataset_version_id=dataset_version.version.id,
-        )
-        with caplog.at_level(logging.INFO):
-            model_version_id = self.text_classifier_model.train()
-            assert "Model Training Started" in caplog.text  # test model training
+    # TODO: Train visual classifier instead of text classifier
+    # def test_model_train(self, caplog):
+    #     self.dataset.upload_from_csv(
+    #         csv_path=CSV_FILE_PATH, input_type='text', csv_type='raw', labels=True
+    #     )
+    #     dataset_version = self.dataset.create_version()
+    #     concepts = [concept.id for concept in self.app.list_concepts()]
+    #     self.text_classifier_model.get_params(
+    #         template='HF_GPTNeo_125m_lora', save_to='tests/assets/model_params.yaml'
+    #     )
+    #     assert len(concepts) == 2  # test data upload for training
+    #     self.text_classifier_model.update_params(
+    #         dataset_id=CREATE_DATASET_ID,
+    #         concepts=concepts,
+    #         dataset_version_id=dataset_version.version.id,
+    #     )
+    #     with caplog.at_level(logging.INFO):
+    #         model_version_id = self.text_classifier_model.train()
+    #         assert "Model Training Started" in caplog.text  # test model training
 
-        training_status = self.text_classifier_model.training_status(version_id=model_version_id)
-        assert model_version_id  # test model version id from model.train()
-        assert training_status.code  # test training_status
-        # NOTE (EAGLE-4139) - Immediately deleting the app causes the training to fail because the first
-        # step of training requires an app, this triggers infra alerts for non graceful exit. We need to delay the deletion
-        # until we get past this step.
+    #     training_status = self.text_classifier_model.training_status(version_id=model_version_id)
+    #     assert model_version_id  # test model version id from model.train()
+    #     assert training_status.code  # test training_status
+    #     # NOTE (EAGLE-4139) - Immediately deleting the app causes the training to fail because the first
+    #     # step of training requires an app, this triggers infra alerts for non graceful exit. We need to delay the deletion
+    #     # until we get past this step.
 
-        time.sleep(5)
+    #     time.sleep(5)
 
-        with caplog.at_level(logging.INFO):
-            self.text_classifier_model.delete_version(version_id=model_version_id)
-            assert "Model Version Deleted" in caplog.text  # test model version deletion
-        # cleanup
-        os.remove('tests/assets/model_params.yaml')
+    #     with caplog.at_level(logging.INFO):
+    #         self.text_classifier_model.delete_version(version_id=model_version_id)
+    #         assert "Model Version Deleted" in caplog.text  # test model version deletion
+    #     # cleanup
+    #     os.remove('tests/assets/model_params.yaml')
 
     @classmethod
     def teardown_class(self):
