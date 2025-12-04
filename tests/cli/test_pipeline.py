@@ -1000,6 +1000,48 @@ class TestPipelineInitCommand:
             for file_path in expected_files:
                 assert os.path.exists(file_path), f"Expected file {file_path} was not created"
 
+    def test_init_command_creates_workflow_arguments_template(self):
+        """Test that the generated pipeline config includes workflow-level arguments template."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        with runner.isolated_filesystem():
+            inputs = "test-user\ntest-app\ntest-pipeline\n2\nstepA\nstepB\n"
+            result = runner.invoke(init, ['.'], input=inputs)
+
+            assert result.exit_code == 0
+
+            # Load and validate the generated config
+            with open('config.yaml', 'r') as f:
+                config_content = f.read()
+                config = yaml.safe_load(config_content)
+
+            # Check that argo orchestration spec has workflow arguments
+            argo_spec = config['pipeline']['orchestration_spec']['argo_orchestration_spec']
+            parsed_argo = yaml.safe_load(argo_spec)
+
+            # Verify workflow-level arguments exist
+            assert 'spec' in parsed_argo
+            assert 'arguments' in parsed_argo['spec']
+            assert 'parameters' in parsed_argo['spec']['arguments']
+
+            # Check that template reference is used in step parameters
+            step_templates = parsed_argo['spec']['templates']
+            sequence_template = next(t for t in step_templates if t['name'] == 'sequence')
+
+            # Find a step that uses workflow parameters
+            step_found = False
+            for step_group in sequence_template['steps']:
+                for step in step_group:
+                    if 'arguments' in step and 'parameters' in step['arguments']:
+                        for param in step['arguments']['parameters']:
+                            if 'value' in param and '{{workflow.parameters.' in param['value']:
+                                step_found = True
+                                break
+
+            assert step_found, (
+                "Expected to find template references to workflow parameters in step arguments"
+            )
+
 
 class TestPipelineRunCommand:
     """Test cases for the pipeline run CLI command."""
@@ -1067,7 +1109,9 @@ class TestPipelineRunCommand:
                 base_url='https://api.clarifai.com',
                 log_file=None,
             )
-            mock_pipeline.run.assert_called_once_with(timeout=300, monitor_interval=5)
+            mock_pipeline.run.assert_called_once_with(
+                timeout=300, monitor_interval=5, input_args_override=None
+            )
 
     @patch('clarifai.client.pipeline.Pipeline')
     @patch('clarifai.utils.cli.validate_context')
@@ -1119,7 +1163,9 @@ class TestPipelineRunCommand:
                 compute_cluster_id='test-cluster',
                 log_file=None,
             )
-            mock_pipeline.run.assert_called_once_with(timeout=3600, monitor_interval=10)
+            mock_pipeline.run.assert_called_once_with(
+                timeout=3600, monitor_interval=10, input_args_override=None
+            )
 
     def test_run_command_missing_required_args(self):
         """Test that run command fails when required arguments are missing."""
@@ -1216,7 +1262,9 @@ class TestPipelineRunCommand:
                 base_url='https://api.clarifai.com',
                 log_file=None,
             )
-            mock_pipeline.run.assert_called_once_with(timeout=3600, monitor_interval=10)
+            mock_pipeline.run.assert_called_once_with(
+                timeout=3600, monitor_interval=10, input_args_override=None
+            )
 
     @patch('clarifai.client.pipeline.Pipeline')
     @patch('clarifai.utils.cli.validate_context')
@@ -1455,175 +1503,3 @@ class TestPipelineListCommand:
 
                 assert result.exit_code == 0
                 mock_user_instance.list_pipelines.assert_called_once_with(page_no=1, per_page=16)
-
-
-class TestPipelineStepListCommand:
-    """Test cases for the pipeline step list CLI command."""
-
-    @patch('clarifai.cli.pipeline_step.validate_context')
-    @patch('clarifai.client.user.User')
-    @patch('clarifai.cli.pipeline_step.display_co_resources')
-    def test_list_command_success_no_app_id(self, mock_display, mock_user_class, mock_validate):
-        """Test that list command works without app_id (lists across all apps)."""
-        # Setup mocks
-        mock_validate.return_value = None
-        mock_user_instance = Mock()
-        mock_user_class.return_value = mock_user_instance
-        mock_user_instance.list_pipeline_steps.return_value = [
-            {
-                'id': 'step1',
-                'user_id': 'user1',
-                'app_id': 'app1',
-                'pipeline_id': 'pipe1',
-                'description': 'Test step 1',
-            },
-            {
-                'id': 'step2',
-                'user_id': 'user1',
-                'app_id': 'app2',
-                'pipeline_id': 'pipe2',
-                'description': 'Test step 2',
-            },
-        ]
-
-        # Setup context
-        runner = CliRunner()
-        ctx_obj = Mock()
-        ctx_obj.current.user_id = 'test-user'
-        ctx_obj.current.pat = 'test-pat'
-        ctx_obj.current.api_base = 'https://api.clarifai.com'
-
-        # Import here to avoid circular imports in testing
-        from clarifai.cli.pipeline_step import list as list_command
-
-        result = runner.invoke(
-            list_command,
-            ['--page_no', '1', '--per_page', '10'],
-            obj=ctx_obj,
-        )
-
-        assert result.exit_code == 0
-        mock_validate.assert_called_once()
-        mock_user_class.assert_called_once_with(
-            user_id='test-user', pat='test-pat', base_url='https://api.clarifai.com'
-        )
-        mock_user_instance.list_pipeline_steps.assert_called_once_with(page_no=1, per_page=10)
-        mock_display.assert_called_once()
-
-    @patch('clarifai.cli.pipeline_step.validate_context')
-    @patch('clarifai.client.app.App')
-    @patch('clarifai.cli.pipeline_step.display_co_resources')
-    def test_list_command_success_with_app_id(self, mock_display, mock_app_class, mock_validate):
-        """Test that list command works with app_id (lists within specific app)."""
-        # Setup mocks
-        mock_validate.return_value = None
-        mock_app_instance = Mock()
-        mock_app_class.return_value = mock_app_instance
-        mock_app_instance.list_pipeline_steps.return_value = [
-            {
-                'id': 'step1',
-                'user_id': 'user1',
-                'app_id': 'app1',
-                'pipeline_id': 'pipe1',
-                'description': 'Test step 1',
-            },
-        ]
-
-        # Setup context
-        runner = CliRunner()
-        ctx_obj = Mock()
-        ctx_obj.current.user_id = 'test-user'
-        ctx_obj.current.pat = 'test-pat'
-        ctx_obj.current.api_base = 'https://api.clarifai.com'
-
-        # Import here to avoid circular imports in testing
-        from clarifai.cli.pipeline_step import list as list_command
-
-        result = runner.invoke(
-            list_command,
-            ['--app_id', 'test-app', '--page_no', '1', '--per_page', '5'],
-            obj=ctx_obj,
-        )
-
-        assert result.exit_code == 0
-        mock_validate.assert_called_once()
-        mock_app_class.assert_called_once_with(
-            app_id='test-app',
-            user_id='test-user',
-            pat='test-pat',
-            base_url='https://api.clarifai.com',
-        )
-        mock_app_instance.list_pipeline_steps.assert_called_once_with(
-            pipeline_id=None, page_no=1, per_page=5
-        )
-        mock_display.assert_called_once()
-
-    @patch('clarifai.cli.pipeline_step.validate_context')
-    @patch('clarifai.client.app.App')
-    @patch('clarifai.cli.pipeline_step.display_co_resources')
-    def test_list_command_success_with_pipeline_id(
-        self, mock_display, mock_app_class, mock_validate
-    ):
-        """Test that list command works with both app_id and pipeline_id."""
-        # Setup mocks
-        mock_validate.return_value = None
-        mock_app_instance = Mock()
-        mock_app_class.return_value = mock_app_instance
-        mock_app_instance.list_pipeline_steps.return_value = [
-            {
-                'id': 'step1',
-                'user_id': 'user1',
-                'app_id': 'app1',
-                'pipeline_id': 'pipe1',
-                'description': 'Test step 1',
-            },
-        ]
-
-        # Setup context
-        runner = CliRunner()
-        ctx_obj = Mock()
-        ctx_obj.current.user_id = 'test-user'
-        ctx_obj.current.pat = 'test-pat'
-        ctx_obj.current.api_base = 'https://api.clarifai.com'
-
-        # Import here to avoid circular imports in testing
-        from clarifai.cli.pipeline_step import list as list_command
-
-        result = runner.invoke(
-            list_command,
-            ['--app_id', 'test-app', '--pipeline_id', 'test-pipeline'],
-            obj=ctx_obj,
-        )
-
-        assert result.exit_code == 0
-        mock_validate.assert_called_once()
-        mock_app_class.assert_called_once_with(
-            app_id='test-app',
-            user_id='test-user',
-            pat='test-pat',
-            base_url='https://api.clarifai.com',
-        )
-        mock_app_instance.list_pipeline_steps.assert_called_once_with(
-            pipeline_id='test-pipeline', page_no=1, per_page=16
-        )
-        mock_display.assert_called_once()
-
-    def test_list_command_pipeline_id_without_app_id_error(self):
-        """Test that using pipeline_id without app_id raises an error."""
-        runner = CliRunner()
-        ctx_obj = Mock()
-        ctx_obj.current.user_id = 'test-user'
-        ctx_obj.current.pat = 'test-pat'
-        ctx_obj.current.api_base = 'https://api.clarifai.com'
-
-        # Import here to avoid circular imports in testing
-        from clarifai.cli.pipeline_step import list as list_command
-
-        result = runner.invoke(
-            list_command,
-            ['--pipeline_id', 'test-pipeline'],
-            obj=ctx_obj,
-        )
-
-        assert result.exit_code != 0
-        assert '--pipeline_id must be used together with --app_id' in result.output

@@ -459,8 +459,8 @@ _DATA_TYPES = {
         resources_pb2.ModelTypeField.DataType.NDARRAY, NDArraySerializer('ndarray')
     ),
     data_types.JSON: _DataType(
-        resources_pb2.ModelTypeField.DataType.JSON_DATA, JSONSerializer('string_value')
-    ),  # TODO change to json_value when new proto is ready
+        resources_pb2.ModelTypeField.DataType.JSON_DATA, JSONSerializer('struct_value')
+    ),
     data_types.Text: _DataType(
         resources_pb2.ModelTypeField.DataType.TEXT, MessageSerializer('text', data_types.Text)
     ),

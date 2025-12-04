@@ -13,6 +13,7 @@ import venv
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 
 from clarifai.runners.models.model_builder import ModelBuilder
+from clarifai.utils.constants import MIN_REQUIRED_PYTHON_VERSION
 from clarifai.utils.logging import logger
 
 
@@ -139,7 +140,9 @@ class ModelRunLocally:
         process = None
         try:
             logger.info("Testing the model locally...")
-            process = subprocess.Popen(command)
+            # Set PYTHONDONTWRITEBYTECODE=1 to prevent __pycache__ folder generation
+            env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+            process = subprocess.Popen(command, env=env)
             # Wait for the process to complete
             process.wait()
             if process.returncode == 0:
@@ -182,7 +185,9 @@ class ModelRunLocally:
             logger.info(
                 f"Starting model server at localhost:{port} with the model at {self.model_path}..."
             )
-            subprocess.check_call(command)
+            # Set PYTHONDONTWRITEBYTECODE=1 to prevent __pycache__ folder generation
+            env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+            subprocess.check_call(command, env=env)
             logger.info("Model server started successfully and running at localhost:{port}")
         except subprocess.CalledProcessError as e:
             logger.error(f"Error running model server: {e}")
@@ -276,6 +281,81 @@ class ModelRunLocally:
         """
         return shutil.which("nvidia-smi") is not None
 
+    def _validate_test_environment(self):
+        """
+        Validate that the current environment supports model testing.
+        Provides immediate feedback for unsupported configurations.
+        This function runs only during CLI commands:
+            1. clarifai model local-grpc
+            2. clarifai model local-test
+        """
+        warnings = []
+
+        # Check Python version compatibility
+        current_python = sys.version_info[:2]
+        if current_python < MIN_REQUIRED_PYTHON_VERSION:
+            logger.error(
+                "❌ Environment validation failed: "
+                f"Python {current_python[0]}.{current_python[1]} is not supported. "
+                f"Please use Python {MIN_REQUIRED_PYTHON_VERSION[0]}.{MIN_REQUIRED_PYTHON_VERSION[1]} or higher for model testing."
+            )
+            sys.exit(1)
+        elif current_python == MIN_REQUIRED_PYTHON_VERSION:
+            warnings.append(
+                f"Python {current_python[0]}.{current_python[1]} may have limited support. "
+                f"Consider upgrading to Python {MIN_REQUIRED_PYTHON_VERSION[0]}.{MIN_REQUIRED_PYTHON_VERSION[1]} or higher for optimal compatibility."
+            )
+
+        # Check for GPU-related configurations on unsupported platforms
+        current_environment = platform.system().lower()
+        if current_environment == "darwin":
+            current_environment = "darwin (macOS)"
+        if not self._gpu_is_available():
+            # Check if model requires GPU acceleration
+            requires_gpu = False
+            if hasattr(self, 'config') and self.config:
+                inference_compute_info = self.config.get('inference_compute_info', {})
+                num_accelerators = inference_compute_info.get('num_accelerators', 0)
+                requires_gpu = (
+                    num_accelerators != 0
+                )  # Check if GPU is required based on num_accelerators
+
+            if requires_gpu:
+                logger.error(
+                    "❌ Environment validation failed: "
+                    f"Your current environment '{current_environment}' does not have NVIDIA GPU support. "
+                    "Your model configuration requires GPU support. "
+                    "Please test on an environment with NVIDIA GPU support, "
+                    "or modify your model configuration to use CPU-only inference."
+                )
+                sys.exit(1)
+            else:
+                warnings.append(
+                    f"Running on '{current_environment}' without NVIDIA GPU support. "
+                    "If your model requires GPU support, testing may fail. "
+                    "Consider testing on an environment with NVIDIA GPU support."
+                )
+
+        # Check for Docker availability when needed
+        if hasattr(self, 'config') and self.config:
+            # This is not a hard requirement but good to warn about
+            if not shutil.which("docker"):
+                warnings.append(
+                    "Docker is not available. Container-based testing will not work. "
+                    "Install Docker if you plan to test in containers."
+                )
+
+        # Log warnings
+        for warning in warnings:
+            logger.warning(f"⚠️ Environment Warning: {warning}")
+
+        if warnings:
+            logger.info("✅ Environment validation passed with warnings.")
+        else:
+            logger.info("✅ Environment validation passed.")
+
+        return True
+
     def run_docker_container(
         self, image_name, container_name="clarifai-model-container", port=8080, env_vars=None
     ):
@@ -294,6 +374,8 @@ class ModelRunLocally:
             if env_vars:
                 for key, value in env_vars.items():
                     cmd.extend(["-e", f"{key}={value}"])
+            # Set PYTHONDONTWRITEBYTECODE=1 to prevent __pycache__ folder generation
+            cmd.extend(["-e", "PYTHONDONTWRITEBYTECODE=1"])
             # Add the image name
             cmd.append(image_name)
             # update the CMD to run the server
@@ -344,6 +426,8 @@ class ModelRunLocally:
             if env_vars:
                 for key, value in env_vars.items():
                     cmd.extend(["-e", f"{key}={value}"])
+            # Set PYTHONDONTWRITEBYTECODE=1 to prevent __pycache__ folder generation
+            cmd.extend(["-e", "PYTHONDONTWRITEBYTECODE=1"])
             # Add the image name
             cmd.append(image_name)
             # update the CMD to test the model inside the container
@@ -440,6 +524,11 @@ def main(
     skip_dockerfile: bool = False,
 ):
     manager = ModelRunLocally(model_path)
+
+    # Validate test environment early to provide immediate feedback
+    logger.info("Validating test environment...")
+    manager._validate_test_environment()
+
     # get whatever stage is in config.yaml to force download now
     # also always write to where upload/build wants to, not the /tmp folder that runtime stage uses
     if inside_container:

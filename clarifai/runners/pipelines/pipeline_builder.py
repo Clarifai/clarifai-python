@@ -202,6 +202,13 @@ class PipelineBuilder:
             }
         }
 
+        # Include step_version_secrets if present in pipeline config (not orchestration_spec)
+        step_version_secrets = pipeline_config.get("config", {}).get("step_version_secrets", {})
+        if step_version_secrets:
+            if "config" not in lockfile_data["pipeline"]:
+                lockfile_data["pipeline"]["config"] = {}
+            lockfile_data["pipeline"]["config"]["step_version_secrets"] = step_version_secrets
+
         return lockfile_data
 
     def update_lockfile_with_pipeline_info(
@@ -245,6 +252,13 @@ class PipelineBuilder:
                 },
             }
         }
+
+        # Include step_version_secrets if present in pipeline config (not orchestration_spec)
+        step_version_secrets = pipeline_config.get("config", {}).get("step_version_secrets", {})
+        if step_version_secrets:
+            if "config" not in lockfile_data["pipeline"]:
+                lockfile_data["pipeline"]["config"] = {}
+            lockfile_data["pipeline"]["config"]["step_version_secrets"] = step_version_secrets
 
         return lockfile_data
 
@@ -362,6 +376,32 @@ class PipelineBuilder:
 
         return None
 
+    def _add_step_version_secrets(
+        self, pipeline_version: resources_pb2.PipelineVersion, step_version_secrets: Dict[str, Any]
+    ) -> None:
+        """Add step_version_secrets to the pipeline version config.
+
+        Args:
+            pipeline_version: The PipelineVersion proto to update
+            step_version_secrets: Dictionary mapping step references to their secret configs
+                                 Format: {step_ref: {secret_name: secret_path}}
+        """
+        for step_ref, step_config in step_version_secrets.items():
+            # Note: 'step_config' contains the secret mappings directly (not nested under 'secrets')
+            # Secret references are like "users/user123/secrets/my-api-key"
+            if not step_config:
+                continue
+
+            # Create Struct for the step secrets (new proto format)
+            # Using google.protobuf.Struct to create flat JSON structure: {secretName: secretPath}
+            from google.protobuf.struct_pb2 import Struct
+
+            step_secrets_struct = Struct()
+            step_secrets_struct.update(step_config)
+
+            # Add to pipeline version config using the new proto format
+            pipeline_version.config.step_version_secrets[step_ref].CopyFrom(step_secrets_struct)
+
     def create_pipeline(self) -> tuple[bool, str]:
         """Create the pipeline using PostPipelines RPC.
 
@@ -397,12 +437,30 @@ class PipelineBuilder:
             # Create Argo orchestration spec proto
             argo_orchestration_spec_proto = resources_pb2.ArgoOrchestrationSpec()
             argo_orchestration_spec_proto.api_version = api_version
-            argo_orchestration_spec_proto.spec_json = json.dumps(argo_spec)
+
+            argo_spec_json_str = json.dumps(argo_spec)
+
+            # Validate JSON string before setting
+            try:
+                # Test that we can parse it back
+                json.loads(argo_spec_json_str)
+            except json.JSONDecodeError as json_error:
+                logger.error(f"Argo spec JSON validation failed: {json_error}")
+                raise
+
+            argo_orchestration_spec_proto.spec_json = argo_spec_json_str
 
             orchestration_spec_proto.argo_orchestration_spec.CopyFrom(
                 argo_orchestration_spec_proto
             )
             pipeline_version.orchestration_spec.CopyFrom(orchestration_spec_proto)
+
+            # Add step_version_secrets if present in pipeline config (not orchestration_spec)
+            step_version_secrets = pipeline_config.get("config", {}).get(
+                "step_version_secrets", {}
+            )
+            if step_version_secrets:
+                self._add_step_version_secrets(pipeline_version, step_version_secrets)
 
             pipeline.pipeline_version.CopyFrom(pipeline_version)
 

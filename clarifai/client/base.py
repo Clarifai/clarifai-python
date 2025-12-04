@@ -77,7 +77,7 @@ class BaseClient:
 
         kwargs.update({'token': token, 'pat': pat})
 
-        self.auth_helper = ClarifaiAuthHelper(**kwargs, validate=False)
+        self.auth_helper = ClarifaiAuthHelper.from_env(**kwargs, validate=False)
         self.STUB = create_stub(self.auth_helper)
         self._async_stub = None
         self.metadata = self.auth_helper.metadata
