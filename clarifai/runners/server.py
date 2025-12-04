@@ -232,9 +232,7 @@ class ModelServer:
 
     def start_servicer(self, port, pool_size, max_queue_size, max_msg_length, enable_tls):
         # initialize the servicer with the runner so that it gets the predict(), generate(), stream() classes.
-        self._servicer = ModelServicer(
-            self._current_model, model_proto=self._builder.get_model_proto()
-        )
+        self._servicer = ModelServicer(self._current_model)
 
         server = GRPCServer(
             futures.ThreadPoolExecutor(
@@ -277,7 +275,6 @@ class ModelServer:
             base_url=base_url,
             pat=pat,
             num_parallel_polls=num_threads,
-            model_proto=self._builder.get_model_proto(),
         )
 
         if context is None:
@@ -292,6 +289,7 @@ class ModelServer:
                 app_id=context.app_id,
                 model_id=context.model_id,
                 deployment_id=context.deployment_id,
+                deployment_user_id=context.user_id,
                 base_url=context.api_base,
                 colorize=True,
             )

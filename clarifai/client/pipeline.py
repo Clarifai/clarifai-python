@@ -100,13 +100,20 @@ class Pipeline(Lister, BaseClient):
                 nodepool_id=self.nodepool_id,
             )
 
-    def run(self, inputs: List = None, timeout: int = 3600, monitor_interval: int = 10) -> Dict:
+    def run(
+        self,
+        inputs: List = None,
+        timeout: int = 3600,
+        monitor_interval: int = 10,
+        input_args_override: Optional["resources_pb2.OrchestrationArgsOverride"] = None,
+    ) -> Dict:
         """Run the pipeline and monitor its progress.
 
         Args:
             inputs (List): List of inputs to run the pipeline with. If None, runs without inputs.
             timeout (int): Maximum time to wait for completion in seconds. Default 3600 (1 hour).
             monitor_interval (int): Interval between status checks in seconds. Default 10.
+            input_args_override (OrchestrationArgsOverride): Override arguments for the pipeline run.
 
         Returns:
             Dict: The pipeline run result.
@@ -114,6 +121,10 @@ class Pipeline(Lister, BaseClient):
         # Create a new pipeline version run
         pipeline_version_run = resources_pb2.PipelineVersionRun()
         pipeline_version_run.id = self.pipeline_version_run_id
+
+        # Set input arguments override if provided (server will handle merging)
+        if input_args_override:
+            pipeline_version_run.input_args_override.CopyFrom(input_args_override)
 
         # Set nodepools if nodepool information is available
         if self.nodepool_id and self.compute_cluster_id:
@@ -136,6 +147,7 @@ class Pipeline(Lister, BaseClient):
             run_request.runner_selector.CopyFrom(self._runner_selector)
 
         logger.info(f"Starting pipeline run for pipeline {self.pipeline_id}")
+
         response = self.STUB.PostPipelineVersionRuns(
             run_request, metadata=self.auth_helper.metadata
         )
