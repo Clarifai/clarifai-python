@@ -367,7 +367,7 @@ def cp(
         else:
             click.echo(
                 "One of source or destination must be a local path and the other an artifact path",
-                err=True
+                err=True,
             )
             raise click.Abort()
 

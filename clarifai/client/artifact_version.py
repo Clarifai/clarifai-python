@@ -331,8 +331,8 @@ class ArtifactVersion(BaseClient):
         """Create upload config message."""
         # Convert visibility string to enum
         visibility_enum = (
-            resources_pb2.Visibility.Gettable.PRIVATE 
-            if visibility == "private" 
+            resources_pb2.Visibility.Gettable.PRIVATE
+            if visibility == "private"
             else resources_pb2.Visibility.Gettable.PUBLIC
         )
 

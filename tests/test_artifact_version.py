@@ -178,13 +178,13 @@ class TestArtifactVersion:
         # Mock the info response first
         mock_info_response = Mock()
         mock_info_response.status.code = 10000  # SUCCESS
-        
+
         # Create proper mock artifact version with upload info
         mock_artifact_version = Mock()
         mock_artifact_version.id = "test_version"
         mock_upload = Mock()
         mock_upload.content_url = "https://example.com/file.txt"
-        mock_upload.content_name = "test_file.txt" 
+        mock_upload.content_name = "test_file.txt"
         mock_upload.content_length = 1024
         mock_artifact_version.upload = mock_upload
         mock_info_response.artifact_version = mock_artifact_version
@@ -316,7 +316,9 @@ class TestArtifactVersion:
             mock_grpc_request.return_value = mock_response
 
             results = list(
-                ArtifactVersion.list(artifact_id="test_artifact", user_id="test_user", app_id="test_app")
+                ArtifactVersion.list(
+                    artifact_id="test_artifact", user_id="test_user", app_id="test_app"
+                )
             )
 
             assert len(results) == 2

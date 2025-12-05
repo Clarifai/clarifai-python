@@ -396,10 +396,16 @@ def upload_artifact(source_path: str, destination_path: str, **kwargs) -> Artifa
         ArtifactVersion: The uploaded artifact version
     """
     # Filter kwargs for builder constructor - only pass authentication and config args
-    method_kwargs = ['description', 'visibility', 'expires_at', 'version_id', 'user_id', 'app_id', 'force']
-    builder_kwargs = {
-        k: v for k, v in kwargs.items() if k not in method_kwargs
-    }
+    method_kwargs = [
+        'description',
+        'visibility',
+        'expires_at',
+        'version_id',
+        'user_id',
+        'app_id',
+        'force',
+    ]
+    builder_kwargs = {k: v for k, v in kwargs.items() if k not in method_kwargs}
     builder = ArtifactBuilder(**builder_kwargs)
     return builder.upload_from_path(source_path, destination_path, **kwargs)
 
