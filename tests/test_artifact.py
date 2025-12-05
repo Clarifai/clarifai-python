@@ -25,7 +25,9 @@ class TestArtifact:
     def test_init(self):
         """Test artifact initialization."""
         with patch('clarifai.client.base.BaseClient.__init__'):
-            artifact = Artifact(artifact_id="test_artifact", user_id="test_user", app_id="test_app")
+            artifact = Artifact(
+                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
+            )
 
             assert artifact.artifact_id == "test_artifact"
             assert artifact.user_id == "test_user"
@@ -46,7 +48,9 @@ class TestArtifact:
     def test_repr(self):
         """Test artifact string representation."""
         with patch('clarifai.client.base.BaseClient.__init__'):
-            artifact = Artifact(artifact_id="test_artifact", user_id="test_user", app_id="test_app")
+            artifact = Artifact(
+                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
+            )
 
             repr_str = repr(artifact)
             assert "test_artifact" in repr_str

@@ -105,7 +105,7 @@ class ArtifactBuilder(BaseClient):
     def pat(self) -> str:
         """Get the personal access token from auth_helper."""
         return self.auth_helper.pat
-    
+
     @pat.setter
     def pat(self, value: str):
         """Set the personal access token."""
