@@ -306,8 +306,8 @@ class ModelRunner(BaseRunner):
                     status_str = STATUS_MIXED
                 else:
                     status = status_pb2.Status(
-                        code=status_code_pb2.FAILURE,
-                        description="Failed",
+                        code=status_code_pb2.RUNNER_PROCESSING_FAILED,
+                        description="Runner Processing Failed",
                     )
                     status_str = STATUS_FAIL
                 resp.status.CopyFrom(status)
