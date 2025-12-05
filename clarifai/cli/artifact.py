@@ -88,21 +88,26 @@ def list(ctx, path, user_id, app_id, artifact_id, versions):
             table_data = []
             for version in versions_list:
                 info = version.info()
-                table_data.append({
-                    'VERSION_ID': version.version_id,
-                    'DESCRIPTION': info.get('description', ''),
-                    'VISIBILITY': info.get('visibility', 'UNKNOWN'),
-                    'CREATED_AT': str(info.get('created_at', '')),
-                })
+                table_data.append(
+                    {
+                        'VERSION_ID': version.version_id,
+                        'DESCRIPTION': info.get('description', ''),
+                        'VISIBILITY': info.get('visibility', 'UNKNOWN'),
+                        'CREATED_AT': str(info.get('created_at', '')),
+                    }
+                )
 
             if table_data:
                 from collections import OrderedDict
-                columns = OrderedDict([
-                    ('VERSION_ID', lambda x: x['VERSION_ID']),
-                    ('DESCRIPTION', lambda x: x['DESCRIPTION']),
-                    ('VISIBILITY', lambda x: x['VISIBILITY']),
-                    ('CREATED_AT', lambda x: x['CREATED_AT']),
-                ])
+
+                columns = OrderedDict(
+                    [
+                        ('VERSION_ID', lambda x: x['VERSION_ID']),
+                        ('DESCRIPTION', lambda x: x['DESCRIPTION']),
+                        ('VISIBILITY', lambda x: x['VISIBILITY']),
+                        ('CREATED_AT', lambda x: x['CREATED_AT']),
+                    ]
+                )
                 formatter = TableFormatter(custom_columns=columns)
                 print(formatter.format(table_data))
         else:
@@ -123,21 +128,26 @@ def list(ctx, path, user_id, app_id, artifact_id, versions):
             table_data = []
             for artifact_obj in artifacts_list:
                 info = artifact_obj.info()
-                table_data.append({
-                    'ARTIFACT_ID': artifact_obj.artifact_id,
-                    'USER_ID': info.get('user_id', ''),
-                    'APP_ID': info.get('app_id', ''),
-                    'CREATED_AT': str(info.get('created_at', '')),
-                })
+                table_data.append(
+                    {
+                        'ARTIFACT_ID': artifact_obj.artifact_id,
+                        'USER_ID': info.get('user_id', ''),
+                        'APP_ID': info.get('app_id', ''),
+                        'CREATED_AT': str(info.get('created_at', '')),
+                    }
+                )
 
             if table_data:
                 from collections import OrderedDict
-                columns = OrderedDict([
-                    ('ARTIFACT_ID', lambda x: x['ARTIFACT_ID']),
-                    ('USER_ID', lambda x: x['USER_ID']),
-                    ('APP_ID', lambda x: x['APP_ID']),
-                    ('CREATED_AT', lambda x: x['CREATED_AT']),
-                ])
+
+                columns = OrderedDict(
+                    [
+                        ('ARTIFACT_ID', lambda x: x['ARTIFACT_ID']),
+                        ('USER_ID', lambda x: x['USER_ID']),
+                        ('APP_ID', lambda x: x['APP_ID']),
+                        ('CREATED_AT', lambda x: x['CREATED_AT']),
+                    ]
+                )
                 formatter = TableFormatter(custom_columns=columns)
                 print(formatter.format(table_data))
 

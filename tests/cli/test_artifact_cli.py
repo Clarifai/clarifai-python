@@ -176,10 +176,7 @@ class TestArtifactCLI:
                 'app_id': 'test_app',
                 'created_at': '2023-01-01T00:00:00Z',
                 'modified_at': '2023-01-02T00:00:00Z',
-                'artifact_version': {
-                    'id': 'v123',
-                    'description': 'Latest version'
-                }
+                'artifact_version': {'id': 'v123', 'description': 'Latest version'},
             }
 
             result = self.runner.invoke(
