@@ -96,14 +96,14 @@ class TestArtifactCLI:
         """Test successful list command."""
         mock_validate.return_value = None
         mock_list.return_value = []
-        
+
         mock_obj = self._create_mock_context()
 
         result = self.runner.invoke(
             artifact, ['list', '--user-id', 'test_user', '--app-id', 'test_app'], obj=mock_obj
         )
 
-        # Since we're mocking at a higher level, just check that the command 
+        # Since we're mocking at a higher level, just check that the command
         # was called with the right parameters and completed
         mock_list.assert_called()
         call_args = mock_list.call_args
@@ -126,12 +126,21 @@ class TestArtifactCLI:
         """Test list versions command."""
         mock_validate.return_value = None
         mock_list.return_value = []
-        
+
         mock_obj = self._create_mock_context()
 
         result = self.runner.invoke(
             artifact,
-            ['list', '--user-id', 'test_user', '--app-id', 'test_app', '--artifact-id', 'test_artifact', '--versions'],
+            [
+                'list',
+                '--user-id',
+                'test_user',
+                '--app-id',
+                'test_app',
+                '--artifact-id',
+                'test_artifact',
+                '--versions',
+            ],
             obj=mock_obj,
         )
 
@@ -152,7 +161,7 @@ class TestArtifactCLI:
             'user_id': 'test_user',
             'app_id': 'test_app',
             'artifact_id': 'test_artifact',
-            'version_id': None
+            'version_id': None,
         }
         mock_artifact_instance = Mock()
         mock_artifact_class.return_value = mock_artifact_instance
@@ -193,14 +202,14 @@ class TestArtifactCLI:
         mock_validate.return_value = None
         mock_parse_path.return_value = {
             'user_id': 'test_user',
-            'app_id': 'test_app', 
+            'app_id': 'test_app',
             'artifact_id': 'test_artifact',
-            'version_id': None
+            'version_id': None,
         }
         mock_artifact_instance = Mock()
         mock_artifact_class.return_value = mock_artifact_instance
         mock_artifact_instance.delete.return_value = True
-        
+
         mock_obj = self._create_mock_context()
 
         # Use input to simulate user confirmation
@@ -360,14 +369,14 @@ class TestArtifactCLIIntegration:
         """Test simulated full workflow - just test list command as representative."""
         mock_validate.return_value = None
         mock_list.return_value = []
-        
+
         mock_obj = self._create_mock_context()
 
         # Test list
         result = self.runner.invoke(
             artifact, ['list', '--user-id', 'test_user', '--app-id', 'test_app'], obj=mock_obj
         )
-        
+
         # Just verify the list was called with right params - that means CLI is working
         mock_list.assert_called()
         call_args = mock_list.call_args
@@ -382,16 +391,18 @@ class TestArtifactCLIIntegration:
         mock_validate.return_value = None
         mock_parse_path.return_value = {
             'user_id': 'test_user',
-            'app_id': 'test_app', 
+            'app_id': 'test_app',
             'artifact_id': 'nonexistent',
-            'version_id': None
+            'version_id': None,
         }
         mock_artifact_instance = Mock()
         mock_artifact_class.return_value = mock_artifact_instance
-        
+
         # Simulate an error that matches the actual error message from the failure
-        mock_artifact_instance.info.side_effect = Exception("Failed to get artifact: Resource does not exist")
-        
+        mock_artifact_instance.info.side_effect = Exception(
+            "Failed to get artifact: Resource does not exist"
+        )
+
         mock_obj = self._create_mock_context()
 
         result = self.runner.invoke(

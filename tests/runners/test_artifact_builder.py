@@ -169,7 +169,9 @@ class TestArtifactBuilder:
         """Test successful download from path."""
         with (
             patch('clarifai.runners.artifacts.artifact_builder.Artifact') as mock_artifact_class,
-            patch('clarifai.runners.artifacts.artifact_builder.ArtifactVersion') as mock_version_class,
+            patch(
+                'clarifai.runners.artifacts.artifact_builder.ArtifactVersion'
+            ) as mock_version_class,
         ):
             # Mock artifact info response for latest version lookup
             mock_artifact_instance = Mock()
@@ -177,7 +179,7 @@ class TestArtifactBuilder:
                 'artifact_version': {'id': 'latest_version_123'}
             }
             mock_artifact_class.return_value = mock_artifact_instance
-            
+
             # Mock artifact version download
             mock_version_instance = Mock()
             mock_version_instance.download.return_value = "./downloaded_file.txt"
@@ -207,7 +209,9 @@ class TestArtifactBuilder:
 
     def test_download_from_path_with_version(self):
         """Test download from path with specific version."""
-        with patch('clarifai.runners.artifacts.artifact_builder.ArtifactVersion') as mock_version_class:
+        with patch(
+            'clarifai.runners.artifacts.artifact_builder.ArtifactVersion'
+        ) as mock_version_class:
             # Mock artifact version download
             mock_version_instance = Mock()
             mock_version_instance.download.return_value = "./downloaded_file.txt"

@@ -86,7 +86,7 @@ class TestArtifactVersion:
 
         with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
             version = ArtifactVersion()
-            
+
             # Mock the auth_helper and stub
             mock_auth_helper = Mock()
             mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
@@ -94,7 +94,7 @@ class TestArtifactVersion:
             )
             mock_auth_helper.metadata = {}
             version.auth_helper = mock_auth_helper
-            
+
             # Mock the streaming response as an iterator
             mock_stub = Mock()
             mock_stub.PostArtifactVersionsUpload.return_value = iter([mock_response])
@@ -130,7 +130,7 @@ class TestArtifactVersion:
 
         with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
             version = ArtifactVersion()
-            
+
             # Mock the auth_helper and stub
             mock_auth_helper = Mock()
             mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
@@ -138,7 +138,7 @@ class TestArtifactVersion:
             )
             mock_auth_helper.metadata = {}
             version.auth_helper = mock_auth_helper
-            
+
             # Mock the streaming response as an iterator
             mock_stub = Mock()
             mock_stub.PostArtifactVersionsUpload.return_value = iter([mock_response])
