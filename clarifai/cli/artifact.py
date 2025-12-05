@@ -80,25 +80,31 @@ def list(ctx, path, user_id, app_id, artifact_id, versions):
                 )
             )
 
+            # Display versions in a table
             if not versions_list:
                 click.echo("No artifact versions found")
                 return
 
-            # Display versions in a table
             table_data = []
             for version in versions_list:
                 info = version.info()
-                table_data.append(
-                    {
-                        'VERSION_ID': version.version_id,
-                        'DESCRIPTION': info.get('description', ''),
-                        'VISIBILITY': info.get('visibility', 'UNKNOWN'),
-                        'CREATED_AT': str(info.get('created_at', '')),
-                    }
-                )
+                table_data.append({
+                    'VERSION_ID': version.version_id,
+                    'DESCRIPTION': info.get('description', ''),
+                    'VISIBILITY': info.get('visibility', 'UNKNOWN'),
+                    'CREATED_AT': str(info.get('created_at', '')),
+                })
 
-            formatter = TableFormatter()
-            formatter.print_table(table_data)
+            if table_data:
+                from collections import OrderedDict
+                columns = OrderedDict([
+                    ('VERSION_ID', lambda x: x['VERSION_ID']),
+                    ('DESCRIPTION', lambda x: x['DESCRIPTION']),
+                    ('VISIBILITY', lambda x: x['VISIBILITY']),
+                    ('CREATED_AT', lambda x: x['CREATED_AT']),
+                ])
+                formatter = TableFormatter(custom_columns=columns)
+                print(formatter.format(table_data))
         else:
             # Use Artifact client to list artifacts
             artifacts_list = list(
@@ -110,20 +116,30 @@ def list(ctx, path, user_id, app_id, artifact_id, versions):
                 return
 
             # Display artifacts in a table
-            table_data = []
-            for artifact in artifacts_list:
-                info = artifact.info()
-                table_data.append(
-                    {
-                        'ARTIFACT_ID': artifact.artifact_id,
-                        'USER_ID': info.get('user_id', ''),
-                        'APP_ID': info.get('app_id', ''),
-                        'CREATED_AT': str(info.get('created_at', '')),
-                    }
-                )
+            if not artifacts_list:
+                click.echo("No artifacts found")
+                return
 
-            formatter = TableFormatter()
-            formatter.print_table(table_data)
+            table_data = []
+            for artifact_obj in artifacts_list:
+                info = artifact_obj.info()
+                table_data.append({
+                    'ARTIFACT_ID': artifact_obj.artifact_id,
+                    'USER_ID': info.get('user_id', ''),
+                    'APP_ID': info.get('app_id', ''),
+                    'CREATED_AT': str(info.get('created_at', '')),
+                })
+
+            if table_data:
+                from collections import OrderedDict
+                columns = OrderedDict([
+                    ('ARTIFACT_ID', lambda x: x['ARTIFACT_ID']),
+                    ('USER_ID', lambda x: x['USER_ID']),
+                    ('APP_ID', lambda x: x['APP_ID']),
+                    ('CREATED_AT', lambda x: x['CREATED_AT']),
+                ])
+                formatter = TableFormatter(custom_columns=columns)
+                print(formatter.format(table_data))
 
     except UserError as e:
         click.echo(str(e), err=True)
@@ -218,7 +234,6 @@ def get(ctx, path, user_id, app_id, artifact_id, version_id):
 @click.option('--app-id', help='App ID')
 @click.option('--artifact-id', help='Artifact ID')
 @click.option('--version-id', help='Artifact version ID')
-@click.confirmation_option(prompt='Are you sure you want to delete this artifact?')
 @click.pass_context
 def delete(ctx, path, user_id, app_id, artifact_id, version_id):
     """Delete an artifact or artifact version.
@@ -241,6 +256,12 @@ def delete(ctx, path, user_id, app_id, artifact_id, version_id):
         if not all([user_id, app_id, artifact_id]):
             click.echo("user_id, app_id, and artifact_id are required", err=True)
             raise click.Abort()
+
+        # Ask for confirmation
+        if not click.confirm('Are you sure you want to delete this artifact?'):
+            click.echo("Operation cancelled")
+            return
+
         if version_id:
             # Delete artifact version
             version = ArtifactVersion(

@@ -136,13 +136,24 @@ class TestArtifactCLI:
         """Test list versions command."""
         mock_obj = self._setup_context_mock(mock_validate)
 
-        with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
-            mock_instance = Mock()
-            mock_builder.return_value = mock_instance
-            mock_instance.list_artifact_versions.return_value = [
-                {'id': 'version1', 'artifact_id': 'test_artifact'},
-                {'id': 'version2', 'artifact_id': 'test_artifact'},
-            ]
+        with patch('clarifai.client.artifact_version.ArtifactVersion.list') as mock_list:
+            mock_version1 = Mock()
+            mock_version1.version_id = 'version1'
+            mock_version1.info.return_value = {
+                'description': 'Test version 1',
+                'visibility': 'private',
+                'created_at': '2024-01-01T00:00:00Z',
+            }
+
+            mock_version2 = Mock()
+            mock_version2.version_id = 'version2'
+            mock_version2.info.return_value = {
+                'description': 'Test version 2',
+                'visibility': 'private',
+                'created_at': '2024-01-02T00:00:00Z',
+            }
+
+            mock_list.return_value = [mock_version1, mock_version2]
 
             result = self.runner.invoke(
                 artifact,
@@ -157,13 +168,18 @@ class TestArtifactCLI:
         """Test successful get command."""
         mock_obj = self._setup_context_mock(mock_validate)
 
-        with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
-            mock_instance = Mock()
-            mock_builder.return_value = mock_instance
-            mock_instance.get_artifact_info.return_value = {
-                'id': 'test_artifact',
-                'description': 'Test artifact',
+        with patch('clarifai.client.artifact.Artifact') as mock_artifact_class:
+            mock_artifact_instance = Mock()
+            mock_artifact_class.return_value = mock_artifact_instance
+            mock_artifact_instance.info.return_value = {
+                'user_id': 'test_user',
+                'app_id': 'test_app',
                 'created_at': '2023-01-01T00:00:00Z',
+                'modified_at': '2023-01-02T00:00:00Z',
+                'artifact_version': {
+                    'id': 'v123',
+                    'description': 'Latest version'
+                }
             }
 
             result = self.runner.invoke(
@@ -188,10 +204,10 @@ class TestArtifactCLI:
         """Test successful delete command."""
         mock_obj = self._setup_context_mock(mock_validate)
 
-        with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
-            mock_instance = Mock()
-            mock_builder.return_value = mock_instance
-            mock_instance.delete_artifact.return_value = True
+        with patch('clarifai.client.artifact.Artifact') as mock_artifact_class:
+            mock_artifact_instance = Mock()
+            mock_artifact_class.return_value = mock_artifact_instance
+            mock_artifact_instance.delete.return_value = True
 
             # Use input to simulate user confirmation
             result = self.runner.invoke(
