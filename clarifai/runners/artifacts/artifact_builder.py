@@ -266,7 +266,9 @@ class ArtifactBuilder(BaseClient):
         Returns:
             Generator of ArtifactVersion objects
         """
-        return ArtifactVersion.list(artifact_id=artifact_id, user_id=user_id, app_id=app_id, **kwargs)
+        return ArtifactVersion.list(
+            artifact_id=artifact_id, user_id=user_id, app_id=app_id, **kwargs
+        )
 
     def get_artifact_info(self, artifact_id: str, user_id: str, app_id: str, **kwargs):
         """Get artifact information.
@@ -283,7 +285,9 @@ class ArtifactBuilder(BaseClient):
         artifact = Artifact(artifact_id=artifact_id, user_id=user_id, app_id=app_id, **kwargs)
         return artifact.info()
 
-    def get_artifact_version_info(self, artifact_id: str, version_id: str, user_id: str, app_id: str, **kwargs):
+    def get_artifact_version_info(
+        self, artifact_id: str, version_id: str, user_id: str, app_id: str, **kwargs
+    ):
         """Get artifact version information.
 
         Args:
@@ -296,7 +300,13 @@ class ArtifactBuilder(BaseClient):
         Returns:
             Artifact version info dictionary
         """
-        version = ArtifactVersion(artifact_id=artifact_id, version_id=version_id, user_id=user_id, app_id=app_id, **kwargs)
+        version = ArtifactVersion(
+            artifact_id=artifact_id,
+            version_id=version_id,
+            user_id=user_id,
+            app_id=app_id,
+            **kwargs,
+        )
         return version.info()
 
     def delete_artifact(self, artifact_id: str, user_id: str, app_id: str, **kwargs):
@@ -314,7 +324,9 @@ class ArtifactBuilder(BaseClient):
         artifact = Artifact(artifact_id=artifact_id, user_id=user_id, app_id=app_id, **kwargs)
         return artifact.delete()
 
-    def delete_artifact_version(self, artifact_id: str, version_id: str, user_id: str, app_id: str, **kwargs):
+    def delete_artifact_version(
+        self, artifact_id: str, version_id: str, user_id: str, app_id: str, **kwargs
+    ):
         """Delete an artifact version.
 
         Args:
@@ -327,7 +339,13 @@ class ArtifactBuilder(BaseClient):
         Returns:
             Boolean indicating success
         """
-        version = ArtifactVersion(artifact_id=artifact_id, version_id=version_id, user_id=user_id, app_id=app_id, **kwargs)
+        version = ArtifactVersion(
+            artifact_id=artifact_id,
+            version_id=version_id,
+            user_id=user_id,
+            app_id=app_id,
+            **kwargs,
+        )
         return version.delete()
 
     def _get_client_params(self) -> Dict:

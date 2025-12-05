@@ -76,7 +76,7 @@ class TestArtifactCLI:
     def test_list_command_success(self, mock_validate):
         """Test successful list command."""
         mock_validate.return_value = None
-        
+
         # Set up mock context object
         mock_current = Mock()
         mock_current.to_grpc.return_value = {}
@@ -88,21 +88,23 @@ class TestArtifactCLI:
             mock_artifact1.artifact_id = 'artifact1'
             mock_artifact1.info.return_value = {
                 'user_id': 'test_user',
-                'app_id': 'test_app', 
-                'created_at': '2024-01-01'
+                'app_id': 'test_app',
+                'created_at': '2024-01-01',
             }
-            
+
             mock_artifact2 = Mock()
             mock_artifact2.artifact_id = 'artifact2'
             mock_artifact2.info.return_value = {
                 'user_id': 'test_user',
                 'app_id': 'test_app',
-                'created_at': '2024-01-01'
+                'created_at': '2024-01-01',
             }
-            
+
             mock_list.return_value = [mock_artifact1, mock_artifact2]
 
-            result = self.runner.invoke(artifact, ['list', 'users/test_user/apps/test_app'], obj=mock_obj)
+            result = self.runner.invoke(
+                artifact, ['list', 'users/test_user/apps/test_app'], obj=mock_obj
+            )
 
             assert result.exit_code == 0
             assert 'artifact1' in result.output

@@ -73,7 +73,7 @@ class TestArtifact:
             mock_auth_helper = Mock()
             mock_auth_helper.get_user_app_id_proto.return_value = Mock()
             artifact.auth_helper = mock_auth_helper
-            
+
             result = artifact.create(
                 artifact_id="new_artifact", user_id="test_user", app_id="test_app"
             )

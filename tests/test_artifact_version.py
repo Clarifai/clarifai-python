@@ -83,14 +83,16 @@ class TestArtifactVersion:
 
         with (
             patch('clarifai.client.base.BaseClient.__init__', return_value=None),
-            patch('clarifai.client.artifact_version.ArtifactVersion.auth_helper') as mock_auth_helper,
+            patch(
+                'clarifai.client.artifact_version.ArtifactVersion.auth_helper'
+            ) as mock_auth_helper,
         ):
             # Set up the mock stub and auth_helper
             mock_stub = Mock()
             mock_stub.PostArtifactVersionsUpload.return_value = [mock_response]
             mock_auth_helper.get_stub.return_value = mock_stub
             mock_auth_helper.metadata = {}
-            
+
             version = ArtifactVersion()
             version.auth_helper = mock_auth_helper
             result = version.create(
@@ -107,7 +109,7 @@ class TestArtifactVersion:
         version = self._create_mock_artifact_version()
 
         with pytest.raises(UserError, match="artifact_id is required"):
-                version.create(file_path="test.txt")
+            version.create(file_path="test.txt")
 
     @patch('os.path.exists')
     @patch('os.path.getsize')
@@ -123,14 +125,16 @@ class TestArtifactVersion:
 
         with (
             patch('clarifai.client.base.BaseClient.__init__', return_value=None),
-            patch('clarifai.client.artifact_version.ArtifactVersion.auth_helper') as mock_auth_helper,
+            patch(
+                'clarifai.client.artifact_version.ArtifactVersion.auth_helper'
+            ) as mock_auth_helper,
         ):
             # Set up the mock stub and auth_helper
             mock_stub = Mock()
             mock_stub.PostArtifactVersionsUpload.return_value = [mock_response]
             mock_auth_helper.get_stub.return_value = mock_stub
             mock_auth_helper.metadata = {}
-            
+
             version = ArtifactVersion()
             version.auth_helper = mock_auth_helper
             result = version.upload(
@@ -150,19 +154,19 @@ class TestArtifactVersion:
         version = self._create_mock_artifact_version()
 
         with pytest.raises(UserError, match="File does not exist"):
-                version.upload(
-                    file_path="nonexistent_file.txt",
-                    artifact_id="test_artifact",
-                    user_id="test_user",
-                    app_id="test_app",
-                )
+            version.upload(
+                file_path="nonexistent_file.txt",
+                artifact_id="test_artifact",
+                user_id="test_user",
+                app_id="test_app",
+            )
 
     def test_upload_missing_params(self):
         """Test upload with missing required parameters."""
         version = self._create_mock_artifact_version()
 
         with pytest.raises(UserError, match="artifact_id is required"):
-                version.upload(file_path="test.txt")
+            version.upload(file_path="test.txt")
 
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.makedirs')
@@ -207,7 +211,7 @@ class TestArtifactVersion:
         version = self._create_mock_artifact_version()
 
         with pytest.raises(UserError, match="artifact_id is required"):
-                version.download(output_path="test.txt")
+            version.download(output_path="test.txt")
 
     def test_delete_success(self):
         """Test successful artifact version deletion."""
@@ -242,7 +246,7 @@ class TestArtifactVersion:
         version = self._create_mock_artifact_version()
 
         with pytest.raises(UserError, match="artifact_id is required"):
-                version.delete()
+            version.delete()
 
     def test_info_success(self):
         """Test successful artifact version info retrieval."""
@@ -328,15 +332,15 @@ class TestArtifactVersionHelpers:
         version = self._create_mock_artifact_version()
 
         config = version._create_upload_config(
-                artifact_id="test_artifact",
-                description="Test description",
-                visibility="private",
-                expires_at=None,
-                version_id="test_version",
-                user_id="test_user",
-                app_id="test_app",
-                file_size=1024,
-            )
+            artifact_id="test_artifact",
+            description="Test description",
+            visibility="private",
+            expires_at=None,
+            version_id="test_version",
+            user_id="test_user",
+            app_id="test_app",
+            file_size=1024,
+        )
 
         assert config.artifact_id == "test_artifact"
         assert config.user_id == "test_user"
@@ -351,15 +355,15 @@ class TestArtifactVersionHelpers:
         version = self._create_mock_artifact_version()
 
         iterator = version._artifact_version_upload_iterator(
-                file_path="test_file.txt",
-                artifact_id="test_artifact",
-                description="Test description",
-                visibility="private",
-                expires_at=None,
-                version_id="test_version",
-                user_id="test_user",
-                app_id="test_app",
-            )
+            file_path="test_file.txt",
+            artifact_id="test_artifact",
+            description="Test description",
+            visibility="private",
+            expires_at=None,
+            version_id="test_version",
+            user_id="test_user",
+            app_id="test_app",
+        )
 
         chunks = list(iterator)
         assert len(chunks) >= 1  # At least the config chunk
@@ -367,7 +371,7 @@ class TestArtifactVersionHelpers:
 
 class TestArtifactVersionValidation:
     """Test input validation for ArtifactVersion."""
-    
+
     def _create_mock_artifact_version(self):
         """Helper method to create an ArtifactVersion with properly mocked dependencies."""
         with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
@@ -387,7 +391,7 @@ class TestArtifactVersionValidation:
 
         # Test various missing parameter scenarios
         with pytest.raises(UserError, match="artifact_id is required"):
-                version.create(file_path="test.txt")
+            version.create(file_path="test.txt")
 
         with pytest.raises(UserError, match="artifact_id is required"):
             version.upload(file_path="test.txt")
