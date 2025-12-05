@@ -573,7 +573,6 @@ class ModelBuilder:
         """
         Validate OpenAI streaming configuration for Clarifai models.
         """
-
         if self.download_validation_only:
             return
 
