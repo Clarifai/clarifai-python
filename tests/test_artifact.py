@@ -3,6 +3,7 @@
 from unittest.mock import Mock, patch
 
 import pytest
+from clarifai_grpc.grpc.api import resources_pb2
 
 from clarifai.client.artifact import Artifact
 from clarifai.errors import UserError
@@ -17,7 +18,9 @@ class TestArtifact:
             artifact = Artifact()
             # Mock the auth_helper attribute that would normally be set by BaseClient.__init__
             mock_auth_helper = Mock()
-            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
             mock_auth_helper.user_id = "mock_user"
             artifact.auth_helper = mock_auth_helper
             return artifact
@@ -77,7 +80,9 @@ class TestArtifact:
             artifact = Artifact()
             # Mock the auth_helper attribute that would normally be set by BaseClient.__init__
             mock_auth_helper = Mock()
-            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
             artifact.auth_helper = mock_auth_helper
 
             result = artifact.create(
@@ -115,7 +120,9 @@ class TestArtifact:
             artifact = Artifact()
             # Mock the auth_helper attribute
             mock_auth_helper = Mock()
-            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
             artifact.auth_helper = mock_auth_helper
 
             result = artifact.delete(
@@ -148,7 +155,9 @@ class TestArtifact:
             artifact = Artifact()
             # Mock the auth_helper attribute
             mock_auth_helper = Mock()
-            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
             artifact.auth_helper = mock_auth_helper
 
             info = artifact.info(
@@ -180,7 +189,9 @@ class TestArtifact:
             # Create a mock BaseClient instance for the static method
             mock_base_client = Mock()
             mock_auth_helper = Mock()
-            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
             mock_base_client.auth_helper = mock_auth_helper
             mock_base_client._grpc_request = mock_grpc_request
             mock_base_client_class.return_value = mock_base_client
@@ -214,7 +225,9 @@ class TestArtifact:
             artifact = Artifact()
             # Mock the auth_helper attribute
             mock_auth_helper = Mock()
-            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
             artifact.auth_helper = mock_auth_helper
 
             exists = artifact.exists(
@@ -234,7 +247,9 @@ class TestArtifact:
             artifact = Artifact()
             # Mock the auth_helper attribute
             mock_auth_helper = Mock()
-            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
             artifact.auth_helper = mock_auth_helper
 
             exists = artifact.exists(

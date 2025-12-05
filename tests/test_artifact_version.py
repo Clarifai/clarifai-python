@@ -3,6 +3,7 @@
 from unittest.mock import Mock, mock_open, patch
 
 import pytest
+from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf import timestamp_pb2
 
 from clarifai.client.artifact_version import ArtifactVersion
@@ -19,7 +20,9 @@ class TestArtifactVersion:
             version = ArtifactVersion()
             # Mock the auth_helper attribute that would normally be set by BaseClient.__init__
             mock_auth_helper = Mock()
-            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
             mock_auth_helper.user_id = "mock_user"
             mock_auth_helper.get_stub.return_value = Mock()
             mock_auth_helper.metadata = {}
@@ -197,7 +200,9 @@ class TestArtifactVersion:
             )
             # Mock the auth_helper attribute
             mock_auth_helper = Mock()
-            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
             version.auth_helper = mock_auth_helper
 
             result = version.download(output_path="test_download.txt")
@@ -232,7 +237,9 @@ class TestArtifactVersion:
             )
             # Mock the auth_helper attribute
             mock_auth_helper = Mock()
-            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
             version.auth_helper = mock_auth_helper
 
             result = version.delete()
@@ -325,7 +332,9 @@ class TestArtifactVersionHelpers:
             version = ArtifactVersion()
             # Mock the auth_helper attribute that would normally be set by BaseClient.__init__
             mock_auth_helper = Mock()
-            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
             mock_auth_helper.user_id = "mock_user"
             mock_auth_helper.get_stub.return_value = Mock()
             mock_auth_helper.metadata = {}
@@ -391,7 +400,9 @@ class TestArtifactVersionValidation:
             version = ArtifactVersion()
             # Mock the auth_helper attribute that would normally be set by BaseClient.__init__
             mock_auth_helper = Mock()
-            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
             mock_auth_helper.user_id = "mock_user"
             mock_auth_helper.get_stub.return_value = Mock()
             mock_auth_helper.metadata = {}

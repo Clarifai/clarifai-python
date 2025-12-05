@@ -122,20 +122,16 @@ class TestArtifactCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_list_command_missing_params(self, mock_validate):
         """Test list command with missing required parameters."""
-        mock_validate.return_value = None
+        mock_obj = self._setup_context_mock(mock_validate)
 
-        mock_obj = self._create_mock_context()
-
-        result = self.runner.invoke(artifact, ['list'], obj=mock_obj)
+        result = self.runner.invoke(artifact, ['list'])
         assert result.exit_code != 0
         assert "user_id and app_id are required" in result.output
 
     @patch('clarifai.cli.artifact.validate_context')
     def test_list_versions_command(self, mock_validate):
         """Test list versions command."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -148,7 +144,6 @@ class TestArtifactCLI:
             result = self.runner.invoke(
                 artifact,
                 ['list', 'users/test_user/apps/test_app/artifacts/test_artifact', '--versions'],
-                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -156,9 +151,7 @@ class TestArtifactCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_get_command_success(self, mock_validate):
         """Test successful get command."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -172,7 +165,6 @@ class TestArtifactCLI:
             result = self.runner.invoke(
                 artifact,
                 ['get', 'users/test_user/apps/test_app/artifacts/test_artifact'],
-                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -181,19 +173,15 @@ class TestArtifactCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_get_command_missing_params(self, mock_validate):
         """Test get command with missing required parameters."""
-        mock_validate.return_value = None
+        mock_obj = self._setup_context_mock(mock_validate)
 
-        mock_obj = self._create_mock_context()
-
-        result = self.runner.invoke(artifact, ['get', 'incomplete/path'], obj=mock_obj)
+        result = self.runner.invoke(artifact, ['get', 'incomplete/path'])
         assert result.exit_code != 0
 
     @patch('clarifai.cli.artifact.validate_context')
     def test_delete_command_success(self, mock_validate):
         """Test successful delete command."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -205,7 +193,6 @@ class TestArtifactCLI:
                 artifact,
                 ['delete', 'users/test_user/apps/test_app/artifacts/test_artifact'],
                 input='y\n',
-                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -213,15 +200,12 @@ class TestArtifactCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_delete_command_cancel(self, mock_validate):
         """Test delete command with user cancellation."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         result = self.runner.invoke(
             artifact,
             ['delete', 'users/test_user/apps/test_app/artifacts/test_artifact'],
             input='n\n',
-            obj=mock_obj,
         )
 
         assert result.exit_code == 0
@@ -231,10 +215,8 @@ class TestArtifactCLI:
     @patch('os.path.exists')
     def test_cp_command_upload_success(self, mock_exists, mock_validate):
         """Test successful upload via cp command."""
-        mock_validate.return_value = None
+        mock_obj = self._setup_context_mock(mock_validate)
         mock_exists.return_value = True
-
-        mock_obj = self._create_mock_context()
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -244,7 +226,6 @@ class TestArtifactCLI:
             result = self.runner.invoke(
                 artifact,
                 ['cp', './test_file.txt', 'users/test_user/apps/test_app/artifacts/test_artifact'],
-                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -252,9 +233,7 @@ class TestArtifactCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_cp_command_download_success(self, mock_validate):
         """Test successful download via cp command."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -268,7 +247,6 @@ class TestArtifactCLI:
                     'users/test_user/apps/test_app/artifacts/test_artifact',
                     './downloaded_file.txt',
                 ],
-                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -276,12 +254,10 @@ class TestArtifactCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_cp_command_invalid_paths(self, mock_validate):
         """Test cp command with invalid path combinations."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         # Both paths are local
-        result = self.runner.invoke(artifact, ['cp', './local1.txt', './local2.txt'], obj=mock_obj)
+        result = self.runner.invoke(artifact, ['cp', './local1.txt', './local2.txt'])
         assert result.exit_code != 0
         assert (
             "One of source or destination must be a local path and the other an artifact path"
@@ -290,9 +266,7 @@ class TestArtifactCLI:
 
         # Both paths are remote
         result = self.runner.invoke(
-            artifact,
-            ['cp', 'users/u1/apps/a1/artifacts/art1', 'users/u2/apps/a2/artifacts/art2'],
-            obj=mock_obj,
+            artifact, ['cp', 'users/u1/apps/a1/artifacts/art1', 'users/u2/apps/a2/artifacts/art2']
         )
         assert result.exit_code != 0
         assert (
@@ -304,10 +278,8 @@ class TestArtifactCLI:
     @patch('os.path.exists')
     def test_cp_command_missing_file(self, mock_exists, mock_validate):
         """Test cp command with missing local file."""
-        mock_validate.return_value = None
+        mock_obj = self._setup_context_mock(mock_validate)
         mock_exists.return_value = False
-
-        mock_obj = self._create_mock_context()
 
         result = self.runner.invoke(
             artifact,
@@ -316,7 +288,6 @@ class TestArtifactCLI:
                 './nonexistent_file.txt',
                 'users/test_user/apps/test_app/artifacts/test_artifact',
             ],
-            obj=mock_obj,
         )
 
         assert result.exit_code != 0
@@ -364,9 +335,7 @@ class TestArtifactCLIIntegration:
     @patch('clarifai.cli.artifact.validate_context')
     def test_full_workflow_simulation(self, mock_validate):
         """Test simulated full workflow - list, get, delete."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -378,9 +347,7 @@ class TestArtifactCLIIntegration:
             ]
 
             # Test list
-            result = self.runner.invoke(
-                artifact, ['list', 'users/test_user/apps/test_app'], obj=mock_obj
-            )
+            result = self.runner.invoke(artifact, ['list', 'users/test_user/apps/test_app'])
             assert result.exit_code == 0
 
             # Mock get response
@@ -392,9 +359,7 @@ class TestArtifactCLIIntegration:
 
             # Test get
             result = self.runner.invoke(
-                artifact,
-                ['get', 'users/test_user/apps/test_app/artifacts/test_artifact'],
-                obj=mock_obj,
+                artifact, ['get', 'users/test_user/apps/test_app/artifacts/test_artifact']
             )
             assert result.exit_code == 0
 
@@ -406,16 +371,13 @@ class TestArtifactCLIIntegration:
                 artifact,
                 ['delete', 'users/test_user/apps/test_app/artifacts/test_artifact'],
                 input='y\n',
-                obj=mock_obj,
             )
             assert result.exit_code == 0
 
     @patch('clarifai.cli.artifact.validate_context')
     def test_error_handling(self, mock_validate):
         """Test CLI error handling."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -425,9 +387,7 @@ class TestArtifactCLIIntegration:
             mock_instance.get_artifact_info.side_effect = UserError("Artifact not found")
 
             result = self.runner.invoke(
-                artifact,
-                ['get', 'users/test_user/apps/test_app/artifacts/nonexistent'],
-                obj=mock_obj,
+                artifact, ['get', 'users/test_user/apps/test_app/artifacts/nonexistent']
             )
 
             assert result.exit_code != 0

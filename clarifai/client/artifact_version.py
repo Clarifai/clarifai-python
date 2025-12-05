@@ -41,7 +41,9 @@ class ArtifactVersion(BaseClient):
         super().__init__(**kwargs)
         self.artifact_id = artifact_id
         self.version_id = version_id
-        self.user_id = user_id or self.auth_helper.user_id
+        self.user_id = user_id or (
+            getattr(self.auth_helper, 'user_id', "") if hasattr(self, 'auth_helper') else ""
+        )
         self.app_id = app_id
 
     @property
