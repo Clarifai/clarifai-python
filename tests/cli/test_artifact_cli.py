@@ -142,7 +142,7 @@ class TestArtifactCLI:
             result = self.runner.invoke(
                 artifact,
                 ['list', 'users/test_user/apps/test_app/artifacts/test_artifact', '--versions'],
-                obj=mock_obj
+                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -164,7 +164,9 @@ class TestArtifactCLI:
             }
 
             result = self.runner.invoke(
-                artifact, ['get', 'users/test_user/apps/test_app/artifacts/test_artifact'], obj=mock_obj
+                artifact,
+                ['get', 'users/test_user/apps/test_app/artifacts/test_artifact'],
+                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -197,7 +199,7 @@ class TestArtifactCLI:
                 artifact,
                 ['delete', 'users/test_user/apps/test_app/artifacts/test_artifact'],
                 input='y\n',
-                obj=mock_obj
+                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -213,7 +215,7 @@ class TestArtifactCLI:
             artifact,
             ['delete', 'users/test_user/apps/test_app/artifacts/test_artifact'],
             input='n\n',
-            obj=mock_obj
+            obj=mock_obj,
         )
 
         assert result.exit_code == 0
@@ -236,7 +238,7 @@ class TestArtifactCLI:
             result = self.runner.invoke(
                 artifact,
                 ['cp', './test_file.txt', 'users/test_user/apps/test_app/artifacts/test_artifact'],
-                obj=mock_obj
+                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -260,7 +262,7 @@ class TestArtifactCLI:
                     'users/test_user/apps/test_app/artifacts/test_artifact',
                     './downloaded_file.txt',
                 ],
-                obj=mock_obj
+                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -282,7 +284,9 @@ class TestArtifactCLI:
 
         # Both paths are remote
         result = self.runner.invoke(
-            artifact, ['cp', 'users/u1/apps/a1/artifacts/art1', 'users/u2/apps/a2/artifacts/art2'], obj=mock_obj
+            artifact,
+            ['cp', 'users/u1/apps/a1/artifacts/art1', 'users/u2/apps/a2/artifacts/art2'],
+            obj=mock_obj,
         )
         assert result.exit_code != 0
         assert (
@@ -306,7 +310,7 @@ class TestArtifactCLI:
                 './nonexistent_file.txt',
                 'users/test_user/apps/test_app/artifacts/test_artifact',
             ],
-            obj=mock_obj
+            obj=mock_obj,
         )
 
         assert result.exit_code != 0
@@ -358,7 +362,9 @@ class TestArtifactCLIIntegration:
             ]
 
             # Test list
-            result = self.runner.invoke(artifact, ['list', 'users/test_user/apps/test_app'], obj=mock_obj)
+            result = self.runner.invoke(
+                artifact, ['list', 'users/test_user/apps/test_app'], obj=mock_obj
+            )
             assert result.exit_code == 0
 
             # Mock get response
@@ -370,7 +376,9 @@ class TestArtifactCLIIntegration:
 
             # Test get
             result = self.runner.invoke(
-                artifact, ['get', 'users/test_user/apps/test_app/artifacts/test_artifact'], obj=mock_obj
+                artifact,
+                ['get', 'users/test_user/apps/test_app/artifacts/test_artifact'],
+                obj=mock_obj,
             )
             assert result.exit_code == 0
 
@@ -382,7 +390,7 @@ class TestArtifactCLIIntegration:
                 artifact,
                 ['delete', 'users/test_user/apps/test_app/artifacts/test_artifact'],
                 input='y\n',
-                obj=mock_obj
+                obj=mock_obj,
             )
             assert result.exit_code == 0
 
@@ -401,7 +409,9 @@ class TestArtifactCLIIntegration:
             mock_instance.get_artifact_info.side_effect = UserError("Artifact not found")
 
             result = self.runner.invoke(
-                artifact, ['get', 'users/test_user/apps/test_app/artifacts/nonexistent'], obj=mock_obj
+                artifact,
+                ['get', 'users/test_user/apps/test_app/artifacts/nonexistent'],
+                obj=mock_obj,
             )
 
             assert result.exit_code != 0

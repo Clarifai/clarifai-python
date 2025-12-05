@@ -337,7 +337,9 @@ class TestConvenienceFunctions:
     """Test convenience functions for artifact operations."""
 
     @patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder.upload_from_path')
-    @patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder.__init__', return_value=None)
+    @patch(
+        'clarifai.runners.artifacts.artifact_builder.ArtifactBuilder.__init__', return_value=None
+    )
     def test_upload_artifact_convenience(self, mock_init, mock_upload):
         """Test upload_artifact convenience function."""
         mock_upload.return_value = Mock(id="new_version")
@@ -351,7 +353,9 @@ class TestConvenienceFunctions:
         mock_upload.assert_called_once()
 
     @patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder.download_from_path')
-    @patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder.__init__', return_value=None)
+    @patch(
+        'clarifai.runners.artifacts.artifact_builder.ArtifactBuilder.__init__', return_value=None
+    )
     def test_download_artifact_convenience(self, mock_init, mock_download):
         """Test download_artifact convenience function."""
         mock_download.return_value = "./downloaded_file.txt"
