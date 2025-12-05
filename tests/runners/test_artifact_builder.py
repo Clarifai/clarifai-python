@@ -1,6 +1,6 @@
 """Test file for artifact builder functionality."""
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
 
@@ -338,9 +338,13 @@ class TestConvenienceFunctions:
 
     @patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder.upload_from_path')
     @patch(
+        'clarifai.runners.artifacts.artifact_builder.ArtifactBuilder.pat',
+        new_callable=PropertyMock,
+    )
+    @patch(
         'clarifai.runners.artifacts.artifact_builder.ArtifactBuilder.__init__', return_value=None
     )
-    def test_upload_artifact_convenience(self, mock_init, mock_upload):
+    def test_upload_artifact_convenience(self, mock_init, mock_pat, mock_upload):
         """Test upload_artifact convenience function."""
         mock_upload.return_value = Mock(id="new_version")
 
@@ -354,9 +358,13 @@ class TestConvenienceFunctions:
 
     @patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder.download_from_path')
     @patch(
+        'clarifai.runners.artifacts.artifact_builder.ArtifactBuilder.pat',
+        new_callable=PropertyMock,
+    )
+    @patch(
         'clarifai.runners.artifacts.artifact_builder.ArtifactBuilder.__init__', return_value=None
     )
-    def test_download_artifact_convenience(self, mock_init, mock_download):
+    def test_download_artifact_convenience(self, mock_init, mock_pat, mock_download):
         """Test download_artifact convenience function."""
         mock_download.return_value = "./downloaded_file.txt"
 

@@ -80,12 +80,20 @@ class TestArtifactCLI:
         mock_obj.current = mock_current
         return mock_obj
 
+    def _setup_context_mock(self, mock_validate):
+        """Setup context mock to properly set ctx.obj."""
+        mock_obj = self._create_mock_context()
+
+        def setup_context(ctx):
+            ctx.obj = mock_obj
+
+        mock_validate.side_effect = setup_context
+        return mock_obj
+
     @patch('clarifai.cli.artifact.validate_context')
     def test_list_command_success(self, mock_validate):
         """Test successful list command."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         with patch('clarifai.client.artifact.Artifact.list') as mock_list:
             mock_artifact1 = Mock()
@@ -106,9 +114,7 @@ class TestArtifactCLI:
 
             mock_list.return_value = [mock_artifact1, mock_artifact2]
 
-            result = self.runner.invoke(
-                artifact, ['list', 'users/test_user/apps/test_app'], obj=mock_obj
-            )
+            result = self.runner.invoke(artifact, ['list', 'users/test_user/apps/test_app'])
 
             assert result.exit_code == 0
             assert 'artifact1' in result.output
@@ -343,6 +349,16 @@ class TestArtifactCLIIntegration:
         mock_current.to_grpc.return_value = {}
         mock_obj = Mock()
         mock_obj.current = mock_current
+        return mock_obj
+
+    def _setup_context_mock(self, mock_validate):
+        """Setup context mock to properly set ctx.obj."""
+        mock_obj = self._create_mock_context()
+
+        def setup_context(ctx):
+            ctx.obj = mock_obj
+
+        mock_validate.side_effect = setup_context
         return mock_obj
 
     @patch('clarifai.cli.artifact.validate_context')

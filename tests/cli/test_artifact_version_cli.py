@@ -24,12 +24,20 @@ class TestArtifactVersionCLI:
         mock_obj.current = mock_current
         return mock_obj
 
+    def _setup_context_mock(self, mock_validate):
+        """Setup context mock to properly set ctx.obj."""
+        mock_obj = self._create_mock_context()
+
+        def setup_context(ctx):
+            ctx.obj = mock_obj
+
+        mock_validate.side_effect = setup_context
+        return mock_obj
+
     @patch('clarifai.cli.artifact.validate_context')
     def test_list_versions_command_success(self, mock_validate):
         """Test successful list versions command."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -52,7 +60,6 @@ class TestArtifactVersionCLI:
             result = self.runner.invoke(
                 artifact,
                 ['list', 'users/test_user/apps/test_app/artifacts/test_artifact', '--versions'],
-                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -62,9 +69,7 @@ class TestArtifactVersionCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_get_version_command_success(self, mock_validate):
         """Test successful get version command."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -83,7 +88,6 @@ class TestArtifactVersionCLI:
                     'get',
                     'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version',
                 ],
-                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -93,9 +97,7 @@ class TestArtifactVersionCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_delete_version_command_success(self, mock_validate):
         """Test successful delete version command."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -109,7 +111,6 @@ class TestArtifactVersionCLI:
                     'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version',
                 ],
                 input='y\n',
-                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -117,9 +118,7 @@ class TestArtifactVersionCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_delete_version_command_cancel(self, mock_validate):
         """Test delete version command with user cancellation."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         result = self.runner.invoke(
             artifact,
@@ -128,7 +127,6 @@ class TestArtifactVersionCLI:
                 'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version',
             ],
             input='n\n',
-            obj=mock_obj,
         )
 
         assert result.exit_code == 0
@@ -138,10 +136,8 @@ class TestArtifactVersionCLI:
     @patch('os.path.exists')
     def test_cp_upload_to_version_success(self, mock_exists, mock_validate):
         """Test successful upload to specific version via cp command."""
-        mock_validate.return_value = None
+        mock_obj = self._setup_context_mock(mock_validate)
         mock_exists.return_value = True
-
-        mock_obj = self._create_mock_context()
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -157,7 +153,6 @@ class TestArtifactVersionCLI:
                     '--description',
                     'New version upload',
                 ],
-                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -165,9 +160,7 @@ class TestArtifactVersionCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_cp_download_specific_version_success(self, mock_validate):
         """Test successful download of specific version via cp command."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -181,7 +174,6 @@ class TestArtifactVersionCLI:
                     'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version',
                     './downloaded_version.txt',
                 ],
-                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -189,15 +181,12 @@ class TestArtifactVersionCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_invalid_version_path_handling(self, mock_validate):
         """Test handling of invalid version paths."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         # Test invalid version path format
         result = self.runner.invoke(
             artifact,
             ['get', 'users/test_user/apps/test_app/artifacts/test_artifact/invalid_versions_path'],
-            obj=mock_obj,
         )
 
         assert result.exit_code != 0
@@ -205,9 +194,7 @@ class TestArtifactVersionCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_version_error_handling(self, mock_validate):
         """Test version-specific error handling."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -222,7 +209,6 @@ class TestArtifactVersionCLI:
                     'get',
                     'users/test_user/apps/test_app/artifacts/test_artifact/versions/nonexistent',
                 ],
-                obj=mock_obj,
             )
 
             assert result.exit_code != 0
@@ -244,12 +230,20 @@ class TestArtifactVersionCLIEdgeCases:
         mock_obj.current.to_grpc.return_value = Mock()
         return mock_obj
 
+    def _setup_context_mock(self, mock_validate):
+        """Setup context mock to properly set ctx.obj."""
+        mock_obj = self._create_mock_context()
+
+        def setup_context(ctx):
+            ctx.obj = mock_obj
+
+        mock_validate.side_effect = setup_context
+        return mock_obj
+
     @patch('clarifai.cli.artifact.validate_context')
     def test_list_versions_empty_result(self, mock_validate):
         """Test list versions with empty result."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -259,7 +253,6 @@ class TestArtifactVersionCLIEdgeCases:
             result = self.runner.invoke(
                 artifact,
                 ['list', 'users/test_user/apps/test_app/artifacts/test_artifact', '--versions'],
-                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -268,15 +261,12 @@ class TestArtifactVersionCLIEdgeCases:
     @patch('clarifai.cli.artifact.validate_context')
     def test_get_version_missing_version_id(self, mock_validate):
         """Test get command with missing version ID in path."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         # Path that ends with '/versions/' but no version ID
         result = self.runner.invoke(
             artifact,
             ['get', 'users/test_user/apps/test_app/artifacts/test_artifact/versions/'],
-            obj=mock_obj,
         )
 
         assert result.exit_code != 0
@@ -285,10 +275,8 @@ class TestArtifactVersionCLIEdgeCases:
     @patch('os.path.exists')
     def test_upload_large_file_simulation(self, mock_exists, mock_validate):
         """Test upload simulation for large files."""
-        mock_validate.return_value = None
+        mock_obj = self._setup_context_mock(mock_validate)
         mock_exists.return_value = True
-
-        mock_obj = self._create_mock_context()
 
         with (
             patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder,
@@ -308,7 +296,6 @@ class TestArtifactVersionCLIEdgeCases:
                     './large_file.txt',
                     'users/test_user/apps/test_app/artifacts/test_artifact',
                 ],
-                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -316,9 +303,7 @@ class TestArtifactVersionCLIEdgeCases:
     @patch('clarifai.cli.artifact.validate_context')
     def test_download_to_existing_file_no_overwrite(self, mock_validate):
         """Test download when target file exists and overwrite not forced."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         with (
             patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder,
@@ -339,7 +324,6 @@ class TestArtifactVersionCLIEdgeCases:
                     'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version',
                     './existing_file.txt',
                 ],
-                obj=mock_obj,
             )
 
             assert result.exit_code != 0
@@ -349,9 +333,7 @@ class TestArtifactVersionCLIEdgeCases:
     @patch('clarifai.cli.artifact.validate_context')
     def test_version_commands_with_special_characters(self, mock_validate):
         """Test version commands with special characters in IDs."""
-        mock_validate.return_value = None
-
-        mock_obj = self._create_mock_context()
+        mock_obj = self._setup_context_mock(mock_validate)
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -369,7 +351,6 @@ class TestArtifactVersionCLIEdgeCases:
                     'get',
                     'users/test_user/apps/test_app/artifacts/my-model-v2/versions/v1.0.0-alpha.1',
                 ],
-                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -390,14 +371,22 @@ class TestArtifactVersionCLIIntegration:
         mock_obj.current.to_grpc.return_value = Mock()
         return mock_obj
 
+    def _setup_context_mock(self, mock_validate):
+        """Setup context mock to properly set ctx.obj."""
+        mock_obj = self._create_mock_context()
+
+        def setup_context(ctx):
+            ctx.obj = mock_obj
+
+        mock_validate.side_effect = setup_context
+        return mock_obj
+
     @patch('clarifai.cli.artifact.validate_context')
     @patch('os.path.exists')
     def test_complete_version_lifecycle(self, mock_exists, mock_validate):
         """Test complete version lifecycle - upload, list, get, delete."""
-        mock_validate.return_value = None
+        mock_obj = self._setup_context_mock(mock_validate)
         mock_exists.return_value = True
-
-        mock_obj = self._create_mock_context()
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -408,7 +397,6 @@ class TestArtifactVersionCLIIntegration:
             result = self.runner.invoke(
                 artifact,
                 ['cp', './test_file.txt', 'users/test_user/apps/test_app/artifacts/test_artifact'],
-                obj=mock_obj,
             )
             assert result.exit_code == 0
 
@@ -419,7 +407,6 @@ class TestArtifactVersionCLIIntegration:
             result = self.runner.invoke(
                 artifact,
                 ['list', 'users/test_user/apps/test_app/artifacts/test_artifact', '--versions'],
-                obj=mock_obj,
             )
             assert result.exit_code == 0
 
@@ -435,7 +422,6 @@ class TestArtifactVersionCLIIntegration:
                     'get',
                     'users/test_user/apps/test_app/artifacts/test_artifact/versions/new_version',
                 ],
-                obj=mock_obj,
             )
             assert result.exit_code == 0
 
@@ -448,7 +434,6 @@ class TestArtifactVersionCLIIntegration:
                     'users/test_user/apps/test_app/artifacts/test_artifact/versions/new_version',
                 ],
                 input='y\n',
-                obj=mock_obj,
             )
             assert result.exit_code == 0
 
