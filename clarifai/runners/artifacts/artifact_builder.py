@@ -16,6 +16,17 @@ from clarifai.errors import UserError
 from clarifai.utils.logging import logger
 
 
+def is_local_path(path: str) -> bool:
+    """Check if a path refers to a local file/directory."""
+    # Check for URL schemes
+    if path.startswith(('http://', 'https://', 'ftp://', 'ftps://')):
+        return False
+    # Check for artifact paths
+    if path.startswith('users/'):
+        return False
+    return True
+
+
 def parse_artifact_path(path: str) -> Dict[str, Optional[str]]:
     """Parse an artifact path like users/<user-id>/apps/<app-id>/artifacts/<artifact-id>[/versions/<version-id>]
 
@@ -94,6 +105,11 @@ class ArtifactBuilder(BaseClient):
     def pat(self) -> str:
         """Get the personal access token from auth_helper."""
         return self.auth_helper.pat
+    
+    @pat.setter
+    def pat(self, value: str):
+        """Set the personal access token."""
+        self.auth_helper.pat = value
 
     def upload_from_path(
         self,
@@ -130,6 +146,12 @@ class ArtifactBuilder(BaseClient):
             raise UserError("source_path is required")
         if not destination_path:
             raise UserError("destination_path is required")
+
+        # Validate paths
+        if not is_local_path(source_path):
+            raise UserError("source_path must be a local path")
+        if is_local_path(destination_path):
+            raise UserError("destination_path must be an artifact path")
 
         if not os.path.exists(source_path):
             raise UserError(f"Source file does not exist: {source_path}")
@@ -197,6 +219,12 @@ class ArtifactBuilder(BaseClient):
             raise UserError("source_path is required")
         if not destination_path:
             raise UserError("destination_path is required")
+
+        # Validate paths
+        if is_local_path(source_path):
+            raise UserError("source_path must be an artifact path")
+        if not is_local_path(destination_path):
+            raise UserError("destination_path must be a local path")
 
         # Parse source path
         parsed = parse_artifact_path(source_path)
@@ -352,7 +380,7 @@ class ArtifactBuilder(BaseClient):
         """Get the client parameters for creating new instances."""
         return {
             "pat": self.pat,
-            "base_url": self.base_url,
+            "base": self.base,
         }
 
 

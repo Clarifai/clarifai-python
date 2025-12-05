@@ -24,12 +24,13 @@ class TestArtifact:
 
     def test_init(self):
         """Test artifact initialization."""
-        artifact = Artifact(artifact_id="test_artifact", user_id="test_user", app_id="test_app")
+        with patch('clarifai.client.base.BaseClient.__init__'):
+            artifact = Artifact(artifact_id="test_artifact", user_id="test_user", app_id="test_app")
 
-        assert artifact.artifact_id == "test_artifact"
-        assert artifact.user_id == "test_user"
-        assert artifact.app_id == "test_app"
-        assert artifact.id == "test_artifact"
+            assert artifact.artifact_id == "test_artifact"
+            assert artifact.user_id == "test_user"
+            assert artifact.app_id == "test_app"
+            assert artifact.id == "test_artifact"
 
     def test_init_with_kwargs(self):
         """Test artifact initialization with kwargs."""
@@ -44,12 +45,13 @@ class TestArtifact:
 
     def test_repr(self):
         """Test artifact string representation."""
-        artifact = Artifact(artifact_id="test_artifact", user_id="test_user", app_id="test_app")
+        with patch('clarifai.client.base.BaseClient.__init__'):
+            artifact = Artifact(artifact_id="test_artifact", user_id="test_user", app_id="test_app")
 
-        repr_str = repr(artifact)
-        assert "test_artifact" in repr_str
-        assert "test_user" in repr_str
-        assert "test_app" in repr_str
+            repr_str = repr(artifact)
+            assert "test_artifact" in repr_str
+            assert "test_user" in repr_str
+            assert "test_app" in repr_str
 
     def test_create_success(self):
         """Test successful artifact creation."""

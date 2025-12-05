@@ -194,6 +194,7 @@ class TestArtifactVersionCLI:
             )
 
             assert result.exit_code != 0
+            assert "Error getting artifact information:" in result.output
             assert "Version not found" in result.output
 
 
@@ -290,6 +291,7 @@ class TestArtifactVersionCLIEdgeCases:
             )
 
             assert result.exit_code != 0
+            assert "Error downloading file:" in result.output
             assert "File already exists" in result.output
 
     @patch('clarifai.cli.artifact.validate_context')

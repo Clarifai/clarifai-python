@@ -34,6 +34,8 @@ def status_is_retryable(status_code: int) -> bool:
 
 def format_bytes(size: int) -> str:
     """Format byte size in human readable format."""
+    if size == 0:
+        return "0 B"
     for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
         if size < 1024.0:
             return f"{size:.1f} {unit}"

@@ -128,7 +128,7 @@ class TestArtifactBuilder:
         """Test upload from path with missing source file."""
         mock_exists.return_value = False
 
-        with pytest.raises(UserError, match="File does not exist"):
+        with pytest.raises(UserError, match="Source file does not exist"):
             self.builder.upload_from_path(
                 source_path="./nonexistent_file.txt",
                 destination_path="users/u123/apps/a456/artifacts/my_artifact",
@@ -213,8 +213,8 @@ class TestArtifactBuilder:
 
         artifacts = list(result)
         assert len(artifacts) == 2
-        assert artifacts[0]['id'] == "artifact1"
-        assert artifacts[1]['id'] == "artifact2"
+        assert artifacts[0].id == "artifact1"
+        assert artifacts[1].id == "artifact2"
 
     @patch('clarifai.client.artifact_version.ArtifactVersion.list')
     def test_list_artifact_versions(self, mock_list):
@@ -236,17 +236,16 @@ class TestArtifactBuilder:
 
         versions = list(result)
         assert len(versions) == 2
-        assert versions[0]['id'] == "version1"
-        assert versions[1]['id'] == "version2"
+        assert versions[0].id == "version1"
+        assert versions[1].id == "version2"
 
     @patch('clarifai.client.artifact.Artifact.info')
     def test_get_artifact_info(self, mock_info):
         """Test getting artifact info."""
-        mock_artifact = Mock()
-        mock_artifact.id = "test_artifact"
-        mock_artifact.description = "Test description"
-
-        mock_info.return_value = mock_artifact
+        mock_info.return_value = {
+            'id': "test_artifact",
+            'description': "Test description"
+        }
 
         result = self.builder.get_artifact_info(
             artifact_id="test_artifact", user_id="u123", app_id="a456"
@@ -258,11 +257,10 @@ class TestArtifactBuilder:
     @patch('clarifai.client.artifact_version.ArtifactVersion.info')
     def test_get_artifact_version_info(self, mock_info):
         """Test getting artifact version info."""
-        mock_version = Mock()
-        mock_version.id = "test_version"
-        mock_version.artifact_id = "test_artifact"
-
-        mock_info.return_value = mock_version
+        mock_info.return_value = {
+            'id': "test_version",
+            'artifact_id': "test_artifact"
+        }
 
         result = self.builder.get_artifact_version_info(
             artifact_id="test_artifact", version_id="test_version", user_id="u123", app_id="a456"

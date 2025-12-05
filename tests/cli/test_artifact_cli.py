@@ -248,14 +248,14 @@ class TestArtifactCLI:
         # Both paths are local
         result = self.runner.invoke(artifact, ['cp', './local1.txt', './local2.txt'])
         assert result.exit_code != 0
-        assert "One of source or destination must be a local path" in result.output
+        assert "One of source or destination must be a local path and the other an artifact path" in result.output
 
         # Both paths are remote
         result = self.runner.invoke(
             artifact, ['cp', 'users/u1/apps/a1/artifacts/art1', 'users/u2/apps/a2/artifacts/art2']
         )
         assert result.exit_code != 0
-        assert "One of source or destination must be a local path" in result.output
+        assert "One of source or destination must be a local path and the other an artifact path" in result.output
 
     @patch('clarifai.cli.artifact.validate_context')
     @patch('os.path.exists')
@@ -274,7 +274,8 @@ class TestArtifactCLI:
         )
 
         assert result.exit_code != 0
-        assert "File does not exist" in result.output
+        assert "Error uploading file:" in result.output
+        assert "Source file does not exist" in result.output
 
     def test_artifact_alias_commands(self):
         """Test artifact CLI aliases work correctly."""
@@ -355,6 +356,7 @@ class TestArtifactCLIIntegration:
             )
 
             assert result.exit_code != 0
+            assert "Error getting artifact information:" in result.output
             assert "Artifact not found" in result.output
 
 

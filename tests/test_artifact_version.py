@@ -319,6 +319,19 @@ class TestArtifactVersion:
 class TestArtifactVersionHelpers:
     """Test helper functions for ArtifactVersion."""
 
+    def _create_mock_artifact_version(self):
+        """Helper method to create an ArtifactVersion with properly mocked dependencies."""
+        with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
+            version = ArtifactVersion()
+            # Mock the auth_helper attribute that would normally be set by BaseClient.__init__
+            mock_auth_helper = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = Mock()
+            mock_auth_helper.user_id = "mock_user"
+            mock_auth_helper.get_stub.return_value = Mock()
+            mock_auth_helper.metadata = {}
+            version.auth_helper = mock_auth_helper
+            return version
+
     def test_format_bytes(self):
         """Test byte formatting function."""
         assert format_bytes(1024) == "1.0 KB"
