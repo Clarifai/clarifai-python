@@ -300,6 +300,11 @@ class TestArtifactBuilderErrorHandling:
         """Setup for each test method."""
         with patch('clarifai.client.base.BaseClient.__init__'):
             self.builder = ArtifactBuilder()
+            # Mock the auth_helper and base attributes
+            mock_auth_helper = Mock()
+            mock_auth_helper.pat = "mock_pat"
+            self.builder.auth_helper = mock_auth_helper
+            self.builder.base = "https://api.clarifai.com"
 
     def test_missing_required_parameters(self):
         """Test error handling for missing required parameters."""
@@ -367,6 +372,11 @@ class TestArtifactBuilderIntegration:
         """Setup for each test method."""
         with patch('clarifai.client.base.BaseClient.__init__'):
             self.builder = ArtifactBuilder()
+            # Mock the auth_helper and base attributes
+            mock_auth_helper = Mock()
+            mock_auth_helper.pat = "mock_pat"
+            self.builder.auth_helper = mock_auth_helper
+            self.builder.base = "https://api.clarifai.com"
 
     @patch('os.path.exists')
     @patch('clarifai.client.artifact.Artifact.create')
@@ -399,7 +409,7 @@ class TestArtifactBuilderIntegration:
             )
         )
         assert len(versions) == 1
-        assert versions[0]['id'] == "v1"
+        assert versions[0].id == "v1"
 
         # 3. Download artifact
         mock_download.return_value = "./downloaded_file.txt"

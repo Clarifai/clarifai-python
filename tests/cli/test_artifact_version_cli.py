@@ -16,10 +16,20 @@ class TestArtifactVersionCLI:
         """Setup for each test method."""
         self.runner = CliRunner()
 
+    def _create_mock_context(self):
+        """Create a mock context object for CLI tests."""
+        mock_current = Mock()
+        mock_current.to_grpc.return_value = {}
+        mock_obj = Mock()
+        mock_obj.current = mock_current
+        return mock_obj
+
     @patch('clarifai.cli.artifact.validate_context')
     def test_list_versions_command_success(self, mock_validate):
         """Test successful list versions command."""
         mock_validate.return_value = None
+
+        mock_obj = self._create_mock_context()
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -42,6 +52,7 @@ class TestArtifactVersionCLI:
             result = self.runner.invoke(
                 artifact,
                 ['list', 'users/test_user/apps/test_app/artifacts/test_artifact', '--versions'],
+                obj=mock_obj
             )
 
             assert result.exit_code == 0
