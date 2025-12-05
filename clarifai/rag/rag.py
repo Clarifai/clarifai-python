@@ -66,7 +66,7 @@ class RAG:
         cls,
         user_id: str = None,
         app_url: str = None,
-        llm_url: str = "https://clarifai.com/mistralai/completion/models/mistral-7B-Instruct",
+        llm_url: str = "https://clarifai.com/meta/Llama-3/models/Llama-3_2-3B-Instruct",
         base_workflow: str = "Text",
         workflow_yaml_filename: str = 'prompter_wf.yaml',
         workflow_id: str = None,

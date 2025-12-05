@@ -140,7 +140,9 @@ class ModelRunLocally:
         process = None
         try:
             logger.info("Testing the model locally...")
-            process = subprocess.Popen(command)
+            # Set PYTHONDONTWRITEBYTECODE=1 to prevent __pycache__ folder generation
+            env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+            process = subprocess.Popen(command, env=env)
             # Wait for the process to complete
             process.wait()
             if process.returncode == 0:
@@ -183,7 +185,9 @@ class ModelRunLocally:
             logger.info(
                 f"Starting model server at localhost:{port} with the model at {self.model_path}..."
             )
-            subprocess.check_call(command)
+            # Set PYTHONDONTWRITEBYTECODE=1 to prevent __pycache__ folder generation
+            env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+            subprocess.check_call(command, env=env)
             logger.info("Model server started successfully and running at localhost:{port}")
         except subprocess.CalledProcessError as e:
             logger.error(f"Error running model server: {e}")
@@ -370,6 +374,8 @@ class ModelRunLocally:
             if env_vars:
                 for key, value in env_vars.items():
                     cmd.extend(["-e", f"{key}={value}"])
+            # Set PYTHONDONTWRITEBYTECODE=1 to prevent __pycache__ folder generation
+            cmd.extend(["-e", "PYTHONDONTWRITEBYTECODE=1"])
             # Add the image name
             cmd.append(image_name)
             # update the CMD to run the server
@@ -420,6 +426,8 @@ class ModelRunLocally:
             if env_vars:
                 for key, value in env_vars.items():
                     cmd.extend(["-e", f"{key}={value}"])
+            # Set PYTHONDONTWRITEBYTECODE=1 to prevent __pycache__ folder generation
+            cmd.extend(["-e", "PYTHONDONTWRITEBYTECODE=1"])
             # Add the image name
             cmd.append(image_name)
             # update the CMD to test the model inside the container
