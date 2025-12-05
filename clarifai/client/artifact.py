@@ -80,7 +80,7 @@ class Artifact(BaseClient):
             ],
         )
 
-        response = self._grpc_request("PostArtifacts", request)
+        response = self._grpc_request(self.STUB.PostArtifacts, request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to create artifact: {response.status.description}")
@@ -122,7 +122,7 @@ class Artifact(BaseClient):
             artifact_id=artifact_id,
         )
 
-        response = self._grpc_request("DeleteArtifact", request)
+        response = self._grpc_request(self.STUB.DeleteArtifacts, request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to delete artifact: {response.status.description}")
@@ -164,7 +164,7 @@ class Artifact(BaseClient):
             artifact_id=artifact_id,
         )
 
-        response = self._grpc_request("GetArtifact", request)
+        response = self._grpc_request(self.STUB.GetArtifact, request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to get artifact: {response.status.description}")
@@ -221,7 +221,7 @@ class Artifact(BaseClient):
             per_page=per_page,
         )
 
-        response = client._grpc_request("ListArtifacts", request)
+        response = client._grpc_request(client.STUB.ListArtifacts, request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to list artifacts: {response.status.description}")

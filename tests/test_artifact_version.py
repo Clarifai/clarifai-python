@@ -207,18 +207,21 @@ class TestArtifactVersion:
                 user_id="test_user",
                 app_id="test_app",
             )
-            # Mock the auth_helper attribute
+            # Mock the auth_helper and STUB attributes
             mock_auth_helper = Mock()
             mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
                 user_id="test_user", app_id="test_app"
             )
             version.auth_helper = mock_auth_helper
+            mock_stub = Mock()
+            mock_stub.GetArtifactVersion = Mock()
+            version.STUB = mock_stub
 
             result = version.download(output_path="test_download.txt")
             assert result == "test_download.txt"
             mock_grpc_request.assert_called_once()
             call_args = mock_grpc_request.call_args
-            assert call_args[0][0] == "GetArtifactVersion"
+            assert call_args[0][0] == mock_stub.GetArtifactVersion
 
     def test_download_missing_params(self):
         """Test download with missing required parameters."""
@@ -250,12 +253,15 @@ class TestArtifactVersion:
                 user_id="test_user", app_id="test_app"
             )
             version.auth_helper = mock_auth_helper
+            mock_stub = Mock()
+            mock_stub.DeleteArtifactVersions = Mock()
+            version.STUB = mock_stub
 
             result = version.delete()
             assert result is True
             mock_grpc_request.assert_called_once()
             call_args = mock_grpc_request.call_args
-            assert call_args[0][0] == "DeleteArtifactVersion"
+            assert call_args[0][0] == mock_stub.DeleteArtifactVersions
 
     def test_delete_missing_params(self):
         """Test artifact version deletion with missing parameters."""
@@ -290,18 +296,21 @@ class TestArtifactVersion:
                 user_id="test_user",
                 app_id="test_app",
             )
-            # Mock the auth_helper attribute
+            # Mock the auth_helper and STUB attributes
             mock_auth_helper = Mock()
             mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
                 user_id="test_user", app_id="test_app"
             )
             version.auth_helper = mock_auth_helper
+            mock_stub = Mock()
+            mock_stub.GetArtifactVersion = Mock()
+            version.STUB = mock_stub
 
             result = version.info()
             assert result is not None
             mock_grpc_request.assert_called_once()
             call_args = mock_grpc_request.call_args
-            assert call_args[0][0] == "GetArtifactVersion"
+            assert call_args[0][0] == mock_stub.GetArtifactVersion
 
     def test_list_success(self):
         """Test successful artifact version listing."""

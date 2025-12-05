@@ -569,7 +569,7 @@ class ArtifactVersion(BaseClient):
             artifact_version_id=version_id,
         )
 
-        response = self._grpc_request("DeleteArtifactVersion", request)
+        response = self._grpc_request(self.STUB.DeleteArtifactVersions, request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to delete artifact version: {response.status.description}")
@@ -617,7 +617,7 @@ class ArtifactVersion(BaseClient):
             artifact_version_id=version_id,
         )
 
-        response = self._grpc_request("GetArtifactVersion", request)
+        response = self._grpc_request(self.STUB.GetArtifactVersion, request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to get artifact version: {response.status.description}")

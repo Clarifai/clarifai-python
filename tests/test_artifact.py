@@ -78,12 +78,15 @@ class TestArtifact:
             mock_grpc_request.return_value = mock_response
 
             artifact = Artifact()
-            # Mock the auth_helper attribute that would normally be set by BaseClient.__init__
+            # Mock the auth_helper and STUB attributes that would normally be set by BaseClient.__init__
             mock_auth_helper = Mock()
             mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
                 user_id="test_user", app_id="test_app"
             )
             artifact.auth_helper = mock_auth_helper
+            mock_stub = Mock()
+            mock_stub.PostArtifacts = Mock()
+            artifact.STUB = mock_stub
 
             result = artifact.create(
                 artifact_id="new_artifact", user_id="test_user", app_id="test_app"
@@ -91,9 +94,9 @@ class TestArtifact:
 
             assert isinstance(result, Artifact)
             mock_grpc_request.assert_called_once()
-            # Verify the call was made with the correct method name
+            # Verify the call was made with the correct method object
             call_args = mock_grpc_request.call_args
-            assert call_args[0][0] == "PostArtifacts"
+            assert call_args[0][0] == mock_stub.PostArtifacts
 
     def test_create_missing_params(self):
         """Test artifact creation with missing parameters."""
@@ -118,12 +121,15 @@ class TestArtifact:
             mock_grpc_request.return_value = mock_response
 
             artifact = Artifact()
-            # Mock the auth_helper attribute
+            # Mock the auth_helper and STUB attributes
             mock_auth_helper = Mock()
             mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
                 user_id="test_user", app_id="test_app"
             )
             artifact.auth_helper = mock_auth_helper
+            mock_stub = Mock()
+            mock_stub.DeleteArtifacts = Mock()
+            artifact.STUB = mock_stub
 
             result = artifact.delete(
                 artifact_id="test_artifact", user_id="test_user", app_id="test_app"
@@ -132,7 +138,7 @@ class TestArtifact:
             assert result is True
             mock_grpc_request.assert_called_once()
             call_args = mock_grpc_request.call_args
-            assert call_args[0][0] == "DeleteArtifact"
+            assert call_args[0][0] == mock_stub.DeleteArtifacts
 
     def test_info_success(self):
         """Test successful artifact info retrieval."""
@@ -153,12 +159,15 @@ class TestArtifact:
             mock_grpc_request.return_value = mock_response
 
             artifact = Artifact()
-            # Mock the auth_helper attribute
+            # Mock the auth_helper and STUB attributes
             mock_auth_helper = Mock()
             mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
                 user_id="test_user", app_id="test_app"
             )
             artifact.auth_helper = mock_auth_helper
+            mock_stub = Mock()
+            mock_stub.GetArtifact = Mock()
+            artifact.STUB = mock_stub
 
             info = artifact.info(
                 artifact_id="test_artifact", user_id="test_user", app_id="test_app"
@@ -169,7 +178,7 @@ class TestArtifact:
             assert info["app_id"] == "test_app"
             mock_grpc_request.assert_called_once()
             call_args = mock_grpc_request.call_args
-            assert call_args[0][0] == "GetArtifact"
+            assert call_args[0][0] == mock_stub.GetArtifact
 
     def test_list_success(self):
         """Test successful artifact listing."""
@@ -194,6 +203,9 @@ class TestArtifact:
             )
             mock_base_client.auth_helper = mock_auth_helper
             mock_base_client._grpc_request = mock_grpc_request
+            mock_stub = Mock()
+            mock_stub.ListArtifacts = Mock()
+            mock_base_client.STUB = mock_stub
             mock_base_client_class.return_value = mock_base_client
 
             artifacts = list(Artifact.list(user_id="test_user", app_id="test_app"))
@@ -202,7 +214,7 @@ class TestArtifact:
             assert artifacts[0].artifact_id == "test_artifact"
             mock_grpc_request.assert_called_once()
             call_args = mock_grpc_request.call_args
-            assert call_args[0][0] == "ListArtifacts"
+            assert call_args[0][0] == mock_stub.ListArtifacts
 
     def test_exists_true(self):
         """Test artifact exists returns True when artifact is found."""
@@ -223,12 +235,15 @@ class TestArtifact:
             mock_grpc_request.return_value = mock_response
 
             artifact = Artifact()
-            # Mock the auth_helper attribute
+            # Mock the auth_helper and STUB attributes
             mock_auth_helper = Mock()
             mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
                 user_id="test_user", app_id="test_app"
             )
             artifact.auth_helper = mock_auth_helper
+            mock_stub = Mock()
+            mock_stub.GetArtifact = Mock()
+            artifact.STUB = mock_stub
 
             exists = artifact.exists(
                 artifact_id="test_artifact", user_id="test_user", app_id="test_app"

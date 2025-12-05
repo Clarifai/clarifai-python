@@ -167,8 +167,21 @@ class TestArtifactBuilder:
 
     def test_download_from_path_success(self):
         """Test successful download from path."""
-        with patch('clarifai.client.artifact_version.ArtifactVersion.download') as mock_download:
-            mock_download.return_value = "./downloaded_file.txt"
+        with (
+            patch('clarifai.runners.artifacts.artifact_builder.Artifact') as mock_artifact_class,
+            patch('clarifai.runners.artifacts.artifact_builder.ArtifactVersion') as mock_version_class,
+        ):
+            # Mock artifact info response for latest version lookup
+            mock_artifact_instance = Mock()
+            mock_artifact_instance.info.return_value = {
+                'artifact_version': {'id': 'latest_version_123'}
+            }
+            mock_artifact_class.return_value = mock_artifact_instance
+            
+            # Mock artifact version download
+            mock_version_instance = Mock()
+            mock_version_instance.download.return_value = "./downloaded_file.txt"
+            mock_version_class.return_value = mock_version_instance
 
             result = self.builder.download_from_path(
                 source_path="users/u123/apps/a456/artifacts/my_artifact",
@@ -176,7 +189,14 @@ class TestArtifactBuilder:
             )
 
             assert result == "./downloaded_file.txt"
-            mock_download.assert_called_once()
+            # Verify artifact was created to get latest version info
+            mock_artifact_class.assert_called_once()
+            # Verify version was created with latest version
+            mock_version_class.assert_called_once()
+            # Verify download was called
+            mock_version_instance.download.assert_called_once_with(
+                output_path="./downloaded_file.txt", force=False
+            )
 
     def test_download_from_path_invalid_source(self):
         """Test download from path with invalid source path."""
@@ -187,8 +207,11 @@ class TestArtifactBuilder:
 
     def test_download_from_path_with_version(self):
         """Test download from path with specific version."""
-        with patch('clarifai.client.artifact_version.ArtifactVersion.download') as mock_download:
-            mock_download.return_value = "./downloaded_file.txt"
+        with patch('clarifai.runners.artifacts.artifact_builder.ArtifactVersion') as mock_version_class:
+            # Mock artifact version download
+            mock_version_instance = Mock()
+            mock_version_instance.download.return_value = "./downloaded_file.txt"
+            mock_version_class.return_value = mock_version_instance
 
             result = self.builder.download_from_path(
                 source_path="users/u123/apps/a456/artifacts/my_artifact/versions/v789",
@@ -196,8 +219,14 @@ class TestArtifactBuilder:
             )
 
             assert result == "./downloaded_file.txt"
-            # Verify the method was called
-            mock_download.assert_called_once()
+            # Verify version was created with specific version ID
+            mock_version_class.assert_called_once()
+            call_args, call_kwargs = mock_version_class.call_args
+            assert call_kwargs['version_id'] == 'v789'
+            # Verify download was called
+            mock_version_instance.download.assert_called_once_with(
+                output_path="./downloaded_file.txt", force=False
+            )
 
     @patch('clarifai.client.artifact.Artifact.list')
     def test_list_artifacts(self, mock_list):
