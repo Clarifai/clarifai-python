@@ -309,10 +309,8 @@ class TestArtifactVersion:
         mock_version2.id = "version2"
         mock_response.artifact_versions = [mock_version1, mock_version2]
 
-        with (
-            patch('clarifai.client.base.BaseClient.__init__', return_value=None),
-            patch.object(ArtifactVersion, '_grpc_request') as mock_grpc_request,
-        ):
+        # Since list() is static, we need to patch at the class level
+        with patch.object(ArtifactVersion, '_grpc_request') as mock_grpc_request:
             mock_grpc_request.return_value = mock_response
 
             results = list(
@@ -373,9 +371,11 @@ class TestArtifactVersionHelpers:
             file_size=1024,
         )
 
-        assert config.artifact_id == "test_artifact"
-        assert config.user_id == "test_user"
-        assert config.app_id == "test_app"
+        assert config.upload_config.artifact_id == "test_artifact"
+        assert config.upload_config.user_app_id.user_id == "test_user"
+        assert config.upload_config.user_app_id.app_id == "test_app"
+        assert config.upload_config.artifact_version.id == "test_version"
+        assert config.upload_config.artifact_version.description == "Test description"
 
     @patch('os.path.getsize')
     @patch('builtins.open', new_callable=mock_open, read_data=b"test content")

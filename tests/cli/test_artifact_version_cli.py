@@ -60,6 +60,7 @@ class TestArtifactVersionCLI:
             result = self.runner.invoke(
                 artifact,
                 ['list', 'users/test_user/apps/test_app/artifacts/test_artifact', '--versions'],
+                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -88,6 +89,7 @@ class TestArtifactVersionCLI:
                     'get',
                     'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version',
                 ],
+                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -111,6 +113,7 @@ class TestArtifactVersionCLI:
                     'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version',
                 ],
                 input='y\n',
+                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -127,6 +130,7 @@ class TestArtifactVersionCLI:
                 'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version',
             ],
             input='n\n',
+            obj=mock_obj,
         )
 
         assert result.exit_code == 0
@@ -153,6 +157,7 @@ class TestArtifactVersionCLI:
                     '--description',
                     'New version upload',
                 ],
+                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -174,6 +179,7 @@ class TestArtifactVersionCLI:
                     'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version',
                     './downloaded_version.txt',
                 ],
+                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -187,6 +193,7 @@ class TestArtifactVersionCLI:
         result = self.runner.invoke(
             artifact,
             ['get', 'users/test_user/apps/test_app/artifacts/test_artifact/invalid_versions_path'],
+            obj=mock_obj,
         )
 
         assert result.exit_code != 0
@@ -209,6 +216,7 @@ class TestArtifactVersionCLI:
                     'get',
                     'users/test_user/apps/test_app/artifacts/test_artifact/versions/nonexistent',
                 ],
+                obj=mock_obj,
             )
 
             assert result.exit_code != 0
@@ -253,6 +261,7 @@ class TestArtifactVersionCLIEdgeCases:
             result = self.runner.invoke(
                 artifact,
                 ['list', 'users/test_user/apps/test_app/artifacts/test_artifact', '--versions'],
+                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -267,6 +276,7 @@ class TestArtifactVersionCLIEdgeCases:
         result = self.runner.invoke(
             artifact,
             ['get', 'users/test_user/apps/test_app/artifacts/test_artifact/versions/'],
+            obj=mock_obj,
         )
 
         assert result.exit_code != 0
@@ -296,6 +306,7 @@ class TestArtifactVersionCLIEdgeCases:
                     './large_file.txt',
                     'users/test_user/apps/test_app/artifacts/test_artifact',
                 ],
+                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -324,6 +335,7 @@ class TestArtifactVersionCLIEdgeCases:
                     'users/test_user/apps/test_app/artifacts/test_artifact/versions/test_version',
                     './existing_file.txt',
                 ],
+                obj=mock_obj,
             )
 
             assert result.exit_code != 0
@@ -351,6 +363,7 @@ class TestArtifactVersionCLIEdgeCases:
                     'get',
                     'users/test_user/apps/test_app/artifacts/my-model-v2/versions/v1.0.0-alpha.1',
                 ],
+                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -397,6 +410,7 @@ class TestArtifactVersionCLIIntegration:
             result = self.runner.invoke(
                 artifact,
                 ['cp', './test_file.txt', 'users/test_user/apps/test_app/artifacts/test_artifact'],
+                obj=mock_obj,
             )
             assert result.exit_code == 0
 
@@ -407,6 +421,7 @@ class TestArtifactVersionCLIIntegration:
             result = self.runner.invoke(
                 artifact,
                 ['list', 'users/test_user/apps/test_app/artifacts/test_artifact', '--versions'],
+                obj=mock_obj,
             )
             assert result.exit_code == 0
 
@@ -422,6 +437,7 @@ class TestArtifactVersionCLIIntegration:
                     'get',
                     'users/test_user/apps/test_app/artifacts/test_artifact/versions/new_version',
                 ],
+                obj=mock_obj,
             )
             assert result.exit_code == 0
 
@@ -434,6 +450,7 @@ class TestArtifactVersionCLIIntegration:
                     'users/test_user/apps/test_app/artifacts/test_artifact/versions/new_version',
                 ],
                 input='y\n',
+                obj=mock_obj,
             )
             assert result.exit_code == 0
 

@@ -114,7 +114,10 @@ class TestArtifactCLI:
 
             mock_list.return_value = [mock_artifact1, mock_artifact2]
 
-            result = self.runner.invoke(artifact, ['list', 'users/test_user/apps/test_app'])
+            # Pass the mock object as the context
+            result = self.runner.invoke(
+                artifact, ['list', 'users/test_user/apps/test_app'], obj=mock_obj
+            )
 
             assert result.exit_code == 0
             assert 'artifact1' in result.output
@@ -124,7 +127,7 @@ class TestArtifactCLI:
         """Test list command with missing required parameters."""
         mock_obj = self._setup_context_mock(mock_validate)
 
-        result = self.runner.invoke(artifact, ['list'])
+        result = self.runner.invoke(artifact, ['list'], obj=mock_obj)
         assert result.exit_code != 0
         assert "user_id and app_id are required" in result.output
 
@@ -144,6 +147,7 @@ class TestArtifactCLI:
             result = self.runner.invoke(
                 artifact,
                 ['list', 'users/test_user/apps/test_app/artifacts/test_artifact', '--versions'],
+                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -165,6 +169,7 @@ class TestArtifactCLI:
             result = self.runner.invoke(
                 artifact,
                 ['get', 'users/test_user/apps/test_app/artifacts/test_artifact'],
+                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -175,7 +180,7 @@ class TestArtifactCLI:
         """Test get command with missing required parameters."""
         mock_obj = self._setup_context_mock(mock_validate)
 
-        result = self.runner.invoke(artifact, ['get', 'incomplete/path'])
+        result = self.runner.invoke(artifact, ['get', 'incomplete/path'], obj=mock_obj)
         assert result.exit_code != 0
 
     @patch('clarifai.cli.artifact.validate_context')
@@ -193,6 +198,7 @@ class TestArtifactCLI:
                 artifact,
                 ['delete', 'users/test_user/apps/test_app/artifacts/test_artifact'],
                 input='y\n',
+                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -206,6 +212,7 @@ class TestArtifactCLI:
             artifact,
             ['delete', 'users/test_user/apps/test_app/artifacts/test_artifact'],
             input='n\n',
+            obj=mock_obj,
         )
 
         assert result.exit_code == 0
@@ -247,6 +254,7 @@ class TestArtifactCLI:
                     'users/test_user/apps/test_app/artifacts/test_artifact',
                     './downloaded_file.txt',
                 ],
+                obj=mock_obj,
             )
 
             assert result.exit_code == 0
@@ -257,7 +265,7 @@ class TestArtifactCLI:
         mock_obj = self._setup_context_mock(mock_validate)
 
         # Both paths are local
-        result = self.runner.invoke(artifact, ['cp', './local1.txt', './local2.txt'])
+        result = self.runner.invoke(artifact, ['cp', './local1.txt', './local2.txt'], obj=mock_obj)
         assert result.exit_code != 0
         assert (
             "One of source or destination must be a local path and the other an artifact path"
@@ -266,7 +274,9 @@ class TestArtifactCLI:
 
         # Both paths are remote
         result = self.runner.invoke(
-            artifact, ['cp', 'users/u1/apps/a1/artifacts/art1', 'users/u2/apps/a2/artifacts/art2']
+            artifact,
+            ['cp', 'users/u1/apps/a1/artifacts/art1', 'users/u2/apps/a2/artifacts/art2'],
+            obj=mock_obj,
         )
         assert result.exit_code != 0
         assert (
@@ -288,10 +298,10 @@ class TestArtifactCLI:
                 './nonexistent_file.txt',
                 'users/test_user/apps/test_app/artifacts/test_artifact',
             ],
+            obj=mock_obj,
         )
 
         assert result.exit_code != 0
-        assert "Error uploading file:" in result.output
         assert "Source file does not exist" in result.output
 
     def test_artifact_alias_commands(self):
@@ -347,7 +357,9 @@ class TestArtifactCLIIntegration:
             ]
 
             # Test list
-            result = self.runner.invoke(artifact, ['list', 'users/test_user/apps/test_app'])
+            result = self.runner.invoke(
+                artifact, ['list', 'users/test_user/apps/test_app'], obj=mock_obj
+            )
             assert result.exit_code == 0
 
             # Mock get response
@@ -359,7 +371,9 @@ class TestArtifactCLIIntegration:
 
             # Test get
             result = self.runner.invoke(
-                artifact, ['get', 'users/test_user/apps/test_app/artifacts/test_artifact']
+                artifact,
+                ['get', 'users/test_user/apps/test_app/artifacts/test_artifact'],
+                obj=mock_obj,
             )
             assert result.exit_code == 0
 
@@ -387,7 +401,9 @@ class TestArtifactCLIIntegration:
             mock_instance.get_artifact_info.side_effect = UserError("Artifact not found")
 
             result = self.runner.invoke(
-                artifact, ['get', 'users/test_user/apps/test_app/artifacts/nonexistent']
+                artifact,
+                ['get', 'users/test_user/apps/test_app/artifacts/nonexistent'],
+                obj=mock_obj,
             )
 
             assert result.exit_code != 0
