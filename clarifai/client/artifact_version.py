@@ -672,9 +672,9 @@ class ArtifactVersion(BaseClient):
 
     @staticmethod
     def list(
-        artifact_id: str,
-        user_id: str,
-        app_id: str,
+        artifact_id: str = "",
+        user_id: str = "",
+        app_id: str = "",
         page: int = 1,
         per_page: int = DEFAULT_ARTIFACTS_PAGE_SIZE,
         **kwargs,
@@ -693,8 +693,15 @@ class ArtifactVersion(BaseClient):
             ArtifactVersion objects.
 
         Raises:
+            UserError: If required parameters are missing.
             Exception: If the artifact version listing fails.
         """
+        if not artifact_id:
+            raise UserError("artifact_id is required")
+        if not user_id:
+            raise UserError("user_id is required")
+        if not app_id:
+            raise UserError("app_id is required")
         client = BaseClient(**kwargs)
 
         request = service_pb2.ListArtifactVersionsRequest(
@@ -704,7 +711,7 @@ class ArtifactVersion(BaseClient):
             per_page=per_page,
         )
 
-        response = client._grpc_request("ListArtifactVersions", request)
+        response = client._grpc_request(client.STUB.ListArtifactVersions, request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to list artifact versions: {response.status.description}")

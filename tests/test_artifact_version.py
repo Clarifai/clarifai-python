@@ -84,20 +84,22 @@ class TestArtifactVersion:
         mock_response.artifact_version_id = "new_version"
         mock_response.status.code = 10000  # SUCCESS
 
-        with (
-            patch('clarifai.client.base.BaseClient.__init__', return_value=None),
-            patch(
-                'clarifai.client.artifact_version.ArtifactVersion.auth_helper'
-            ) as mock_auth_helper,
-        ):
-            # Set up the mock stub and auth_helper
-            mock_stub = Mock()
-            mock_stub.PostArtifactVersionsUpload.return_value = [mock_response]
-            mock_auth_helper.get_stub.return_value = mock_stub
-            mock_auth_helper.metadata = {}
-
+        with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
             version = ArtifactVersion()
+            
+            # Mock the auth_helper and stub
+            mock_auth_helper = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
+            mock_auth_helper.metadata = {}
             version.auth_helper = mock_auth_helper
+            
+            # Mock the streaming response as an iterator
+            mock_stub = Mock()
+            mock_stub.PostArtifactVersionsUpload.return_value = iter([mock_response])
+            mock_auth_helper.get_stub.return_value = mock_stub
+
             result = version.create(
                 file_path="test_file.txt",
                 artifact_id="test_artifact",
@@ -126,20 +128,22 @@ class TestArtifactVersion:
         mock_response.artifact_version_id = "uploaded_version"
         mock_response.status.code = 10000  # SUCCESS
 
-        with (
-            patch('clarifai.client.base.BaseClient.__init__', return_value=None),
-            patch(
-                'clarifai.client.artifact_version.ArtifactVersion.auth_helper'
-            ) as mock_auth_helper,
-        ):
-            # Set up the mock stub and auth_helper
-            mock_stub = Mock()
-            mock_stub.PostArtifactVersionsUpload.return_value = [mock_response]
-            mock_auth_helper.get_stub.return_value = mock_stub
-            mock_auth_helper.metadata = {}
-
+        with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
             version = ArtifactVersion()
+            
+            # Mock the auth_helper and stub
+            mock_auth_helper = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
+            mock_auth_helper.metadata = {}
             version.auth_helper = mock_auth_helper
+            
+            # Mock the streaming response as an iterator
+            mock_stub = Mock()
+            mock_stub.PostArtifactVersionsUpload.return_value = iter([mock_response])
+            mock_auth_helper.get_stub.return_value = mock_stub
+
             result = version.upload(
                 file_path="test_file.txt",
                 artifact_id="test_artifact",
@@ -309,9 +313,18 @@ class TestArtifactVersion:
         mock_version2.id = "version2"
         mock_response.artifact_versions = [mock_version1, mock_version2]
 
-        # Since list() is static, we need to patch at the class level
-        with patch.object(ArtifactVersion, '_grpc_request') as mock_grpc_request:
-            mock_grpc_request.return_value = mock_response
+        # Since list() is static, we need to patch BaseClient creation
+        with patch('clarifai.client.artifact_version.BaseClient') as mock_client_class:
+            mock_client = Mock()
+            mock_client._grpc_request.return_value = mock_response
+            mock_auth_helper = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
+            mock_client.auth_helper = mock_auth_helper
+            mock_stub = Mock()
+            mock_client.STUB.ListArtifactVersions = mock_stub
+            mock_client_class.return_value = mock_client
 
             results = list(
                 ArtifactVersion.list(
@@ -320,9 +333,7 @@ class TestArtifactVersion:
             )
 
             assert len(results) == 2
-            mock_grpc_request.assert_called_once()
-            call_args = mock_grpc_request.call_args
-            assert call_args[0][0] == "ListArtifactVersions"
+            mock_client._grpc_request.assert_called_once()
 
     def test_list_missing_params(self):
         """Test list with missing required parameters."""
