@@ -39,10 +39,13 @@ class ArtifactVersion(BaseClient):
             **kwargs: Additional keyword arguments to be passed to the BaseClient.
         """
         super().__init__(**kwargs)
+        # Ensure auth_helper is available after BaseClient init
+        if not hasattr(self, 'auth_helper'):
+            self.auth_helper = None
         self.artifact_id = artifact_id
         self.version_id = version_id
         self.user_id = user_id or (
-            getattr(self.auth_helper, 'user_id', "") if hasattr(self, 'auth_helper') else ""
+            getattr(self.auth_helper, 'user_id', "") if self.auth_helper else ""
         )
         self.app_id = app_id
 
@@ -328,12 +331,14 @@ class ArtifactVersion(BaseClient):
         """Create upload config message."""
         # Convert visibility string to enum
         visibility_enum = (
-            resources_pb2.PRIVATE if visibility == "private" else resources_pb2.PUBLIC
+            resources_pb2.Visibility.Gettable.PRIVATE 
+            if visibility == "private" 
+            else resources_pb2.Visibility.Gettable.PUBLIC
         )
 
         artifact_version = resources_pb2.ArtifactVersion(
             description=description,
-            visibility=visibility_enum,
+            visibility=resources_pb2.Visibility(gettable=visibility_enum),
             expires_at=expires_at,
         )
 

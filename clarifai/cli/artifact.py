@@ -49,24 +49,26 @@ def list(ctx, path, user_id, app_id, artifact_id, versions):
         clarifai artifact list --app-id=a --user-id=u
         clarifai artifact list users/u/apps/a/artifacts/my-artifact --versions
     """
-    validate_context(ctx)
-
-    if path:
-        parsed = parse_artifact_path(
-            path + ('/artifacts/dummy' if '/artifacts/' not in path else '')
-        )
-        user_id = user_id or parsed['user_id']
-        app_id = app_id or parsed['app_id']
-        if '/artifacts/' in path and versions:
-            artifact_id = artifact_id or parsed['artifact_id']
-
-    if not user_id or not app_id:
-        raise UserError("user_id and app_id are required")
-
     try:
+        validate_context(ctx)
+
+        if path:
+            parsed = parse_artifact_path(
+                path + ('/artifacts/dummy' if '/artifacts/' not in path else '')
+            )
+            user_id = user_id or parsed['user_id']
+            app_id = app_id or parsed['app_id']
+            if '/artifacts/' in path and versions:
+                artifact_id = artifact_id or parsed['artifact_id']
+
+        if not user_id or not app_id:
+            click.echo("user_id and app_id are required", err=True)
+            raise click.Abort()
+
         if versions:
             if not artifact_id:
-                raise UserError("artifact_id is required when listing versions")
+                click.echo("artifact_id is required when listing versions", err=True)
+                raise click.Abort()
 
             # Use ArtifactVersion client to list versions
             versions_list = list(
@@ -123,6 +125,9 @@ def list(ctx, path, user_id, app_id, artifact_id, versions):
             formatter = TableFormatter()
             formatter.print_table(table_data)
 
+    except UserError as e:
+        click.echo(str(e), err=True)
+        raise click.Abort()
     except Exception as e:
         click.echo(f"Error listing artifacts: {e}", err=True)
         raise click.Abort()
@@ -143,20 +148,20 @@ def get(ctx, path, user_id, app_id, artifact_id, version_id):
         clarifai artifact get users/u/apps/a/artifacts/my-artifact/versions/v123
         clarifai artifact get --app-id=a --user-id=u --artifact-id=my-artifact
     """
-    validate_context(ctx)
-
-    if path:
-        parsed = parse_artifact_path(path)
-        user_id = user_id or parsed['user_id']
-        app_id = app_id or parsed['app_id']
-        artifact_id = artifact_id or parsed['artifact_id']
-        if parsed['version_id']:
-            version_id = version_id or parsed['version_id']
-
-    if not all([user_id, app_id, artifact_id]):
-        raise UserError("user_id, app_id, and artifact_id are required")
-
     try:
+        validate_context(ctx)
+
+        if path:
+            parsed = parse_artifact_path(path)
+            user_id = user_id or parsed['user_id']
+            app_id = app_id or parsed['app_id']
+            artifact_id = artifact_id or parsed['artifact_id']
+            if parsed['version_id']:
+                version_id = version_id or parsed['version_id']
+
+        if not all([user_id, app_id, artifact_id]):
+            click.echo("user_id, app_id, and artifact_id are required", err=True)
+            raise click.Abort()
         if version_id:
             # Get artifact version using ArtifactVersion client
             version = ArtifactVersion(
@@ -199,6 +204,9 @@ def get(ctx, path, user_id, app_id, artifact_id, version_id):
                 click.echo(f"Latest version: {version_info.get('id', 'N/A')}")
                 click.echo(f"Latest description: {version_info.get('description', 'N/A')}")
 
+    except UserError as e:
+        click.echo(str(e), err=True)
+        raise click.Abort()
     except Exception as e:
         click.echo(f"Error getting artifact information: {e}", err=True)
         raise click.Abort()
@@ -219,20 +227,20 @@ def delete(ctx, path, user_id, app_id, artifact_id, version_id):
         clarifai artifact delete users/u/apps/a/artifacts/my-artifact
         clarifai artifact delete users/u/apps/a/artifacts/my-artifact/versions/v123
     """
-    validate_context(ctx)
-
-    if path:
-        parsed = parse_artifact_path(path)
-        user_id = user_id or parsed['user_id']
-        app_id = app_id or parsed['app_id']
-        artifact_id = artifact_id or parsed['artifact_id']
-        if parsed['version_id']:
-            version_id = version_id or parsed['version_id']
-
-    if not all([user_id, app_id, artifact_id]):
-        raise UserError("user_id, app_id, and artifact_id are required")
-
     try:
+        validate_context(ctx)
+
+        if path:
+            parsed = parse_artifact_path(path)
+            user_id = user_id or parsed['user_id']
+            app_id = app_id or parsed['app_id']
+            artifact_id = artifact_id or parsed['artifact_id']
+            if parsed['version_id']:
+                version_id = version_id or parsed['version_id']
+
+        if not all([user_id, app_id, artifact_id]):
+            click.echo("user_id, app_id, and artifact_id are required", err=True)
+            raise click.Abort()
         if version_id:
             # Delete artifact version
             version = ArtifactVersion(
@@ -255,6 +263,9 @@ def delete(ctx, path, user_id, app_id, artifact_id, version_id):
             artifact.delete()
             click.echo(f"Successfully deleted artifact {artifact_id}")
 
+    except UserError as e:
+        click.echo(str(e), err=True)
+        raise click.Abort()
     except Exception as e:
         click.echo(f"Error deleting artifact: {e}", err=True)
         raise click.Abort()
@@ -300,15 +311,15 @@ def cp(
         clarifai artifact cp users/u/apps/a/artifacts/my-artifact ./myfile.pt
         clarifai artifact cp users/u/apps/a/artifacts/my-artifact/versions/v123 ./myfile.pt
     """
-    validate_context(ctx)
+    try:
+        validate_context(ctx)
 
-    # Determine operation type based on source and destination
-    source_is_local = is_local_path(source)
-    dest_is_local = is_local_path(destination)
+        # Determine operation type based on source and destination
+        source_is_local = is_local_path(source)
+        dest_is_local = is_local_path(destination)
 
-    if source_is_local and not dest_is_local:
-        # Upload operation
-        try:
+        if source_is_local and not dest_is_local:
+            # Upload operation
             # Parse expires_at if provided
             expires_at_timestamp = None
             if expires_at:
@@ -338,13 +349,8 @@ def cp(
             if uploaded_version.version_id:
                 click.echo(f"Version ID: {uploaded_version.version_id}")
 
-        except Exception as e:
-            click.echo(f"Error uploading file: {e}", err=True)
-            raise click.Abort()
-
-    elif not source_is_local and dest_is_local:
-        # Download operation
-        try:
+        elif not source_is_local and dest_is_local:
+            # Download operation
             # Use artifact builder for complex download workflow
             from clarifai.runners.artifacts.artifact_builder import download_artifact
 
@@ -358,11 +364,16 @@ def cp(
             )
 
             click.echo(f"Successfully downloaded to {downloaded_path}")
-
-        except Exception as e:
-            click.echo(f"Error downloading file: {e}", err=True)
+        else:
+            click.echo(
+                "One of source or destination must be a local path and the other an artifact path",
+                err=True
+            )
             raise click.Abort()
-    else:
-        raise UserError(
-            "One of source or destination must be a local path and the other an artifact path"
-        )
+
+    except UserError as e:
+        click.echo(str(e), err=True)
+        raise click.Abort()
+    except Exception as e:
+        click.echo(f"Error uploading file: {e}", err=True)
+        raise click.Abort()

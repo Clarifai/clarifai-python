@@ -395,9 +395,10 @@ def upload_artifact(source_path: str, destination_path: str, **kwargs) -> Artifa
     Returns:
         ArtifactVersion: The uploaded artifact version
     """
-    # Filter kwargs for builder constructor
+    # Filter kwargs for builder constructor - only pass authentication and config args
+    method_kwargs = ['description', 'visibility', 'expires_at', 'version_id', 'user_id', 'app_id', 'force']
     builder_kwargs = {
-        k: v for k, v in kwargs.items() if k not in ['description', 'visibility', 'expires_at']
+        k: v for k, v in kwargs.items() if k not in method_kwargs
     }
     builder = ArtifactBuilder(**builder_kwargs)
     return builder.upload_from_path(source_path, destination_path, **kwargs)
@@ -414,7 +415,8 @@ def download_artifact(source_path: str, destination_path: str, **kwargs) -> str:
     Returns:
         str: The path where file was downloaded
     """
-    # Filter kwargs for builder constructor
-    builder_kwargs = {k: v for k, v in kwargs.items() if k not in ['force', 'version_id']}
+    # Filter kwargs for builder constructor - only pass authentication and config args
+    method_kwargs = ['force', 'version_id', 'user_id', 'app_id']
+    builder_kwargs = {k: v for k, v in kwargs.items() if k not in method_kwargs}
     builder = ArtifactBuilder(**builder_kwargs)
     return builder.download_from_path(source_path, destination_path, **kwargs)

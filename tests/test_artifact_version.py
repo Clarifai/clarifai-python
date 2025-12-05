@@ -178,11 +178,16 @@ class TestArtifactVersion:
         # Mock the info response first
         mock_info_response = Mock()
         mock_info_response.status.code = 10000  # SUCCESS
-        mock_info_response.artifact_version.upload = {
-            "content_url": "https://example.com/file.txt",
-            "content_name": "test_file.txt",
-            "content_length": 1024,
-        }
+        
+        # Create proper mock artifact version with upload info
+        mock_artifact_version = Mock()
+        mock_artifact_version.id = "test_version"
+        mock_upload = Mock()
+        mock_upload.content_url = "https://example.com/file.txt"
+        mock_upload.content_name = "test_file.txt" 
+        mock_upload.content_length = 1024
+        mock_artifact_version.upload = mock_upload
+        mock_info_response.artifact_version = mock_artifact_version
 
         with (
             patch('clarifai.client.base.BaseClient.__init__', return_value=None),
@@ -270,7 +275,7 @@ class TestArtifactVersion:
         mock_response.artifact_version.modified_at = mock_timestamp
 
         with (
-            patch('clarifai.client.base.BaseClient.__init__'),
+            patch('clarifai.client.base.BaseClient.__init__', return_value=None),
             patch.object(ArtifactVersion, '_grpc_request') as mock_grpc_request,
         ):
             mock_grpc_request.return_value = mock_response
@@ -281,6 +286,12 @@ class TestArtifactVersion:
                 user_id="test_user",
                 app_id="test_app",
             )
+            # Mock the auth_helper attribute
+            mock_auth_helper = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
+            version.auth_helper = mock_auth_helper
 
             result = version.info()
             assert result is not None
@@ -299,14 +310,13 @@ class TestArtifactVersion:
         mock_response.artifact_versions = [mock_version1, mock_version2]
 
         with (
-            patch('clarifai.client.base.BaseClient.__init__'),
+            patch('clarifai.client.base.BaseClient.__init__', return_value=None),
             patch.object(ArtifactVersion, '_grpc_request') as mock_grpc_request,
         ):
             mock_grpc_request.return_value = mock_response
 
-            version = ArtifactVersion()
             results = list(
-                version.list(artifact_id="test_artifact", user_id="test_user", app_id="test_app")
+                ArtifactVersion.list(artifact_id="test_artifact", user_id="test_user", app_id="test_app")
             )
 
             assert len(results) == 2
@@ -316,11 +326,8 @@ class TestArtifactVersion:
 
     def test_list_missing_params(self):
         """Test list with missing required parameters."""
-        with patch('clarifai.client.base.BaseClient.__init__'):
-            version = ArtifactVersion()
-
-            with pytest.raises(UserError, match="artifact_id is required"):
-                list(version.list())
+        with pytest.raises(UserError, match="artifact_id is required"):
+            list(ArtifactVersion.list())
 
 
 class TestArtifactVersionHelpers:
