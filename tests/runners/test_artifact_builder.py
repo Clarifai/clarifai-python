@@ -99,6 +99,11 @@ class TestArtifactBuilder:
         """Setup for each test method."""
         with patch('clarifai.client.base.BaseClient.__init__'):
             self.builder = ArtifactBuilder()
+            # Mock the auth_helper and base attributes
+            mock_auth_helper = Mock()
+            mock_auth_helper.pat = "mock_pat"
+            self.builder.auth_helper = mock_auth_helper
+            self.builder.base = "https://api.clarifai.com"
 
     def test_init(self):
         """Test ArtifactBuilder initialization."""
@@ -136,7 +141,7 @@ class TestArtifactBuilder:
 
     def test_upload_from_path_invalid_destination(self):
         """Test upload from path with invalid destination path."""
-        with pytest.raises(UserError, match="Invalid artifact path format"):
+        with pytest.raises(UserError, match="destination_path must be an artifact path"):
             self.builder.upload_from_path(
                 source_path="./test_file.txt", destination_path="invalid/path"
             )
@@ -175,7 +180,7 @@ class TestArtifactBuilder:
 
     def test_download_from_path_invalid_source(self):
         """Test download from path with invalid source path."""
-        with pytest.raises(UserError, match="Invalid artifact path format"):
+        with pytest.raises(UserError, match="source_path must be an artifact path"):
             self.builder.download_from_path(
                 source_path="invalid/path", destination_path="./downloaded_file.txt"
             )
@@ -327,7 +332,8 @@ class TestConvenienceFunctions:
     """Test convenience functions for artifact operations."""
 
     @patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder.upload_from_path')
-    def test_upload_artifact_convenience(self, mock_upload):
+    @patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder.__init__', return_value=None)
+    def test_upload_artifact_convenience(self, mock_init, mock_upload):
         """Test upload_artifact convenience function."""
         mock_upload.return_value = Mock(id="new_version")
 
@@ -340,7 +346,8 @@ class TestConvenienceFunctions:
         mock_upload.assert_called_once()
 
     @patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder.download_from_path')
-    def test_download_artifact_convenience(self, mock_download):
+    @patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder.__init__', return_value=None)
+    def test_download_artifact_convenience(self, mock_init, mock_download):
         """Test download_artifact convenience function."""
         mock_download.return_value = "./downloaded_file.txt"
 

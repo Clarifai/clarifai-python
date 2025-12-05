@@ -72,16 +72,20 @@ class TestArtifactCLI:
         """Setup for each test method."""
         self.runner = CliRunner()
 
+    def _create_mock_context(self):
+        """Create a mock context object for CLI tests."""
+        mock_current = Mock()
+        mock_current.to_grpc.return_value = {}
+        mock_obj = Mock()
+        mock_obj.current = mock_current
+        return mock_obj
+
     @patch('clarifai.cli.artifact.validate_context')
     def test_list_command_success(self, mock_validate):
         """Test successful list command."""
         mock_validate.return_value = None
 
-        # Set up mock context object
-        mock_current = Mock()
-        mock_current.to_grpc.return_value = {}
-        mock_obj = Mock()
-        mock_obj.current = mock_current
+        mock_obj = self._create_mock_context()
 
         with patch('clarifai.client.artifact.Artifact.list') as mock_list:
             mock_artifact1 = Mock()
@@ -114,7 +118,9 @@ class TestArtifactCLI:
         """Test list command with missing required parameters."""
         mock_validate.return_value = None
 
-        result = self.runner.invoke(artifact, ['list'])
+        mock_obj = self._create_mock_context()
+
+        result = self.runner.invoke(artifact, ['list'], obj=mock_obj)
         assert result.exit_code != 0
         assert "user_id and app_id are required" in result.output
 
@@ -122,6 +128,8 @@ class TestArtifactCLI:
     def test_list_versions_command(self, mock_validate):
         """Test list versions command."""
         mock_validate.return_value = None
+
+        mock_obj = self._create_mock_context()
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -134,6 +142,7 @@ class TestArtifactCLI:
             result = self.runner.invoke(
                 artifact,
                 ['list', 'users/test_user/apps/test_app/artifacts/test_artifact', '--versions'],
+                obj=mock_obj
             )
 
             assert result.exit_code == 0
@@ -142,6 +151,8 @@ class TestArtifactCLI:
     def test_get_command_success(self, mock_validate):
         """Test successful get command."""
         mock_validate.return_value = None
+
+        mock_obj = self._create_mock_context()
 
         with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
             mock_instance = Mock()
@@ -153,7 +164,7 @@ class TestArtifactCLI:
             }
 
             result = self.runner.invoke(
-                artifact, ['get', 'users/test_user/apps/test_app/artifacts/test_artifact']
+                artifact, ['get', 'users/test_user/apps/test_app/artifacts/test_artifact'], obj=mock_obj
             )
 
             assert result.exit_code == 0
