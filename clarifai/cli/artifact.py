@@ -76,7 +76,8 @@ def list(ctx, path, user_id, app_id, artifact_id, versions):
                     artifact_id=artifact_id,
                     user_id=user_id,
                     app_id=app_id,
-                    **ctx.obj.current.to_grpc(),
+                    pat=ctx.obj.current.pat,
+                    base=ctx.obj.current.api_base,
                 )
             )
 
@@ -113,7 +114,7 @@ def list(ctx, path, user_id, app_id, artifact_id, versions):
         else:
             # Use Artifact client to list artifacts
             artifacts_list = list(
-                Artifact.list(user_id=user_id, app_id=app_id, **ctx.obj.current.to_grpc())
+                Artifact.list(user_id=user_id, app_id=app_id, pat=ctx.obj.current.pat, base=ctx.obj.current.api_base)
             )
 
             if not artifacts_list:
@@ -195,7 +196,8 @@ def get(ctx, path, user_id, app_id, artifact_id, version_id):
                 version_id=version_id,
                 user_id=user_id,
                 app_id=app_id,
-                **ctx.obj.current.to_grpc(),
+                pat=ctx.obj.current.pat,
+                base=ctx.obj.current.api_base,
             )
             info = version.info()
             click.echo(f"Artifact Version: {version_id}")
@@ -216,7 +218,8 @@ def get(ctx, path, user_id, app_id, artifact_id, version_id):
                 artifact_id=artifact_id,
                 user_id=user_id,
                 app_id=app_id,
-                **ctx.obj.current.to_grpc(),
+                pat=ctx.obj.current.pat,
+                base=ctx.obj.current.api_base,
             )
             info = artifact.info()
             click.echo(f"Artifact ID: {artifact_id}")
@@ -279,7 +282,8 @@ def delete(ctx, path, user_id, app_id, artifact_id, version_id):
                 version_id=version_id,
                 user_id=user_id,
                 app_id=app_id,
-                **ctx.obj.current.to_grpc(),
+                pat=ctx.obj.current.pat,
+                base=ctx.obj.current.api_base,
             )
             version.delete()
             click.echo(f"Successfully deleted artifact version {version_id}")
@@ -289,7 +293,8 @@ def delete(ctx, path, user_id, app_id, artifact_id, version_id):
                 artifact_id=artifact_id,
                 user_id=user_id,
                 app_id=app_id,
-                **ctx.obj.current.to_grpc(),
+                pat=ctx.obj.current.pat,
+                base=ctx.obj.current.api_base,
             )
             artifact.delete()
             click.echo(f"Successfully deleted artifact {artifact_id}")
@@ -373,7 +378,8 @@ def cp(
                 version_id=version_id,
                 user_id=user_id,
                 app_id=app_id,
-                **ctx.obj.current.to_grpc(),
+                pat=ctx.obj.current.pat,
+                base=ctx.obj.current.api_base,
             )
 
             click.echo(f"Successfully uploaded {source} to {destination}")
@@ -391,7 +397,8 @@ def cp(
                 user_id=user_id,
                 app_id=app_id,
                 force=force,
-                **ctx.obj.current.to_grpc(),
+                pat=ctx.obj.current.pat,
+                base=ctx.obj.current.api_base,
             )
 
             click.echo(f"Successfully downloaded to {downloaded_path}")

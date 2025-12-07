@@ -406,8 +406,9 @@ def upload_artifact(source_path: str, destination_path: str, **kwargs) -> Artifa
         'force',
     ]
     builder_kwargs = {k: v for k, v in kwargs.items() if k not in method_kwargs}
+    upload_kwargs = {k: v for k, v in kwargs.items() if k in method_kwargs}
     builder = ArtifactBuilder(**builder_kwargs)
-    return builder.upload_from_path(source_path, destination_path, **kwargs)
+    return builder.upload_from_path(source_path, destination_path, **upload_kwargs)
 
 
 def download_artifact(source_path: str, destination_path: str, **kwargs) -> str:
@@ -422,7 +423,8 @@ def download_artifact(source_path: str, destination_path: str, **kwargs) -> str:
         str: The path where file was downloaded
     """
     # Filter kwargs for builder constructor - only pass authentication and config args
-    method_kwargs = ['force', 'version_id', 'user_id', 'app_id']
+    method_kwargs = ['force', 'user_id', 'app_id']
     builder_kwargs = {k: v for k, v in kwargs.items() if k not in method_kwargs}
+    download_kwargs = {k: v for k, v in kwargs.items() if k in method_kwargs}
     builder = ArtifactBuilder(**builder_kwargs)
-    return builder.download_from_path(source_path, destination_path, **kwargs)
+    return builder.download_from_path(source_path, destination_path, **download_kwargs)
