@@ -13,6 +13,9 @@ from clarifai.runners.artifacts.artifact_builder import (
 from clarifai.utils.cli import AliasedGroup, TableFormatter, validate_context
 from clarifai.utils.logging import logger
 
+# Store builtin list to avoid name conflicts with command function
+builtin_list = list
+
 
 def is_local_path(path: str) -> bool:
     """Check if a path refers to a local file/directory."""
@@ -71,7 +74,7 @@ def list(ctx, path, user_id, app_id, artifact_id, versions):
                 raise click.Abort()
 
             # Use ArtifactVersion client to list versions
-            versions_list = list(
+            versions_list = builtin_list(
                 ArtifactVersion.list(
                     artifact_id=artifact_id,
                     user_id=user_id,
@@ -113,15 +116,16 @@ def list(ctx, path, user_id, app_id, artifact_id, versions):
                 print(formatter.format(table_data))
         else:
             # Use Artifact client to list artifacts
-            artifacts_list = list(
-                Artifact.list(user_id=user_id, app_id=app_id, pat=ctx.obj.current.pat, base=ctx.obj.current.api_base)
+            # Use builtin_list to avoid conflict with function name
+            artifacts_list = builtin_list(
+                Artifact.list(
+                    user_id=user_id,
+                    app_id=app_id,
+                    pat=ctx.obj.current.pat,
+                    base=ctx.obj.current.api_base,
+                )
             )
 
-            if not artifacts_list:
-                click.echo("No artifacts found")
-                return
-
-            # Display artifacts in a table
             if not artifacts_list:
                 click.echo("No artifacts found")
                 return
