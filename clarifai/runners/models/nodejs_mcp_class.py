@@ -193,6 +193,35 @@ class NodeJSMCPModelClass(MCPModelClass):
             return os.path.join(current_dir, "config.yaml")
         return None
 
+    def _load_secrets(self) -> dict[str, Any]:
+        """Load secrets from .secrets.yaml."""
+        config_path = self._find_config_file()
+        if not config_path:
+            raise FileNotFoundError(
+                "config.yaml not found. Please ensure config.yaml exists in the model directory "
+                "with an 'mcp_server' section containing 'command', 'args', and optionally 'env'."
+            )
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+
+        if not config:
+            raise ValueError("config.yaml is empty")
+
+        secrets_config = config.get("secrets", None)
+        if not secrets_config:
+            return {}
+
+        secrets = []
+        for secret in secrets_config:
+            secrets.append(
+                {
+                    "id": secret.get("id"),
+                    "value": secret.get("value", None),
+                    "env_var": secret.get("env_var"),
+                }
+            )
+        return secrets
+
     def _load_mcp_config(self) -> dict[str, Any]:
         """Load MCP configuration from config.yaml."""
         config_path = self._find_config_file()
@@ -234,8 +263,15 @@ class NodeJSMCPModelClass(MCPModelClass):
         """Get or create the Node.js MCP client."""
         if self._node_client is None:
             mcp_config = self._load_mcp_config()
+            env = mcp_config["env"]
+            secrets = self._load_secrets()
+            for secret in secrets:
+                if secret["value"] is not None:
+                    env[secret["env_var"]] = secret["value"]
+                elif os.environ.get(secret["env_var"], None) is not None:
+                    env[secret["env_var"]] = os.environ.get(secret["env_var"])
             self._node_client = NodeMCPClient(
-                command=mcp_config["command"], args=mcp_config["args"], env=mcp_config["env"]
+                command=mcp_config["command"], args=mcp_config["args"], env=env
             )
         return self._node_client
 
