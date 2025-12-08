@@ -1151,13 +1151,25 @@ def run_locally(ctx, model_path, port, mode, keep_env, keep_image, skip_dockerfi
     is_flag=True,
     help='Show detailed logs including Ollama server output. By default, Ollama logs are suppressed.',
 )
+@click.option(
+    "--mode",
+    type=click.Choice(['env', 'container'], case_sensitive=False),
+    default='env',
+    show_default=True,
+    help='Specifies how to run the model: "env" for virtual environment or "container" for Docker container. Defaults to "env".',
+)
+@click.option(
+    '--keep_image',
+    is_flag=True,
+    help='Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.',
+)
 @click.pass_context
-def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs):
+def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_image):
     """Run the model as a local runner to help debug your model connected to the API or to
-    leverage local compute resources manually. This relies on many variables being present in the env
-    of the currently selected context. If they are not present then default values will be used to
-    ease the setup of a local runner and your context yaml will be updated in place. The required
-    env vars are:
+      leverage local compute resources manually. This relies on many variables being present in the env
+      of the currently selected context. If they are not present then default values will be used to
+      ease the setup of a local runner and your context yaml will be updated in place. The required
+      env vars are:
 
     \b
       CLARIFAI_PAT:
@@ -1168,11 +1180,9 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs):
       CLARIFAI_USER_ID:
       CLARIFAI_APP_ID:
       CLARIFAI_MODEL_ID:
-
     \b
       # for where the local runner should be in a compute cluster
       # note the user_id of the compute cluster is the same as the user_id of the model.
-
     \b
       CLARIFAI_COMPUTE_CLUSTER_ID:
       CLARIFAI_NODEPOOL_ID:
@@ -1188,21 +1198,32 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs):
     that starts up in the local runner is the same as the one you intend to call in the API.
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
+    MODE: Specifies how to run the model: "env" for virtual environment or "container" for Docker container. Defaults to "env".
+    KEEP_IMAGE: Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.
     """
     from clarifai.client.user import User
     from clarifai.runners.models.model_builder import ModelBuilder
+    from clarifai.runners.models.model_run_locally import ModelRunLocally
     from clarifai.runners.server import ModelServer
 
     validate_context(ctx)
     _ensure_hf_token(ctx, model_path)
     builder = ModelBuilder(model_path, download_validation_only=True)
-    logger.info("> Checking local runner requirements...")
-    if not check_requirements_installed(model_path):
-        logger.error(f"Requirements not installed for model at {model_path}.")
-        raise click.Abort()
+    manager = ModelRunLocally(model_path)
 
-    # Post check while running `clarifai model local-runner` we check if the toolkit is ollama
+    port = 8080
+    if mode == "env":
+        manager.create_temp_venv()
+        manager.install_requirements()
+
     dependencies = parse_requirements(model_path)
+    if mode != "container":
+        logger.info("> Checking local runner requirements...")
+        # Post check while running `clarifai model local-runner` we check if the toolkit is ollama
+        if not check_requirements_installed(dependencies=dependencies):
+            logger.error(f"Requirements not installed for model at {model_path}.")
+            raise click.Abort()
+
     if "ollama" in dependencies or builder.config.get('toolkit', {}).get('provider') == 'ollama':
         logger.info("Verifying Ollama installation...")
         if not check_ollama_installed():
@@ -1375,7 +1396,7 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs):
     # Now we need to create a version for the model if no version exists. Only need one version that
     # mentions it's a local runner.
     model_versions = list(model.list_versions())
-    method_signatures = builder.get_method_signatures(mocking=False)
+    method_signatures = manager._get_method_signatures()
 
     create_new_version = False
     if len(model_versions) == 0:
@@ -1577,19 +1598,78 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs):
 
     logger.info("✅ Starting local runner...")
 
+    if ctx.obj.current is None:
+        logger.debug("Context is None. Skipping code snippet generation.")
+    else:
+        from clarifai.runners.utils import code_script
+
+        snippet = code_script.generate_client_script(
+            method_signatures,
+            user_id=ctx.obj.current.user_id,
+            app_id=ctx.obj.current.app_id,
+            model_id=ctx.obj.current.model_id,
+            deployment_id=ctx.obj.current.deployment_id,
+            base_url=ctx.obj.current.api_base,
+            colorize=True,
+        )
+        logger.info("✅ Your model is running locally and is ready for requests from the API...\n")
+        logger.info(
+            f"> Code Snippet: To call your model via the API, use this code snippet:\n{snippet}"
+        )
+        logger.info(
+            f"> Playground:   To chat with your model, visit: {ctx.obj.current.ui}/playground?model={ctx.obj.current.model_id}__{ctx.obj.current.model_version_id}&user_id={ctx.obj.current.user_id}&app_id={ctx.obj.current.app_id}\n"
+        )
+        logger.info(
+            f"> API URL:      To call your model via the API, use this model URL: {ctx.obj.current.ui}/{ctx.obj.current.user_id}/{ctx.obj.current.app_id}/models/{ctx.obj.current.model_id}\n"
+        )
+        logger.info("Press CTRL+C to stop the runner.\n")
+
+    serving_args = {
+        "pool_size": pool_size,
+        "num_threads": pool_size,
+        "user_id": user_id,
+        "compute_cluster_id": compute_cluster_id,
+        "nodepool_id": nodepool_id,
+        "runner_id": runner_id,
+        "base_url": ctx.obj.current.api_base,
+        "pat": ctx.obj.current.pat,
+        "context": ctx.obj.current,
+    }
+
+    if mode == "container":
+        try:
+            if not manager.is_docker_installed():
+                raise click.abort()
+
+            image_tag = manager._docker_hash()
+            model_id = manager.config['model']['id'].lower()
+            # must be in lowercase
+            image_name = f"{model_id}:{image_tag}"
+            container_name = model_id
+            if not manager.docker_image_exists(image_name):
+                manager.build_docker_image(image_name=image_name)
+
+            manager.build_docker_image(image_name=image_name)
+            manager.run_docker_container(
+                image_name=image_name,
+                container_name=container_name,
+                port=port,
+                is_local_runner=True,
+                env_vars={"CLARIFAI_PAT": ctx.obj.current.pat},
+                **serving_args,
+            )
+
+        finally:
+            if manager.container_exists(container_name):
+                manager.stop_docker_container(container_name)
+                manager.remove_docker_container(container_name=container_name)
+            if not keep_image:
+                manager.remove_docker_image(image_name=image_name)
+
     # This reads the config.yaml from the model_path so we alter it above first.
-    server = ModelServer(model_path)
-    server.serve(
-        pool_size=pool_size,
-        num_threads=pool_size,
-        user_id=user_id,
-        compute_cluster_id=compute_cluster_id,
-        nodepool_id=nodepool_id,
-        runner_id=runner_id,
-        base_url=ctx.obj.current.api_base,
-        pat=ctx.obj.current.pat,
-        context=ctx.obj.current,
-    )
+    model_runner_local = manager if mode == 'container' else None
+    server = ModelServer(model_path=model_path, model_runner_local=model_runner_local)
+    server.serve(**serving_args)
 
 
 def _parse_json_param(param_value, param_name):

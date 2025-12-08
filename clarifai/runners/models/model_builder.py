@@ -804,7 +804,9 @@ class ModelBuilder:
         """
         model_class = self.load_model_class(mocking=mocking)
         method_infos = model_class._get_method_infos()
-        signatures = [method.signature for method in method_infos.values()]
+        signatures = [
+            method.signature for method in method_infos.values() if method.signature is not None
+        ]
         return signatures
 
     @property
