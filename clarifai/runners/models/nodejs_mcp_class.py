@@ -184,17 +184,13 @@ class NodeJSMCPModelClass(MCPModelClass):
 
         # parent directory (for models in 1/ subdirectory)
         if os.path.exists("../config.yaml"):
+            print("config.yaml at ../config.yaml")
             return "../config.yaml"
 
         # Try absolute path from common model structure
         current_dir = os.getcwd()
-        if "1" in current_dir:
-            # We're in a 1/ subdirectory, go up to find config.yaml
-            parent = os.path.dirname(current_dir)
-            config_path = os.path.join(parent, "config.yaml")
-            if os.path.exists(config_path):
-                return config_path
-
+        if os.path.exists(os.path.join(current_dir, "config.yaml")):
+            return os.path.join(current_dir, "config.yaml")
         return None
 
     def _load_mcp_config(self) -> dict[str, Any]:
@@ -203,7 +199,7 @@ class NodeJSMCPModelClass(MCPModelClass):
         if not config_path:
             raise FileNotFoundError(
                 "config.yaml not found. Please ensure config.yaml exists in the model directory "
-                "with an 'mcp' section containing 'command', 'args', and optionally 'env'."
+                "with an 'mcp_server' section containing 'command', 'args', and optionally 'env'."
             )
 
         with open(config_path, 'r') as f:
@@ -212,10 +208,10 @@ class NodeJSMCPModelClass(MCPModelClass):
         if not config:
             raise ValueError("config.yaml is empty")
 
-        mcp_config = config.get("mcp")
+        mcp_config = config.get("mcp_server")
         if not mcp_config:
             raise ValueError(
-                "No 'mcp' section found in config.yaml. Please add an 'mcp' section with "
+                "No 'mcp_server' section found in config.yaml. Please add an 'mcp_server' section with "
                 "'command', 'args', and optionally 'env' fields."
             )
 
@@ -224,9 +220,9 @@ class NodeJSMCPModelClass(MCPModelClass):
         env = mcp_config.get("env", {})
 
         if not command:
-            raise ValueError("'command' is required in the 'mcp' section of config.yaml")
+            raise ValueError("'command' is required in the 'mcp_server' section of config.yaml")
         if not args:
-            raise ValueError("'args' is required in the 'mcp' section of config.yaml")
+            raise ValueError("'args' is required in the 'mcp_server' section of config.yaml")
 
         return {
             "command": command,
