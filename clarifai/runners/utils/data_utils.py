@@ -615,7 +615,7 @@ class DataConverter:
         old_data = part_data
         if old_data.string_value:
             old_data.text.raw = old_data.string_value
-
+            old_data.ClearField('string_value')
         return old_data
 
     @classmethod
