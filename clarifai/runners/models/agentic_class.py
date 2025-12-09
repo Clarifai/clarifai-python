@@ -18,7 +18,7 @@ from clarifai.utils.logging import logger
 
 @dataclass
 class MCPConnection:
-    """Single MCP server connection with metadata."""
+    """Single MCP server connection."""
 
     client: Any
     tools: List[Any]
@@ -27,21 +27,21 @@ class MCPConnection:
     last_used: float = field(default_factory=time.time)
 
     def touch(self):
-        """Mark as recently used."""
         self.last_used = time.time()
 
 
 class MCPConnectionPool:
-    """Thread-safe connection pool for MCP servers."""
+    """Thread-safe connection pool with passive idle cleanup."""
 
     _instance: Optional['MCPConnectionPool'] = None
     _instance_lock = threading.Lock()
 
-    # Timeouts
+    # Timeouts and thresholds
     CONNECT_TIMEOUT = 30.0
     TOOL_CALL_TIMEOUT = 60.0
-    VERIFY_IDLE_THRESHOLD = 60.0  # Verify if idle > 60s
-    MAX_IDLE_TIME = 600.0  # Remove if idle > 10min
+    VERIFY_IDLE_THRESHOLD = 60.0  # Verify connections idle > 60s
+    MAX_IDLE_TIME = 600.0  # Remove connections idle > 10min
+    CLEANUP_INTERVAL = 120.0  # Check cleanup at most every 2min
 
     def __new__(cls):
         if cls._instance is None:
@@ -58,9 +58,12 @@ class MCPConnectionPool:
         self._connections: Dict[str, MCPConnection] = {}
         self._lock = threading.RLock()
 
-        # Tool caches for O(1) lookup
+        # Tool caches
         self._tool_to_url: Dict[str, str] = {}
-        self._all_tools: Dict[str, dict] = {}  # tool_name -> OpenAI format
+        self._all_tools: Dict[str, dict] = {}
+
+        # Cleanup tracking
+        self._last_cleanup = 0.0
 
         # Background event loop
         self._loop: Optional[asyncio.AbstractEventLoop] = None
@@ -70,7 +73,7 @@ class MCPConnectionPool:
         self._initialized = True
 
     def _start_event_loop(self):
-        """Start background event loop for async operations."""
+        """Start background event loop."""
         ready = threading.Event()
 
         def run():
@@ -83,12 +86,70 @@ class MCPConnectionPool:
         self._loop_thread.start()
         ready.wait(timeout=5.0)
 
-    def _run_async(self, coro, timeout: float = CONNECT_TIMEOUT) -> Any:
+    def _run_async(self, coro, timeout: float = 30.0) -> Any:
         """Run coroutine in background loop."""
         if self._loop is None or self._loop.is_closed():
             self._start_event_loop()
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         return future.result(timeout=timeout)
+
+    # ==================== Cleanup Logic ====================
+
+    def _maybe_cleanup_idle(self):
+        """Passive cleanup - removes connections idle too long.
+
+        Called at the start of get_connections() to clean up
+        without needing a background thread.
+        """
+        now = time.time()
+
+        # Rate limit cleanup checks
+        if now - self._last_cleanup < self.CLEANUP_INTERVAL:
+            return
+
+        self._last_cleanup = now
+
+        # Find idle connections
+        with self._lock:
+            to_remove = [
+                url
+                for url, conn in self._connections.items()
+                if now - conn.last_used > self.MAX_IDLE_TIME
+            ]
+
+        # Remove them (outside lock to avoid deadlock during async close)
+        for url in to_remove:
+            self._disconnect(url)
+
+    def _disconnect(self, url: str):
+        """Disconnect and remove a connection."""
+        with self._lock:
+            conn = self._connections.pop(url, None)
+
+            # Invalidate tool cache entries for this URL
+            if conn:
+                for tool_name in conn.tool_names:
+                    self._tool_to_url.pop(tool_name, None)
+                    self._all_tools.pop(tool_name, None)
+
+        if conn:
+            try:
+                self._run_async(self._close_connection(conn), timeout=10.0)
+                logger.info(f"Disconnected idle connection from {url}")
+            except Exception as e:
+                logger.warning(f"Error disconnecting from {url}: {e}")
+
+    async def _close_connection(self, conn: MCPConnection):
+        """Close a connection gracefully."""
+        try:
+            if hasattr(conn.client, 'close'):
+                await asyncio.wait_for(conn.client.close(), timeout=5.0)
+            else:
+                await asyncio.wait_for(conn.client.__aexit__(None, None, None), timeout=5.0)
+        except Exception as e:
+            logger.warning(f"Error closing connection to {conn.url}: {e}")
+
+    # ==================== Connection Management ====================
 
     async def _create_connection(self, url: str) -> MCPConnection:
         """Create new MCP connection."""
@@ -122,22 +183,12 @@ class MCPConnectionPool:
         except Exception:
             return False
 
-    async def _close_connection(self, conn: MCPConnection):
-        """Close a connection gracefully."""
-        try:
-            if hasattr(conn.client, 'close'):
-                await asyncio.wait_for(conn.client.close(), timeout=5.0)
-            else:
-                await asyncio.wait_for(conn.client.__aexit__(None, None, None), timeout=5.0)
-        except Exception as e:
-            logger.warning(f"Error closing connection to {conn.url}: {e}")
-
     def _needs_verification(self, conn: MCPConnection) -> bool:
-        """Check if connection needs verification based on idle time."""
+        """Check if connection should be verified."""
         return time.time() - conn.last_used > self.VERIFY_IDLE_THRESHOLD
 
     def _update_tool_cache(self, conn: MCPConnection):
-        """Update tool caches from connection."""
+        """Cache tool info from connection."""
         for tool in conn.tools:
             self._tool_to_url[tool.name] = conn.url
             self._all_tools[tool.name] = {
@@ -150,18 +201,15 @@ class MCPConnectionPool:
             }
 
     def get_connections(self, urls: List[str]) -> Dict[str, MCPConnection]:
-        """Get connections for URLs, creating/verifying as needed.
+        """Get connections for URLs, with passive cleanup."""
+        # Passive cleanup of idle connections
+        self._maybe_cleanup_idle()
 
-        This is the main entry point. It:
-        1. Returns cached connections if recently used
-        2. Verifies cached connections if idle
-        3. Creates new connections if needed
-        All operations happen in parallel where possible.
-        """
         result = {}
         to_verify = []
         to_create = []
 
+        # Categorize URLs
         with self._lock:
             for url in urls:
                 if url in self._connections:
@@ -195,7 +243,7 @@ class MCPConnectionPool:
                             conn.touch()
                             result[url] = conn
                         else:
-                            # Remove invalid connection, will recreate
+                            # Invalid - remove and recreate
                             self._connections.pop(url, None)
                             to_create.append(url)
             except Exception as e:
@@ -229,7 +277,7 @@ class MCPConnectionPool:
     def get_tools_and_mapping(
         self, urls: List[str]
     ) -> Tuple[List[dict], Dict[str, MCPConnection], Dict[str, str]]:
-        """Get tools, connections, and tool-to-server mapping."""
+        """Get tools, connections, and mapping."""
         connections = self.get_connections(urls)
 
         tools = []
@@ -256,6 +304,8 @@ class MCPConnectionPool:
         logger.info(f"Loaded {len(tools)} tools from {len(connections)} servers")
         return tools, connections, tool_to_server
 
+    # ==================== Tool Execution ====================
+
     async def call_tool_async(
         self,
         tool_name: str,
@@ -264,6 +314,7 @@ class MCPConnectionPool:
         tool_to_server: Dict[str, str],
     ) -> Any:
         """Call a tool asynchronously."""
+        logger.info(f"Calling tool {tool_name}")
         url = tool_to_server.get(tool_name) or self._tool_to_url.get(tool_name)
         if not url or url not in connections:
             raise ValueError(f"Tool '{tool_name}' not found")
@@ -302,7 +353,6 @@ class MCPConnectionPool:
                 result = await self.call_tool_async(name, args, connections, tool_to_server)
                 return (call_id, result, None)
             except Exception as e:
-                logger.error(f"Error calling tool {name}: {e}")
                 return (call_id, None, str(e))
 
         tasks = [call_one(cid, name, args) for cid, name, args in calls]
@@ -314,40 +364,11 @@ class MCPConnectionPool:
         connections: Dict[str, MCPConnection],
         tool_to_server: Dict[str, str],
     ) -> List[Tuple[str, Optional[Any], Optional[str]]]:
-        """Call multiple tools in parallel (sync wrapper)."""
+        """Call multiple tools in parallel (sync)."""
         return self._run_async(
             self.call_tools_batch_async(calls, connections, tool_to_server),
             timeout=self.TOOL_CALL_TIMEOUT + 10,
         )
-
-    def cleanup_idle(self):
-        """Remove connections idle for too long."""
-        now = time.time()
-        with self._lock:
-            to_remove = [
-                url
-                for url, conn in self._connections.items()
-                if now - conn.last_used > self.MAX_IDLE_TIME
-            ]
-            for url in to_remove:
-                conn = self._connections.pop(url)
-                self._run_async(self._close_connection(conn), timeout=10.0)
-                logger.info(f"Removed idle connection to {url}")
-
-    def shutdown(self):
-        """Close all connections and stop event loop."""
-        with self._lock:
-            for conn in self._connections.values():
-                try:
-                    self._run_async(self._close_connection(conn), timeout=5.0)
-                except Exception:
-                    pass
-            self._connections.clear()
-            self._tool_to_url.clear()
-            self._all_tools.clear()
-
-        if self._loop and not self._loop.is_closed():
-            self._loop.call_soon_threadsafe(self._loop.stop)
 
 
 class AgenticModelClass(OpenAIModelClass):
@@ -381,11 +402,6 @@ class AgenticModelClass(OpenAIModelClass):
                 if cls._pool is None:
                     cls._pool = MCPConnectionPool()
         return cls._pool
-
-    @classmethod
-    def warm_up(cls, mcp_servers: List[str]):
-        """Pre-connect to MCP servers."""
-        cls.get_pool().get_connections(mcp_servers)
 
     # === Token Tracking ===
 
