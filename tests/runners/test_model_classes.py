@@ -717,13 +717,18 @@ class TestMCPModelIntegration:
             from fastmcp import Client
             from fastmcp.client.transports import StreamableHttpTransport
             
+            # Get CLARIFAI_PAT with fallback (should not be None due to skipif)
+            pat = os.getenv("CLARIFAI_PAT", "")
+            if not pat:
+                pytest.skip("CLARIFAI_PAT environment variable not set")
+            
             # Test that we can create a transport instance with proper configuration
             # Note: We use a mock URL since we don't have a deployed model in tests
             mock_url = "https://api.clarifai.com/v2/ext/mcp/v1/users/test_user/apps/test_app/models/test_model"
             
             transport = StreamableHttpTransport(
                 url=mock_url,
-                headers={"Authorization": f"Bearer {os.environ['CLARIFAI_PAT']}"},
+                headers={"Authorization": f"Bearer {pat}"},
             )
             
             # Verify transport was created with correct attributes
