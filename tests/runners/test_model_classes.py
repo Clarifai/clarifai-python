@@ -708,38 +708,35 @@ class TestMCPModelIntegration:
         reason="CLARIFAI_PAT environment variable not set"
     )
     def test_mcp_with_http_transport(self):
-        """Test MCP model with StreamableHttpTransport to Clarifai API.
+        """Test MCP model with StreamableHttpTransport setup.
         
-        This test requires:
-        - CLARIFAI_PAT environment variable to be set
-        - A deployed MCP model accessible via the Clarifai API
+        This test validates that the StreamableHttpTransport client can be
+        configured properly for use with Clarifai API endpoints.
         """
         try:
             from fastmcp import Client
             from fastmcp.client.transports import StreamableHttpTransport
             
-            # Note: This test would need a real deployed model endpoint
-            # For now, we'll just test that the client can be instantiated
-            # In a real scenario, you would use an actual model URL like:
-            # url = "https://api.clarifai.com/v2/ext/mcp/v1/users/{user_id}/apps/{app_id}/models/{model_id}"
+            # Test that we can create a transport instance with proper configuration
+            # Note: We use a mock URL since we don't have a deployed model in tests
+            mock_url = "https://api.clarifai.com/v2/ext/mcp/v1/users/test_user/apps/test_app/models/test_model"
             
-            # Skip if we don't have a real endpoint to test against
-            pytest.skip("This test requires a deployed MCP model endpoint")
+            transport = StreamableHttpTransport(
+                url=mock_url,
+                headers={"Authorization": f"Bearer {os.environ['CLARIFAI_PAT']}"},
+            )
             
-            # Example code that would run with a real endpoint:
-            # transport = StreamableHttpTransport(
-            #     url="https://api.clarifai.com/v2/ext/mcp/v1/users/user/apps/app/models/model",
-            #     headers={"Authorization": f"Bearer {os.environ['CLARIFAI_PAT']}"},
-            # )
-            # 
+            # Verify transport was created with correct attributes
+            assert transport is not None
+            assert hasattr(transport, 'url')
+            
+            # Note: Actual connection test would require a deployed model:
             # async def check_tools():
             #     async with Client(transport) as client:
             #         tools = await client.list_tools()
             #         assert tools is not None
-            #         return tools
-            # 
-            # tools = asyncio.run(check_tools())
-            # assert len(tools.tools) > 0
+            #         assert len(tools.tools) > 0
+            # asyncio.run(check_tools())
             
         except ImportError as e:
             pytest.skip(f"Required packages not installed: {e}")
