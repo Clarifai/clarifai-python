@@ -1,0 +1,19 @@
+# This is the config file for a StdioMCP model using calculator server.
+
+model:
+  id: "dummy-stdio-mcp-model"
+  user_id: "user_id"
+  app_id: "app_id"
+  model_type_id: "mcp"
+
+build_info:
+  python_version: "3.12"
+
+inference_compute_info:
+  cpu_limit: "1"
+  cpu_memory: "1Gi"
+  num_accelerators: 0
+
+mcp_server:
+  command: "uvx"
+  args: ["mcp-server-calculator"]

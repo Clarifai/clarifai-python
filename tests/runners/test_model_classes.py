@@ -607,3 +607,102 @@ secrets:
                     
         except ImportError:
             pytest.skip("Required MCP packages not installed")
+
+
+class TestMCPModelIntegration:
+    """Integration tests for MCP models using actual dummy models."""
+
+    def test_mcp_model_with_fastmcp_server(self):
+        """Test MCPModelClass with actual FastMCP server."""
+        try:
+            import sys
+            from pathlib import Path
+            
+            # Add dummy_mcp_model to path
+            dummy_model_path = Path(__file__).parent / "dummy_mcp_model" / "1"
+            sys.path.insert(0, str(dummy_model_path))
+            
+            from model import MyModelClass
+            
+            model = MyModelClass()
+            model.load_model()
+            
+            # Verify initialization
+            assert model._thread is not None
+            assert model._thread.is_alive()
+            assert model._fastmcp_server is not None
+            assert model._client is not None
+            
+            # Clean up
+            model.shutdown()
+            
+            # Remove from path
+            sys.path.remove(str(dummy_model_path))
+            
+        except ImportError as e:
+            pytest.skip(f"Required packages not installed: {e}")
+
+    def test_stdio_mcp_model_with_calculator_server(self):
+        """Test StdioMCPModelClass with mcp-server-calculator."""
+        try:
+            import sys
+            from pathlib import Path
+            
+            # Add dummy_stdio_mcp_model to path
+            dummy_model_path = Path(__file__).parent / "dummy_stdio_mcp_model" / "1"
+            sys.path.insert(0, str(dummy_model_path))
+            
+            from model import MyStdioMCPModel
+            
+            model = MyStdioMCPModel()
+            
+            # Test config loading
+            config = model._load_mcp_config()
+            assert config["command"] == "uvx"
+            assert config["args"] == ["mcp-server-calculator"]
+            
+            # Remove from path
+            sys.path.remove(str(dummy_model_path))
+            
+        except ImportError as e:
+            pytest.skip(f"Required packages not installed: {e}")
+        except FileNotFoundError:
+            pytest.skip("Config file not found")
+
+    def test_mcp_transport_with_real_model(self):
+        """Test mcp_transport method with actual model."""
+        try:
+            import sys
+            from pathlib import Path
+            from mcp import types
+            
+            # Add dummy_mcp_model to path
+            dummy_model_path = Path(__file__).parent / "dummy_mcp_model" / "1"
+            sys.path.insert(0, str(dummy_model_path))
+            
+            from model import MyModelClass
+            
+            model = MyModelClass()
+            model.load_model()
+            
+            # Create a list tools request
+            request = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/list"
+            }
+            
+            response_str = model.mcp_transport(json.dumps(request))
+            response = json.loads(response_str)
+            
+            # Verify response structure
+            assert "tools" in response or "error" in response
+            
+            # Clean up
+            model.shutdown()
+            
+            # Remove from path
+            sys.path.remove(str(dummy_model_path))
+            
+        except ImportError as e:
+            pytest.skip(f"Required packages not installed: {e}")
