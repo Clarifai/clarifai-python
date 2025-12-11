@@ -612,15 +612,31 @@ secrets:
 class TestMCPModelIntegration:
     """Integration tests for MCP models using actual dummy models."""
 
-    def test_mcp_model_with_fastmcp_server(self):
+    @pytest.fixture
+    def add_model_to_path(self):
+        """Fixture to temporarily add a model directory to sys.path."""
+        import sys
+        from pathlib import Path
+        
+        added_paths = []
+        
+        def _add_path(model_name):
+            model_path = Path(__file__).parent / model_name / "1"
+            sys.path.insert(0, str(model_path))
+            added_paths.append(str(model_path))
+            return model_path
+        
+        yield _add_path
+        
+        # Cleanup: remove all added paths
+        for path in added_paths:
+            if path in sys.path:
+                sys.path.remove(path)
+
+    def test_mcp_model_with_fastmcp_server(self, add_model_to_path):
         """Test MCPModelClass with actual FastMCP server."""
         try:
-            import sys
-            from pathlib import Path
-            
-            # Add dummy_mcp_model to path
-            dummy_model_path = Path(__file__).parent / "dummy_mcp_model" / "1"
-            sys.path.insert(0, str(dummy_model_path))
+            add_model_to_path("dummy_mcp_model")
             
             from model import MyModelClass
             
@@ -636,21 +652,13 @@ class TestMCPModelIntegration:
             # Clean up
             model.shutdown()
             
-            # Remove from path
-            sys.path.remove(str(dummy_model_path))
-            
         except ImportError as e:
             pytest.skip(f"Required packages not installed: {e}")
 
-    def test_stdio_mcp_model_with_calculator_server(self):
+    def test_stdio_mcp_model_with_calculator_server(self, add_model_to_path):
         """Test StdioMCPModelClass with mcp-server-calculator."""
         try:
-            import sys
-            from pathlib import Path
-            
-            # Add dummy_stdio_mcp_model to path
-            dummy_model_path = Path(__file__).parent / "dummy_stdio_mcp_model" / "1"
-            sys.path.insert(0, str(dummy_model_path))
+            add_model_to_path("dummy_stdio_mcp_model")
             
             from model import MyStdioMCPModel
             
@@ -661,24 +669,17 @@ class TestMCPModelIntegration:
             assert config["command"] == "uvx"
             assert config["args"] == ["mcp-server-calculator"]
             
-            # Remove from path
-            sys.path.remove(str(dummy_model_path))
-            
         except ImportError as e:
             pytest.skip(f"Required packages not installed: {e}")
         except FileNotFoundError:
             pytest.skip("Config file not found")
 
-    def test_mcp_transport_with_real_model(self):
+    def test_mcp_transport_with_real_model(self, add_model_to_path):
         """Test mcp_transport method with actual model."""
         try:
-            import sys
-            from pathlib import Path
             from mcp import types
             
-            # Add dummy_mcp_model to path
-            dummy_model_path = Path(__file__).parent / "dummy_mcp_model" / "1"
-            sys.path.insert(0, str(dummy_model_path))
+            add_model_to_path("dummy_mcp_model")
             
             from model import MyModelClass
             
@@ -700,9 +701,6 @@ class TestMCPModelIntegration:
             
             # Clean up
             model.shutdown()
-            
-            # Remove from path
-            sys.path.remove(str(dummy_model_path))
             
         except ImportError as e:
             pytest.skip(f"Required packages not installed: {e}")
