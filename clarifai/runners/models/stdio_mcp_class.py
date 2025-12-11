@@ -159,6 +159,8 @@ class StdioMCPModelClass(MCPModelClass):
         super().__init__()
         self._stdio_client: Optional[StdioMCPClient] = None
         self._server: Optional[FastMCP] = None
+        # Flag to indicate whether tools have been registered with the FastMCP server.
+        # Prevents duplicate registration. Reset to False on shutdown to allow re-registration if restarted.
         self._tools_registered = False
 
     def _json_type_to_python(self, json_type: str) -> type:
@@ -379,3 +381,11 @@ class StdioMCPModelClass(MCPModelClass):
 
         # Then call parent shutdown
         await super()._background_shutdown()
+
+    def shutdown(self):
+        """
+        Cleanly shut down the server and reset the tools registration flag.
+        Call this when the FastMCP server is shutting down.
+        """
+        self._tools_registered = False
+        super().shutdown()
