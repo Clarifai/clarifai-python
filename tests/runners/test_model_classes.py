@@ -677,8 +677,6 @@ class TestMCPModelIntegration:
     def test_mcp_transport_with_real_model(self, add_model_to_path):
         """Test mcp_transport method with actual model."""
         try:
-            from mcp import types
-            
             add_model_to_path("dummy_mcp_model")
             
             from model import MyModelClass
