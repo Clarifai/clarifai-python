@@ -712,18 +712,19 @@ class TestMCPModelIntegration:
         
         This test validates that the StreamableHttpTransport client can be
         configured properly for use with Clarifai API endpoints.
+        
+        Note: This test only validates transport configuration. Testing with
+        a real deployed model would require additional setup in CI/CD.
         """
         try:
             from fastmcp import Client
             from fastmcp.client.transports import StreamableHttpTransport
             
-            # Get CLARIFAI_PAT with fallback (should not be None due to skipif)
+            # Get CLARIFAI_PAT (validated by skipif decorator)
             pat = os.getenv("CLARIFAI_PAT", "")
-            if not pat:
-                pytest.skip("CLARIFAI_PAT environment variable not set")
             
             # Test that we can create a transport instance with proper configuration
-            # Note: We use a mock URL since we don't have a deployed model in tests
+            # Using a mock URL since we don't have a deployed model in tests
             mock_url = "https://api.clarifai.com/v2/ext/mcp/v1/users/test_user/apps/test_app/models/test_model"
             
             transport = StreamableHttpTransport(
@@ -734,14 +735,6 @@ class TestMCPModelIntegration:
             # Verify transport was created with correct attributes
             assert transport is not None
             assert hasattr(transport, 'url')
-            
-            # Note: Actual connection test would require a deployed model:
-            # async def check_tools():
-            #     async with Client(transport) as client:
-            #         tools = await client.list_tools()
-            #         assert tools is not None
-            #         assert len(tools.tools) > 0
-            # asyncio.run(check_tools())
             
         except ImportError as e:
             pytest.skip(f"Required packages not installed: {e}")
