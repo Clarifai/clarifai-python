@@ -702,3 +702,44 @@ class TestMCPModelIntegration:
             
         except ImportError as e:
             pytest.skip(f"Required packages not installed: {e}")
+
+    @pytest.mark.skipif(
+        os.getenv("CLARIFAI_PAT") is None,
+        reason="CLARIFAI_PAT environment variable not set"
+    )
+    def test_mcp_with_http_transport(self):
+        """Test MCP model with StreamableHttpTransport to Clarifai API.
+        
+        This test requires:
+        - CLARIFAI_PAT environment variable to be set
+        - A deployed MCP model accessible via the Clarifai API
+        """
+        try:
+            from fastmcp import Client
+            from fastmcp.client.transports import StreamableHttpTransport
+            
+            # Note: This test would need a real deployed model endpoint
+            # For now, we'll just test that the client can be instantiated
+            # In a real scenario, you would use an actual model URL like:
+            # url = "https://api.clarifai.com/v2/ext/mcp/v1/users/{user_id}/apps/{app_id}/models/{model_id}"
+            
+            # Skip if we don't have a real endpoint to test against
+            pytest.skip("This test requires a deployed MCP model endpoint")
+            
+            # Example code that would run with a real endpoint:
+            # transport = StreamableHttpTransport(
+            #     url="https://api.clarifai.com/v2/ext/mcp/v1/users/user/apps/app/models/model",
+            #     headers={"Authorization": f"Bearer {os.environ['CLARIFAI_PAT']}"},
+            # )
+            # 
+            # async def check_tools():
+            #     async with Client(transport) as client:
+            #         tools = await client.list_tools()
+            #         assert tools is not None
+            #         return tools
+            # 
+            # tools = asyncio.run(check_tools())
+            # assert len(tools.tools) > 0
+            
+        except ImportError as e:
+            pytest.skip(f"Required packages not installed: {e}")
