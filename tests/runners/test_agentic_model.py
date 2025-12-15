@@ -92,8 +92,11 @@ class TestMCPConnectionPool:
         ):
             # Create a mock client instance
             mock_client = Mock()
-            mock_client.__aenter__ = Mock(return_value=asyncio.Future())
-            mock_client.__aenter__.return_value.set_result(mock_client)
+
+            # Create a future for __aenter__ and set its result
+            enter_future = asyncio.Future()
+            enter_future.set_result(mock_client)
+            mock_client.__aenter__ = Mock(return_value=enter_future)
 
             # Mock list_tools
             mock_tool = MockMCPTool("test_tool", "Test tool")
