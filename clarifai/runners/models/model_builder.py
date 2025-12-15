@@ -1083,19 +1083,34 @@ class ModelBuilder:
         Generate the Dockerfile content based on the model configuration.
         This is a helper method that returns the content without writing to file.
         """
-        dockerfile_template = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            'dockerfile_template',
-            'Dockerfile.template',
-        )
+        # Get the Python version from the config file
+        build_info = self.config.get('build_info', {})
 
-        with open(dockerfile_template, 'r') as template_file:
+        # Check if node_version is specified - if so, use the Node.js Dockerfile template
+        node_version = build_info.get('node_version', '') or ''
+        use_node_template = bool(node_version and str(node_version).strip())
+
+        if use_node_template:
+            dockerfile_template_path = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                'dockerfile_template',
+                'Dockerfile.node.template',
+            )
+            logger.info(
+                f"Setup: Node version {node_version} specified in config.yaml, using Node.js Dockerfile template"
+            )
+        else:
+            dockerfile_template_path = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                'dockerfile_template',
+                'Dockerfile.template',
+            )
+
+        with open(dockerfile_template_path, 'r') as template_file:
             dockerfile_template = template_file.read()
 
         dockerfile_template = Template(dockerfile_template)
 
-        # Get the Python version from the config file
-        build_info = self.config.get('build_info', {})
         if 'python_version' in build_info:
             python_version = build_info['python_version']
             if python_version not in AVAILABLE_PYTHON_IMAGES:
@@ -1122,6 +1137,43 @@ class ModelBuilder:
         # Parse the requirements.txt file to determine the base image
         dependencies = self._parse_requirements()
 
+        # If using Node.js template, use simpler substitution
+        if use_node_template:
+            if 'clarifai' not in dependencies:
+                raise Exception(
+                    f"clarifai not found in requirements.txt, please add clarifai to the requirements.txt file with a fixed version. Current version is clarifai=={CLARIFAI_LATEST_VERSION}"
+                )
+            clarifai_version = dependencies['clarifai']
+            if not clarifai_version:
+                logger.warn(
+                    f"clarifai version not found in requirements.txt, using the latest version {CLARIFAI_LATEST_VERSION}"
+                )
+                clarifai_version = CLARIFAI_LATEST_VERSION
+                lines = []
+                with open(os.path.join(self.folder, 'requirements.txt'), 'r') as file:
+                    for line in file:
+                        # if the line without whitespace is "clarifai"
+                        dependency, version = self._match_req_line(line)
+                        if dependency and dependency == "clarifai":
+                            lines.append(
+                                line.replace("clarifai", f"clarifai=={CLARIFAI_LATEST_VERSION}")
+                            )
+                        else:
+                            lines.append(line)
+                with open(os.path.join(self.folder, 'requirements.txt'), 'w') as file:
+                    file.writelines(lines)
+                logger.warn(
+                    f"Updated requirements.txt to have clarifai=={CLARIFAI_LATEST_VERSION}"
+                )
+
+            # Replace placeholders with actual values for Node.js template
+            dockerfile_content = dockerfile_template.safe_substitute(
+                PYTHON_VERSION=python_version,
+                NODE_VERSION=str(node_version).strip(),
+            )
+            return dockerfile_content
+
+        # Standard template logic (multi-stage build)
         is_amd_gpu = self._is_amd()
         if is_amd_gpu:
             final_image = AMD_PYTHON_BASE_IMAGE.format(python_version=python_version)
