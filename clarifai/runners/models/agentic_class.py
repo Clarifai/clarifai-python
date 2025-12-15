@@ -31,7 +31,31 @@ class MCPConnection:
 
 
 class MCPConnectionPool:
-    """Thread-safe connection pool with passive idle cleanup."""
+    """
+    Singleton, thread-safe connection pool for managing MCP server connections.
+    Lifecycle:
+        - The pool is implemented as a singleton. The first instantiation creates the instance;
+          subsequent instantiations return the same object.
+        - Initialization sets up internal data structures, a background asyncio event loop,
+          and a dedicated thread for running asynchronous tasks.
+        - The event loop is started in a background daemon thread and is used to run async
+          operations (such as connecting and disconnecting).
+    Thread Safety:
+        - All access to shared state (connections, tool caches) is protected by a reentrant lock (`self._lock`).
+        - The singleton instance is protected by a class-level lock (`_instance_lock`) to ensure only one instance is created.
+        - The background event loop is started and accessed in a thread-safe manner.
+    Cleanup Behavior:
+        - Idle connections are cleaned up passively: whenever `get_connections()` is called, the pool checks for
+          connections that have been idle longer than `MAX_IDLE_TIME` and disconnects them.
+        - Cleanup is rate-limited by `CLEANUP_INTERVAL` to avoid excessive checks.
+        - Disconnection is performed asynchronously in the background event loop.
+        - Tool caches are invalidated when a connection is removed.
+        - There is no explicit shutdown; background threads and event loops are daemonized and will exit with the process.
+    Usage Notes:
+        - Users do not need to manage the pool directly; it is managed automatically as a singleton.
+        - Connections are created, reused, and cleaned up transparently.
+        - The pool is safe for concurrent use from multiple threads.
+    """
 
     _instance: Optional['MCPConnectionPool'] = None
     _instance_lock = threading.Lock()
