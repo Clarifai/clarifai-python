@@ -25,12 +25,11 @@ including:
     - Error scenarios
 """
 
-import asyncio
 import json
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, List
 from unittest.mock import MagicMock
 
-from clarifai.runners.models.agentic_class import AgenticModelClass, MCPConnection
+from clarifai.runners.models.agentic_class import AgenticModelClass
 from clarifai.runners.models.dummy_openai_model import (
     MockCompletion,
     MockCompletionStream,
@@ -138,16 +137,14 @@ class MockCompletionWithTools(MockCompletion):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        
+
         # Check if tools are provided and should be called
         tools = kwargs.get("tools", [])
         messages = kwargs.get("messages", [])
-        
+
         if tools and not any(msg.get("role") == "tool" for msg in messages):
             # First call - trigger tool use
-            tool_calls = [
-                self.ToolCall("call_1", "test_tool", {"arg1": "test_value"})
-            ]
+            tool_calls = [self.ToolCall("call_1", "test_tool", {"arg1": "test_value"})]
             self.choices = [self.ChoiceWithTools("", tool_calls)]
         else:
             # After tool results - normal response
@@ -166,11 +163,15 @@ class MockCompletionStreamWithTools(MockCompletionStream):
                             self.name = name
                             self.arguments = arguments
 
-                    def __init__(self, index: int, tool_id: str = "", name: str = "", arguments: str = ""):
+                    def __init__(
+                        self, index: int, tool_id: str = "", name: str = "", arguments: str = ""
+                    ):
                         self.index = index
                         self.id = tool_id
                         self.type = "function" if tool_id else None
-                        self.function = self.FunctionDelta(name, arguments) if (name or arguments) else None
+                        self.function = (
+                            self.FunctionDelta(name, arguments) if (name or arguments) else None
+                        )
 
                 def __init__(self, content=None, tool_calls=None):
                     super().__init__(content)
@@ -197,10 +198,10 @@ class MockCompletionStreamWithTools(MockCompletionStream):
         # Don't call super().__init__ - we'll override everything
         messages = kwargs.get("messages", [])
         tools = kwargs.get("tools", [])
-        
+
         self.chunks = []
         self.include_usage = kwargs.get("stream_options", {}).get("include_usage")
-        
+
         # Check if we should emit tool calls or regular content
         if tools and not any(msg.get("role") == "tool" for msg in messages):
             # Emit tool call chunks
@@ -221,7 +222,7 @@ class MockCompletionStreamWithTools(MockCompletionStream):
                 ("Response after tool call", None),
                 ("", None),
             ]
-        
+
         self.current_chunk = 0
 
     def __iter__(self):
@@ -252,18 +253,17 @@ class MockResponseWithTools(MockResponse):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        
+
         tools = kwargs.get("tools", [])
         input_data = kwargs.get("input", "")
-        
+
         # Check if input contains tool results
         has_tool_results = False
         if isinstance(input_data, list):
             has_tool_results = any(
-                item.get("type") == "function_call_output"
-                for item in input_data
+                item.get("type") == "function_call_output" for item in input_data
             )
-        
+
         if tools and not has_tool_results:
             # First call - trigger tool use
             self.output = [
@@ -286,29 +286,28 @@ class MockResponseStreamWithTools(MockResponseStream):
     def __init__(self, **kwargs):
         tools = kwargs.get("tools", [])
         input_data = kwargs.get("input", "")
-        
+
         # Check if input contains tool results
         has_tool_results = False
         if isinstance(input_data, list):
             has_tool_results = any(
-                item.get("type") == "function_call_output"
-                for item in input_data
+                item.get("type") == "function_call_output" for item in input_data
             )
-        
+
         self.response_id = "dummy-response-id"
         self.created_at = 1234567890
         self.model = kwargs.get("model", "gpt-4")
         self.events = []
-        
+
         if tools and not has_tool_results:
             # First call - emit tool call events
             self.response_text = ""
-            
+
             # Event 1: response.created
             self.events.append(
                 self.Event("response.created", self.response_id, created_at=self.created_at)
             )
-            
+
             # Event 2: response.output_item.added (tool call)
             tool_item = {
                 "type": "function_call",
@@ -322,19 +321,19 @@ class MockResponseStreamWithTools(MockResponseStream):
             event.item.to_dict = lambda: tool_item
             event.output_index = 0
             self.events.append(event)
-            
+
             # Event 3: response.function_call_arguments.delta
             event = self.Event("response.function_call_arguments.delta", self.response_id)
             event.item_id = "item_1"
             event.delta = '{"arg1": "test_value"}'
             self.events.append(event)
-            
+
             # Event 4: response.function_call_arguments.done
             event = self.Event("response.function_call_arguments.done", self.response_id)
             event.item_id = "item_1"
             event.arguments = '{"arg1": "test_value"}'
             self.events.append(event)
-            
+
             # Event 5: response.output_item.done (tool call complete)
             event = self.Event("response.output_item.done", self.response_id)
             event.item = MagicMock()
@@ -347,7 +346,7 @@ class MockResponseStreamWithTools(MockResponseStream):
             }
             event.item.to_dict = lambda: tool_item_done
             self.events.append(event)
-            
+
             # Event 6: response.completed
             usage = self.Event.Usage(input_tokens=10, output_tokens=5, total_tokens=15)
             output = []
@@ -366,24 +365,24 @@ class MockResponseStreamWithTools(MockResponseStream):
             self.response_text = "Response after tool call"
             # Recreate events with new text
             self._recreate_events()
-        
+
         self.current_event = 0
         self.include_usage = kwargs.get("stream_options", {}).get("include_usage", True)
-    
+
     def _recreate_events(self):
         """Recreate events with new response text."""
         self.events = []
-        
+
         # Event 1: response.created
         self.events.append(
             self.Event("response.created", self.response_id, created_at=self.created_at)
         )
-        
+
         # Event 2: response.content.started
         self.events.append(
             self.Event("response.content.started", self.response_id, content_index=0)
         )
-        
+
         # Event 3: response.content.delta
         self.events.append(
             self.Event(
@@ -393,7 +392,7 @@ class MockResponseStreamWithTools(MockResponseStream):
                 text=self.response_text,
             )
         )
-        
+
         # Event 4: response.content.completed
         self.events.append(
             self.Event(
@@ -403,7 +402,7 @@ class MockResponseStreamWithTools(MockResponseStream):
                 text=self.response_text,
             )
         )
-        
+
         # Event 5: response.completed with usage
         usage = self.Event.Usage(input_tokens=10, output_tokens=20, total_tokens=30)
         output = [
@@ -440,7 +439,7 @@ class DummyAgenticModel(AgenticModelClass):
 
     client = MockOpenAIClientWithTools()
     model = "dummy-model"
-    
+
     # Override pool for testing - set to None to allow each test to control pool behavior
     # This prevents test pollution where one test's pool state affects another test
     _pool = None
