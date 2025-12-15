@@ -1,4 +1,29 @@
-"""Dummy Agentic model implementation for testing."""
+"""Dummy Agentic model implementation for testing.
+
+This module provides mock implementations of MCP (Model Context Protocol) components
+and an AgenticModelClass for testing purposes. The mocks simulate the behavior of
+actual MCP servers and tool execution without requiring real network connections.
+
+Key Components:
+    - MockMCPTool: Simulates MCP tool definitions
+    - MockMCPToolResult: Simulates tool execution results
+    - MockMCPClient: Simulates MCP client connections
+    - MockOpenAIClientWithTools: Extended OpenAI client that supports tool calls
+    - MockCompletionWithTools: Simulates chat completions with tool calling
+    - MockCompletionStreamWithTools: Simulates streaming chat with tool calls
+    - MockResponseWithTools: Simulates response API with tool calling
+    - MockResponseStreamWithTools: Simulates streaming responses with tool calls
+    - DummyAgenticModel: Test implementation of AgenticModelClass
+
+The mock implementations are designed to work with the test suite in
+tests/runners/test_agentic_model.py and simulate realistic tool calling scenarios
+including:
+    - Tool discovery and selection
+    - Tool call execution
+    - Streaming and non-streaming modes
+    - Multiple tool iterations
+    - Error scenarios
+"""
 
 import asyncio
 import json

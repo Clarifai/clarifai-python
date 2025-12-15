@@ -1,4 +1,48 @@
-"""Comprehensive tests for AgenticModelClass functionality."""
+"""Comprehensive tests for AgenticModelClass functionality.
+
+This test module provides extensive coverage for the AgenticModelClass, which extends
+OpenAIModelClass to add MCP (Model Context Protocol) support for tool calling.
+
+Test Coverage:
+    1. MCP Connection Pool Management
+       - Singleton pattern verification
+       - Connection creation and caching
+       - Connection verification and lifecycle
+       - Idle connection cleanup
+       - Connection pool initialization
+
+    2. Tool Discovery and Management
+       - Tool loading from MCP servers
+       - Tool cache updates
+       - Multiple server support
+       - Tool-to-server mapping
+
+    3. Tool Execution
+       - Single tool calls (sync and async)
+       - Batch tool calls with parallel execution
+       - Tool call result handling
+       - Error handling in tool execution
+
+    4. Streaming and Non-Streaming Modes
+       - Chat completions with and without tools
+       - Response API with and without tools
+       - Tool call accumulation in streaming mode
+       - Token tracking across requests
+
+    5. Error Handling
+       - Invalid requests
+       - Tool execution failures
+       - Connection failures
+       - Missing tools
+
+    6. Integration Tests
+       - Full chat completion workflow with tool calling
+       - Full streaming workflow with tool calling
+       - Multiple tool iterations
+
+The tests use mock objects to simulate MCP server behavior without requiring
+actual server connections, making them suitable for CI/CD environments.
+"""
 
 import asyncio
 import json
