@@ -502,11 +502,23 @@ class AgenticModelClass(OpenAIModelClass):
         result = []
         for tc in tool_calls:
             if hasattr(tc, 'function'):
-                result.append((tc.id, tc.function.name, json.loads(tc.function.arguments)))
+                try:
+                    args = json.loads(tc.function.arguments)
+                except json.JSONDecodeError:
+                    logger.warning(
+                        f"Malformed tool arguments for tool '{getattr(tc.function, 'name', None)}': {tc.function.arguments!r}"
+                    )
+                    args = {}
+                result.append((tc.id, tc.function.name, args))
             else:
-                result.append(
-                    (tc['id'], tc['function']['name'], json.loads(tc['function']['arguments']))
-                )
+                try:
+                    args = json.loads(tc['function']['arguments'])
+                except json.JSONDecodeError:
+                    logger.warning(
+                        f"Malformed tool arguments for tool '{tc['function'].get('name', None)}': {tc['function']['arguments']!r}"
+                    )
+                    args = {}
+                result.append((tc['id'], tc['function']['name'], args))
         return result
 
     def _parse_response_tool_calls(self, items: List[dict]) -> List[Tuple[str, str, Dict]]:
