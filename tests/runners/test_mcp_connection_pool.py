@@ -8,6 +8,9 @@ import pytest
 
 from clarifai.runners.models.agentic_class import MCPConnection, MCPConnectionPool
 
+# Test constants for timing margins
+IDLE_MARGIN_SECONDS = 10  # Margin to add beyond thresholds for robust idle tests
+
 
 class TestMCPConnectionPool:
     """Tests for MCPConnectionPool singleton and connection management."""
@@ -60,7 +63,7 @@ class TestMCPConnectionPool:
             tools=[],
             tool_names=set(),
             url="http://old-server",
-            last_used=time.time() - pool.MAX_IDLE_TIME - 1,
+            last_used=time.time() - pool.MAX_IDLE_TIME - IDLE_MARGIN_SECONDS,
         )
 
         with pool._lock:
@@ -85,7 +88,7 @@ class TestMCPConnectionPool:
             tools=[],
             tool_names=set(),
             url="http://server",
-            last_used=time.time() - pool.MAX_IDLE_TIME - 1,
+            last_used=time.time() - pool.MAX_IDLE_TIME - IDLE_MARGIN_SECONDS,
         )
 
         with pool._lock:
@@ -152,7 +155,7 @@ class TestMCPConnectionPool:
             tools=[],
             tool_names=set(),
             url="http://old",
-            last_used=time.time() - pool.VERIFY_IDLE_THRESHOLD - 1,
+            last_used=time.time() - pool.VERIFY_IDLE_THRESHOLD - IDLE_MARGIN_SECONDS,
         )
         assert pool._needs_verification(old_conn) is True
 
@@ -346,7 +349,7 @@ class TestMCPConnectionPool:
             tools=[],
             tool_names=set(),
             url="http://server",
-            last_used=time.time() - pool.VERIFY_IDLE_THRESHOLD - 1,
+            last_used=time.time() - pool.VERIFY_IDLE_THRESHOLD - IDLE_MARGIN_SECONDS,
         )
 
         with pool._lock:
@@ -384,9 +387,8 @@ class TestMCPConnectionPool:
         pool = MCPConnectionPool()
 
         # Create connection without close method but with __aexit__
-        mock_client = MagicMock()
-        # Remove close attribute to force use of __aexit__
-        del mock_client.close
+        # Use spec to explicitly define available methods
+        mock_client = MagicMock(spec=['__aexit__', 'list_tools'])
         mock_client.__aexit__ = AsyncMock()
 
         conn = MCPConnection(client=mock_client, tools=[], tool_names=set(), url="http://server")
@@ -504,7 +506,8 @@ class TestMCPConnectionPool:
         mock_client = MagicMock()
 
         async def slow_tool(*args, **kwargs):
-            await asyncio.sleep(100)  # Sleep longer than timeout
+            # Sleep just beyond timeout for faster test execution
+            await asyncio.sleep(pool.TOOL_CALL_TIMEOUT + 5)
             return MagicMock()
 
         mock_client.call_tool = slow_tool
