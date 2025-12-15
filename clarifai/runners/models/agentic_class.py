@@ -118,8 +118,13 @@ class MCPConnectionPool:
 
     def _run_async(self, coro, timeout: float = 30.0) -> Any:
         """Run coroutine in background loop."""
+        # Double-checked locking pattern to prevent race condition
+        # when multiple threads try to restart a closed loop
         if self._loop is None or self._loop.is_closed():
-            self._start_event_loop()
+            with self._lock:
+                # Check again after acquiring lock (another thread may have started it)
+                if self._loop is None or self._loop.is_closed():
+                    self._start_event_loop()
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         return future.result(timeout=timeout)
 
