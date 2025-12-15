@@ -441,5 +441,6 @@ class DummyAgenticModel(AgenticModelClass):
     client = MockOpenAIClientWithTools()
     model = "dummy-model"
     
-    # Override pool for testing
+    # Override pool for testing - set to None to allow each test to control pool behavior
+    # This prevents test pollution where one test's pool state affects another test
     _pool = None

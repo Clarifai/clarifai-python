@@ -149,11 +149,15 @@ class TestMCPConnectionPool:
             url="http://test.com"
         )
         
-        old_time = conn.last_used
-        time.sleep(0.01)
+        # Record the initial time and manually set it to a past time
+        old_time = time.time() - 10.0
+        conn.last_used = old_time
+        
+        # Touch should update to current time
         conn.touch()
         
         assert conn.last_used > old_time
+        assert conn.last_used >= time.time() - 1.0  # Within last second
 
     def test_idle_connection_cleanup(self):
         """Test that idle connections are cleaned up."""
@@ -646,7 +650,12 @@ class TestAgenticModelClass:
             response_str = model.openai_transport(json.dumps(request))
         
         response = json.loads(response_str)
-        assert "id" in response or "code" not in response or response.get("code") != 2401
+        # Verify we got a valid response (either success with id or non-failure error)
+        # A response is valid if it has an id (success) OR if it doesn't have error code 2401
+        is_success = "id" in response
+        is_not_prediction_failed = response.get("code") != 2401
+        assert is_success or is_not_prediction_failed, \
+            f"Expected valid response but got: {response}"
 
     def test_openai_stream_transport(self):
         """Test streaming OpenAI transport without MCP."""
