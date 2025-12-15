@@ -39,9 +39,9 @@ class MCPConnectionPool:
     # Timeouts and thresholds
     CONNECT_TIMEOUT = 30.0
     TOOL_CALL_TIMEOUT = 60.0
-    VERIFY_IDLE_THRESHOLD = 60.0  # Verify connections idle > 60s
-    MAX_IDLE_TIME = 600.0  # Remove connections idle > 10min
-    CLEANUP_INTERVAL = 120.0  # Check cleanup at most every 2min
+    VERIFY_IDLE_THRESHOLD = 60 * 2  # Verify connections idle > 2min
+    MAX_IDLE_TIME = 60 * 15  # Remove connections idle > 15min
+    CLEANUP_INTERVAL = 60 * 2  # Check cleanup at most every 2min
 
     def __new__(cls):
         if cls._instance is None:
