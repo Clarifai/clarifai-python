@@ -36,12 +36,17 @@ class MCPConnectionPool:
     _instance: Optional['MCPConnectionPool'] = None
     _instance_lock = threading.Lock()
 
-    # Timeouts and thresholds
-    CONNECT_TIMEOUT = 30.0
-    TOOL_CALL_TIMEOUT = 60.0
-    VERIFY_IDLE_THRESHOLD = 60 * 2  # Verify connections idle > 2min
-    MAX_IDLE_TIME = 60 * 15  # Remove connections idle > 15min
-    CLEANUP_INTERVAL = 60 * 2  # Check cleanup at most every 2min
+    # Timeouts and thresholds (configurable via environment variables)
+    # Default: 30s. Time to wait for a connection to be established. Increase if MCP servers are slow to respond.
+    CONNECT_TIMEOUT = float(os.environ.get("CLARIFAI_MCP_CONNECT_TIMEOUT", 30.0))
+    # Default: 60s. Maximum time to wait for a tool call to complete. Increase for long-running tools.
+    TOOL_CALL_TIMEOUT = float(os.environ.get("CLARIFAI_MCP_TOOL_CALL_TIMEOUT", 60.0))
+    # Default: 2min. Connections idle for more than this are verified before reuse.
+    VERIFY_IDLE_THRESHOLD = float(os.environ.get("CLARIFAI_MCP_VERIFY_IDLE_THRESHOLD", 60 * 2))
+    # Default: (15min). Connections idle for more than this are removed from the pool.
+    MAX_IDLE_TIME = float(os.environ.get("CLARIFAI_MCP_MAX_IDLE_TIME", 15 * 60))
+    # Default: 2min. Cleanup runs at most this often to remove idle connections.
+    CLEANUP_INTERVAL = float(os.environ.get("CLARIFAI_MCP_CLEANUP_INTERVAL", 2 * 60))
 
     def __new__(cls):
         if cls._instance is None:
@@ -84,7 +89,8 @@ class MCPConnectionPool:
 
         self._loop_thread = threading.Thread(target=run, daemon=True, name="mcp_pool")
         self._loop_thread.start()
-        ready.wait(timeout=5.0)
+        if not ready.wait(timeout=5.0):
+            raise RuntimeError("Background event loop failed to start within 5 seconds")
 
     def _run_async(self, coro, timeout: float = 30.0) -> Any:
         """Run coroutine in background loop."""
@@ -515,10 +521,16 @@ class AgenticModelClass(OpenAIModelClass):
         for call_id, result, error in results:
             if error:
                 content = f"Error: {error}"
+            elif (
+                hasattr(result, 'content')
+                and len(result.content) > 0
+                and result.content[0].get('text')
+            ):
+                content = result.content[0].text
+            elif len(result) > 0 and result[0].get('text'):
+                content = result[0].text
             else:
-                content = (
-                    result.content[0].text if hasattr(result, 'content') else str(result[0].text)
-                )
+                content = None
             messages.append({"role": "tool", "tool_call_id": call_id, "content": content})
 
     async def _execute_chat_tools_async(
@@ -536,10 +548,16 @@ class AgenticModelClass(OpenAIModelClass):
         for call_id, result, error in results:
             if error:
                 content = f"Error: {error}"
+            elif (
+                hasattr(result, 'content')
+                and len(result.content) > 0
+                and result.content[0].get('text')
+            ):
+                content = result.content[0].text
+            elif len(result) > 0 and result[0].get('text'):
+                content = result[0].text
             else:
-                content = (
-                    result.content[0].text if hasattr(result, 'content') else str(result[0].text)
-                )
+                content = None
             messages.append({"role": "tool", "tool_call_id": call_id, "content": content})
 
     def _execute_response_tools(
@@ -556,10 +574,16 @@ class AgenticModelClass(OpenAIModelClass):
         for call_id, result, error in results:
             if error:
                 output = f"Error: {error}"
+            elif (
+                hasattr(result, 'content')
+                and len(result.content) > 0
+                and result.content[0].get('text')
+            ):
+                output = result.content[0].text
+            elif len(result) > 0 and result[0].get('text'):
+                output = result[0].text
             else:
-                output = (
-                    result.content[0].text if hasattr(result, 'content') else str(result[0].text)
-                )
+                output = None
             input_items.append(
                 {"type": "function_call_output", "call_id": call_id, "output": output}
             )
@@ -578,10 +602,16 @@ class AgenticModelClass(OpenAIModelClass):
         for call_id, result, error in results:
             if error:
                 output = f"Error: {error}"
+            elif (
+                hasattr(result, 'content')
+                and len(result.content) > 0
+                and result.content[0].get('text')
+            ):
+                output = result.content[0].text
+            elif len(result) > 0 and result[0].get('text'):
+                output = result[0].text
             else:
-                output = (
-                    result.content[0].text if hasattr(result, 'content') else str(result[0].text)
-                )
+                output = None
             input_items.append(
                 {"type": "function_call_output", "call_id": call_id, "output": output}
             )
@@ -676,7 +706,7 @@ class AgenticModelClass(OpenAIModelClass):
             kwargs["tool_choice"] = "auto"
         return self.client.chat.completions.create(**kwargs)
 
-    def _bridge_async_gen(self, async_gen_fn):
+    def _async_to_sync_generator(self, async_gen_fn):
         """Bridge async generator to sync generator."""
         pool = self.get_pool()
         loop = pool._loop
@@ -708,7 +738,23 @@ class AgenticModelClass(OpenAIModelClass):
     async def _stream_chat_with_tools(
         self, messages, tools, connections, tool_to_server, max_tokens, temperature, top_p
     ):
-        """Stream chat completions with MCP tool support."""
+        """
+        Stream chat completions with MCP tool support, recursively handling tool calls.
+        This method streams chat completion chunks, accumulating any tool calls generated by the model.
+        If tool calls are present after streaming, it executes those tools and recursively continues
+        streaming with the updated messages (including tool call results). The recursion terminates
+        when no further tool calls are generated in the streamed response.
+        Args:
+            messages: The list of chat messages so far.
+            tools: The list of available tools.
+            connections: MCP tool connections.
+            tool_to_server: Mapping of tool names to server URLs.
+            max_tokens: Maximum number of tokens to generate.
+            temperature: Sampling temperature.
+            top_p: Nucleus sampling parameter.
+        Yields:
+            JSON-serialized chat completion chunks.
+        """
         accumulated_tools = {}
         assistant_content = ""
 
@@ -741,7 +787,26 @@ class AgenticModelClass(OpenAIModelClass):
                 yield chunk
 
     async def _stream_responses_with_tools(self, request_data, tools, connections, tool_to_server):
-        """Stream response API with MCP tool support."""
+        """
+        Streams responses for the API with MCP (Model Context Protocol) tool support.
+        This method processes the incoming request data, which may include user messages or input items,
+        and streams back responses that may involve multiple event types, such as user messages, assistant
+        responses, and tool call events. It supports both single string input and a list of message objects.
+        Event Handling Flow:
+            - Parses the input data into a standardized list of message items.
+            - Prepares response arguments, including tool definitions and tool choice if tools are provided.
+            - Accumulates output chunks as they are generated, yielding each chunk as a JSON-encoded string.
+            - Handles tool call events by invoking the appropriate tools via MCP connections, and streams
+              the results back as part of the response.
+            - May recursively invoke itself to handle follow-up tool calls or multi-turn interactions.
+        Args:
+            request_data (dict): The incoming request payload, including input messages.
+            tools (list): List of tool definitions available for invocation.
+            connections (dict): MCP connections for tool execution.
+            tool_to_server (dict): Mapping from tool names to server endpoints.
+        Yields:
+            str: JSON-encoded response chunks, streamed as they become available.
+        """
         input_data = request_data.get("input", "")
         input_items = (
             [
@@ -917,7 +982,11 @@ class AgenticModelClass(OpenAIModelClass):
                 if endpoint == self.ENDPOINT_CHAT_COMPLETIONS:
                     response = self._route_request(endpoint, data, mcp_servers, connections, tools)
 
-                    while response.choices and response.choices[0].message.tool_calls:
+                    while (
+                        response.choices
+                        and len(response.choices) > 0
+                        and response.choices[0].get('message', {}).get('tool_calls')
+                    ):
                         messages = data.get("messages", [])
                         messages.append(response.choices[0].message)
                         self._execute_chat_tools(
@@ -996,7 +1065,7 @@ class AgenticModelClass(OpenAIModelClass):
                 tools, connections, tool_to_server = pool.get_tools_and_mapping(mcp_servers)
 
                 if endpoint == self.ENDPOINT_CHAT_COMPLETIONS:
-                    yield from self._bridge_async_gen(
+                    yield from self._async_to_sync_generator(
                         lambda: self._stream_chat_with_tools(
                             data.get("messages", []),
                             tools,
@@ -1008,7 +1077,7 @@ class AgenticModelClass(OpenAIModelClass):
                         )
                     )
                 else:
-                    yield from self._bridge_async_gen(
+                    yield from self._async_to_sync_generator(
                         lambda: self._stream_responses_with_tools(
                             data, tools, connections, tool_to_server
                         )
