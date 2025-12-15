@@ -387,8 +387,8 @@ class TestMCPConnectionPool:
         pool = MCPConnectionPool()
 
         # Create connection without close method but with __aexit__
-        # Use spec to explicitly define available methods
-        mock_client = MagicMock(spec=['__aexit__', 'list_tools'])
+        # Use spec to explicitly define available methods (common client methods)
+        mock_client = MagicMock(spec=['__aexit__', '__aenter__', 'list_tools', 'call_tool'])
         mock_client.__aexit__ = AsyncMock()
 
         conn = MCPConnection(client=mock_client, tools=[], tool_names=set(), url="http://server")
@@ -502,23 +502,31 @@ class TestMCPConnectionPool:
         """Test that tool calls timeout appropriately."""
         pool = MCPConnectionPool()
 
-        # Create mock connection with slow tool
-        mock_client = MagicMock()
+        # Temporarily reduce timeout for faster test execution
+        original_timeout = pool.TOOL_CALL_TIMEOUT
+        pool.TOOL_CALL_TIMEOUT = 2.0  # Use 2 second timeout for test
 
-        async def slow_tool(*args, **kwargs):
-            # Sleep just beyond timeout for faster test execution
-            await asyncio.sleep(pool.TOOL_CALL_TIMEOUT + 5)
-            return MagicMock()
+        try:
+            # Create mock connection with slow tool
+            mock_client = MagicMock()
 
-        mock_client.call_tool = slow_tool
+            async def slow_tool(*args, **kwargs):
+                # Sleep just beyond the reduced timeout
+                await asyncio.sleep(3.0)
+                return MagicMock()
 
-        conn = MCPConnection(
-            client=mock_client, tools=[], tool_names={"slow_tool"}, url="http://server"
-        )
+            mock_client.call_tool = slow_tool
 
-        connections = {"http://server": conn}
-        tool_to_server = {"slow_tool": "http://server"}
+            conn = MCPConnection(
+                client=mock_client, tools=[], tool_names={"slow_tool"}, url="http://server"
+            )
 
-        # Call should timeout
-        with pytest.raises(asyncio.TimeoutError):
-            pool.call_tool("slow_tool", {}, connections, tool_to_server)
+            connections = {"http://server": conn}
+            tool_to_server = {"slow_tool": "http://server"}
+
+            # Call should timeout
+            with pytest.raises(asyncio.TimeoutError):
+                pool.call_tool("slow_tool", {}, connections, tool_to_server)
+        finally:
+            # Restore original timeout
+            pool.TOOL_CALL_TIMEOUT = original_timeout
