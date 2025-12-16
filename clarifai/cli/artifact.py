@@ -12,6 +12,10 @@ from clarifai.cli.base import cli
 from clarifai.client.artifact import Artifact
 from clarifai.client.artifact_version import ArtifactVersion
 from clarifai.constants.artifact import (
+    ARTIFACT_VISIBILITY_ORG,
+    ARTIFACT_VISIBILITY_PRIVATE,
+    ARTIFACT_VISIBILITY_PUBLIC,
+    DEFAULT_ARTIFACT_VISIBILITY,
     RFC3339_FORMAT,
     RFC3339_FORMAT_NO_MICROSECONDS,
 )
@@ -170,7 +174,7 @@ def _upload_artifact(source_path: str, parsed_destination: dict, client_kwargs: 
     return version.upload(
         file_path=source_path,
         description=kwargs.get('description', ''),
-        visibility=kwargs.get('visibility', 'private'),
+        visibility=kwargs.get('visibility', DEFAULT_ARTIFACT_VISIBILITY),
         expires_at=kwargs.get('expires_at'),
         version_id=version_id,
     )
@@ -471,8 +475,8 @@ def delete(ctx, path, force):
 @click.option('--description', help='Description for the artifact version')
 @click.option(
     '--visibility',
-    type=click.Choice(['private', 'public', 'org']),
-    default='private',
+    type=click.Choice([ARTIFACT_VISIBILITY_PRIVATE, ARTIFACT_VISIBILITY_PUBLIC, ARTIFACT_VISIBILITY_ORG]),
+    default=DEFAULT_ARTIFACT_VISIBILITY,
     help='Visibility setting',
 )
 @click.option(

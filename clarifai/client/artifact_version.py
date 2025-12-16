@@ -9,8 +9,16 @@ from tqdm import tqdm
 
 from clarifai.client.base import BaseClient
 from clarifai.constants.artifact import (
+    ARTIFACT_VISIBILITY_ORG,
+    ARTIFACT_VISIBILITY_PRIVATE,
+    ARTIFACT_VISIBILITY_PUBLIC,
     DEFAULT_ARTIFACT_VISIBILITY,
     DEFAULT_ARTIFACTS_PAGE_SIZE,
+    DEFAULT_DOWNLOAD_MAX_RETRIES,
+    DEFAULT_UPLOAD_MAX_RETRIES,
+    PROGRESS_BAR_DESCRIPTION_DOWNLOAD,
+    PROGRESS_BAR_DESCRIPTION_UPLOAD,
+    PROGRESS_BAR_UNIT,
     UPLOAD_CHUNK_SIZE,
 )
 from clarifai.errors import UserError
@@ -164,7 +172,7 @@ class ArtifactVersion(BaseClient):
         version_id: str,
         user_id: str,
         app_id: str,
-        max_retries: int = 3,
+        max_retries: int = DEFAULT_UPLOAD_MAX_RETRIES,
     ) -> "ArtifactVersion":
         """Perform streaming upload with retry logic and automatic progress tracking."""
         file_size = os.path.getsize(file_path)
@@ -174,7 +182,7 @@ class ArtifactVersion(BaseClient):
                 logger.debug(f"Upload attempt {attempt + 1}/{max_retries}")
 
                 # Progress bar setup - always show for better UX
-                progress_bar = tqdm(total=file_size, unit='B', unit_scale=True, desc="Uploading")
+                progress_bar = tqdm(total=file_size, unit=PROGRESS_BAR_UNIT, unit_scale=True, desc=PROGRESS_BAR_DESCRIPTION_UPLOAD)
 
                 try:
                     uploaded_bytes = 0
@@ -335,11 +343,11 @@ class ArtifactVersion(BaseClient):
     ):
         """Create upload config message."""
         # Convert visibility string to enum
-        if visibility == "private":
+        if visibility == ARTIFACT_VISIBILITY_PRIVATE:
             visibility_enum = resources_pb2.Visibility.Gettable.PRIVATE
-        elif visibility == "public":
+        elif visibility == ARTIFACT_VISIBILITY_PUBLIC:
             visibility_enum = resources_pb2.Visibility.Gettable.PUBLIC
-        elif visibility == "org":
+        elif visibility == ARTIFACT_VISIBILITY_ORG:
             visibility_enum = resources_pb2.Visibility.Gettable.ORG
         else:
             visibility_enum = resources_pb2.Visibility.Gettable.PRIVATE
@@ -429,7 +437,7 @@ class ArtifactVersion(BaseClient):
         output_path: str,
         total_size: int,
         force: bool,
-        max_retries: int = 3,
+        max_retries: int = DEFAULT_DOWNLOAD_MAX_RETRIES,
     ) -> str:
         """Download file with automatic retry logic and resume support."""
         for attempt in range(max_retries):
@@ -486,9 +494,9 @@ class ArtifactVersion(BaseClient):
                 progress_bar = tqdm(
                     total=content_length,
                     initial=resume_byte_pos,
-                    unit='B',
+                    unit=PROGRESS_BAR_UNIT,
                     unit_scale=True,
-                    desc="Downloading",
+                    desc=PROGRESS_BAR_DESCRIPTION_DOWNLOAD,
                 )
 
                 try:
