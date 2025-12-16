@@ -534,19 +534,12 @@ class TestArtifactCLI:
         assert result['app_id'] == 'app_v2.0'
         assert result['artifact_id'] == 'model-v1.0.0'
 
-    @patch('clarifai.cli.artifact._upload_artifact')
     @patch('os.path.exists')
     @patch('clarifai.cli.artifact.validate_context')
-    def test_cp_command_upload_app_level(self, mock_validate, mock_exists, mock_upload):
-        """Test upload to app-level path (auto-creates artifact)."""
+    def test_cp_command_upload_app_level_error(self, mock_validate, mock_exists):
+        """Test upload to app-level path. Should error since artifact_id is required."""
         mock_obj = self._setup_context_mock(mock_validate)
         mock_exists.return_value = True
-
-        # Mock successful upload
-        mock_version = Mock()
-        mock_version.artifact_id = "auto_created_artifact"
-        mock_version.version_id = "version123"
-        mock_upload.return_value = mock_version
 
         result = self.runner.invoke(
             artifact,
@@ -554,18 +547,9 @@ class TestArtifactCLI:
             obj=mock_obj,
         )
 
-        if result.exit_code != 0:
-            print(f"Command failed with output: {result.output}")
-        assert result.exit_code == 0
-        mock_upload.assert_called_once()
-
-        # Check that the upload was called with app-level destination
-        args, kwargs = mock_upload.call_args
-        parsed_destination = kwargs['parsed_destination']
-        assert parsed_destination['user_id'] == 'test_user'
-        assert parsed_destination['app_id'] == 'test_app'
-        assert parsed_destination['artifact_id'] is None  # App-level upload
-        assert parsed_destination['version_id'] is None
+        # Should fail because artifact_id is now required
+        assert result.exit_code != 0
+        assert "Path must include user_id, app_id, and artifact_id" in result.output
 
 
 class TestArtifactCLIIntegration:
@@ -684,6 +668,7 @@ class TestConvenienceFunctions:
         # Verify upload method was called with correct parameters
         mock_version_instance.upload.assert_called_once_with(
             file_path="./test_file.txt",
+            artifact_id="my_artifact",
             description="Test upload",
             visibility="private",
             expires_at=None,

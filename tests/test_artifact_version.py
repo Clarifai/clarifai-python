@@ -122,8 +122,8 @@ class TestArtifactVersion:
         """Test artifact version creation with missing parameters."""
         version = self._create_mock_artifact_version()
 
-        # Test missing user_id (first validation check)
-        with pytest.raises(UserError, match="user_id is required"):
+        # Test missing artifact_id (first validation check)
+        with pytest.raises(UserError, match="artifact_id is required"):
             version.upload(file_path="test.txt")
 
     @patch('os.path.exists')
@@ -192,6 +192,10 @@ class TestArtifactVersion:
     def test_upload_missing_params(self):
         """Test upload with missing required parameters."""
         version = self._create_mock_artifact_version()
+
+        # Test missing artifact_id
+        with pytest.raises(UserError, match="artifact_id is required"):
+            version.upload(file_path="test.txt", user_id="test_user", app_id="test_app")
 
         # Test missing user_id
         with pytest.raises(UserError, match="user_id is required"):
@@ -445,42 +449,18 @@ class TestArtifactVersion:
         with pytest.raises(UserError, match="artifact_id is required"):
             list(ArtifactVersion().list())
 
-    @patch('os.path.getsize')
-    @patch('os.path.exists')
-    @patch('clarifai.client.artifact.Artifact')
-    def test_upload_with_empty_artifact_id(self, mock_artifact_class, mock_exists, mock_getsize):
-        """Test upload with empty artifact_id (auto-generation)."""
-        mock_exists.return_value = True
-        mock_getsize.return_value = 1024
-
-        # Mock the artifact creation process
-        mock_artifact_instance = Mock()
-        mock_created_artifact = Mock()
-        mock_created_artifact.artifact_id = "auto_generated_id_123"
-        mock_artifact_instance.create.return_value = mock_created_artifact
-        mock_artifact_class.return_value = mock_artifact_instance
-
+    def test_upload_missing_artifact_id(self):
+        """Test upload with missing artifact_id (now required)."""
         version = self._create_mock_artifact_version()
 
-        # Mock the _streaming_upload_with_retry method
-        expected_result = Mock()
-        expected_result.version_id = "test_version"
-        with patch.object(version, '_streaming_upload_with_retry', return_value=expected_result):
-            result = version.upload(
+        # Test missing artifact_id
+        with pytest.raises(UserError, match="artifact_id is required"):
+            version.upload(
                 file_path="test.txt",
-                artifact_id="",  # Empty string to trigger auto-generation
+                artifact_id="",  # Empty string should trigger error
                 user_id="test_user",
                 app_id="test_app",
             )
-
-            # Verify artifact was created with empty ID for auto-generation
-            mock_artifact_instance.create.assert_called_once_with(artifact_id="")
-
-            # Verify the upload was called with the auto-generated artifact_id
-            version._streaming_upload_with_retry.assert_called_once()
-            call_kwargs = version._streaming_upload_with_retry.call_args[1]
-            assert call_kwargs['artifact_id'] == "auto_generated_id_123"
-            assert result == expected_result
 
 
 class TestArtifactVersionHelpers:
@@ -645,11 +625,11 @@ class TestArtifactVersionValidation:
         """Test validation with missing required fields."""
         version = self._create_mock_artifact_version()
 
-        # Test various missing parameter scenarios - user_id is now checked first in upload()
-        with pytest.raises(UserError, match="user_id is required"):
+        # Test various missing parameter scenarios - artifact_id is now checked first in upload()
+        with pytest.raises(UserError, match="artifact_id is required"):
             version.upload(file_path="test.txt")
 
-        # But artifact_id is still required for delete operations
+        # artifact_id is also required for delete operations
         with pytest.raises(UserError, match="artifact_id is required"):
             version.delete()
 

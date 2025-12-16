@@ -106,7 +106,7 @@ class TestArtifact:
             mock_auth_helper = Mock()
             artifact.auth_helper = mock_auth_helper
 
-            with pytest.raises(UserError, match="user_id is required"):
+            with pytest.raises(UserError, match="artifact_id is required"):
                 artifact.create(artifact_id="")
 
     def test_delete_success(self):
@@ -213,33 +213,17 @@ class TestArtifact:
             call_args = mock_grpc_request.call_args
             assert call_args[0][0] == mock_stub.ListArtifacts
 
-    def test_create_auto_generation(self):
-        """Test artifact creation with auto-generated artifact_id."""
-        # Mock response with a generated artifact ID
-        mock_response = Mock()
-        mock_response.status.code = 10000  # SUCCESS
-        mock_created_artifact = Mock()
-        mock_created_artifact.id = "auto_generated_artifact_123"
-        mock_response.artifacts = [mock_created_artifact]
-
+    def test_create_missing_artifact_id(self):
+        """Test artifact creation with missing artifact_id (now required)."""
         artifact = self._create_mock_artifact()
 
-        # Add STUB mock
-        mock_stub = Mock()
-        artifact.STUB = mock_stub
-
-        with patch.object(Artifact, '_grpc_request') as mock_grpc_request:
-            mock_grpc_request.return_value = mock_response
-
-            result = artifact.create(
-                artifact_id="",  # Empty ID for auto-generation
+        # Test missing artifact_id
+        with pytest.raises(UserError, match="artifact_id is required"):
+            artifact.create(
+                artifact_id="",  # Empty ID should trigger error
                 user_id="test_user",
                 app_id="test_app",
             )
-
-            assert isinstance(result, Artifact)
-            assert result.artifact_id == "auto_generated_artifact_123"
-            mock_grpc_request.assert_called_once()
 
 
 class TestArtifactValidation:

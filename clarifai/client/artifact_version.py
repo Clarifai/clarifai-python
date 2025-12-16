@@ -85,8 +85,7 @@ class ArtifactVersion(BaseClient):
 
         Args:
             file_path: Path to the file to upload.
-            artifact_id: The artifact ID. If empty, a new artifact will be created with auto-generated ID.
-                        Defaults to the artifact ID from initialization.
+            artifact_id: The artifact ID. Defaults to the artifact ID from initialization.
             description: Description for the artifact version.
             visibility: Visibility setting ("private", "public", or "org"). Defaults to "private".
             expires_at: Optional expiration timestamp.
@@ -104,6 +103,8 @@ class ArtifactVersion(BaseClient):
         user_id = user_id or self.user_id
         app_id = app_id or self.app_id
 
+        if not artifact_id:
+            raise UserError("artifact_id is required")
         if not user_id:
             raise UserError("user_id is required")
         if not app_id:
@@ -122,29 +123,22 @@ class ArtifactVersion(BaseClient):
         # Handle artifact creation/validation
         from clarifai.client.artifact import Artifact
 
-        # Create artifact client - same for both auto-generated and specific IDs
+        # Create artifact client
         artifact = Artifact(
-            artifact_id=artifact_id,  # Can be empty for auto-generation
+            artifact_id=artifact_id,
             user_id=user_id,
             app_id=app_id,
             pat=getattr(self, 'pat', None),
             base=getattr(self, 'base', None),
         )
 
-        if not artifact_id:
-            # Auto-generate artifact ID
-            logger.info("Creating new artifact with auto-generated ID")
-            created_artifact = artifact.create(artifact_id="")
-            artifact_id = created_artifact.artifact_id
-            logger.info(f"Created new artifact with ID: {artifact_id}")
-        else:
-            # Ensure artifact exists (create if it doesn't)
-            try:
-                artifact.get()
-                logger.info(f"Artifact {artifact_id} exists")
-            except Exception:
-                logger.info(f"Creating artifact {artifact_id}")
-                artifact.create(artifact_id=artifact_id)
+        # Ensure artifact exists (create if it doesn't)
+        try:
+            artifact.get()
+            logger.info(f"Artifact {artifact_id} exists")
+        except Exception:
+            logger.info(f"Creating artifact {artifact_id}")
+            artifact.create(artifact_id=artifact_id)
 
         try:
             # Perform streaming upload with retry logic

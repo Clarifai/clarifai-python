@@ -57,7 +57,7 @@ class Artifact(BaseClient):
         """Create a new artifact.
 
         Args:
-            artifact_id: The artifact ID to create. If empty, backend will generate one.
+            artifact_id: The artifact ID to create.
             user_id: The user ID. Defaults to the user ID from initialization.
             app_id: The app ID. Defaults to the app ID from initialization.
 
@@ -67,9 +67,12 @@ class Artifact(BaseClient):
         Raises:
             Exception: If the artifact creation fails.
         """
+        artifact_id = artifact_id or self.artifact_id
         user_id = user_id or self.user_id
         app_id = app_id or self.app_id
 
+        if not artifact_id:
+            raise UserError("artifact_id is required")
         if not user_id:
             raise UserError("user_id is required")
         if not app_id:
@@ -91,15 +94,7 @@ class Artifact(BaseClient):
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to create artifact: {response.status.description}")
 
-        # Get the actual artifact ID from the response
-        # Simplify the logic
-        created_artifact = response.artifacts[0] if response.artifacts else None
-        if created_artifact:
-            actual_artifact_id = created_artifact.id
-        else:
-            actual_artifact_id = artifact_id  # fallback to provided ID
-
-        return Artifact(artifact_id=actual_artifact_id, user_id=user_id, app_id=app_id)
+        return Artifact(artifact_id=artifact_id, user_id=user_id, app_id=app_id)
 
     def delete(
         self,

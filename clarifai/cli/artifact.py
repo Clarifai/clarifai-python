@@ -27,7 +27,6 @@ from clarifai.utils.logging import logger
 builtin_list = list
 
 # Regex pattern for artifact paths covering all formats:
-# - users/<user-id>/apps/<app-id> (app-level)
 # - users/<user-id>/apps/<app-id>/artifacts/<artifact-id> (artifact-level)
 # - users/<user-id>/apps/<app-id>/artifacts/<artifact-id>/versions/<version-id> (version-level)
 ARTIFACT_PATH_PATTERN = (
@@ -39,8 +38,7 @@ def is_local_path(path: str) -> bool:
     """Check if a path refers to a local file/directory.
 
     Artifact paths follow the pattern:
-    - users/<user-id>/apps/<app-id> (app-level)
-    - users/<user-id>/apps/<app-id>/artifacts/<artifact-id>[/versions/<version-id>] (artifact-level)
+    - users/<user-id>/apps/<app-id>/artifacts/<artifact-id>[/versions/<version-id>]
     Any path that doesn't match these patterns is considered a local path.
     """
     # Normalize path by removing leading/trailing slashes
@@ -55,7 +53,6 @@ def is_local_path(path: str) -> bool:
 
 def parse_artifact_path(path: str) -> Dict[str, Optional[str]]:
     """Parse an artifact path in various formats:
-    - users/<user-id>/apps/<app-id> (app-level)
     - users/<user-id>/apps/<app-id>/artifacts/<artifact-id> (artifact-level)
     - users/<user-id>/apps/<app-id>/artifacts/<artifact-id>/versions/<version-id> (version-level)
 
@@ -133,12 +130,8 @@ def _parse_and_validate_path(path, require_artifact=True, operation_type="genera
     """Helper function to parse and validate artifact path."""
     parsed = parse_artifact_path(path)
 
-    if require_artifact and operation_type == "upload":
-        # For upload, we need at least user_id and app_id
-        if not all([parsed['user_id'], parsed['app_id']]):
-            raise UserError("Path must include user_id and app_id for upload")
-    elif require_artifact:
-        # For other operations, require artifact_id as well
+    if require_artifact:
+        # For all operations including upload, require artifact_id
         if not all([parsed['user_id'], parsed['app_id'], parsed['artifact_id']]):
             raise UserError("Path must include user_id, app_id, and artifact_id")
 
@@ -159,12 +152,12 @@ def _upload_artifact(source_path: str, parsed_destination: dict, client_kwargs: 
     """
     user_id = parsed_destination['user_id']
     app_id = parsed_destination['app_id']
-    artifact_id = parsed_destination['artifact_id']  # May be None
+    artifact_id = parsed_destination['artifact_id']  # Now required
     version_id = parsed_destination['version_id']  # May be None
 
     # Create artifact version and upload
     version = ArtifactVersion(
-        artifact_id=artifact_id or "",
+        artifact_id=artifact_id,
         version_id=version_id or "",
         user_id=user_id,
         app_id=app_id,
@@ -173,6 +166,7 @@ def _upload_artifact(source_path: str, parsed_destination: dict, client_kwargs: 
 
     return version.upload(
         file_path=source_path,
+        artifact_id=artifact_id,
         description=kwargs.get('description', ''),
         visibility=kwargs.get('visibility', DEFAULT_ARTIFACT_VISIBILITY),
         expires_at=kwargs.get('expires_at'),
@@ -287,12 +281,18 @@ def list(ctx, path, versions):
                 table_data, ['VERSION_ID', 'DESCRIPTION', 'VISIBILITY', 'CREATED_AT']
             )
         else:
+            # For listing artifacts, we expect app-level path: users/<user-id>/apps/<app-id>
             if '/artifacts/' in path:
                 click.echo("To list artifacts, use: users/<user-id>/apps/<app-id>", err=True)
                 raise click.Abort()
 
             # Parse app-level path
-            parsed = parse_artifact_path(path + '/artifacts/dummy')
+            parsed = parse_artifact_path(path)
+            
+            # Validate it's an app-level path (no artifact_id)
+            if parsed['artifact_id'] is not None:
+                click.echo("To list artifacts, use: users/<user-id>/apps/<app-id>", err=True)
+                raise click.Abort()
 
             # List artifacts
             artifact = Artifact(
@@ -498,7 +498,6 @@ def cp(
     """Upload or download artifact files.
 
     Upload examples:
-        clarifai af cp ./model.pt users/u/apps/a
         clarifai af cp ./model.pt users/u/apps/a/artifacts/my-artifact
         clarifai af cp /tmp/model.pt users/u/apps/a/artifacts/my-artifact --description="Version 2"
         clarifai af cp model.pt users/u/apps/a/artifacts/my-artifact/versions/v123
