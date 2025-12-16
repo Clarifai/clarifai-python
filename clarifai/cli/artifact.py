@@ -288,7 +288,7 @@ def list(ctx, path, versions):
 
             # Parse app-level path
             parsed = parse_artifact_path(path)
-            
+
             # Validate it's an app-level path (no artifact_id)
             if parsed['artifact_id'] is not None:
                 click.echo("To list artifacts, use: users/<user-id>/apps/<app-id>", err=True)
