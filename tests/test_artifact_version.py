@@ -3,6 +3,7 @@
 from unittest.mock import Mock, mock_open, patch
 
 import pytest
+import requests
 from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf import timestamp_pb2
 
@@ -202,7 +203,8 @@ class TestArtifactVersion:
 
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.makedirs')
-    def test_download_success(self, mock_makedirs, mock_file):
+    @patch('requests.get')
+    def test_download_success(self, mock_requests_get, mock_makedirs, mock_file):
         """Test successful file download."""
         # Mock the info response first
         mock_info_response = Mock()
@@ -218,13 +220,21 @@ class TestArtifactVersion:
         mock_artifact_version.upload = mock_upload
         mock_info_response.artifact_version = mock_artifact_version
 
+        # Mock the HTTP request response
+        mock_http_response = Mock()
+        mock_http_response.status_code = 200
+        mock_http_response.headers = {'content-length': '1024'}
+        mock_http_response.iter_content.return_value = [b'test content chunk']
+        mock_http_response.raise_for_status.return_value = None
+        mock_requests_get.return_value = mock_http_response
+
         with (
             patch('clarifai.client.base.BaseClient.__init__', return_value=None),
             patch.object(ArtifactVersion, '_grpc_request') as mock_grpc_request,
-            patch.object(ArtifactVersion, '_download_with_retry') as mock_download,
+            patch('os.path.exists', return_value=False),  # File doesn't exist
+            patch('os.path.getsize', return_value=1024),
         ):
             mock_grpc_request.return_value = mock_info_response
-            mock_download.return_value = "test_download.txt"
 
             version = ArtifactVersion(
                 artifact_id="test_artifact",
@@ -242,11 +252,67 @@ class TestArtifactVersion:
             mock_stub.GetArtifactVersion = Mock()
             version.STUB = mock_stub
 
-            result = version.download(output_path="test_download.txt")
+            result = version.download(output_path="test_download.txt", force=True)
             assert result == "test_download.txt"
+
+            # Verify the actual HTTP request was made
+            mock_requests_get.assert_called_once_with(
+                "https://example.com/file.txt", stream=True, headers={}
+            )
             mock_grpc_request.assert_called_once()
-            call_args = mock_grpc_request.call_args
-            assert call_args[0][0] == mock_stub.GetArtifactVersion
+
+    @patch('requests.get')
+    def test_download_http_403_failure(self, mock_requests_get):
+        """Test download failure with 403 Forbidden error."""
+        # Mock the info response first
+        mock_info_response = Mock()
+        mock_info_response.status.code = 10000  # SUCCESS
+
+        # Create proper mock artifact version with upload info
+        mock_artifact_version = Mock()
+        mock_artifact_version.id = "test_version"
+        mock_upload = Mock()
+        mock_upload.content_url = "https://s3.amazonaws.com/clarifai-mdata-prod-virginia-models-build-context/uploads/prod/655fd751d4a14aeab312eb42a3366655/776b442bb41244ac8ce848b801add297/artifact_test-version-1"
+        mock_upload.content_name = "test_file.txt"
+        mock_upload.content_length = 1024
+        mock_artifact_version.upload = mock_upload
+        mock_info_response.artifact_version = mock_artifact_version
+
+        # Mock the HTTP request to raise 403 error
+        mock_http_response = Mock()
+        mock_http_response.raise_for_status.side_effect = requests.HTTPError(
+            "403 Client Error: Forbidden for url"
+        )
+        mock_requests_get.return_value = mock_http_response
+
+        with (
+            patch('clarifai.client.base.BaseClient.__init__', return_value=None),
+            patch.object(ArtifactVersion, '_grpc_request') as mock_grpc_request,
+            patch('os.path.exists', return_value=False),  # File doesn't exist
+        ):
+            mock_grpc_request.return_value = mock_info_response
+
+            version = ArtifactVersion(
+                artifact_id="test_artifact",
+                version_id="test_version",
+                user_id="test_user",
+                app_id="test_app",
+            )
+            # Mock the auth_helper and STUB attributes
+            mock_auth_helper = Mock()
+            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
+                user_id="test_user", app_id="test_app"
+            )
+            version.auth_helper = mock_auth_helper
+            mock_stub = Mock()
+            mock_stub.GetArtifactVersion = Mock()
+            version.STUB = mock_stub
+
+            # This should now fail as expected
+            with pytest.raises(
+                UserError, match="Download failed after .* attempts.*403.*Forbidden"
+            ):
+                version.download(output_path="test_download.txt", force=True)
 
     def test_download_missing_params(self):
         """Test download with missing required parameters."""

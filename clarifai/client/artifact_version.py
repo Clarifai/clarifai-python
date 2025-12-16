@@ -182,7 +182,12 @@ class ArtifactVersion(BaseClient):
                 logger.debug(f"Upload attempt {attempt + 1}/{max_retries}")
 
                 # Progress bar setup - always show for better UX
-                progress_bar = tqdm(total=file_size, unit=PROGRESS_BAR_UNIT, unit_scale=True, desc=PROGRESS_BAR_DESCRIPTION_UPLOAD)
+                progress_bar = tqdm(
+                    total=file_size,
+                    unit=PROGRESS_BAR_UNIT,
+                    unit_scale=True,
+                    desc=PROGRESS_BAR_DESCRIPTION_UPLOAD,
+                )
 
                 try:
                     uploaded_bytes = 0

@@ -475,7 +475,9 @@ def delete(ctx, path, force):
 @click.option('--description', help='Description for the artifact version')
 @click.option(
     '--visibility',
-    type=click.Choice([ARTIFACT_VISIBILITY_PRIVATE, ARTIFACT_VISIBILITY_PUBLIC, ARTIFACT_VISIBILITY_ORG]),
+    type=click.Choice(
+        [ARTIFACT_VISIBILITY_PRIVATE, ARTIFACT_VISIBILITY_PUBLIC, ARTIFACT_VISIBILITY_ORG]
+    ),
     default=DEFAULT_ARTIFACT_VISIBILITY,
     help='Visibility setting',
 )
