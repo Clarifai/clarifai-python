@@ -565,10 +565,10 @@ class AgenticModelClass(OpenAIModelClass):
             elif (
                 hasattr(result, 'content')
                 and len(result.content) > 0
-                and result.content[0].get('text')
+                and hasattr(result.content[0], 'text')
             ):
                 content = result.content[0].text
-            elif len(result) > 0 and result[0].get('text'):
+            elif len(result) > 0 and hasattr(result[0], 'text') and result[0].text:
                 content = result[0].text
             else:
                 content = None
@@ -592,10 +592,11 @@ class AgenticModelClass(OpenAIModelClass):
             elif (
                 hasattr(result, 'content')
                 and len(result.content) > 0
-                and result.content[0].get('text')
+                and hasattr(result.content[0], 'text')
+                and result.content[0].text
             ):
                 content = result.content[0].text
-            elif len(result) > 0 and result[0].get('text'):
+            elif len(result) > 0 and hasattr(result[0], 'text') and result[0].text:
                 content = result[0].text
             else:
                 content = None
@@ -618,10 +619,11 @@ class AgenticModelClass(OpenAIModelClass):
             elif (
                 hasattr(result, 'content')
                 and len(result.content) > 0
-                and result.content[0].get('text')
+                and hasattr(result.content[0], 'text')
+                and result.content[0].text
             ):
                 output = result.content[0].text
-            elif len(result) > 0 and result[0].get('text'):
+            elif len(result) > 0 and hasattr(result[0], 'text') and result[0].text:
                 output = result[0].text
             else:
                 output = None
@@ -646,10 +648,11 @@ class AgenticModelClass(OpenAIModelClass):
             elif (
                 hasattr(result, 'content')
                 and len(result.content) > 0
-                and result.content[0].get('text')
+                and hasattr(result.content[0], 'text')
+                and result.content[0].text
             ):
                 output = result.content[0].text
-            elif len(result) > 0 and result[0].get('text'):
+            elif len(result) > 0 and hasattr(result[0], 'text') and result[0].text:
                 output = result[0].text
             else:
                 output = None
