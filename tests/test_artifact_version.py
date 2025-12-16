@@ -73,10 +73,11 @@ class TestArtifactVersion:
             assert "test_user" in repr_str
             assert "test_app" in repr_str
 
+    @patch('builtins.open', new_callable=mock_open, read_data=b"test file content")
     @patch('os.path.exists')
     @patch('os.path.getsize')
     @patch('clarifai.client.artifact.Artifact')
-    def test_create_success(self, mock_artifact_class, mock_getsize, mock_exists):
+    def test_create_success(self, mock_artifact_class, mock_getsize, mock_exists, mock_file):
         """Test successful artifact version creation."""
         mock_exists.return_value = True
         mock_getsize.return_value = 1024
@@ -126,9 +127,10 @@ class TestArtifactVersion:
         with pytest.raises(UserError, match="artifact_id is required"):
             version.upload(file_path="test.txt")
 
+    @patch('builtins.open', new_callable=mock_open, read_data=b"test file content")
     @patch('os.path.exists')
     @patch('os.path.getsize')
-    def test_upload_success(self, mock_getsize, mock_exists):
+    def test_upload_success(self, mock_getsize, mock_exists, mock_file):
         """Test successful file upload."""
         mock_exists.return_value = True
         mock_getsize.return_value = 1024
@@ -314,7 +316,7 @@ class TestArtifactVersion:
 
             # This should now fail as expected
             with pytest.raises(
-                UserError, match="Download failed after .* attempts.*403.*Forbidden"
+                UserError, match="Download failed due to network error.*403.*Forbidden"
             ):
                 version.download(output_path="test_download.txt", force=True)
 
@@ -564,21 +566,18 @@ class TestArtifactVersionHelpers:
             == resources_pb2.Visibility.Gettable.ORG
         )
 
-        # Test default (invalid) visibility defaults to private
-        config = version._create_upload_config(
-            artifact_id="test_artifact",
-            description="Test description",
-            visibility="invalid",
-            expires_at=None,
-            version_id="test_version",
-            user_id="test_user",
-            app_id="test_app",
-            file_size=1024,
-        )
-        assert (
-            config.upload_config.artifact_version.visibility.gettable
-            == resources_pb2.Visibility.Gettable.PRIVATE
-        )
+        # Test invalid visibility raises error
+        with pytest.raises(UserError, match="Invalid visibility value: 'invalid'"):
+            version._create_upload_config(
+                artifact_id="test_artifact",
+                description="Test description",
+                visibility="invalid",
+                expires_at=None,
+                version_id="test_version",
+                user_id="test_user",
+                app_id="test_app",
+                file_size=1024,
+            )
 
     @patch('os.path.getsize')
     @patch('builtins.open', new_callable=mock_open, read_data=b"test content")

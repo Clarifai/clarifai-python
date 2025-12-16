@@ -228,7 +228,6 @@ class TestArtifactVersionCLI:
 
             assert result.exit_code != 0
             assert "Version not found" in result.output
-            assert "Version not found" in result.output
 
 
 class TestArtifactVersionCLIEdgeCases:
@@ -346,7 +345,6 @@ class TestArtifactVersionCLIEdgeCases:
             )
 
             assert result.exit_code != 0
-            assert "File already exists" in result.output
             assert "File already exists" in result.output
 
     @patch('clarifai.cli.artifact.validate_context')

@@ -75,7 +75,7 @@ class ArtifactVersion(BaseClient):
         file_path: str,
         artifact_id: str = "",
         description: str = "",
-        visibility: str = DEFAULT_ARTIFACT_VISIBILITY,
+        visibility: Optional[str] = None,
         expires_at: Optional[Timestamp] = None,
         version_id: str = "",
         user_id: str = "",
@@ -87,7 +87,7 @@ class ArtifactVersion(BaseClient):
             file_path: Path to the file to upload.
             artifact_id: The artifact ID. Defaults to the artifact ID from initialization.
             description: Description for the artifact version.
-            visibility: Visibility setting ("private", "public", or "org"). Defaults to "private".
+            visibility: Visibility setting ("private", "public", or "org"). Defaults to "private" if not provided.
             expires_at: Optional expiration timestamp.
             version_id: Optional version ID to assign.
             user_id: The user ID. Defaults to the user ID from initialization.
@@ -102,6 +102,10 @@ class ArtifactVersion(BaseClient):
         artifact_id = artifact_id or self.artifact_id
         user_id = user_id or self.user_id
         app_id = app_id or self.app_id
+
+        # Set default visibility if not provided
+        if visibility is None:
+            visibility = DEFAULT_ARTIFACT_VISIBILITY
 
         if not artifact_id:
             raise UserError("artifact_id is required")
@@ -188,19 +192,31 @@ class ArtifactVersion(BaseClient):
                     chunk_count = 0
                     final_version_id = version_id
 
+                    # Create iterator and track chunk sizes for accurate progress
+                    upload_iterator = self._artifact_version_upload_iterator(
+                        file_path,
+                        artifact_id,
+                        description,
+                        visibility,
+                        expires_at,
+                        version_id,
+                        user_id,
+                        app_id,
+                    )
+
+                    # Pre-calculate actual chunk sizes for accurate progress tracking
+                    chunk_sizes = []
+                    iterator_requests = []
+
+                    for request in upload_iterator:
+                        iterator_requests.append(request)
+                        if hasattr(request, 'content_part') and request.content_part.data:
+                            chunk_sizes.append(len(request.content_part.data))
+
                     # Perform streaming upload following pipeline_step pattern (use STUB with automatic metadata)
                     try:
                         for response in self.STUB.PostArtifactVersionsUpload(
-                            self._artifact_version_upload_iterator(
-                                file_path,
-                                artifact_id,
-                                description,
-                                visibility,
-                                expires_at,
-                                version_id,
-                                user_id,
-                                app_id,
-                            ),
+                            iter(iterator_requests)
                         ):
                             if chunk_count == 0:
                                 # First response is config upload - extract version ID
@@ -208,10 +224,14 @@ class ArtifactVersion(BaseClient):
                                     final_version_id = response.artifact_version_id
                                     logger.info(f"Created artifact version: {final_version_id}")
                             else:
-                                # Update progress for data chunks (same logic as pipeline_step)
-                                chunk_bytes = min(UPLOAD_CHUNK_SIZE, file_size - uploaded_bytes)
-                                uploaded_bytes += chunk_bytes
-                                progress_bar.update(chunk_bytes)
+                                # Update progress with actual chunk size from pre-calculated sizes
+                                actual_chunk_size = (
+                                    chunk_sizes[chunk_count - 1]
+                                    if chunk_count - 1 < len(chunk_sizes)
+                                    else 0
+                                )
+                                uploaded_bytes += actual_chunk_size
+                                progress_bar.update(actual_chunk_size)
 
                             chunk_count += 1
 
@@ -264,13 +284,17 @@ class ArtifactVersion(BaseClient):
                         time.sleep(wait_time)
                         continue
                     else:
-                        raise
+                        # Last attempt failed, raise with context
+                        raise UserError(f"Upload failed after {max_retries} attempts: {e}")
 
             except Exception as e:
-                if attempt == max_retries - 1:
-                    raise Exception(f"Upload failed after {max_retries} attempts: {e}")
+                # This should not be reached due to inner exception handling
+                # But keeping as a safety net for unexpected exceptions
+                logger.error(f"Unexpected error in upload retry logic: {e}")
+                raise UserError(f"Upload failed due to unexpected error: {e}")
 
-        raise Exception("Upload failed: exceeded maximum retries")
+        # This should not be reached due to exception handling in the loop
+        raise UserError("Upload failed: exceeded maximum retries")
 
     def _artifact_version_upload_iterator(
         self,
@@ -341,7 +365,14 @@ class ArtifactVersion(BaseClient):
         file_size: int,
     ):
         """Create upload config message."""
-        # Convert visibility string to enum
+        # Convert visibility string to enum with validation
+        # Note: upload() method sets visibility to DEFAULT_ARTIFACT_VISIBILITY if None was passed
+        valid_visibility_values = [
+            ARTIFACT_VISIBILITY_PRIVATE,
+            ARTIFACT_VISIBILITY_PUBLIC,
+            ARTIFACT_VISIBILITY_ORG,
+        ]
+
         if visibility == ARTIFACT_VISIBILITY_PRIVATE:
             visibility_enum = resources_pb2.Visibility.Gettable.PRIVATE
         elif visibility == ARTIFACT_VISIBILITY_PUBLIC:
@@ -349,7 +380,10 @@ class ArtifactVersion(BaseClient):
         elif visibility == ARTIFACT_VISIBILITY_ORG:
             visibility_enum = resources_pb2.Visibility.Gettable.ORG
         else:
-            visibility_enum = resources_pb2.Visibility.Gettable.PRIVATE
+            raise UserError(
+                f"Invalid visibility value: '{visibility}'. "
+                f"Valid values are: {', '.join(valid_visibility_values)}"
+            )
 
         artifact_version = resources_pb2.ArtifactVersion(
             description=description,
@@ -534,15 +568,21 @@ class ArtifactVersion(BaseClient):
                         time.sleep(wait_time)
                         continue
                     else:
-                        raise
+                        # Last attempt failed, raise with context
+                        raise UserError(f"Download failed after {max_retries} attempts: {e}")
 
             except requests.RequestException as e:
-                if attempt == max_retries - 1:
-                    raise UserError(f"Download failed after {max_retries} attempts: {e}")
+                # This should not be reached due to inner exception handling
+                # But keeping as a safety net for unexpected request exceptions
+                logger.error(f"Unexpected request error in download retry logic: {e}")
+                raise UserError(f"Download failed due to network error: {e}")
             except Exception as e:
-                if attempt == max_retries - 1:
-                    raise
+                # This should not be reached due to inner exception handling
+                # But keeping as a safety net for unexpected exceptions
+                logger.error(f"Unexpected error in download retry logic: {e}")
+                raise UserError(f"Download failed due to unexpected error: {e}")
 
+        # This should not be reached due to exception handling in the loop
         raise UserError("Download failed: exceeded maximum retries")
 
     def delete(

@@ -15,7 +15,6 @@ from clarifai.constants.artifact import (
     ARTIFACT_VISIBILITY_ORG,
     ARTIFACT_VISIBILITY_PRIVATE,
     ARTIFACT_VISIBILITY_PUBLIC,
-    DEFAULT_ARTIFACT_VISIBILITY,
     RFC3339_FORMAT,
     RFC3339_FORMAT_NO_MICROSECONDS,
 )
@@ -168,7 +167,7 @@ def _upload_artifact(source_path: str, parsed_destination: dict, client_kwargs: 
         file_path=source_path,
         artifact_id=artifact_id,
         description=kwargs.get('description', ''),
-        visibility=kwargs.get('visibility', DEFAULT_ARTIFACT_VISIBILITY),
+        visibility=kwargs.get('visibility'),  # Pass None if not provided
         expires_at=kwargs.get('expires_at'),
         version_id=version_id,
     )
@@ -433,9 +432,14 @@ def delete(ctx, path, force):
         version_id = parsed['version_id']
 
         # Ask for confirmation unless force flag is used
-        if not force and not click.confirm('Are you sure you want to delete this artifact?'):
-            click.echo("Operation cancelled")
-            return
+        if not force:
+            if version_id:
+                prompt_msg = f"Are you sure you want to delete artifact version '{version_id}'?"
+            else:
+                prompt_msg = f"Are you sure you want to delete artifact '{parsed['artifact_id']}'?"
+            if not click.confirm(prompt_msg):
+                click.echo("Operation cancelled")
+                return
 
         if version_id:
             # Delete artifact version
@@ -478,8 +482,8 @@ def delete(ctx, path, force):
     type=click.Choice(
         [ARTIFACT_VISIBILITY_PRIVATE, ARTIFACT_VISIBILITY_PUBLIC, ARTIFACT_VISIBILITY_ORG]
     ),
-    default=DEFAULT_ARTIFACT_VISIBILITY,
-    help='Visibility setting',
+    default=None,
+    help='Visibility setting (defaults to "private")',
 )
 @click.option(
     '--expires-at', help='Expiration timestamp (RFC3339 format: 2024-12-31T23:59:59.999Z)'
