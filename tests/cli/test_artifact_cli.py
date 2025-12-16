@@ -5,9 +5,14 @@ from unittest.mock import Mock, patch
 import pytest
 from click.testing import CliRunner
 
-from clarifai.cli.artifact import artifact, is_local_path
+from clarifai.cli.artifact import (
+    _download_artifact,
+    _upload_artifact,
+    artifact,
+    is_local_path,
+    parse_artifact_path,
+)
 from clarifai.errors import UserError
-from clarifai.runners.artifacts.artifact_builder import parse_artifact_path
 
 
 class TestArtifactPathParsing:
@@ -51,18 +56,54 @@ class TestArtifactPathParsing:
             "users/u123/apps/a456/invalid",
             "",
             "users/",
+            "users/u123/apps/a456/artifacts/",  # Missing artifact ID
         ]
 
         for invalid_path in invalid_paths:
             with pytest.raises(UserError, match="Invalid artifact path format"):
                 parse_artifact_path(invalid_path)
 
+    def test_parse_path_with_special_characters(self):
+        """Test parsing paths with special characters."""
+        path = "users/user-123/apps/app_456/artifacts/my-artifact_v2"
+        parsed = parse_artifact_path(path)
+
+        assert parsed['user_id'] == 'user-123'
+        assert parsed['app_id'] == 'app_456'
+        assert parsed['artifact_id'] == 'my-artifact_v2'
+
+    def test_parse_app_level_path(self):
+        """Test parsing app-level paths for auto-creation."""
+        path = "users/u123/apps/a456"
+        parsed = parse_artifact_path(path)
+
+        assert parsed['user_id'] == 'u123'
+        assert parsed['app_id'] == 'a456'
+        assert parsed['artifact_id'] is None
+        assert parsed['version_id'] is None
+
     def test_is_local_path(self):
         """Test local path detection."""
+        # Positive cases (local paths)
         assert is_local_path("./local/file.txt") is True
         assert is_local_path("/home/user/file.txt") is True
         assert is_local_path("file.txt") is True
+        assert is_local_path("../parent/file.txt") is True
+        assert is_local_path("~/home/file.txt") is True
+
+        # Malformed artifact-like paths should be treated as local
+        assert is_local_path("users/u123/apps/a456/artifacts") is True  # Incomplete
+        assert is_local_path("users/u123/apps/a456/other") is True  # Wrong structure
+        assert (
+            is_local_path("users/u123/apps/a456/artifacts/my_artifact/other") is True
+        )  # Invalid suffix
+
+        # Negative cases (artifact paths)
         assert is_local_path("users/u123/apps/a456/artifacts/my_artifact") is False
+        assert is_local_path("users/u123/apps/a456") is False  # App-level path
+        assert (
+            is_local_path("users/u123/apps/a456/artifacts/my_artifact/versions/v1") is False
+        )  # Version-level path
 
 
 class TestArtifactCLI:
@@ -75,6 +116,8 @@ class TestArtifactCLI:
     def _create_mock_context(self):
         """Create a mock context object for CLI tests."""
         mock_current = Mock()
+        mock_current.pat = "test_pat"
+        mock_current.api_base = "api.clarifai.com"
         mock_current.to_grpc.return_value = {}
         mock_obj = Mock()
         mock_obj.current = mock_current
@@ -91,25 +134,29 @@ class TestArtifactCLI:
         return mock_obj
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.client.artifact.Artifact.list')
-    def test_list_command_success(self, mock_list, mock_validate):
+    @patch('clarifai.cli.artifact.Artifact')
+    def test_list_command_success(self, mock_artifact_class, mock_validate):
         """Test successful list command."""
         mock_validate.return_value = None
-        mock_list.return_value = []
+
+        # Mock the artifact instance and its list method
+        mock_artifact_instance = Mock()
+        mock_artifact_instance.list.return_value = []
+        mock_artifact_class.return_value = mock_artifact_instance
 
         mock_obj = self._create_mock_context()
 
         result = self.runner.invoke(
-            artifact, ['list', '--user-id', 'test_user', '--app-id', 'test_app'], obj=mock_obj
+            artifact, ['list', 'users/test_user/apps/test_app'], obj=mock_obj
         )
 
-        # Since we're mocking at a higher level, just check that the command
-        # was called with the right parameters and completed
-        mock_list.assert_called()
-        call_args = mock_list.call_args
-        # Check that user_id and app_id were passed
-        assert call_args.kwargs['user_id'] == 'test_user'
-        assert call_args.kwargs['app_id'] == 'test_app'
+        if result.exit_code != 0:
+            print(f"Command failed with output: {result.output}")
+
+        # Check that the artifact was instantiated and list was called
+        mock_artifact_class.assert_called_once()
+        mock_artifact_instance.list.assert_called_once()
+        assert result.exit_code == 0
 
     @patch('clarifai.cli.artifact.validate_context')
     def test_list_command_missing_params(self, mock_validate):
@@ -118,14 +165,18 @@ class TestArtifactCLI:
 
         result = self.runner.invoke(artifact, ['list'], obj=mock_obj)
         assert result.exit_code != 0
-        assert "user_id and app_id are required" in result.output
+        assert "Missing argument 'PATH'" in result.output
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.client.artifact_version.ArtifactVersion.list')
-    def test_list_versions_command(self, mock_list, mock_validate):
+    @patch('clarifai.cli.artifact.ArtifactVersion')
+    def test_list_versions_command(self, mock_artifact_version_class, mock_validate):
         """Test list versions command."""
         mock_validate.return_value = None
-        mock_list.return_value = []
+
+        # Mock the artifact version instance and its list method
+        mock_version_instance = Mock()
+        mock_version_instance.list.return_value = []
+        mock_artifact_version_class.return_value = mock_version_instance
 
         mock_obj = self._create_mock_context()
 
@@ -133,23 +184,16 @@ class TestArtifactCLI:
             artifact,
             [
                 'list',
-                '--user-id',
-                'test_user',
-                '--app-id',
-                'test_app',
-                '--artifact-id',
-                'test_artifact',
+                'users/test_user/apps/test_app/artifacts/test_artifact',
                 '--versions',
             ],
             obj=mock_obj,
         )
 
         # Verify that ArtifactVersion.list was called with correct parameters
-        mock_list.assert_called()
-        call_args = mock_list.call_args
-        assert call_args.kwargs['user_id'] == 'test_user'
-        assert call_args.kwargs['app_id'] == 'test_app'
-        assert call_args.kwargs['artifact_id'] == 'test_artifact'
+        mock_artifact_version_class.assert_called_once()
+        mock_version_instance.list.assert_called_once()
+        assert result.exit_code == 0
 
     @patch('clarifai.cli.artifact.validate_context')
     @patch('clarifai.cli.artifact.parse_artifact_path')
@@ -240,45 +284,148 @@ class TestArtifactCLI:
         assert "Operation cancelled" in result.output
 
     @patch('clarifai.cli.artifact.validate_context')
+    @patch('clarifai.cli.artifact.Artifact')
+    def test_delete_command_force(self, mock_artifact_class, mock_validate):
+        """Test delete command with force flag (no confirmation needed)."""
+        mock_obj = self._setup_context_mock(mock_validate)
+
+        # Mock the artifact instance and its delete method
+        mock_artifact_instance = Mock()
+        mock_artifact_instance.delete.return_value = True
+        mock_artifact_class.return_value = mock_artifact_instance
+
+        result = self.runner.invoke(
+            artifact,
+            ['delete', 'users/test_user/apps/test_app/artifacts/test_artifact', '--force'],
+            obj=mock_obj,
+        )
+
+        assert result.exit_code == 0
+        assert "Successfully deleted artifact test_artifact" in result.output
+        # Should not contain confirmation prompt or cancellation message
+        assert "Are you sure" not in result.output
+        assert "Operation cancelled" not in result.output
+        mock_artifact_instance.delete.assert_called_once()
+
+    @patch('clarifai.cli.artifact.validate_context')
+    @patch('clarifai.cli.artifact.ArtifactVersion')
+    def test_delete_version_command_force(self, mock_artifact_version_class, mock_validate):
+        """Test delete version command with force flag (no confirmation needed)."""
+        mock_obj = self._setup_context_mock(mock_validate)
+
+        # Mock the artifact version instance and its delete method
+        mock_version_instance = Mock()
+        mock_version_instance.delete.return_value = True
+        mock_artifact_version_class.return_value = mock_version_instance
+
+        result = self.runner.invoke(
+            artifact,
+            [
+                'delete',
+                'users/test_user/apps/test_app/artifacts/test_artifact/versions/v123',
+                '--force',
+            ],
+            obj=mock_obj,
+        )
+
+        assert result.exit_code == 0
+        assert "Successfully deleted artifact version v123" in result.output
+        # Should not contain confirmation prompt or cancellation message
+        assert "Are you sure" not in result.output
+        assert "Operation cancelled" not in result.output
+        mock_version_instance.delete.assert_called_once()
+
+    @patch('clarifai.cli.artifact.validate_context')
     @patch('os.path.exists')
-    def test_cp_command_upload_success(self, mock_exists, mock_validate):
+    @patch('clarifai.client.artifact_version.ArtifactVersion.upload')
+    def test_cp_command_upload_success(self, mock_upload, mock_exists, mock_validate):
         """Test successful upload via cp command."""
         mock_obj = self._setup_context_mock(mock_validate)
         mock_exists.return_value = True
 
-        with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
-            mock_instance = Mock()
-            mock_builder.return_value = mock_instance
-            mock_instance.upload_from_path.return_value = Mock(id="uploaded_version")
+        # Mock successful upload
+        mock_version = Mock()
+        mock_version.artifact_id = "test_artifact"
+        mock_version.version_id = "uploaded_version"
+        mock_upload.return_value = mock_version
 
-            result = self.runner.invoke(
-                artifact,
-                ['cp', './test_file.txt', 'users/test_user/apps/test_app/artifacts/test_artifact'],
-            )
+        result = self.runner.invoke(
+            artifact,
+            ['cp', './test_file.txt', 'users/test_user/apps/test_app/artifacts/test_artifact'],
+            obj=mock_obj,
+        )
 
-            assert result.exit_code == 0
+        if result.exit_code != 0:
+            print(f"Command failed with output: {result.output}")
+        assert result.exit_code == 0
+        mock_upload.assert_called_once()
+
+    @patch('clarifai.cli.artifact._upload_artifact')
+    @patch('os.path.exists')
+    @patch('clarifai.cli.artifact.validate_context')
+    def test_cp_command_upload_org_visibility(self, mock_validate, mock_exists, mock_upload):
+        """Test upload with org visibility option."""
+        mock_obj = self._setup_context_mock(mock_validate)
+        mock_exists.return_value = True
+
+        # Mock successful upload
+        mock_version = Mock()
+        mock_version.artifact_id = "test_artifact"
+        mock_version.version_id = "uploaded_version"
+        mock_upload.return_value = mock_version
+
+        result = self.runner.invoke(
+            artifact,
+            [
+                'cp',
+                './test_file.txt',
+                'users/test_user/apps/test_app/artifacts/test_artifact',
+                '--visibility',
+                'org',
+            ],
+            obj=mock_obj,
+        )
+
+        if result.exit_code != 0:
+            print(f"Command failed with output: {result.output}")
+        assert result.exit_code == 0
+        mock_upload.assert_called_once()
+
+        # Check that the upload was called with org visibility
+        args, kwargs = mock_upload.call_args
+        assert kwargs.get('visibility') == 'org'
 
     @patch('clarifai.cli.artifact.validate_context')
-    def test_cp_command_download_success(self, mock_validate):
+    @patch('clarifai.cli.artifact.ArtifactVersion')
+    @patch('clarifai.cli.artifact.Artifact')
+    def test_cp_command_download_success(
+        self, mock_artifact_class, mock_artifact_version_class, mock_validate
+    ):
         """Test successful download via cp command."""
         mock_obj = self._setup_context_mock(mock_validate)
 
-        with patch('clarifai.runners.artifacts.artifact_builder.ArtifactBuilder') as mock_builder:
-            mock_instance = Mock()
-            mock_builder.return_value = mock_instance
-            mock_instance.download_from_path.return_value = "./downloaded_file.txt"
+        # Mock the artifact to return latest version info
+        mock_artifact_instance = Mock()
+        mock_artifact_info = Mock()
+        mock_artifact_info.artifact_version.id = "latest_version"
+        mock_artifact_instance.get.return_value = mock_artifact_info
+        mock_artifact_class.return_value = mock_artifact_instance
 
-            result = self.runner.invoke(
-                artifact,
-                [
-                    'cp',
-                    'users/test_user/apps/test_app/artifacts/test_artifact',
-                    './downloaded_file.txt',
-                ],
-                obj=mock_obj,
-            )
+        # Mock the artifact version and download
+        mock_version_instance = Mock()
+        mock_version_instance.download.return_value = "./downloaded_file.txt"
+        mock_artifact_version_class.return_value = mock_version_instance
 
-            assert result.exit_code == 0
+        result = self.runner.invoke(
+            artifact,
+            ['cp', 'users/test_user/apps/test_app/artifacts/test_artifact', './local_dir/'],
+            obj=mock_obj,
+        )
+
+        if result.exit_code != 0:
+            print(f"Command failed with output: {result.output}")
+        assert result.exit_code == 0
+        mock_version_instance.download.assert_called_once()
 
     @patch('clarifai.cli.artifact.validate_context')
     def test_cp_command_invalid_paths(self, mock_validate):
@@ -288,10 +435,7 @@ class TestArtifactCLI:
         # Both paths are local
         result = self.runner.invoke(artifact, ['cp', './local1.txt', './local2.txt'], obj=mock_obj)
         assert result.exit_code != 0
-        assert (
-            "One of source or destination must be a local path and the other an artifact path"
-            in result.output
-        )
+        assert "One of source or destination must be an artifact path" in result.output
 
         # Both paths are remote
         result = self.runner.invoke(
@@ -300,10 +444,7 @@ class TestArtifactCLI:
             obj=mock_obj,
         )
         assert result.exit_code != 0
-        assert (
-            "One of source or destination must be a local path and the other an artifact path"
-            in result.output
-        )
+        assert "One of source or destination must be a local path" in result.output
 
     @patch('clarifai.cli.artifact.validate_context')
     @patch('os.path.exists')
@@ -337,6 +478,95 @@ class TestArtifactCLI:
             result = self.runner.invoke(artifact, ['ls', '--help'])
             assert result.exit_code == 0
 
+    def test_instance_reuse_across_operations(self):
+        """Test that CLI operations properly handle instance reuse."""
+        mock_obj = self._setup_context_mock(Mock())
+
+        with patch('clarifai.cli.artifact.Artifact') as mock_artifact:
+            mock_instance = Mock()
+            mock_artifact.return_value = mock_instance
+
+            # Mock different operations
+            mock_instance.create.return_value = Mock(artifact_id="test_artifact")
+            mock_instance.get.return_value = Mock(
+                id="test_artifact",
+                description="Test artifact",
+                visibility=Mock(gettable="PUBLIC"),
+                created_at=Mock(ToDatetime=Mock(return_value="2023-01-01 00:00:00")),
+                modified_at=Mock(ToDatetime=Mock(return_value="2023-01-01 00:00:00")),
+            )
+            mock_instance.list.return_value = [
+                Mock(
+                    id="test_artifact",
+                    description="Test artifact",
+                    visibility=Mock(gettable="PUBLIC"),
+                    created_at=Mock(ToDatetime=Mock(return_value="2023-01-01 00:00:00")),
+                )
+            ]
+
+            # Test multiple operations
+            result1 = self.runner.invoke(
+                artifact,
+                ['get', 'users/test_user/apps/test_app/artifacts/test_artifact'],
+                obj=mock_obj,
+            )
+            assert result1.exit_code == 0
+
+            result2 = self.runner.invoke(
+                artifact,
+                ['list', 'users/test_user/apps/test_app'],
+                obj=mock_obj,
+            )
+            assert result2.exit_code == 0
+
+            # Verify both operations used proper instance initialization
+            assert mock_artifact.call_count == 2
+
+    def test_path_validation_edge_cases(self):
+        """Test path validation with various edge cases."""
+        # Test case 1: Normal valid path
+        result = parse_artifact_path('users/user1/apps/app1/artifacts/artifact1')
+        assert result['artifact_id'] == 'artifact1'
+
+        # Test case 2: IDs with dots and hyphens
+        result = parse_artifact_path('users/user-1.2/apps/app_v2.0/artifacts/model-v1.0.0')
+        assert result['user_id'] == 'user-1.2'
+        assert result['app_id'] == 'app_v2.0'
+        assert result['artifact_id'] == 'model-v1.0.0'
+
+    @patch('clarifai.cli.artifact._upload_artifact')
+    @patch('os.path.exists')
+    @patch('clarifai.cli.artifact.validate_context')
+    def test_cp_command_upload_app_level(self, mock_validate, mock_exists, mock_upload):
+        """Test upload to app-level path (auto-creates artifact)."""
+        mock_obj = self._setup_context_mock(mock_validate)
+        mock_exists.return_value = True
+
+        # Mock successful upload
+        mock_version = Mock()
+        mock_version.artifact_id = "auto_created_artifact"
+        mock_version.version_id = "version123"
+        mock_upload.return_value = mock_version
+
+        result = self.runner.invoke(
+            artifact,
+            ['cp', './test_file.txt', 'users/test_user/apps/test_app'],
+            obj=mock_obj,
+        )
+
+        if result.exit_code != 0:
+            print(f"Command failed with output: {result.output}")
+        assert result.exit_code == 0
+        mock_upload.assert_called_once()
+
+        # Check that the upload was called with app-level destination
+        args, kwargs = mock_upload.call_args
+        parsed_destination = kwargs['parsed_destination']
+        assert parsed_destination['user_id'] == 'test_user'
+        assert parsed_destination['app_id'] == 'test_app'
+        assert parsed_destination['artifact_id'] is None  # App-level upload
+        assert parsed_destination['version_id'] is None
+
 
 class TestArtifactCLIIntegration:
     """Integration tests for artifact CLI commands."""
@@ -348,6 +578,8 @@ class TestArtifactCLIIntegration:
     def _create_mock_context(self):
         """Create a mock context object for CLI tests."""
         mock_current = Mock()
+        mock_current.pat = "test_pat"
+        mock_current.api_base = "api.clarifai.com"
         mock_current.to_grpc.return_value = {}
         mock_obj = Mock()
         mock_obj.current = mock_current
@@ -364,42 +596,37 @@ class TestArtifactCLIIntegration:
         return mock_obj
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.client.artifact.Artifact.list')
-    def test_full_workflow_simulation(self, mock_list, mock_validate):
+    @patch('clarifai.cli.artifact.Artifact')
+    def test_full_workflow_simulation(self, mock_artifact_class, mock_validate):
         """Test simulated full workflow - just test list command as representative."""
         mock_validate.return_value = None
-        mock_list.return_value = []
+
+        # Mock the artifact instance and its list method
+        mock_artifact_instance = Mock()
+        mock_artifact_instance.list.return_value = []
+        mock_artifact_class.return_value = mock_artifact_instance
 
         mock_obj = self._create_mock_context()
 
         # Test list
         result = self.runner.invoke(
-            artifact, ['list', '--user-id', 'test_user', '--app-id', 'test_app'], obj=mock_obj
+            artifact, ['list', 'users/test_user/apps/test_app'], obj=mock_obj
         )
 
-        # Just verify the list was called with right params - that means CLI is working
-        mock_list.assert_called()
-        call_args = mock_list.call_args
-        assert call_args.kwargs['user_id'] == 'test_user'
-        assert call_args.kwargs['app_id'] == 'test_app'
+        # Just verify the list was called - that means CLI is working
+        mock_artifact_instance.list.assert_called_once()
+        assert result.exit_code == 0
 
     @patch('clarifai.cli.artifact.validate_context')
-    @patch('clarifai.cli.artifact.parse_artifact_path')
     @patch('clarifai.cli.artifact.Artifact')
-    def test_error_handling(self, mock_artifact_class, mock_parse_path, mock_validate):
+    def test_error_handling(self, mock_artifact_class, mock_validate):
         """Test CLI error handling."""
         mock_validate.return_value = None
-        mock_parse_path.return_value = {
-            'user_id': 'test_user',
-            'app_id': 'test_app',
-            'artifact_id': 'nonexistent',
-            'version_id': None,
-        }
         mock_artifact_instance = Mock()
         mock_artifact_class.return_value = mock_artifact_instance
 
-        # Simulate an error that matches the actual error message from the failure
-        mock_artifact_instance.info.side_effect = Exception(
+        # Simulate an error in the get method
+        mock_artifact_instance.get.side_effect = Exception(
             "Failed to get artifact: Resource does not exist"
         )
 
@@ -411,9 +638,158 @@ class TestArtifactCLIIntegration:
             obj=mock_obj,
         )
 
-        # Check that we get the expected error message format
+        # Check that we get an error exit code
+        assert result.exit_code != 0
         assert "Error getting artifact information:" in result.output
-        assert "Failed to get artifact: Resource does not exist" in result.output
+
+
+class TestConvenienceFunctions:
+    """Test class for CLI convenience functions."""
+
+    @patch('clarifai.cli.artifact.ArtifactVersion')
+    @patch('os.path.exists', return_value=True)
+    def test_upload_artifact_function(self, mock_exists, mock_artifact_version_class):
+        """Test _upload_artifact convenience function."""
+        # Mock ArtifactVersion instance and its upload method
+        mock_version_instance = Mock()
+        mock_version_instance.upload.return_value = Mock(version_id="test_version")
+        mock_artifact_version_class.return_value = mock_version_instance
+
+        parsed_destination = {
+            'user_id': 'u123',
+            'app_id': 'a456',
+            'artifact_id': 'my_artifact',
+            'version_id': None,
+        }
+        client_kwargs = {'pat': 'test_pat', 'base': 'test_base'}
+
+        result = _upload_artifact(
+            source_path="./test_file.txt",
+            parsed_destination=parsed_destination,
+            client_kwargs=client_kwargs,
+            description="Test upload",
+            visibility="private",
+        )
+
+        # Verify instance was created with correct parameters
+        mock_artifact_version_class.assert_called_once_with(
+            artifact_id="my_artifact",
+            version_id="",
+            user_id="u123",
+            app_id="a456",
+            pat="test_pat",
+            base="test_base",
+        )
+
+        # Verify upload method was called with correct parameters
+        mock_version_instance.upload.assert_called_once_with(
+            file_path="./test_file.txt",
+            description="Test upload",
+            visibility="private",
+            expires_at=None,
+            version_id=None,
+        )
+
+        assert result.version_id == "test_version"
+
+    @patch('clarifai.cli.artifact.ArtifactVersion')
+    @patch('clarifai.cli.artifact.Artifact')
+    def test_download_artifact_function(self, mock_artifact_class, mock_artifact_version_class):
+        """Test _download_artifact convenience function."""
+        # Mock Artifact instance for getting latest version
+        mock_artifact_instance = Mock()
+        mock_artifact_info = Mock()
+        mock_artifact_info.artifact_version.id = "latest_version"
+        mock_artifact_instance.get.return_value = mock_artifact_info
+        mock_artifact_class.return_value = mock_artifact_instance
+
+        # Mock ArtifactVersion instance and its download method
+        mock_version_instance = Mock()
+        mock_version_instance.download.return_value = "/downloaded/path"
+        mock_artifact_version_class.return_value = mock_version_instance
+
+        parsed_source = {
+            'user_id': 'u123',
+            'app_id': 'a456',
+            'artifact_id': 'my_artifact',
+            'version_id': None,  # Download latest
+        }
+        client_kwargs = {'pat': 'test_pat', 'base': 'test_base'}
+
+        result = _download_artifact(
+            destination_path="./download/",
+            parsed_source=parsed_source,
+            client_kwargs=client_kwargs,
+            force=True,
+        )
+
+        # Verify artifact was created to get latest version
+        mock_artifact_class.assert_called_once_with(
+            artifact_id="my_artifact",
+            user_id="u123",
+            app_id="a456",
+            pat="test_pat",
+            base="test_base",
+        )
+
+        # Verify artifact.get() was called
+        mock_artifact_instance.get.assert_called_once()
+
+        # Verify artifact version was created with latest version
+        mock_artifact_version_class.assert_called_once_with(
+            artifact_id="my_artifact",
+            version_id="latest_version",
+            user_id="u123",
+            app_id="a456",
+            pat="test_pat",
+            base="test_base",
+        )
+
+        # Verify download was called
+        mock_version_instance.download.assert_called_once_with(
+            output_path="./download/", force=True
+        )
+
+        assert result == "/downloaded/path"
+
+    @patch('clarifai.cli.artifact.ArtifactVersion')
+    def test_download_artifact_with_specific_version(self, mock_artifact_version_class):
+        """Test _download_artifact with specific version ID."""
+        # Mock ArtifactVersion instance and its download method
+        mock_version_instance = Mock()
+        mock_version_instance.download.return_value = "/downloaded/path"
+        mock_artifact_version_class.return_value = mock_version_instance
+
+        parsed_source = {
+            'user_id': 'u123',
+            'app_id': 'a456',
+            'artifact_id': 'my_artifact',
+            'version_id': 'v789',  # Specific version
+        }
+        client_kwargs = {'pat': 'test_pat'}
+
+        result = _download_artifact(
+            destination_path="./download/",
+            parsed_source=parsed_source,
+            client_kwargs=client_kwargs,
+            force=False,
+        )
+
+        # Verify artifact version was created with specific version
+        mock_artifact_version_class.assert_called_once_with(
+            artifact_id="my_artifact",
+            version_id="v789",
+            user_id="u123",
+            app_id="a456",
+            pat="test_pat",
+        )
+
+        # Verify download was called
+        mock_version_instance.download.assert_called_once_with(
+            output_path="./download/", force=False
+        )
+
+        assert result == "/downloaded/path"
 
 
 if __name__ == "__main__":

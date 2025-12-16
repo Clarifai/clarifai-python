@@ -1,31 +1,225 @@
+import os
+import re
 import shutil
+from collections import OrderedDict
+from datetime import datetime
+from typing import Dict, Optional
 
 import click
+from google.protobuf.timestamp_pb2 import Timestamp
 
 from clarifai.cli.base import cli
 from clarifai.client.artifact import Artifact
 from clarifai.client.artifact_version import ArtifactVersion
-from clarifai.errors import UserError
-from clarifai.runners.artifacts.artifact_builder import (
-    parse_artifact_path,
-    parse_rfc3339_timestamp,
+from clarifai.constants.artifact import (
+    RFC3339_FORMAT,
+    RFC3339_FORMAT_NO_MICROSECONDS,
 )
+from clarifai.errors import UserError
 from clarifai.utils.cli import AliasedGroup, TableFormatter, validate_context
 from clarifai.utils.logging import logger
 
 # Store builtin list to avoid name conflicts with command function
 builtin_list = list
 
+# Regex pattern for artifact paths covering all formats:
+# - users/<user-id>/apps/<app-id> (app-level)
+# - users/<user-id>/apps/<app-id>/artifacts/<artifact-id> (artifact-level)
+# - users/<user-id>/apps/<app-id>/artifacts/<artifact-id>/versions/<version-id> (version-level)
+ARTIFACT_PATH_PATTERN = (
+    r'^users/([^/]+)/apps/([^/]+)(?:/artifacts/([^/]+)(?:/versions/([^/]+))?)?$'
+)
+
 
 def is_local_path(path: str) -> bool:
-    """Check if a path refers to a local file/directory."""
-    # Check for URL schemes
-    if path.startswith(('http://', 'https://', 'ftp://', 'ftps://')):
-        return False
-    # Check for artifact paths
-    if path.startswith('users/'):
-        return False
+    """Check if a path refers to a local file/directory.
+
+    Artifact paths follow the pattern:
+    - users/<user-id>/apps/<app-id> (app-level)
+    - users/<user-id>/apps/<app-id>/artifacts/<artifact-id>[/versions/<version-id>] (artifact-level)
+    Any path that doesn't match these patterns is considered a local path.
+    """
+    # Normalize path by removing leading/trailing slashes
+    normalized_path = path.strip('/')
+
+    # Check for artifact paths - they must contain both 'users/' and 'apps/'
+    if normalized_path.startswith('users/') and '/apps/' in normalized_path:
+        if re.match(ARTIFACT_PATH_PATTERN, normalized_path):
+            return False
     return True
+
+
+def parse_artifact_path(path: str) -> Dict[str, Optional[str]]:
+    """Parse an artifact path in various formats:
+    - users/<user-id>/apps/<app-id> (app-level)
+    - users/<user-id>/apps/<app-id>/artifacts/<artifact-id> (artifact-level)
+    - users/<user-id>/apps/<app-id>/artifacts/<artifact-id>/versions/<version-id> (version-level)
+
+    Args:
+        path: The artifact path to parse
+
+    Returns:
+        A dictionary with parsed components
+
+    Raises:
+        UserError: If the path format is invalid
+    """
+    # Normalize path by removing leading and trailing slashes
+    normalized_path = path.strip('/')
+
+    match = re.match(ARTIFACT_PATH_PATTERN, normalized_path)
+
+    if match:
+        user_id, app_id, artifact_id, version_id = match.groups()
+        return {
+            'user_id': user_id,
+            'app_id': app_id,
+            'artifact_id': artifact_id,
+            'version_id': version_id,
+        }
+
+    raise UserError(
+        "Invalid artifact path format. Expected: users/<user-id>/apps/<app-id>[/artifacts/<artifact-id>[/versions/<version-id>]]"
+    )
+
+
+def parse_rfc3339_timestamp(timestamp_str: str) -> Timestamp:
+    """Parse RFC3339 timestamp string to protobuf Timestamp.
+
+    Args:
+        timestamp_str: RFC3339 formatted timestamp (e.g., "2024-12-31T23:59:59.999Z")
+
+    Returns:
+        Protobuf Timestamp object
+
+    Raises:
+        UserError: If the timestamp format is invalid
+    """
+    if not timestamp_str:
+        return None
+
+    try:
+        # Try with microseconds first
+        try:
+            dt = datetime.strptime(timestamp_str, RFC3339_FORMAT)
+        except ValueError:
+            # Try without microseconds
+            dt = datetime.strptime(timestamp_str, RFC3339_FORMAT_NO_MICROSECONDS)
+
+        timestamp = Timestamp()
+        timestamp.FromDatetime(dt)
+        return timestamp
+    except ValueError:
+        raise UserError(
+            f"Invalid RFC3339 timestamp format: {timestamp_str}. Expected format: 2024-12-31T23:59:59.999Z or 2024-12-31T23:59:59Z"
+        )
+
+
+def _format_table(data, columns):
+    """Helper function to format data into a table."""
+    if not data:
+        return None
+
+    formatted_columns = OrderedDict([(col, lambda x, col=col: x[col]) for col in columns])
+    formatter = TableFormatter(custom_columns=formatted_columns)
+    return formatter.format(data)
+
+
+def _parse_and_validate_path(path, require_artifact=True, operation_type="general"):
+    """Helper function to parse and validate artifact path."""
+    parsed = parse_artifact_path(path)
+
+    if require_artifact and operation_type == "upload":
+        # For upload, we need at least user_id and app_id
+        if not all([parsed['user_id'], parsed['app_id']]):
+            raise UserError("Path must include user_id and app_id for upload")
+    elif require_artifact:
+        # For other operations, require artifact_id as well
+        if not all([parsed['user_id'], parsed['app_id'], parsed['artifact_id']]):
+            raise UserError("Path must include user_id, app_id, and artifact_id")
+
+    return parsed
+
+
+def _upload_artifact(source_path: str, parsed_destination: dict, client_kwargs: dict, **kwargs):
+    """Upload a file to an artifact.
+
+    Args:
+        source_path: Local file path to upload
+        parsed_destination: Pre-parsed destination path components
+        client_kwargs: Client configuration (pat, base)
+        **kwargs: Additional keyword arguments (description, visibility, expires_at)
+
+    Returns:
+        ArtifactVersion: The created artifact version
+    """
+    user_id = parsed_destination['user_id']
+    app_id = parsed_destination['app_id']
+    artifact_id = parsed_destination['artifact_id']  # May be None
+    version_id = parsed_destination['version_id']  # May be None
+
+    # Create artifact version and upload
+    version = ArtifactVersion(
+        artifact_id=artifact_id or "",
+        version_id=version_id or "",
+        user_id=user_id,
+        app_id=app_id,
+        **client_kwargs,
+    )
+
+    return version.upload(
+        file_path=source_path,
+        description=kwargs.get('description', ''),
+        visibility=kwargs.get('visibility', 'private'),
+        expires_at=kwargs.get('expires_at'),
+        version_id=version_id,
+    )
+
+
+def _download_artifact(
+    destination_path: str, parsed_source: dict, client_kwargs: dict, **kwargs
+) -> str:
+    """Download a file from an artifact.
+
+    Args:
+        destination_path: Local directory path to save to
+        parsed_source: Pre-parsed source path components
+        client_kwargs: Client configuration (pat, base)
+        **kwargs: Additional keyword arguments (force)
+
+    Returns:
+        str: The path where file was downloaded
+    """
+    user_id = parsed_source['user_id']
+    app_id = parsed_source['app_id']
+    artifact_id = parsed_source['artifact_id']
+    version_id = parsed_source['version_id']  # May be None for latest version
+
+    if version_id:
+        # Download specific version - use the provided version_id directly
+        final_version_id = version_id
+    else:
+        # Download latest version - get artifact info to find latest version
+        artifact = Artifact(
+            artifact_id=artifact_id, user_id=user_id, app_id=app_id, **client_kwargs
+        )
+        artifact_info = artifact.get()
+        if not artifact_info.artifact_version or not artifact_info.artifact_version.id:
+            raise UserError("No versions available for this artifact")
+
+        final_version_id = artifact_info.artifact_version.id
+
+    # Create artifact version and download
+    version = ArtifactVersion(
+        artifact_id=artifact_id,
+        version_id=final_version_id,
+        user_id=user_id,
+        app_id=app_id,
+        **client_kwargs,
+    )
+
+    force = kwargs.get('force', False)
+    return version.download(output_path=destination_path, force=force)
 
 
 @cli.group(
@@ -38,123 +232,91 @@ def artifact():
 
 
 @artifact.command(['list', 'ls'])
-@click.argument('path', required=False)
-@click.option('--user-id', help='User ID')
-@click.option('--app-id', help='App ID')
-@click.option('--artifact-id', help='Artifact ID')
+@click.argument('path')
 @click.option('--versions', is_flag=True, help='List artifact versions instead of artifacts')
 @click.pass_context
-def list(ctx, path, user_id, app_id, artifact_id, versions):
+def list(ctx, path, versions):
     """List artifacts or artifact versions.
 
     Examples:
-        clarifai artifact list users/u/apps/a
-        clarifai artifact list --app-id=a --user-id=u
-        clarifai artifact list users/u/apps/a/artifacts/my-artifact --versions
+        clarifai af list users/u/apps/a
+        clarifai af list users/u/apps/a/artifacts/my-artifact --versions
     """
     try:
         validate_context(ctx)
 
-        if path:
-            parsed = parse_artifact_path(
-                path + ('/artifacts/dummy' if '/artifacts/' not in path else '')
-            )
-            user_id = user_id or parsed['user_id']
-            app_id = app_id or parsed['app_id']
-            if '/artifacts/' in path and versions:
-                artifact_id = artifact_id or parsed['artifact_id']
-
-        if not user_id or not app_id:
-            click.echo("user_id and app_id are required", err=True)
-            raise click.Abort()
-
+        # Parse path and extract components
         if versions:
-            if not artifact_id:
-                click.echo("artifact_id is required when listing versions", err=True)
+            parsed = parse_artifact_path(path)
+            if not parsed['artifact_id']:
+                click.echo(
+                    "When using --versions, path must include artifact ID: users/<user-id>/apps/<app-id>/artifacts/<artifact-id>",
+                    err=True,
+                )
                 raise click.Abort()
 
-            # Use ArtifactVersion client to list versions
-            versions_list = builtin_list(
-                ArtifactVersion.list(
-                    artifact_id=artifact_id,
-                    user_id=user_id,
-                    app_id=app_id,
-                    pat=ctx.obj.current.pat,
-                    base=ctx.obj.current.api_base,
-                )
+            # List artifact versions with full data
+            artifact_version = ArtifactVersion(
+                artifact_id=parsed['artifact_id'],
+                user_id=parsed['user_id'],
+                app_id=parsed['app_id'],
+                pat=ctx.obj.current.pat,
+                base=ctx.obj.current.api_base,
             )
+            versions_list = builtin_list(artifact_version.list())
 
-            # Display versions in a table
             if not versions_list:
                 click.echo("No artifact versions found")
                 return
 
-            table_data = []
-            for version in versions_list:
-                info = version.info()
-                table_data.append(
-                    {
-                        'VERSION_ID': version.version_id,
-                        'DESCRIPTION': info.get('description', ''),
-                        'VISIBILITY': info.get('visibility', 'UNKNOWN'),
-                        'CREATED_AT': str(info.get('created_at', '')),
-                    }
-                )
+            table_data = [
+                {
+                    'VERSION_ID': v.id,
+                    'DESCRIPTION': v.description if v.description else '',
+                    'VISIBILITY': v.visibility.gettable if v.visibility else 0,
+                    'CREATED_AT': str(v.created_at.ToDatetime()) if v.created_at else '',
+                }
+                for v in versions_list
+            ]
 
-            if table_data:
-                from collections import OrderedDict
-
-                columns = OrderedDict(
-                    [
-                        ('VERSION_ID', lambda x: x['VERSION_ID']),
-                        ('DESCRIPTION', lambda x: x['DESCRIPTION']),
-                        ('VISIBILITY', lambda x: x['VISIBILITY']),
-                        ('CREATED_AT', lambda x: x['CREATED_AT']),
-                    ]
-                )
-                formatter = TableFormatter(custom_columns=columns)
-                print(formatter.format(table_data))
-        else:
-            # Use Artifact client to list artifacts
-            # Use builtin_list to avoid conflict with function name
-            artifacts_list = builtin_list(
-                Artifact.list(
-                    user_id=user_id,
-                    app_id=app_id,
-                    pat=ctx.obj.current.pat,
-                    base=ctx.obj.current.api_base,
-                )
+            result = _format_table(
+                table_data, ['VERSION_ID', 'DESCRIPTION', 'VISIBILITY', 'CREATED_AT']
             )
+        else:
+            if '/artifacts/' in path:
+                click.echo("To list artifacts, use: users/<user-id>/apps/<app-id>", err=True)
+                raise click.Abort()
+
+            # Parse app-level path
+            parsed = parse_artifact_path(path + '/artifacts/dummy')
+
+            # List artifacts
+            artifact = Artifact(
+                user_id=parsed['user_id'],
+                app_id=parsed['app_id'],
+                pat=ctx.obj.current.pat,
+                base=ctx.obj.current.api_base,
+            )
+            artifacts_list = builtin_list(artifact.list())
 
             if not artifacts_list:
                 click.echo("No artifacts found")
                 return
 
-            table_data = []
-            for artifact_obj in artifacts_list:
-                info = artifact_obj.info()
-                table_data.append(
-                    {
-                        'ARTIFACT_ID': artifact_obj.artifact_id,
-                        'USER_ID': info.get('user_id', ''),
-                        'APP_ID': info.get('app_id', ''),
-                        'CREATED_AT': str(info.get('created_at', '')),
-                    }
-                )
+            table_data = [
+                {
+                    'ARTIFACT_ID': a.id,
+                    'USER_ID': a.user_id if a.user_id else '',
+                    'APP_ID': a.app_id if a.app_id else '',
+                    'CREATED_AT': str(a.created_at.ToDatetime()) if a.created_at else '',
+                }
+                for a in artifacts_list
+            ]
 
-            if table_data:
-                from collections import OrderedDict
+            result = _format_table(table_data, ['ARTIFACT_ID', 'USER_ID', 'APP_ID', 'CREATED_AT'])
 
-                columns = OrderedDict(
-                    [
-                        ('ARTIFACT_ID', lambda x: x['ARTIFACT_ID']),
-                        ('USER_ID', lambda x: x['USER_ID']),
-                        ('APP_ID', lambda x: x['APP_ID']),
-                        ('CREATED_AT', lambda x: x['CREATED_AT']),
-                    ]
-                )
-                formatter = TableFormatter(custom_columns=columns)
-                print(formatter.format(table_data))
+        if result:
+            print(result)
 
     except UserError as e:
         click.echo(str(e), err=True)
@@ -166,76 +328,80 @@ def list(ctx, path, user_id, app_id, artifact_id, versions):
 
 @artifact.command()
 @click.argument('path')
-@click.option('--user-id', help='User ID')
-@click.option('--app-id', help='App ID')
-@click.option('--artifact-id', help='Artifact ID')
-@click.option('--version-id', help='Artifact version ID')
 @click.pass_context
-def get(ctx, path, user_id, app_id, artifact_id, version_id):
+def get(ctx, path):
     """Get artifact or artifact version details.
 
     Examples:
-        clarifai artifact get users/u/apps/a/artifacts/my-artifact
-        clarifai artifact get users/u/apps/a/artifacts/my-artifact/versions/v123
-        clarifai artifact get --app-id=a --user-id=u --artifact-id=my-artifact
+        clarifai af get users/u/apps/a/artifacts/my-artifact
+        clarifai af get users/u/apps/a/artifacts/my-artifact/versions/v123
     """
     try:
         validate_context(ctx)
+        parsed = _parse_and_validate_path(path)
+        version_id = parsed['version_id']
 
-        if path:
-            parsed = parse_artifact_path(path)
-            user_id = user_id or parsed['user_id']
-            app_id = app_id or parsed['app_id']
-            artifact_id = artifact_id or parsed['artifact_id']
-            if parsed['version_id']:
-                version_id = version_id or parsed['version_id']
-
-        if not all([user_id, app_id, artifact_id]):
-            click.echo("user_id, app_id, and artifact_id are required", err=True)
-            raise click.Abort()
         if version_id:
-            # Get artifact version using ArtifactVersion client
-            version = ArtifactVersion(
-                artifact_id=artifact_id,
+            # Get artifact version
+            artifact_version = ArtifactVersion(
+                artifact_id=parsed['artifact_id'],
                 version_id=version_id,
-                user_id=user_id,
-                app_id=app_id,
+                user_id=parsed['user_id'],
+                app_id=parsed['app_id'],
                 pat=ctx.obj.current.pat,
                 base=ctx.obj.current.api_base,
             )
-            info = version.info()
+            version_info = artifact_version.get()
             click.echo(f"Artifact Version: {version_id}")
-            click.echo(f"Description: {info.get('description', 'N/A')}")
-            click.echo(f"Visibility: {info.get('visibility', 'UNKNOWN')}")
-            click.echo(f"Created at: {info.get('created_at', 'N/A')}")
-            click.echo(f"Modified at: {info.get('modified_at', 'N/A')}")
+            click.echo(
+                f"Description: {version_info.description if version_info.description else 'N/A'}"
+            )
+            click.echo(
+                f"Visibility: {version_info.visibility.gettable if version_info.visibility else 'UNKNOWN'}"
+            )
+            click.echo(
+                f"Created at: {version_info.created_at.ToDatetime() if version_info.created_at else 'N/A'}"
+            )
+            click.echo(
+                f"Modified at: {version_info.modified_at.ToDatetime() if version_info.modified_at else 'N/A'}"
+            )
 
-            if info.get('upload'):
-                upload = info['upload']
-                click.echo(f"Upload ID: {upload.get('id', 'N/A')}")
-                click.echo(f"File name: {upload.get('content_name', 'N/A')}")
-                click.echo(f"File size: {upload.get('content_length', 'N/A')} bytes")
-                click.echo(f"Upload status: {upload.get('status', 'UNKNOWN')}")
+            if version_info.upload and version_info.upload.id:
+                click.echo(f"Upload ID: {version_info.upload.id}")
+                click.echo(
+                    f"File name: {version_info.upload.content_name if version_info.upload.content_name else 'N/A'}"
+                )
+                click.echo(
+                    f"File size: {version_info.upload.content_length if version_info.upload.content_length else 'N/A'} bytes"
+                )
+                click.echo(
+                    f"Upload status: {version_info.upload.status.description if version_info.upload.status else 'UNKNOWN'}"
+                )
         else:
-            # Get artifact using Artifact client
+            # Get artifact
             artifact = Artifact(
-                artifact_id=artifact_id,
-                user_id=user_id,
-                app_id=app_id,
+                artifact_id=parsed['artifact_id'],
+                user_id=parsed['user_id'],
+                app_id=parsed['app_id'],
                 pat=ctx.obj.current.pat,
                 base=ctx.obj.current.api_base,
             )
-            info = artifact.info()
-            click.echo(f"Artifact ID: {artifact_id}")
-            click.echo(f"User ID: {info.get('user_id', 'N/A')}")
-            click.echo(f"App ID: {info.get('app_id', 'N/A')}")
-            click.echo(f"Created at: {info.get('created_at', 'N/A')}")
-            click.echo(f"Modified at: {info.get('modified_at', 'N/A')}")
+            artifact_info = artifact.get()
+            click.echo(f"Artifact ID: {parsed['artifact_id']}")
+            click.echo(f"User ID: {artifact_info.user_id if artifact_info.user_id else 'N/A'}")
+            click.echo(f"App ID: {artifact_info.app_id if artifact_info.app_id else 'N/A'}")
+            click.echo(
+                f"Created at: {artifact_info.created_at.ToDatetime() if artifact_info.created_at else 'N/A'}"
+            )
+            click.echo(
+                f"Modified at: {artifact_info.modified_at.ToDatetime() if artifact_info.modified_at else 'N/A'}"
+            )
 
-            if info.get('artifact_version'):
-                version_info = info['artifact_version']
-                click.echo(f"Latest version: {version_info.get('id', 'N/A')}")
-                click.echo(f"Latest description: {version_info.get('description', 'N/A')}")
+            if artifact_info.artifact_version and artifact_info.artifact_version.id:
+                click.echo(f"Latest version: {artifact_info.artifact_version.id}")
+                click.echo(
+                    f"Latest description: {artifact_info.artifact_version.description if artifact_info.artifact_version.description else 'N/A'}"
+                )
 
     except UserError as e:
         click.echo(str(e), err=True)
@@ -245,63 +411,51 @@ def get(ctx, path, user_id, app_id, artifact_id, version_id):
         raise click.Abort()
 
 
-@artifact.command()
+@artifact.command(['delete', 'rm'])
 @click.argument('path')
-@click.option('--user-id', help='User ID')
-@click.option('--app-id', help='App ID')
-@click.option('--artifact-id', help='Artifact ID')
-@click.option('--version-id', help='Artifact version ID')
+@click.option('-f', '--force', is_flag=True, help='Force deletion without confirmation')
 @click.pass_context
-def delete(ctx, path, user_id, app_id, artifact_id, version_id):
+def delete(ctx, path, force):
     """Delete an artifact or artifact version.
 
     Examples:
-        clarifai artifact delete users/u/apps/a/artifacts/my-artifact
-        clarifai artifact delete users/u/apps/a/artifacts/my-artifact/versions/v123
+        clarifai af rm users/u/apps/a/artifacts/my-artifact
+        clarifai af rm users/u/apps/a/artifacts/my-artifact/versions/v123
+        clarifai af rm users/u/apps/a/artifacts/my-artifact --force
     """
     try:
         validate_context(ctx)
+        parsed = _parse_and_validate_path(path)
+        version_id = parsed['version_id']
 
-        if path:
-            parsed = parse_artifact_path(path)
-            user_id = user_id or parsed['user_id']
-            app_id = app_id or parsed['app_id']
-            artifact_id = artifact_id or parsed['artifact_id']
-            if parsed['version_id']:
-                version_id = version_id or parsed['version_id']
-
-        if not all([user_id, app_id, artifact_id]):
-            click.echo("user_id, app_id, and artifact_id are required", err=True)
-            raise click.Abort()
-
-        # Ask for confirmation
-        if not click.confirm('Are you sure you want to delete this artifact?'):
+        # Ask for confirmation unless force flag is used
+        if not force and not click.confirm('Are you sure you want to delete this artifact?'):
             click.echo("Operation cancelled")
             return
 
         if version_id:
             # Delete artifact version
-            version = ArtifactVersion(
-                artifact_id=artifact_id,
+            artifact_version = ArtifactVersion(
+                artifact_id=parsed['artifact_id'],
                 version_id=version_id,
-                user_id=user_id,
-                app_id=app_id,
+                user_id=parsed['user_id'],
+                app_id=parsed['app_id'],
                 pat=ctx.obj.current.pat,
                 base=ctx.obj.current.api_base,
             )
-            version.delete()
+            artifact_version.delete()
             click.echo(f"Successfully deleted artifact version {version_id}")
         else:
             # Delete artifact
             artifact = Artifact(
-                artifact_id=artifact_id,
-                user_id=user_id,
-                app_id=app_id,
+                artifact_id=parsed['artifact_id'],
+                user_id=parsed['user_id'],
+                app_id=parsed['app_id'],
                 pat=ctx.obj.current.pat,
                 base=ctx.obj.current.api_base,
             )
             artifact.delete()
-            click.echo(f"Successfully deleted artifact {artifact_id}")
+            click.echo(f"Successfully deleted artifact {parsed['artifact_id']}")
 
     except UserError as e:
         click.echo(str(e), err=True)
@@ -317,16 +471,13 @@ def delete(ctx, path, user_id, app_id, artifact_id, version_id):
 @click.option('--description', help='Description for the artifact version')
 @click.option(
     '--visibility',
-    type=click.Choice(['private', 'public']),
+    type=click.Choice(['private', 'public', 'org']),
     default='private',
     help='Visibility setting',
 )
 @click.option(
     '--expires-at', help='Expiration timestamp (RFC3339 format: 2024-12-31T23:59:59.999Z)'
 )
-@click.option('--version-id', help='Version ID to assign')
-@click.option('--user-id', help='User ID')
-@click.option('--app-id', help='App ID')
 @click.option('-f', '--force', is_flag=True, help='Force overwrite existing files')
 @click.pass_context
 def cp(
@@ -336,30 +487,57 @@ def cp(
     description,
     visibility,
     expires_at,
-    version_id,
-    user_id,
-    app_id,
     force,
 ):
-    """Upload or download artifact files (S3-style cp command).
+    """Upload or download artifact files.
 
     Upload examples:
-        clarifai artifact cp ./myfile.pt users/u/apps/a/artifacts/my-artifact
-        clarifai artifact cp ./myfile.pt users/u/apps/a/artifacts/my-artifact --description="Version 2"
+        clarifai af cp ./model.pt users/u/apps/a
+        clarifai af cp ./model.pt users/u/apps/a/artifacts/my-artifact
+        clarifai af cp /tmp/model.pt users/u/apps/a/artifacts/my-artifact --description="Version 2"
+        clarifai af cp model.pt users/u/apps/a/artifacts/my-artifact/versions/v123
 
     Download examples:
-        clarifai artifact cp users/u/apps/a/artifacts/my-artifact ./myfile.pt
-        clarifai artifact cp users/u/apps/a/artifacts/my-artifact/versions/v123 ./myfile.pt
+        clarifai af cp users/u/apps/a/artifacts/my-artifact ./downloads/
+        clarifai af cp users/u/apps/a/artifacts/my-artifact/versions/v123 /tmp/
+        clarifai af cp users/u/apps/a/artifacts/my-artifact .
     """
     try:
         validate_context(ctx)
+
+        # Validate input arguments
+        if not source:
+            raise UserError("source is required")
+        if not destination:
+            raise UserError("destination is required")
 
         # Determine operation type based on source and destination
         source_is_local = is_local_path(source)
         dest_is_local = is_local_path(destination)
 
+        # Validate operation type
+        if source_is_local and dest_is_local:
+            raise UserError("One of source or destination must be an artifact path")
+        elif not source_is_local and not dest_is_local:
+            raise UserError("One of source or destination must be a local path")
+
+        # Extract client params
+        client_kwargs = {
+            'pat': ctx.obj.current.pat,
+            'base': ctx.obj.current.api_base,
+        }
+
         if source_is_local and not dest_is_local:
             # Upload operation
+            # Validate source file exists
+            if not os.path.exists(source):
+                raise UserError(f"Source file does not exist: {source}")
+
+            # Parse and validate destination path
+            parsed_destination = _parse_and_validate_path(
+                destination, require_artifact=True, operation_type="upload"
+            )
+
             # Parse expires_at if provided
             expires_at_timestamp = None
             if expires_at:
@@ -370,20 +548,14 @@ def cp(
                     click.echo(f"Error parsing expires_at: {e}", err=True)
                     raise click.Abort()
 
-            # Use artifact builder for complex upload workflow
-            from clarifai.runners.artifacts.artifact_builder import upload_artifact
-
-            uploaded_version = upload_artifact(
+            # Call upload function with pre-validated data
+            uploaded_version = _upload_artifact(
                 source_path=source,
-                destination_path=destination,
+                parsed_destination=parsed_destination,
+                client_kwargs=client_kwargs,
                 description=description or "",
                 visibility=visibility,
                 expires_at=expires_at_timestamp,
-                version_id=version_id,
-                user_id=user_id,
-                app_id=app_id,
-                pat=ctx.obj.current.pat,
-                base=ctx.obj.current.api_base,
             )
 
             click.echo(f"Successfully uploaded {source} to {destination}")
@@ -392,30 +564,26 @@ def cp(
 
         elif not source_is_local and dest_is_local:
             # Download operation
-            # Use artifact builder for complex download workflow
-            from clarifai.runners.artifacts.artifact_builder import download_artifact
+            # Parse and validate source path
+            parsed_source = parse_artifact_path(source)
+            if not all(
+                [parsed_source['user_id'], parsed_source['app_id'], parsed_source['artifact_id']]
+            ):
+                raise UserError("user_id, app_id, and artifact_id are required for download")
 
-            downloaded_path = download_artifact(
-                source_path=source,
+            # Call download function with pre-validated data
+            downloaded_path = _download_artifact(
                 destination_path=destination,
-                user_id=user_id,
-                app_id=app_id,
+                parsed_source=parsed_source,
+                client_kwargs=client_kwargs,
                 force=force,
-                pat=ctx.obj.current.pat,
-                base=ctx.obj.current.api_base,
             )
 
             click.echo(f"Successfully downloaded to {downloaded_path}")
-        else:
-            click.echo(
-                "One of source or destination must be a local path and the other an artifact path",
-                err=True,
-            )
-            raise click.Abort()
 
     except UserError as e:
         click.echo(str(e), err=True)
         raise click.Abort()
     except Exception as e:
-        click.echo(f"Error uploading file: {e}", err=True)
+        click.echo(f"Error processing file: {e}", err=True)
         raise click.Abort()

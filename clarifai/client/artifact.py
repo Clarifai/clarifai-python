@@ -1,4 +1,4 @@
-from typing import Dict, Generator
+from typing import Generator
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
@@ -13,7 +13,13 @@ from clarifai.errors import UserError
 class Artifact(BaseClient):
     """Artifact client for managing artifacts in Clarifai."""
 
-    def __init__(self, artifact_id: str = "", user_id: str = "", app_id: str = "", **kwargs):
+    def __init__(
+        self,
+        artifact_id: str = "",
+        user_id: str = "",
+        app_id: str = "",
+        **kwargs,
+    ):
         """Initialize the Artifact client.
 
         Args:
@@ -44,14 +50,14 @@ class Artifact(BaseClient):
 
     def create(
         self,
-        artifact_id: str,
+        artifact_id: str = "",
         user_id: str = "",
         app_id: str = "",
     ) -> "Artifact":
         """Create a new artifact.
 
         Args:
-            artifact_id: The artifact ID to create.
+            artifact_id: The artifact ID to create. If empty, backend will generate one.
             user_id: The user ID. Defaults to the user ID from initialization.
             app_id: The app ID. Defaults to the app ID from initialization.
 
@@ -85,20 +91,30 @@ class Artifact(BaseClient):
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to create artifact: {response.status.description}")
 
-        return Artifact(artifact_id=artifact_id, user_id=user_id, app_id=app_id)
+        # Get the actual artifact ID from the response
+        # Simplify the logic
+        created_artifact = response.artifacts[0] if response.artifacts else None
+        if created_artifact:
+            actual_artifact_id = created_artifact.id
+        else:
+            actual_artifact_id = artifact_id  # fallback to provided ID
+
+        return Artifact(artifact_id=actual_artifact_id, user_id=user_id, app_id=app_id)
 
     def delete(
         self,
         artifact_id: str = "",
         user_id: str = "",
         app_id: str = "",
+        **kwargs,
     ) -> bool:
-        """Delete an artifact.
+        """Delete this artifact.
 
         Args:
             artifact_id: The artifact ID. Defaults to the artifact ID from initialization.
             user_id: The user ID. Defaults to the user ID from initialization.
             app_id: The app ID. Defaults to the app ID from initialization.
+            **kwargs: Additional keyword arguments to be passed to the BaseClient.
 
         Returns:
             True if deletion was successful.
@@ -122,28 +138,30 @@ class Artifact(BaseClient):
             artifact_id=artifact_id,
         )
 
-        response = self._grpc_request(self.STUB.DeleteArtifacts, request)
+        response = self._grpc_request(self.STUB.DeleteArtifact, request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to delete artifact: {response.status.description}")
 
         return True
 
-    def info(
+    def get(
         self,
         artifact_id: str = "",
         user_id: str = "",
         app_id: str = "",
-    ) -> Dict:
-        """Get information about an artifact.
+        **kwargs,
+    ) -> resources_pb2.Artifact:
+        """Get information about this artifact.
 
         Args:
             artifact_id: The artifact ID. Defaults to the artifact ID from initialization.
             user_id: The user ID. Defaults to the user ID from initialization.
             app_id: The app ID. Defaults to the app ID from initialization.
+            **kwargs: Additional keyword arguments to be passed to the BaseClient.
 
         Returns:
-            A dictionary containing the artifact information.
+            The artifact protobuf object.
 
         Raises:
             Exception: If the artifact retrieval fails.
@@ -169,84 +187,49 @@ class Artifact(BaseClient):
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to get artifact: {response.status.description}")
 
-        return {
-            "id": response.artifact.id,
-            "user_id": response.artifact.user_id,
-            "app_id": response.artifact.app_id,
-            "created_at": response.artifact.created_at.ToDatetime()
-            if response.artifact.created_at
-            else None,
-            "modified_at": response.artifact.modified_at.ToDatetime()
-            if response.artifact.modified_at
-            else None,
-            "deleted_at": response.artifact.deleted_at.ToDatetime()
-            if response.artifact.deleted_at
-            else None,
-            "artifact_version": {
-                "id": response.artifact.artifact_version.id,
-                "description": response.artifact.artifact_version.description,
-            }
-            if response.artifact.artifact_version
-            else None,
-        }
+        return response.artifact
 
-    @staticmethod
     def list(
-        user_id: str,
-        app_id: str,
+        self,
+        user_id: str = "",
+        app_id: str = "",
         page: int = 1,
         per_page: int = DEFAULT_ARTIFACTS_PAGE_SIZE,
         **kwargs,
-    ) -> Generator["Artifact", None, None]:
+    ) -> Generator[resources_pb2.Artifact, None, None]:
         """List artifacts in an app.
 
         Args:
-            user_id: The user ID.
-            app_id: The app ID.
+            user_id: The user ID. Defaults to the user ID from initialization.
+            app_id: The app ID. Defaults to the app ID from initialization.
             page: The page number for pagination. Defaults to 1.
             per_page: The number of results per page. Defaults to 20.
             **kwargs: Additional keyword arguments to be passed to the BaseClient.
 
         Yields:
-            Artifact objects.
+            Artifact protobuf objects.
 
         Raises:
             Exception: If the artifact listing fails.
         """
-        client = BaseClient(**kwargs)
+        user_id = user_id or self.user_id
+        app_id = app_id or self.app_id
+
+        if not user_id:
+            raise UserError("user_id is required")
+        if not app_id:
+            raise UserError("app_id is required")
 
         request = service_pb2.ListArtifactsRequest(
-            user_app_id=client.auth_helper.get_user_app_id_proto(user_id=user_id, app_id=app_id),
+            user_app_id=self.auth_helper.get_user_app_id_proto(user_id=user_id, app_id=app_id),
             page=page,
             per_page=per_page,
         )
 
-        response = client._grpc_request(client.STUB.ListArtifacts, request)
+        response = self._grpc_request(self.STUB.ListArtifacts, request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to list artifacts: {response.status.description}")
 
         for artifact_pb in response.artifacts:
-            yield Artifact(artifact_id=artifact_pb.id, user_id=user_id, app_id=app_id, **kwargs)
-
-    def exists(
-        self,
-        artifact_id: str = "",
-        user_id: str = "",
-        app_id: str = "",
-    ) -> bool:
-        """Check if an artifact exists.
-
-        Args:
-            artifact_id: The artifact ID. Defaults to the artifact ID from initialization.
-            user_id: The user ID. Defaults to the user ID from initialization.
-            app_id: The app ID. Defaults to the app ID from initialization.
-
-        Returns:
-            True if the artifact exists, False otherwise.
-        """
-        try:
-            self.info(artifact_id=artifact_id, user_id=user_id, app_id=app_id)
-            return True
-        except Exception:
-            return False
+            yield artifact_pb

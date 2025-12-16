@@ -128,7 +128,7 @@ class TestArtifact:
             )
             artifact.auth_helper = mock_auth_helper
             mock_stub = Mock()
-            mock_stub.DeleteArtifacts = Mock()
+            mock_stub.DeleteArtifact = Mock()
             artifact.STUB = mock_stub
 
             result = artifact.delete(
@@ -138,10 +138,10 @@ class TestArtifact:
             assert result is True
             mock_grpc_request.assert_called_once()
             call_args = mock_grpc_request.call_args
-            assert call_args[0][0] == mock_stub.DeleteArtifacts
+            assert call_args[0][0] == mock_stub.DeleteArtifact
 
-    def test_info_success(self):
-        """Test successful artifact info retrieval."""
+    def test_get_success(self):
+        """Test successful artifact get retrieval."""
         mock_response = Mock()
         mock_response.status.code = 10000  # SUCCESS
         mock_response.artifact.id = "test_artifact"
@@ -169,13 +169,13 @@ class TestArtifact:
             mock_stub.GetArtifact = Mock()
             artifact.STUB = mock_stub
 
-            info = artifact.info(
+            result = artifact.get(
                 artifact_id="test_artifact", user_id="test_user", app_id="test_app"
             )
 
-            assert info["id"] == "test_artifact"
-            assert info["user_id"] == "test_user"
-            assert info["app_id"] == "test_app"
+            assert result.id == "test_artifact"
+            assert result.user_id == "test_user"
+            assert result.app_id == "test_app"
             mock_grpc_request.assert_called_once()
             call_args = mock_grpc_request.call_args
             assert call_args[0][0] == mock_stub.GetArtifact
@@ -191,50 +191,10 @@ class TestArtifact:
         with (
             patch('clarifai.client.base.BaseClient.__init__', return_value=None),
             patch.object(Artifact, '_grpc_request') as mock_grpc_request,
-            patch('clarifai.client.artifact.BaseClient') as mock_base_client_class,
         ):
             mock_grpc_request.return_value = mock_response
 
-            # Create a mock BaseClient instance for the static method
-            mock_base_client = Mock()
-            mock_auth_helper = Mock()
-            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
-                user_id="test_user", app_id="test_app"
-            )
-            mock_base_client.auth_helper = mock_auth_helper
-            mock_base_client._grpc_request = mock_grpc_request
-            mock_stub = Mock()
-            mock_stub.ListArtifacts = Mock()
-            mock_base_client.STUB = mock_stub
-            mock_base_client_class.return_value = mock_base_client
-
-            artifacts = list(Artifact.list(user_id="test_user", app_id="test_app"))
-
-            assert len(artifacts) == 1
-            assert artifacts[0].artifact_id == "test_artifact"
-            mock_grpc_request.assert_called_once()
-            call_args = mock_grpc_request.call_args
-            assert call_args[0][0] == mock_stub.ListArtifacts
-
-    def test_exists_true(self):
-        """Test artifact exists returns True when artifact is found."""
-        mock_response = Mock()
-        mock_response.status.code = 10000  # SUCCESS
-        mock_response.artifact.id = "test_artifact"
-        mock_response.artifact.user_id = "test_user"
-        mock_response.artifact.app_id = "test_app"
-        mock_response.artifact.created_at = None
-        mock_response.artifact.modified_at = None
-        mock_response.artifact.deleted_at = None
-        mock_response.artifact.artifact_version = None
-
-        with (
-            patch('clarifai.client.base.BaseClient.__init__', return_value=None),
-            patch.object(Artifact, '_grpc_request') as mock_grpc_request,
-        ):
-            mock_grpc_request.return_value = mock_response
-
-            artifact = Artifact()
+            artifact = Artifact(user_id="test_user", app_id="test_app")
             # Mock the auth_helper and STUB attributes
             mock_auth_helper = Mock()
             mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
@@ -242,36 +202,44 @@ class TestArtifact:
             )
             artifact.auth_helper = mock_auth_helper
             mock_stub = Mock()
-            mock_stub.GetArtifact = Mock()
+            mock_stub.ListArtifacts = Mock()
             artifact.STUB = mock_stub
 
-            exists = artifact.exists(
-                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
+            artifacts = list(artifact.list())
+
+            assert len(artifacts) == 1
+            assert artifacts[0].id == "test_artifact"
+            mock_grpc_request.assert_called_once()
+            call_args = mock_grpc_request.call_args
+            assert call_args[0][0] == mock_stub.ListArtifacts
+
+    def test_create_auto_generation(self):
+        """Test artifact creation with auto-generated artifact_id."""
+        # Mock response with a generated artifact ID
+        mock_response = Mock()
+        mock_response.status.code = 10000  # SUCCESS
+        mock_created_artifact = Mock()
+        mock_created_artifact.id = "auto_generated_artifact_123"
+        mock_response.artifacts = [mock_created_artifact]
+
+        artifact = self._create_mock_artifact()
+
+        # Add STUB mock
+        mock_stub = Mock()
+        artifact.STUB = mock_stub
+
+        with patch.object(Artifact, '_grpc_request') as mock_grpc_request:
+            mock_grpc_request.return_value = mock_response
+
+            result = artifact.create(
+                artifact_id="",  # Empty ID for auto-generation
+                user_id="test_user",
+                app_id="test_app",
             )
 
-            assert exists is True
-
-    def test_exists_false(self):
-        """Test artifact exists returns False when artifact is not found."""
-        with (
-            patch('clarifai.client.base.BaseClient.__init__', return_value=None),
-            patch.object(Artifact, '_grpc_request') as mock_grpc_request,
-        ):
-            mock_grpc_request.side_effect = Exception("Not found")
-
-            artifact = Artifact()
-            # Mock the auth_helper attribute
-            mock_auth_helper = Mock()
-            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
-                user_id="test_user", app_id="test_app"
-            )
-            artifact.auth_helper = mock_auth_helper
-
-            exists = artifact.exists(
-                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
-            )
-
-            assert exists is False
+            assert isinstance(result, Artifact)
+            assert result.artifact_id == "auto_generated_artifact_123"
+            mock_grpc_request.assert_called_once()
 
 
 class TestArtifactValidation:
@@ -310,8 +278,8 @@ class TestArtifactValidation:
             with pytest.raises(UserError, match="artifact_id is required"):
                 artifact.delete(artifact_id="", user_id="test_user", app_id="test_app")
 
-    def test_info_missing_artifact_id(self):
-        """Test artifact info with missing artifact_id."""
+    def test_get_missing_artifact_id(self):
+        """Test artifact get with missing artifact_id."""
         with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
             artifact = Artifact()
             # Mock the auth_helper attribute
@@ -319,4 +287,4 @@ class TestArtifactValidation:
             artifact.auth_helper = mock_auth_helper
 
             with pytest.raises(UserError, match="artifact_id is required"):
-                artifact.info(artifact_id="", user_id="test_user", app_id="test_app")
+                artifact.get(artifact_id="", user_id="test_user", app_id="test_app")

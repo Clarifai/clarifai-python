@@ -74,7 +74,8 @@ class TestArtifactVersion:
 
     @patch('os.path.exists')
     @patch('os.path.getsize')
-    def test_create_success(self, mock_getsize, mock_exists):
+    @patch('clarifai.client.artifact.Artifact')
+    def test_create_success(self, mock_artifact_class, mock_getsize, mock_exists):
         """Test successful artifact version creation."""
         mock_exists.return_value = True
         mock_getsize.return_value = 1024
@@ -83,6 +84,12 @@ class TestArtifactVersion:
         mock_response = Mock()
         mock_response.artifact_version_id = "new_version"
         mock_response.status.code = 10000  # SUCCESS
+
+        # Mock the Artifact class and its instance
+        mock_artifact = Mock()
+        mock_artifact.get.side_effect = Exception("Not found")  # To trigger create
+        mock_artifact.create.return_value = mock_artifact
+        mock_artifact_class.return_value = mock_artifact
 
         with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
             version = ArtifactVersion()
@@ -99,8 +106,9 @@ class TestArtifactVersion:
             mock_stub = Mock()
             mock_stub.PostArtifactVersionsUpload.return_value = iter([mock_response])
             mock_auth_helper.get_stub.return_value = mock_stub
+            version.STUB = mock_stub  # Add the STUB property
 
-            result = version.create(
+            result = version.upload(
                 file_path="test_file.txt",
                 artifact_id="test_artifact",
                 user_id="test_user",
@@ -113,8 +121,9 @@ class TestArtifactVersion:
         """Test artifact version creation with missing parameters."""
         version = self._create_mock_artifact_version()
 
-        with pytest.raises(UserError, match="artifact_id is required"):
-            version.create(file_path="test.txt")
+        # Test missing user_id (first validation check)
+        with pytest.raises(UserError, match="user_id is required"):
+            version.upload(file_path="test.txt")
 
     @patch('os.path.exists')
     @patch('os.path.getsize')
@@ -128,7 +137,18 @@ class TestArtifactVersion:
         mock_response.artifact_version_id = "uploaded_version"
         mock_response.status.code = 10000  # SUCCESS
 
-        with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
+        with (
+            patch('clarifai.client.base.BaseClient.__init__', return_value=None),
+            patch('clarifai.client.artifact.Artifact') as mock_artifact_class,
+        ):
+            # Mock the artifact for auto-creation in upload
+            mock_artifact = Mock()
+            mock_artifact.get.side_effect = Exception(
+                "Not found"
+            )  # Simulate artifact doesn't exist
+            mock_artifact.create.return_value = Mock()
+            mock_artifact_class.return_value = mock_artifact
+
             version = ArtifactVersion()
 
             # Mock the auth_helper and stub
@@ -142,7 +162,7 @@ class TestArtifactVersion:
             # Mock the streaming response as an iterator
             mock_stub = Mock()
             mock_stub.PostArtifactVersionsUpload.return_value = iter([mock_response])
-            mock_auth_helper.get_stub.return_value = mock_stub
+            version.STUB = mock_stub
 
             result = version.upload(
                 file_path="test_file.txt",
@@ -172,8 +192,13 @@ class TestArtifactVersion:
         """Test upload with missing required parameters."""
         version = self._create_mock_artifact_version()
 
-        with pytest.raises(UserError, match="artifact_id is required"):
-            version.upload(file_path="test.txt")
+        # Test missing user_id
+        with pytest.raises(UserError, match="user_id is required"):
+            version.upload(file_path="test.txt", artifact_id="test_artifact", app_id="test_app")
+
+        # Test missing app_id
+        with pytest.raises(UserError, match="app_id is required"):
+            version.upload(file_path="test.txt", artifact_id="test_artifact", user_id="test_user")
 
     @patch('builtins.open', new_callable=mock_open)
     @patch('os.makedirs')
@@ -254,14 +279,14 @@ class TestArtifactVersion:
             )
             version.auth_helper = mock_auth_helper
             mock_stub = Mock()
-            mock_stub.DeleteArtifactVersions = Mock()
+            mock_stub.DeleteArtifactVersion = Mock()
             version.STUB = mock_stub
 
             result = version.delete()
             assert result is True
             mock_grpc_request.assert_called_once()
             call_args = mock_grpc_request.call_args
-            assert call_args[0][0] == mock_stub.DeleteArtifactVersions
+            assert call_args[0][0] == mock_stub.DeleteArtifactVersion
 
     def test_delete_missing_params(self):
         """Test artifact version deletion with missing parameters."""
@@ -270,8 +295,8 @@ class TestArtifactVersion:
         with pytest.raises(UserError, match="artifact_id is required"):
             version.delete()
 
-    def test_info_success(self):
-        """Test successful artifact version info retrieval."""
+    def test_get_success(self):
+        """Test successful artifact version get retrieval."""
         mock_timestamp = timestamp_pb2.Timestamp()
         mock_timestamp.GetCurrentTime()
 
@@ -306,7 +331,7 @@ class TestArtifactVersion:
             mock_stub.GetArtifactVersion = Mock()
             version.STUB = mock_stub
 
-            result = version.info()
+            result = version.get()
             assert result is not None
             mock_grpc_request.assert_called_once()
             call_args = mock_grpc_request.call_args
@@ -322,32 +347,74 @@ class TestArtifactVersion:
         mock_version2.id = "version2"
         mock_response.artifact_versions = [mock_version1, mock_version2]
 
-        # Since list() is static, we need to patch BaseClient creation
-        with patch('clarifai.client.artifact_version.BaseClient') as mock_client_class:
-            mock_client = Mock()
-            mock_client._grpc_request.return_value = mock_response
+        # Since list() is instance method now, we need to patch the instance
+        with (
+            patch('clarifai.client.base.BaseClient.__init__', return_value=None),
+            patch.object(ArtifactVersion, '_grpc_request') as mock_grpc_request,
+        ):
+            mock_grpc_request.return_value = mock_response
+
+            version = ArtifactVersion(
+                artifact_id="test_artifact", user_id="test_user", app_id="test_app"
+            )
+            # Mock the auth_helper and STUB attributes
             mock_auth_helper = Mock()
             mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
                 user_id="test_user", app_id="test_app"
             )
-            mock_client.auth_helper = mock_auth_helper
+            version.auth_helper = mock_auth_helper
             mock_stub = Mock()
-            mock_client.STUB.ListArtifactVersions = mock_stub
-            mock_client_class.return_value = mock_client
+            mock_stub.ListArtifactVersions = Mock()
+            version.STUB = mock_stub
 
-            results = list(
-                ArtifactVersion.list(
-                    artifact_id="test_artifact", user_id="test_user", app_id="test_app"
-                )
-            )
+            results = list(version.list())
 
             assert len(results) == 2
-            mock_client._grpc_request.assert_called_once()
+            assert results[0].id == "version1"
+            assert results[1].id == "version2"
+            mock_grpc_request.assert_called_once()
 
     def test_list_missing_params(self):
         """Test list with missing required parameters."""
         with pytest.raises(UserError, match="artifact_id is required"):
-            list(ArtifactVersion.list())
+            list(ArtifactVersion().list())
+
+    @patch('os.path.getsize')
+    @patch('os.path.exists')
+    @patch('clarifai.client.artifact.Artifact')
+    def test_upload_with_empty_artifact_id(self, mock_artifact_class, mock_exists, mock_getsize):
+        """Test upload with empty artifact_id (auto-generation)."""
+        mock_exists.return_value = True
+        mock_getsize.return_value = 1024
+
+        # Mock the artifact creation process
+        mock_artifact_instance = Mock()
+        mock_created_artifact = Mock()
+        mock_created_artifact.artifact_id = "auto_generated_id_123"
+        mock_artifact_instance.create.return_value = mock_created_artifact
+        mock_artifact_class.return_value = mock_artifact_instance
+
+        version = self._create_mock_artifact_version()
+
+        # Mock the _streaming_upload_with_retry method
+        expected_result = Mock()
+        expected_result.version_id = "test_version"
+        with patch.object(version, '_streaming_upload_with_retry', return_value=expected_result):
+            result = version.upload(
+                file_path="test.txt",
+                artifact_id="",  # Empty string to trigger auto-generation
+                user_id="test_user",
+                app_id="test_app",
+            )
+
+            # Verify artifact was created with empty ID for auto-generation
+            mock_artifact_instance.create.assert_called_once_with(artifact_id="")
+
+            # Verify the upload was called with the auto-generated artifact_id
+            version._streaming_upload_with_retry.assert_called_once()
+            call_kwargs = version._streaming_upload_with_retry.call_args[1]
+            assert call_kwargs['artifact_id'] == "auto_generated_id_123"
+            assert result == expected_result
 
 
 class TestArtifactVersionHelpers:
@@ -397,6 +464,76 @@ class TestArtifactVersionHelpers:
         assert config.upload_config.artifact_version.id == "test_version"
         assert config.upload_config.artifact_version.description == "Test description"
 
+    def test_create_upload_config_visibility_options(self):
+        """Test upload configuration with different visibility options."""
+        from clarifai_grpc.grpc.api import resources_pb2
+
+        version = self._create_mock_artifact_version()
+
+        # Test private visibility
+        config = version._create_upload_config(
+            artifact_id="test_artifact",
+            description="Test description",
+            visibility="private",
+            expires_at=None,
+            version_id="test_version",
+            user_id="test_user",
+            app_id="test_app",
+            file_size=1024,
+        )
+        assert (
+            config.upload_config.artifact_version.visibility.gettable
+            == resources_pb2.Visibility.Gettable.PRIVATE
+        )
+
+        # Test public visibility
+        config = version._create_upload_config(
+            artifact_id="test_artifact",
+            description="Test description",
+            visibility="public",
+            expires_at=None,
+            version_id="test_version",
+            user_id="test_user",
+            app_id="test_app",
+            file_size=1024,
+        )
+        assert (
+            config.upload_config.artifact_version.visibility.gettable
+            == resources_pb2.Visibility.Gettable.PUBLIC
+        )
+
+        # Test org visibility
+        config = version._create_upload_config(
+            artifact_id="test_artifact",
+            description="Test description",
+            visibility="org",
+            expires_at=None,
+            version_id="test_version",
+            user_id="test_user",
+            app_id="test_app",
+            file_size=1024,
+        )
+        assert (
+            config.upload_config.artifact_version.visibility.gettable
+            == resources_pb2.Visibility.Gettable.ORG
+        )
+
+        # Test default (invalid) visibility defaults to private
+        config = version._create_upload_config(
+            artifact_id="test_artifact",
+            description="Test description",
+            visibility="invalid",
+            expires_at=None,
+            version_id="test_version",
+            user_id="test_user",
+            app_id="test_app",
+            file_size=1024,
+        )
+        assert (
+            config.upload_config.artifact_version.visibility.gettable
+            == resources_pb2.Visibility.Gettable.PRIVATE
+        )
+
     @patch('os.path.getsize')
     @patch('builtins.open', new_callable=mock_open, read_data=b"test content")
     def test_artifact_version_upload_iterator(self, mock_file, mock_getsize):
@@ -442,13 +579,11 @@ class TestArtifactVersionValidation:
         """Test validation with missing required fields."""
         version = self._create_mock_artifact_version()
 
-        # Test various missing parameter scenarios
-        with pytest.raises(UserError, match="artifact_id is required"):
-            version.create(file_path="test.txt")
-
-        with pytest.raises(UserError, match="artifact_id is required"):
+        # Test various missing parameter scenarios - user_id is now checked first in upload()
+        with pytest.raises(UserError, match="user_id is required"):
             version.upload(file_path="test.txt")
 
+        # But artifact_id is still required for delete operations
         with pytest.raises(UserError, match="artifact_id is required"):
             version.delete()
 

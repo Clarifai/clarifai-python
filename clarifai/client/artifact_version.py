@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Generator, Optional
+from typing import Generator, Optional
 
 import requests
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
@@ -62,46 +62,6 @@ class ArtifactVersion(BaseClient):
             init_params.append(f"app_id='{self.app_id}'")
         return f"ArtifactVersion({', '.join(init_params)})"
 
-    def create(
-        self,
-        file_path: str,
-        artifact_id: str = "",
-        description: str = "",
-        visibility: str = DEFAULT_ARTIFACT_VISIBILITY,
-        expires_at: Optional[Timestamp] = None,
-        version_id: str = "",
-        user_id: str = "",
-        app_id: str = "",
-    ) -> "ArtifactVersion":
-        """Create a new artifact version by uploading a file.
-
-        Args:
-            file_path: Path to the file to upload.
-            artifact_id: The artifact ID. Defaults to the artifact ID from initialization.
-            description: Description for the artifact version.
-            visibility: Visibility setting ("private" or "public"). Defaults to "private".
-            expires_at: Optional expiration timestamp.
-            version_id: Optional version ID to assign.
-            user_id: The user ID. Defaults to the user ID from initialization.
-            app_id: The app ID. Defaults to the app ID from initialization.
-
-        Returns:
-            An ArtifactVersion object for the created version.
-
-        Raises:
-            Exception: If the creation fails.
-        """
-        return self.upload(
-            file_path=file_path,
-            artifact_id=artifact_id,
-            description=description,
-            visibility=visibility,
-            expires_at=expires_at,
-            version_id=version_id,
-            user_id=user_id,
-            app_id=app_id,
-        )
-
     def upload(
         self,
         file_path: str,
@@ -117,9 +77,10 @@ class ArtifactVersion(BaseClient):
 
         Args:
             file_path: Path to the file to upload.
-            artifact_id: The artifact ID. Defaults to the artifact ID from initialization.
+            artifact_id: The artifact ID. If empty, a new artifact will be created with auto-generated ID.
+                        Defaults to the artifact ID from initialization.
             description: Description for the artifact version.
-            visibility: Visibility setting ("private" or "public"). Defaults to "private".
+            visibility: Visibility setting ("private", "public", or "org"). Defaults to "private".
             expires_at: Optional expiration timestamp.
             version_id: Optional version ID to assign.
             user_id: The user ID. Defaults to the user ID from initialization.
@@ -135,8 +96,6 @@ class ArtifactVersion(BaseClient):
         user_id = user_id or self.user_id
         app_id = app_id or self.app_id
 
-        if not artifact_id:
-            raise UserError("artifact_id is required")
         if not user_id:
             raise UserError("user_id is required")
         if not app_id:
@@ -151,6 +110,33 @@ class ArtifactVersion(BaseClient):
             raise UserError(f"File is empty: {file_path}")
 
         logger.info(f"Uploading file: {file_path} ({format_bytes(file_size)})")
+
+        # Handle artifact creation/validation
+        from clarifai.client.artifact import Artifact
+
+        # Create artifact client - same for both auto-generated and specific IDs
+        artifact = Artifact(
+            artifact_id=artifact_id,  # Can be empty for auto-generation
+            user_id=user_id,
+            app_id=app_id,
+            pat=getattr(self, 'pat', None),
+            base=getattr(self, 'base', None),
+        )
+
+        if not artifact_id:
+            # Auto-generate artifact ID
+            logger.info("Creating new artifact with auto-generated ID")
+            created_artifact = artifact.create(artifact_id="")
+            artifact_id = created_artifact.artifact_id
+            logger.info(f"Created new artifact with ID: {artifact_id}")
+        else:
+            # Ensure artifact exists (create if it doesn't)
+            try:
+                artifact.get()
+                logger.info(f"Artifact {artifact_id} exists")
+            except Exception:
+                logger.info(f"Creating artifact {artifact_id}")
+                artifact.create(artifact_id=artifact_id)
 
         try:
             # Perform streaming upload with retry logic
@@ -195,40 +181,59 @@ class ArtifactVersion(BaseClient):
                     chunk_count = 0
                     final_version_id = version_id
 
-                    # Perform streaming upload following pipeline_step pattern
-                    for response in self.auth_helper.get_stub().PostArtifactVersionsUpload(
-                        self._artifact_version_upload_iterator(
-                            file_path,
-                            artifact_id,
-                            description,
-                            visibility,
-                            expires_at,
-                            version_id,
-                            user_id,
-                            app_id,
-                        ),
-                        metadata=self.auth_helper.metadata,
-                    ):
-                        if chunk_count == 0:
-                            # First response is config upload - extract version ID
-                            if hasattr(response, 'artifact_version_id'):
-                                final_version_id = response.artifact_version_id
-                                logger.info(f"Created artifact version: {final_version_id}")
-                        else:
-                            # Update progress for data chunks (same logic as pipeline_step)
-                            chunk_bytes = min(UPLOAD_CHUNK_SIZE, file_size - uploaded_bytes)
-                            uploaded_bytes += chunk_bytes
-                            progress_bar.update(chunk_bytes)
-
-                        chunk_count += 1
-
-                        # Check for errors
-                        if (
-                            hasattr(response, 'status')
-                            and response.status.code != status_code_pb2.SUCCESS
+                    # Perform streaming upload following pipeline_step pattern (use STUB with automatic metadata)
+                    try:
+                        for response in self.STUB.PostArtifactVersionsUpload(
+                            self._artifact_version_upload_iterator(
+                                file_path,
+                                artifact_id,
+                                description,
+                                visibility,
+                                expires_at,
+                                version_id,
+                                user_id,
+                                app_id,
+                            ),
                         ):
-                            if response.status.code not in [status_code_pb2.UPLOAD_IN_PROGRESS]:
+                            if chunk_count == 0:
+                                # First response is config upload - extract version ID
+                                if hasattr(response, 'artifact_version_id'):
+                                    final_version_id = response.artifact_version_id
+                                    logger.info(f"Created artifact version: {final_version_id}")
+                            else:
+                                # Update progress for data chunks (same logic as pipeline_step)
+                                chunk_bytes = min(UPLOAD_CHUNK_SIZE, file_size - uploaded_bytes)
+                                uploaded_bytes += chunk_bytes
+                                progress_bar.update(chunk_bytes)
+
+                            chunk_count += 1
+
+                            # Check for errors (following model upload pattern)
+                            finished_status = [
+                                status_code_pb2.SUCCESS,
+                                status_code_pb2.UPLOAD_DONE,
+                            ]
+                            uploading_in_progress_status = [status_code_pb2.UPLOAD_IN_PROGRESS]
+
+                            if (
+                                hasattr(response, 'status')
+                                and response.status.code
+                                not in finished_status + uploading_in_progress_status
+                            ):
+                                error_details = {
+                                    'code': response.status.code,
+                                    'description': response.status.description,
+                                    'details': response.status.details
+                                    if hasattr(response.status, 'details')
+                                    else 'No details',
+                                }
+                                logger.error(f"Server error: {error_details}")
                                 raise Exception(f"Upload failed: {response.status.description}")
+
+                    except Exception as streaming_error:
+                        progress_bar.close()
+                        logger.error(f"Error processing streaming response: {streaming_error}")
+                        raise Exception(f"Upload failed: {streaming_error}")
 
                     progress_bar.close()
                     logger.info(f"Upload completed successfully: {final_version_id}")
@@ -330,11 +335,14 @@ class ArtifactVersion(BaseClient):
     ):
         """Create upload config message."""
         # Convert visibility string to enum
-        visibility_enum = (
-            resources_pb2.Visibility.Gettable.PRIVATE
-            if visibility == "private"
-            else resources_pb2.Visibility.Gettable.PUBLIC
-        )
+        if visibility == "private":
+            visibility_enum = resources_pb2.Visibility.Gettable.PRIVATE
+        elif visibility == "public":
+            visibility_enum = resources_pb2.Visibility.Gettable.PUBLIC
+        elif visibility == "org":
+            visibility_enum = resources_pb2.Visibility.Gettable.ORG
+        else:
+            visibility_enum = resources_pb2.Visibility.Gettable.PRIVATE
 
         artifact_version = resources_pb2.ArtifactVersion(
             description=description,
@@ -391,19 +399,21 @@ class ArtifactVersion(BaseClient):
             raise UserError("user_id is required")
         if not app_id:
             raise UserError("app_id is required")
+        if not version_id:
+            raise UserError("version_id is required")
 
         # Get artifact version info
-        version_info = self.info(
+        version_pb = self.get(
             artifact_id=artifact_id, version_id=version_id, user_id=user_id, app_id=app_id
         )
 
-        upload_info = version_info.get("upload", {})
-        content_url = upload_info.get("content_url")
-        content_name = upload_info.get("content_name", "downloaded_file")
-        total_size = upload_info.get("content_length", 0)
-
-        if not content_url:
+        # Extract download info from protobuf
+        if not hasattr(version_pb, 'upload') or not version_pb.upload.content_url:
             raise UserError("No download URL available for this artifact version")
+
+        content_url = version_pb.upload.content_url
+        content_name = version_pb.upload.content_name or "downloaded_file"
+        total_size = version_pb.upload.content_length or 0
 
         # Determine output path
         if not output_path:
@@ -534,14 +544,16 @@ class ArtifactVersion(BaseClient):
         version_id: str = "",
         user_id: str = "",
         app_id: str = "",
+        **kwargs,
     ) -> bool:
-        """Delete an artifact version.
+        """Delete this artifact version.
 
         Args:
             artifact_id: The artifact ID. Defaults to the artifact ID from initialization.
             version_id: The artifact version ID. Defaults to the version ID from initialization.
             user_id: The user ID. Defaults to the user ID from initialization.
             app_id: The app ID. Defaults to the app ID from initialization.
+            **kwargs: Additional keyword arguments to be passed to the BaseClient.
 
         Returns:
             True if deletion was successful.
@@ -569,30 +581,32 @@ class ArtifactVersion(BaseClient):
             artifact_version_id=version_id,
         )
 
-        response = self._grpc_request(self.STUB.DeleteArtifactVersions, request)
+        response = self._grpc_request(self.STUB.DeleteArtifactVersion, request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to delete artifact version: {response.status.description}")
 
         return True
 
-    def info(
+    def get(
         self,
         artifact_id: str = "",
         version_id: str = "",
         user_id: str = "",
         app_id: str = "",
-    ) -> Dict:
-        """Get information about an artifact version.
+        **kwargs,
+    ) -> resources_pb2.ArtifactVersion:
+        """Get information about this artifact version.
 
         Args:
             artifact_id: The artifact ID. Defaults to the artifact ID from initialization.
             version_id: The artifact version ID. Defaults to the version ID from initialization.
             user_id: The user ID. Defaults to the user ID from initialization.
             app_id: The app ID. Defaults to the app ID from initialization.
+            **kwargs: Additional keyword arguments to be passed to the BaseClient.
 
         Returns:
-            A dictionary containing the artifact version information.
+            The artifact version protobuf object.
 
         Raises:
             Exception: If the artifact version retrieval fails.
@@ -622,105 +636,56 @@ class ArtifactVersion(BaseClient):
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to get artifact version: {response.status.description}")
 
-        artifact_version = response.artifact_version
-        return {
-            "id": artifact_version.id,
-            "description": artifact_version.description,
-            "visibility": artifact_version.visibility.name
-            if artifact_version.visibility
-            else "UNKNOWN",
-            "expires_at": artifact_version.expires_at.ToDatetime()
-            if artifact_version.expires_at
-            else None,
-            "created_at": artifact_version.created_at.ToDatetime()
-            if artifact_version.created_at
-            else None,
-            "modified_at": artifact_version.modified_at.ToDatetime()
-            if artifact_version.modified_at
-            else None,
-            "deleted_at": artifact_version.deleted_at.ToDatetime()
-            if artifact_version.deleted_at
-            else None,
-            "artifact": {
-                "id": artifact_version.artifact.id,
-                "user_id": artifact_version.artifact.user_id,
-                "app_id": artifact_version.artifact.app_id,
-            }
-            if artifact_version.artifact
-            else None,
-            "upload": {
-                "id": artifact_version.upload.id,
-                "content_name": artifact_version.upload.content_name,
-                "content_length": artifact_version.upload.content_length,
-                "content_url": artifact_version.upload.content_url,
-                "status": artifact_version.upload.status.description
-                if artifact_version.upload.status
-                else "UNKNOWN",
-                "created_at": artifact_version.upload.created_at.ToDatetime()
-                if artifact_version.upload.created_at
-                else None,
-                "modified_at": artifact_version.upload.modified_at.ToDatetime()
-                if artifact_version.upload.modified_at
-                else None,
-                "expires_at": artifact_version.upload.expires_at.ToDatetime()
-                if artifact_version.upload.expires_at
-                else None,
-            }
-            if artifact_version.upload
-            else None,
-        }
+        return response.artifact_version
 
-    @staticmethod
     def list(
+        self,
         artifact_id: str = "",
         user_id: str = "",
         app_id: str = "",
         page: int = 1,
         per_page: int = DEFAULT_ARTIFACTS_PAGE_SIZE,
         **kwargs,
-    ) -> Generator["ArtifactVersion", None, None]:
-        """List artifact versions.
+    ) -> Generator[resources_pb2.ArtifactVersion, None, None]:
+        """List artifact versions for this artifact.
 
         Args:
-            artifact_id: The artifact ID.
-            user_id: The user ID.
-            app_id: The app ID.
+            artifact_id: The artifact ID. Defaults to the artifact ID from initialization.
+            user_id: The user ID. Defaults to the user ID from initialization.
+            app_id: The app ID. Defaults to the app ID from initialization.
             page: The page number for pagination. Defaults to 1.
             per_page: The number of results per page. Defaults to 20.
             **kwargs: Additional keyword arguments to be passed to the BaseClient.
 
         Yields:
-            ArtifactVersion objects.
+            ArtifactVersion protobuf objects.
 
         Raises:
             UserError: If required parameters are missing.
             Exception: If the artifact version listing fails.
         """
+        artifact_id = artifact_id or self.artifact_id
+        user_id = user_id or self.user_id
+        app_id = app_id or self.app_id
+
         if not artifact_id:
             raise UserError("artifact_id is required")
         if not user_id:
             raise UserError("user_id is required")
         if not app_id:
             raise UserError("app_id is required")
-        client = BaseClient(**kwargs)
 
         request = service_pb2.ListArtifactVersionsRequest(
-            user_app_id=client.auth_helper.get_user_app_id_proto(user_id=user_id, app_id=app_id),
+            user_app_id=self.auth_helper.get_user_app_id_proto(user_id=user_id, app_id=app_id),
             artifact_id=artifact_id,
             page=page,
             per_page=per_page,
         )
 
-        response = client._grpc_request(client.STUB.ListArtifactVersions, request)
+        response = self._grpc_request(self.STUB.ListArtifactVersions, request)
 
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(f"Failed to list artifact versions: {response.status.description}")
 
         for version_pb in response.artifact_versions:
-            yield ArtifactVersion(
-                artifact_id=artifact_id,
-                version_id=version_pb.id,
-                user_id=user_id,
-                app_id=app_id,
-                **kwargs,
-            )
+            yield version_pb
