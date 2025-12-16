@@ -176,122 +176,113 @@ class ArtifactVersion(BaseClient):
         file_size = os.path.getsize(file_path)
 
         for attempt in range(max_retries):
-            try:
-                logger.debug(f"Upload attempt {attempt + 1}/{max_retries}")
+            logger.debug(f"Upload attempt {attempt + 1}/{max_retries}")
 
-                # Progress bar setup - always show for better UX
-                progress_bar = tqdm(
-                    total=file_size,
-                    unit=PROGRESS_BAR_UNIT,
-                    unit_scale=True,
-                    desc=PROGRESS_BAR_DESCRIPTION_UPLOAD,
+            # Progress bar setup - always show for better UX
+            progress_bar = tqdm(
+                total=file_size,
+                unit=PROGRESS_BAR_UNIT,
+                unit_scale=True,
+                desc=PROGRESS_BAR_DESCRIPTION_UPLOAD,
+            )
+
+            try:
+                uploaded_bytes = 0
+                chunk_count = 0
+                final_version_id = version_id
+
+                # Create iterator and track chunk sizes for accurate progress
+                upload_iterator = self._artifact_version_upload_iterator(
+                    file_path,
+                    artifact_id,
+                    description,
+                    visibility,
+                    expires_at,
+                    version_id,
+                    user_id,
+                    app_id,
                 )
 
+                # Pre-calculate actual chunk sizes for accurate progress tracking
+                chunk_sizes = []
+                iterator_requests = []
+
+                for request in upload_iterator:
+                    iterator_requests.append(request)
+                    if hasattr(request, 'content_part') and request.content_part.data:
+                        chunk_sizes.append(len(request.content_part.data))
+
+                # Perform streaming upload following pipeline_step pattern (use STUB with automatic metadata)
                 try:
-                    uploaded_bytes = 0
-                    chunk_count = 0
-                    final_version_id = version_id
+                    for response in self.STUB.PostArtifactVersionsUpload(iter(iterator_requests)):
+                        if chunk_count == 0:
+                            # First response is config upload - extract version ID
+                            if hasattr(response, 'artifact_version_id'):
+                                final_version_id = response.artifact_version_id
+                                logger.info(f"Created artifact version: {final_version_id}")
+                        else:
+                            # Update progress with actual chunk size from pre-calculated sizes
+                            actual_chunk_size = (
+                                chunk_sizes[chunk_count - 1]
+                                if chunk_count - 1 < len(chunk_sizes)
+                                else 0
+                            )
+                            uploaded_bytes += actual_chunk_size
+                            progress_bar.update(actual_chunk_size)
 
-                    # Create iterator and track chunk sizes for accurate progress
-                    upload_iterator = self._artifact_version_upload_iterator(
-                        file_path,
-                        artifact_id,
-                        description,
-                        visibility,
-                        expires_at,
-                        version_id,
-                        user_id,
-                        app_id,
-                    )
+                        chunk_count += 1
 
-                    # Pre-calculate actual chunk sizes for accurate progress tracking
-                    chunk_sizes = []
-                    iterator_requests = []
+                        # Check for errors (following model upload pattern)
+                        finished_status = [
+                            status_code_pb2.SUCCESS,
+                            status_code_pb2.UPLOAD_DONE,
+                        ]
+                        uploading_in_progress_status = [status_code_pb2.UPLOAD_IN_PROGRESS]
 
-                    for request in upload_iterator:
-                        iterator_requests.append(request)
-                        if hasattr(request, 'content_part') and request.content_part.data:
-                            chunk_sizes.append(len(request.content_part.data))
-
-                    # Perform streaming upload following pipeline_step pattern (use STUB with automatic metadata)
-                    try:
-                        for response in self.STUB.PostArtifactVersionsUpload(
-                            iter(iterator_requests)
+                        if (
+                            hasattr(response, 'status')
+                            and response.status.code
+                            not in finished_status + uploading_in_progress_status
                         ):
-                            if chunk_count == 0:
-                                # First response is config upload - extract version ID
-                                if hasattr(response, 'artifact_version_id'):
-                                    final_version_id = response.artifact_version_id
-                                    logger.info(f"Created artifact version: {final_version_id}")
-                            else:
-                                # Update progress with actual chunk size from pre-calculated sizes
-                                actual_chunk_size = (
-                                    chunk_sizes[chunk_count - 1]
-                                    if chunk_count - 1 < len(chunk_sizes)
-                                    else 0
-                                )
-                                uploaded_bytes += actual_chunk_size
-                                progress_bar.update(actual_chunk_size)
+                            error_details = {
+                                'code': response.status.code,
+                                'description': response.status.description,
+                                'details': response.status.details
+                                if hasattr(response.status, 'details')
+                                else 'No details',
+                            }
+                            logger.error(f"Server error: {error_details}")
+                            raise Exception(f"Upload failed: {response.status.description}")
 
-                            chunk_count += 1
-
-                            # Check for errors (following model upload pattern)
-                            finished_status = [
-                                status_code_pb2.SUCCESS,
-                                status_code_pb2.UPLOAD_DONE,
-                            ]
-                            uploading_in_progress_status = [status_code_pb2.UPLOAD_IN_PROGRESS]
-
-                            if (
-                                hasattr(response, 'status')
-                                and response.status.code
-                                not in finished_status + uploading_in_progress_status
-                            ):
-                                error_details = {
-                                    'code': response.status.code,
-                                    'description': response.status.description,
-                                    'details': response.status.details
-                                    if hasattr(response.status, 'details')
-                                    else 'No details',
-                                }
-                                logger.error(f"Server error: {error_details}")
-                                raise Exception(f"Upload failed: {response.status.description}")
-
-                    except Exception as streaming_error:
-                        progress_bar.close()
-                        logger.error(f"Error processing streaming response: {streaming_error}")
-                        raise Exception(f"Upload failed: {streaming_error}")
-
+                except Exception as streaming_error:
                     progress_bar.close()
-                    logger.info(f"Upload completed successfully: {final_version_id}")
+                    logger.error(f"Error processing streaming response: {streaming_error}")
+                    raise Exception(f"Upload failed: {streaming_error}")
 
-                    return ArtifactVersion(
-                        artifact_id=artifact_id,
-                        version_id=final_version_id,
-                        user_id=user_id,
-                        app_id=app_id,
-                    )
+                progress_bar.close()
+                logger.info(f"Upload completed successfully: {final_version_id}")
 
-                except Exception as e:
-                    progress_bar.close()
-                    if attempt < max_retries - 1:
-                        wait_time = 2**attempt  # Exponential backoff
-                        logger.warning(
-                            f"Upload attempt {attempt + 1} failed, retrying in {wait_time}s: {e}"
-                        )
-                        import time
-
-                        time.sleep(wait_time)
-                        continue
-                    else:
-                        # Last attempt failed, raise with context
-                        raise UserError(f"Upload failed after {max_retries} attempts: {e}")
+                return ArtifactVersion(
+                    artifact_id=artifact_id,
+                    version_id=final_version_id,
+                    user_id=user_id,
+                    app_id=app_id,
+                )
 
             except Exception as e:
-                # This should not be reached due to inner exception handling
-                # But keeping as a safety net for unexpected exceptions
-                logger.error(f"Unexpected error in upload retry logic: {e}")
-                raise UserError(f"Upload failed due to unexpected error: {e}")
+                progress_bar.close()
+                if attempt < max_retries - 1:
+                    wait_time = 2**attempt  # Exponential backoff
+                    logger.warning(
+                        f"Upload attempt {attempt + 1} failed, retrying in {wait_time}s: {e}"
+                    )
+                    import time
+
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    # Last attempt failed, raise with context
+                    raise UserError(f"Upload failed after {max_retries} attempts: {e}")
 
         # This should not be reached due to exception handling in the loop
         raise UserError("Upload failed: exceeded maximum retries")
@@ -474,38 +465,36 @@ class ArtifactVersion(BaseClient):
     ) -> str:
         """Download file with automatic retry logic and resume support."""
         for attempt in range(max_retries):
+            logger.debug(f"Download attempt {attempt + 1}/{max_retries}")
+
+            # Handle existing file and resume
+            resume_byte_pos = 0
+            if os.path.exists(output_path):
+                if total_size > 0:
+                    existing_size = os.path.getsize(output_path)
+                    if existing_size < total_size:
+                        resume_byte_pos = existing_size
+                        logger.info(f"Resuming download from byte {resume_byte_pos}")
+                    elif existing_size == total_size:
+                        logger.info("File already downloaded completely")
+                        return output_path
+
+                if resume_byte_pos == 0:
+                    if not force:
+                        import click
+
+                        if not click.confirm(f"File '{output_path}' already exists. Overwrite?"):
+                            raise UserError("Download cancelled by user")
+
+            # Prepare download headers for resume
+            headers = {}
+            if resume_byte_pos > 0:
+                headers['Range'] = f'bytes={resume_byte_pos}-'
+
+            # Download the file with progress tracking
+            logger.info(f"Downloading to {output_path}")
+
             try:
-                logger.debug(f"Download attempt {attempt + 1}/{max_retries}")
-
-                # Handle existing file and resume
-                resume_byte_pos = 0
-                if os.path.exists(output_path):
-                    if total_size > 0:
-                        existing_size = os.path.getsize(output_path)
-                        if existing_size < total_size:
-                            resume_byte_pos = existing_size
-                            logger.info(f"Resuming download from byte {resume_byte_pos}")
-                        elif existing_size == total_size:
-                            logger.info("File already downloaded completely")
-                            return output_path
-
-                    if resume_byte_pos == 0:
-                        if not force:
-                            import click
-
-                            if not click.confirm(
-                                f"File '{output_path}' already exists. Overwrite?"
-                            ):
-                                raise UserError("Download cancelled by user")
-
-                # Prepare download headers for resume
-                headers = {}
-                if resume_byte_pos > 0:
-                    headers['Range'] = f'bytes={resume_byte_pos}-'
-
-                # Download the file with progress tracking
-                logger.info(f"Downloading to {output_path}")
-
                 response = requests.get(content_url, stream=True, headers=headers)
                 response.raise_for_status()
 
@@ -558,29 +547,23 @@ class ArtifactVersion(BaseClient):
 
                 except Exception as e:
                     progress_bar.close()
-                    if attempt < max_retries - 1:
-                        wait_time = 2**attempt  # Exponential backoff
-                        logger.warning(
-                            f"Download attempt {attempt + 1} failed, retrying in {wait_time}s: {e}"
-                        )
-                        import time
+                    raise
 
-                        time.sleep(wait_time)
-                        continue
-                    else:
-                        # Last attempt failed, raise with context
-                        raise UserError(f"Download failed after {max_retries} attempts: {e}")
-
-            except requests.RequestException as e:
-                # This should not be reached due to inner exception handling
-                # But keeping as a safety net for unexpected request exceptions
-                logger.error(f"Unexpected request error in download retry logic: {e}")
-                raise UserError(f"Download failed due to network error: {e}")
             except Exception as e:
-                # This should not be reached due to inner exception handling
-                # But keeping as a safety net for unexpected exceptions
-                logger.error(f"Unexpected error in download retry logic: {e}")
-                raise UserError(f"Download failed due to unexpected error: {e}")
+                if attempt < max_retries - 1:
+                    wait_time = 2**attempt  # Exponential backoff
+                    logger.warning(
+                        f"Download attempt {attempt + 1} failed, retrying in {wait_time}s: {e}"
+                    )
+                    import time
+
+                    time.sleep(wait_time)
+                    continue
+                # Last attempt failed, raise with context
+                elif isinstance(e, requests.RequestException):
+                    raise UserError(f"Download failed due to network error: {e}")
+                else:
+                    raise UserError(f"Download failed after {max_retries} attempts: {e}")
 
         # This should not be reached due to exception handling in the loop
         raise UserError("Download failed: exceeded maximum retries")
