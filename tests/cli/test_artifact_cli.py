@@ -13,6 +13,7 @@ from clarifai.cli.artifact import (
     parse_artifact_path,
 )
 from clarifai.errors import UserError
+from tests.test_artifact_utils import create_mock_context, setup_context_mock
 
 
 class TestArtifactPathParsing:
@@ -113,26 +114,6 @@ class TestArtifactCLI:
         """Setup for each test method."""
         self.runner = CliRunner()
 
-    def _create_mock_context(self):
-        """Create a mock context object for CLI tests."""
-        mock_current = Mock()
-        mock_current.pat = "test_pat"
-        mock_current.api_base = "api.clarifai.com"
-        mock_current.to_grpc.return_value = {}
-        mock_obj = Mock()
-        mock_obj.current = mock_current
-        return mock_obj
-
-    def _setup_context_mock(self, mock_validate):
-        """Setup context mock to properly set ctx.obj."""
-        mock_obj = self._create_mock_context()
-
-        def setup_context(ctx):
-            ctx.obj = mock_obj
-
-        mock_validate.side_effect = setup_context
-        return mock_obj
-
     @patch('clarifai.cli.artifact.validate_context')
     @patch('clarifai.cli.artifact.Artifact')
     def test_list_command_success(self, mock_artifact_class, mock_validate):
@@ -144,7 +125,7 @@ class TestArtifactCLI:
         mock_artifact_instance.list.return_value = []
         mock_artifact_class.return_value = mock_artifact_instance
 
-        mock_obj = self._create_mock_context()
+        mock_obj = create_mock_context()
 
         result = self.runner.invoke(
             artifact, ['list', 'users/test_user/apps/test_app'], obj=mock_obj
@@ -161,7 +142,7 @@ class TestArtifactCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_list_command_missing_params(self, mock_validate):
         """Test list command with missing required parameters."""
-        mock_obj = self._setup_context_mock(mock_validate)
+        mock_obj = setup_context_mock(mock_validate)
 
         result = self.runner.invoke(artifact, ['list'], obj=mock_obj)
         assert result.exit_code != 0
@@ -178,7 +159,7 @@ class TestArtifactCLI:
         mock_version_instance.list.return_value = []
         mock_artifact_version_class.return_value = mock_version_instance
 
-        mock_obj = self._create_mock_context()
+        mock_obj = create_mock_context()
 
         result = self.runner.invoke(
             artifact,
@@ -218,7 +199,7 @@ class TestArtifactCLI:
             'artifact_version': {'id': 'v123', 'description': 'Latest version'},
         }
 
-        mock_obj = self._create_mock_context()
+        mock_obj = create_mock_context()
 
         result = self.runner.invoke(
             artifact,
@@ -233,7 +214,7 @@ class TestArtifactCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_get_command_missing_params(self, mock_validate):
         """Test get command with missing required parameters."""
-        mock_obj = self._setup_context_mock(mock_validate)
+        mock_obj = setup_context_mock(mock_validate)
 
         result = self.runner.invoke(artifact, ['get', 'incomplete/path'], obj=mock_obj)
         assert result.exit_code != 0
@@ -254,7 +235,7 @@ class TestArtifactCLI:
         mock_artifact_class.return_value = mock_artifact_instance
         mock_artifact_instance.delete.return_value = True
 
-        mock_obj = self._create_mock_context()
+        mock_obj = create_mock_context()
 
         # Use input to simulate user confirmation
         result = self.runner.invoke(
@@ -271,7 +252,7 @@ class TestArtifactCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_delete_command_cancel(self, mock_validate):
         """Test delete command with user cancellation."""
-        mock_obj = self._setup_context_mock(mock_validate)
+        mock_obj = setup_context_mock(mock_validate)
 
         result = self.runner.invoke(
             artifact,
@@ -287,7 +268,7 @@ class TestArtifactCLI:
     @patch('clarifai.cli.artifact.Artifact')
     def test_delete_command_force(self, mock_artifact_class, mock_validate):
         """Test delete command with force flag (no confirmation needed)."""
-        mock_obj = self._setup_context_mock(mock_validate)
+        mock_obj = setup_context_mock(mock_validate)
 
         # Mock the artifact instance and its delete method
         mock_artifact_instance = Mock()
@@ -311,7 +292,7 @@ class TestArtifactCLI:
     @patch('clarifai.cli.artifact.ArtifactVersion')
     def test_delete_version_command_force(self, mock_artifact_version_class, mock_validate):
         """Test delete version command with force flag (no confirmation needed)."""
-        mock_obj = self._setup_context_mock(mock_validate)
+        mock_obj = setup_context_mock(mock_validate)
 
         # Mock the artifact version instance and its delete method
         mock_version_instance = Mock()
@@ -340,7 +321,7 @@ class TestArtifactCLI:
     @patch('clarifai.client.artifact_version.ArtifactVersion.upload')
     def test_cp_command_upload_success(self, mock_upload, mock_exists, mock_validate):
         """Test successful upload via cp command."""
-        mock_obj = self._setup_context_mock(mock_validate)
+        mock_obj = setup_context_mock(mock_validate)
         mock_exists.return_value = True
 
         # Mock successful upload
@@ -365,7 +346,7 @@ class TestArtifactCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_cp_command_upload_org_visibility(self, mock_validate, mock_exists, mock_upload):
         """Test upload with org visibility option."""
-        mock_obj = self._setup_context_mock(mock_validate)
+        mock_obj = setup_context_mock(mock_validate)
         mock_exists.return_value = True
 
         # Mock successful upload
@@ -402,7 +383,7 @@ class TestArtifactCLI:
         self, mock_artifact_class, mock_artifact_version_class, mock_validate
     ):
         """Test successful download via cp command."""
-        mock_obj = self._setup_context_mock(mock_validate)
+        mock_obj = setup_context_mock(mock_validate)
 
         # Mock the artifact to return latest version info
         mock_artifact_instance = Mock()
@@ -430,7 +411,7 @@ class TestArtifactCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_cp_command_invalid_paths(self, mock_validate):
         """Test cp command with invalid path combinations."""
-        mock_obj = self._setup_context_mock(mock_validate)
+        mock_obj = setup_context_mock(mock_validate)
 
         # Both paths are local
         result = self.runner.invoke(artifact, ['cp', './local1.txt', './local2.txt'], obj=mock_obj)
@@ -450,7 +431,7 @@ class TestArtifactCLI:
     @patch('os.path.exists')
     def test_cp_command_missing_file(self, mock_exists, mock_validate):
         """Test cp command with missing local file."""
-        mock_obj = self._setup_context_mock(mock_validate)
+        mock_obj = setup_context_mock(mock_validate)
         mock_exists.return_value = False
 
         result = self.runner.invoke(
@@ -480,7 +461,7 @@ class TestArtifactCLI:
 
     def test_instance_reuse_across_operations(self):
         """Test that CLI operations properly handle instance reuse."""
-        mock_obj = self._setup_context_mock(Mock())
+        mock_obj = setup_context_mock(Mock())
 
         with patch('clarifai.cli.artifact.Artifact') as mock_artifact:
             mock_instance = Mock()
@@ -538,7 +519,7 @@ class TestArtifactCLI:
     @patch('clarifai.cli.artifact.validate_context')
     def test_cp_command_upload_app_level_error(self, mock_validate, mock_exists):
         """Test upload to app-level path. Should error since artifact_id is required."""
-        mock_obj = self._setup_context_mock(mock_validate)
+        mock_obj = setup_context_mock(mock_validate)
         mock_exists.return_value = True
 
         result = self.runner.invoke(
@@ -559,26 +540,6 @@ class TestArtifactCLIIntegration:
         """Setup for each test method."""
         self.runner = CliRunner()
 
-    def _create_mock_context(self):
-        """Create a mock context object for CLI tests."""
-        mock_current = Mock()
-        mock_current.pat = "test_pat"
-        mock_current.api_base = "api.clarifai.com"
-        mock_current.to_grpc.return_value = {}
-        mock_obj = Mock()
-        mock_obj.current = mock_current
-        return mock_obj
-
-    def _setup_context_mock(self, mock_validate):
-        """Setup context mock to properly set ctx.obj."""
-        mock_obj = self._create_mock_context()
-
-        def setup_context(ctx):
-            ctx.obj = mock_obj
-
-        mock_validate.side_effect = setup_context
-        return mock_obj
-
     @patch('clarifai.cli.artifact.validate_context')
     @patch('clarifai.cli.artifact.Artifact')
     def test_full_workflow_simulation(self, mock_artifact_class, mock_validate):
@@ -590,7 +551,7 @@ class TestArtifactCLIIntegration:
         mock_artifact_instance.list.return_value = []
         mock_artifact_class.return_value = mock_artifact_instance
 
-        mock_obj = self._create_mock_context()
+        mock_obj = create_mock_context()
 
         # Test list
         result = self.runner.invoke(
@@ -614,7 +575,7 @@ class TestArtifactCLIIntegration:
             "Failed to get artifact: Resource does not exist"
         )
 
-        mock_obj = self._create_mock_context()
+        mock_obj = create_mock_context()
 
         result = self.runner.invoke(
             artifact,

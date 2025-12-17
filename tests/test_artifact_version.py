@@ -10,25 +10,11 @@ from google.protobuf import timestamp_pb2
 from clarifai.client.artifact_version import ArtifactVersion
 from clarifai.errors import UserError
 from clarifai.utils.misc import format_bytes
+from tests.test_artifact_utils import create_mock_artifact_version
 
 
 class TestArtifactVersion:
     """Test class for ArtifactVersion client."""
-
-    def _create_mock_artifact_version(self):
-        """Helper method to create an ArtifactVersion with properly mocked dependencies."""
-        with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
-            version = ArtifactVersion()
-            # Mock the auth_helper attribute that would normally be set by BaseClient.__init__
-            mock_auth_helper = Mock()
-            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
-                user_id="test_user", app_id="test_app"
-            )
-            mock_auth_helper.user_id = "mock_user"
-            mock_auth_helper.get_stub.return_value = Mock()
-            mock_auth_helper.metadata = {}
-            version.auth_helper = mock_auth_helper
-            return version
 
     def test_init(self):
         """Test artifact version initialization."""
@@ -121,7 +107,7 @@ class TestArtifactVersion:
 
     def test_create_missing_params(self):
         """Test artifact version creation with missing parameters."""
-        version = self._create_mock_artifact_version()
+        version = create_mock_artifact_version()
 
         # Test missing artifact_id (first validation check)
         with pytest.raises(UserError, match="artifact_id is required"):
@@ -181,7 +167,7 @@ class TestArtifactVersion:
         """Test upload with missing file."""
         mock_exists.return_value = False
 
-        version = self._create_mock_artifact_version()
+        version = create_mock_artifact_version()
 
         with pytest.raises(UserError, match="File does not exist"):
             version.upload(
@@ -193,7 +179,7 @@ class TestArtifactVersion:
 
     def test_upload_missing_params(self):
         """Test upload with missing required parameters."""
-        version = self._create_mock_artifact_version()
+        version = create_mock_artifact_version()
 
         # Test missing artifact_id
         with pytest.raises(UserError, match="artifact_id is required"):
@@ -322,7 +308,7 @@ class TestArtifactVersion:
 
     def test_download_missing_params(self):
         """Test download with missing required parameters."""
-        version = self._create_mock_artifact_version()
+        version = create_mock_artifact_version()
 
         with pytest.raises(UserError, match="artifact_id is required"):
             version.download(output_path="test.txt")
@@ -362,7 +348,7 @@ class TestArtifactVersion:
 
     def test_delete_missing_params(self):
         """Test artifact version deletion with missing parameters."""
-        version = self._create_mock_artifact_version()
+        version = create_mock_artifact_version()
 
         with pytest.raises(UserError, match="artifact_id is required"):
             version.delete()
@@ -453,7 +439,7 @@ class TestArtifactVersion:
 
     def test_upload_missing_artifact_id(self):
         """Test upload with missing artifact_id (now required)."""
-        version = self._create_mock_artifact_version()
+        version = create_mock_artifact_version()
 
         # Test missing artifact_id
         with pytest.raises(UserError, match="artifact_id is required"):
@@ -468,21 +454,6 @@ class TestArtifactVersion:
 class TestArtifactVersionHelpers:
     """Test helper functions for ArtifactVersion."""
 
-    def _create_mock_artifact_version(self):
-        """Helper method to create an ArtifactVersion with properly mocked dependencies."""
-        with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
-            version = ArtifactVersion()
-            # Mock the auth_helper attribute that would normally be set by BaseClient.__init__
-            mock_auth_helper = Mock()
-            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
-                user_id="test_user", app_id="test_app"
-            )
-            mock_auth_helper.user_id = "mock_user"
-            mock_auth_helper.get_stub.return_value = Mock()
-            mock_auth_helper.metadata = {}
-            version.auth_helper = mock_auth_helper
-            return version
-
     def test_format_bytes(self):
         """Test byte formatting function."""
         assert format_bytes(1024) == "1.0 KB"
@@ -493,7 +464,7 @@ class TestArtifactVersionHelpers:
 
     def test_create_upload_config(self):
         """Test upload configuration creation."""
-        version = self._create_mock_artifact_version()
+        version = create_mock_artifact_version()
 
         config = version._create_upload_config(
             artifact_id="test_artifact",
@@ -516,7 +487,7 @@ class TestArtifactVersionHelpers:
         """Test upload configuration with different visibility options."""
         from clarifai_grpc.grpc.api import resources_pb2
 
-        version = self._create_mock_artifact_version()
+        version = create_mock_artifact_version()
 
         # Test private visibility
         config = version._create_upload_config(
@@ -585,7 +556,7 @@ class TestArtifactVersionHelpers:
         """Test upload iterator functionality."""
         mock_getsize.return_value = len(b"test content")
 
-        version = self._create_mock_artifact_version()
+        version = create_mock_artifact_version()
 
         iterator = version._artifact_version_upload_iterator(
             file_path="test_file.txt",
@@ -605,24 +576,9 @@ class TestArtifactVersionHelpers:
 class TestArtifactVersionValidation:
     """Test input validation for ArtifactVersion."""
 
-    def _create_mock_artifact_version(self):
-        """Helper method to create an ArtifactVersion with properly mocked dependencies."""
-        with patch('clarifai.client.base.BaseClient.__init__', return_value=None):
-            version = ArtifactVersion()
-            # Mock the auth_helper attribute that would normally be set by BaseClient.__init__
-            mock_auth_helper = Mock()
-            mock_auth_helper.get_user_app_id_proto.return_value = resources_pb2.UserAppIDSet(
-                user_id="test_user", app_id="test_app"
-            )
-            mock_auth_helper.user_id = "mock_user"
-            mock_auth_helper.get_stub.return_value = Mock()
-            mock_auth_helper.metadata = {}
-            version.auth_helper = mock_auth_helper
-            return version
-
     def test_missing_required_fields(self):
         """Test validation with missing required fields."""
-        version = self._create_mock_artifact_version()
+        version = create_mock_artifact_version()
 
         # Test various missing parameter scenarios - artifact_id is now checked first in upload()
         with pytest.raises(UserError, match="artifact_id is required"):
@@ -634,7 +590,7 @@ class TestArtifactVersionValidation:
 
     def test_invalid_file_paths(self):
         """Test validation with invalid file paths."""
-        version = self._create_mock_artifact_version()
+        version = create_mock_artifact_version()
 
         # Test empty file path
         with pytest.raises(UserError, match="file_path is required"):
