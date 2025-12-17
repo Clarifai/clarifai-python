@@ -25,10 +25,50 @@ class MockOpenAIClient:
             else:
                 return MockResponse(**kwargs)
 
+    class Models:
+        class Model:
+            def __init__(self, model_id):
+                self.id = model_id
+        
+        def list(self, **kwargs):
+            """Mock list method for models."""
+            class ModelList:
+                def __init__(self):
+                    self.data = [MockOpenAIClient.Models.Model("dummy-model")]
+            return ModelList()
+
+    class Images:
+        def generate(self, **kwargs):
+            """Mock generate method for images."""
+            # Return a simple mock image response
+            class ImageResponse:
+                def __init__(self):
+                    self.data = [{"url": "https://example.com/image.png"}]
+                
+                def model_dump_json(self):
+                    return json.dumps({"data": self.data})
+            return ImageResponse()
+
+    class Embeddings:
+        def create(self, **kwargs):
+            """Mock create method for embeddings."""
+            # Return a simple mock embedding response
+            class EmbeddingResponse:
+                def __init__(self):
+                    self.data = [{"embedding": [0.1, 0.2, 0.3]}]
+                    self.usage = {"prompt_tokens": 10, "total_tokens": 10}
+                
+                def model_dump_json(self):
+                    return json.dumps({"data": self.data, "usage": self.usage})
+            return EmbeddingResponse()
+
     def __init__(self):
         self.chat = self  # Make self.chat point to self for compatibility
         self.completions = self.Completions()  # For compatibility with some clients
         self.responses = self.Responses()  # For responses API
+        self.models = self.Models()  # For models.list() compatibility
+        self.images = self.Images()  # For images.generate() compatibility
+        self.embeddings = self.Embeddings()  # For embeddings.create() compatibility
 
 
 class MockCompletion:
