@@ -47,14 +47,14 @@ class ArtifactVersion(BaseClient):
             **kwargs: Additional keyword arguments to be passed to the BaseClient.
         """
         super().__init__(**kwargs)
-        # Ensure auth_helper is available after BaseClient init
-        if not hasattr(self, 'auth_helper'):
-            self.auth_helper = None
+        # Derive default user_id from auth_helper if it exists and is set
+        if hasattr(self, "auth_helper") and self.auth_helper:
+            default_user_id = getattr(self.auth_helper, "user_id", "")
+        else:
+            default_user_id = ""
         self.artifact_id = artifact_id
         self.version_id = version_id
-        self.user_id = user_id or (
-            getattr(self.auth_helper, 'user_id', "") if self.auth_helper else ""
-        )
+        self.user_id = user_id or default_user_id
         self.app_id = app_id
 
     @property
@@ -214,21 +214,23 @@ class ArtifactVersion(BaseClient):
 
                 # Perform streaming upload following pipeline_step pattern (use STUB with automatic metadata)
                 try:
+                    data_chunk_index = 0  # Track data chunks separately from total responses
                     for response in self.STUB.PostArtifactVersionsUpload(iter(iterator_requests)):
                         if chunk_count == 0:
                             # First response is config upload - extract version ID
                             if hasattr(response, 'artifact_version_id'):
                                 final_version_id = response.artifact_version_id
                                 logger.info(f"Created artifact version: {final_version_id}")
-                        else:
-                            # Update progress with actual chunk size from pre-calculated sizes
-                            actual_chunk_size = (
-                                chunk_sizes[chunk_count - 1]
-                                if chunk_count - 1 < len(chunk_sizes)
-                                else 0
-                            )
+                        # Update progress with actual chunk size from pre-calculated sizes
+                        elif data_chunk_index < len(chunk_sizes):
+                            actual_chunk_size = chunk_sizes[data_chunk_index]
                             uploaded_bytes += actual_chunk_size
                             progress_bar.update(actual_chunk_size)
+                            data_chunk_index += 1
+                        else:
+                            logger.warning(
+                                f"Unexpected data chunk response at index {data_chunk_index}"
+                            )
 
                         chunk_count += 1
 
@@ -279,13 +281,13 @@ class ArtifactVersion(BaseClient):
                     import time
 
                     time.sleep(wait_time)
+                    # Reset progress tracking state before retrying
+                    uploaded_bytes = 0
+                    chunk_count = 0
                     continue
                 else:
                     # Last attempt failed, raise with context
                     raise UserError(f"Upload failed after {max_retries} attempts: {e}")
-
-        # This should not be reached due to exception handling in the loop
-        raise UserError("Upload failed: exceeded maximum retries")
 
     def _artifact_version_upload_iterator(
         self,
@@ -564,9 +566,6 @@ class ArtifactVersion(BaseClient):
                     raise UserError(f"Download failed due to network error: {e}")
                 else:
                     raise UserError(f"Download failed after {max_retries} attempts: {e}")
-
-        # This should not be reached due to exception handling in the loop
-        raise UserError("Download failed: exceeded maximum retries")
 
     def delete(
         self,

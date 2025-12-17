@@ -38,9 +38,11 @@ def format_bytes(size: int) -> str:
         return "0 B"
 
     units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
-    for unit in units:
-        if size < 1024.0 or unit == units[-1]:  # Last unit or size is small enough
+    for i, unit in enumerate(units):
+        # If size is small enough or we've reached the last unit, return as-is
+        if size < 1024.0 or i == len(units) - 1:
             return f"{size:.1f} {unit}"
+        # Only divide if we're not at the last unit
         size /= 1024.0
 
 
