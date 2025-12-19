@@ -8,6 +8,78 @@ from clarifai.utils.cli import AliasedGroup, from_yaml, validate_context
 from clarifai.utils.logging import logger
 
 
+def _load_pipeline_params_from_config(user_id, app_id, pipeline_id, pipeline_version_id):
+    """Load pipeline parameters from config-lock.yaml if not all provided.
+
+    Args:
+        user_id: User ID (may be None)
+        app_id: App ID (may be None)
+        pipeline_id: Pipeline ID (may be None)
+        pipeline_version_id: Pipeline Version ID (may be None)
+
+    Returns:
+        tuple: (user_id, app_id, pipeline_id, pipeline_version_id)
+    """
+    if not all([user_id, app_id, pipeline_id, pipeline_version_id]):
+        lockfile_path = os.path.join(os.getcwd(), "config-lock.yaml")
+        if os.path.exists(lockfile_path):
+            logger.info("Loading parameters from config-lock.yaml")
+            lockfile_data = from_yaml(lockfile_path)
+
+            if 'pipeline' in lockfile_data:
+                pipeline_config = lockfile_data['pipeline']
+                user_id = user_id or pipeline_config.get('user_id')
+                app_id = app_id or pipeline_config.get('app_id')
+                pipeline_id = pipeline_id or pipeline_config.get('id')
+                pipeline_version_id = pipeline_version_id or pipeline_config.get('version_id')
+
+    return user_id, app_id, pipeline_id, pipeline_version_id
+
+
+def _validate_pipeline_params(user_id, app_id, pipeline_id, pipeline_version_id):
+    """Validate that all required pipeline parameters are present.
+
+    Args:
+        user_id: User ID
+        app_id: App ID
+        pipeline_id: Pipeline ID
+        pipeline_version_id: Pipeline Version ID
+
+    Raises:
+        click.UsageError: If any required parameter is missing
+    """
+    if not all([user_id, app_id, pipeline_id, pipeline_version_id]):
+        raise click.UsageError(
+            "Missing required parameters. Either provide --user_id, --app_id, "
+            "--pipeline_id, and --pipeline_version_id, or ensure config-lock.yaml exists."
+        )
+
+
+def _create_pipeline(ctx, user_id, app_id, pipeline_id, pipeline_version_id):
+    """Create and return a Pipeline object.
+
+    Args:
+        ctx: Click context
+        user_id: User ID
+        app_id: App ID
+        pipeline_id: Pipeline ID
+        pipeline_version_id: Pipeline Version ID
+
+    Returns:
+        Pipeline: Configured Pipeline object
+    """
+    from clarifai.client.pipeline import Pipeline
+
+    return Pipeline(
+        pipeline_id=pipeline_id,
+        pipeline_version_id=pipeline_version_id,
+        user_id=user_id,
+        app_id=app_id,
+        pat=ctx.obj.current.pat,
+        base_url=ctx.obj.current.api_base,
+    )
+
+
 @cli.group(
     ['pipelinerun', 'pr'],
     cls=AliasedGroup,
@@ -60,8 +132,6 @@ def pause(
     """
     from clarifai_grpc.grpc.api.status import status_code_pb2
 
-    from clarifai.client.pipeline import Pipeline
-
     validate_context(ctx)
 
     # Resolve pipeline_version_run_id from positional or flag
@@ -72,36 +142,16 @@ def pause(
             "Provide it as a positional argument or use --pipeline_version_run_id flag."
         )
 
-    # Try to load from config-lock.yaml if parameters are not provided
-    if not all([user_id, app_id, pipeline_id, pipeline_version_id]):
-        lockfile_path = os.path.join(os.getcwd(), "config-lock.yaml")
-        if os.path.exists(lockfile_path):
-            logger.info("Loading parameters from config-lock.yaml")
-            lockfile_data = from_yaml(lockfile_path)
-
-            if 'pipeline' in lockfile_data:
-                pipeline_config = lockfile_data['pipeline']
-                user_id = user_id or pipeline_config.get('user_id')
-                app_id = app_id or pipeline_config.get('app_id')
-                pipeline_id = pipeline_id or pipeline_config.get('id')
-                pipeline_version_id = pipeline_version_id or pipeline_config.get('version_id')
+    # Load parameters from config-lock.yaml if not provided
+    user_id, app_id, pipeline_id, pipeline_version_id = _load_pipeline_params_from_config(
+        user_id, app_id, pipeline_id, pipeline_version_id
+    )
 
     # Validate required parameters
-    if not all([user_id, app_id, pipeline_id, pipeline_version_id]):
-        raise click.UsageError(
-            "Missing required parameters. Either provide --user_id, --app_id, "
-            "--pipeline_id, and --pipeline_version_id, or ensure config-lock.yaml exists."
-        )
+    _validate_pipeline_params(user_id, app_id, pipeline_id, pipeline_version_id)
 
     # Create Pipeline object
-    pipeline = Pipeline(
-        pipeline_id=pipeline_id,
-        pipeline_version_id=pipeline_version_id,
-        user_id=user_id,
-        app_id=app_id,
-        pat=ctx.obj.current.pat,
-        base_url=ctx.obj.current.api_base,
-    )
+    pipeline = _create_pipeline(ctx, user_id, app_id, pipeline_id, pipeline_version_id)
 
     # Patch the pipeline version run to JOB_PAUSED
     try:
@@ -159,10 +209,6 @@ def cancel(
     """
     from clarifai_grpc.grpc.api.status import status_code_pb2
 
-    from clarifai.client.pipeline import Pipeline
-
-    validate_context(ctx)
-
     # Resolve pipeline_version_run_id from positional or flag
     run_id = pipeline_version_run_id or pipeline_version_run_id_flag
     if not run_id:
@@ -171,36 +217,16 @@ def cancel(
             "Provide it as a positional argument or use --pipeline_version_run_id flag."
         )
 
-    # Try to load from config-lock.yaml if parameters are not provided
-    if not all([user_id, app_id, pipeline_id, pipeline_version_id]):
-        lockfile_path = os.path.join(os.getcwd(), "config-lock.yaml")
-        if os.path.exists(lockfile_path):
-            logger.info("Loading parameters from config-lock.yaml")
-            lockfile_data = from_yaml(lockfile_path)
-
-            if 'pipeline' in lockfile_data:
-                pipeline_config = lockfile_data['pipeline']
-                user_id = user_id or pipeline_config.get('user_id')
-                app_id = app_id or pipeline_config.get('app_id')
-                pipeline_id = pipeline_id or pipeline_config.get('id')
-                pipeline_version_id = pipeline_version_id or pipeline_config.get('version_id')
+    # Load parameters from config-lock.yaml if not provided
+    user_id, app_id, pipeline_id, pipeline_version_id = _load_pipeline_params_from_config(
+        user_id, app_id, pipeline_id, pipeline_version_id
+    )
 
     # Validate required parameters
-    if not all([user_id, app_id, pipeline_id, pipeline_version_id]):
-        raise click.UsageError(
-            "Missing required parameters. Either provide --user_id, --app_id, "
-            "--pipeline_id, and --pipeline_version_id, or ensure config-lock.yaml exists."
-        )
+    _validate_pipeline_params(user_id, app_id, pipeline_id, pipeline_version_id)
 
     # Create Pipeline object
-    pipeline = Pipeline(
-        pipeline_id=pipeline_id,
-        pipeline_version_id=pipeline_version_id,
-        user_id=user_id,
-        app_id=app_id,
-        pat=ctx.obj.current.pat,
-        base_url=ctx.obj.current.api_base,
-    )
+    pipeline = _create_pipeline(ctx, user_id, app_id, pipeline_id, pipeline_version_id)
 
     # Patch the pipeline version run to JOB_CANCELLED
     try:
@@ -258,10 +284,6 @@ def resume(
     """
     from clarifai_grpc.grpc.api.status import status_code_pb2
 
-    from clarifai.client.pipeline import Pipeline
-
-    validate_context(ctx)
-
     # Resolve pipeline_version_run_id from positional or flag
     run_id = pipeline_version_run_id or pipeline_version_run_id_flag
     if not run_id:
@@ -270,36 +292,16 @@ def resume(
             "Provide it as a positional argument or use --pipeline_version_run_id flag."
         )
 
-    # Try to load from config-lock.yaml if parameters are not provided
-    if not all([user_id, app_id, pipeline_id, pipeline_version_id]):
-        lockfile_path = os.path.join(os.getcwd(), "config-lock.yaml")
-        if os.path.exists(lockfile_path):
-            logger.info("Loading parameters from config-lock.yaml")
-            lockfile_data = from_yaml(lockfile_path)
-
-            if 'pipeline' in lockfile_data:
-                pipeline_config = lockfile_data['pipeline']
-                user_id = user_id or pipeline_config.get('user_id')
-                app_id = app_id or pipeline_config.get('app_id')
-                pipeline_id = pipeline_id or pipeline_config.get('id')
-                pipeline_version_id = pipeline_version_id or pipeline_config.get('version_id')
+    # Load parameters from config-lock.yaml if not provided
+    user_id, app_id, pipeline_id, pipeline_version_id = _load_pipeline_params_from_config(
+        user_id, app_id, pipeline_id, pipeline_version_id
+    )
 
     # Validate required parameters
-    if not all([user_id, app_id, pipeline_id, pipeline_version_id]):
-        raise click.UsageError(
-            "Missing required parameters. Either provide --user_id, --app_id, "
-            "--pipeline_id, and --pipeline_version_id, or ensure config-lock.yaml exists."
-        )
+    _validate_pipeline_params(user_id, app_id, pipeline_id, pipeline_version_id)
 
     # Create Pipeline object
-    pipeline = Pipeline(
-        pipeline_id=pipeline_id,
-        pipeline_version_id=pipeline_version_id,
-        user_id=user_id,
-        app_id=app_id,
-        pat=ctx.obj.current.pat,
-        base_url=ctx.obj.current.api_base,
-    )
+    pipeline = _create_pipeline(ctx, user_id, app_id, pipeline_id, pipeline_version_id)
 
     # Patch the pipeline version run to JOB_RUNNING to resume
     try:

@@ -396,7 +396,7 @@ class Pipeline(Lister, BaseClient):
 
         logger.info(
             f"Successfully patched pipeline version run {pipeline_version_run_id} "
-            f"to status {status_code_pb2.StatusCode.Name(orchestration_status_code)}"
+            f"to status code {orchestration_status_code}"
         )
 
         return json_format.MessageToDict(response, preserving_proto_field_name=True)
