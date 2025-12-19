@@ -342,3 +342,61 @@ class Pipeline(Lister, BaseClient):
             logger.debug(f"Error fetching logs: {e}")
             # Return current page on error to retry the same page next fetch
             return current_page
+
+    def patch_pipeline_version_run(
+        self,
+        pipeline_version_run_id: str,
+        orchestration_status_code: int,
+    ) -> Dict:
+        """Patch a pipeline version run's orchestration status.
+
+        This method can be used to pause, cancel, or resume a pipeline run.
+
+        Args:
+            pipeline_version_run_id (str): The pipeline version run ID to patch.
+            orchestration_status_code (int): The status code to set (e.g., JOB_PAUSED, JOB_CANCELLED, JOB_RUNNING).
+
+        Returns:
+            Dict: The response as a dictionary.
+
+        Raises:
+            UserError: If the patch request fails.
+        """
+        from google.rpc import status_pb2
+
+        # Create the orchestration status
+        orchestration_status = resources_pb2.OrchestrationStatus(
+            status=status_pb2.Status(code=orchestration_status_code)
+        )
+
+        # Create the pipeline version run with only the ID and status
+        pipeline_version_run = resources_pb2.PipelineVersionRun(
+            id=pipeline_version_run_id, orchestration_status=orchestration_status
+        )
+
+        # Create the patch request
+        patch_request = service_pb2.PatchPipelineVersionRunsRequest()
+        patch_request.user_app_id.CopyFrom(self.user_app_id)
+        patch_request.pipeline_id = self.pipeline_id
+        patch_request.pipeline_version_id = self.pipeline_version_id or ""
+        patch_request.pipeline_version_runs.append(pipeline_version_run)
+
+        # Make the API call
+        response = self.STUB.PatchPipelineVersionRuns(
+            patch_request, metadata=self.auth_helper.metadata
+        )
+
+        # Check for errors
+        if response.status.code != status_code_pb2.StatusCode.SUCCESS:
+            raise UserError(
+                f"Failed to patch pipeline version run: {response.status.description}. "
+                f"Details: {response.status.details}. "
+                f"Code: {status_code_pb2.StatusCode.Name(response.status.code)}."
+            )
+
+        logger.info(
+            f"Successfully patched pipeline version run {pipeline_version_run_id} "
+            f"to status {status_code_pb2.StatusCode.Name(orchestration_status_code)}"
+        )
+
+        return json_format.MessageToDict(response, preserving_proto_field_name=True)
