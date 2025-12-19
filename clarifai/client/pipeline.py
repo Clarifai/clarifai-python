@@ -3,7 +3,7 @@ import uuid
 from typing import Dict, List, Optional
 
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
-from clarifai_grpc.grpc.api.status import status_code_pb2
+from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
 from google.protobuf import json_format
 
 from clarifai.client.base import BaseClient
@@ -362,8 +362,6 @@ class Pipeline(Lister, BaseClient):
         Raises:
             UserError: If the patch request fails.
         """
-        from google.rpc import status_pb2
-
         # Create the orchestration status
         orchestration_status = resources_pb2.OrchestrationStatus(
             status=status_pb2.Status(code=orchestration_status_code)
