@@ -209,6 +209,8 @@ def cancel(
     """
     from clarifai_grpc.grpc.api.status import status_code_pb2
 
+    validate_context(ctx)
+
     # Resolve pipeline_version_run_id from positional or flag
     run_id = pipeline_version_run_id or pipeline_version_run_id_flag
     if not run_id:
@@ -283,6 +285,8 @@ def resume(
             --pipeline_version_id=VERSION_ID
     """
     from clarifai_grpc.grpc.api.status import status_code_pb2
+
+    validate_context(ctx)
 
     # Resolve pipeline_version_run_id from positional or flag
     run_id = pipeline_version_run_id or pipeline_version_run_id_flag
