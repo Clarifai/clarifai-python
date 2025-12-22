@@ -394,7 +394,9 @@ class Pipeline(Lister, BaseClient):
 
         logger.info(
             f"Successfully patched pipeline version run {pipeline_version_run_id} "
-            f"to status code {orchestration_status_code}"
+            f"to status code {orchestration_status_code} "
+            f"(user_id: {self.user_app_id.user_id}, app_id: {self.user_app_id.app_id}, "
+            f"pipeline_id: {self.pipeline_id}, pipeline_version_id: {self.pipeline_version_id})"
         )
 
         return json_format.MessageToDict(response, preserving_proto_field_name=True)
