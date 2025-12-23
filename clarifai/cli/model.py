@@ -1220,7 +1220,9 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
     elif mode == "current":
         # Use current user environment (no action needed)
         pass
-    # For 'container' mode, environment setup is handled later via Docker
+    elif mode == "container":
+        # Environment setup is handled later via Docker (no action needed here)
+        pass
 
     dependencies = parse_requirements(model_path)
     if mode != "container":
