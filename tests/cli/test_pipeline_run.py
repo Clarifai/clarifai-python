@@ -257,3 +257,149 @@ class TestPipelineRunResume:
         # Assertions
         assert result.exit_code == 0
         assert 'has been resumed' in result.output
+
+
+class TestPipelineRunMonitor:
+    """Test cases for monitor command."""
+
+    @patch('clarifai.cli.pipeline_run.validate_context')
+    @patch('clarifai.client.pipeline.Pipeline')
+    def test_monitor_with_positional_arg(
+        self, mock_pipeline_class, mock_validate, runner, mock_context
+    ):
+        """Test monitor command with positional argument."""
+        # Setup mock
+        mock_pipeline = MagicMock()
+        mock_pipeline_class.return_value = mock_pipeline
+        mock_pipeline.monitor_only.return_value = {'status': 'success', 'run_id': 'test-run-id'}
+
+        from clarifai.cli.pipeline_run import monitor
+
+        # Run command
+        result = runner.invoke(
+            monitor,
+            [
+                'test-run-id',
+                '--user_id=test-user',
+                '--app_id=test-app',
+                '--pipeline_id=test-pipeline',
+                '--pipeline_version_id=v1',
+            ],
+            obj=mock_context.obj,
+        )
+
+        # Assertions
+        assert result.exit_code == 0
+        mock_pipeline.monitor_only.assert_called_once_with(timeout=3600, monitor_interval=10)
+        # Check that pipeline_version_run_id was set
+        assert mock_pipeline.pipeline_version_run_id == 'test-run-id'
+
+    @patch('clarifai.cli.pipeline_run.validate_context')
+    @patch('clarifai.client.pipeline.Pipeline')
+    def test_monitor_with_flag(self, mock_pipeline_class, mock_validate, runner, mock_context):
+        """Test monitor command with --pipeline_version_run_id flag."""
+        # Setup mock
+        mock_pipeline = MagicMock()
+        mock_pipeline_class.return_value = mock_pipeline
+        mock_pipeline.monitor_only.return_value = {'status': 'success'}
+
+        from clarifai.cli.pipeline_run import monitor
+
+        # Run command
+        result = runner.invoke(
+            monitor,
+            [
+                '--pipeline_version_run_id=test-run-id',
+                '--user_id=test-user',
+                '--app_id=test-app',
+                '--pipeline_id=test-pipeline',
+                '--pipeline_version_id=v1',
+            ],
+            obj=mock_context.obj,
+        )
+
+        # Assertions
+        assert result.exit_code == 0
+        mock_pipeline.monitor_only.assert_called_once()
+
+    @patch('clarifai.cli.pipeline_run.validate_context')
+    @patch('clarifai.cli.pipeline_run.from_yaml')
+    @patch('os.path.exists')
+    @patch('clarifai.client.pipeline.Pipeline')
+    def test_monitor_with_config_lock(
+        self,
+        mock_pipeline_class,
+        mock_exists,
+        mock_from_yaml,
+        mock_validate,
+        runner,
+        mock_context,
+        config_lock_data,
+    ):
+        """Test monitor command loading parameters from config-lock.yaml."""
+        # Setup mocks
+        mock_exists.return_value = True
+        mock_from_yaml.return_value = config_lock_data
+        mock_pipeline = MagicMock()
+        mock_pipeline_class.return_value = mock_pipeline
+        mock_pipeline.monitor_only.return_value = {'status': 'success'}
+
+        from clarifai.cli.pipeline_run import monitor
+
+        # Run command
+        result = runner.invoke(monitor, ['test-run-id'], obj=mock_context.obj)
+
+        # Assertions
+        assert result.exit_code == 0
+        mock_pipeline_class.assert_called_once_with(
+            pipeline_id='test-pipeline',
+            pipeline_version_id='v1',
+            user_id='test-user',
+            app_id='test-app',
+            pat='test-pat',
+            base_url='https://api.clarifai.com',
+        )
+
+    @patch('clarifai.cli.pipeline_run.validate_context')
+    @patch('clarifai.client.pipeline.Pipeline')
+    def test_monitor_with_custom_timeout(
+        self, mock_pipeline_class, mock_validate, runner, mock_context
+    ):
+        """Test monitor command with custom timeout and interval."""
+        # Setup mock
+        mock_pipeline = MagicMock()
+        mock_pipeline_class.return_value = mock_pipeline
+        mock_pipeline.monitor_only.return_value = {'status': 'success'}
+
+        from clarifai.cli.pipeline_run import monitor
+
+        # Run command
+        result = runner.invoke(
+            monitor,
+            [
+                'test-run-id',
+                '--user_id=test-user',
+                '--app_id=test-app',
+                '--pipeline_id=test-pipeline',
+                '--pipeline_version_id=v1',
+                '--timeout=7200',
+                '--monitor_interval=5',
+            ],
+            obj=mock_context.obj,
+        )
+
+        # Assertions
+        assert result.exit_code == 0
+        mock_pipeline.monitor_only.assert_called_once_with(timeout=7200, monitor_interval=5)
+
+    @patch('clarifai.cli.pipeline_run.validate_context')
+    def test_monitor_without_run_id(self, mock_validate, runner, mock_context):
+        """Test monitor command fails without pipeline_version_run_id."""
+        from clarifai.cli.pipeline_run import monitor
+
+        result = runner.invoke(
+            monitor, ['--user_id=test-user', '--app_id=test-app'], obj=mock_context.obj
+        )
+
+        assert result.exit_code != 0
+        assert 'pipeline_version_run_id is required' in result.output
