@@ -7,6 +7,37 @@
   - Added CLI commands for artifact operations (list, get, cp, delete) with alias support
   - Added file upload/download with streaming, progress tracking, and retry logic
   - Added 80+ test methods across 4 test files for comprehensive coverage
+- PR-1014: Interactive config.yaml creation during model upload process [(#843)](https://github.com/Clarifai/clarifai-python/pull/843)
+  - Added interactive CLI prompts for creating config.yaml when missing during model upload
+  - Added helper functions for prompting required, optional, integer, and yes/no fields
+  - Added context selection during upload process
+- Added container and Env model for Local runners [(#856)](https://github.com/Clarifai/clarifai-python/pull/856)
+  - Added CLI options (--mode, --keep_image) for local_runner command
+  - Added ModelRunLocally class for environment setup and Docker operations
+  - Added support for running models in virtual environment or Docker container
+- Add comprehensive test coverage for MCPConnectionPool connection lifecycle [(#875)](https://github.com/Clarifai/clarifai-python/pull/875)
+  - Added 22 unit tests for connection lifecycle operations
+  - Added tests for singleton behavior, connection cleanup, and parallel operations
+
+### Changed
+- Update status code and description for model runner failure case [(#870)](https://github.com/Clarifai/clarifai-python/pull/870)
+  - Updated status code to RUNNER_PROCESSING_FAILED for model runner failures
+
+### Fixed
+- [EAGLE-7007]: Prevent TypeError during model version creation [(#858)](https://github.com/Clarifai/clarifai-python/pull/858)
+  - Fixed TypeError by filtering None values from method signatures before protobuf constructor
+- Fixed runner-id bug for local-runners [(#867)](https://github.com/Clarifai/clarifai-python/pull/867)
+  - Fixed runner selection and error handling logic to reuse existing runners
+  - Fixed runner ID missing error when local-runner is initiated from fresh login
+- Add fix for user verification in dev [(#868)](https://github.com/Clarifai/clarifai-python/pull/868)
+  - Fixed CONN_INSUFFICIENT_SCOPES error during model upload in dev environment
+  - Added graceful handling of insufficient scopes for Clarifai employee check
+- [SVMB-1361]: Upgrade urllib3>2.6.2 [(#877)](https://github.com/Clarifai/clarifai-python/pull/877)
+  - Upgraded requests dependency to ensure urllib3>2.6.2 for security fix
+- [EAGLE-7083]: Add retry logic to OpenAI API calls and fix test mocks [(#879)](https://github.com/Clarifai/clarifai-python/pull/879)
+  - Added retry mechanism with exponential backoff for OpenAI API calls
+  - Added tenacity dependency for retry logic
+  - Fixed test mocks with missing OpenAI client methods
 
 ## [[11.12.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.12.1) - [PyPI](https://pypi.org/project/clarifai/11.12.1/) - 2025-12-03
 
