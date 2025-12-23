@@ -1,3 +1,13 @@
+## [[11.12.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.12.2) - [PyPI](https://pypi.org/project/clarifai/11.12.2/) - 2025-12-23
+
+### Added
+- PIPE-1120: Artifact CLI/SDK implementation [(#860)](https://github.com/Clarifai/clarifai-python/pull/860)
+  - Added comprehensive artifact management system for SDK and CLI
+  - Added Artifact and ArtifactVersion client classes for metadata and file operations
+  - Added CLI commands for artifact operations (list, get, cp, delete) with alias support
+  - Added file upload/download with streaming, progress tracking, and retry logic
+  - Added 80+ test methods across 4 test files for comprehensive coverage
+
 ## [[11.12.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.12.1) - [PyPI](https://pypi.org/project/clarifai/11.12.1/) - 2025-12-03
 
 ### Fixed
