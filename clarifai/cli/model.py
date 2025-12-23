@@ -1212,9 +1212,15 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
     manager = ModelRunLocally(model_path)
 
     port = 8080
+    # Handle mode-specific environment setup
     if mode == "env":
+        # Create a temporary virtual environment and install requirements
         manager.create_temp_venv()
         manager.install_requirements()
+    elif mode == "current":
+        # Use current user environment (no action needed)
+        pass
+    # For 'container' mode, environment setup is handled later via Docker
 
     dependencies = parse_requirements(model_path)
     if mode != "container":
