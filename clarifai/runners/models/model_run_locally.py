@@ -236,9 +236,7 @@ class ModelRunLocally:
             # Comment out the COPY instruction that copies the current folder
             modified_lines = []
             for line in lines:
-                if 'COPY' in line and '/home/nonroot/main' in line:
-                    modified_lines.append(f'# {line}')
-                elif 'download-checkpoints' in line and '/home/nonroot/main' in line:
+                if 'download-checkpoints' in line and '/home/nonroot/main' in line:
                     modified_lines.append(f'# {line}')
                 else:
                     modified_lines.append(line)
