@@ -19,7 +19,7 @@ from clarifai.utils.logging import logger
 
 class ModelRunLocally:
     def __init__(self, model_path):
-        self.model_path = model_path
+        self.model_path = os.path.abspath(model_path)
         self.requirements_file = os.path.join(self.model_path, "requirements.txt")
 
         # ModelBuilder contains multiple useful methods to interact with the model
