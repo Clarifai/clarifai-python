@@ -1104,6 +1104,7 @@ def run_locally(ctx, model_path, port, mode, keep_env, keep_image, skip_dockerfi
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
     """
+    model_path = os.path.abspath(model_path)
     try:
         from clarifai.runners.models import model_run_locally
 
@@ -1207,6 +1208,7 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
     from clarifai.runners.server import ModelServer
 
     validate_context(ctx)
+    model_path = os.path.abspath(model_path)
     _ensure_hf_token(ctx, model_path)
     builder = ModelBuilder(model_path, download_validation_only=True)
     manager = ModelRunLocally(model_path)
