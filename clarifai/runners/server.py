@@ -109,35 +109,35 @@ def main():
         help='The number of threads for the runner to use (default: 0, which means read from config.yaml).',
     )
 
-    parser.add_argument(
-        '--is_local_runner',
-        type=bool,
-        default=False,
-        help='Indicates if the runner is a local runner.',
-    )
-
     parsed_args = parser.parse_args()
     server = ModelServer(parsed_args.model_path)
 
-    if not parsed_args.grpc:
-        server.serve(
-            compute_cluster_id=parsed_args.compute_cluster_id,
-            user_id=parsed_args.user_id,
-            nodepool_id=parsed_args.nodepool_id,
-            runner_id=parsed_args.runner_id,
-            base_url=parsed_args.base_url,
-            pat=parsed_args.pat,
-            num_threads=parsed_args.num_threads,
-        )
-    else:
-        server.serve(
-            port=parsed_args.port,
-            pool_size=parsed_args.pool_size,
-            max_queue_size=parsed_args.max_queue_size,
-            max_msg_length=parsed_args.max_msg_length,
-            enable_tls=parsed_args.enable_tls,
-            grpc=parsed_args.grpc,
-        )
+    user_id = parsed_args.user_id or os.environ.get("CLARIFAI_USER_ID", None)
+    compute_cluster_id = parsed_args.compute_cluster_id or os.environ.get(
+        "CLARIFAI_COMPUTE_CLUSTER_ID", None
+    )
+    nodepool_id = parsed_args.nodepool_id or os.environ.get("CLARIFAI_NODEPOOL_ID", None)
+    runner_id = parsed_args.runner_id or os.environ.get("CLARIFAI_RUNNER_ID", None)
+    base_url = parsed_args.base_url or os.environ.get(
+        "CLARIFAI_API_BASE", "https://api.clarifai.com"
+    )
+    pat = parsed_args.pat or os.environ.get("CLARIFAI_PAT", None)
+
+    server.serve(
+        compute_cluster_id=compute_cluster_id,
+        user_id=user_id,
+        nodepool_id=nodepool_id,
+        runner_id=runner_id,
+        base_url=base_url,
+        pat=pat,
+        num_threads=parsed_args.num_threads,
+        port=parsed_args.port,
+        pool_size=parsed_args.pool_size,
+        max_queue_size=parsed_args.max_queue_size,
+        max_msg_length=parsed_args.max_msg_length,
+        enable_tls=parsed_args.enable_tls,
+        grpc=parsed_args.grpc,
+    )
 
 
 class ModelServer:
