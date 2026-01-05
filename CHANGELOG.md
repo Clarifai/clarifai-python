@@ -1,3 +1,12 @@
+## [[11.12.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.12.3) - [PyPI](https://pypi.org/project/clarifai/11.12.3/) - 2026-01-05
+
+### Fixed
+- Fixed checkpoint downloads failed when hf_transfer wasn't installed [(#888)](https://github.com/Clarifai/clarifai-python/pull/888)
+  - Added compatibility check that temporarily disables HF_HUB_ENABLE_HF_TRANSFER environment variable during downloads when hf_transfer package is unavailable
+  - Prevents download failures from Hugging Face when environment variable is set but package is not installed
+- Fix conflicts with latest vLLM [(#887)](https://github.com/Clarifai/clarifai-python/pull/887)
+  - Fixed vLLM model upload failures caused by hardcoded dependencies in SDK
+
 ## [[11.12.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.12.2) - [PyPI](https://pypi.org/project/clarifai/11.12.2/) - 2025-12-23
 
 ### Added
