@@ -10,9 +10,9 @@ fsspec>=2024.6.1
 click>=8.1.7
 requests>=2.32.5
 aiohttp>=3.10.0
-uv==0.9.20
+uv==0.7.12
 ruff==0.11.4
 psutil==7.0.0
 pygments>=2.19.2
-pydantic_core==2.41.5
+pydantic_core==2.33.2
 packaging==25.0
