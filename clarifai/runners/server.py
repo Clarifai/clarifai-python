@@ -159,10 +159,8 @@ class ModelServer:
 
         # Build model after secrets are loaded
         self._builder = ModelBuilder(model_path, download_validation_only=True)
-        if self.model_runner_local:
-            self._current_model = self.model_runner_local.builder.create_model_instance()
-        else:
-            self._current_model = self._builder.create_model_instance()
+        self._current_model = self._builder.create_model_instance()
+
         logger.info("ModelServer initialized successfully")
 
     def _initialize_secrets_system(self):
