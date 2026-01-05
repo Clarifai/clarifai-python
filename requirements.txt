@@ -15,4 +15,4 @@ ruff==0.11.4
 psutil==7.0.0
 pygments>=2.19.2
 pydantic_core>=2.33.2
-packaging==25.0
+packaging>=25.0
