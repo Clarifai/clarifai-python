@@ -19,7 +19,7 @@ from clarifai.utils.logging import logger
 
 class ModelRunLocally:
     def __init__(self, model_path):
-        self.model_path = model_path
+        self.model_path = os.path.abspath(model_path)
         self.requirements_file = os.path.join(self.model_path, "requirements.txt")
 
         # ModelBuilder contains multiple useful methods to interact with the model
@@ -236,9 +236,7 @@ class ModelRunLocally:
             # Comment out the COPY instruction that copies the current folder
             modified_lines = []
             for line in lines:
-                if 'COPY' in line and '/home/nonroot/main' in line:
-                    modified_lines.append(f'# {line}')
-                elif 'download-checkpoints' in line and '/home/nonroot/main' in line:
+                if 'download-checkpoints' in line and '/home/nonroot/main' in line:
                     modified_lines.append(f'# {line}')
                 else:
                     modified_lines.append(line)
