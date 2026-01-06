@@ -1,4 +1,4 @@
-## [[11.12.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.12.3) - [PyPI](https://pypi.org/project/clarifai/11.12.3/) - 2026-01-05
+## [[12.1.0]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.0) - [PyPI](https://pypi.org/project/clarifai/12.1.0/) - 2026-01-06
 
 ### Fixed
 - Fixed checkpoint downloads failed when hf_transfer wasn't installed [(#888)](https://github.com/Clarifai/clarifai-python/pull/888)
