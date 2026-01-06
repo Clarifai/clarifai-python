@@ -3,6 +3,7 @@ import importlib.util
 import json
 import os
 import shutil
+from contextlib import contextmanager
 
 import requests
 
@@ -28,6 +29,41 @@ class HuggingFaceLoader:
             else:
                 self.token = None
                 logger.info("Continuing without Hugging Face token")
+
+    @staticmethod
+    def _is_hf_transfer_available():
+        """Check if hf_transfer package is installed."""
+        return importlib.util.find_spec("hf_transfer") is not None
+
+    @staticmethod
+    @contextmanager
+    def _ensure_hf_transfer_compatibility():
+        """
+        Context manager to ensure HF_HUB_ENABLE_HF_TRANSFER is only enabled if hf_transfer is available.
+        Temporarily disables the env var if it's set but hf_transfer is not installed.
+        """
+        hf_transfer_enabled = os.environ.get("HF_HUB_ENABLE_HF_TRANSFER", "0")
+        hf_transfer_available = HuggingFaceLoader._is_hf_transfer_available()
+
+        # If HF_TRANSFER is enabled but package is not available, temporarily disable it
+        if hf_transfer_enabled in ("1", "true", "True") and not hf_transfer_available:
+            original_value = os.environ.get("HF_HUB_ENABLE_HF_TRANSFER")
+            os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
+            logger.info(
+                "HF_HUB_ENABLE_HF_TRANSFER is enabled but 'hf_transfer' package is not installed. "
+                "Disabling fast transfer and using standard download."
+            )
+            try:
+                yield
+            finally:
+                # Restore original value if it existed
+                if original_value is not None:
+                    os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = original_value
+                else:
+                    os.environ.pop("HF_HUB_ENABLE_HF_TRANSFER", None)
+        else:
+            # No change needed, just yield
+            yield
 
     @classmethod
     def validate_hftoken(cls, hf_token: str):
@@ -83,13 +119,15 @@ class HuggingFaceLoader:
                 logger.info(f"Total download size: {total_size:.2f} MB")
 
                 logger.info("Downloading model checkpoints...")
-                snapshot_download(
-                    repo_id=self.repo_id,
-                    local_dir=checkpoint_path,
-                    local_dir_use_symlinks=False,
-                    allow_patterns=allowed_file_patterns,
-                    ignore_patterns=self.ignore_patterns,
-                )
+                # Ensure HF_TRANSFER compatibility before downloading
+                with self._ensure_hf_transfer_compatibility():
+                    snapshot_download(
+                        repo_id=self.repo_id,
+                        local_dir=checkpoint_path,
+                        local_dir_use_symlinks=False,
+                        allow_patterns=allowed_file_patterns,
+                        ignore_patterns=self.ignore_patterns,
+                    )
                 # Remove the `.cache` folder if it exists
                 cache_path = os.path.join(checkpoint_path, ".cache")
                 if os.path.exists(cache_path) and os.path.isdir(cache_path):
@@ -124,9 +162,11 @@ class HuggingFaceLoader:
             if not is_hf_model_exists:
                 logger.error("Model %s not found on Hugging Face" % (self.repo_id))
                 return False
-            hf_hub_download(
-                repo_id=self.repo_id, filename='config.json', local_dir=checkpoint_path
-            )
+            # Ensure HF_TRANSFER compatibility before downloading
+            with self._ensure_hf_transfer_compatibility():
+                hf_hub_download(
+                    repo_id=self.repo_id, filename='config.json', local_dir=checkpoint_path
+                )
         except Exception as e:
             logger.error(f"Error downloading model's config.json {e}")
             return False
