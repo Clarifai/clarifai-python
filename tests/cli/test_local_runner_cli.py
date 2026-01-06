@@ -624,7 +624,9 @@ class TestLocalRunnerCLI:
         assert result.exit_code == 0, f"Command failed with: {result.output}"
 
         # Verify ModelServer was instantiated with the correct model path
-        mock_server_class.assert_called_once_with(str(dummy_model_dir))
+        mock_server_class.assert_called_once_with(
+            model_path=str(dummy_model_dir), model_runner_local=None
+        )
 
         # Verify serve method was called with correct parameters for local runner
         mock_server.serve.assert_called_once()

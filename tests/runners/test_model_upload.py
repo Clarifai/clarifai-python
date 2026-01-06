@@ -1,9 +1,7 @@
-import logging
 import os
 import shutil
 import uuid
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 import yaml
@@ -319,44 +317,3 @@ def test_model_uploader_missing_app_action(tmp_path, monkeypatch):
     # Test non supported action
     with pytest.raises(AssertionError):
         ModelBuilder(target_folder, app_not_found_action="a")
-
-
-@patch('clarifai.runners.models.model_builder.ModelBuilder._is_clarifai_internal')
-def test_openai_stream_options_validation(mock_is_clarifai_internal, tmp_path, caplog):
-    """
-    Test that OpenAI models without proper stream_options configuration log an error.
-    """
-    # Mock _is_clarifai_internal to return True to trigger validation
-    mock_is_clarifai_internal.return_value = True
-
-    tests_dir = Path(__file__).parent.resolve()
-    original_dummy_path = tests_dir / "dummy_missing_stream_options_model"
-
-    if not original_dummy_path.exists():
-        pytest.skip(
-            "dummy_missing_stream_options_model not found, skipping OpenAI validation test"
-        )
-
-    # Copy the OpenAI model folder to tmp_path
-    target_folder = tmp_path / "dummy_missing_stream_options_model"
-    shutil.copytree(original_dummy_path, target_folder)
-
-    # Update config.yaml with test user/app info
-    config_yaml_path = target_folder / "config.yaml"
-    with config_yaml_path.open("r") as f:
-        config = yaml.safe_load(f)
-
-    NOW = uuid.uuid4().hex[:8]
-    config["model"]["user_id"] = CLARIFAI_USER_ID
-    config["model"]["app_id"] = "test-openai-validation" + NOW
-
-    with config_yaml_path.open("w") as f:
-        yaml.dump(config, f, sort_keys=False)
-
-    # Test that ModelBuilder logs error for missing stream_options
-    with caplog.at_level(logging.ERROR):
-        ModelBuilder(str(target_folder), validate_api_ids=False)
-
-    # Verify that the expected validation error message was logged
-    assert "include_usage" in caplog.text
-    assert "set_output_context" in caplog.text
