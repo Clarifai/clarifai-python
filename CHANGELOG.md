@@ -1,3 +1,10 @@
+## [[12.1.1]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.1) - [PyPI](https://pypi.org/project/clarifai/12.1.1/) - 2026-01-06
+
+### Fixed
+- Fixed local model runner issues [(#886)](https://github.com/Clarifai/clarifai-python/pull/886)
+  - Re-enabled copying from the working directory to the container, which was previously disabled
+  - Corrected incorrect argument configuration for uploaded models from earlier work
+
 ## [[12.1.0]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.0) - [PyPI](https://pypi.org/project/clarifai/12.1.0/) - 2026-01-06
 
 ### Fixed
