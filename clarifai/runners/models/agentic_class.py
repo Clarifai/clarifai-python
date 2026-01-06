@@ -13,6 +13,7 @@ from pydantic_core import from_json, to_json
 
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.models.openai_class import OpenAIModelClass
+from clarifai.urls.helper import ClarifaiUrlHelper
 from clarifai.utils.logging import logger
 
 
@@ -499,6 +500,42 @@ class AgenticModelClass(OpenAIModelClass):
             if hasattr(obj, attr):
                 return getattr(obj, attr)()
         return getattr(obj, '__dict__', {})
+
+    def _transform_mcp_server_url(self, url: str) -> str:
+        """Transform MCP server URL from old format to new API format.
+
+        Transforms: www.clarifai.com/USER_ID/APP_ID/models/MODEL_ID
+        To: https://api.clarifai.com/v2/ext/mcp/v1/users/USER_ID/apps/APP_ID/models/MODEL_ID
+
+        Args:
+            url: The MCP server URL to transform
+
+        Returns:
+            The transformed URL
+        """
+        # Pattern to match: www.clarifai.com/USER_ID/APP_ID/models/MODEL_ID
+        # Also handles URLs with http:// or https:// prefix
+        user_id, app_id, _, model_id, _ = ClarifaiUrlHelper.split_clarifai_url(url)
+        return f"https://api.clarifai.com/v2/ext/mcp/v1/users/{user_id}/apps/{app_id}/models/{model_id}"
+
+    def _normalize_mcp_servers(self, mcp_servers):
+        """Normalize MCP server URLs to the new API format.
+
+        Args:
+            mcp_servers: Single URL string or list of URL strings
+
+        Returns:
+            Transformed URL(s) in the same format as input
+        """
+        if mcp_servers is None:
+            return None
+
+        if isinstance(mcp_servers, str):
+            return self._transform_mcp_server_url(mcp_servers)
+        elif isinstance(mcp_servers, list):
+            return [self._transform_mcp_server_url(url) for url in mcp_servers]
+
+        return mcp_servers
 
     # === Tool Call Parsing ===
 
@@ -1017,6 +1054,7 @@ class AgenticModelClass(OpenAIModelClass):
             data = from_json(msg)
             data = self._update_old_fields(data)
             mcp_servers = data.pop("mcp_servers", None)
+            mcp_servers = self._normalize_mcp_servers(mcp_servers)
             endpoint = data.pop("openai_endpoint", self.DEFAULT_ENDPOINT)
 
             if mcp_servers and data.get("tools") is None:
@@ -1099,6 +1137,7 @@ class AgenticModelClass(OpenAIModelClass):
             data = from_json(msg)
             data = self._update_old_fields(data)
             mcp_servers = data.pop("mcp_servers", None)
+            mcp_servers = self._normalize_mcp_servers(mcp_servers)
             endpoint = data.pop("openai_endpoint", self.DEFAULT_ENDPOINT)
 
             if endpoint not in (self.ENDPOINT_CHAT_COMPLETIONS, self.ENDPOINT_RESPONSES):
