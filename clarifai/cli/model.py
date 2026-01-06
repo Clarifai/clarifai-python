@@ -1104,6 +1104,7 @@ def run_locally(ctx, model_path, port, mode, keep_env, keep_image, skip_dockerfi
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
     """
+    model_path = os.path.abspath(model_path)
     try:
         from clarifai.runners.models import model_run_locally
 
@@ -1207,6 +1208,7 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
     from clarifai.runners.server import ModelServer
 
     validate_context(ctx)
+    model_path = os.path.abspath(model_path)
     _ensure_hf_token(ctx, model_path)
     builder = ModelBuilder(model_path, download_validation_only=True)
     manager = ModelRunLocally(model_path)
@@ -1598,31 +1600,34 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
 
     logger.info("✅ Starting local runner...")
 
-    if ctx.obj.current is None:
-        logger.debug("Context is None. Skipping code snippet generation.")
-    else:
-        from clarifai.runners.utils import code_script
+    def print_code_snippet():
+        if ctx.obj.current is None:
+            logger.debug("Context is None. Skipping code snippet generation.")
+        else:
+            from clarifai.runners.utils import code_script
 
-        snippet = code_script.generate_client_script(
-            method_signatures,
-            user_id=ctx.obj.current.user_id,
-            app_id=ctx.obj.current.app_id,
-            model_id=ctx.obj.current.model_id,
-            deployment_id=ctx.obj.current.deployment_id,
-            base_url=ctx.obj.current.api_base,
-            colorize=True,
-        )
-        logger.info("✅ Your model is running locally and is ready for requests from the API...\n")
-        logger.info(
-            f"> Code Snippet: To call your model via the API, use this code snippet:\n{snippet}"
-        )
-        logger.info(
-            f"> Playground:   To chat with your model, visit: {ctx.obj.current.ui}/playground?model={ctx.obj.current.model_id}__{ctx.obj.current.model_version_id}&user_id={ctx.obj.current.user_id}&app_id={ctx.obj.current.app_id}\n"
-        )
-        logger.info(
-            f"> API URL:      To call your model via the API, use this model URL: {ctx.obj.current.ui}/{ctx.obj.current.user_id}/{ctx.obj.current.app_id}/models/{ctx.obj.current.model_id}\n"
-        )
-        logger.info("Press CTRL+C to stop the runner.\n")
+            snippet = code_script.generate_client_script(
+                method_signatures,
+                user_id=ctx.obj.current.user_id,
+                app_id=ctx.obj.current.app_id,
+                model_id=ctx.obj.current.model_id,
+                deployment_id=ctx.obj.current.deployment_id,
+                base_url=ctx.obj.current.api_base,
+                colorize=True,
+            )
+            logger.info(
+                "✅ Your model is running locally and is ready for requests from the API...\n"
+            )
+            logger.info(
+                f"> Code Snippet: To call your model via the API, use this code snippet:\n{snippet}"
+            )
+            logger.info(
+                f"> Playground:   To chat with your model, visit: {ctx.obj.current.ui}/playground?model={ctx.obj.current.model_id}__{ctx.obj.current.model_version_id}&user_id={ctx.obj.current.user_id}&app_id={ctx.obj.current.app_id}\n"
+            )
+            logger.info(
+                f"> API URL:      To call your model via the API, use this model URL: {ctx.obj.current.ui}/{ctx.obj.current.user_id}/{ctx.obj.current.app_id}/models/{ctx.obj.current.model_id}\n"
+            )
+            logger.info("Press CTRL+C to stop the runner.\n")
 
     serving_args = {
         "pool_size": pool_size,
@@ -1650,6 +1655,7 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
                 manager.build_docker_image(image_name=image_name)
 
             manager.build_docker_image(image_name=image_name)
+            print_code_snippet()
             manager.run_docker_container(
                 image_name=image_name,
                 container_name=container_name,
@@ -1665,11 +1671,11 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
                 manager.remove_docker_container(container_name=container_name)
             if not keep_image:
                 manager.remove_docker_image(image_name=image_name)
-
-    # This reads the config.yaml from the model_path so we alter it above first.
-    model_runner_local = manager if mode == 'container' else None
-    server = ModelServer(model_path=model_path, model_runner_local=model_runner_local)
-    server.serve(**serving_args)
+    else:
+        print_code_snippet()
+        # This reads the config.yaml from the model_path so we alter it above first.
+        server = ModelServer(model_path=model_path, model_runner_local=None)
+        server.serve(**serving_args)
 
 
 def _parse_json_param(param_value, param_name):
