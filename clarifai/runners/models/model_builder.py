@@ -2149,11 +2149,25 @@ def setup_deployment_for_model(builder):
         elif attempt < max_retries - 1:
             if get_yes_no_input("Deployment failed. Do you want to retry?", True):
                 continue
+            else:
+                logger.warning("Deployment failed. Initiating backtrack & cleanup.")
+                backtrack_workflow(state)
+                return
+        else:
+            logger.warning("Deployment failed after maximum retries. Initiating backtrack & cleanup.")
+            backtrack_workflow(state)
+            return
+
+    
+    """
+    # NOTE: Backtrack & cleanup option for users is disabled.
+    # Reason: The prompt is ambiguous and could unintentionally delete deployments or model versions.
 
     if get_yes_no_input("\n🗑️ Do you want to backtrack and clean up?", True):
         backtrack_workflow(state)
 
-
+    """
+    
 def delete_model_deployment(deployment_id, user_id, nodepool_id=None):
     """
     Delete a model deployment on Clarifai platform.
