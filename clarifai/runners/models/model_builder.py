@@ -2154,11 +2154,12 @@ def setup_deployment_for_model(builder):
                 backtrack_workflow(state)
                 return
         else:
-            logger.warning("Deployment failed after maximum retries. Initiating backtrack & cleanup.")
+            logger.warning(
+                "Deployment failed after maximum retries. Initiating backtrack & cleanup."
+            )
             backtrack_workflow(state)
             return
 
-    
     """
     # NOTE: Backtrack & cleanup option for users is disabled.
     # Reason: The prompt is ambiguous and could unintentionally delete deployments or model versions.
@@ -2167,7 +2168,8 @@ def setup_deployment_for_model(builder):
         backtrack_workflow(state)
 
     """
-    
+
+
 def delete_model_deployment(deployment_id, user_id, nodepool_id=None):
     """
     Delete a model deployment on Clarifai platform.
