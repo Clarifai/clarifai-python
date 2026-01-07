@@ -1154,10 +1154,10 @@ def run_locally(ctx, model_path, port, mode, keep_env, keep_image, skip_dockerfi
 )
 @click.option(
     "--mode",
-    type=click.Choice(['env', 'container'], case_sensitive=False),
-    default='env',
+    type=click.Choice(['current', 'env', 'container'], case_sensitive=False),
+    default='current',
     show_default=True,
-    help='Specifies how to run the model: "env" for virtual environment or "container" for Docker container. Defaults to "env".',
+    help='Specifies how to run the model: "current" for current user environment, "env" for virtual environment, or "container" for Docker container. Defaults to "current".',
 )
 @click.option(
     '--keep_image',
@@ -1199,7 +1199,7 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
     that starts up in the local runner is the same as the one you intend to call in the API.
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
-    MODE: Specifies how to run the model: "env" for virtual environment or "container" for Docker container. Defaults to "env".
+    MODE: Specifies how to run the model: "current" for current user environment, "env" for virtual environment, or "container" for Docker container. Defaults to "current".
     KEEP_IMAGE: Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.
     """
     from clarifai.client.user import User
@@ -1214,9 +1214,17 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
     manager = ModelRunLocally(model_path)
 
     port = 8080
+    # Handle mode-specific environment setup
     if mode == "env":
+        # Create a temporary virtual environment and install requirements
         manager.create_temp_venv()
         manager.install_requirements()
+    elif mode == "current":
+        # Use current user environment (no action needed)
+        pass
+    elif mode == "container":
+        # Environment setup is handled later via Docker (no action needed here)
+        pass
 
     dependencies = parse_requirements(model_path)
     if mode != "container":
