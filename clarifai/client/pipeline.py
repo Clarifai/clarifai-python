@@ -378,6 +378,7 @@ class Pipeline(Lister, BaseClient):
         patch_request.pipeline_id = self.pipeline_id
         patch_request.pipeline_version_id = self.pipeline_version_id or ""
         patch_request.pipeline_version_runs.append(pipeline_version_run)
+        patch_request.action = "overwrite"
 
         # Make the API call
         response = self.STUB.PatchPipelineVersionRuns(
