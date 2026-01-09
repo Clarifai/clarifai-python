@@ -1,3 +1,20 @@
+## [[12.1.2]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.2) - [PyPI](https://pypi.org/project/clarifai/12.1.2/) - 2026-01-09
+
+### Added
+- Add CLI support for pause, cancel, resume, and monitor Pipeline Runs [(#881)](https://github.com/Clarifai/clarifai-python/pull/881)
+  - `clarifai pipelinerun` (alias `pr`) with subcommands: `pause`, `cancel`, `resume`, `monitor`
+  - Accepts pipeline_version_run_id as positional arg or explicit flag
+  - Auto-loads user_id, app_id, pipeline_id, pipeline_version_id from config-lock.yaml when present
+  - Helper functions extract shared logic for config loading, validation, and pipeline instantiation
+  - `monitor` command polls status and logs with configurable --timeout and --monitor_interval options
+
+### Fixed
+- Fixed Artifacts Download and Improved Output Formatting [(#893)](https://github.com/Clarifai/clarifai-python/pull/893)
+  - Fix Artifact download authentication issue.
+  - Standardize table formatting by using the existing display_co_resources function.
+  - Artifacts list table have more details such as version, created_at, etc.
+  - Artifact version list displayed integers in the visibility column, fixed to human readable strings.
+
 ## [[12.1.1]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.1) - [PyPI](https://pypi.org/project/clarifai/12.1.1/) - 2026-01-06
 
 ### Fixed
