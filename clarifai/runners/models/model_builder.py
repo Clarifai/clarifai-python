@@ -22,6 +22,7 @@ from clarifai.client import Model, Nodepool
 from clarifai.client.base import BaseClient
 from clarifai.client.user import User
 from clarifai.errors import UserError
+from clarifai.runners.models.agentic_class import AgenticModelClass
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils import code_script
 from clarifai.runners.utils.const import (
@@ -568,6 +569,42 @@ class ModelBuilder:
         else:
             num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 16))
             self.config["num_threads"] = num_threads
+
+        # Validate AgenticModelClass requirements
+        if not self.download_validation_only:
+            self._validate_agentic_model_requirements()
+
+    def _validate_agentic_model_requirements(self):
+        """
+        Validate that AgenticModelClass models have required dependencies (fastmcp and mcp) in requirements.txt.
+        """
+        try:
+            # Load the model class with mocking to avoid import errors
+            model_class = self.load_model_class(mocking=True)
+
+            # Check if the model class is a subclass of AgenticModelClass
+            if issubclass(model_class, AgenticModelClass):
+                # Parse requirements.txt to check for required packages
+                dependencies = self._parse_requirements()
+
+                missing_packages = []
+                if 'fastmcp' not in dependencies:
+                    missing_packages.append('fastmcp')
+                if 'mcp' not in dependencies:
+                    missing_packages.append('mcp')
+
+                if missing_packages:
+                    logger.error(
+                        f"Model class '{model_class.__name__}' inherits from AgenticModelClass, "
+                        f"but the following required packages are missing from requirements.txt: {', '.join(missing_packages)}, which are required for agentic models. "
+                        f"Please add these packages to your requirements.txt file."
+                    )
+                    sys.exit(1)
+        except Exception as e:
+            # If we can't load the model class, log a warning but don't fail
+            # This could happen if there are import errors, but we don't want to block
+            # non-agentic models from being uploaded
+            logger.debug(f"Could not validate AgenticModelClass requirements: {e}")
 
     def _validate_stream_options(self):
         """
