@@ -1,3 +1,21 @@
+## [[12.1.3]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.3) - [PyPI](https://pypi.org/project/clarifai/12.1.3/) - 2026-01-09
+
+### Added
+- [PR-1090] Agentic Class [(#869)](https://github.com/Clarifai/clarifai-python/pull/869)
+  - Introduced new `AgenticModelClass` that extends `OpenAIModelClass` to enable agentic behavior by integrating LLMs with MCP (Model Context Protocol) servers
+  - Added tool discovery, execution, and iterative tool calling capabilities for both chat completions and responses endpoints
+  - Supports both streaming and non-streaming modes
+- [PR-1092][PR-1093] Optimised MCPModelClass and supports for Stdio MCP servers [(#872)](https://github.com/Clarifai/clarifai-python/pull/872)
+  - Refactored `MCPModelClass` with persistent session management using background thread with long-lived event loop
+  - Added persistent FastMCP client session that opens once during `load_model()` and reuses for all subsequent requests
+  - Introduced new `StdioMCPModelClass` for stdio MCP servers with automatic tool discovery
+  - Added support for single long-lived Node.js process for stdio servers
+  - Added configuration via YAML with support for environment variables and secrets
+
+### Fixed
+- Validate requirements.txt for Agentic Models [(#897)](https://github.com/Clarifai/clarifai-python/pull/897)
+  - Added validation for requirements.txt in agentic models
+
 ## [[12.1.2]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.2) - [PyPI](https://pypi.org/project/clarifai/12.1.2/) - 2026-01-09
 
 ### Added
