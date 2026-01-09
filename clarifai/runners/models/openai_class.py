@@ -2,8 +2,10 @@
 
 from typing import Any, Dict, Iterator
 
+import httpx
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from pydantic_core import from_json, to_json
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.utils.logging import logger
@@ -42,11 +44,56 @@ class OpenAIModelClass(ModelClass):
             raise NotImplementedError("Subclasses must set the 'client' class attribute")
         if self.model is None:
             try:
-                self.model = self.client.models.list().data[0].id
+                self.model = self._retry_models_list().data[0].id
             except Exception as e:
                 raise NotImplementedError(
                     "Subclasses must set the 'model' class attribute or ensure the client can list models"
                 ) from e
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type(httpx.ConnectError),
+    )
+    def _retry_models_list(self, **kwargs):
+        """List models with retry logic."""
+        return self.client.models.list(**kwargs)
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type(httpx.ConnectError),
+    )
+    def _retry_chat_completions_create(self, **kwargs):
+        """Create chat completions with retry logic."""
+        return self.client.chat.completions.create(**kwargs)
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type(httpx.ConnectError),
+    )
+    def _retry_images_generate(self, **kwargs):
+        """Generate images with retry logic."""
+        return self.client.images.generate(**kwargs)
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type(httpx.ConnectError),
+    )
+    def _retry_embeddings_create(self, **kwargs):
+        """Create embeddings with retry logic."""
+        return self.client.embeddings.create(**kwargs)
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type(httpx.ConnectError),
+    )
+    def _retry_responses_create(self, **kwargs):
+        """Create responses with retry logic."""
+        return self.client.responses.create(**kwargs)
 
     def _create_completion_args(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Create the completion arguments dictionary from parameters.
@@ -72,7 +119,7 @@ class OpenAIModelClass(ModelClass):
     def handle_liveness_probe(self) -> bool:
         """Handle liveness probe by checking if the client can list models."""
         try:
-            _ = self.client.models.list()
+            _ = self._retry_models_list()
             return True
         except Exception as e:
             logger.error(f"Liveness probe failed: {e}", exc_info=True)
@@ -81,7 +128,7 @@ class OpenAIModelClass(ModelClass):
     def handle_readiness_probe(self) -> bool:
         """Handle readiness probe by checking if the client can list models."""
         try:
-            _ = self.client.models.list()
+            _ = self._retry_models_list()
             return True
         except Exception as e:
             logger.error(f"Readiness probe failed: {e}", exc_info=True)
@@ -135,7 +182,7 @@ class OpenAIModelClass(ModelClass):
     def _handle_chat_completions(self, request_data: Dict[str, Any]):
         """Handle chat completion requests."""
         completion_args = self._create_completion_args(request_data)
-        completion = self.client.chat.completions.create(**completion_args)
+        completion = self._retry_chat_completions_create(**completion_args)
         self._set_usage(completion)
         return completion
 
@@ -143,21 +190,21 @@ class OpenAIModelClass(ModelClass):
         """Handle image generation requests."""
         image_args = {**request_data}
         image_args.update({"model": self.model})
-        response = self.client.images.generate(**image_args)
+        response = self._retry_images_generate(**image_args)
         return response
 
     def _handle_embeddings(self, request_data: Dict[str, Any]):
         """Handle embedding requests."""
         embedding_args = {**request_data}
         embedding_args.update({"model": self.model})
-        response = self.client.embeddings.create(**embedding_args)
+        response = self._retry_embeddings_create(**embedding_args)
         return response
 
     def _handle_responses(self, request_data: Dict[str, Any]):
         """Handle response requests."""
         response_args = {**request_data}
         response_args.update({"model": self.model})
-        response = self.client.responses.create(**response_args)
+        response = self._retry_responses_create(**response_args)
         self._set_usage(response)
         return response
 
@@ -257,7 +304,7 @@ class OpenAIModelClass(ModelClass):
                     yield chunk.model_dump_json()
             else:
                 completion_args = self._create_completion_args(request_data)
-                stream_completion = self.client.chat.completions.create(**completion_args)
+                stream_completion = self._retry_chat_completions_create(**completion_args)
                 for chunk in stream_completion:
                     self._set_usage(chunk)
                     yield chunk.model_dump_json()
