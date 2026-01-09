@@ -511,12 +511,14 @@ class AgenticModelClass(OpenAIModelClass):
             url: The MCP server URL to transform
 
         Returns:
-            The transformed URL
+            The transformed URL, or the original URL if it doesn't match the Clarifai format
         """
-        # Pattern to match: www.clarifai.com/USER_ID/APP_ID/models/MODEL_ID
-        # Also handles URLs with http:// or https:// prefix
-        user_id, app_id, _, model_id, _ = ClarifaiUrlHelper.split_clarifai_url(url)
-        return f"https://api.clarifai.com/v2/ext/mcp/v1/users/{user_id}/apps/{app_id}/models/{model_id}"
+        try:
+            user_id, app_id, _, model_id, _ = ClarifaiUrlHelper.split_clarifai_url(url)
+            return f"https://api.clarifai.com/v2/ext/mcp/v1/users/{user_id}/apps/{app_id}/models/{model_id}"
+        except ValueError:
+            # Not a Clarifai URL format, return as-is
+            return url
 
     def _normalize_mcp_servers(self, mcp_servers):
         """Normalize MCP server URLs to the new API format.

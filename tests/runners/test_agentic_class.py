@@ -195,6 +195,88 @@ class TestAgenticModelClass:
         result = model._to_dict(obj)
         assert result == {"key": "value"}
 
+    # === URL Transformation Tests ===
+
+    def test_transform_mcp_server_url_old_format(self, model):
+        """Test transforming MCP server URL from old format."""
+        url = "www.clarifai.com/user123/app456/models/model789"
+        result = model._transform_mcp_server_url(url)
+        assert (
+            result
+            == "https://api.clarifai.com/v2/ext/mcp/v1/users/user123/apps/app456/models/model789"
+        )
+
+    def test_transform_mcp_server_url_with_https(self, model):
+        """Test transforming MCP server URL with https prefix."""
+        url = "https://www.clarifai.com/user123/app456/models/model789"
+        result = model._transform_mcp_server_url(url)
+        assert (
+            result
+            == "https://api.clarifai.com/v2/ext/mcp/v1/users/user123/apps/app456/models/model789"
+        )
+
+    def test_transform_mcp_server_url_with_http(self, model):
+        """Test transforming MCP server URL with http prefix."""
+        url = "http://www.clarifai.com/user123/app456/models/model789"
+        result = model._transform_mcp_server_url(url)
+        assert (
+            result
+            == "https://api.clarifai.com/v2/ext/mcp/v1/users/user123/apps/app456/models/model789"
+        )
+
+    def test_transform_mcp_server_url_without_www(self, model):
+        """Test transforming MCP server URL without www."""
+        url = "clarifai.com/user123/app456/models/model789"
+        result = model._transform_mcp_server_url(url)
+        assert (
+            result
+            == "https://api.clarifai.com/v2/ext/mcp/v1/users/user123/apps/app456/models/model789"
+        )
+
+    def test_transform_mcp_server_url_non_clarifai(self, model):
+        """Test that non-Clarifai URLs are returned unchanged."""
+        url = "http://server"
+        result = model._transform_mcp_server_url(url)
+        assert result == url
+
+    def test_transform_mcp_server_url_already_transformed(self, model):
+        """Test that already transformed URLs are returned unchanged."""
+        url = "https://api.clarifai.com/v2/ext/mcp/v1/users/user123/apps/app456/models/model789"
+        result = model._transform_mcp_server_url(url)
+        # Should return as-is since it doesn't match the old format
+        assert result == url
+
+    def test_normalize_mcp_servers_none(self, model):
+        """Test normalizing None mcp_servers."""
+        result = model._normalize_mcp_servers(None)
+        assert result is None
+
+    def test_normalize_mcp_servers_string(self, model):
+        """Test normalizing single URL string."""
+        url = "www.clarifai.com/user123/app456/models/model789"
+        result = model._normalize_mcp_servers(url)
+        assert (
+            result
+            == "https://api.clarifai.com/v2/ext/mcp/v1/users/user123/apps/app456/models/model789"
+        )
+
+    def test_normalize_mcp_servers_list(self, model):
+        """Test normalizing list of URLs."""
+        urls = [
+            "www.clarifai.com/user123/app456/models/model789",
+            "www.clarifai.com/user456/app789/models/model123",
+        ]
+        result = model._normalize_mcp_servers(urls)
+        assert len(result) == 2
+        assert (
+            result[0]
+            == "https://api.clarifai.com/v2/ext/mcp/v1/users/user123/apps/app456/models/model789"
+        )
+        assert (
+            result[1]
+            == "https://api.clarifai.com/v2/ext/mcp/v1/users/user456/apps/app789/models/model123"
+        )
+
     # === Tool Call Parsing Tests ===
 
     def test_parse_chat_tool_calls_with_function_attribute(self, model):
@@ -529,7 +611,10 @@ class TestAgenticModelClass:
             mock_super_handle.return_value = mock_response
 
             result = model._handle_chat_completions(
-                request_data, mcp_servers=["http://server"], connections={}, tools=tools
+                request_data,
+                mcp_servers=["https://clarifai.com/userid/appid/models/modelid"],
+                connections={},
+                tools=tools,
             )
 
             # The method creates a new dict, so check what was passed to super
@@ -561,7 +646,10 @@ class TestAgenticModelClass:
             mock_super_handle.return_value = mock_response
 
             result = model._handle_responses(
-                request_data, mcp_servers=["http://server"], connections={}, tools=tools
+                request_data,
+                mcp_servers=["https://clarifai.com/userid/appid/models/modelid"],
+                connections={},
+                tools=tools,
             )
 
             # The method creates a new dict, so check what was passed to super
@@ -847,7 +935,7 @@ class TestAgenticModelClass:
         """Test openai_transport with MCP servers for chat completions."""
         request = {
             "messages": [{"role": "user", "content": "Hello"}],
-            "mcp_servers": ["http://server"],
+            "mcp_servers": ["https://clarifai.com/userid/appid/models/modelid"],
             "openai_endpoint": model.ENDPOINT_CHAT_COMPLETIONS,
         }
 
@@ -885,7 +973,7 @@ class TestAgenticModelClass:
         """Test openai_transport with MCP servers for responses API."""
         request = {
             "input": "Hello",
-            "mcp_servers": ["http://server"],
+            "mcp_servers": ["https://clarifai.com/userid/appid/models/modelid"],
             "openai_endpoint": model.ENDPOINT_RESPONSES,
         }
 
@@ -920,7 +1008,7 @@ class TestAgenticModelClass:
         """Test openai_transport when tools are already provided (should not use MCP)."""
         request = {
             "messages": [{"role": "user", "content": "Hello"}],
-            "mcp_servers": ["http://server"],
+            "mcp_servers": ["https://clarifai.com/userid/appid/models/modelid"],
             "tools": [{"type": "function", "function": {"name": "existing_tool"}}],
             "openai_endpoint": model.ENDPOINT_CHAT_COMPLETIONS,
         }
@@ -972,7 +1060,7 @@ class TestAgenticModelClass:
         """Test openai_stream_transport with MCP servers."""
         request = {
             "messages": [{"role": "user", "content": "Hello"}],
-            "mcp_servers": ["http://server"],
+            "mcp_servers": ["https://clarifai.com/userid/appid/models/modelid"],
             "stream": True,
             "openai_endpoint": model.ENDPOINT_CHAT_COMPLETIONS,
         }
@@ -1069,7 +1157,7 @@ class TestAgenticModelClass:
         """Test full flow: chat completions with tool calls."""
         request = {
             "messages": [{"role": "user", "content": "Use test_tool"}],
-            "mcp_servers": ["http://server"],
+            "mcp_servers": ["https://clarifai.com/userid/appid/models/modelid"],
             "openai_endpoint": model.ENDPOINT_CHAT_COMPLETIONS,
         }
 
@@ -1156,7 +1244,7 @@ class TestAgenticModelClass:
         """Test full flow: responses API with tool calls."""
         request = {
             "input": "Use test_tool",
-            "mcp_servers": ["http://server"],
+            "mcp_servers": ["https://clarifai.com/userid/appid/models/modelid"],
             "openai_endpoint": model.ENDPOINT_RESPONSES,
         }
 
