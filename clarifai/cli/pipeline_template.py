@@ -42,7 +42,11 @@ def list_templates(template_type):
         templates = template_manager.list_templates(template_type)
 
         if not templates:
-            message = f"No templates found for type '{template_type}'" if template_type else "No templates found"
+            message = (
+                f"No templates found for type '{template_type}'"
+                if template_type
+                else "No templates found"
+            )
             click.echo(message)
             return
 
@@ -56,7 +60,7 @@ def list_templates(template_type):
 
                 yield {
                     'NAME': template['name'],
-                    'TYPE': template['type'], 
+                    'TYPE': template['type'],
                     'DESCRIPTION': description,
                 }
 

@@ -49,7 +49,8 @@ class TemplateManager:
     def _get_template_type_directories(self) -> List[str]:
         """Get list of template type directories."""
         return [
-            d for d in os.listdir(self.template_root)
+            d
+            for d in os.listdir(self.template_root)
             if os.path.isdir(os.path.join(self.template_root, d))
         ]
 
@@ -160,9 +161,7 @@ class TemplateManager:
 
     def _extract_use_case(self, content: str) -> str:
         """Extract use case description from README content."""
-        use_case_match = re.search(
-            r'## Use Case\s*\n(.+?)(?=\n##|\n\n|\Z)', content, re.DOTALL
-        )
+        use_case_match = re.search(r'## Use Case\s*\n(.+?)(?=\n##|\n\n|\Z)', content, re.DOTALL)
         if not use_case_match:
             return "Pipeline template"
 
@@ -174,7 +173,9 @@ class TemplateManager:
         use_case = re.sub(r'\*\*(.+?)\*\*', r'\1', use_case)  # Remove bold
         return use_case
 
-    def _extract_pipeline_steps_info(self, content: str) -> Tuple[List[Dict[str, str]], Dict[str, str]]:
+    def _extract_pipeline_steps_info(
+        self, content: str
+    ) -> Tuple[List[Dict[str, str]], Dict[str, str]]:
         """Extract parameters and step descriptions from Pipeline Steps section."""
         parameters = []
         step_descriptions = {}
@@ -212,9 +213,7 @@ class TemplateManager:
             return content[steps_start:use_case_start]
 
         # If no Use Case section, look for next ## section or end
-        next_section = re.search(
-            r'## Pipeline Steps\s*\n(.+?)(?=\n##|\Z)', content, re.DOTALL
-        )
+        next_section = re.search(r'## Pipeline Steps\s*\n(.+?)(?=\n##|\Z)', content, re.DOTALL)
         return next_section.group(0) if next_section else content[steps_start:]
 
     def _extract_step_description(self, step_content: str) -> Optional[str]:
@@ -243,11 +242,13 @@ class TemplateManager:
             param_description = param_description.strip().replace('\n', ' ')
             param_description = re.sub(r'\s+', ' ', param_description)
 
-            parameters.append({
-                'name': param_name,
-                'description': param_description,
-                'placeholder': f'<{param_name.upper()}_VALUE>',
-            })
+            parameters.append(
+                {
+                    'name': param_name,
+                    'description': param_description,
+                    'placeholder': f'<{param_name.upper()}_VALUE>',
+                }
+            )
 
         return parameters
 
@@ -329,11 +330,7 @@ class TemplateManager:
         try:
             # Get description from README use case section
             _, description, _ = self.extract_info_from_readme(template_path)
-            return {
-                'name': template_name, 
-                'type': template_type, 
-                'description': description
-            }
+            return {'name': template_name, 'type': template_type, 'description': description}
 
         except Exception as e:
             logger.warning(f"Invalid template at {template_path}: {e}")
