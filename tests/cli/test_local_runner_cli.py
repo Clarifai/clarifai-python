@@ -6,7 +6,7 @@ by mocking external dependencies and testing key behaviors.
 
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 import yaml
@@ -643,3 +643,134 @@ class TestLocalRunnerCLI:
         assert "num_threads" in serve_kwargs
         # grpc defaults to False for local runner (not always passed as kwarg)
         assert serve_kwargs.get("grpc", False) is False
+
+    @patch("clarifai.runners.server.ModelServer")
+    @patch("clarifai.client.user.User")
+    @patch("clarifai.runners.models.model_run_locally.ModelRunLocally")
+    @patch("clarifai.runners.models.model_builder.ModelBuilder")
+    @patch("clarifai.cli.model.check_requirements_installed")
+    @patch("clarifai.cli.model.parse_requirements")
+    @patch("clarifai.cli.model.validate_context")
+    @patch("builtins.input")
+    def test_local_runner_mode_options(
+        self,
+        mock_input,
+        mock_validate_context,
+        mock_parse_requirements,
+        mock_check_requirements,
+        mock_builder_class,
+        mock_manager_class,
+        mock_user_class,
+        mock_server_class,
+        dummy_model_dir,
+    ):
+        """Test that local-runner supports all three modes: current, env, and container."""
+        # Setup common mocks
+        mock_input.return_value = "y"
+        mock_check_requirements.return_value = True
+        mock_parse_requirements.return_value = {}
+
+        # Mock ModelBuilder
+        mock_builder = MagicMock()
+        mock_builder.config = {"model": {"model_type_id": "multimodal-to-text"}, "toolkit": {}}
+        mock_builder.get_method_signatures.return_value = {}
+        mock_builder.get_model_version_proto.return_value = MagicMock()
+        mock_builder_class.return_value = mock_builder
+
+        # Mock ModelRunLocally
+        mock_manager = MagicMock()
+        mock_manager.config = mock_builder.config
+        mock_manager._get_method_signatures.return_value = {}
+        mock_manager_class.return_value = mock_manager
+
+        # Mock User and resources
+        mock_user = MagicMock()
+
+        # Mock compute cluster
+        mock_compute_cluster = MagicMock()
+        mock_compute_cluster.id = "local-dev-cluster"
+        mock_compute_cluster.cluster_type = "local-dev"
+        mock_user.compute_cluster.return_value = mock_compute_cluster
+
+        # Mock nodepool
+        mock_nodepool = MagicMock()
+        mock_nodepool.id = "local-dev-nodepool"
+        mock_compute_cluster.nodepool.return_value = mock_nodepool
+
+        # Mock deployment
+        mock_deployment = MagicMock()
+        mock_deployment.id = "deployment-123"
+        mock_nodepool.deployment.return_value = mock_deployment
+
+        # Mock app and model
+        mock_app = MagicMock()
+        mock_model = MagicMock()
+        mock_model.list_versions.return_value = [MagicMock(id="v1")]
+        mock_model.create_version.return_value = MagicMock(id="v1")
+        mock_app.model.return_value = mock_model
+        mock_user.app.return_value = mock_app
+        mock_user_class.return_value = mock_user
+
+        # Mock ModelServer
+        mock_server = MagicMock()
+        mock_server_class.return_value = mock_server
+
+        # Mock context
+        mock_ctx = MagicMock()
+        mock_ctx.obj.current.user_id = "test-user"
+        mock_ctx.obj.current.pat = "test-pat"
+        mock_ctx.obj.current.api_base = "https://api.clarifai.com"
+        mock_ctx.obj.current.name = "default"
+        mock_ctx.obj.current.compute_cluster_id = "local-dev-cluster"
+        mock_ctx.obj.current.nodepool_id = "local-dev-nodepool"
+        mock_ctx.obj.current.app_id = "local-dev-app"
+        mock_ctx.obj.current.model_id = "local-dev-model"
+        mock_ctx.obj.current.runner_id = "runner-123"
+        mock_ctx.obj.current.deployment_id = "deployment-123"
+        mock_ctx.obj.current.model_version_id = "v1"
+        mock_ctx.obj.current.ui = "https://clarifai.com"
+        mock_ctx.obj.to_yaml = Mock()
+
+        def validate_ctx_mock(ctx):
+            ctx.obj = mock_ctx.obj
+
+        mock_validate_context.side_effect = validate_ctx_mock
+
+        runner = CliRunner()
+
+        # Test 'current' mode (default)
+        result = runner.invoke(
+            cli,
+            ["model", "local-runner", str(dummy_model_dir)],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 0, f"Command failed with: {result.output}"
+        # Verify venv creation methods were not called for 'current' mode
+        mock_manager.create_temp_venv.assert_not_called()
+        mock_manager.install_requirements.assert_not_called()
+        mock_manager_class.reset_mock()
+        mock_server_class.reset_mock()
+
+        # Test 'env' mode
+        result = runner.invoke(
+            cli,
+            ["model", "local-runner", "--mode", "env", str(dummy_model_dir)],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 0, f"Command failed with: {result.output}"
+        # Verify venv creation methods were called for 'env' mode
+        mock_manager.create_temp_venv.assert_called_once()
+        mock_manager.install_requirements.assert_called_once()
+        mock_manager_class.reset_mock()
+        mock_server_class.reset_mock()
+
+        # Test 'current' mode explicitly
+        result = runner.invoke(
+            cli,
+            ["model", "local-runner", "--mode", "current", str(dummy_model_dir)],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 0, f"Command failed with: {result.output}"
+        # Verify venv creation methods were not called for 'current' mode
+        mock_manager.create_temp_venv.assert_not_called()
+        mock_manager.install_requirements.assert_not_called()
