@@ -37,34 +37,45 @@ class TemplateManager:
             return templates
 
         # Scan each type directory (train, data, agent, etc.)
-        for type_dir in os.listdir(self.template_root):
-            type_path = os.path.join(self.template_root, type_dir)
-
-            if not os.path.isdir(type_path):
-                continue
-
-            # Filter by type if specified
+        for type_dir in self._get_template_type_directories():
             if template_type and type_dir != template_type:
                 continue
 
-            # Scan templates within type directory
-            for template_name in os.listdir(type_path):
-                template_path = os.path.join(type_path, template_name)
-
-                if not os.path.isdir(template_path):
-                    continue
-
-                # Check if it's a valid template (has config.yaml)
-                config_path = os.path.join(template_path, "config.yaml")
-                if not os.path.exists(config_path):
-                    continue
-
-                # Extract template info
-                template_info = self._extract_template_info(template_path, template_name, type_dir)
-                if template_info:
-                    templates.append(template_info)
+            type_path = os.path.join(self.template_root, type_dir)
+            templates.extend(self._scan_templates_in_directory(type_path, type_dir))
 
         return sorted(templates, key=lambda x: (x['type'], x['name']))
+
+    def _get_template_type_directories(self) -> List[str]:
+        """Get list of template type directories."""
+        return [
+            d for d in os.listdir(self.template_root)
+            if os.path.isdir(os.path.join(self.template_root, d))
+        ]
+
+    def _scan_templates_in_directory(self, type_path: str, type_name: str) -> List[Dict[str, str]]:
+        """Scan templates within a type directory."""
+        templates = []
+
+        for template_name in os.listdir(type_path):
+            template_path = os.path.join(type_path, template_name)
+
+            if not os.path.isdir(template_path):
+                continue
+
+            if not self._is_valid_template(template_path):
+                continue
+
+            template_info = self._extract_template_info(template_path, template_name, type_name)
+            if template_info:
+                templates.append(template_info)
+
+        return templates
+
+    def _is_valid_template(self, template_path: str) -> bool:
+        """Check if a directory is a valid template (has config.yaml)."""
+        config_path = os.path.join(template_path, "config.yaml")
+        return os.path.exists(config_path)
 
     def get_template_info(self, template_name: str) -> Optional[Dict]:
         """Get detailed information about a specific template.
@@ -134,100 +145,121 @@ class TemplateManager:
             step_descriptions = {}
 
             # Extract use case from the "## Use Case" section
-            use_case_match = re.search(
-                r'## Use Case\s*\n(.+?)(?=\n##|\n\n|\Z)', content, re.DOTALL
-            )
-            if use_case_match:
-                use_case = use_case_match.group(1).strip()
-                # Take only the first sentence/line for concise description
-                if '\n' in use_case:
-                    use_case = use_case.split('\n')[0].strip()
-                # Remove markdown formatting
-                use_case = re.sub(r'\*\*(.+?)\*\*', r'\1', use_case)  # Remove bold
+            use_case = self._extract_use_case(content)
 
-            # Extract parameters from Pipeline Steps section
-            steps_start = content.find('## Pipeline Steps')
-            use_case_start = content.find('## Use Case')
-
-            if steps_start != -1:
-                if use_case_start != -1:
-                    steps_content = content[steps_start:use_case_start]
-                else:
-                    # If no Use Case section, look for next ## section or end
-                    next_section = re.search(
-                        r'## Pipeline Steps\s*\n(.+?)(?=\n##|\Z)', content, re.DOTALL
-                    )
-                    if next_section:
-                        steps_content = next_section.group(0)
-                    else:
-                        steps_content = content[steps_start:]
-            # Extract parameters from Pipeline Steps section
-            steps_start = content.find('## Pipeline Steps')
-            use_case_start = content.find('## Use Case')
-
-            if steps_start != -1:
-                if use_case_start != -1:
-                    steps_content = content[steps_start:use_case_start]
-                else:
-                    # If no Use Case section, look for next ## section or end
-                    next_section = re.search(
-                        r'## Pipeline Steps\s*\n(.+?)(?=\n##|\Z)', content, re.DOTALL
-                    )
-                    if next_section:
-                        steps_content = next_section.group(0)
-                    else:
-                        steps_content = content[steps_start:]
-
-                # Find step subsections (### StepName)
-                step_sections = re.findall(
-                    r'### (\w+)\s*\n(.+?)(?=\n###|\n##|\Z)', steps_content, re.DOTALL
-                )
-
-                for step_name, step_content in step_sections:
-                    # Extract step description (first line after step name, before parameter list)
-                    step_desc_match = re.match(r'([^-\n]+?)(?=\n|:|\n-)', step_content.strip())
-                    if step_desc_match:
-                        step_description = step_desc_match.group(1).strip()
-                        # Remove "with the following parameters" suffix if present
-                        step_description = re.sub(
-                            r'\s+with the following parameters:?$', '', step_description
-                        )
-                        step_descriptions[step_name] = step_description
-
-                    # Extract parameters from bullet points like "- `param_name` (type): description"
-                    # Handle both formats: with and without "with the following parameters:" text
-                    param_matches = re.findall(
-                        r'-\s+`([^`]+)`\s+\([^)]+\):\s*(.+?)(?=\n-|\n\n|\n###|\Z)',
-                        step_content,
-                        re.DOTALL,
-                    )
-
-                    for param_name, param_description in param_matches:
-                        # Clean up the description
-                        param_description = param_description.strip().replace('\n', ' ')
-                        param_description = re.sub(r'\s+', ' ', param_description)
-
-                        parameters.append(
-                            {
-                                'name': param_name,
-                                'description': param_description,
-                                'placeholder': f'<{param_name.upper()}_VALUE>',
-                            }
-                        )
+            # Extract parameters and step descriptions from Pipeline Steps section
+            parameters, step_descriptions = self._extract_pipeline_steps_info(content)
 
             # Remove duplicates and sort
-            seen = set()
-            unique_parameters = []
-            for param in parameters:
-                if param['name'] not in seen:
-                    seen.add(param['name'])
-                    unique_parameters.append(param)
-
+            unique_parameters = self._deduplicate_parameters(parameters)
             return sorted(unique_parameters, key=lambda x: x['name']), use_case, step_descriptions
 
         except Exception as e:
             logger.warning(f"Error reading README {readme_path}: {e}")
             return [], "Pipeline template", {}
+
+    def _extract_use_case(self, content: str) -> str:
+        """Extract use case description from README content."""
+        use_case_match = re.search(
+            r'## Use Case\s*\n(.+?)(?=\n##|\n\n|\Z)', content, re.DOTALL
+        )
+        if not use_case_match:
+            return "Pipeline template"
+
+        use_case = use_case_match.group(1).strip()
+        # Take only the first sentence/line for concise description
+        if '\n' in use_case:
+            use_case = use_case.split('\n')[0].strip()
+        # Remove markdown formatting
+        use_case = re.sub(r'\*\*(.+?)\*\*', r'\1', use_case)  # Remove bold
+        return use_case
+
+    def _extract_pipeline_steps_info(self, content: str) -> Tuple[List[Dict[str, str]], Dict[str, str]]:
+        """Extract parameters and step descriptions from Pipeline Steps section."""
+        parameters = []
+        step_descriptions = {}
+
+        # Find the Pipeline Steps section
+        steps_content = self._extract_steps_section(content)
+        if not steps_content:
+            return parameters, step_descriptions
+
+        # Find step subsections (### StepName)
+        step_sections = re.findall(
+            r'### (\w+)\s*\n(.+?)(?=\n###|\n##|\Z)', steps_content, re.DOTALL
+        )
+
+        for step_name, step_content in step_sections:
+            # Extract step description
+            step_description = self._extract_step_description(step_content)
+            if step_description:
+                step_descriptions[step_name] = step_description
+
+            # Extract parameters from this step
+            step_parameters = self._extract_step_parameters(step_content)
+            parameters.extend(step_parameters)
+
+        return parameters, step_descriptions
+
+    def _extract_steps_section(self, content: str) -> str:
+        """Extract the Pipeline Steps section content."""
+        steps_start = content.find('## Pipeline Steps')
+        if steps_start == -1:
+            return ""
+
+        use_case_start = content.find('## Use Case')
+        if use_case_start != -1 and use_case_start > steps_start:
+            return content[steps_start:use_case_start]
+
+        # If no Use Case section, look for next ## section or end
+        next_section = re.search(
+            r'## Pipeline Steps\s*\n(.+?)(?=\n##|\Z)', content, re.DOTALL
+        )
+        return next_section.group(0) if next_section else content[steps_start:]
+
+    def _extract_step_description(self, step_content: str) -> Optional[str]:
+        """Extract step description from step content."""
+        step_desc_match = re.match(r'([^-\n]+?)(?=\n|:|\n-)', step_content.strip())
+        if not step_desc_match:
+            return None
+
+        step_description = step_desc_match.group(1).strip()
+        # Remove "with the following parameters" suffix if present
+        return re.sub(r'\s+with the following parameters:?$', '', step_description)
+
+    def _extract_step_parameters(self, step_content: str) -> List[Dict[str, str]]:
+        """Extract parameters from a single step's content."""
+        parameters = []
+
+        # Extract parameters from bullet points like "- `param_name` (type): description"
+        param_matches = re.findall(
+            r'-\s+`([^`]+)`\s+\([^)]+\):\s*(.+?)(?=\n-|\n\n|\n###|\Z)',
+            step_content,
+            re.DOTALL,
+        )
+
+        for param_name, param_description in param_matches:
+            # Clean up the description
+            param_description = param_description.strip().replace('\n', ' ')
+            param_description = re.sub(r'\s+', ' ', param_description)
+
+            parameters.append({
+                'name': param_name,
+                'description': param_description,
+                'placeholder': f'<{param_name.upper()}_VALUE>',
+            })
+
+        return parameters
+
+    def _deduplicate_parameters(self, parameters: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        """Remove duplicate parameters based on name."""
+        seen = set()
+        unique_parameters = []
+        for param in parameters:
+            if param['name'] not in seen:
+                seen.add(param['name'])
+                unique_parameters.append(param)
+        return unique_parameters
 
     def copy_template(
         self, template_name: str, destination: str, substitutions: Dict[str, str]
@@ -274,16 +306,10 @@ class TemplateManager:
             return None
 
         # Search in all type directories
-        for type_dir in os.listdir(self.template_root):
-            type_path = os.path.join(self.template_root, type_dir)
-            if not os.path.isdir(type_path):
-                continue
-
-            template_path = os.path.join(type_path, template_name)
-            if os.path.exists(template_path) and os.path.isdir(template_path):
-                config_path = os.path.join(template_path, "config.yaml")
-                if os.path.exists(config_path):
-                    return template_path
+        for type_dir in self._get_template_type_directories():
+            template_path = os.path.join(self.template_root, type_dir, template_name)
+            if os.path.exists(template_path) and self._is_valid_template(template_path):
+                return template_path
 
         return None
 
@@ -301,15 +327,13 @@ class TemplateManager:
             Template info dictionary or None if invalid
         """
         try:
-            # Try to read config for validation
-            config_path = os.path.join(template_path, "config.yaml")
-            with open(config_path, 'r') as f:
-                config = yaml.safe_load(f)
-
             # Get description from README use case section
             _, description, _ = self.extract_info_from_readme(template_path)
-
-            return {'name': template_name, 'type': template_type, 'description': description}
+            return {
+                'name': template_name, 
+                'type': template_type, 
+                'description': description
+            }
 
         except Exception as e:
             logger.warning(f"Invalid template at {template_path}: {e}")

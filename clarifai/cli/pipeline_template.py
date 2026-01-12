@@ -42,50 +42,48 @@ def list_templates(template_type):
         templates = template_manager.list_templates(template_type)
 
         if not templates:
-            if template_type:
-                click.echo(f"No templates found for type '{template_type}'")
-            else:
-                click.echo("No templates found")
+            message = f"No templates found for type '{template_type}'" if template_type else "No templates found"
+            click.echo(message)
             return
 
         # Display templates in a table format
         def format_template_data(template_list):
-            """Format template data for display."""
+            """Format template data for display with ellipsized descriptions."""
             for template in template_list:
                 description = template['description']
-                # Ellipsize description to 80 characters
                 if len(description) > 80:
                     description = description[:77] + "..."
 
                 yield {
                     'NAME': template['name'],
-                    'TYPE': template['type'],
+                    'TYPE': template['type'], 
                     'DESCRIPTION': description,
                 }
-
-        # Custom columns for template display
-        custom_columns = {
-            'NAME': lambda t: t['NAME'],
-            'TYPE': lambda t: t['TYPE'],
-            'DESCRIPTION': lambda t: t['DESCRIPTION'],
-        }
 
         # Display the templates
         display_co_resources(
             format_template_data(templates),
-            custom_columns=custom_columns,
+            custom_columns={
+                'NAME': lambda t: t['NAME'],
+                'TYPE': lambda t: t['TYPE'],
+                'DESCRIPTION': lambda t: t['DESCRIPTION'],
+            },
             sort_by_columns=[('TYPE', 'asc'), ('NAME', 'asc')],
         )
 
         # Show summary
         total_count = len(templates)
+        summary_message = f"\nFound {total_count} template(s)"
+
         if template_type:
-            click.echo(f"\nFound {total_count} template(s) of type '{template_type}'")
+            summary_message += f" of type '{template_type}'"
         else:
-            click.echo(f"\nFound {total_count} template(s) total")
+            summary_message += " total"
             # Show available types only when not filtering by type
             types = sorted(set(t['type'] for t in templates))
-            click.echo(f"Available types: {', '.join(types)}")
+            summary_message += f"\nAvailable types: {', '.join(types)}"
+
+        click.echo(summary_message)
 
     except Exception as e:
         logger.error(f"Error listing templates: {e}")
