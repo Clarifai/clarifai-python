@@ -280,8 +280,19 @@ def run(
     required=False,
     default=".",
 )
-def init(pipeline_path):
+@click.option(
+    '--template',
+    required=False,
+    help='Initialize from a template (e.g., image-classification, text-prep)',
+)
+def init(pipeline_path, template):
     """Initialize a new pipeline project structure.
+
+    Creates a pipeline project structure either from a template or interactively.
+
+    When using --template, initializes from a predefined template with specific
+    parameters and structure. Without --template, uses the interactive flow
+    to create a custom pipeline structure.
 
     Creates the following structure in the specified directory:
     ├── config.yaml          # Pipeline configuration
@@ -299,6 +310,164 @@ def init(pipeline_path):
 
     PIPELINE_PATH: Path where to create the pipeline project structure. If not specified, the current directory is used by default.
     """
+    # Common setup logic
+    pipeline_path = _prepare_pipeline_path(pipeline_path, template)
+    if not pipeline_path:
+        return  # Error already shown in _prepare_pipeline_path
+
+    # Branch to specific initialization method
+    if template:
+        success = _init_from_template(pipeline_path, template)
+    else:
+        success = _init_interactive(pipeline_path)
+
+    # Common completion logic
+    if success:
+        _show_completion_message(pipeline_path)
+
+
+def _prepare_pipeline_path(pipeline_path, template_name):
+    """Prepare and validate the pipeline path.
+
+    Args:
+        pipeline_path: Original path argument
+        template_name: Template name (if using template initialization)
+
+    Returns:
+        Absolute path to use, or None if there's an error
+    """
+    # If pipeline_path is current directory and using template, create new directory with template name
+    if pipeline_path == "." and template_name:
+        pipeline_path = template_name
+
+    # Resolve the absolute path
+    pipeline_path = os.path.abspath(pipeline_path)
+
+    # For template initialization, check if directory exists and is not empty
+    # For interactive initialization, allow existing directories (files will be skipped individually)
+    if template_name and os.path.exists(pipeline_path) and os.listdir(pipeline_path):
+        click.echo(
+            f"Error: Directory '{pipeline_path}' already exists and is not empty.", err=True
+        )
+        click.echo("Please choose a different directory or remove the existing one.", err=True)
+        return None
+
+    # Create the pipeline directory
+    os.makedirs(pipeline_path, exist_ok=True)
+    return pipeline_path
+
+
+def _show_completion_message(pipeline_path):
+    """Show common completion message.
+
+    Args:
+        pipeline_path: Path where pipeline was created
+    """
+    logger.info(f"Pipeline initialization complete in {pipeline_path}")
+    logger.info("Next steps:")
+    logger.info("1. Review and customize the generated pipeline steps")
+    logger.info("2. Add any additional dependencies to requirements.txt files")
+    logger.info("3. Run 'clarifai pipeline upload config.yaml' to upload your pipeline")
+
+
+def _init_from_template(pipeline_path, template_name):
+    """Initialize pipeline from a template.
+
+    Args:
+        pipeline_path: Destination path for the pipeline (already prepared)
+        template_name: Name of the template to use
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    from clarifai.utils.template_manager import TemplateManager
+
+    click.echo("Welcome to Clarifai Pipeline Template Initialization!")
+    click.echo(f"Using template: {template_name}")
+    click.echo()
+
+    try:
+        # Initialize template manager and get template info
+        template_manager = TemplateManager()
+        template_info = template_manager.get_template_info(template_name)
+
+        if not template_info:
+            click.echo(f"Error: Template '{template_name}' not found", err=True)
+            click.echo("Use 'clarifai pipelinetemplate ls' to see available templates", err=True)
+            return False
+
+        # Show template information
+        click.echo(f"Template Type: {template_info['type']}")
+        click.echo(f"Steps: {', '.join(template_info['step_directories'])}")
+
+        parameters = template_info['parameters']
+        if parameters:
+            click.echo(f"Parameters: {len(parameters)} required")
+        click.echo()
+
+        # Collect basic pipeline information
+        click.echo("Please provide the following information:")
+        user_id = click.prompt("User ID", type=str)
+        app_id = click.prompt("App ID", type=str)
+
+        # Use template name as default pipeline ID
+        default_pipeline_id = template_name
+        pipeline_id = click.prompt("Pipeline ID", default=default_pipeline_id, type=str)
+
+        # Collect template-specific parameters
+        parameter_values = {}
+        if parameters:
+            click.echo("\nTemplate Parameters:")
+            for param in parameters:
+                param_name = param['name']
+                description = param['description']
+
+                # Format prompt as "param_name (description)"
+                prompt_text = f"{param_name} ({description})"
+                value = click.prompt(prompt_text, type=str)
+                parameter_values[param['placeholder']] = value
+
+        # Prepare substitutions dictionary
+        substitutions = {
+            # Basic pipeline info substitutions
+            '<USER_ID_VALUE>': user_id,  # Replace template user_id
+            '<APP_ID_VALUE>': app_id,  # Replace template app_id
+        }
+
+        # Add parameter substitutions
+        substitutions.update(parameter_values)
+
+        # Also substitute the pipeline ID in the config
+        template_config = template_info['config']
+        original_pipeline_id = template_config.get('pipeline', {}).get('id', template_name)
+        if original_pipeline_id != pipeline_id:
+            substitutions[f'id: "{original_pipeline_id}"'] = f'id: "{pipeline_id}"'
+
+        click.echo(f"\nCreating pipeline '{pipeline_id}' from template '{template_name}'...")
+
+        # Copy template with substitutions
+        success = template_manager.copy_template(template_name, pipeline_path, substitutions)
+
+        if not success:
+            click.echo("Error: Failed to create pipeline from template", err=True)
+
+        return success
+
+    except Exception as e:
+        logger.error(f"Template initialization error: {e}")
+        click.echo(f"Error: {e}", err=True)
+        return False
+
+
+def _init_interactive(pipeline_path):
+    """Interactive pipeline initialization (original behavior).
+
+    Args:
+        pipeline_path: Destination path for the pipeline (already prepared)
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
     from clarifai.cli.templates.pipeline_templates import (
         get_pipeline_config_template,
         get_pipeline_step_config_template,
@@ -307,100 +476,96 @@ def init(pipeline_path):
         get_readme_template,
     )
 
-    # Resolve the absolute path
-    pipeline_path = os.path.abspath(pipeline_path)
+    try:
+        # Prompt for user inputs
+        click.echo("Welcome to Clarifai Pipeline Initialization!")
+        click.echo("Please provide the following information:")
 
-    # Create the pipeline directory if it doesn't exist
-    os.makedirs(pipeline_path, exist_ok=True)
+        user_id = click.prompt("User ID", type=str)
+        app_id = click.prompt("App ID", type=str)
+        pipeline_id = click.prompt("Pipeline ID", default="hello-world-pipeline", type=str)
+        num_steps = click.prompt("Number of pipeline steps", default=2, type=int)
 
-    # Prompt for user inputs
-    click.echo("Welcome to Clarifai Pipeline Initialization!")
-    click.echo("Please provide the following information:")
+        # Get step names
+        step_names = []
+        default_names = ["stepA", "stepB", "stepC", "stepD", "stepE", "stepF"]
 
-    user_id = click.prompt("User ID", type=str)
-    app_id = click.prompt("App ID", type=str)
-    pipeline_id = click.prompt("Pipeline ID", default="hello-world-pipeline", type=str)
-    num_steps = click.prompt("Number of pipeline steps", default=2, type=int)
+        for i in range(num_steps):
+            default_name = default_names[i] if i < len(default_names) else f"step{i + 1}"
+            step_name = click.prompt(f"Name for step {i + 1}", default=default_name, type=str)
+            step_names.append(step_name)
 
-    # Get step names
-    step_names = []
-    default_names = ["stepA", "stepB", "stepC", "stepD", "stepE", "stepF"]
+        click.echo(f"\nCreating pipeline '{pipeline_id}' with steps: {', '.join(step_names)}")
 
-    for i in range(num_steps):
-        default_name = default_names[i] if i < len(default_names) else f"step{i + 1}"
-        step_name = click.prompt(f"Name for step {i + 1}", default=default_name, type=str)
-        step_names.append(step_name)
-
-    click.echo(f"\nCreating pipeline '{pipeline_id}' with steps: {', '.join(step_names)}")
-
-    # Create pipeline config.yaml
-    config_path = os.path.join(pipeline_path, "config.yaml")
-    if os.path.exists(config_path):
-        logger.warning(f"File {config_path} already exists, skipping...")
-    else:
-        config_template = get_pipeline_config_template(
-            pipeline_id=pipeline_id, user_id=user_id, app_id=app_id, step_names=step_names
-        )
-        with open(config_path, 'w', encoding='utf-8') as f:
-            f.write(config_template)
-        logger.info(f"Created {config_path}")
-
-    # Create README.md
-    readme_path = os.path.join(pipeline_path, "README.md")
-    if os.path.exists(readme_path):
-        logger.warning(f"File {readme_path} already exists, skipping...")
-    else:
-        readme_template = get_readme_template()
-        with open(readme_path, 'w', encoding='utf-8') as f:
-            f.write(readme_template)
-        logger.info(f"Created {readme_path}")
-
-    # Create pipeline steps
-    for step_id in step_names:
-        step_dir = os.path.join(pipeline_path, step_id)
-        os.makedirs(step_dir, exist_ok=True)
-
-        # Create the 1/ subdirectory for the step version
-        step_version_dir = os.path.join(step_dir, "1")
-        os.makedirs(step_version_dir, exist_ok=True)
-
-        # Create step config.yaml
-        step_config_path = os.path.join(step_dir, "config.yaml")
-        if os.path.exists(step_config_path):
-            logger.warning(f"File {step_config_path} already exists, skipping...")
+        # Create pipeline config.yaml
+        config_path = os.path.join(pipeline_path, "config.yaml")
+        if os.path.exists(config_path):
+            logger.warning(f"File {config_path} already exists, skipping...")
         else:
-            step_config_template = get_pipeline_step_config_template(
-                step_id=step_id, user_id=user_id, app_id=app_id
+            config_template = get_pipeline_config_template(
+                pipeline_id=pipeline_id, user_id=user_id, app_id=app_id, step_names=step_names
             )
-            with open(step_config_path, 'w', encoding='utf-8') as f:
-                f.write(step_config_template)
-            logger.info(f"Created {step_config_path}")
+            with open(config_path, 'w', encoding='utf-8') as f:
+                f.write(config_template)
+            logger.info(f"Created {config_path}")
 
-        # Create step requirements.txt
-        step_requirements_path = os.path.join(step_dir, "requirements.txt")
-        if os.path.exists(step_requirements_path):
-            logger.warning(f"File {step_requirements_path} already exists, skipping...")
+        # Create README.md
+        readme_path = os.path.join(pipeline_path, "README.md")
+        if os.path.exists(readme_path):
+            logger.warning(f"File {readme_path} already exists, skipping...")
         else:
-            step_requirements_template = get_pipeline_step_requirements_template()
-            with open(step_requirements_path, 'w', encoding='utf-8') as f:
-                f.write(step_requirements_template)
-            logger.info(f"Created {step_requirements_path}")
+            readme_template = get_readme_template()
+            with open(readme_path, 'w', encoding='utf-8') as f:
+                f.write(readme_template)
+            logger.info(f"Created {readme_path}")
 
-        # Create step pipeline_step.py
-        step_py_path = os.path.join(step_version_dir, "pipeline_step.py")
-        if os.path.exists(step_py_path):
-            logger.warning(f"File {step_py_path} already exists, skipping...")
-        else:
-            step_py_template = get_pipeline_step_template(step_id)
-            with open(step_py_path, 'w', encoding='utf-8') as f:
-                f.write(step_py_template)
-            logger.info(f"Created {step_py_path}")
+        # Create pipeline steps
+        for step_id in step_names:
+            step_dir = os.path.join(pipeline_path, step_id)
+            os.makedirs(step_dir, exist_ok=True)
 
-    logger.info(f"Pipeline initialization complete in {pipeline_path}")
-    logger.info("Next steps:")
-    logger.info("1. Implement your pipeline step logic in the generated pipeline_step.py files")
-    logger.info("2. Add dependencies to requirements.txt files as needed")
-    logger.info("3. Run 'clarifai pipeline upload config.yaml' to upload your pipeline")
+            # Create the 1/ subdirectory for the step version
+            step_version_dir = os.path.join(step_dir, "1")
+            os.makedirs(step_version_dir, exist_ok=True)
+
+            # Create step config.yaml
+            step_config_path = os.path.join(step_dir, "config.yaml")
+            if os.path.exists(step_config_path):
+                logger.warning(f"File {step_config_path} already exists, skipping...")
+            else:
+                step_config_template = get_pipeline_step_config_template(
+                    step_id=step_id, user_id=user_id, app_id=app_id
+                )
+                with open(step_config_path, 'w', encoding='utf-8') as f:
+                    f.write(step_config_template)
+                logger.info(f"Created {step_config_path}")
+
+            # Create step requirements.txt
+            step_requirements_path = os.path.join(step_dir, "requirements.txt")
+            if os.path.exists(step_requirements_path):
+                logger.warning(f"File {step_requirements_path} already exists, skipping...")
+            else:
+                step_requirements_template = get_pipeline_step_requirements_template()
+                with open(step_requirements_path, 'w', encoding='utf-8') as f:
+                    f.write(step_requirements_template)
+                logger.info(f"Created {step_requirements_path}")
+
+            # Create step pipeline_step.py
+            step_py_path = os.path.join(step_version_dir, "pipeline_step.py")
+            if os.path.exists(step_py_path):
+                logger.warning(f"File {step_py_path} already exists, skipping...")
+            else:
+                step_py_template = get_pipeline_step_template(step_id)
+                with open(step_py_path, 'w', encoding='utf-8') as f:
+                    f.write(step_py_template)
+                logger.info(f"Created {step_py_path}")
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Interactive initialization error: {e}")
+        click.echo(f"Error: {e}", err=True)
+        return False
 
 
 @pipeline.command()
