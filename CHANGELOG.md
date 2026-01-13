@@ -1,3 +1,18 @@
+## [[12.1.4]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.4) - [PyPI](https://pypi.org/project/clarifai/12.1.4/) - 2026-01-13
+
+### Added
+- [EAGLE-7083]: Add retry logic to OpenAI API calls [(#878)](https://github.com/Clarifai/clarifai-python/pull/878)
+  - Implements an automatic retry mechanism for OpenAI API calls to handle transient httpx.ConnectError exceptions
+  - Adds tenacity as a dependency
+  - Wraps all OpenAI API calls in OpenAIModelClass with a @retry decorator
+  - Configures the retry to happen up to 3 times with exponential backoff on httpx.ConnectError
+
+### Fixed
+- Fix agentic OpenAI transport [(#900)](https://github.com/Clarifai/clarifai-python/pull/900)
+  - Fixed attribute access for OpenAI response objects in agentic transport to use hasattr() checks instead of dictionary .get() methods
+  - Added "none" mode to the --mode CLI option for local-runner command and changed the default from "env" to "none"
+- Fix top_k when playground hits openai_transport_* methods [(#791)](https://github.com/Clarifai/clarifai-python/pull/791)
+
 ## [[12.1.3]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.3) - [PyPI](https://pypi.org/project/clarifai/12.1.3/) - 2026-01-09
 
 ### Added
