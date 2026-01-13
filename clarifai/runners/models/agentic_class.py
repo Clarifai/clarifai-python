@@ -1065,11 +1065,13 @@ class AgenticModelClass(OpenAIModelClass):
 
                 if endpoint == self.ENDPOINT_CHAT_COMPLETIONS:
                     response = self._route_request(endpoint, data, mcp_servers, connections, tools)
-
                     while (
                         response.choices
                         and len(response.choices) > 0
-                        and response.choices[0].get('message', {}).get('tool_calls')
+                        and hasattr(response.choices[0], 'message')
+                        and hasattr(response.choices[0].message, 'tool_calls')
+                        and response.choices[0].message.tool_calls
+                        and len(response.choices[0].message.tool_calls) > 0
                     ):
                         messages = data.get("messages", [])
                         messages.append(response.choices[0].message)

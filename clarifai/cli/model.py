@@ -1154,8 +1154,8 @@ def run_locally(ctx, model_path, port, mode, keep_env, keep_image, skip_dockerfi
 )
 @click.option(
     "--mode",
-    type=click.Choice(['env', 'container'], case_sensitive=False),
-    default='env',
+    type=click.Choice(['env', 'container', 'none'], case_sensitive=False),
+    default='none',
     show_default=True,
     help='Specifies how to run the model: "env" for virtual environment or "container" for Docker container. Defaults to "env".',
 )
