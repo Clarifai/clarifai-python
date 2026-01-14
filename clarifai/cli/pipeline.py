@@ -415,27 +415,33 @@ def _init_from_template(pipeline_path, template_name):
         pipeline_id = click.prompt("Pipeline ID", default=default_pipeline_id, type=str)
 
         # Collect template-specific parameters
-        parameter_values = {}
+        parameter_substitutions = {}
         if parameters:
             click.echo("\nTemplate Parameters:")
             for param in parameters:
                 param_name = param['name']
-                description = param['description']
+                default_value = param['default_value']
 
-                # Format prompt as "param_name (description)"
-                prompt_text = f"{param_name} ({description})"
-                value = click.prompt(prompt_text, type=str)
-                parameter_values[param['placeholder']] = value
+                # Format prompt as "param_name (default: value)"
+                prompt_text = f"{param_name} (default: {default_value})"
+                value = click.prompt(prompt_text, default=str(default_value), type=str)
+                
+                # Map template default value to user's new value for substitution
+                # Only add to substitutions if the value actually changed
+                if str(value) != str(default_value):
+                    # For parameter values, substitute the raw default value (no <> brackets)
+                    parameter_substitutions[str(default_value)] = str(value)
 
         # Prepare substitutions dictionary
         substitutions = {
-            # Basic pipeline info substitutions
-            '<USER_ID_VALUE>': user_id,  # Replace template user_id
-            '<APP_ID_VALUE>': app_id,  # Replace template app_id
+            # Basic pipeline info substitutions (remove < > since we add them in template manager)
+            'YOUR_USER_ID': user_id,
+            'YOUR_APP_ID': app_id,
+            'YOUR_PIPELINE_ID': pipeline_id,
         }
 
         # Add parameter substitutions
-        substitutions.update(parameter_values)
+        substitutions.update(parameter_substitutions)
 
         # Also substitute the pipeline ID in the config
         template_config = template_info['config']

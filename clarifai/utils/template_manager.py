@@ -1,7 +1,6 @@
 """Template management utilities for pipeline templates."""
 
 import os
-import re
 import shutil
 from typing import Dict, List, Optional, Tuple
 
@@ -25,10 +24,10 @@ class TemplateManager:
         """List available pipeline templates.
 
         Args:
-            template_type: Optional filter by template type (train, data, agent, etc.)
+            template_type: Optional filter by template type (classifier, detector, etc.)
 
         Returns:
-            List of template dictionaries with name, type, and description
+            List of template dictionaries with name and type
         """
         templates = []
 
@@ -36,42 +35,50 @@ class TemplateManager:
             logger.warning(f"Template root directory not found: {self.template_root}")
             return templates
 
-        # Scan each type directory (train, data, agent, etc.)
-        for type_dir in self._get_template_type_directories():
-            if template_type and type_dir != template_type:
+        # Scan template directories directly in root
+        for folder_name in os.listdir(self.template_root):
+            folder_path = os.path.join(self.template_root, folder_name)
+            
+            if not os.path.isdir(folder_path) or folder_name.startswith('.'):
                 continue
-
-            type_path = os.path.join(self.template_root, type_dir)
-            templates.extend(self._scan_templates_in_directory(type_path, type_dir))
+                
+            # Parse template type and name from folder name
+            parsed_type, template_name = self._parse_template_name_and_type(folder_name)
+            
+            if not parsed_type:  # Skip if not a valid template folder name
+                continue
+                
+            # Filter by type if specified
+            if template_type and parsed_type != template_type:
+                continue
+                
+            if not self._is_valid_template(folder_path):
+                continue
+                
+            templates.append({
+                'name': template_name,
+                'type': parsed_type
+            })
 
         return sorted(templates, key=lambda x: (x['type'], x['name']))
 
-    def _get_template_type_directories(self) -> List[str]:
-        """Get list of template type directories."""
-        return [
-            d
-            for d in os.listdir(self.template_root)
-            if os.path.isdir(os.path.join(self.template_root, d))
-        ]
-
-    def _scan_templates_in_directory(self, type_path: str, type_name: str) -> List[Dict[str, str]]:
-        """Scan templates within a type directory."""
-        templates = []
-
-        for template_name in os.listdir(type_path):
-            template_path = os.path.join(type_path, template_name)
-
-            if not os.path.isdir(template_path):
-                continue
-
-            if not self._is_valid_template(template_path):
-                continue
-
-            template_info = self._extract_template_info(template_path, template_name, type_name)
-            if template_info:
-                templates.append(template_info)
-
-        return templates
+    def _parse_template_name_and_type(self, folder_name: str) -> Tuple[str, str]:
+        """Parse template type and name from folder name.
+        
+        Args:
+            folder_name: Folder name like 'classifier-pipeline-resnet'
+            
+        Returns:
+            Tuple of (type, name) e.g., ('classifier', 'classifier-pipeline-resnet')
+        """
+        if '-' not in folder_name:
+            return "", ""  # Invalid template name
+            
+        parts = folder_name.split('-', 1)
+        template_type = parts[0]
+        template_name = folder_name  # Whole name as specified
+        
+        return template_type, template_name
 
     def _is_valid_template(self, template_path: str) -> bool:
         """Check if a directory is a valid template (has config.yaml)."""
@@ -99,13 +106,12 @@ class TemplateManager:
             with open(config_path, 'r') as f:
                 config = yaml.safe_load(f)
 
-            # Extract parameters and description from README
-            parameters, use_case_description, step_descriptions = self.extract_info_from_readme(
-                template_path
-            )
+            # Extract parameters from config.yaml
+            parameters = self._extract_parameters_from_config(config)
 
-            # Get template type from path
-            template_type = os.path.basename(os.path.dirname(template_path))
+            # Parse template type from folder name
+            folder_name = os.path.basename(template_path)
+            template_type, _ = self._parse_template_name_and_type(folder_name)
 
             return {
                 'name': template_name,
@@ -113,8 +119,6 @@ class TemplateManager:
                 'path': template_path,
                 'config': config,
                 'parameters': parameters,
-                'use_case': use_case_description,
-                'step_descriptions': step_descriptions,
                 'step_directories': config.get('pipeline', {}).get('step_directories', []),
             }
 
@@ -122,145 +126,59 @@ class TemplateManager:
             logger.error(f"Error reading template {template_name}: {e}")
             return None
 
-    def extract_info_from_readme(
-        self, template_path: str
-    ) -> Tuple[List[Dict[str, str]], str, Dict[str, str]]:
-        """Extract parameter definitions and use case from template README.
+    def _extract_parameters_from_config(self, config: Dict) -> List[Dict[str, any]]:
+        """Extract parameter definitions from config.yaml.
 
         Args:
-            template_path: Path to template directory
+            config: Parsed YAML config dictionary
 
         Returns:
-            Tuple of (parameters list, use case description, step descriptions dict)
+            List of parameter dictionaries with name, default_value, and type
         """
-        readme_path = os.path.join(template_path, 'README.md')
-        if not os.path.exists(readme_path):
-            return [], "Pipeline template", {}
-
+        parameters = []
+        
+        # Extract parameters from orchestration_spec.arguments.parameters
         try:
-            with open(readme_path, 'r') as f:
-                content = f.read()
-
-            parameters = []
-            use_case = "Pipeline template"
-            step_descriptions = {}
-
-            # Extract use case from the "## Use Case" section
-            use_case = self._extract_use_case(content)
-
-            # Extract parameters and step descriptions from Pipeline Steps section
-            parameters, step_descriptions = self._extract_pipeline_steps_info(content)
-
-            # Remove duplicates and sort
-            unique_parameters = self._deduplicate_parameters(parameters)
-            return sorted(unique_parameters, key=lambda x: x['name']), use_case, step_descriptions
-
+            argo_spec = config.get('pipeline', {}).get('orchestration_spec', {})
+            if isinstance(argo_spec, dict) and 'argo_orchestration_spec' in argo_spec:
+                # Parse the YAML string within argo_orchestration_spec
+                argo_yaml = yaml.safe_load(argo_spec['argo_orchestration_spec'])
+                param_list = argo_yaml.get('spec', {}).get('arguments', {}).get('parameters', [])
+                
+                for param in param_list:
+                    param_name = param.get('name', '')
+                    param_value = param.get('value')
+                    
+                    # Skip special parameters that are handled separately
+                    if param_name in ['user_id', 'app_id']:
+                        continue
+                        
+                    # Determine parameter type from value
+                    param_type = self._infer_parameter_type(param_value)
+                    
+                    parameters.append({
+                        'name': param_name,
+                        'default_value': param_value,
+                        'type': param_type
+                    })
+                    
         except Exception as e:
-            logger.warning(f"Error reading README {readme_path}: {e}")
-            return [], "Pipeline template", {}
-
-    def _extract_use_case(self, content: str) -> str:
-        """Extract use case description from README content."""
-        use_case_match = re.search(r'## Use Case\s*\n(.+?)(?=\n##|\n\n|\Z)', content, re.DOTALL)
-        if not use_case_match:
-            return "Pipeline template"
-
-        use_case = use_case_match.group(1).strip()
-        # Take only the first sentence/line for concise description
-        if '\n' in use_case:
-            use_case = use_case.split('\n')[0].strip()
-        # Remove markdown formatting
-        use_case = re.sub(r'\*\*(.+?)\*\*', r'\1', use_case)  # Remove bold
-        return use_case
-
-    def _extract_pipeline_steps_info(
-        self, content: str
-    ) -> Tuple[List[Dict[str, str]], Dict[str, str]]:
-        """Extract parameters and step descriptions from Pipeline Steps section."""
-        parameters = []
-        step_descriptions = {}
-
-        # Find the Pipeline Steps section
-        steps_content = self._extract_steps_section(content)
-        if not steps_content:
-            return parameters, step_descriptions
-
-        # Find step subsections (### StepName)
-        step_sections = re.findall(
-            r'### (\w+)\s*\n(.+?)(?=\n###|\n##|\Z)', steps_content, re.DOTALL
-        )
-
-        for step_name, step_content in step_sections:
-            # Extract step description
-            step_description = self._extract_step_description(step_content)
-            if step_description:
-                step_descriptions[step_name] = step_description
-
-            # Extract parameters from this step
-            step_parameters = self._extract_step_parameters(step_content)
-            parameters.extend(step_parameters)
-
-        return parameters, step_descriptions
-
-    def _extract_steps_section(self, content: str) -> str:
-        """Extract the Pipeline Steps section content."""
-        steps_start = content.find('## Pipeline Steps')
-        if steps_start == -1:
-            return ""
-
-        use_case_start = content.find('## Use Case')
-        if use_case_start != -1 and use_case_start > steps_start:
-            return content[steps_start:use_case_start]
-
-        # If no Use Case section, look for next ## section or end
-        next_section = re.search(r'## Pipeline Steps\s*\n(.+?)(?=\n##|\Z)', content, re.DOTALL)
-        return next_section.group(0) if next_section else content[steps_start:]
-
-    def _extract_step_description(self, step_content: str) -> Optional[str]:
-        """Extract step description from step content."""
-        step_desc_match = re.match(r'([^-\n]+?)(?=\n|:|\n-)', step_content.strip())
-        if not step_desc_match:
-            return None
-
-        step_description = step_desc_match.group(1).strip()
-        # Remove "with the following parameters" suffix if present
-        return re.sub(r'\s+with the following parameters:?$', '', step_description)
-
-    def _extract_step_parameters(self, step_content: str) -> List[Dict[str, str]]:
-        """Extract parameters from a single step's content."""
-        parameters = []
-
-        # Extract parameters from bullet points like "- `param_name` (type): description"
-        param_matches = re.findall(
-            r'-\s+`([^`]+)`\s+\([^)]+\):\s*(.+?)(?=\n-|\n\n|\n###|\Z)',
-            step_content,
-            re.DOTALL,
-        )
-
-        for param_name, param_description in param_matches:
-            # Clean up the description
-            param_description = param_description.strip().replace('\n', ' ')
-            param_description = re.sub(r'\s+', ' ', param_description)
-
-            parameters.append(
-                {
-                    'name': param_name,
-                    'description': param_description,
-                    'placeholder': f'<{param_name.upper()}_VALUE>',
-                }
-            )
-
+            logger.warning(f"Error extracting parameters from config: {e}")
+            
         return parameters
 
-    def _deduplicate_parameters(self, parameters: List[Dict[str, str]]) -> List[Dict[str, str]]:
-        """Remove duplicate parameters based on name."""
-        seen = set()
-        unique_parameters = []
-        for param in parameters:
-            if param['name'] not in seen:
-                seen.add(param['name'])
-                unique_parameters.append(param)
-        return unique_parameters
+    def _infer_parameter_type(self, value) -> str:
+        """Infer parameter type from its value."""
+        if isinstance(value, bool):
+            return 'bool'
+        elif isinstance(value, int):
+            return 'int'
+        elif isinstance(value, float):
+            return 'float'
+        elif isinstance(value, list):
+            return 'array'
+        else:
+            return 'str'
 
     def copy_template(
         self, template_name: str, destination: str, substitutions: Dict[str, str]
@@ -306,35 +224,12 @@ class TemplateManager:
         if not os.path.exists(self.template_root):
             return None
 
-        # Search in all type directories
-        for type_dir in self._get_template_type_directories():
-            template_path = os.path.join(self.template_root, type_dir, template_name)
-            if os.path.exists(template_path) and self._is_valid_template(template_path):
-                return template_path
+        # Look for template directly in root directory
+        template_path = os.path.join(self.template_root, template_name)
+        if os.path.exists(template_path) and self._is_valid_template(template_path):
+            return template_path
 
         return None
-
-    def _extract_template_info(
-        self, template_path: str, template_name: str, template_type: str
-    ) -> Optional[Dict[str, str]]:
-        """Extract basic info about a template.
-
-        Args:
-            template_path: Path to template directory
-            template_name: Name of the template
-            template_type: Type of the template
-
-        Returns:
-            Template info dictionary or None if invalid
-        """
-        try:
-            # Get description from README use case section
-            _, description, _ = self.extract_info_from_readme(template_path)
-            return {'name': template_name, 'type': template_type, 'description': description}
-
-        except Exception as e:
-            logger.warning(f"Invalid template at {template_path}: {e}")
-            return None
 
     def _apply_substitutions(self, directory: str, substitutions: Dict[str, str]):
         """Apply parameter substitutions to all files in directory.
@@ -367,15 +262,49 @@ class TemplateManager:
                         with open(file_path, 'r', encoding='utf-8') as f:
                             content = f.read()
 
-                        # Apply all substitutions
-                        modified = False
+                        # Apply substitutions - handle both placeholder and parameter formats
+                        original_file_content = content
+                        
                         for placeholder, value in substitutions.items():
-                            if placeholder in content:
-                                content = content.replace(placeholder, value)
-                                modified = True
+                            # For placeholders like YOUR_USER_ID, YOUR_APP_ID, etc., 
+                            # look for the <PLACEHOLDER> format in templates
+                            placeholder_with_brackets = f"<{placeholder}>"
+                            
+                            if placeholder_with_brackets in content:
+                                # Direct substitution for standardized placeholders
+                                content = content.replace(placeholder_with_brackets, value)
+                            elif placeholder in content:
+                                # For raw parameter values, use targeted YAML pattern substitution
+                                # to avoid accidentally replacing other occurrences
+                                import re
+                                
+                                # Use targeted YAML value patterns for parameter substitution
+                                patterns = [
+                                    rf'(value:\s*)({re.escape(placeholder)})(\s*$|\s*\n)',  # value: placeholder
+                                    rf'(value:\s*")({re.escape(placeholder)})(")',  # value: "placeholder"
+                                ]
+                                
+                                pattern_matched = False
+                                for pattern in patterns:
+                                    try:
+                                        if re.search(pattern, content, re.MULTILINE):
+                                            content = re.sub(pattern, rf'\g<1>{value}\g<3>', content, flags=re.MULTILINE)
+                                            pattern_matched = True
+                                            break
+                                    except re.error:
+                                        continue
+                                
+                                # Disable fallback for parameter values to prevent accidental substitutions
+                                # Only use fallback for long string values that are unlikely to appear elsewhere
+                                if (not pattern_matched and 
+                                    not placeholder.isupper() and 
+                                    len(placeholder) > 8 and 
+                                    not placeholder.isdigit() and
+                                    not any(char.isdigit() for char in placeholder)):
+                                    content = content.replace(placeholder, value)
 
-                        # Write back if modified
-                        if modified:
+                        # Write back if any changes were made
+                        if content != original_file_content:
                             with open(file_path, 'w', encoding='utf-8') as f:
                                 f.write(content)
 
