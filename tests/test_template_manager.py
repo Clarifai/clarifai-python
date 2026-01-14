@@ -17,11 +17,10 @@ class TestTemplateManager:
         # Should find at least the test templates
         assert len(templates) > 0
 
-        # Check structure - current implementation returns name and type only
+        # Check structure
         for template in templates:
             assert 'name' in template
             assert 'type' in template
-            # Note: description is no longer returned in list_templates
 
     def test_template_filtering(self):
         """Test that templates can be filtered by type."""
@@ -30,21 +29,18 @@ class TestTemplateManager:
         # Get all templates
         all_templates = manager.list_templates()
 
-        # Get classifier templates (available in the test repository)
+        # Get classifier and detector templates
         classifier_templates = manager.list_templates('classifier')
-
-        # Get detector templates (available in the test repository)
         detector_templates = manager.list_templates('detector')
 
         # Should have some of each type
         assert len(classifier_templates) > 0
         assert len(detector_templates) > 0
 
-        # All classifier templates should be type 'classifier'
+        # Verify type filtering works correctly
         for template in classifier_templates:
             assert template['type'] == 'classifier'
 
-        # All detector templates should be type 'detector'
         for template in detector_templates:
             assert template['type'] == 'detector'
 
@@ -52,7 +48,6 @@ class TestTemplateManager:
         """Test that template info can be extracted."""
         manager = TemplateManager()
 
-        # Test with actual template from repository
         info = manager.get_template_info('classifier-pipeline-resnet')
         assert info is not None
 
@@ -66,7 +61,7 @@ class TestTemplateManager:
         # Should have some parameters
         assert len(info['parameters']) > 0
 
-        # Check parameter structure (new format from YAML config)
+        # Check parameter structure
         for param in info['parameters']:
             assert 'name' in param
             assert 'default_value' in param
@@ -76,7 +71,6 @@ class TestTemplateManager:
         """Test parameter extraction from config.yaml files."""
         manager = TemplateManager()
 
-        # Test with actual template
         info = manager.get_template_info('classifier-pipeline-resnet')
         assert info is not None
 
@@ -85,7 +79,7 @@ class TestTemplateManager:
         # Should find parameters from the config
         assert len(parameters) > 0
 
-        # Check parameter structure (extracted from YAML config)
+        # Check parameter structure
         param_names = [p['name'] for p in parameters]
 
         # These are actual parameters from classifier-pipeline-resnet template

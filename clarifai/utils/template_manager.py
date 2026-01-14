@@ -1,6 +1,7 @@
 """Template management utilities for pipeline templates."""
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -238,11 +239,6 @@ class TemplateManager:
 
         return template_type, template_name
 
-    def _is_valid_template(self, template_path: str) -> bool:
-        """Check if a directory is a valid template (has config.yaml)."""
-        config_path = os.path.join(template_path, "config.yaml")
-        return os.path.exists(config_path)
-
     def get_template_info(self, template_name: str) -> Optional[Dict]:
         """Get detailed information about a specific template from Git repository.
 
@@ -426,23 +422,17 @@ class TemplateManager:
                         with open(file_path, 'r', encoding='utf-8') as f:
                             content = f.read()
 
-                        # Apply substitutions - handle both placeholder and parameter formats
+                        # Apply substitutions for both placeholder and parameter formats
                         original_file_content = content
 
                         for placeholder, value in substitutions.items():
-                            # For placeholders like YOUR_USER_ID, YOUR_APP_ID, etc.,
-                            # look for the <PLACEHOLDER> format in templates
+                            # Handle standardized placeholders like <YOUR_USER_ID>
                             placeholder_with_brackets = f"<{placeholder}>"
 
                             if placeholder_with_brackets in content:
-                                # Direct substitution for standardized placeholders
                                 content = content.replace(placeholder_with_brackets, value)
                             elif placeholder in content:
-                                # For raw parameter values, use targeted YAML pattern substitution
-                                # to avoid accidentally replacing other occurrences
-                                import re
-
-                                # Use targeted YAML value patterns for parameter substitution
+                                # Use targeted YAML patterns for parameter values
                                 patterns = [
                                     rf'(value:\s*)({re.escape(placeholder)})(\s*$|\s*\n)',  # value: placeholder
                                     rf'(value:\s*")({re.escape(placeholder)})(")',  # value: "placeholder"
@@ -463,8 +453,7 @@ class TemplateManager:
                                     except re.error:
                                         continue
 
-                                # Disable fallback for parameter values to prevent accidental substitutions
-                                # Only use fallback for long string values that are unlikely to appear elsewhere
+                                # Safe fallback for long, unique string values only
                                 if (
                                     not pattern_matched
                                     and not placeholder.isupper()
