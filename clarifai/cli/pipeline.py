@@ -425,7 +425,7 @@ def _init_from_template(pipeline_path, template_name):
                 # Format prompt as "param_name (default: value)"
                 prompt_text = f"{param_name} (default: {default_value})"
                 value = click.prompt(prompt_text, default=str(default_value), type=str)
-                
+
                 # Map template default value to user's new value for substitution
                 # Only add to substitutions if the value actually changed
                 if str(value) != str(default_value):
