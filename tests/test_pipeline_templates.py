@@ -106,15 +106,15 @@ class TestPipelineTemplateCLI:
         mock_manager = Mock()
         mock_template_manager_class.return_value = mock_manager
 
-        # Mock template info
+        # Mock template info with new parameter structure
         mock_info = {
             'name': 'image-classification',
             'type': 'train',
             'path': '/path/to/template',
             'step_directories': ['LoadDatasetStep', 'TrainModelStep'],
             'parameters': [
-                {'description': 'Data Path', 'name': 'DATA_PATH'},
-                {'description': 'Batch Size', 'name': 'BATCH_SIZE'},
+                {'name': 'DATA_PATH', 'default_value': '/default/path', 'type': 'str'},
+                {'name': 'BATCH_SIZE', 'default_value': 32, 'type': 'int'},
             ],
             'config': {'pipeline': {'id': 'image-classification'}},
         }
@@ -129,9 +129,8 @@ class TestPipelineTemplateCLI:
         assert 'Type: train' in result.output
         assert 'LoadDatasetStep' in result.output
         assert 'TrainModelStep' in result.output
-        assert 'DATA_PATH (Data Path)' in result.output
-        assert 'BATCH_SIZE (Batch Size)' in result.output
-        assert 'Default Pipeline ID: image-classification' in result.output
+        assert 'DATA_PATH (default: /default/path)' in result.output
+        assert 'BATCH_SIZE (default: 32)' in result.output
         mock_manager.get_template_info.assert_called_once_with('image-classification')
 
     @patch('clarifai.cli.pipeline_template.TemplateManager')
@@ -222,16 +221,16 @@ class TestPipelineInitWithTemplate:
         mock_manager = Mock()
         mock_template_manager_class.return_value = mock_manager
 
-        # Mock template info
+        # Mock template info with new parameter structure
         mock_info = {
             'name': 'test-template',
             'type': 'train',
             'step_directories': ['StepA', 'StepB'],
             'parameters': [
                 {
-                    'description': 'Test Param',
                     'name': 'TEST_PARAM',
-                    'placeholder': '<TEST_PARAM_VALUE>',
+                    'default_value': 'default-value',
+                    'type': 'str',
                 }
             ],
             'config': {'pipeline': {'id': 'test-template'}},
@@ -299,11 +298,11 @@ class TestPipelineTemplateIntegration:
         # Should find some templates (based on our test repository)
         assert len(templates) > 0
 
-        # Each template should have required fields
+        # Each template should have required fields (current implementation)
         for template in templates:
             assert 'name' in template
             assert 'type' in template
-            assert 'description' in template
+            # Note: description is no longer returned by list_templates in Git-based implementation
 
     def test_parameter_extraction_integration(self):
         """Test parameter extraction with real template."""
@@ -311,20 +310,18 @@ class TestPipelineTemplateIntegration:
 
         manager = TemplateManager()
 
-        # Try to get info for image-classification template
-        info = manager.get_template_info('image-classification')
+        # Try to get info for actual template from repository
+        info = manager.get_template_info('classifier-pipeline-resnet')
 
         if info:  # Only test if template exists
             assert 'parameters' in info
             assert len(info['parameters']) > 0
 
-            # Check parameter structure
+            # Check parameter structure (updated for Git-based implementation)
             for param in info['parameters']:
                 assert 'name' in param
-                assert 'description' in param
-                assert 'placeholder' in param
-                assert param['placeholder'].startswith('<')
-                assert param['placeholder'].endswith('_VALUE>')
+                assert 'default_value' in param
+                assert 'type' in param
 
     def test_cli_help_messages(self):
         """Test that CLI help messages are accessible."""

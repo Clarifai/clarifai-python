@@ -1096,21 +1096,21 @@ class TestPipelineInitCommand:
         mock_manager = Mock()
         mock_template_manager_class.return_value = mock_manager
 
-        # Mock template info
+        # Mock template info with new parameter structure
         mock_info = {
             'name': 'test-template',
             'type': 'train',
             'step_directories': ['StepA', 'StepB'],
             'parameters': [
                 {
-                    'description': 'Data Path',
                     'name': 'DATA_PATH',
-                    'placeholder': '<DATA_PATH>',
+                    'default_value': '/default/data',
+                    'type': 'str',
                 },
                 {
-                    'description': 'Batch Size',
                     'name': 'BATCH_SIZE',
-                    'placeholder': '<BATCH_SIZE>',
+                    'default_value': 16,
+                    'type': 'int',
                 },
             ],
             'config': {'pipeline': {'id': 'test-template'}},
@@ -1145,10 +1145,12 @@ class TestPipelineInitCommand:
                 assert call_args[0][1] == '/test/path'  # destination path
 
                 substitutions = call_args[0][2]  # substitutions dict
-                assert '<USER_ID_VALUE>' in substitutions  # Template user_id replacement
-                assert '<APP_ID_VALUE>' in substitutions  # Template app_id replacement
-                assert '<DATA_PATH>' in substitutions
-                assert '<BATCH_SIZE>' in substitutions
+                assert 'YOUR_USER_ID' in substitutions  # Basic substitutions
+                assert 'YOUR_APP_ID' in substitutions
+                assert 'YOUR_PIPELINE_ID' in substitutions
+                assert substitutions['YOUR_USER_ID'] == 'test-user'
+                assert substitutions['YOUR_APP_ID'] == 'test-app'
+                assert substitutions['YOUR_PIPELINE_ID'] == 'my-pipeline'
 
                 # Should return True for success
                 assert result is True
@@ -1207,31 +1209,31 @@ class TestPipelineInitCommand:
         mock_manager = Mock()
         mock_template_manager_class.return_value = mock_manager
 
-        # Mock template with multiple parameters
+        # Mock template with multiple parameters using new structure
         mock_info = {
             'name': 'complex-template',
             'type': 'train',
             'step_directories': ['LoadStep', 'ProcessStep', 'SaveStep'],
             'parameters': [
                 {
-                    'description': 'Input Path',
                     'name': 'INPUT_PATH',
-                    'placeholder': '<INPUT_PATH>',
+                    'default_value': '/default/input',
+                    'type': 'str',
                 },
                 {
-                    'description': 'Output Path',
                     'name': 'OUTPUT_PATH',
-                    'placeholder': '<OUTPUT_PATH>',
+                    'default_value': '/default/output',
+                    'type': 'str',
                 },
                 {
-                    'description': 'Model Type',
                     'name': 'MODEL_TYPE',
-                    'placeholder': '<MODEL_TYPE>',
+                    'default_value': 'resnet',
+                    'type': 'str',
                 },
                 {
-                    'description': 'Learning Rate',
                     'name': 'LEARNING_RATE',
-                    'placeholder': '<LEARNING_RATE>',
+                    'default_value': 0.001,
+                    'type': 'float',
                 },
             ],
             'config': {'pipeline': {'id': 'complex-template'}},
@@ -1260,13 +1262,26 @@ class TestPipelineInitCommand:
             call_args = mock_manager.copy_template.call_args
             substitutions = call_args[0][2]
 
-            assert substitutions['<INPUT_PATH>'] == '/input'
-            assert substitutions['<OUTPUT_PATH>'] == '/output'
-            assert substitutions['<MODEL_TYPE>'] == 'cnn'
-            assert substitutions['<LEARNING_RATE>'] == '0.001'
-
-            # Should return True for success
+            # Verify the function succeeded
             assert result is True
+
+            # Verify copy_template was called
+            assert mock_manager.copy_template.called
+            call_args = mock_manager.copy_template.call_args
+            substitutions = call_args[0][2]
+
+            # Check that basic substitutions are present
+            assert 'YOUR_USER_ID' in substitutions
+            assert 'YOUR_APP_ID' in substitutions
+            assert 'YOUR_PIPELINE_ID' in substitutions
+            assert substitutions['YOUR_USER_ID'] == 'user'
+            assert substitutions['YOUR_APP_ID'] == 'app'
+            assert substitutions['YOUR_PIPELINE_ID'] == 'pipeline'
+
+            # Check that parameter substitutions based on default values are present
+            # The new logic maps default values to user inputs
+            assert '/default/input' in substitutions
+            assert substitutions['/default/input'] == '/input'
 
     @patch('clarifai.utils.template_manager.TemplateManager')
     def test_init_from_template_custom_pipeline_id(self, mock_template_manager_class):
@@ -1846,7 +1861,7 @@ class TestPipelineTemplateCommands:
         mock_manager = Mock()
         mock_template_manager_class.return_value = mock_manager
 
-        # Mock template info
+        # Mock template info with new parameter structure
         mock_info = {
             'name': 'test-template',
             'type': 'train',
@@ -1855,14 +1870,14 @@ class TestPipelineTemplateCommands:
             'step_directories': ['LoadData', 'TrainModel', 'SaveModel'],
             'parameters': [
                 {
-                    'description': 'Data Path',
                     'name': 'DATA_PATH',
-                    'placeholder': '<DATA_PATH_VALUE>',
+                    'default_value': '/default/data/path',
+                    'type': 'str',
                 },
                 {
-                    'description': 'Model Type',
                     'name': 'MODEL_TYPE',
-                    'placeholder': '<MODEL_TYPE_VALUE>',
+                    'default_value': 'resnet50',
+                    'type': 'str',
                 },
             ],
             'config': {'pipeline': {'id': 'test-template'}},
@@ -1881,8 +1896,8 @@ class TestPipelineTemplateCommands:
         assert 'LoadData' in result.output
         assert 'TrainModel' in result.output
         assert 'SaveModel' in result.output
-        assert 'Data Path' in result.output
-        assert 'Model Type' in result.output
+        assert 'DATA_PATH (default: /default/data/path)' in result.output
+        assert 'MODEL_TYPE (default: resnet50)' in result.output
 
     @patch('clarifai.cli.pipeline_template.TemplateManager')
     def test_info_command_template_not_found(self, mock_template_manager_class):

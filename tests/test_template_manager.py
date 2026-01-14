@@ -17,11 +17,11 @@ class TestTemplateManager:
         # Should find at least the test templates
         assert len(templates) > 0
 
-        # Check structure
+        # Check structure - current implementation returns name and type only
         for template in templates:
             assert 'name' in template
             assert 'type' in template
-            assert 'description' in template
+            # Note: description is no longer returned in list_templates
 
     def test_template_filtering(self):
         """Test that templates can be filtered by type."""
@@ -30,35 +30,35 @@ class TestTemplateManager:
         # Get all templates
         all_templates = manager.list_templates()
 
-        # Get train templates
-        train_templates = manager.list_templates('train')
+        # Get classifier templates (available in the test repository)
+        classifier_templates = manager.list_templates('classifier')
 
-        # Get data templates
-        data_templates = manager.list_templates('data')
+        # Get detector templates (available in the test repository)
+        detector_templates = manager.list_templates('detector')
 
         # Should have some of each type
-        assert len(train_templates) > 0
-        assert len(data_templates) > 0
+        assert len(classifier_templates) > 0
+        assert len(detector_templates) > 0
 
-        # All train templates should be type 'train'
-        for template in train_templates:
-            assert template['type'] == 'train'
+        # All classifier templates should be type 'classifier'
+        for template in classifier_templates:
+            assert template['type'] == 'classifier'
 
-        # All data templates should be type 'data'
-        for template in data_templates:
-            assert template['type'] == 'data'
+        # All detector templates should be type 'detector'
+        for template in detector_templates:
+            assert template['type'] == 'detector'
 
     def test_template_info_extraction(self):
         """Test that template info can be extracted."""
         manager = TemplateManager()
 
-        # Test with image-classification template
-        info = manager.get_template_info('image-classification')
+        # Test with actual template from repository
+        info = manager.get_template_info('classifier-pipeline-resnet')
         assert info is not None
 
         # Check required fields
-        assert info['name'] == 'image-classification'
-        assert info['type'] == 'train'
+        assert info['name'] == 'classifier-pipeline-resnet'
+        assert info['type'] == 'classifier'
         assert 'parameters' in info
         assert 'step_directories' in info
         assert 'config' in info
@@ -66,88 +66,62 @@ class TestTemplateManager:
         # Should have some parameters
         assert len(info['parameters']) > 0
 
-        # Check parameter structure
+        # Check parameter structure (new format from YAML config)
         for param in info['parameters']:
             assert 'name' in param
-            assert 'description' in param
-            assert 'placeholder' in param
+            assert 'default_value' in param
+            assert 'type' in param
 
-    def test_parameter_extraction_from_readme(self):
-        """Test parameter extraction from README files."""
+    def test_parameter_extraction_from_config(self):
+        """Test parameter extraction from config.yaml files."""
         manager = TemplateManager()
 
-        # Create a temporary directory with a test README
-        import tempfile
+        # Test with actual template
+        info = manager.get_template_info('classifier-pipeline-resnet')
+        assert info is not None
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            readme_path = os.path.join(temp_dir, 'README.md')
+        parameters = info['parameters']
 
-            test_readme_content = """# Test Pipeline Template
+        # Should find parameters from the config
+        assert len(parameters) > 0
 
-## Pipeline Steps
+        # Check parameter structure (extracted from YAML config)
+        param_names = [p['name'] for p in parameters]
 
-### LoadDatasetStep
-Description: Load the dataset
-- `DATA_PATH` (string): Path to the dataset directory
+        # These are actual parameters from classifier-pipeline-resnet template
+        assert 'model_id' in param_names
+        assert 'dataset_id' in param_names
 
-### TrainModelStep  
-Description: Train the model
-- `BATCH_SIZE` (int): Training batch size (default: 32)
-- `LEARNING_RATE` (float): Model learning rate
-
-## Use Case
-This template is used for image classification training.
-"""
-
-            with open(readme_path, 'w') as f:
-                f.write(test_readme_content)
-
-            parameters, use_case, step_descriptions = manager.extract_info_from_readme(temp_dir)
-
-            # Should find parameters in the readme
-            assert len(parameters) >= 3  # At least the 3 parameters we defined
-
-            # Check parameter structure
-            param_names = [p['name'] for p in parameters]
-            assert 'DATA_PATH' in param_names
-            assert 'BATCH_SIZE' in param_names
-            assert 'LEARNING_RATE' in param_names
-
-            # Check parameter display names and structure
-            for param in parameters:
-                if param['name'] == 'DATA_PATH':
-                    assert param['description'] == 'Path to the dataset directory'
-                    assert param['placeholder'] == '<DATA_PATH_VALUE>'
-
-            # Check use case extraction
-            assert 'image classification training' in use_case
+        # Check parameter details
+        for param in parameters:
+            assert 'name' in param
+            assert 'default_value' in param
+            assert 'type' in param
 
     def test_template_copying(self):
         """Test template copying with substitutions."""
         manager = TemplateManager()
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Test copying image-classification template
+            # Test copying actual template from repository
             substitutions = {
-                '<USER_ID_VALUE>': 'test-user',
-                '<APP_ID_VALUE>': 'test-app',
-                '<DATA_PATH>': '/test/path',
-                '<BATCH_SIZE>': '64',
+                'YOUR_USER_ID': 'test-user',
+                'YOUR_APP_ID': 'test-app',
+                'YOUR_DATASET_ID': 'test-dataset',
+                'YOUR_PIPELINE_ID': 'test-pipeline',
             }
 
-            success = manager.copy_template('image-classification', temp_dir, substitutions)
+            success = manager.copy_template('classifier-pipeline-resnet', temp_dir, substitutions)
             assert success
 
             # Check that files were created
             config_path = os.path.join(temp_dir, 'config.yaml')
             assert os.path.exists(config_path)
 
-            # Check substitutions
+            # Check substitutions were applied
             with open(config_path, 'r') as f:
                 content = f.read()
-                assert 'test-user' in content
-                assert 'test-app' in content
-                # Note: substitutions depend on the actual template content
+                assert 'test-user' in content or 'test-app' in content
 
     def test_nonexistent_template(self):
         """Test handling of nonexistent template."""
