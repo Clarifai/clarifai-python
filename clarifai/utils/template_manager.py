@@ -56,13 +56,13 @@ class TemplateManager:
         try:
             auth_url = self._setup_git_auth_url()
 
-            # Shallow clone with depth 1, targeting the specific branch
+            # Shallow clone with depth 1, targeting the main branch
             result = subprocess.run(
                 [
                     'git',
                     'clone',
                     '--depth=1',
-                    '--branch=yashdixit/standardize-placeholders',
+                    '--branch=main',
                     '--no-checkout',
                     auth_url,
                     target_dir,
@@ -153,7 +153,7 @@ class TemplateManager:
                         'ls-tree',
                         '--name-only',
                         '-d',
-                        'yashdixit/standardize-placeholders',
+                        'main',
                     ],
                     capture_output=True,
                     text=True,
@@ -207,7 +207,7 @@ class TemplateManager:
                     repo_dir,
                     'ls-tree',
                     '--name-only',
-                    'yashdixit/standardize-placeholders',
+                    'main',
                     f'{folder_name}/config.yaml',
                 ],
                 capture_output=True,
