@@ -51,16 +51,14 @@ CLARIFAI_LATEST_VERSION = get_latest_version_from_pypi()
 # Additional package installation if the model will be used w/ a streaming video runner:
 # Dockerfile: Install ffmpeg and av
 #
-# Unfortunately, our base images (at least the one I tested) are distroless, so we do not
-# have apt-get or other package managers available; solution _for now_: we copy static binaries
-# from the prominently used, albeit unofficial, mwader/static-ffmpeg image.  See, e.g.,
-# our python base image definition: https://github.com/Clarifai/models-images/blob/a008c5fdd0690ce7ac44d04ec54f02722837dfc5/new_base_image/python/Dockerfile#L73C1-L73C113
-#
-# TODO: we need to build our own scratch image like mwader with these requirements + av to
-# package up for on prem; then we'll just copy from that:
+# Our base images (at least the one I tested) are distroless, so we do not
+# have apt-get or other package managers available; however, we will also not be able to
+# use those package repositories on-prem; as a result, we build our own static ffmpeg image
+# to serve as the source of these deps.
+# See: https://github.com/Clarifai/models-images/tree/main/static_streaming
 STREAMING_VIDEO_ADDITIONAL_PACKAGE_INSTALLATION = """
-COPY --from=mwader/static-ffmpeg:7.1.1 /ffmpeg /usr/local/bin/
-COPY --from=mwader/static-ffmpeg:7.1.1 /ffprobe /usr/local/bin/
+COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.6 /ffmpeg /usr/local/bin/
+COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.6 /ffprobe /usr/local/bin/
 RUN uv pip install --no-cache-dir av
 """
 
