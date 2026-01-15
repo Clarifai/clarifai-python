@@ -57,8 +57,8 @@ CLARIFAI_LATEST_VERSION = get_latest_version_from_pypi()
 # to serve as the source of these deps.
 # See: https://github.com/Clarifai/models-images/tree/main/static_streaming
 STREAMING_VIDEO_ADDITIONAL_PACKAGE_INSTALLATION = """
-COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.6 /ffmpeg /usr/local/bin/
-COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.6 /ffprobe /usr/local/bin/
+COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /ffmpeg /usr/local/bin/
+COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /ffprobe /usr/local/bin/
 RUN uv pip install --no-cache-dir av
 """
 
