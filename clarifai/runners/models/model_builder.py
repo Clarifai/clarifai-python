@@ -51,15 +51,17 @@ CLARIFAI_LATEST_VERSION = get_latest_version_from_pypi()
 # Additional package installation if the model will be used w/ a streaming video runner:
 # Dockerfile: Install ffmpeg and av
 #
-# Our base images (at least the one I tested) are distroless, so we do not
-# have apt-get or other package managers available; however, we will also not be able to
-# use those package repositories on-prem; as a result, we build our own static ffmpeg image
-# to serve as the source of these deps.
+# Our base images are distroless, so we do not have apt-get or other package managers
+# available; however, we will also not be able to use those package repositories on-prem.
+# As a result, we build our own static ffmpeg image to serve as the source of these deps.
 # See: https://github.com/Clarifai/models-images/tree/main/static_streaming
+#
+# TODO: before we make this public, we need to figure out how to distribute the src;
+# line to copy in src commented out because it's 500MB
 STREAMING_VIDEO_ADDITIONAL_PACKAGE_INSTALLATION = """
 COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /ffmpeg /usr/local/bin/
 COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /ffprobe /usr/local/bin/
-COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /src /usr/local/src/
+# COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /src /usr/local/src/
 RUN uv pip install --no-cache-dir av
 """
 
