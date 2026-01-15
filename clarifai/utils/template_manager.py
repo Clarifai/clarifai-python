@@ -12,39 +12,18 @@ from clarifai.utils.logging import logger
 
 
 class TemplateManager:
-    """Manages pipeline templates from remote Git repository."""
+    """Manages pipeline templates from remote public Git repository."""
 
-    def __init__(self, git_repo_url: str = "git@github.com:Clarifai/clarifai-train.git"):
+    def __init__(self, git_repo_url: str = "https://github.com/Clarifai/pipeline-examples.git"):
         """Initialize template manager with Git repository.
 
         Args:
-            git_repo_url: URL of the Git repository containing templates
+            git_repo_url: URL of the public Git repository containing templates
         """
         self.git_repo_url = git_repo_url
-        self.git_pat = os.getenv('CLARIFAI_GIT_PAT')
-
-        if not self.git_pat:
-            logger.warning(
-                "CLARIFAI_GIT_PAT environment variable not set. Git operations may fail."
-            )
-
-    def _setup_git_auth_url(self) -> str:
-        """Setup Git URL with PAT authentication for HTTPS."""
-        if self.git_pat and self.git_repo_url.startswith('git@github.com:'):
-            # Convert SSH URL to HTTPS with PAT
-            repo_path = self.git_repo_url.replace('git@github.com:', '').replace('.git', '')
-            return f"https://{self.git_pat}@github.com/{repo_path}.git"
-        elif self.git_pat and self.git_repo_url.startswith('https://github.com/'):
-            # Add PAT to existing HTTPS URL
-            return self.git_repo_url.replace(
-                'https://github.com/', f'https://{self.git_pat}@github.com/'
-            )
-        else:
-            # Return original URL (may work for SSH with keys or public repos)
-            return self.git_repo_url
 
     def _shallow_clone_repo(self, target_dir: str) -> bool:
-        """Perform a shallow clone of the repository.
+        """Perform a shallow clone of the public repository.
 
         Args:
             target_dir: Directory to clone into
@@ -53,8 +32,6 @@ class TemplateManager:
             True if successful, False otherwise
         """
         try:
-            auth_url = self._setup_git_auth_url()
-
             # Shallow clone with depth 1, targeting the main branch
             result = subprocess.run(
                 [
@@ -63,7 +40,7 @@ class TemplateManager:
                     '--depth=1',
                     '--branch=main',
                     '--no-checkout',
-                    auth_url,
+                    self.git_repo_url,
                     target_dir,
                 ],
                 capture_output=True,

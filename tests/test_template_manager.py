@@ -252,26 +252,17 @@ class TestYAMLSubstitution:
                 if param['name'] in required_params:
                     assert param['default_value'] is not None
 
-    def test_git_authentication_setup(self):
-        """Test that git authentication URL setup works correctly."""
+    def test_public_repository_access(self):
+        """Test that public repository can be accessed without authentication."""
         manager = TemplateManager()
 
-        # Test SSH to HTTPS conversion
-        manager.git_repo_url = 'git@github.com:Clarifai/test-repo.git'
-        manager.git_pat = 'test-token'
-        auth_url = manager._setup_git_auth_url()
-        assert auth_url == 'https://test-token@github.com/Clarifai/test-repo.git'
+        # Test with default public repository URL
+        assert manager.git_repo_url.startswith('https://github.com/')
+        assert 'pipeline-examples' in manager.git_repo_url
 
-        # Test HTTPS URL modification
-        manager.git_repo_url = 'https://github.com/Clarifai/test-repo.git'
-        manager.git_pat = 'test-token'
-        auth_url = manager._setup_git_auth_url()
-        assert auth_url == 'https://test-token@github.com/Clarifai/test-repo.git'
-
-        # Test no PAT case
-        manager.git_pat = None
-        auth_url = manager._setup_git_auth_url()
-        assert auth_url == 'https://github.com/Clarifai/test-repo.git'
+        # Test with custom public repository URL
+        custom_manager = TemplateManager('https://github.com/example/public-templates.git')
+        assert custom_manager.git_repo_url == 'https://github.com/example/public-templates.git'
 
     def test_dynamic_parameter_handling(self):
         """Test that substitution works with any template-specific parameters."""
