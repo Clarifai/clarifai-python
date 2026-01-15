@@ -424,35 +424,24 @@ def _init_from_template(pipeline_path, template_name):
 
                 # Format prompt as "param_name (default: value)"
                 prompt_text = f"{param_name} (default: {default_value})"
-                value = click.prompt(prompt_text, default=str(default_value), type=str)
+                value = click.prompt(prompt_text, default=default_value)
 
-                # Map template default value to user's new value for substitution
+                # Map parameter name to user's new value for substitution
                 # Only add to substitutions if the value actually changed
-                if str(value) != str(default_value):
-                    # For parameter values, substitute the raw default value (no <> brackets)
-                    parameter_substitutions[str(default_value)] = str(value)
+                if value != default_value:
+                    parameter_substitutions[param_name] = value
 
-        # Prepare substitutions dictionary
-        substitutions = {
-            # Basic pipeline info substitutions (remove < > since we add them in template manager)
-            'YOUR_USER_ID': user_id,
-            'YOUR_APP_ID': app_id,
-            'YOUR_PIPELINE_ID': pipeline_id,
-        }
-
-        # Add parameter substitutions
-        substitutions.update(parameter_substitutions)
-
-        # Also substitute the pipeline ID in the config
-        template_config = template_info['config']
-        original_pipeline_id = template_config.get('pipeline', {}).get('id', template_name)
-        if original_pipeline_id != pipeline_id:
-            substitutions[f'id: "{original_pipeline_id}"'] = f'id: "{pipeline_id}"'
+        # Add basic info to parameter substitutions
+        parameter_substitutions['user_id'] = user_id
+        parameter_substitutions['app_id'] = app_id
+        parameter_substitutions['id'] = pipeline_id
 
         click.echo(f"\nCreating pipeline '{pipeline_id}' from template '{template_name}'...")
 
         # Copy template with substitutions
-        success = template_manager.copy_template(template_name, pipeline_path, substitutions)
+        success = template_manager.copy_template(
+            template_name, pipeline_path, parameter_substitutions
+        )
 
         if not success:
             click.echo("Error: Failed to create pipeline from template", err=True)

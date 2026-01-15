@@ -1,7 +1,6 @@
 """Template management utilities for pipeline templates."""
 
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -299,7 +298,7 @@ class TemplateManager:
             config: Parsed YAML config dictionary
 
         Returns:
-            List of parameter dictionaries with name, default_value, and type
+            List of parameter dictionaries with name and default_value
         """
         parameters = []
 
@@ -307,42 +306,18 @@ class TemplateManager:
         try:
             argo_spec = config.get('pipeline', {}).get('orchestration_spec', {})
             if isinstance(argo_spec, dict) and 'argo_orchestration_spec' in argo_spec:
-                # Parse the YAML string within argo_orchestration_spec
                 argo_yaml = yaml.safe_load(argo_spec['argo_orchestration_spec'])
                 param_list = argo_yaml.get('spec', {}).get('arguments', {}).get('parameters', [])
 
-                for param in param_list:
-                    param_name = param.get('name', '')
-                    param_value = param.get('value')
-
-                    # Skip special parameters that are handled separately
-                    if param_name in ['user_id', 'app_id']:
-                        continue
-
-                    # Determine parameter type from value
-                    param_type = self._infer_parameter_type(param_value)
-
-                    parameters.append(
-                        {'name': param_name, 'default_value': param_value, 'type': param_type}
-                    )
+                parameters = [
+                    {'name': param.get('name', ''), 'default_value': param.get('value')}
+                    for param in param_list
+                ]
 
         except Exception as e:
             logger.warning(f"Error extracting parameters from config: {e}")
 
         return parameters
-
-    def _infer_parameter_type(self, value) -> str:
-        """Infer parameter type from its value."""
-        if isinstance(value, bool):
-            return 'bool'
-        elif isinstance(value, int):
-            return 'int'
-        elif isinstance(value, float):
-            return 'float'
-        elif isinstance(value, list):
-            return 'array'
-        else:
-            return 'str'
 
     def copy_template(
         self, template_name: str, destination: str, substitutions: Dict[str, str]
@@ -392,105 +367,103 @@ class TemplateManager:
             return False
 
     def _apply_substitutions(self, directory: str, substitutions: Dict[str, str]):
-        """Apply parameter substitutions to all files in directory.
+        """Apply parameter substitutions to config.yaml files only.
 
         Args:
             directory: Directory to process
             substitutions: Dictionary of substitutions to apply
         """
-        # Directories to skip during substitution
-        skip_dirs = {
-            '.git',
-            '.venv',
-            '__pycache__',
-            '.pytest_cache',
-            '.mypy_cache',
-            'node_modules',
-            '.env',
-        }
+        # Process config.yaml in root directory (pipeline config)
+        root_config_path = os.path.join(directory, 'config.yaml')
+        if os.path.exists(root_config_path):
+            self._apply_config_substitutions(root_config_path, substitutions)
 
-        for root, dirs, files in os.walk(directory):
-            # Remove skip directories from the dirs list to avoid walking into them
-            dirs[:] = [d for d in dirs if d not in skip_dirs]
+        # Process config.yaml in direct subdirectories only (pipeline step configs)
+        for item in os.listdir(directory):
+            item_path = os.path.join(directory, item)
+            if os.path.isdir(item_path):
+                step_config_path = os.path.join(item_path, 'config.yaml')
+                if os.path.exists(step_config_path):
+                    self._apply_pipeline_step_substitutions(step_config_path, substitutions)
 
-            for file_name in files:
-                file_path = os.path.join(root, file_name)
-
-                # Only process text files (skip binary files)
-                if self._is_text_file(file_path):
-                    try:
-                        with open(file_path, 'r', encoding='utf-8') as f:
-                            content = f.read()
-
-                        # Apply substitutions for both placeholder and parameter formats
-                        original_file_content = content
-
-                        for placeholder, value in substitutions.items():
-                            # Handle standardized placeholders like <YOUR_USER_ID>
-                            placeholder_with_brackets = f"<{placeholder}>"
-
-                            if placeholder_with_brackets in content:
-                                content = content.replace(placeholder_with_brackets, value)
-                            elif placeholder in content:
-                                # Use targeted YAML patterns for parameter values
-                                patterns = [
-                                    rf'(value:\s*)({re.escape(placeholder)})(\s*$|\s*\n)',  # value: placeholder
-                                    rf'(value:\s*")({re.escape(placeholder)})(")',  # value: "placeholder"
-                                ]
-
-                                pattern_matched = False
-                                for pattern in patterns:
-                                    try:
-                                        if re.search(pattern, content, re.MULTILINE):
-                                            content = re.sub(
-                                                pattern,
-                                                rf'\g<1>{value}\g<3>',
-                                                content,
-                                                flags=re.MULTILINE,
-                                            )
-                                            pattern_matched = True
-                                            break
-                                    except re.error:
-                                        continue
-
-                                # Safe fallback for long, unique string values only
-                                if (
-                                    not pattern_matched
-                                    and not placeholder.isupper()
-                                    and len(placeholder) > 8
-                                    and not placeholder.isdigit()
-                                    and not any(char.isdigit() for char in placeholder)
-                                ):
-                                    content = content.replace(placeholder, value)
-
-                        # Write back if any changes were made
-                        if content != original_file_content:
-                            with open(file_path, 'w', encoding='utf-8') as f:
-                                f.write(content)
-
-                    except Exception as e:
-                        logger.warning(f"Could not process file {file_path}: {e}")
-
-    def _is_text_file(self, file_path: str) -> bool:
-        """Check if file is a text file that can be processed for substitutions.
-
-        Args:
-            file_path: Path to the file
-
-        Returns:
-            True if file should be processed for substitutions
-        """
-        # Check file extension
-        text_extensions = {'.py', '.yaml', '.yml', '.txt', '.md', '.json', '.cfg', '.ini', '.sh'}
-        _, ext = os.path.splitext(file_path.lower())
-
-        if ext in text_extensions:
-            return True
-
-        # For files without extension, try to detect if it's text
+    def _apply_config_substitutions(self, config_path: str, substitutions: Dict[str, str]):
+        """Apply specific configuration substitutions to config.yaml file using YAML traversal."""
         try:
-            with open(file_path, 'rb') as f:
-                chunk = f.read(1024)
-                return b'\x00' not in chunk  # Simple binary detection
-        except:
-            return False
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+
+            if not config or 'pipeline' not in config:
+                return
+
+            pipeline_config = config['pipeline']
+
+            # Set pipeline fields
+            pipeline_config['id'] = substitutions['id']
+            pipeline_config['user_id'] = substitutions['user_id']
+            pipeline_config['app_id'] = substitutions['app_id']
+
+            # Handle argo_orchestration_spec
+            orch_spec = pipeline_config.get('orchestration_spec', {})
+            if 'argo_orchestration_spec' in orch_spec:
+                argo_config = yaml.safe_load(orch_spec['argo_orchestration_spec'])
+
+                # Set generateName
+                if 'metadata' not in argo_config:
+                    argo_config['metadata'] = {}
+                argo_config['metadata']['generateName'] = f"{substitutions['id']}-"
+
+                # Update parameter values
+                spec = argo_config.get('spec', {})
+                parameters = spec.get('arguments', {}).get('parameters', [])
+                for param in parameters:
+                    param_name = param.get('name', '')
+                    if param_name in substitutions:
+                        param['value'] = substitutions[param_name]
+
+                # Update templateRef paths
+                for template in spec.get('templates', []):
+                    for step_group in template.get('steps', []):
+                        if isinstance(step_group, list):
+                            for step in step_group:
+                                template_ref = step.get('templateRef', {})
+                                for field in ['name', 'template']:
+                                    if field in template_ref:
+                                        current_value = template_ref[field]
+                                        if (
+                                            isinstance(current_value, str)
+                                            and '/pipeline_steps/' in current_value
+                                        ):
+                                            parts = current_value.split('/pipeline_steps/')
+                                            if len(parts) == 2:
+                                                step_name = parts[1]
+                                                template_ref[field] = (
+                                                    f"users/{substitutions['user_id']}/apps/{substitutions['app_id']}/pipeline_steps/{step_name}"
+                                                )
+
+                orch_spec['argo_orchestration_spec'] = argo_config
+
+            # Write the updated config back
+            with open(config_path, 'w', encoding='utf-8') as f:
+                yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
+
+        except Exception as e:
+            logger.warning(f"Could not apply config substitutions to {config_path}: {e}")
+
+    def _apply_pipeline_step_substitutions(self, config_path: str, substitutions: Dict[str, str]):
+        """Apply substitutions to pipeline step config.yaml file using YAML traversal."""
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+
+            if not config or 'pipeline_step' not in config:
+                return
+
+            step_config = config['pipeline_step']
+            step_config['user_id'] = substitutions['user_id']
+            step_config['app_id'] = substitutions['app_id']
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
+
+        except Exception as e:
+            logger.warning(f"Could not apply pipeline step substitutions to {config_path}: {e}")
