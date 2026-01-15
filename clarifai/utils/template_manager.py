@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Tuple
 
 import yaml
 
+from clarifai.runners.pipelines.pipeline_builder import LiteralBlockDumper
 from clarifai.utils.logging import logger
 
 
@@ -417,11 +418,16 @@ class TemplateManager:
                                                     f"users/{substitutions['user_id']}/apps/{substitutions['app_id']}/pipeline_steps/{step_name}"
                                                 )
 
-                orch_spec['argo_orchestration_spec'] = argo_config
+                # Convert back to YAML string with literal block scalar style
+                orch_spec['argo_orchestration_spec'] = yaml.safe_dump(
+                    argo_config, default_flow_style=False, sort_keys=False
+                )
 
             # Write the updated config back
             with open(config_path, 'w', encoding='utf-8') as f:
-                yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
+                yaml.dump(
+                    config, f, Dumper=LiteralBlockDumper, default_flow_style=False, sort_keys=False
+                )
 
         except Exception as e:
             logger.warning(f"Could not apply config substitutions to {config_path}: {e}")
@@ -440,7 +446,9 @@ class TemplateManager:
             step_config['app_id'] = substitutions['app_id']
 
             with open(config_path, 'w', encoding='utf-8') as f:
-                yaml.safe_dump(config, f, default_flow_style=False, sort_keys=False)
+                yaml.dump(
+                    config, f, Dumper=LiteralBlockDumper, default_flow_style=False, sort_keys=False
+                )
 
         except Exception as e:
             logger.warning(f"Could not apply pipeline step substitutions to {config_path}: {e}")

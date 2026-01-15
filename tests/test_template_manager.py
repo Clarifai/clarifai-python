@@ -292,3 +292,59 @@ class TestYAMLSubstitution:
             assert config['pipeline']['id'] == 'test-pipeline'
             assert config['pipeline']['user_id'] == 'test-user'
             assert config['pipeline']['app_id'] == 'test-app'
+
+    def test_literal_block_scalar_preservation(self):
+        """Test that argo_orchestration_spec maintains proper literal block scalar format (|) after substitutions."""
+        manager = TemplateManager()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            substitutions = {
+                'user_id': 'literal-user',
+                'app_id': 'literal-app',
+                'id': 'literal-pipeline',
+            }
+
+            # Copy a real template (which will have proper argo_orchestration_spec format)
+            success = manager.copy_template('classifier-pipeline-resnet', temp_dir, substitutions)
+            assert success
+
+            config_path = os.path.join(temp_dir, 'config.yaml')
+
+            # Read the generated config and check that literal block scalar format is preserved
+            with open(config_path, 'r') as f:
+                result_content = f.read()
+
+            # Check that literal block scalar format is preserved with proper | format (not |-)
+            assert 'argo_orchestration_spec: |' in result_content, (
+                f"Literal block scalar format should use '|' (not '|-'), but got:\n{result_content[:1000]}..."
+            )
+
+            # Ensure we're not getting the stripped format
+            assert 'argo_orchestration_spec: |-' not in result_content, (
+                f"Should not use '|-' format, but found it in:\n{result_content[:1000]}..."
+            )
+
+            # Verify the config is valid and substitutions were applied
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+
+            assert config['pipeline']['id'] == 'literal-pipeline'
+            assert config['pipeline']['user_id'] == 'literal-user'
+            assert config['pipeline']['app_id'] == 'literal-app'
+
+            # Verify the argo config was properly updated
+            argo_spec_raw = config['pipeline']['orchestration_spec']['argo_orchestration_spec']
+
+            # The argo spec might be stored as a dict (after our processing) or string
+            if isinstance(argo_spec_raw, str):
+                argo_spec = yaml.safe_load(argo_spec_raw)
+            else:
+                argo_spec = argo_spec_raw
+
+            assert argo_spec['metadata']['generateName'] == 'literal-pipeline-'
+
+            # Verify parameter substitutions in argo spec
+            params = argo_spec['spec']['arguments']['parameters']
+            param_values = {p['name']: p['value'] for p in params}
+            assert param_values['user_id'] == 'literal-user'
+            assert param_values['app_id'] == 'literal-app'
