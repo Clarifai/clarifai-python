@@ -3,6 +3,8 @@
 import os
 import tempfile
 
+import yaml
+
 from clarifai.utils.template_manager import TemplateManager
 
 
@@ -65,7 +67,6 @@ class TestTemplateManager:
         for param in info['parameters']:
             assert 'name' in param
             assert 'default_value' in param
-            assert 'type' in param
 
     def test_parameter_extraction_from_config(self):
         """Test parameter extraction from config.yaml files."""
@@ -82,15 +83,16 @@ class TestTemplateManager:
         # Check parameter structure
         param_names = [p['name'] for p in parameters]
 
-        # These are actual parameters from classifier-pipeline-resnet template
-        assert 'model_id' in param_names
-        assert 'dataset_id' in param_names
+        # Should have some parameters - specific parameters depend on the template
+        assert len(param_names) > 0
+        # Core system parameters should always be present
+        assert 'user_id' in param_names
+        assert 'app_id' in param_names
 
         # Check parameter details
         for param in parameters:
             assert 'name' in param
             assert 'default_value' in param
-            assert 'type' in param
 
     def test_template_copying(self):
         """Test template copying with substitutions."""
@@ -99,10 +101,9 @@ class TestTemplateManager:
         with tempfile.TemporaryDirectory() as temp_dir:
             # Test copying actual template from repository
             substitutions = {
-                'YOUR_USER_ID': 'test-user',
-                'YOUR_APP_ID': 'test-app',
-                'YOUR_DATASET_ID': 'test-dataset',
-                'YOUR_PIPELINE_ID': 'test-pipeline',
+                'user_id': 'test-user',
+                'app_id': 'test-app',
+                'id': 'test-pipeline',
             }
 
             success = manager.copy_template('classifier-pipeline-resnet', temp_dir, substitutions)
@@ -115,7 +116,9 @@ class TestTemplateManager:
             # Check substitutions were applied
             with open(config_path, 'r') as f:
                 content = f.read()
-                assert 'test-user' in content or 'test-app' in content
+                assert (
+                    'test-user' in content or 'test-app' in content or 'test-pipeline' in content
+                )
 
     def test_nonexistent_template(self):
         """Test handling of nonexistent template."""
@@ -129,3 +132,172 @@ class TestTemplateManager:
         with tempfile.TemporaryDirectory() as temp_dir:
             success = manager.copy_template('nonexistent-template', temp_dir, {})
             assert not success
+
+
+class TestYAMLSubstitution:
+    """Test cases for YAML-based parameter substitution."""
+
+    def test_yaml_structure_preservation(self):
+        """Test that YAML structure is preserved during substitution."""
+        manager = TemplateManager()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            substitutions = {
+                'user_id': 'yaml-test-user',
+                'app_id': 'yaml-test-app',
+                'id': 'yaml-test-pipeline',
+            }
+
+            success = manager.copy_template('classifier-pipeline-resnet', temp_dir, substitutions)
+            assert success
+
+            # Read the config and verify it's valid YAML
+            config_path = os.path.join(temp_dir, 'config.yaml')
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+
+            # Verify structure is intact
+            assert 'pipeline' in config
+            assert 'id' in config['pipeline']
+            assert 'user_id' in config['pipeline']
+            assert 'app_id' in config['pipeline']
+
+            # Verify substitutions were applied
+            assert config['pipeline']['id'] == 'yaml-test-pipeline'
+            assert config['pipeline']['user_id'] == 'yaml-test-user'
+            assert config['pipeline']['app_id'] == 'yaml-test-app'
+
+    def test_argo_orchestration_spec_substitution(self):
+        """Test that Argo orchestration spec gets proper substitutions for system parameters."""
+        manager = TemplateManager()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            substitutions = {
+                'user_id': 'argo-user',
+                'app_id': 'argo-app',
+                'id': 'argo-pipeline',
+            }
+
+            success = manager.copy_template('classifier-pipeline-resnet', temp_dir, substitutions)
+            assert success
+
+            config_path = os.path.join(temp_dir, 'config.yaml')
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+
+            # Verify argo spec exists and was modified
+            assert 'orchestration_spec' in config['pipeline']
+            argo_spec_raw = config['pipeline']['orchestration_spec']['argo_orchestration_spec']
+
+            # The argo spec might be stored as a dict (after our processing) or string
+            if isinstance(argo_spec_raw, str):
+                argo_spec = yaml.safe_load(argo_spec_raw)
+            else:
+                argo_spec = argo_spec_raw
+
+            # Check generateName was set correctly
+            assert argo_spec['metadata']['generateName'] == 'argo-pipeline-'
+
+            # Check that basic user/app parameters were substituted
+            parameters = argo_spec['spec']['arguments']['parameters']
+            param_values = {p['name']: p['value'] for p in parameters}
+            assert param_values['user_id'] == 'argo-user'
+            assert param_values['app_id'] == 'argo-app'
+
+    def test_pipeline_step_substitution(self):
+        """Test that pipeline step configs get proper substitutions."""
+        manager = TemplateManager()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            substitutions = {
+                'user_id': 'step-user',
+                'app_id': 'step-app',
+                'id': 'step-pipeline',
+            }
+
+            success = manager.copy_template('classifier-pipeline-resnet', temp_dir, substitutions)
+            assert success
+
+            # Check pipeline step config
+            step_dir = os.path.join(temp_dir, 'model-version-train-ps')
+            if os.path.exists(step_dir):
+                step_config_path = os.path.join(step_dir, 'config.yaml')
+                if os.path.exists(step_config_path):
+                    with open(step_config_path, 'r') as f:
+                        step_config = yaml.safe_load(f)
+
+                    assert 'pipeline_step' in step_config
+                    assert step_config['pipeline_step']['user_id'] == 'step-user'
+                    assert step_config['pipeline_step']['app_id'] == 'step-app'
+
+    def test_parameter_extraction_accuracy(self):
+        """Test that parameter extraction finds all expected parameters."""
+        manager = TemplateManager()
+        info = manager.get_template_info('classifier-pipeline-resnet')
+
+        if info:
+            parameters = info['parameters']
+            param_names = [p['name'] for p in parameters]
+
+            # Should contain key system parameters that are always present
+            required_params = ['user_id', 'app_id']
+            for required in required_params:
+                assert required in param_names, f"Missing required system parameter: {required}"
+
+            # Each parameter should have required fields
+            for param in parameters:
+                assert 'name' in param
+                assert 'default_value' in param
+                # default_value should not be empty/None for required system parameters
+                if param['name'] in required_params:
+                    assert param['default_value'] is not None
+
+    def test_git_authentication_setup(self):
+        """Test that git authentication URL setup works correctly."""
+        manager = TemplateManager()
+
+        # Test SSH to HTTPS conversion
+        manager.git_repo_url = 'git@github.com:Clarifai/test-repo.git'
+        manager.git_pat = 'test-token'
+        auth_url = manager._setup_git_auth_url()
+        assert auth_url == 'https://test-token@github.com/Clarifai/test-repo.git'
+
+        # Test HTTPS URL modification
+        manager.git_repo_url = 'https://github.com/Clarifai/test-repo.git'
+        manager.git_pat = 'test-token'
+        auth_url = manager._setup_git_auth_url()
+        assert auth_url == 'https://test-token@github.com/Clarifai/test-repo.git'
+
+        # Test no PAT case
+        manager.git_pat = None
+        auth_url = manager._setup_git_auth_url()
+        assert auth_url == 'https://github.com/Clarifai/test-repo.git'
+
+    def test_dynamic_parameter_handling(self):
+        """Test that substitution works with any template-specific parameters."""
+        manager = TemplateManager()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Test with arbitrary template parameters
+            substitutions = {
+                'user_id': 'test-user',
+                'app_id': 'test-app',
+                'id': 'test-pipeline',
+                # These could be any template-specific parameters
+                'arbitrary_param_1': 'value1',
+                'arbitrary_param_2': 'value2',
+                'custom_setting': 'custom_value',
+            }
+
+            success = manager.copy_template('classifier-pipeline-resnet', temp_dir, substitutions)
+            assert success
+
+            # The key point is that basic system parameters always work
+            config_path = os.path.join(temp_dir, 'config.yaml')
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+
+            # System parameters should be applied regardless of template
+            assert config['pipeline']['id'] == 'test-pipeline'
+            assert config['pipeline']['user_id'] == 'test-user'
+            assert config['pipeline']['app_id'] == 'test-app'

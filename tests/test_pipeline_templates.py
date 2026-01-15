@@ -1,7 +1,10 @@
 """Tests for pipeline template CLI commands."""
 
+import os
+import tempfile
 from unittest.mock import Mock, patch
 
+import yaml
 from click.testing import CliRunner
 
 from clarifai.cli.pipeline import init
@@ -97,8 +100,8 @@ class TestPipelineTemplateCLI:
             'path': '/path/to/template',
             'step_directories': ['LoadDatasetStep', 'TrainModelStep'],
             'parameters': [
-                {'name': 'DATA_PATH', 'default_value': '/default/path', 'type': 'str'},
-                {'name': 'BATCH_SIZE', 'default_value': 32, 'type': 'int'},
+                {'name': 'EXAMPLE_PATH', 'default_value': '/default/path'},
+                {'name': 'EXAMPLE_SIZE', 'default_value': 32},
             ],
             'config': {'pipeline': {'id': 'image-classification'}},
         }
@@ -111,8 +114,8 @@ class TestPipelineTemplateCLI:
         assert 'Type: train' in result.output
         assert 'LoadDatasetStep' in result.output
         assert 'TrainModelStep' in result.output
-        assert 'DATA_PATH (default: /default/path)' in result.output
-        assert 'BATCH_SIZE (default: 32)' in result.output
+        assert 'EXAMPLE_PATH (default: /default/path)' in result.output
+        assert 'EXAMPLE_SIZE (default: 32)' in result.output
         mock_manager.get_template_info.assert_called_once_with('image-classification')
 
     @patch('clarifai.cli.pipeline_template.TemplateManager')
@@ -199,7 +202,6 @@ class TestPipelineInitWithTemplate:
                 {
                     'name': 'TEST_PARAM',
                     'default_value': 'default-value',
-                    'type': 'str',
                 }
             ],
             'config': {'pipeline': {'id': 'test-template'}},
@@ -270,7 +272,6 @@ class TestPipelineTemplateIntegration:
             for param in info['parameters']:
                 assert 'name' in param
                 assert 'default_value' in param
-                assert 'type' in param
 
     def test_cli_help_messages(self):
         """Test that CLI help messages are accessible."""
@@ -283,3 +284,111 @@ class TestPipelineTemplateIntegration:
         result = runner.invoke(info, ['--help'])
         assert result.exit_code == 0
         assert 'Show detailed information about a specific template' in result.output
+
+
+class TestTemplateManagerYAMLProcessing:
+    """Test cases for YAML processing functionality with generic parameter handling."""
+
+    def test_yaml_parameter_extraction_robustness(self):
+        """Test that parameter extraction handles various YAML structures without parameter dependencies."""
+        from clarifai.utils.template_manager import TemplateManager
+
+        manager = TemplateManager()
+
+        # Test with valid argo spec using generic example parameters
+        config = {
+            'pipeline': {
+                'orchestration_spec': {
+                    'argo_orchestration_spec': '''
+                        spec:
+                          arguments:
+                            parameters:
+                              - name: example_param1
+                                value: default1
+                              - name: example_param2
+                                value: default2
+                    '''
+                }
+            }
+        }
+
+        params = manager._extract_parameters_from_config(config)
+        assert len(params) == 2
+        assert params[0]['name'] == 'example_param1'
+        assert params[0]['default_value'] == 'default1'
+        assert params[1]['name'] == 'example_param2'
+        assert params[1]['default_value'] == 'default2'
+
+    def test_yaml_parameter_extraction_edge_cases(self):
+        """Test parameter extraction edge cases."""
+        from clarifai.utils.template_manager import TemplateManager
+
+        manager = TemplateManager()
+
+        # Test with empty config
+        params = manager._extract_parameters_from_config({})
+        assert params == []
+
+        # Test with missing pipeline section
+        config = {'other': 'data'}
+        params = manager._extract_parameters_from_config(config)
+        assert params == []
+
+        # Test with malformed argo spec
+        config = {
+            'pipeline': {
+                'orchestration_spec': {'argo_orchestration_spec': 'invalid: yaml: content'}
+            }
+        }
+        params = manager._extract_parameters_from_config(config)
+        assert params == []
+
+    def test_yaml_substitution_preserves_structure(self):
+        """Test that YAML substitution maintains proper structure and formatting."""
+        from clarifai.utils.template_manager import TemplateManager
+
+        # Create a test config file
+        test_config = {
+            'pipeline': {
+                'id': '<YOUR_PIPELINE_ID>',
+                'user_id': '<YOUR_USER_ID>',
+                'app_id': '<YOUR_APP_ID>',
+                'orchestration_spec': {
+                    'argo_orchestration_spec': yaml.dump(
+                        {
+                            'metadata': {'name': 'test'},
+                            'spec': {
+                                'arguments': {
+                                    'parameters': [
+                                        {'name': 'user_id', 'value': '<YOUR_USER_ID>'},
+                                        {'name': 'app_id', 'value': '<YOUR_APP_ID>'},
+                                    ]
+                                }
+                            },
+                        }
+                    )
+                },
+            }
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = os.path.join(temp_dir, 'config.yaml')
+            with open(config_path, 'w') as f:
+                yaml.safe_dump(test_config, f)
+
+            manager = TemplateManager()
+            substitutions = {
+                'user_id': 'test-user-123',
+                'app_id': 'test-app-456',
+                'id': 'test-pipeline-789',
+            }
+
+            manager._apply_config_substitutions(config_path, substitutions)
+
+            # Verify the file is still valid YAML and has correct substitutions
+            with open(config_path, 'r') as f:
+                updated_config = yaml.safe_load(f)
+
+            assert updated_config['pipeline']['id'] == 'test-pipeline-789'
+            assert updated_config['pipeline']['user_id'] == 'test-user-123'
+            assert updated_config['pipeline']['app_id'] == 'test-app-456'
