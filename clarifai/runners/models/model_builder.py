@@ -48,6 +48,19 @@ from clarifai.versions import get_latest_version_from_pypi
 
 CLARIFAI_LATEST_VERSION = get_latest_version_from_pypi()
 
+# Additional package installation if the model will be used w/ a streaming video runner:
+# Dockerfile: Install ffmpeg and av
+#
+# Unfortunately, our base images (at least the one I tested) are distroless, so we do not
+# have apt-get or other package managers available; solution _for now_: we copy static binaries
+# from the prominently used, albeit unofficial, mwader/static-ffmpeg image.  See, e.g.,
+# our python base image definition: https://github.com/Clarifai/models-images/blob/a008c5fdd0690ce7ac44d04ec54f02722837dfc5/new_base_image/python/Dockerfile#L73C1-L73C113
+STREAMING_VIDEO_ADDITIONAL_PACKAGE_INSTALLATION = """
+COPY --from=mwader/static-ffmpeg:7.1.1 /ffmpeg /usr/local/bin/
+COPY --from=mwader/static-ffmpeg:7.1.1 /ffprobe /usr/local/bin/
+RUN uv pip install --no-cache-dir av
+"""
+
 # parse the user's requirements.txt to determine the proper base image to build on top of, based on the torch and other large dependencies and it's versions
 # List of dependencies to look for
 dependencies = [
@@ -1126,6 +1139,12 @@ class ModelBuilder:
         Generate the Dockerfile content based on the model configuration.
         This is a helper method that returns the content without writing to file.
         """
+
+        additional_packages = ""
+        streaming_video_consumer = self.config.get('streaming_video_consumer', False)
+        if streaming_video_consumer:
+            additional_packages = STREAMING_VIDEO_ADDITIONAL_PACKAGE_INSTALLATION
+
         # Get the Python version from the config file
         build_info = self.config.get('build_info', {})
 
@@ -1324,6 +1343,7 @@ class ModelBuilder:
             FINAL_IMAGE=final_image,  # for pip requirements
             DOWNLOADER_IMAGE=downloader_image,  # for downloading checkpoints
             CLARIFAI_VERSION=clarifai_version,  # for clarifai
+            ADDITIONAL_PACKAGES=additional_packages,
         )
 
         return dockerfile_content
