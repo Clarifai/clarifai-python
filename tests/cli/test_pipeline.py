@@ -1057,7 +1057,7 @@ class TestPipelineInitCommand:
                 mock_prepare.return_value = '/test/path'
                 mock_template_init.return_value = True
 
-                result = runner.invoke(init, ['--template', 'image-classification', '.'])
+                runner.invoke(init, ['--template', 'image-classification', '.'])
 
                 # Should call template initialization with prepared path
                 mock_prepare.assert_called_once_with('.', 'image-classification')
@@ -1079,7 +1079,7 @@ class TestPipelineInitCommand:
                 mock_prepare.return_value = '/test/path'
                 mock_interactive.return_value = True
 
-                result = runner.invoke(init, ['.'])
+                runner.invoke(init, ['.'])
 
                 # Should call interactive initialization with prepared path
                 mock_prepare.assert_called_once_with('.', None)
@@ -1251,10 +1251,6 @@ class TestPipelineInitCommand:
             ]
 
             result = _init_from_template('/test/path', 'complex-template')
-
-            # Verify all parameters were processed
-            call_args = mock_manager.copy_template.call_args
-            substitutions = call_args[0][2]
 
             # Verify the function succeeded
             assert result is True
