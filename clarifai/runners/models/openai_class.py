@@ -235,6 +235,16 @@ class OpenAIModelClass(ModelClass):
             request_data['max_completion_tokens'] = request_data.pop('max_tokens')
         if 'top_p' in request_data:
             request_data['top_p'] = float(request_data['top_p'])
+        if 'top_k' in request_data:
+            top_k = int(request_data.pop("top_k", -1))
+            if top_k > 0:
+                extra_body = request_data.get("extra_body", {})
+                assert isinstance(extra_body, dict), ValueError(
+                    "`extra_body` must be a dictionary"
+                )
+                extra_body.update({"top_k": top_k})
+                request_data.update({"extra_body": extra_body})
+
         # Note(zeiler): temporary fix for our playground sending additional fields.
         # FIXME: remove this once the playground is updated.
         # Shouldn't need to do anything with the responses API since playground isn't yet using it.

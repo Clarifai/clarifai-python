@@ -48,6 +48,23 @@ from clarifai.versions import get_latest_version_from_pypi
 
 CLARIFAI_LATEST_VERSION = get_latest_version_from_pypi()
 
+# Additional package installation if the model will be used w/ a streaming video runner:
+# Dockerfile: Install ffmpeg and av
+#
+# Our base images are distroless, so we do not have apt-get or other package managers
+# available; however, we will also not be able to use those package repositories on-prem.
+# As a result, we build our own static ffmpeg image to serve as the source of these deps.
+# See: https://github.com/Clarifai/models-images/tree/main/static_streaming
+#
+# TODO: before we make this public, we need to figure out how to distribute the src;
+# line to copy in src commented out because it's 500MB
+STREAMING_VIDEO_ADDITIONAL_PACKAGE_INSTALLATION = """
+COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /ffmpeg /usr/local/bin/
+COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /ffprobe /usr/local/bin/
+# COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /src /usr/local/src/
+RUN uv pip install --no-cache-dir av
+"""
+
 # parse the user's requirements.txt to determine the proper base image to build on top of, based on the torch and other large dependencies and it's versions
 # List of dependencies to look for
 dependencies = [
@@ -1126,6 +1143,12 @@ class ModelBuilder:
         Generate the Dockerfile content based on the model configuration.
         This is a helper method that returns the content without writing to file.
         """
+
+        additional_packages = ""
+        streaming_video_consumer = self.config.get('streaming_video_consumer', False)
+        if streaming_video_consumer:
+            additional_packages = STREAMING_VIDEO_ADDITIONAL_PACKAGE_INSTALLATION
+
         # Get the Python version from the config file
         build_info = self.config.get('build_info', {})
 
@@ -1324,6 +1347,7 @@ class ModelBuilder:
             FINAL_IMAGE=final_image,  # for pip requirements
             DOWNLOADER_IMAGE=downloader_image,  # for downloading checkpoints
             CLARIFAI_VERSION=clarifai_version,  # for clarifai
+            ADDITIONAL_PACKAGES=additional_packages,
         )
 
         return dockerfile_content
