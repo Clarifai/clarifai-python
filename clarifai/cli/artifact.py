@@ -1,11 +1,11 @@
 import os
 import re
 import shutil
-from collections import OrderedDict
 from datetime import datetime
 from typing import Dict, Optional
 
 import click
+from clarifai_grpc.grpc.api import resources_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from clarifai.cli.base import cli
@@ -19,7 +19,7 @@ from clarifai.constants.artifact import (
     RFC3339_FORMAT_NO_MICROSECONDS,
 )
 from clarifai.errors import UserError
-from clarifai.utils.cli import AliasedGroup, TableFormatter, validate_context
+from clarifai.utils.cli import AliasedGroup, display_co_resources, validate_context
 from clarifai.utils.logging import logger
 
 # Store builtin list to avoid name conflicts with command function
@@ -113,16 +113,6 @@ def parse_rfc3339_timestamp(timestamp_str: str) -> Timestamp:
         raise UserError(
             f"Invalid RFC3339 timestamp format: {timestamp_str}. Expected format: 2024-12-31T23:59:59.999Z or 2024-12-31T23:59:59Z"
         )
-
-
-def _format_table(data, columns):
-    """Helper function to format data into a table."""
-    if not data:
-        return None
-
-    formatted_columns = OrderedDict([(col, lambda x, col=col: x[col]) for col in columns])
-    formatter = TableFormatter(custom_columns=formatted_columns)
-    return formatter.format(data)
 
 
 def _parse_and_validate_path(path, require_artifact=True, operation_type="general"):
@@ -266,18 +256,20 @@ def list(ctx, path, versions):
                 click.echo("No artifact versions found")
                 return
 
-            table_data = [
-                {
-                    'VERSION_ID': v.id,
-                    'DESCRIPTION': v.description if v.description else '',
-                    'VISIBILITY': v.visibility.gettable if v.visibility else 0,
-                    'CREATED_AT': str(v.created_at.ToDatetime()) if v.created_at else '',
-                }
-                for v in versions_list
-            ]
-
-            result = _format_table(
-                table_data, ['VERSION_ID', 'DESCRIPTION', 'VISIBILITY', 'CREATED_AT']
+            display_co_resources(
+                versions_list,
+                custom_columns={
+                    'VERSION': lambda v: v.id,
+                    'VISIBILITY': lambda v: resources_pb2.Visibility.Gettable.Name(
+                        v.visibility.gettable
+                    ),
+                    'EXPIRES_AT': lambda v: 'Never'
+                    if v.expires_at and v.expires_at.seconds == 0 and v.expires_at.nanos == 0
+                    else str(v.expires_at.ToDatetime())
+                    if v.expires_at
+                    else 'Never',
+                    'CREATED_AT': lambda v: str(v.created_at.ToDatetime()) if v.created_at else '',
+                },
             )
         else:
             # For listing artifacts, we expect app-level path: users/<user-id>/apps/<app-id>
@@ -306,20 +298,16 @@ def list(ctx, path, versions):
                 click.echo("No artifacts found")
                 return
 
-            table_data = [
-                {
-                    'ARTIFACT_ID': a.id,
-                    'USER_ID': a.user_id if a.user_id else '',
-                    'APP_ID': a.app_id if a.app_id else '',
-                    'CREATED_AT': str(a.created_at.ToDatetime()) if a.created_at else '',
-                }
-                for a in artifacts_list
-            ]
-
-            result = _format_table(table_data, ['ARTIFACT_ID', 'USER_ID', 'APP_ID', 'CREATED_AT'])
-
-        if result:
-            print(result)
+            display_co_resources(
+                artifacts_list,
+                custom_columns={
+                    'ARTIFACT': lambda a: a.id,
+                    'LATEST_VERSION': lambda a: a.artifact_version.id
+                    if a.artifact_version and a.artifact_version.id
+                    else 'N/A',
+                    'CREATED_AT': lambda a: str(a.created_at.ToDatetime()) if a.created_at else '',
+                },
+            )
 
     except UserError as e:
         click.echo(str(e), err=True)
@@ -360,7 +348,10 @@ def get(ctx, path):
                 f"Description: {version_info.description if version_info.description else 'N/A'}"
             )
             click.echo(
-                f"Visibility: {version_info.visibility.gettable if version_info.visibility else 'UNKNOWN'}"
+                f"Visibility: {resources_pb2.Visibility.Gettable.Name(version_info.visibility.gettable)}"
+            )
+            click.echo(
+                f"Expires at: {'Never' if version_info.expires_at and version_info.expires_at.seconds == 0 and version_info.expires_at.nanos == 0 else version_info.expires_at.ToDatetime() if version_info.expires_at else 'Never'}"
             )
             click.echo(
                 f"Created at: {version_info.created_at.ToDatetime() if version_info.created_at else 'N/A'}"
@@ -368,18 +359,6 @@ def get(ctx, path):
             click.echo(
                 f"Modified at: {version_info.modified_at.ToDatetime() if version_info.modified_at else 'N/A'}"
             )
-
-            if version_info.upload and version_info.upload.id:
-                click.echo(f"Upload ID: {version_info.upload.id}")
-                click.echo(
-                    f"File name: {version_info.upload.content_name if version_info.upload.content_name else 'N/A'}"
-                )
-                click.echo(
-                    f"File size: {version_info.upload.content_length if version_info.upload.content_length else 'N/A'} bytes"
-                )
-                click.echo(
-                    f"Upload status: {version_info.upload.status.description if version_info.upload.status else 'UNKNOWN'}"
-                )
         else:
             # Get artifact
             artifact = Artifact(
@@ -391,20 +370,14 @@ def get(ctx, path):
             )
             artifact_info = artifact.get()
             click.echo(f"Artifact ID: {parsed['artifact_id']}")
-            click.echo(f"User ID: {artifact_info.user_id if artifact_info.user_id else 'N/A'}")
-            click.echo(f"App ID: {artifact_info.app_id if artifact_info.app_id else 'N/A'}")
+            if artifact_info.artifact_version and artifact_info.artifact_version.id:
+                click.echo(f"Latest version: {artifact_info.artifact_version.id}")
             click.echo(
                 f"Created at: {artifact_info.created_at.ToDatetime() if artifact_info.created_at else 'N/A'}"
             )
             click.echo(
                 f"Modified at: {artifact_info.modified_at.ToDatetime() if artifact_info.modified_at else 'N/A'}"
             )
-
-            if artifact_info.artifact_version and artifact_info.artifact_version.id:
-                click.echo(f"Latest version: {artifact_info.artifact_version.id}")
-                click.echo(
-                    f"Latest description: {artifact_info.artifact_version.description if artifact_info.artifact_version.description else 'N/A'}"
-                )
 
     except UserError as e:
         click.echo(str(e), err=True)

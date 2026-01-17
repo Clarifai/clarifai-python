@@ -22,6 +22,7 @@ from clarifai.client import Model, Nodepool
 from clarifai.client.base import BaseClient
 from clarifai.client.user import User
 from clarifai.errors import UserError
+from clarifai.runners.models.agentic_class import AgenticModelClass
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils import code_script
 from clarifai.runners.utils.const import (
@@ -46,6 +47,23 @@ from clarifai.utils.logging import logger
 from clarifai.versions import get_latest_version_from_pypi
 
 CLARIFAI_LATEST_VERSION = get_latest_version_from_pypi()
+
+# Additional package installation if the model will be used w/ a streaming video runner:
+# Dockerfile: Install ffmpeg and av
+#
+# Our base images are distroless, so we do not have apt-get or other package managers
+# available; however, we will also not be able to use those package repositories on-prem.
+# As a result, we build our own static ffmpeg image to serve as the source of these deps.
+# See: https://github.com/Clarifai/models-images/tree/main/static_streaming
+#
+# TODO: before we make this public, we need to figure out how to distribute the src;
+# line to copy in src commented out because it's 500MB
+STREAMING_VIDEO_ADDITIONAL_PACKAGE_INSTALLATION = """
+COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /ffmpeg /usr/local/bin/
+COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /ffprobe /usr/local/bin/
+# COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /src /usr/local/src/
+RUN uv pip install --no-cache-dir av
+"""
 
 # parse the user's requirements.txt to determine the proper base image to build on top of, based on the torch and other large dependencies and it's versions
 # List of dependencies to look for
@@ -569,6 +587,42 @@ class ModelBuilder:
             num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 16))
             self.config["num_threads"] = num_threads
 
+        # Validate AgenticModelClass requirements
+        if not self.download_validation_only:
+            self._validate_agentic_model_requirements()
+
+    def _validate_agentic_model_requirements(self):
+        """
+        Validate that AgenticModelClass models have required dependencies (fastmcp and mcp) in requirements.txt.
+        """
+        try:
+            # Load the model class with mocking to avoid import errors
+            model_class = self.load_model_class(mocking=True)
+
+            # Check if the model class is a subclass of AgenticModelClass
+            if issubclass(model_class, AgenticModelClass):
+                # Parse requirements.txt to check for required packages
+                dependencies = self._parse_requirements()
+
+                missing_packages = []
+                if 'fastmcp' not in dependencies:
+                    missing_packages.append('fastmcp')
+                if 'mcp' not in dependencies:
+                    missing_packages.append('mcp')
+
+                if missing_packages:
+                    logger.error(
+                        f"Model class '{model_class.__name__}' inherits from AgenticModelClass, "
+                        f"but the following required packages are missing from requirements.txt: {', '.join(missing_packages)}, which are required for agentic models. "
+                        f"Please add these packages to your requirements.txt file."
+                    )
+                    sys.exit(1)
+        except Exception as e:
+            # If we can't load the model class, log a warning but don't fail
+            # This could happen if there are import errors, but we don't want to block
+            # non-agentic models from being uploaded
+            logger.debug(f"Could not validate AgenticModelClass requirements: {e}")
+
     def _validate_stream_options(self):
         """
         Validate OpenAI streaming configuration for Clarifai models.
@@ -1089,19 +1143,40 @@ class ModelBuilder:
         Generate the Dockerfile content based on the model configuration.
         This is a helper method that returns the content without writing to file.
         """
-        dockerfile_template = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            'dockerfile_template',
-            'Dockerfile.template',
-        )
 
-        with open(dockerfile_template, 'r') as template_file:
+        additional_packages = ""
+        streaming_video_consumer = self.config.get('streaming_video_consumer', False)
+        if streaming_video_consumer:
+            additional_packages = STREAMING_VIDEO_ADDITIONAL_PACKAGE_INSTALLATION
+
+        # Get the Python version from the config file
+        build_info = self.config.get('build_info', {})
+
+        # Check if node_version is specified - if so, use the Node.js Dockerfile template
+        node_version = build_info.get('node_version', '') or ''
+        use_node_template = bool(node_version and str(node_version).strip())
+
+        if use_node_template:
+            dockerfile_template_path = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                'dockerfile_template',
+                'Dockerfile.node.template',
+            )
+            logger.info(
+                f"Setup: Node version {node_version} specified in config.yaml, using Node.js Dockerfile template"
+            )
+        else:
+            dockerfile_template_path = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                'dockerfile_template',
+                'Dockerfile.template',
+            )
+
+        with open(dockerfile_template_path, 'r') as template_file:
             dockerfile_template = template_file.read()
 
         dockerfile_template = Template(dockerfile_template)
 
-        # Get the Python version from the config file
-        build_info = self.config.get('build_info', {})
         if 'python_version' in build_info:
             python_version = build_info['python_version']
             if python_version not in AVAILABLE_PYTHON_IMAGES:
@@ -1128,6 +1203,43 @@ class ModelBuilder:
         # Parse the requirements.txt file to determine the base image
         dependencies = self._parse_requirements()
 
+        # If using Node.js template, use simpler substitution
+        if use_node_template:
+            if 'clarifai' not in dependencies:
+                raise Exception(
+                    f"clarifai not found in requirements.txt, please add clarifai to the requirements.txt file with a fixed version. Current version is clarifai=={CLARIFAI_LATEST_VERSION}"
+                )
+            clarifai_version = dependencies['clarifai']
+            if not clarifai_version:
+                logger.warn(
+                    f"clarifai version not found in requirements.txt, using the latest version {CLARIFAI_LATEST_VERSION}"
+                )
+                clarifai_version = CLARIFAI_LATEST_VERSION
+                lines = []
+                with open(os.path.join(self.folder, 'requirements.txt'), 'r') as file:
+                    for line in file:
+                        # if the line without whitespace is "clarifai"
+                        dependency, version = self._match_req_line(line)
+                        if dependency and dependency == "clarifai":
+                            lines.append(
+                                line.replace("clarifai", f"clarifai=={CLARIFAI_LATEST_VERSION}")
+                            )
+                        else:
+                            lines.append(line)
+                with open(os.path.join(self.folder, 'requirements.txt'), 'w') as file:
+                    file.writelines(lines)
+                logger.warn(
+                    f"Updated requirements.txt to have clarifai=={CLARIFAI_LATEST_VERSION}"
+                )
+
+            # Replace placeholders with actual values for Node.js template
+            dockerfile_content = dockerfile_template.safe_substitute(
+                PYTHON_VERSION=python_version,
+                NODE_VERSION=str(node_version).strip(),
+            )
+            return dockerfile_content
+
+        # Standard template logic (multi-stage build)
         is_amd_gpu = self._is_amd()
         if is_amd_gpu:
             final_image = AMD_PYTHON_BASE_IMAGE.format(python_version=python_version)
@@ -1235,6 +1347,7 @@ class ModelBuilder:
             FINAL_IMAGE=final_image,  # for pip requirements
             DOWNLOADER_IMAGE=downloader_image,  # for downloading checkpoints
             CLARIFAI_VERSION=clarifai_version,  # for clarifai
+            ADDITIONAL_PACKAGES=additional_packages,
         )
 
         return dockerfile_content

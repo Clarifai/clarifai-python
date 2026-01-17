@@ -488,10 +488,16 @@ class ArtifactVersion(BaseClient):
                         if not click.confirm(f"File '{output_path}' already exists. Overwrite?"):
                             raise UserError("Download cancelled by user")
 
-            # Prepare download headers for resume
+            # Prepare download headers for resume and authentication
             headers = {}
             if resume_byte_pos > 0:
                 headers['Range'] = f'bytes={resume_byte_pos}-'
+
+            # Add authentication headers
+            if hasattr(self, 'pat') and self.pat:
+                headers['Authorization'] = f'Key {self.pat}'
+            elif hasattr(self, 'token') and self.token:
+                headers['x-clarifai-session-token'] = self.token
 
             # Download the file with progress tracking
             logger.info(f"Downloading to {output_path}")
@@ -504,7 +510,13 @@ class ArtifactVersion(BaseClient):
                 if resume_byte_pos > 0 and response.status_code != 206:
                     logger.warning("Server does not support resume, starting fresh download")
                     resume_byte_pos = 0
-                    response = requests.get(content_url, stream=True)
+                    # Re-add authentication headers for the retry request
+                    auth_headers = {}
+                    if hasattr(self, 'pat') and self.pat:
+                        auth_headers['Authorization'] = f'Key {self.pat}'
+                    elif hasattr(self, 'token') and self.token:
+                        auth_headers['x-clarifai-session-token'] = self.token
+                    response = requests.get(content_url, stream=True, headers=auth_headers)
                     response.raise_for_status()
 
                 # Get content length

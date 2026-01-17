@@ -1,3 +1,69 @@
+## [[12.1.4]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.4) - [PyPI](https://pypi.org/project/clarifai/12.1.4/) - 2026-01-13
+
+### Added
+- [EAGLE-7083]: Add retry logic to OpenAI API calls [(#878)](https://github.com/Clarifai/clarifai-python/pull/878)
+  - Implements an automatic retry mechanism for OpenAI API calls to handle transient httpx.ConnectError exceptions
+  - Adds tenacity as a dependency
+  - Wraps all OpenAI API calls in OpenAIModelClass with a @retry decorator
+  - Configures the retry to happen up to 3 times with exponential backoff on httpx.ConnectError
+
+### Fixed
+- Fix agentic OpenAI transport [(#900)](https://github.com/Clarifai/clarifai-python/pull/900)
+  - Fixed attribute access for OpenAI response objects in agentic transport to use hasattr() checks instead of dictionary .get() methods
+  - Added "none" mode to the --mode CLI option for local-runner command and changed the default from "env" to "none"
+- Fix top_k when playground hits openai_transport_* methods [(#791)](https://github.com/Clarifai/clarifai-python/pull/791)
+
+## [[12.1.3]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.3) - [PyPI](https://pypi.org/project/clarifai/12.1.3/) - 2026-01-09
+
+### Added
+- [PR-1090] Agentic Class [(#869)](https://github.com/Clarifai/clarifai-python/pull/869)
+  - Introduced new `AgenticModelClass` that extends `OpenAIModelClass` to enable agentic behavior by integrating LLMs with MCP (Model Context Protocol) servers
+  - Added tool discovery, execution, and iterative tool calling capabilities for both chat completions and responses endpoints
+  - Supports both streaming and non-streaming modes
+- [PR-1092][PR-1093] Optimised MCPModelClass and supports for Stdio MCP servers [(#872)](https://github.com/Clarifai/clarifai-python/pull/872)
+  - Refactored `MCPModelClass` with persistent session management using background thread with long-lived event loop
+  - Added persistent FastMCP client session that opens once during `load_model()` and reuses for all subsequent requests
+  - Introduced new `StdioMCPModelClass` for stdio MCP servers with automatic tool discovery
+  - Added support for single long-lived Node.js process for stdio servers
+  - Added configuration via YAML with support for environment variables and secrets
+
+### Fixed
+- Validate requirements.txt for Agentic Models [(#897)](https://github.com/Clarifai/clarifai-python/pull/897)
+  - Added validation for requirements.txt in agentic models
+
+## [[12.1.2]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.2) - [PyPI](https://pypi.org/project/clarifai/12.1.2/) - 2026-01-09
+
+### Added
+- Add CLI support for pause, cancel, resume, and monitor Pipeline Runs [(#881)](https://github.com/Clarifai/clarifai-python/pull/881)
+  - `clarifai pipelinerun` (alias `pr`) with subcommands: `pause`, `cancel`, `resume`, `monitor`
+  - Accepts pipeline_version_run_id as positional arg or explicit flag
+  - Auto-loads user_id, app_id, pipeline_id, pipeline_version_id from config-lock.yaml when present
+  - Helper functions extract shared logic for config loading, validation, and pipeline instantiation
+  - `monitor` command polls status and logs with configurable --timeout and --monitor_interval options
+
+### Fixed
+- Fixed Artifacts Download and Improved Output Formatting [(#893)](https://github.com/Clarifai/clarifai-python/pull/893)
+  - Fix Artifact download authentication issue.
+  - Standardize table formatting by using the existing display_co_resources function.
+  - Artifacts list table have more details such as version, created_at, etc.
+  - Artifact version list displayed integers in the visibility column, fixed to human readable strings.
+
+## [[12.1.1]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.1) - [PyPI](https://pypi.org/project/clarifai/12.1.1/) - 2026-01-06
+
+### Fixed
+- Fixed local model runner issues [(#886)](https://github.com/Clarifai/clarifai-python/pull/886)
+  - Re-enabled copying from the working directory to the container, which was previously disabled
+  - Corrected incorrect argument configuration for uploaded models from earlier work
+
+## [[12.1.0]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.0) - [PyPI](https://pypi.org/project/clarifai/12.1.0/) - 2026-01-06
+
+### Fixed
+- Fixed checkpoint downloads failed when hf_transfer wasn't installed [(#888)](https://github.com/Clarifai/clarifai-python/pull/888)
+  - Added compatibility check that temporarily disables HF_HUB_ENABLE_HF_TRANSFER environment variable during downloads when hf_transfer package is unavailable
+  - Prevents download failures from Hugging Face when environment variable is set but package is not installed
+- Fix conflicts with latest vLLM [(#887)](https://github.com/Clarifai/clarifai-python/pull/887)
+  - Fixed vLLM model upload failures caused by hardcoded dependencies in SDK
+
 ## [[11.12.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.12.2) - [PyPI](https://pypi.org/project/clarifai/11.12.2/) - 2025-12-23
 
 ### Added

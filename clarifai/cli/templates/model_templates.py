@@ -207,6 +207,9 @@ inference_compute_info:
 #   repo_id: "your-model-repo"  # for huggingface like openai/gpt-oss-20b
 #   # hf_token: "your-huggingface-token"  # if private repo
 #   when: "runtime"  # or "build", "upload"
+
+# Uncomment if model needs to work with streaming video runners (adds additional packages):
+# streaming_video_consumer: true
 '''
 
 

@@ -31,8 +31,10 @@ class TestArtifactVersionCLI:
             mock_version = Mock()
             mock_version.id = version_id
             mock_version.description = f"Test version {i}"
-            mock_version.visibility.gettable = "PRIVATE"
+            mock_version.visibility.gettable = 10  # PRIVATE enum value
             mock_version.created_at.ToDatetime.return_value = f"2023-01-0{i} 00:00:00"
+            # Mock expires_at as None (never expires)
+            mock_version.expires_at = None
             mock_version_list.append(mock_version)
 
         mock_version_instance.list.return_value = mock_version_list
@@ -60,7 +62,8 @@ class TestArtifactVersionCLI:
         mock_version_info.id = 'test_version'
         mock_version_info.artifact_id = 'test_artifact'
         mock_version_info.description = 'Test version description'
-        mock_version_info.visibility.gettable = 1
+        mock_version_info.visibility.gettable = 10  # PRIVATE enum value
+        mock_version_info.expires_at = None  # Never expires
         mock_version_info.created_at.ToDatetime.return_value = '2023-01-01 00:00:00'
         mock_version_info.modified_at.ToDatetime.return_value = '2023-01-01 00:00:00'
         mock_version_info.upload.id = 'upload_123'
@@ -323,7 +326,8 @@ class TestArtifactVersionCLIEdgeCases:
                 id='v1.0.0-alpha.1',
                 artifact_id='my-model-v2',
                 description='Test version',
-                visibility=Mock(gettable='PUBLIC'),
+                visibility=Mock(gettable=50),  # PUBLIC enum value
+                expires_at=None,  # Never expires
                 created_at=Mock(ToDatetime=Mock(return_value='2023-01-01 00:00:00')),
                 modified_at=Mock(ToDatetime=Mock(return_value='2023-01-01 00:00:00')),
                 upload=Mock(
@@ -379,7 +383,8 @@ class TestArtifactVersionCLIIntegration:
                 Mock(
                     id='new_version',
                     description='New version',
-                    visibility=Mock(gettable='PUBLIC'),
+                    visibility=Mock(gettable=50),  # PUBLIC enum value
+                    expires_at=None,  # Never expires
                     created_at=Mock(ToDatetime=Mock(return_value='2023-01-01 00:00:00')),
                 )
             ]
@@ -395,7 +400,8 @@ class TestArtifactVersionCLIIntegration:
                 id='new_version',
                 artifact_id='test_artifact',
                 description='New version description',
-                visibility=Mock(gettable='PUBLIC'),
+                visibility=Mock(gettable=50),  # PUBLIC enum value
+                expires_at=None,  # Never expires
                 created_at=Mock(ToDatetime=Mock(return_value='2023-01-01 00:00:00')),
                 modified_at=Mock(ToDatetime=Mock(return_value='2023-01-01 00:00:00')),
                 upload=Mock(
