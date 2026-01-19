@@ -2143,9 +2143,7 @@ def setup_deployment_for_model(builder):
         print("Model deployed successfully! You can test it now.")
         time.sleep(2)  # Give some time for the deployment to stabilize
     else:
-        logger.warning(
-            "Deployment failed. Initiating backtrack & cleanup."
-        )
+        logger.warning("Deployment failed. Initiating backtrack & cleanup.")
         backtrack_workflow(state)
         return
 
