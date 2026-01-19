@@ -2120,38 +2120,33 @@ def setup_deployment_for_model(builder):
 
     print("\n⏳ Deploying model...")
 
-    # Retry logic for deployment
-    max_retries = 1
-    for attempt in range(max_retries):
-        success = deploy_model(
-            model_id=state['model_id'],
-            app_id=state['app_id'],
-            user_id=state['user_id'],
-            deployment_id=deployment_id,
-            model_version_id=state['model_version_id'],
-            nodepool_id=compute_config['nodepool_id'],
-            compute_cluster_id=compute_config['compute_cluster_id'],
-            cluster_user_id=compute_config['cluster_user_id'],
-            min_replicas=min_replicas,
-            max_replicas=max_replicas,
+    success = deploy_model(
+        model_id=state['model_id'],
+        app_id=state['app_id'],
+        user_id=state['user_id'],
+        deployment_id=deployment_id,
+        model_version_id=state['model_version_id'],
+        nodepool_id=compute_config['nodepool_id'],
+        compute_cluster_id=compute_config['compute_cluster_id'],
+        cluster_user_id=compute_config['cluster_user_id'],
+        min_replicas=min_replicas,
+        max_replicas=max_replicas,
+    )
+
+    if success:
+        state.update(
+            {
+                'deployed': True,
+                'deployment_id': deployment_id,
+                'nodepool_id': compute_config['nodepool_id'],
+            }
         )
-
-        if success:
-            state.update(
-                {
-                    'deployed': True,
-                    'deployment_id': deployment_id,
-                    'nodepool_id': compute_config['nodepool_id'],
-                }
-            )
-            print("Model deployed successfully! You can test it now.")
-            time.sleep(2)  # Give some time for the deployment to stabilize
-        elif attempt < max_retries - 1:
-            if get_yes_no_input("Deployment failed. Do you want to retry?", True):
-                continue
-
-    if get_yes_no_input("\n🗑️ Do you want to backtrack and clean up?", True):
+        print("Model deployed successfully! You can test it now.")
+        time.sleep(2)  # Give some time for the deployment to stabilize
+    else:
+        logger.warning("Deployment failed. Initiating backtrack & cleanup.")
         backtrack_workflow(state)
+        return
 
 
 def delete_model_deployment(deployment_id, user_id, nodepool_id=None):
