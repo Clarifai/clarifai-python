@@ -28,8 +28,8 @@ class TestTemplateManager:
         """Test that templates can be filtered by type."""
         manager = TemplateManager()
 
-        # Get all templates (call for completeness; result not directly used here)
-        manager.list_templates()
+        # Get all templates
+        all_templates = manager.list_templates()
 
         # Get classifier and detector templates
         classifier_templates = manager.list_templates('classifier')

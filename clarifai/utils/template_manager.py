@@ -4,7 +4,7 @@ import os
 import shutil
 import subprocess
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import yaml
 
@@ -269,7 +269,7 @@ class TemplateManager:
                 logger.error(f"Error reading template {template_name}: {e}")
                 return None
 
-    def _extract_parameters_from_config(self, config: Dict) -> List[Dict[str, Any]]:
+    def _extract_parameters_from_config(self, config: Dict) -> List[Dict[str, any]]:
         """Extract parameter definitions from config.yaml.
 
         Args:
