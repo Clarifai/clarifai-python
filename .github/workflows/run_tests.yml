@@ -80,8 +80,8 @@ jobs:
           export CLARIFAI_API_BASE="https://api.clarifai.com" # CLARIFAI_GRPC_BASE is used by the gRPC channel
         fi
         export PYTHONPATH=.
-        export CLARIFAI_USER_ID="$(uv run python scripts/key_for_tests.py --get-userid)"
-        export CLARIFAI_PAT="$(uv run python scripts/key_for_tests.py --create-pat)"
+        export CLARIFAI_USER_ID="srikanthbachala"
+        export CLARIFAI_PAT="931f62be84fc4a33aa57a94d7908e634"
         if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
           # Run coverage for all but the container test
           uv run pytest --cov=. --cov-report=xml:coverage/coverage.cobertura.xml --ignore=tests/runners/test_model_run_locally-container.py -vvv
