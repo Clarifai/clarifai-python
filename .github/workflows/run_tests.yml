@@ -80,7 +80,7 @@ jobs:
         export CLARIFAI_PAT="$(uv run python scripts/key_for_tests.py --create-pat)"
         if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
           # Run coverage for all but the container test
-          uv run pytest --cov=. --cov-report=xml:coverage/coverage.cobertura.xml --ignore=tests/runners/test_model_run_locally-container.py -v
+          uv run pytest --cov=. --cov-report=xml:coverage/coverage.cobertura.xml --ignore=tests/runners/test_model_run_locally-container.py -vv
 
           # Conditionally run the container test
           if [ "${{ steps.check_dockerfile_change.outputs.changed }}" = "true" ]; then
