@@ -231,8 +231,19 @@ class OpenAIModelClass(ModelClass):
 
         Note: this updates the request data in place and returns it.
         """
-        if 'max_tokens' in request_data:
-            request_data['max_completion_tokens'] = request_data.pop('max_tokens')
+        # Sync max_tokens and max_completion_tokens, preferring max_completion_tokens if both exist
+        max_tokens = request_data.get('max_tokens')
+        max_completion_tokens = request_data.get('max_completion_tokens')
+
+        if max_completion_tokens is not None and max_tokens is not None:
+            # Both exist - prefer max_completion_tokens and remove max_tokens
+            request_data.pop('max_tokens')
+        elif max_completion_tokens is not None:
+            # Only max_completion_tokens exists - copy to max_tokens for older backends
+            request_data['max_tokens'] = max_completion_tokens
+        elif max_tokens is not None:
+            # Only max_tokens exists - copy to max_completion_tokens for newer backends
+            request_data['max_completion_tokens'] = max_tokens
         if 'top_p' in request_data:
             request_data['top_p'] = float(request_data['top_p'])
         if 'top_k' in request_data:
