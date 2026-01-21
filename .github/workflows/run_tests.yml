@@ -81,7 +81,7 @@ jobs:
         fi
         export PYTHONPATH=.
         export CLARIFAI_USER_ID="$(uv run python scripts/key_for_tests.py --get-userid)"
-        export CLARIFAI_PAT="$(uv run python scripts/key_for_tests.py --create-pat)"
+        export CLARIFAI_PAT=""
         if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
           # Run coverage for all but the container test
           uv run pytest --cov=. --cov-report=xml:coverage/coverage.cobertura.xml --ignore=tests/runners/test_model_run_locally-container.py -vvv
