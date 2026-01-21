@@ -1,6 +1,7 @@
 import importlib
 import os
 import threading
+import time
 import uuid
 
 import pytest
@@ -161,6 +162,7 @@ class TestRunnerServer:
             pat=cls.AUTH.pat,
             compute_cluster_id=cls.COMPUTE_CLUSTER_ID,
             nodepool_id=cls.NODEPOOL_ID,
+            deployment_user_id=cls.AUTH.user_id,
         )
 
         cls.runner_model = _get_model_instance(cls.MODEL_PATH)
@@ -178,6 +180,11 @@ class TestRunnerServer:
         cls.thread = threading.Thread(target=cls.runner.start)
         cls.thread.daemon = True  # close when python closes
         cls.thread.start()
+
+        # Wait for runner to initialize before running tests
+        # This is especially important on CI environments like Ubuntu where initialization
+        # can be slower and tests may start before the runner is ready
+        time.sleep(2)
 
     @classmethod
     def teardown_class(cls):
