@@ -33,9 +33,9 @@ class TestUpdateOldFields:
         request_data = {"max_tokens": 100, "max_completion_tokens": 200}
         result = self.model._update_old_fields(request_data)
 
-        # max_completion_tokens should be kept, max_tokens should be removed
+        # max_completion_tokens should be kept and max_tokens should be synced to it
         assert result.get("max_completion_tokens") == 200
-        assert "max_tokens" not in result
+        assert result.get("max_tokens") == 200
 
     def test_neither_field_present(self):
         """Test that no changes are made when neither field is present."""

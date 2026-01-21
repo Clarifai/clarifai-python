@@ -236,8 +236,8 @@ class OpenAIModelClass(ModelClass):
         max_completion_tokens = request_data.get('max_completion_tokens')
 
         if max_completion_tokens is not None and max_tokens is not None:
-            # Both exist - prefer max_completion_tokens and remove max_tokens
-            request_data.pop('max_tokens')
+            # Both exist - prefer max_completion_tokens and sync max_tokens to it
+            request_data['max_tokens'] = max_completion_tokens
         elif max_completion_tokens is not None:
             # Only max_completion_tokens exists - copy to max_tokens for older backends
             request_data['max_tokens'] = max_completion_tokens
