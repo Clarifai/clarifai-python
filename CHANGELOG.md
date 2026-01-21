@@ -1,3 +1,11 @@
+## [[12.1.5]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.5) - [PyPI](https://pypi.org/project/clarifai/12.1.5/) - 2026-01-21
+
+### Added
+- Added a dockerfile template that conditionally adds packages for video streaming [(#902)](https://github.com/Clarifai/clarifai-python/pull/902)
+
+### Fixed
+- Fixed the deployment cleaning logic to only target failed model deployments [(#895)](https://github.com/Clarifai/clarifai-python/pull/895)
+
 ## [[12.1.4]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.4) - [PyPI](https://pypi.org/project/clarifai/12.1.4/) - 2026-01-13
 
 ### Added
