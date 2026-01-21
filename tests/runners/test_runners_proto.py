@@ -263,14 +263,12 @@ class TestRunnerServer:
         return inputs, runner_selector
 
     def test_unary(self):
-        self.logger.info("Testing unary")
+        # self.logger.info("Testing unary")
         text = "Test"
         expected = f"{text}Hello World"
         req = self._format_request(text)
-        print("req:\n", req)
         stub = self.CLIENT.STUB
         res = stub.PostModelOutputs(req)
-        print("res:\n", res)
         self._validate_response(res, expected)
 
     def test_client_predict(self):
