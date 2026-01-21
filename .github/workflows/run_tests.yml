@@ -47,10 +47,6 @@ jobs:
         uv pip install -r requirements.txt -r tests/requirements.txt genbadge[coverage]
     - name: Run static analysis lint
       uses: pre-commit/action@v3.0.0
-    - name: Checkout source
-      uses: actions/checkout@v4
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
     - name: Check if Dockerfile.template changed
       id: check_dockerfile_change
       shell: bash
