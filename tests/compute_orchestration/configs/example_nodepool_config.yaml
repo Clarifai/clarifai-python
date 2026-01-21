@@ -2,7 +2,7 @@ nodepool:
   compute_cluster:
     id: test-aws-cluster
   description: First nodepool in AWS in a proper compute cluster
-  id: ci_test_np_9383017e-f51d-48b7-8ba0-49a3aa57c518
+  id: ci_test_np_5d38bafa-ea08-4779-b993-b087158fd559
   instance_types:
   - compute_info:
       accelerator_memory: 40Gi

@@ -8,11 +8,11 @@ deployment:
     scale_up_delay_seconds: 30
     traffic_history_seconds: 100
   description: some random deployment
-  id: ci_test_dep_9383017e-f51d-48b7-8ba0-49a3aa57c518
+  id: ci_test_dep_5d38bafa-ea08-4779-b993-b087158fd559
   nodepools:
   - compute_cluster:
-      id: ci_test_cc_9383017e-f51d-48b7-8ba0-49a3aa57c518
-    id: ci_test_np_9383017e-f51d-48b7-8ba0-49a3aa57c518
+      id: ci_test_cc_5d38bafa-ea08-4779-b993-b087158fd559
+    id: ci_test_np_5d38bafa-ea08-4779-b993-b087158fd559
   scheduling_choice: 4
   worker:
     model:

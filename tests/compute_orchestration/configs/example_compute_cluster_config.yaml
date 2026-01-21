@@ -3,7 +3,7 @@ compute_cluster:
     id: aws
   cluster_type: dedicated
   description: My AWS cluster
-  id: ci_test_cc_9383017e-f51d-48b7-8ba0-49a3aa57c518
+  id: ci_test_cc_5d38bafa-ea08-4779-b993-b087158fd559
   managed_by: clarifai
   region: us-east-1
   visibility:
