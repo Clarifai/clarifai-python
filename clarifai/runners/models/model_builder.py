@@ -1102,11 +1102,10 @@ class ModelBuilder:
                     python_files.append(os.path.join(root, file))
         if not python_files:
             logger.info("No Python files found to lint, skipping linting step.")
+        elif len(python_files) > 10:
+            logger.info(f"Setup: Linting {len(python_files)} Python files.")
         else:
-            if len(python_files) > 10:
-                logger.info(f"Setup: Linting {len(python_files)} Python files.")
-            else:
-                logger.info(f"Setup: Linting Python files: {python_files}")
+            logger.info(f"Setup: Linting Python files: {python_files}")
 
         # Run ruff to lint the python code.
         # Use --no-cache to prevent .ruff_cache folder generation in model directories

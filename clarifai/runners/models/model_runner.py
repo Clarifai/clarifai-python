@@ -3,13 +3,13 @@ from typing import Iterator, Optional, Union
 
 from clarifai_grpc.grpc.api import service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2, status_pb2
-from clarifai_protocol import BaseRunner
-from clarifai_protocol.utils.health import HealthProbeRequestHandler, start_health_server_thread
 
 from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.utils.constants import STATUS_FAIL, STATUS_MIXED, STATUS_OK, STATUS_UNKNOWN
 from clarifai.utils.logging import get_req_id_from_context, logger
 from clarifai.utils.secrets import inject_secrets, req_secrets_context
+from clarifai_protocol import BaseRunner
+from clarifai_protocol.utils.health import HealthProbeRequestHandler, start_health_server_thread
 
 from ..utils.url_fetcher import ensure_urls_downloaded
 from .model_class import ModelClass
