@@ -181,6 +181,7 @@ class ModelBuilder:
         platform: Optional[str] = None,
         pat: Optional[str] = None,
         base_url: Optional[str] = None,
+        compute_info_required: bool = False,
     ):
         """
         :param folder: The folder containing the model.py, config.yaml, requirements.txt and
@@ -194,6 +195,7 @@ class ModelBuilder:
         :param platform: Target platform(s) for Docker image build (e.g., "linux/amd64" or "linux/amd64,linux/arm64"). This overrides the platform specified in config.yaml.
         :param pat: Personal access token for authentication. If None, will use environment variables.
         :param base_url: Base URL for the API. If None, will use environment variables.
+        :param compute_info_required: Whether inference compute info is required. This affects certain validation and behavior.
         """
         assert app_not_found_action in ["auto_create", "prompt", "error"], ValueError(
             f"Expected one of {['auto_create', 'prompt', 'error']}, got {app_not_found_action=}"
@@ -214,7 +216,9 @@ class ModelBuilder:
         self.model_proto = self._get_model_proto()
         self.model_id = self.model_proto.id
         self.model_version_id = None
-        self.inference_compute_info = self._get_inference_compute_info()
+        self.inference_compute_info = self._get_inference_compute_info(
+            compute_info_required=compute_info_required
+        )
         self.is_v3 = True  # Do model build for v3
 
     def create_model_instance(self, load_model=True, mocking=False) -> ModelClass:
@@ -944,11 +948,12 @@ class ModelBuilder:
 
         return model_proto
 
-    def _get_inference_compute_info(self):
-        assert "inference_compute_info" in self.config, (
-            "inference_compute_info not found in the config file"
-        )
-        inference_compute_info = self.config.get('inference_compute_info')
+    def _get_inference_compute_info(self, compute_info_required=False):
+        if compute_info_required:
+            assert "inference_compute_info" in self.config, (
+                "inference_compute_info not found in the config file"
+            )
+        inference_compute_info = self.config.get('inference_compute_info') or {}
         # Ensure cpu_limit is a string if it exists and is an int
         if 'cpu_limit' in inference_compute_info and isinstance(
             inference_compute_info['cpu_limit'], int
@@ -1945,7 +1950,12 @@ def upload_model(
     :param base_url: Base URL for the API. If None, will use environment variables.
     """
     builder = ModelBuilder(
-        folder, app_not_found_action="prompt", platform=platform, pat=pat, base_url=base_url
+        folder,
+        app_not_found_action="prompt",
+        platform=platform,
+        pat=pat,
+        base_url=base_url,
+        compute_info_required=True,
     )
     builder.download_checkpoints(stage=stage)
 
