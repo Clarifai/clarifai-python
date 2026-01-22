@@ -7,6 +7,7 @@ import yaml
 from click.testing import CliRunner
 
 from clarifai.cli.pipeline import init, run, upload
+from clarifai.cli.pipeline_template import info, list_templates
 from clarifai.runners.pipelines.pipeline_builder import (
     PipelineBuilder,
     PipelineConfigValidator,
@@ -1042,6 +1043,283 @@ class TestPipelineInitCommand:
                 "Expected to find template references to workflow parameters in step arguments"
             )
 
+    def test_init_command_with_template_option(self):
+        """Test that init command works with --template option."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        with runner.isolated_filesystem():
+            # Mock the helper functions
+            with (
+                patch('clarifai.cli.pipeline._prepare_pipeline_path') as mock_prepare,
+                patch('clarifai.cli.pipeline._init_from_template') as mock_template_init,
+                patch('clarifai.cli.pipeline._show_completion_message') as mock_completion,
+            ):
+                mock_prepare.return_value = '/test/path'
+                mock_template_init.return_value = True
+
+                runner.invoke(init, ['--template', 'image-classification', '.'])
+
+                # Should call template initialization with prepared path
+                mock_prepare.assert_called_once_with('.', 'image-classification')
+                mock_template_init.assert_called_once_with('/test/path', 'image-classification')
+                mock_completion.assert_called_once_with('/test/path')
+
+    def test_init_command_without_template_calls_interactive(self):
+        """Test that init command without --template calls interactive flow."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        with runner.isolated_filesystem():
+            # Mock helper functions
+            with (
+                patch('clarifai.cli.pipeline._prepare_pipeline_path') as mock_prepare,
+                patch('clarifai.cli.pipeline._init_interactive') as mock_interactive,
+                patch('clarifai.cli.pipeline._init_from_template') as mock_template,
+                patch('clarifai.cli.pipeline._show_completion_message') as mock_completion,
+            ):
+                mock_prepare.return_value = '/test/path'
+                mock_interactive.return_value = True
+
+                runner.invoke(init, ['.'])
+
+                # Should call interactive initialization with prepared path
+                mock_prepare.assert_called_once_with('.', None)
+                mock_interactive.assert_called_once_with('/test/path')
+                mock_template.assert_not_called()
+                mock_completion.assert_called_once_with('/test/path')
+
+    @patch('clarifai.utils.template_manager.TemplateManager')
+    def test_init_from_template_success(self, mock_template_manager_class):
+        """Test successful template-based initialization with generic template parameters."""
+        runner = CliRunner(env={"PYTHONIOENCODING": "utf-8"})
+
+        # Mock template manager
+        mock_manager = Mock()
+        mock_template_manager_class.return_value = mock_manager
+
+        # Mock template info with generic parameter structure for testing
+        mock_info = {
+            'name': 'test-template',
+            'type': 'train',
+            'step_directories': ['StepA', 'StepB'],
+            'parameters': [
+                {
+                    'name': 'EXAMPLE_PATH',
+                    'default_value': '/default/path',
+                },
+                {
+                    'name': 'EXAMPLE_SIZE',
+                    'default_value': 16,
+                },
+            ],
+            'config': {'pipeline': {'id': 'test-template'}},
+        }
+        mock_manager.get_template_info.return_value = mock_info
+        mock_manager.copy_template.return_value = True
+
+        with runner.isolated_filesystem():
+            # Import the function to test directly
+            from clarifai.cli.pipeline import _init_from_template
+
+            # Mock click.prompt to simulate user input
+            with patch('click.prompt') as mock_prompt:
+                # Setup prompt responses
+                mock_prompt.side_effect = [
+                    'test-user',  # User ID
+                    'test-app',  # App ID
+                    'my-pipeline',  # Pipeline ID
+                    '/custom/path',  # Example Path parameter
+                    '32',  # Example Size parameter
+                ]
+
+                result = _init_from_template('/test/path', 'test-template')
+
+                # Verify template manager was called correctly
+                mock_manager.get_template_info.assert_called_once_with('test-template')
+                mock_manager.copy_template.assert_called_once()
+
+                # Check that substitutions were passed
+                call_args = mock_manager.copy_template.call_args
+                assert call_args[0][0] == 'test-template'  # template name
+                assert call_args[0][1] == '/test/path'  # destination path
+
+                substitutions = call_args[0][2]  # substitutions dict
+                assert 'user_id' in substitutions  # Basic substitutions
+                assert 'app_id' in substitutions
+                assert 'id' in substitutions
+                assert substitutions['user_id'] == 'test-user'
+                assert substitutions['app_id'] == 'test-app'
+                assert substitutions['id'] == 'my-pipeline'
+
+                # Should return True for success
+                assert result is True
+
+    @patch('clarifai.utils.template_manager.TemplateManager')
+    def test_init_from_template_not_found(self, mock_template_manager_class):
+        """Test template initialization when template not found."""
+        # Mock template manager to return None (template not found)
+        mock_manager = Mock()
+        mock_template_manager_class.return_value = mock_manager
+        mock_manager.get_template_info.return_value = None
+
+        # Import the function to test directly
+        from clarifai.cli.pipeline import _init_from_template
+
+        result = _init_from_template('/test/path', 'nonexistent-template')
+
+        # Should return False for failure
+        assert result is False
+        mock_manager.get_template_info.assert_called_once_with('nonexistent-template')
+
+    @patch('clarifai.utils.template_manager.TemplateManager')
+    def test_init_from_template_with_copy_failure(self, mock_template_manager_class):
+        """Test template initialization when copying fails."""
+        # Mock template manager
+        mock_manager = Mock()
+        mock_template_manager_class.return_value = mock_manager
+
+        # Mock template info but copy failure
+        mock_info = {
+            'name': 'test-template',
+            'type': 'train',
+            'step_directories': ['StepA'],
+            'parameters': [],
+            'config': {'pipeline': {'id': 'test-template'}},
+        }
+        mock_manager.get_template_info.return_value = mock_info
+        mock_manager.copy_template.return_value = False  # Copy fails
+
+        # Import the function to test directly
+        from clarifai.cli.pipeline import _init_from_template
+
+        # Mock click.prompt for basic inputs
+        with patch('click.prompt') as mock_prompt:
+            mock_prompt.side_effect = ['test-user', 'test-app', 'my-pipeline']
+
+            result = _init_from_template('/test/path', 'test-template')
+
+            # Should return False for copy failure
+            assert result is False
+
+    @patch('clarifai.utils.template_manager.TemplateManager')
+    def test_init_from_template_with_parameters(self, mock_template_manager_class):
+        """Test template initialization with multiple generic parameters."""
+        # Mock template manager
+        mock_manager = Mock()
+        mock_template_manager_class.return_value = mock_manager
+
+        # Mock template with multiple generic parameters for testing
+        mock_info = {
+            'name': 'complex-template',
+            'type': 'train',
+            'step_directories': ['LoadStep', 'ProcessStep', 'SaveStep'],
+            'parameters': [
+                {
+                    'name': 'PARAM_A',
+                    'default_value': '/default/input',
+                },
+                {
+                    'name': 'PARAM_B',
+                    'default_value': '/default/output',
+                },
+                {
+                    'name': 'PARAM_C',
+                    'default_value': 'default_value',
+                },
+                {
+                    'name': 'PARAM_D',
+                    'default_value': 0.001,
+                },
+            ],
+            'config': {'pipeline': {'id': 'complex-template'}},
+        }
+        mock_manager.get_template_info.return_value = mock_info
+        mock_manager.copy_template.return_value = True
+
+        # Import the function to test directly
+        from clarifai.cli.pipeline import _init_from_template
+
+        # Mock click.prompt for all inputs
+        with patch('click.prompt') as mock_prompt:
+            mock_prompt.side_effect = [
+                'user',  # User ID
+                'app',  # App ID
+                'pipeline',  # Pipeline ID
+                '/new/input',  # Param A
+                '/new/output',  # Param B
+                'new_value',  # Param C
+                '0.002',  # Param D
+            ]
+
+            result = _init_from_template('/test/path', 'complex-template')
+
+            # Verify the function succeeded
+            assert result is True
+
+            # Verify copy_template was called
+            assert mock_manager.copy_template.called
+            call_args = mock_manager.copy_template.call_args
+            substitutions = call_args[0][2]
+
+            # Check that basic substitutions are present
+            assert 'user_id' in substitutions
+            assert 'app_id' in substitutions
+            assert 'id' in substitutions
+            assert substitutions['user_id'] == 'user'
+            assert substitutions['app_id'] == 'app'
+            assert substitutions['id'] == 'pipeline'
+
+            # Check that parameter substitutions are present (only if different from default)
+            # Since all inputs differ from defaults, they should be in substitutions
+            assert 'PARAM_A' in substitutions
+            assert substitutions['PARAM_A'] == '/new/input'
+            assert 'PARAM_C' in substitutions
+            assert substitutions['PARAM_C'] == 'new_value'
+            assert 'PARAM_D' in substitutions
+            assert substitutions['PARAM_D'] == '0.002'
+
+    @patch('clarifai.utils.template_manager.TemplateManager')
+    def test_init_from_template_custom_pipeline_id(self, mock_template_manager_class):
+        """Test template initialization with custom pipeline ID substitution."""
+        # Mock template manager
+        mock_manager = Mock()
+        mock_template_manager_class.return_value = mock_manager
+
+        mock_info = {
+            'name': 'original-template',
+            'type': 'train',
+            'step_directories': ['Step1'],
+            'parameters': [],
+            'config': {'pipeline': {'id': 'original-template'}},
+        }
+        mock_manager.get_template_info.return_value = mock_info
+        mock_manager.copy_template.return_value = True
+
+        # Import the function to test directly
+        from clarifai.cli.pipeline import _init_from_template
+
+        # Mock click.prompt for inputs with custom pipeline name
+        with patch('click.prompt') as mock_prompt:
+            mock_prompt.side_effect = [
+                'user',  # User ID
+                'app',  # App ID
+                'custom-pipeline-name',  # Custom Pipeline ID
+            ]
+
+            result = _init_from_template('/test/path', 'original-template')
+
+            # Verify pipeline ID substitution was included
+            call_args = mock_manager.copy_template.call_args
+            substitutions = call_args[0][2]
+
+            # The new system stores basic fields directly
+            assert 'user_id' in substitutions
+            assert 'app_id' in substitutions
+            assert 'id' in substitutions
+            assert substitutions['id'] == 'custom-pipeline-name'
+
+            # Should return True for success
+            assert result is True
+
 
 class TestPipelineRunCommand:
     """Test cases for the pipeline run CLI command."""
@@ -1503,3 +1781,217 @@ class TestPipelineListCommand:
 
                 assert result.exit_code == 0
                 mock_user_instance.list_pipelines.assert_called_once_with(page_no=1, per_page=16)
+
+
+class TestPipelineTemplateCommands:
+    """Test cases for the pipeline template CLI commands."""
+
+    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    def test_list_templates_command_all_templates(self, mock_template_manager_class):
+        """Test that list_templates command works without type filter."""
+        # Mock template manager
+        mock_manager = Mock()
+        mock_template_manager_class.return_value = mock_manager
+
+        # Mock template list
+        mock_templates = [
+            {'name': 'template1', 'type': 'train', 'description': 'Training template'},
+            {'name': 'template2', 'type': 'data', 'description': 'Data processing template'},
+        ]
+        mock_manager.list_templates.return_value = mock_templates
+
+        runner = CliRunner()
+        result = runner.invoke(list_templates, [])
+
+        assert result.exit_code == 0
+        mock_manager.list_templates.assert_called_once_with(None)
+        # Should display both templates
+        assert 'template1' in result.output
+        assert 'template2' in result.output
+
+    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    def test_list_templates_command_with_type_filter(self, mock_template_manager_class):
+        """Test that list_templates command works with type filter."""
+        # Mock template manager
+        mock_manager = Mock()
+        mock_template_manager_class.return_value = mock_manager
+
+        # Mock filtered template list
+        mock_templates = [
+            {'name': 'train-template1', 'type': 'train', 'description': 'Training template 1'},
+            {'name': 'train-template2', 'type': 'train', 'description': 'Training template 2'},
+        ]
+        mock_manager.list_templates.return_value = mock_templates
+
+        runner = CliRunner()
+        result = runner.invoke(list_templates, ['--type', 'train'])
+
+        assert result.exit_code == 0
+        mock_manager.list_templates.assert_called_once_with('train')
+        # Should display only train templates
+        assert 'train-template1' in result.output
+        assert 'train-template2' in result.output
+
+    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    def test_list_templates_command_empty_list(self, mock_template_manager_class):
+        """Test that list_templates command handles empty template list."""
+        # Mock template manager to return empty list
+        mock_manager = Mock()
+        mock_template_manager_class.return_value = mock_manager
+        mock_manager.list_templates.return_value = []
+
+        runner = CliRunner()
+        result = runner.invoke(list_templates, [])
+
+        assert result.exit_code == 0
+        mock_manager.list_templates.assert_called_once_with(None)
+        # Should display message about no templates
+        assert 'No templates found' in result.output or len(result.output.strip()) == 0
+
+    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    def test_info_command_template_found(self, mock_template_manager_class):
+        """Test that info command works when template exists."""
+        # Mock template manager
+        mock_manager = Mock()
+        mock_template_manager_class.return_value = mock_manager
+
+        # Mock template info with new parameter structure
+        mock_info = {
+            'name': 'test-template',
+            'type': 'train',
+            'path': '/path/to/test-template',
+            'description': 'A test training template',
+            'step_directories': ['LoadData', 'TrainModel', 'SaveModel'],
+            'parameters': [
+                {
+                    'name': 'EXAMPLE_PATH',
+                    'default_value': '/default/data/path',
+                },
+                {
+                    'name': 'EXAMPLE_TYPE',
+                    'default_value': 'default_type',
+                },
+            ],
+            'config': {'pipeline': {'id': 'test-template'}},
+        }
+        mock_manager.get_template_info.return_value = mock_info
+
+        runner = CliRunner()
+        result = runner.invoke(info, ['test-template'])
+
+        assert result.exit_code == 0
+        mock_manager.get_template_info.assert_called_once_with('test-template')
+
+        # Should display template information
+        assert 'test-template' in result.output
+        assert 'train' in result.output
+        assert 'LoadData' in result.output
+        assert 'TrainModel' in result.output
+        assert 'SaveModel' in result.output
+        assert 'EXAMPLE_PATH (default: /default/data/path)' in result.output
+        assert 'EXAMPLE_TYPE (default: default_type)' in result.output
+
+    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    def test_info_command_template_not_found(self, mock_template_manager_class):
+        """Test that info command handles template not found."""
+        # Mock template manager to return None
+        mock_manager = Mock()
+        mock_template_manager_class.return_value = mock_manager
+        mock_manager.get_template_info.return_value = None
+
+        runner = CliRunner()
+        result = runner.invoke(info, ['nonexistent-template'])
+
+        assert result.exit_code == 0
+        mock_manager.get_template_info.assert_called_once_with('nonexistent-template')
+
+        # Should display error message
+        assert 'not found' in result.output or 'Error' in result.output
+
+    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    def test_info_command_template_with_no_parameters(self, mock_template_manager_class):
+        """Test that info command handles templates with no parameters."""
+        # Mock template manager
+        mock_manager = Mock()
+        mock_template_manager_class.return_value = mock_manager
+
+        # Mock template info without parameters
+        mock_info = {
+            'name': 'simple-template',
+            'type': 'data',
+            'path': '/path/to/simple-template',
+            'description': 'A simple data processing template',
+            'step_directories': ['ProcessData'],
+            'parameters': [],
+            'config': {'pipeline': {'id': 'simple-template'}},
+        }
+        mock_manager.get_template_info.return_value = mock_info
+
+        runner = CliRunner()
+        result = runner.invoke(info, ['simple-template'])
+
+        assert result.exit_code == 0
+        mock_manager.get_template_info.assert_called_once_with('simple-template')
+
+        # Should display template information but mention no parameters
+        assert 'simple-template' in result.output
+        assert 'data' in result.output
+        assert 'ProcessData' in result.output
+        assert (
+            'No template parameters found' in result.output
+            or 'Parameters' not in result.output
+            or result.output.count('Parameters') <= 1
+        )  # Just the section header
+
+    @patch('clarifai.cli.pipeline_template.TemplateManager')
+    def test_list_templates_command_with_rich_display(self, mock_template_manager_class):
+        """Test that list_templates displays templates in a formatted table."""
+        # Mock template manager
+        mock_manager = Mock()
+        mock_template_manager_class.return_value = mock_manager
+
+        # Mock template list with varied data
+        mock_templates = [
+            {
+                'name': 'image-classification',
+                'type': 'train',
+                'description': 'Image classification training',
+            },
+            {'name': 'text-prep', 'type': 'data', 'description': 'Text preprocessing'},
+            {'name': 'model-deploy', 'type': 'deploy', 'description': 'Model deployment'},
+        ]
+        mock_manager.list_templates.return_value = mock_templates
+
+        runner = CliRunner()
+        result = runner.invoke(list_templates, [])
+
+        assert result.exit_code == 0
+
+        # Should display all template information
+        assert 'image-classification' in result.output
+        assert 'text-prep' in result.output
+        assert 'model-deploy' in result.output
+        assert 'train' in result.output
+        assert 'data' in result.output
+        assert 'deploy' in result.output
+
+    def test_info_command_help_text(self):
+        """Test that info command shows proper help text."""
+        runner = CliRunner()
+        result = runner.invoke(info, ['--help'])
+
+        assert result.exit_code == 0
+        assert 'Show detailed information about a specific template' in result.output
+        assert 'TEMPLATE_NAME' in result.output
+
+    def test_list_templates_command_help_text(self):
+        """Test that list_templates command shows proper help text."""
+        runner = CliRunner()
+        result = runner.invoke(list_templates, ['--help'])
+
+        assert result.exit_code == 0
+        assert (
+            'List available pipeline templates' in result.output
+            or 'Lists all available pipeline templates' in result.output
+        )
+        assert '--type' in result.output
