@@ -1102,21 +1102,33 @@ class ModelBuilder:
                     python_files.append(os.path.join(root, file))
         if not python_files:
             logger.info("No Python files found to lint, skipping linting step.")
+        elif len(python_files) > 10:
+            logger.info(f"Setup: Linting {len(python_files)} Python files.")
         else:
             logger.info(f"Setup: Linting Python files: {python_files}")
+
         # Run ruff to lint the python code.
         # Use --no-cache to prevent .ruff_cache folder generation in model directories
         command = "ruff check --select=F --no-cache"
-        result = subprocess.run(
-            f"{command} {' '.join(python_files)}",
-            shell=True,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            logger.error(f"Error linting Python code: {result.stderr}")
-            logger.error("Output: " + result.stdout)
+
+        # Batch linting to avoid "Argument list too long" error
+        batch_size = 100
+        all_success = True
+        for i in range(0, len(python_files), batch_size):
+            batch = python_files[i : i + batch_size]
+            result = subprocess.run(
+                f"{command} {' '.join(batch)}",
+                shell=True,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            if result.returncode != 0:
+                all_success = False
+                logger.error(f"Error linting Python code: {result.stderr}")
+                logger.error("Output: " + result.stdout)
+
+        if not all_success:
             logger.error(
                 f"Failed to lint the Python code, please check the code for errors using '{command}' so you don't have simple errors in your code prior to upload."
             )
