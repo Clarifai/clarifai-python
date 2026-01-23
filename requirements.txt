@@ -1,5 +1,5 @@
 clarifai-grpc>=12.0.6
-clarifai-protocol==0.0.35
+clarifai-protocol @ git+https://${GITHUB_TOKEN}@github.com/Clarifai/clarifai-protocol.git@${PROTOCOL_BRANCH}
 numpy>=1.22.0
 tqdm>=4.65.0
 PyYAML>=6.0.1
