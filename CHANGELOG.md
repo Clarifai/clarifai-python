@@ -1,3 +1,12 @@
+## [[12.1.6]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.6) - [PyPI](https://pypi.org/project/clarifai/12.1.6/) - 2026-01-26
+
+### Added
+- Add support for concept IDs from config.yaml in visual detector/classifier [(#913)](https://github.com/Clarifai/clarifai-python/pull/913)
+  - Added `load_concepts_from_config()` method to `VisualDetectorClass` and `VisualClassifierClass` to load concepts from config.yaml
+  - Added optional `concepts_map` parameter to `process_detections()` and `process_concepts()` methods
+  - When `concepts_map` is provided, concept IDs are taken from config.yaml instead of being auto-generated from names
+  - Fixes mismatch between concept IDs in model output_info and actual prediction output
+
 ## [[12.1.5]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.5) - [PyPI](https://pypi.org/project/clarifai/12.1.5/) - 2026-01-21
 
 ### Added
