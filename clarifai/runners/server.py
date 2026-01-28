@@ -141,7 +141,12 @@ def main():
 
 
 class ModelServer:
-    def __init__(self, model_path, model_runner_local: ModelRunLocally = None):
+    def __init__(
+        self,
+        model_path,
+        model_runner_local: ModelRunLocally = None,
+        model_builder: ModelBuilder = None,
+    ):
         """Initialize the ModelServer.
         Args:
             model_path: Path to the model directory
@@ -158,7 +163,11 @@ class ModelServer:
         self._initialize_secrets_system()
 
         # Build model after secrets are loaded
-        self._builder = ModelBuilder(model_path, download_validation_only=True)
+        self._builder = (
+            model_builder
+            if model_builder
+            else ModelBuilder(model_path, download_validation_only=True)
+        )
         self._current_model = self._builder.create_model_instance()
 
         logger.info("ModelServer initialized successfully")

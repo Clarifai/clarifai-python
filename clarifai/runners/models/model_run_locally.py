@@ -18,12 +18,16 @@ from clarifai.utils.logging import logger
 
 
 class ModelRunLocally:
-    def __init__(self, model_path):
+    def __init__(self, model_path, model_builder: ModelBuilder = None):
         self.model_path = os.path.abspath(model_path)
         self.requirements_file = os.path.join(self.model_path, "requirements.txt")
 
         # ModelBuilder contains multiple useful methods to interact with the model
-        self.builder = ModelBuilder(self.model_path, download_validation_only=True)
+        self.builder = (
+            model_builder
+            if model_builder
+            else ModelBuilder(self.model_path, download_validation_only=True)
+        )
         self.config = self.builder.config
 
     def _get_method_signatures(self):
