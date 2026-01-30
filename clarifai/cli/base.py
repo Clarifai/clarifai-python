@@ -12,12 +12,15 @@ from clarifai.utils.constants import DEFAULT_BASE, DEFAULT_CONFIG, DEFAULT_UI
 from clarifai.utils.logging import logger
 
 
-@click.group(cls=AliasedGroup)
+@click.group(cls=AliasedGroup, invoke_without_command=True)
 @click.version_option(version=__version__)
 @click.option('--config', default=DEFAULT_CONFIG)
 @click.pass_context
 def cli(ctx, config):
-    """Clarifai CLI"""
+    """Clarifai CLI - Chat is the default command.
+
+    Run `clarifai` to start the chat interface, or use subcommands like `clarifai config`, `clarifai login`, etc.
+    """
     ctx.ensure_object(dict)
     if os.path.exists(config):
         cfg = Config.from_yaml(filename=config)
@@ -121,6 +124,26 @@ def login(ctx, api_url, user_id):
     click.echo('💡 To switch contexts later, use `clarifai config use-context <name>`.')
 
     logger.info(f"Login successful for user '{user_id}' in context '{context_name}'")
+
+
+@cli.command()
+@click.pass_context
+def logout(ctx):
+    """Logout from the current context by clearing the PAT."""
+    current_context_name = ctx.obj.current_context
+    current_context = ctx.obj.current
+
+    if current_context.name == '_empty_' or not current_context.pat:
+        click.secho("You are not currently logged in.", fg='yellow')
+        return
+
+    # Clear PAT from current context
+    current_context['env']['CLARIFAI_PAT'] = ''
+    ctx.obj.to_yaml()
+
+    click.secho(f"✅ Successfully logged out from '{current_context_name}'.", fg='green')
+    click.echo("Your PAT has been cleared from this context.")
+    logger.info(f"Logout successful from context '{current_context_name}'")
 
 
 def pat_display(pat):
@@ -312,6 +335,18 @@ def run(ctx, script, context=None):
 
 # Import the CLI commands to register them
 load_command_modules()
+
+
+@cli.result_callback()
+@click.pass_context
+def default_command(ctx, *args, **kwargs):
+    """If no subcommand is provided, run chat as the default."""
+    if ctx.invoked_subcommand is None:
+        # Import here to avoid circular imports
+        from clarifai.cli.chat import chat
+
+        # Invoke the chat command
+        ctx.invoke(chat)
 
 
 def main():

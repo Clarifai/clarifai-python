@@ -47,6 +47,49 @@ clarifai config edit
 clarifai context env
 ```
 
+### Logout from the current context
+```bash
+clarifai logout
+```
+
+This clears the PAT from the current context, logging you out. You can log back in anytime with `clarifai login`.
+
+## Chat Command
+
+Start an interactive chat session with AI assistance for CLI questions:
+
+```bash
+$ clarifai chat
+```
+
+### Configuration
+
+You can customize the chat model URL in your config file. The chat command uses a default model URL but you can override it per context:
+
+```yaml
+# ~/.clarifai/config.yaml
+contexts:
+  default:
+    CLARIFAI_PAT: your_pat_here
+    chat_model_url: https://clarifai.com/openai/chat-completion/models/gpt-oss-120b
+  production:
+    CLARIFAI_PAT: prod_pat_here
+    chat_model_url: https://clarifai.com/your-org/your-app/models/your-model
+```
+
+If `chat_model_url` is not specified in a context, it defaults to: `https://clarifai.com/openai/chat-completion/models/gpt-oss-120b`
+
+### Usage Example
+
+```bash
+$ clarifai login
+$ clarifai chat
+> What's the login command?
+Assistant: The login command is `clarifai login`...
+> exit
+Goodbye!
+```
+
 ## Compute Orchestration
 
 Quick example for deploying a `visual-classifier` model
