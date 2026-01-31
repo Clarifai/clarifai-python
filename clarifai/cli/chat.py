@@ -149,88 +149,6 @@ def sanitize_sensitive_data(text: str) -> str:
     return text
 
 
-def clean_result_for_model(obj, depth=0, max_depth=3):
-    """Recursively clean results using whitelist approach - only keep known good fields.
-    
-    Uses a whitelist of known user-facing fields. Skips objects that contain only metadata.
-    
-    Args:
-        obj: Object to clean (dict, list, or primitive)
-        depth: Current recursion depth
-        max_depth: Maximum depth to recurse
-        
-    Returns:
-        Cleaned object with only user-facing fields, or None if only metadata
-    """
-    if depth > max_depth:
-        return None
-    
-    # Whitelist of known good user-facing fields
-    GOOD_FIELDS = {
-        'id', 'name', 'title', 'display_name', 'description', 'version',
-        'app_id', 'model_id', 'dataset_id', 'workflow_id', 'user_id',
-        'created_at', 'updated_at', 'status', 'visibility', 'type',
-        'created_by', 'updated_by', 'config', 'input_type',
-        'output_type', 'score', 'confidence', 'value', 'url', 'uri',
-        'data', 'text', 'image', 'concepts', 'regions', 'embeddings',
-        'labels', 'tags', 'categories', 'attributes', 'properties',
-        'count', 'total', 'page', 'per_page', 'results'
-    }
-    
-    # Metadata field markers to detect pure metadata objects
-    METADATA_MARKERS = {
-        'logger', 'manager', 'DESCRIPTOR', 'filters', 'handlers', 'propagate',
-        'disabled', 'parent', 'level', 'lock', 'formatter', 'stream', 'emitted',
-        'loggerMap', 'loggerClass', 'logRecordFactory', 'auth_helper', 'STUB',
-        'pat', 'token', 'user_app_id', 'base', 'root_certificates_path',
-        'default_page_size', 'metadata', 'kwargs', 'app_info'
-    }
-    
-    if isinstance(obj, dict):
-        # Check if this is a pure metadata dict (has metadata markers but no good fields)
-        has_good_field = any(k in GOOD_FIELDS for k in obj.keys())
-        has_metadata_marker = any(k in METADATA_MARKERS for k in obj.keys())
-        
-        # If it has only metadata and no good fields, skip it entirely
-        if not has_good_field and has_metadata_marker:
-            return None
-        
-        cleaned = {}
-        for k, v in obj.items():
-            # Only keep whitelisted fields
-            if k not in GOOD_FIELDS:
-                continue
-            
-            # Recursively clean value
-            try:
-                cleaned_v = clean_result_for_model(v, depth + 1, max_depth)
-                if cleaned_v is not None or v is None:
-                    cleaned[k] = cleaned_v
-            except (TypeError, ValueError, RecursionError):
-                continue
-        
-        return cleaned if cleaned else None
-    
-    elif isinstance(obj, list):
-        cleaned_list = []
-        for item in obj:
-            try:
-                cleaned_item = clean_result_for_model(item, depth + 1, max_depth)
-                # Only keep items that have actual content (not just metadata)
-                if cleaned_item is not None:
-                    cleaned_list.append(cleaned_item)
-            except (TypeError, ValueError, RecursionError):
-                continue
-        return cleaned_list if cleaned_list else None
-    
-    elif isinstance(obj, (str, int, float, bool, type(None))):
-        return obj
-    
-    else:
-        # For other types, return None
-        return None
-
-
 @cli.command()
 @click.pass_context
 def chat(ctx):
@@ -438,10 +356,8 @@ RESPONSE RULES:
                                     tool_results[tool_name] = result
 
                                     if result.get('success'):
-                                        click.secho(
-                                            f"  ✓ {tool_name}: {result.get('result')}",
-                                            fg='green',
-                                        )
+                                        # Only show brief success message, not the full result data
+                                        click.secho(f"  ✓ {tool_name}: Done", fg='green')
                                     else:
                                         click.secho(
                                             f"  ✗ {tool_name}: {result.get('error')}",
@@ -449,51 +365,41 @@ RESPONSE RULES:
                                         )
                                 click.echo()  # Spacing
 
-                                # Format tool results for model response - extract essential info only
-                                formatted_results = "Tool Results:\n"
-                                
-                                for tool_name, result in tool_results.items():
-                                    if result.get('success'):
-                                        result_data = result.get('result', '')
-                                        
-                                        # Clean the result data recursively
-                                        result_data = clean_result_for_model(result_data)
-                                        
-                                        # Handle list results - show ALL items but only user-facing fields
-                                        if isinstance(result_data, list):
-                                            count = len(result_data)
-                                            formatted_results += f"{tool_name}: Found {count} items\n"
-                                            for i, item in enumerate(result_data):
-                                                if item:  # Only show non-empty items
-                                                    formatted_results += f"  {i+1}. {item}\n"
-                                        else:
-                                            # For non-list results, send as-is (usually strings)
-                                            if result_data:
-                                                formatted_results += f"{tool_name}: {result_data}\n"
-                                    else:
-                                        formatted_results += f"{tool_name}: Error - {result.get('error')}\n"
-                                
-                                # Send tool results to model for final response
-                                try:
-                                    # Simplified input to avoid serialization issues
-                                    model_input = f"User command: {user_input}\n\n{formatted_results}\n\nProvide a brief summary of these results."
-                                    
-                                    result_response = model.predict_by_bytes(
-                                        input_bytes=model_input.encode('utf-8'),
-                                        input_type='text',
-                                        inference_params={'max_tokens': '300'}
+                                # If tools were executed, get a follow-up response from the model
+                                if tool_results:
+                                    tool_summary = "\n".join(
+                                        [
+                                            f"- {name}: {'Success' if r.get('success') else 'Error'} - {r.get('result') or r.get('error')}"
+                                            for name, r in tool_results.items()
+                                        ]
                                     )
-                                    
-                                    if result_response and hasattr(result_response, 'outputs') and len(result_response.outputs) > 0:
-                                        output = result_response.outputs[0]
-                                        if hasattr(output, 'data') and hasattr(output.data, 'text'):
-                                            assistant_message = output.data.text.raw
-                                            import re
-                                            assistant_message = re.sub(r'<\|[a-z_]+\|>', '', assistant_message)
-                                            assistant_message = sanitize_sensitive_data(assistant_message)
-                                except Exception as e:
-                                    # If model response fails, just show summary of results
-                                    assistant_message = formatted_results
+                                    follow_up_input = f"Tool execution results:\n{tool_summary}\n\nPlease provide a summary of what was accomplished."
+
+                                    try:
+                                        follow_up_response = model.predict_by_bytes(
+                                            input_bytes=follow_up_input.encode('utf-8'),
+                                            input_type='text',
+                                            inference_params={'max_tokens': '300'},
+                                        )
+                                        if (
+                                            follow_up_response
+                                            and hasattr(follow_up_response, 'outputs')
+                                            and len(follow_up_response.outputs) > 0
+                                        ):
+                                            follow_up_output = follow_up_response.outputs[0]
+                                            if hasattr(follow_up_output, 'data') and hasattr(
+                                                follow_up_output.data, 'text'
+                                            ):
+                                                # Use the follow-up response as the final assistant message
+                                                assistant_message = follow_up_output.data.text.raw
+                                                # Remove special model control tokens
+                                                import re
+                                                assistant_message = re.sub(r'<\|[a-z_]+\|>', '', assistant_message)
+                                                assistant_message = re.sub(r'</?[a-z_]+>', '', assistant_message)
+                                                # Sanitize sensitive data
+                                                assistant_message = sanitize_sensitive_data(assistant_message)
+                                    except Exception as e:
+                                        logger.warning(f"Failed to get follow-up response: {e}")
 
                             # Add to conversation history
                             conversation_history.append(
