@@ -72,6 +72,65 @@ def normalize_response_with_tools(response_text: str, agent: ClarifaiAgent = Non
     return normalized.strip()
 
 
+def sanitize_sensitive_data(text: str) -> str:
+    """Sanitize sensitive credentials from response text.
+    
+    Masks PAT (Personal Access Token), auth tokens, and other sensitive data
+    by replacing them with asterisks.
+    
+    Args:
+        text: Text to sanitize
+        
+    Returns:
+        Text with sensitive data masked
+    """
+    import re
+    
+    # Sanitize PAT values (32-character hex strings commonly used as PAT)
+    # Pattern: 'pat': 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+    text = re.sub(
+        r"('pat'\s*:\s*')[a-f0-9]{32}(')",
+        r"\1" + "*" * 32 + r"\2",
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    # Also handle "pat=XXXXXXXX..." format
+    text = re.sub(
+        r"(pat\s*=\s*)[a-f0-9]{32}",
+        r"\1" + "*" * 32,
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    # Sanitize token values (similar pattern)
+    text = re.sub(
+        r"('token'\s*:\s*')[a-f0-9]{32}(')",
+        r"\1" + "*" * 32 + r"\2",
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    # Sanitize CLARIFAI_PAT environment variable format
+    text = re.sub(
+        r"(CLARIFAI_PAT\s*=\s*)[a-f0-9]{32}",
+        r"\1" + "*" * 32,
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    # Sanitize any hex token-like values that appear in quotes (general case)
+    # Match patterns like: "token": "abc123..." or 'key': 'abc123...'
+    text = re.sub(
+        r"(['\"](?:token|pat|password|secret|authorization|api[_-]key)['\"]?\s*:?\s*['\"])[a-f0-9A-F]{16,}(['\"])",
+        lambda m: m.group(1) + "*" * 32 + m.group(2),
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    return text
+
+
 @cli.command()
 @click.pass_context
 def chat(ctx):
@@ -250,6 +309,9 @@ RESPONSE RULES:
                             assistant_message = re.sub(r'<\|[a-z_]+\|>', '', assistant_message)
                             assistant_message = re.sub(r'</?[a-z_]+>', '', assistant_message)
                             
+                            # Sanitize sensitive data (PAT, tokens, etc.)
+                            assistant_message = sanitize_sensitive_data(assistant_message)
+                            
                             # Remove bare JSON tool calls from the displayed message (they'll be parsed separately)
                             assistant_message = re.sub(r'\{\s*"tool"\s*:\s*"[^"]+"\s*,\s*"params"\s*:\s*\{[^}]*\}\s*\}', '', assistant_message)
                             # Clean up any extra whitespace left behind
@@ -318,6 +380,8 @@ RESPONSE RULES:
                                                 import re
                                                 assistant_message = re.sub(r'<\|[a-z_]+\|>', '', assistant_message)
                                                 assistant_message = re.sub(r'</?[a-z_]+>', '', assistant_message)
+                                                # Sanitize sensitive data
+                                                assistant_message = sanitize_sensitive_data(assistant_message)
                                     except Exception as e:
                                         logger.warning(f"Failed to get follow-up response: {e}")
 
