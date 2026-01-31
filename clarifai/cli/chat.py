@@ -199,11 +199,16 @@ RESPONSE RULES:
                             import re
                             assistant_message = re.sub(r'<\|[a-z_]+\|>', '', assistant_message)
                             assistant_message = re.sub(r'</?[a-z_]+>', '', assistant_message)
+                            
+                            # Remove bare JSON tool calls from the displayed message (they'll be parsed separately)
+                            assistant_message = re.sub(r'\{\s*"tool"\s*:\s*"[^"]+"\s*,\s*"params"\s*:\s*\{[^}]*\}\s*\}', '', assistant_message)
+                            # Clean up any extra whitespace left behind
+                            assistant_message = re.sub(r'\n\s*\n', '\n', assistant_message).strip()
 
                             # Check for tool calls in the response
                             tool_calls = []
                             if agent:
-                                tool_calls = parse_tool_calls_from_response(assistant_message)
+                                tool_calls = parse_tool_calls_from_response(output.data.text.raw)  # Parse from original before cleaning
 
                             # Execute any tool calls
                             tool_results = {}

@@ -417,7 +417,9 @@ def parse_tool_calls_from_response(response_text: str) -> List[Dict[str, Any]]:
     """Parse tool calls from LLM response text.
 
     Looks for JSON-formatted tool calls in the response.
-    Format: <tool_call>{"tool": "tool_name", "params": {"key": "value"}}</tool_call>
+    Supports both wrapped and bare JSON formats:
+    - Wrapped: <tool_call>{"tool": "tool_name", "params": {"key": "value"}}</tool_call>
+    - Bare: {"tool": "tool_name", "params": {"key": "value"}}
 
     Args:
         response_text: Raw LLM response text
@@ -428,7 +430,7 @@ def parse_tool_calls_from_response(response_text: str) -> List[Dict[str, Any]]:
     tool_calls = []
     import re
 
-    # Look for <tool_call>...</tool_call> blocks
+    # First try to find <tool_call>...</tool_call> blocks
     pattern = r"<tool_call>(.*?)</tool_call>"
     matches = re.findall(pattern, response_text, re.DOTALL)
 
@@ -439,6 +441,19 @@ def parse_tool_calls_from_response(response_text: str) -> List[Dict[str, Any]]:
                 tool_calls.append(tool_call)
         except json.JSONDecodeError:
             logger.warning(f"Failed to parse tool call: {match}")
+
+    # If no wrapped calls found, try to find bare JSON objects with tool and params
+    if not tool_calls:
+        # Look for JSON objects that have "tool" and "params" fields
+        json_pattern = r'\{\s*"tool"\s*:\s*"([^"]+)"\s*,\s*"params"\s*:\s*(\{[^}]*\})\s*\}'
+        json_matches = re.findall(json_pattern, response_text, re.DOTALL)
+        
+        for tool_name, params_str in json_matches:
+            try:
+                params = json.loads(params_str)
+                tool_calls.append({"tool": tool_name, "params": params})
+            except json.JSONDecodeError:
+                logger.warning(f"Failed to parse params for tool {tool_name}: {params_str}")
 
     return tool_calls
 
