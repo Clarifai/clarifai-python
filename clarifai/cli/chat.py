@@ -367,41 +367,9 @@ RESPONSE RULES:
                                         )
                                 click.echo()  # Spacing
 
-                                # If tools were executed, get a follow-up response from the model
-                                if tool_results:
-                                    tool_summary = "\n".join(
-                                        [
-                                            f"- {name}: {'Success' if r.get('success') else 'Error'} - {r.get('result') or r.get('error')}"
-                                            for name, r in tool_results.items()
-                                        ]
-                                    )
-                                    follow_up_input = f"Tool execution results:\n{tool_summary}\n\nPlease provide a summary of what was accomplished."
-
-                                    try:
-                                        follow_up_response = model.predict_by_bytes(
-                                            input_bytes=follow_up_input.encode('utf-8'),
-                                            input_type='text',
-                                            inference_params={'max_tokens': '300'},
-                                        )
-                                        if (
-                                            follow_up_response
-                                            and hasattr(follow_up_response, 'outputs')
-                                            and len(follow_up_response.outputs) > 0
-                                        ):
-                                            follow_up_output = follow_up_response.outputs[0]
-                                            if hasattr(follow_up_output, 'data') and hasattr(
-                                                follow_up_output.data, 'text'
-                                            ):
-                                                # Use the follow-up response as the final assistant message
-                                                assistant_message = follow_up_output.data.text.raw
-                                                # Remove special model control tokens
-                                                import re
-                                                assistant_message = re.sub(r'<\|[a-z_]+\|>', '', assistant_message)
-                                                assistant_message = re.sub(r'</?[a-z_]+>', '', assistant_message)
-                                                # Sanitize sensitive data
-                                                assistant_message = sanitize_sensitive_data(assistant_message)
-                                    except Exception as e:
-                                        logger.warning(f"Failed to get follow-up response: {e}")
+                                # Tool results are already displayed above - no need for follow-up response
+                                # This avoids serialization errors from the model processing tool data
+                                assistant_message = ""
 
                             # Add to conversation history
                             conversation_history.append(
