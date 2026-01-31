@@ -367,9 +367,35 @@ RESPONSE RULES:
                                         )
                                 click.echo()  # Spacing
 
-                                # Tool results are already displayed above - provide simple completion message
-                                # This avoids serialization errors from the model processing tool data
-                                assistant_message = "✓ Tools executed. Results displayed above."
+                                # Format tool results for model response
+                                formatted_results = "\n\n**Tool Results:**\n"
+                                for tool_name, result in tool_results.items():
+                                    if result.get('success'):
+                                        formatted_results += f"\n**{tool_name}:**\n{result.get('result')}\n"
+                                    else:
+                                        formatted_results += f"\n**{tool_name}:** Error - {result.get('error')}\n"
+                                
+                                # Send tool results to model for final response
+                                try:
+                                    model_input = f"{system_prompt}{conversation_context}\n\nUser asked: {user_input}\n\nTools were executed with these results:{formatted_results}\n\nBased on these results, provide a concise summary response (max 300 words)."
+                                    
+                                    result_response = model.predict_by_bytes(
+                                        input_bytes=model_input.encode('utf-8'),
+                                        input_type='text',
+                                        inference_params={'max_tokens': '500'}
+                                    )
+                                    
+                                    if result_response and hasattr(result_response, 'outputs') and len(result_response.outputs) > 0:
+                                        output = result_response.outputs[0]
+                                        if hasattr(output, 'data') and hasattr(output.data, 'text'):
+                                            assistant_message = output.data.text.raw
+                                            import re
+                                            assistant_message = re.sub(r'<\|[a-z_]+\|>', '', assistant_message)
+                                            assistant_message = sanitize_sensitive_data(assistant_message)
+                                except Exception as e:
+                                    # If model response fails, just show the results
+                                    click.secho(f"(Model response unavailable)", fg='yellow')
+                                    assistant_message = "Tool results are displayed above."
 
                             # Add to conversation history
                             conversation_history.append(
