@@ -18,3 +18,4 @@ pydantic_core>=2.33.2
 packaging>=25.0
 tenacity>=8.2.3
 httpx>=0.27.0
+rich>=13.0.0

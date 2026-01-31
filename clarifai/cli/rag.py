@@ -10,37 +10,40 @@ class ClarifaiCodeRAG:
     def __init__(self, repo_root: str):
         """Initialize RAG with repo root path."""
         self.repo_root = Path(repo_root)
-        self.cli_dir = self.repo_root / "clarifai" / "cli"
-        self.client_dir = self.repo_root / "clarifai" / "client"
-        self.utils_dir = self.repo_root / "clarifai" / "utils"
+        self.clarifai_dir = self.repo_root / "clarifai"
         self.documents = []
         self._index_codebase()
 
     def _index_codebase(self):
-        """Index all Python files in the clarifai package."""
-        directories = [self.cli_dir, self.client_dir, self.utils_dir]
+        """Index all Python files in the entire clarifai package."""
+        # Index the entire clarifai package recursively
+        if not self.clarifai_dir.exists():
+            return
 
-        for directory in directories:
-            if not directory.exists():
+        for py_file in self.clarifai_dir.rglob("*.py"):
+            # Skip __pycache__ directories
+            if "__pycache__" in py_file.parts:
                 continue
 
-            for py_file in directory.rglob("*.py"):
-                if py_file.name == "__pycache__":
-                    continue
+            try:
+                with open(py_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                    relative_path = py_file.relative_to(self.repo_root)
+                    # Prioritize CLI and client modules
+                    module_path = str(relative_path)
+                    is_cli = 'cli' in module_path
+                    is_client = 'client' in module_path
 
-                try:
-                    with open(py_file, 'r', encoding='utf-8', errors='ignore') as f:
-                        content = f.read()
-                        relative_path = py_file.relative_to(self.repo_root)
-                        self.documents.append(
-                            {
-                                'path': str(relative_path),
-                                'content': content,
-                                'is_cli': 'cli' in str(relative_path),
-                            }
-                        )
-                except Exception:
-                    continue
+                    self.documents.append(
+                        {
+                            'path': module_path,
+                            'content': content,
+                            'is_cli': is_cli,
+                            'is_client': is_client,
+                        }
+                    )
+            except Exception:
+                continue
 
     def _keyword_match_score(self, query: str, content: str) -> float:
         """Calculate relevance score based on keyword matching."""
@@ -68,21 +71,28 @@ class ClarifaiCodeRAG:
 
         Returns list of (file_path, relevant_code) tuples.
         """
-        # Prioritize CLI documents
+        # Categorize documents by importance for scoring
         cli_docs = [d for d in self.documents if d['is_cli']]
-        other_docs = [d for d in self.documents if not d['is_cli']]
+        client_docs = [d for d in self.documents if d['is_client'] and not d['is_cli']]
+        other_docs = [d for d in self.documents if not d['is_cli'] and not d['is_client']]
 
         all_scores = []
 
+        # Search all documents with prioritization
         for doc in cli_docs:
             score = self._keyword_match_score(query, doc['content'])
             if score > 0:
                 all_scores.append((doc, score, 2.0))  # CLI docs get 2x boost
 
+        for doc in client_docs:
+            score = self._keyword_match_score(query, doc['content'])
+            if score > 0:
+                all_scores.append((doc, score, 1.5))  # Client docs get 1.5x boost
+
         for doc in other_docs:
             score = self._keyword_match_score(query, doc['content'])
             if score > 0:
-                all_scores.append((doc, score, 1.0))
+                all_scores.append((doc, score, 1.0))  # Other docs (including pipelines, etc)
 
         # Sort by boosted score
         all_scores.sort(key=lambda x: x[1] * x[2], reverse=True)
@@ -144,26 +154,27 @@ def build_system_prompt_with_rag(rag: ClarifaiCodeRAG, query: str) -> str:
             context += f"\n### From {file_path}:\n```\n{snippet}\n```"
 
     system_prompt = f"""You are an expert Clarifai CLI assistant. Your role is to help users with:
-1. Using the Clarifai CLI commands
-2. Understanding CLI options and parameters
-3. Troubleshooting CLI issues
+1. Using the Clarifai CLI commands (login, chat, config, deployment, pipeline, model, artifact, etc.)
+2. Understanding CLI options, parameters, and flags
+3. Troubleshooting CLI issues and errors
 4. Writing CLI scripts and automation
+5. Understanding CLI integration with Clarifai resources (pipelines, models, deployments, etc.)
+6. Answering meta-questions about our conversation
 
-IMPORTANT RESPONSE RULES:
+RESPONSE RULES:
 - Keep responses CONCISE and FOCUSED (max 300 words)
-- Use bullet points, tables, or short examples when helpful
+- Use bullet points, tables, or code examples when helpful
 - Get to the point quickly
-- ONLY answer questions related to the Clarifai CLI
-- For questions about general Clarifai usage (models, apps, data, workflows), respond with:
-  "I'm specifically designed to help with the Clarifai CLI. For general questions, please refer to the Clarifai documentation at: https://docs.clarifai.com"
-- For non-CLI related questions, redirect to: https://docs.clarifai.com
-- Always reference relevant CLI files when helpful
-- Provide practical examples and command snippets
+- Answer ALL CLI-related questions directly (don't redirect)
+- For meta-questions about our conversation, reference the conversation history
+- For general Clarifai API questions NOT related to CLI, refer to: https://docs.clarifai.com
+- Always reference code when available
+- Provide practical, working examples
 
-CLARIFAI CLI CONTEXT:
+AVAILABLE CLARIFAI CLI COMMANDS:
 {rag.get_cli_context()}
 
-CODE REFERENCES FOR THIS QUERY:
-{context}"""
+RELEVANT CODE SNIPPETS FOR THIS QUESTION:
+{context if context else "(Searching full codebase for relevant information)"}"""
 
     return system_prompt
