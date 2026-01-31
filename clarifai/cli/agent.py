@@ -287,8 +287,10 @@ class ClarifaiAgent:
                         instance = cls(app_id=app_id, user_id=self.user_id, pat=self.pat)
 
                 # Call the method
+                # Clean up None values from kwargs before calling the method
+                clean_kwargs = {k: v for k, v in kwargs.items() if v is not None}
                 method = getattr(instance, method_name)
-                result = method(**kwargs)
+                result = method(**clean_kwargs)
 
                 # Handle generators - convert to list for JSON serialization
                 if inspect.isgenerator(result):
