@@ -26,6 +26,73 @@ DEFAULT_CHAT_MODEL_URL = "https://clarifai.com/openai/chat-completion/models/gpt
 console = Console()
 
 
+def compress_tool_result_for_model(result: any, max_length: int = 500) -> str:
+    """Compress tool result for safe sending to model.
+    
+    Converts complex result objects to concise text summaries to avoid model serialization errors.
+    
+    Args:
+        result: Tool result (can be dict, list, object, or primitive)
+        max_length: Maximum characters in summary
+        
+    Returns:
+        Concise string summary of result
+    """
+    import json
+    
+    if result is None:
+        return "None"
+    
+    # Handle lists
+    if isinstance(result, list):
+        if not result:
+            return "Empty list"
+        # For lists of dicts, summarize the count and key fields
+        if isinstance(result[0], dict):
+            # Extract IDs or names from each item
+            summaries = []
+            for item in result[:10]:  # Limit to first 10 items
+                if 'id' in item:
+                    summaries.append(item['id'])
+                elif 'name' in item:
+                    summaries.append(item['name'])
+                else:
+                    summaries.append(str(item)[:50])
+            summary = f"List of {len(result)} items: {', '.join(summaries[:5])}"
+            if len(result) > 5:
+                summary += f", ... ({len(result)-5} more)"
+            return summary[:max_length]
+        else:
+            return f"List of {len(result)} items: {str(result)[:max_length]}"
+    
+    # Handle dicts
+    if isinstance(result, dict):
+        # Keep only simple key-value pairs
+        simple_items = {}
+        for k, v in result.items():
+            if isinstance(v, (str, int, float, bool)):
+                simple_items[k] = v
+            elif v is None:
+                continue
+            else:
+                simple_items[k] = f"<{type(v).__name__}>"
+        
+        try:
+            summary = json.dumps(simple_items, default=str)[:max_length]
+            return summary
+        except:
+            return f"Dict with {len(result)} keys"
+    
+    # Handle strings
+    if isinstance(result, str):
+        if len(result) > max_length:
+            return result[:max_length] + "..."
+        return result
+    
+    # Handle other types
+    return str(result)[:max_length]
+
+
 def normalize_response_with_tools(response_text: str, agent: ClarifaiAgent = None) -> str:
     """Normalize model response to prioritize tool calls and strip excessive explanation.
     
@@ -369,9 +436,10 @@ RESPONSE RULES:
 
                                 # If tools were executed, get a follow-up response from the model
                                 if tool_results:
+                                    # Compress tool results to avoid model serialization errors
                                     tool_summary = "\n".join(
                                         [
-                                            f"- {name}: {'Success' if r.get('success') else 'Error'} - {r.get('result') or r.get('error')}"
+                                            f"- {name}: {'Success' if r.get('success') else 'Error'} - {compress_tool_result_for_model(r.get('result') or r.get('error'))}"
                                             for name, r in tool_results.items()
                                         ]
                                     )
