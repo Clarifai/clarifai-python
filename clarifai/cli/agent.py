@@ -239,12 +239,14 @@ class ClarifaiAgent:
             try:
                 # Instantiate the class with agent's credentials
                 if class_name == 'User':
-                    # For User methods that need app_id context, pass it through kwargs
+                    # For User methods that need app_id context, extract it but don't pass to User.__init__
                     app_id = kwargs.pop('app_id', None) if method_name in ['list_pipelines', 'list_pipeline_steps', 'list_models'] else None
+                    instance = cls(user_id=self.user_id, pat=self.pat)
+                    # If app_id provided for these methods, we need to override the user_app_id on the instance
                     if app_id and method_name in ['list_pipelines', 'list_pipeline_steps', 'list_models']:
-                        instance = cls(user_id=self.user_id, pat=self.pat, app_id=app_id)
-                    else:
-                        instance = cls(user_id=self.user_id, pat=self.pat)
+                        from clarifai_grpc.grpc.api.resources_pb2 import UserAppIDSet
+                        # Recreate user_app_id with the provided app_id
+                        instance.user_app_id = UserAppIDSet(user_id=self.user_id, app_id=app_id)
                 else:
                     # For App, Model, Dataset, etc. - require app_id
                     app_id = kwargs.pop('app_id', None)
