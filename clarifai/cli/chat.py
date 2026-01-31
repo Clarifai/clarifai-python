@@ -149,6 +149,58 @@ def sanitize_sensitive_data(text: str) -> str:
     return text
 
 
+def clean_result_for_model(obj, depth=0, max_depth=5):
+    """Recursively clean results to remove internal metadata fields.
+    
+    Args:
+        obj: Object to clean (dict, list, or primitive)
+        depth: Current recursion depth
+        max_depth: Maximum depth to recurse
+        
+    Returns:
+        Cleaned object with internal fields removed
+    """
+    if depth > max_depth:
+        return None
+    
+    # Internal field patterns to exclude
+    INTERNAL_PREFIXES = {'logger', 'manager', 'DESCRIPTOR', 'filter', 'handler', 
+                        'propagate', 'disabled', 'parent', 'level', 'lock', 'formatter',
+                        'stream', 'emitted', 'loggerMap', 'loggerClass', 'logRecordFactory',
+                        'auth_helper', 'STUB', 'metadata', 'pat', 'token', 'user_app_id',
+                        'base', 'root_certificates', 'default_page_size', 'grpc', 'markdown_it',
+                        'urllib3', 'requests', 'clarifai_grpc', 'concurrent', 'asyncio',
+                        'PIL', 'tqdm', 'tornado', 'fsspec', 'httpx', 'rich', 'charset_normalizer',
+                        'socks', 'cygrpc', 'observability', 'simple_stubs', 'cython', 'aio',
+                        'kwargs', 'app_info'}
+    
+    if isinstance(obj, dict):
+        # Filter out internal fields
+        cleaned = {}
+        for k, v in obj.items():
+            # Skip if key matches internal patterns or contains internal markers
+            if any(k.startswith(p) or k == p for p in INTERNAL_PREFIXES):
+                continue
+            # Skip if value is a dict containing internal fields
+            if isinstance(v, dict) and any(key in v for key in ['logger', 'manager', 'DESCRIPTOR']):
+                continue
+            # Recursively clean the value
+            cleaned_v = clean_result_for_model(v, depth + 1, max_depth)
+            if cleaned_v is not None or isinstance(v, (bool, type(None))):
+                cleaned[k] = cleaned_v
+        return cleaned
+    elif isinstance(obj, list):
+        return [clean_result_for_model(item, depth + 1, max_depth) for item in obj]
+    elif isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    else:
+        # For other types, try string representation if short
+        s = str(obj)
+        if len(s) < 200 and not any(x in s for x in ['logger', 'manager', 'DESCRIPTOR']):
+            return s
+        return None
+
+
 @cli.command()
 @click.pass_context
 def chat(ctx):
@@ -370,35 +422,24 @@ RESPONSE RULES:
                                 # Format tool results for model response - extract essential info only
                                 formatted_results = "Tool Results:\n"
                                 
-                                # Internal fields to skip when filtering results
-                                INTERNAL_FIELDS = {
-                                    'logger', 'manager', 'auth_helper', 'STUB', 'metadata', 'pat', 'token',
-                                    'user_app_id', 'base', 'root_certificates_path', 'default_page_size',
-                                    'loggerClass', 'logRecordFactory', 'filters', 'handlers', 'propagate',
-                                    'disabled', 'parent', 'level', 'lock', 'formatter', 'stream', 'emittedNoHandlerWarning',
-                                    'loggerDict', 'loggerMap', 'kwargs', 'app_info', 'DESCRIPTOR'
-                                }
-                                
                                 for tool_name, result in tool_results.items():
                                     if result.get('success'):
                                         result_data = result.get('result', '')
+                                        
+                                        # Clean the result data recursively
+                                        result_data = clean_result_for_model(result_data)
                                         
                                         # Handle list results - show ALL items but only user-facing fields
                                         if isinstance(result_data, list):
                                             count = len(result_data)
                                             formatted_results += f"{tool_name}: Found {count} items\n"
                                             for i, item in enumerate(result_data):
-                                                if isinstance(item, dict):
-                                                    # Filter to only non-internal fields with simple types
-                                                    key_info = {k: v for k, v in item.items() 
-                                                              if k not in INTERNAL_FIELDS and isinstance(v, (str, int, float, bool, type(None)))}
-                                                    if key_info:
-                                                        formatted_results += f"  {i+1}. {key_info}\n"
-                                                else:
-                                                    formatted_results += f"  {i+1}. {str(item)}\n"
+                                                if item:  # Only show non-empty items
+                                                    formatted_results += f"  {i+1}. {item}\n"
                                         else:
                                             # For non-list results, send as-is (usually strings)
-                                            formatted_results += f"{tool_name}: {result_data}\n"
+                                            if result_data:
+                                                formatted_results += f"{tool_name}: {result_data}\n"
                                     else:
                                         formatted_results += f"{tool_name}: Error - {result.get('error')}\n"
                                 
