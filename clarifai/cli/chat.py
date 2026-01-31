@@ -86,63 +86,62 @@ def sanitize_sensitive_data(text: str) -> str:
     """
     import re
     
-    # Sanitize PAT values (32-character hex strings commonly used as PAT)
-    # Pattern: 'pat': 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+    # 1. Sanitize any 32-character hex string that looks like a PAT/token
+    #    This is the most aggressive pattern - catch bare hex values
     text = re.sub(
-        r"('pat'\s*:\s*')[a-f0-9]{32}(')",
+        r'\b[a-f0-9]{32}\b',
+        lambda m: '*' * 32,
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    # 2. Sanitize PAT values in key:value format (various quote types)
+    # Handle both ASCII and Unicode quotes
+    text = re.sub(
+        r"(['\"`""'']pat['\"`""'']\s*:\s*['\"`""''])[a-f0-9*]{32}(['\"`""''])",
         r"\1" + "*" * 32 + r"\2",
         text,
         flags=re.IGNORECASE
     )
     
-    # Also handle "pat=XXXXXXXX..." format
+    # 3. Sanitize token values
     text = re.sub(
-        r"(pat\s*=\s*)[a-f0-9]{32}",
-        r"\1" + "*" * 32,
-        text,
-        flags=re.IGNORECASE
-    )
-    
-    # Sanitize token values (similar pattern)
-    text = re.sub(
-        r"('token'\s*:\s*')[a-f0-9]{32}(')",
+        r"(['\"`""'']token['\"`""'']\s*:\s*['\"`""''])[a-f0-9*]{32}(['\"`""''])",
         r"\1" + "*" * 32 + r"\2",
         text,
         flags=re.IGNORECASE
     )
     
-    # Sanitize CLARIFAI_PAT environment variable format
+    # 4. Sanitize after keyword patterns
+    # e.g., "PAT: 6b09c6dc2a694266921a3f62d25c9197" or "Personal Access Token: 6b09c6dc..."
     text = re.sub(
-        r"(CLARIFAI_PAT\s*=\s*)[a-f0-9]{32}",
+        r'((?:PAT|Token|API[_-]?Key|Secret|Authorization|Auth|Credential|password)\s*[:=]\s*)[a-f0-9*]{32}',
         r"\1" + "*" * 32,
         text,
         flags=re.IGNORECASE
     )
     
-    # Sanitize any hex token-like values that appear in quotes (general case)
-    # Match patterns like: "token": "abc123..." or 'key': 'abc123...'
+    # 5. Sanitize environment variable format
     text = re.sub(
-        r"(['\"](?:token|pat|password|secret|authorization|api[_-]key)['\"]?\s*:?\s*['\"])[a-f0-9A-F]{16,}(['\"])",
-        lambda m: m.group(1) + "*" * 32 + m.group(2),
-        text,
-        flags=re.IGNORECASE
-    )
-    
-    # Sanitize bare 32-character hex values that appear after keywords (table/text format)
-    # Pattern: "Authentication (PAT)            6b09c6dc2a694266921a3f62d25c9197"
-    text = re.sub(
-        r"((?:PAT|Token|API[_-]?Key|Secret|Authorization|Auth|Credential)\s+)([a-f0-9]{32})(?=\s|$|\(|,)",
+        r'(CLARIFAI_PAT\s*=\s*)[a-f0-9*]{32}',
         r"\1" + "*" * 32,
         text,
         flags=re.IGNORECASE
     )
     
-    # Additional pattern: bare 32-char hex after colons or equals (general case)
-    # But be careful not to match things that shouldn't be sanitized
-    # Only match if surrounded by spaces, newlines, parens, or quotes
+    # 6. Sanitize in parentheses or brackets
     text = re.sub(
-        r"([\s\(\"'])[a-f0-9]{32}([)\s\"\']|$)",
+        r'([\(\[\{]\s*)[a-f0-9]{32}([\)\]\}])',
         lambda m: m.group(1) + "*" * 32 + m.group(2),
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    # 7. Ensure already-partially masked values don't create issues
+    # Convert patterns like "6b09c6dc*" back to full mask
+    text = re.sub(
+        r'[a-f0-9]{16,}\*+',
+        "*" * 32,
         text,
         flags=re.IGNORECASE
     )
