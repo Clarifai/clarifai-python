@@ -373,20 +373,17 @@ RESPONSE RULES:
                                     if result.get('success'):
                                         result_data = result.get('result', '')
                                         
-                                        # Handle list results - summarize instead of sending all items
+                                        # Handle list results - show all items but only key fields
                                         if isinstance(result_data, list):
                                             count = len(result_data)
                                             formatted_results += f"{tool_name}: Found {count} items\n"
-                                            # Show first 3 items as examples
-                                            for i, item in enumerate(result_data[:3]):
+                                            for i, item in enumerate(result_data):
                                                 if isinstance(item, dict):
                                                     # Extract key fields only
                                                     key_info = {k: v for k, v in item.items() if k in ['id', 'name', 'title', 'display_name', 'app_id', 'model_id'] and isinstance(v, (str, int))}
                                                     formatted_results += f"  {i+1}. {key_info}\n"
                                                 else:
                                                     formatted_results += f"  {i+1}. {str(item)[:100]}\n"
-                                            if count > 3:
-                                                formatted_results += f"  ... and {count - 3} more items\n"
                                         else:
                                             # For non-list results, send as-is (usually strings)
                                             formatted_results += f"{tool_name}: {result_data}\n"
