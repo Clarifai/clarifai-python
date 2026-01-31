@@ -8,6 +8,11 @@ from rich.console import Console
 from rich.markdown import Markdown
 
 import clarifai
+from clarifai.cli.agent import (
+    ClarifaiAgent,
+    build_agent_system_prompt,
+    parse_tool_calls_from_response,
+)
 from clarifai.cli.base import cli
 from clarifai.cli.rag import ClarifaiCodeRAG, build_system_prompt_with_rag
 from clarifai.client.model import Model
@@ -56,6 +61,17 @@ def chat(ctx):
             url=chat_model_url,
             pat=current_context.pat,
         )
+
+        # Initialize the agent for tool calling
+        try:
+            agent = ClarifaiAgent(
+                pat=current_context.pat,
+                user_id=current_context.user_id,
+            )
+            click.secho("Agent ready for command execution.", fg='blue')
+        except Exception as e:
+            click.secho(f"(Warning: Could not initialize agent: {e})", fg='yellow')
+            agent = None
 
         click.secho("Connected! Type 'exit' or 'quit' to leave.\n", fg='green')
 
@@ -156,6 +172,10 @@ RESPONSE RULES:
 - For meta-questions about our conversation, reference the conversation history
 - For general Clarifai API questions NOT related to CLI, refer to: https://docs.clarifai.com"""
 
+                # Add agent capabilities to system prompt if agent is available
+                if agent:
+                    system_prompt = build_agent_system_prompt(agent)
+
                 # Create enhanced input with system prompt, history, and question
                 enhanced_input = f"{system_prompt}{conversation_context}\n\nCurrent User Question: {user_input}\n\nRespond concisely (max 300 words)."
 
@@ -174,6 +194,68 @@ RESPONSE RULES:
                         output = response.outputs[0]
                         if hasattr(output, 'data') and hasattr(output.data, 'text'):
                             assistant_message = output.data.text.raw
+
+                            # Check for tool calls in the response
+                            tool_calls = []
+                            if agent:
+                                tool_calls = parse_tool_calls_from_response(assistant_message)
+
+                            # Execute any tool calls
+                            tool_results = {}
+                            if tool_calls:
+                                click.secho("Executing tools...\n", fg='blue')
+                                for tool_call in tool_calls:
+                                    tool_name = tool_call.get('tool')
+                                    params = tool_call.get('params', {})
+                                    click.echo(
+                                        f"→ Executing: {tool_name}({', '.join(f'{k}={v}' for k, v in params.items())})"
+                                    )
+
+                                    # Execute the tool
+                                    result = agent.execute_tool(tool_name, params)
+                                    tool_results[tool_name] = result
+
+                                    if result.get('success'):
+                                        click.secho(
+                                            f"  ✓ {tool_name}: {result.get('result')}",
+                                            fg='green',
+                                        )
+                                    else:
+                                        click.secho(
+                                            f"  ✗ {tool_name}: {result.get('error')}",
+                                            fg='red',
+                                        )
+                                click.echo()  # Spacing
+
+                                # If tools were executed, get a follow-up response from the model
+                                if tool_results:
+                                    tool_summary = "\n".join(
+                                        [
+                                            f"- {name}: {'Success' if r.get('success') else 'Error'} - {r.get('result') or r.get('error')}"
+                                            for name, r in tool_results.items()
+                                        ]
+                                    )
+                                    follow_up_input = f"Tool execution results:\n{tool_summary}\n\nPlease provide a summary of what was accomplished."
+
+                                    try:
+                                        follow_up_response = model.predict_by_bytes(
+                                            input_bytes=follow_up_input.encode('utf-8'),
+                                            input_type='text',
+                                            inference_params={'max_tokens': '300'},
+                                        )
+                                        if (
+                                            follow_up_response
+                                            and hasattr(follow_up_response, 'outputs')
+                                            and len(follow_up_response.outputs) > 0
+                                        ):
+                                            follow_up_output = follow_up_response.outputs[0]
+                                            if hasattr(follow_up_output, 'data') and hasattr(
+                                                follow_up_output.data, 'text'
+                                            ):
+                                                # Use the follow-up response as the final assistant message
+                                                assistant_message = follow_up_output.data.text.raw
+                                    except Exception as e:
+                                        logger.warning(f"Failed to get follow-up response: {e}")
 
                             # Add to conversation history
                             conversation_history.append(
