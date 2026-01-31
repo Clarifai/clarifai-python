@@ -167,7 +167,6 @@ class ClarifaiAgent:
                 # Determine required vs optional params (skip 'self' and **kwargs)
                 required_params = []
                 optional_params = []
-
                 for param_name, param in sig.parameters.items():
                     if param_name == 'self':
                         continue
@@ -180,6 +179,28 @@ class ClarifaiAgent:
                         required_params.append(param_name)
                     else:
                         optional_params.append(param_name)
+
+                # Add class instantiation parameters that weren't in the method signature
+                if class_name == 'App' and 'app_id' not in required_params and 'app_id' not in optional_params:
+                    required_params.insert(0, 'app_id')
+                elif class_name == 'Model' and 'model_id' not in required_params and 'model_id' not in optional_params:
+                    required_params.insert(0, 'model_id')
+                    if 'app_id' not in required_params and 'app_id' not in optional_params:
+                        required_params.insert(0, 'app_id')
+                elif class_name == 'Dataset' and 'dataset_id' not in required_params and 'dataset_id' not in optional_params:
+                    required_params.insert(0, 'dataset_id')
+                    if 'app_id' not in required_params and 'app_id' not in optional_params:
+                        required_params.insert(0, 'app_id')
+                elif class_name == 'Workflow' and 'workflow_id' not in required_params and 'workflow_id' not in optional_params:
+                    required_params.insert(0, 'workflow_id')
+                    if 'app_id' not in required_params and 'app_id' not in optional_params:
+                        required_params.insert(0, 'app_id')
+                elif class_name == 'Pipeline' and 'pipeline_id' not in required_params and 'pipeline_id' not in optional_params:
+                    required_params.insert(0, 'pipeline_id')
+                    if 'app_id' not in required_params and 'app_id' not in optional_params:
+                        required_params.insert(0, 'app_id')
+                elif class_name == 'Inputs' and 'app_id' not in required_params and 'app_id' not in optional_params:
+                    required_params.insert(0, 'app_id')
 
                 # Create tool name: class_method
                 tool_name = f"{class_name.lower()}_{name}"
