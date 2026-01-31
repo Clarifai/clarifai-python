@@ -152,12 +152,16 @@ def chat(ctx):
                             msg_text = msg_text[:500] + "..."
                         conversation_context += f"{role}: {msg_text}\n\n"
 
-                # Build enhanced prompt with RAG context
-                system_prompt = None
-                if rag:
-                    system_prompt = build_system_prompt_with_rag(rag, user_input)
+                # Build enhanced prompt with RAG context and agent tools
+                if agent:
+                    # Use agent system prompt as the primary prompt (includes tool definitions)
+                    system_prompt = build_agent_system_prompt(agent)
                 else:
-                    system_prompt = """You are an expert Clarifai CLI assistant. Your role is to help users with:
+                    # Use RAG or fallback system prompt
+                    if rag:
+                        system_prompt = build_system_prompt_with_rag(rag, user_input)
+                    else:
+                        system_prompt = """You are an expert Clarifai CLI assistant. Your role is to help users with:
 1. Using the Clarifai CLI commands (login, chat, config, deployment, pipeline, model, artifact, etc.)
 2. Understanding CLI options, parameters, and flags
 3. Troubleshooting CLI issues and errors
@@ -171,10 +175,6 @@ RESPONSE RULES:
 - Answer ALL CLI-related questions directly
 - For meta-questions about our conversation, reference the conversation history
 - For general Clarifai API questions NOT related to CLI, refer to: https://docs.clarifai.com"""
-
-                # Add agent capabilities to system prompt if agent is available
-                if agent:
-                    system_prompt = build_agent_system_prompt(agent)
 
                 # Create enhanced input with system prompt, history, and question
                 enhanced_input = f"{system_prompt}{conversation_context}\n\nCurrent User Question: {user_input}\n\nRespond concisely (max 300 words)."
