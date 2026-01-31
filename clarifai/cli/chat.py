@@ -369,33 +369,33 @@ RESPONSE RULES:
 
                                 # Format tool results for model response - extract essential info only
                                 formatted_results = "Tool Results:\n"
+                                
+                                # Internal fields to skip when filtering results
+                                INTERNAL_FIELDS = {
+                                    'logger', 'manager', 'auth_helper', 'STUB', 'metadata', 'pat', 'token',
+                                    'user_app_id', 'base', 'root_certificates_path', 'default_page_size',
+                                    'loggerClass', 'logRecordFactory', 'filters', 'handlers', 'propagate',
+                                    'disabled', 'parent', 'level', 'lock', 'formatter', 'stream', 'emittedNoHandlerWarning',
+                                    'loggerDict', 'loggerMap', 'kwargs', 'app_info', 'DESCRIPTOR'
+                                }
+                                
                                 for tool_name, result in tool_results.items():
                                     if result.get('success'):
                                         result_data = result.get('result', '')
                                         
-                                        # Handle list results - summarize instead of sending all items
+                                        # Handle list results - show ALL items but only user-facing fields
                                         if isinstance(result_data, list):
                                             count = len(result_data)
                                             formatted_results += f"{tool_name}: Found {count} items\n"
                                             for i, item in enumerate(result_data):
                                                 if isinstance(item, dict):
-                                                    # Extract ONLY key user-facing fields, skip all internal/debug fields
-                                                    key_info = {}
-                                                    for k in ['id', 'name', 'title', 'display_name', 'app_id', 'model_id', 'description', 'version']:
-                                                        if k in item and isinstance(item[k], (str, int, float)):
-                                                            key_info[k] = item[k]
-                                                    
-                                                    if key_info:  # Only show if we found relevant fields
+                                                    # Filter to only non-internal fields with simple types
+                                                    key_info = {k: v for k, v in item.items() 
+                                                              if k not in INTERNAL_FIELDS and isinstance(v, (str, int, float, bool, type(None)))}
+                                                    if key_info:
                                                         formatted_results += f"  {i+1}. {key_info}\n"
-                                                    else:
-                                                        # Fallback: show first line of string representation
-                                                        item_str = str(item)[:80]
-                                                        if item_str and not any(x in item_str for x in ['logger', 'manager', 'DESCRIPTOR']):
-                                                            formatted_results += f"  {i+1}. {item_str}\n"
                                                 else:
-                                                    item_str = str(item)[:80]
-                                                    if item_str and not any(x in item_str for x in ['logger', 'manager', 'DESCRIPTOR']):
-                                                        formatted_results += f"  {i+1}. {item_str}\n"
+                                                    formatted_results += f"  {i+1}. {str(item)}\n"
                                         else:
                                             # For non-list results, send as-is (usually strings)
                                             formatted_results += f"{tool_name}: {result_data}\n"
