@@ -373,17 +373,29 @@ RESPONSE RULES:
                                     if result.get('success'):
                                         result_data = result.get('result', '')
                                         
-                                        # Handle list results - show all items but only key fields
+                                        # Handle list results - summarize instead of sending all items
                                         if isinstance(result_data, list):
                                             count = len(result_data)
                                             formatted_results += f"{tool_name}: Found {count} items\n"
                                             for i, item in enumerate(result_data):
                                                 if isinstance(item, dict):
-                                                    # Extract key fields only
-                                                    key_info = {k: v for k, v in item.items() if k in ['id', 'name', 'title', 'display_name', 'app_id', 'model_id'] and isinstance(v, (str, int))}
-                                                    formatted_results += f"  {i+1}. {key_info}\n"
+                                                    # Extract ONLY key user-facing fields, skip all internal/debug fields
+                                                    key_info = {}
+                                                    for k in ['id', 'name', 'title', 'display_name', 'app_id', 'model_id', 'description', 'version']:
+                                                        if k in item and isinstance(item[k], (str, int, float)):
+                                                            key_info[k] = item[k]
+                                                    
+                                                    if key_info:  # Only show if we found relevant fields
+                                                        formatted_results += f"  {i+1}. {key_info}\n"
+                                                    else:
+                                                        # Fallback: show first line of string representation
+                                                        item_str = str(item)[:80]
+                                                        if item_str and not any(x in item_str for x in ['logger', 'manager', 'DESCRIPTOR']):
+                                                            formatted_results += f"  {i+1}. {item_str}\n"
                                                 else:
-                                                    formatted_results += f"  {i+1}. {str(item)[:100]}\n"
+                                                    item_str = str(item)[:80]
+                                                    if item_str and not any(x in item_str for x in ['logger', 'manager', 'DESCRIPTOR']):
+                                                        formatted_results += f"  {i+1}. {item_str}\n"
                                         else:
                                             # For non-list results, send as-is (usually strings)
                                             formatted_results += f"{tool_name}: {result_data}\n"
