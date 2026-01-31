@@ -164,12 +164,16 @@ class ClarifaiAgent:
                 sig = inspect.signature(attr)
                 description = self._extract_description(attr)
 
-                # Determine required vs optional params (skip 'self')
+                # Determine required vs optional params (skip 'self' and **kwargs)
                 required_params = []
                 optional_params = []
 
                 for param_name, param in sig.parameters.items():
                     if param_name == 'self':
+                        continue
+
+                    # Skip **kwargs and *args
+                    if param.kind in (inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL):
                         continue
 
                     if param.default == inspect.Parameter.empty:
