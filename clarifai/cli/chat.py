@@ -152,7 +152,7 @@ def sanitize_sensitive_data(text: str) -> str:
 def clean_result_for_model(obj, depth=0, max_depth=3):
     """Recursively clean results using whitelist approach - only keep known good fields.
     
-    Uses a whitelist of known user-facing fields rather than blacklist to be more aggressive.
+    Uses a whitelist of known user-facing fields. Skips objects that contain only metadata.
     
     Args:
         obj: Object to clean (dict, list, or primitive)
@@ -160,7 +160,7 @@ def clean_result_for_model(obj, depth=0, max_depth=3):
         max_depth: Maximum depth to recurse
         
     Returns:
-        Cleaned object with only user-facing fields
+        Cleaned object with only user-facing fields, or None if only metadata
     """
     if depth > max_depth:
         return None
@@ -170,25 +170,40 @@ def clean_result_for_model(obj, depth=0, max_depth=3):
         'id', 'name', 'title', 'display_name', 'description', 'version',
         'app_id', 'model_id', 'dataset_id', 'workflow_id', 'user_id',
         'created_at', 'updated_at', 'status', 'visibility', 'type',
-        'created_by', 'updated_by', 'metadata', 'config', 'input_type',
+        'created_by', 'updated_by', 'config', 'input_type',
         'output_type', 'score', 'confidence', 'value', 'url', 'uri',
         'data', 'text', 'image', 'concepts', 'regions', 'embeddings',
         'labels', 'tags', 'categories', 'attributes', 'properties',
         'count', 'total', 'page', 'per_page', 'results'
     }
     
+    # Metadata field markers to detect pure metadata objects
+    METADATA_MARKERS = {
+        'logger', 'manager', 'DESCRIPTOR', 'filters', 'handlers', 'propagate',
+        'disabled', 'parent', 'level', 'lock', 'formatter', 'stream', 'emitted',
+        'loggerMap', 'loggerClass', 'logRecordFactory', 'auth_helper', 'STUB',
+        'pat', 'token', 'user_app_id', 'base', 'root_certificates_path',
+        'default_page_size', 'metadata', 'kwargs', 'app_info'
+    }
+    
     if isinstance(obj, dict):
+        # Check if this is a pure metadata dict (has metadata markers but no good fields)
+        has_good_field = any(k in GOOD_FIELDS for k in obj.keys())
+        has_metadata_marker = any(k in METADATA_MARKERS for k in obj.keys())
+        
+        # If it has only metadata and no good fields, skip it entirely
+        if not has_good_field and has_metadata_marker:
+            return None
+        
         cleaned = {}
         for k, v in obj.items():
-            # Use whitelist - only keep known good fields
+            # Only keep whitelisted fields
             if k not in GOOD_FIELDS:
-                # Skip everything else (internal fields, library stuff, etc.)
                 continue
             
             # Recursively clean value
             try:
                 cleaned_v = clean_result_for_model(v, depth + 1, max_depth)
-                # Keep the value even if it becomes None (for explicit None values)
                 if cleaned_v is not None or v is None:
                     cleaned[k] = cleaned_v
             except (TypeError, ValueError, RecursionError):
@@ -201,7 +216,8 @@ def clean_result_for_model(obj, depth=0, max_depth=3):
         for item in obj:
             try:
                 cleaned_item = clean_result_for_model(item, depth + 1, max_depth)
-                if cleaned_item is not None or item is None:
+                # Only keep items that have actual content (not just metadata)
+                if cleaned_item is not None:
                     cleaned_list.append(cleaned_item)
             except (TypeError, ValueError, RecursionError):
                 continue
@@ -211,7 +227,7 @@ def clean_result_for_model(obj, depth=0, max_depth=3):
         return obj
     
     else:
-        # For other types, return None (don't try to serialize unknown objects)
+        # For other types, return None
         return None
 
 
