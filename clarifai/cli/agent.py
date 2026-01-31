@@ -257,14 +257,83 @@ class ClarifaiAgent:
                 if inspect.isgenerator(result):
                     result = list(result)
 
-                # Convert objects to dicts if they have __dict__
-                if hasattr(result, '__dict__') and not isinstance(result, (str, int, float, bool, list, dict)):
-                    result = vars(result)
+                # Convert objects to dicts for JSON serialization
+                result = self._convert_to_serializable(result)
 
                 return result
 
             except Exception as e:
                 raise Exception(f"Error calling {class_name}.{method_name}: {str(e)}")
+
+        return wrapper
+
+    def _convert_to_serializable(self, obj: Any) -> Any:
+        """Recursively convert Clarifai objects to serializable dicts.
+
+        Args:
+            obj: Object to convert
+
+        Returns:
+            Serializable object (dict, list, or primitive)
+        """
+        return self._convert_to_serializable_impl(obj, set(), 0)
+
+    def _convert_to_serializable_impl(self, obj: Any, seen: set, depth: int) -> Any:
+        """Implementation of recursive conversion with circular reference detection.
+
+        Args:
+            obj: Object to convert
+            seen: Set of object ids we've already processed
+            depth: Current recursion depth
+
+        Returns:
+            Serializable object
+        """
+        # Prevent infinite recursion
+        if depth > 10:
+            return "[Max depth exceeded]"
+
+        # Handle primitives
+        if obj is None or isinstance(obj, (str, int, float, bool)):
+            return obj
+
+        # Handle lists
+        if isinstance(obj, list):
+            return [self._convert_to_serializable_impl(item, seen, depth + 1) for item in obj]
+
+        # Handle dicts
+        if isinstance(obj, dict):
+            result = {}
+            for k, v in obj.items():
+                result[k] = self._convert_to_serializable_impl(v, seen, depth + 1)
+            return result
+
+        # Check for circular references
+        obj_id = id(obj)
+        if obj_id in seen:
+            return f"[Circular reference to {type(obj).__name__}]"
+
+        # Handle objects with __dict__
+        if hasattr(obj, '__dict__'):
+            seen.add(obj_id)
+            try:
+                obj_dict = vars(obj).copy()
+                result = {}
+
+                # Skip certain problematic attributes
+                skip_attrs = {'stub', '_stub', 'grpc_channel', '_grpc_channel', 'credentials', '_credentials'}
+
+                for k, v in obj_dict.items():
+                    if k in skip_attrs or k.startswith('_'):
+                        continue
+                    result[k] = self._convert_to_serializable_impl(v, seen, depth + 1)
+
+                return result
+            finally:
+                seen.discard(obj_id)
+
+        # Fallback to string representation
+        return str(obj)
 
         return wrapper
 
