@@ -201,6 +201,11 @@ class ClarifaiAgent:
                         required_params.insert(0, 'app_id')
                 elif class_name == 'Inputs' and 'app_id' not in required_params and 'app_id' not in optional_params:
                     required_params.insert(0, 'app_id')
+                elif class_name == 'User':
+                    # User methods that need app_id context: list_pipelines, list_pipeline_steps, list_models
+                    if name in ['list_pipelines', 'list_pipeline_steps', 'list_models']:
+                        if 'app_id' not in required_params and 'app_id' not in optional_params:
+                            required_params.insert(0, 'app_id')
 
                 # Create tool name: class_method
                 tool_name = f"{class_name.lower()}_{name}"
@@ -234,7 +239,12 @@ class ClarifaiAgent:
             try:
                 # Instantiate the class with agent's credentials
                 if class_name == 'User':
-                    instance = cls(user_id=self.user_id, pat=self.pat)
+                    # For User methods that need app_id context, pass it through kwargs
+                    app_id = kwargs.pop('app_id', None) if method_name in ['list_pipelines', 'list_pipeline_steps', 'list_models'] else None
+                    if app_id and method_name in ['list_pipelines', 'list_pipeline_steps', 'list_models']:
+                        instance = cls(user_id=self.user_id, pat=self.pat, app_id=app_id)
+                    else:
+                        instance = cls(user_id=self.user_id, pat=self.pat)
                 else:
                     # For App, Model, Dataset, etc. - require app_id
                     app_id = kwargs.pop('app_id', None)
