@@ -367,15 +367,29 @@ RESPONSE RULES:
                                         )
                                 click.echo()  # Spacing
 
-                                # Format tool results for model response - truncate long results
+                                # Format tool results for model response - extract essential info only
                                 formatted_results = "Tool Results:\n"
                                 for tool_name, result in tool_results.items():
                                     if result.get('success'):
-                                        result_text = str(result.get('result', ''))
-                                        # Truncate very long results
-                                        if len(result_text) > 1000:
-                                            result_text = result_text[:1000] + "... (truncated)"
-                                        formatted_results += f"{tool_name}: {result_text}\n"
+                                        result_data = result.get('result', '')
+                                        
+                                        # Handle list results - summarize instead of sending all items
+                                        if isinstance(result_data, list):
+                                            count = len(result_data)
+                                            formatted_results += f"{tool_name}: Found {count} items\n"
+                                            # Show first 3 items as examples
+                                            for i, item in enumerate(result_data[:3]):
+                                                if isinstance(item, dict):
+                                                    # Extract key fields only
+                                                    key_info = {k: v for k, v in item.items() if k in ['id', 'name', 'title', 'display_name', 'app_id', 'model_id'] and isinstance(v, (str, int))}
+                                                    formatted_results += f"  {i+1}. {key_info}\n"
+                                                else:
+                                                    formatted_results += f"  {i+1}. {str(item)[:100]}\n"
+                                            if count > 3:
+                                                formatted_results += f"  ... and {count - 3} more items\n"
+                                        else:
+                                            # For non-list results, send as-is (usually strings)
+                                            formatted_results += f"{tool_name}: {result_data}\n"
                                     else:
                                         formatted_results += f"{tool_name}: Error - {result.get('error')}\n"
                                 
