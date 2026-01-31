@@ -194,6 +194,11 @@ RESPONSE RULES:
                         output = response.outputs[0]
                         if hasattr(output, 'data') and hasattr(output.data, 'text'):
                             assistant_message = output.data.text.raw
+                            
+                            # Remove special model control tokens that shouldn't be displayed
+                            import re
+                            assistant_message = re.sub(r'<\|[a-z_]+\|>', '', assistant_message)
+                            assistant_message = re.sub(r'</?[a-z_]+>', '', assistant_message)
 
                             # Check for tool calls in the response
                             tool_calls = []
@@ -254,6 +259,10 @@ RESPONSE RULES:
                                             ):
                                                 # Use the follow-up response as the final assistant message
                                                 assistant_message = follow_up_output.data.text.raw
+                                                # Remove special model control tokens
+                                                import re
+                                                assistant_message = re.sub(r'<\|[a-z_]+\|>', '', assistant_message)
+                                                assistant_message = re.sub(r'</?[a-z_]+>', '', assistant_message)
                                     except Exception as e:
                                         logger.warning(f"Failed to get follow-up response: {e}")
 
