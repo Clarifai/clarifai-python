@@ -26,6 +26,52 @@ DEFAULT_CHAT_MODEL_URL = "https://clarifai.com/openai/chat-completion/models/gpt
 console = Console()
 
 
+def normalize_response_with_tools(response_text: str, agent: ClarifaiAgent = None) -> str:
+    """Normalize model response to prioritize tool calls and strip excessive explanation.
+    
+    If the response contains tool calls, move them to the front and remove redundant explanation.
+    Ensures tool calls are formatted correctly.
+    
+    Args:
+        response_text: Raw model response
+        agent: ClarifaiAgent instance to check for valid tool names
+        
+    Returns:
+        Normalized response with tool calls prioritized
+    """
+    import re
+    
+    # Extract all tool calls from the response
+    tool_call_pattern = r'<tool_call>\s*(\{[^}]*"tool"[^}]*\})\s*</tool_call>'
+    tool_calls = re.findall(tool_call_pattern, response_text)
+    
+    if not tool_calls:
+        return response_text
+    
+    # Remove tool calls from the original response
+    response_without_tools = re.sub(tool_call_pattern, '', response_text)
+    response_without_tools = response_without_tools.strip()
+    
+    # Remove excessive explanation before tool calls
+    # If the explanation is more than 2 lines before tools, truncate it
+    explanation_lines = response_without_tools.split('\n')
+    if len(explanation_lines) > 2:
+        # Keep only brief explanation (first 1-2 lines)
+        brief_explanation = '\n'.join(explanation_lines[:1])
+    else:
+        brief_explanation = response_without_tools
+    
+    # Reconstruct: tool calls first, then brief explanation
+    normalized = ""
+    for tool_call in tool_calls:
+        normalized += f"<tool_call>{tool_call}</tool_call>\n"
+    
+    if brief_explanation and brief_explanation.strip():
+        normalized += brief_explanation.strip()
+    
+    return normalized.strip()
+
+
 @cli.command()
 @click.pass_context
 def chat(ctx):
@@ -194,6 +240,10 @@ RESPONSE RULES:
                         output = response.outputs[0]
                         if hasattr(output, 'data') and hasattr(output.data, 'text'):
                             assistant_message = output.data.text.raw
+                            
+                            # Normalize response to prioritize tool calls and reduce explanation
+                            if agent:
+                                assistant_message = normalize_response_with_tools(assistant_message, agent)
                             
                             # Remove special model control tokens that shouldn't be displayed
                             import re
