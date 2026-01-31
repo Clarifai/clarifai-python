@@ -1,9 +1,9 @@
 """Agent system for Clarifai CLI - enables tool calling and command execution."""
 
+import inspect
 import json
 from typing import Any, Callable, Dict, List
 
-from clarifai.client.app import App
 from clarifai.utils.logging import logger
 
 
@@ -98,83 +98,189 @@ class ClarifaiAgent:
         self.pat = pat
         self.user_id = user_id
         self.tools: Dict[str, Tool] = {}
-        self._register_tools()
+        self._auto_discover_tools()
 
-    def _register_tools(self):
-        """Register all available tools."""
-        # App operations
-        self.register_tool(
-            Tool(
-                name="create_app",
-                description="Create a new Clarifai app with the specified ID",
-                func=self._create_app,
-                required_params=["app_id"],
-                optional_params=["name", "description"],
-            )
-        )
+    def _auto_discover_tools(self):
+        """Auto-discover and register tools from clarifai.client module."""
+        from clarifai import client as client_module
 
-        self.register_tool(
-            Tool(
-                name="list_apps",
-                description="List all apps for the current user",
-                func=self._list_apps,
-                required_params=[],
-                optional_params=["page_no", "per_page"],
-            )
-        )
+        # Classes to introspect for tools
+        target_classes = [
+            'User',
+            'App',
+            'Model',
+            'Dataset',
+            'Inputs',
+            'Workflow',
+            'Pipeline',
+            'Search',
+        ]
 
-        # Model operations
-        self.register_tool(
-            Tool(
-                name="create_model",
-                description="Create a new model in an app",
-                func=self._create_model,
-                required_params=["app_id", "model_id"],
-                optional_params=["description", "model_type"],
-            )
-        )
+        for class_name in target_classes:
+            if not hasattr(client_module, class_name):
+                continue
 
-        self.register_tool(
-            Tool(
-                name="list_models",
-                description="List all models in an app",
-                func=self._list_models,
-                required_params=["app_id"],
-                optional_params=["page_no", "per_page"],
-            )
-        )
+            cls = getattr(client_module, class_name)
+            self._register_class_methods(cls, class_name)
 
-        # Dataset operations
-        self.register_tool(
-            Tool(
-                name="create_dataset",
-                description="Create a new dataset in an app",
-                func=self._create_dataset,
-                required_params=["app_id", "dataset_id"],
-                optional_params=["description"],
-            )
-        )
+        logger.debug(f"Auto-discovered {len(self.tools)} tools from clarifai.client")
 
-        self.register_tool(
-            Tool(
-                name="list_datasets",
-                description="List all datasets in an app",
-                func=self._list_datasets,
-                required_params=["app_id"],
-                optional_params=["page_no", "per_page"],
-            )
-        )
+    def _register_class_methods(self, cls: type, class_name: str):
+        """Register public methods from a class as tools.
 
-        # Workflow operations
-        self.register_tool(
-            Tool(
-                name="list_workflows",
-                description="List all workflows in an app",
-                func=self._list_workflows,
-                required_params=["app_id"],
-                optional_params=["page_no", "per_page"],
-            )
-        )
+        Args:
+            cls: The class to introspect
+            class_name: Name of the class (for namespacing)
+        """
+        # Skip private and special methods
+        excluded_patterns = {'__', '_', 'from_', 'load_info', '__getattr__', '__str__'}
+
+        for name in dir(cls):
+            # Skip private/special methods
+            if any(name.startswith(p) for p in excluded_patterns):
+                continue
+
+            # Skip property-like methods that shouldn't be tools
+            if name in {'id', 'app_id', 'user_id', 'model_id', 'dataset_id'}:
+                continue
+
+            try:
+                attr = getattr(cls, name)
+
+                # Only process callable methods
+                if not callable(attr):
+                    continue
+
+                # Skip class methods and static methods
+                if isinstance(attr, (classmethod, staticmethod)):
+                    continue
+
+                # Create a wrapper that binds the method to the agent's context
+                tool_wrapper = self._create_method_wrapper(cls, name, class_name)
+                if tool_wrapper is None:
+                    continue
+
+                # Extract signature info
+                sig = inspect.signature(attr)
+                description = self._extract_description(attr)
+
+                # Determine required vs optional params (skip 'self')
+                required_params = []
+                optional_params = []
+
+                for param_name, param in sig.parameters.items():
+                    if param_name == 'self':
+                        continue
+
+                    if param.default == inspect.Parameter.empty:
+                        required_params.append(param_name)
+                    else:
+                        optional_params.append(param_name)
+
+                # Create tool name: class_method
+                tool_name = f"{class_name.lower()}_{name}"
+
+                tool = Tool(
+                    name=tool_name,
+                    description=description,
+                    func=tool_wrapper,
+                    required_params=required_params,
+                    optional_params=optional_params,
+                )
+
+                self.register_tool(tool)
+
+            except Exception as e:
+                logger.debug(f"Could not register {class_name}.{name}: {str(e)}")
+
+    def _create_method_wrapper(self, cls: type, method_name: str, class_name: str) -> Callable | None:
+        """Create a wrapper function that calls a class method with proper initialization.
+
+        Args:
+            cls: The class containing the method
+            method_name: Name of the method
+            class_name: Name of the class
+
+        Returns:
+            Wrapper function or None if creation fails
+        """
+
+        def wrapper(**kwargs) -> Any:
+            try:
+                # Instantiate the class with agent's credentials
+                if class_name == 'User':
+                    instance = cls(user_id=self.user_id, pat=self.pat)
+                else:
+                    # For App, Model, Dataset, etc. - require app_id
+                    app_id = kwargs.pop('app_id', None)
+                    if not app_id and class_name in ['App', 'Model', 'Dataset', 'Inputs', 'Workflow']:
+                        raise ValueError(f"{class_name} requires 'app_id' parameter")
+
+                    if class_name in ['Model']:
+                        model_id = kwargs.pop('model_id', None)
+                        if not model_id:
+                            raise ValueError("Model requires 'model_id' parameter")
+                        instance = cls(
+                            app_id=app_id, model_id=model_id, user_id=self.user_id, pat=self.pat
+                        )
+                    elif class_name in ['Dataset']:
+                        dataset_id = kwargs.pop('dataset_id', None)
+                        if not dataset_id:
+                            raise ValueError("Dataset requires 'dataset_id' parameter")
+                        instance = cls(
+                            app_id=app_id, dataset_id=dataset_id, user_id=self.user_id, pat=self.pat
+                        )
+                    elif class_name in ['Workflow']:
+                        workflow_id = kwargs.pop('workflow_id', None)
+                        if not workflow_id:
+                            raise ValueError("Workflow requires 'workflow_id' parameter")
+                        instance = cls(
+                            app_id=app_id, workflow_id=workflow_id, user_id=self.user_id, pat=self.pat
+                        )
+                    elif class_name in ['Pipeline']:
+                        pipeline_id = kwargs.pop('pipeline_id', None)
+                        if not pipeline_id:
+                            raise ValueError("Pipeline requires 'pipeline_id' parameter")
+                        instance = cls(
+                            app_id=app_id, pipeline_id=pipeline_id, user_id=self.user_id, pat=self.pat
+                        )
+                    elif class_name in ['Search']:
+                        instance = cls(app_id=app_id, user_id=self.user_id, pat=self.pat)
+                    else:
+                        instance = cls(app_id=app_id, user_id=self.user_id, pat=self.pat)
+
+                # Call the method
+                method = getattr(instance, method_name)
+                result = method(**kwargs)
+
+                # Handle generators - convert to list for JSON serialization
+                if inspect.isgenerator(result):
+                    result = list(result)
+
+                # Convert objects to dicts if they have __dict__
+                if hasattr(result, '__dict__') and not isinstance(result, (str, int, float, bool, list, dict)):
+                    result = vars(result)
+
+                return result
+
+            except Exception as e:
+                raise Exception(f"Error calling {class_name}.{method_name}: {str(e)}")
+
+        return wrapper
+
+    def _extract_description(self, method: Callable) -> str:
+        """Extract description from method docstring.
+
+        Args:
+            method: The method to extract description from
+
+        Returns:
+            First line of docstring or generic description
+        """
+        if method.__doc__:
+            first_line = method.__doc__.strip().split('\n')[0]
+            return first_line
+        return f"Call {method.__name__}"
 
     def register_tool(self, tool: Tool):
         """Register a new tool."""
@@ -199,101 +305,6 @@ class ClarifaiAgent:
 
         tool = self.tools[tool_name]
         return tool.execute(params)
-
-    # ===== App Operations =====
-
-    def _create_app(self, app_id: str, name: str = None, description: str = None) -> str:
-        """Create a new app."""
-        try:
-            from clarifai.client.user import User
-
-            user = User(user_id=self.user_id, pat=self.pat)
-            kwargs = {}
-            if name:
-                kwargs['name'] = name
-            if description:
-                kwargs['description'] = description
-            app = user.create_app(app_id=app_id, **kwargs)
-            return f"App '{app_id}' created successfully"
-        except Exception as e:
-            raise Exception(f"Failed to create app: {str(e)}")
-
-    def _list_apps(self, page_no: int = None, per_page: int = None) -> List[str]:
-        """List all apps for the user."""
-        try:
-            from clarifai.client.user import User
-
-            user = User(user_id=self.user_id, pat=self.pat)
-            apps = []
-            for app in user.list_apps(page_no=page_no, per_page=per_page):
-                apps.append({"id": app.id, "name": getattr(app, "name", "N/A")})
-            return apps
-        except Exception as e:
-            raise Exception(f"Failed to list apps: {str(e)}")
-
-    # ===== Model Operations =====
-
-    def _create_model(
-        self, app_id: str, model_id: str, description: str = None, model_type: str = None
-    ) -> str:
-        """Create a new model in an app."""
-        try:
-            app = App(app_id=app_id, user_id=self.user_id, pat=self.pat)
-            model = app.create_model(model_id=model_id, description=description)
-            return f"Model '{model_id}' created successfully in app '{app_id}'"
-        except Exception as e:
-            raise Exception(f"Failed to create model: {str(e)}")
-
-    def _list_models(self, app_id: str, page_no: int = None, per_page: int = None) -> List[str]:
-        """List all models in an app."""
-        try:
-            app = App(app_id=app_id, user_id=self.user_id, pat=self.pat)
-            models = []
-            for model in app.list_models(page_no=page_no, per_page=per_page):
-                models.append(
-                    {
-                        "id": model.id,
-                        "model_type": getattr(model, "model_type", "N/A"),
-                    }
-                )
-            return models
-        except Exception as e:
-            raise Exception(f"Failed to list models: {str(e)}")
-
-    # ===== Dataset Operations =====
-
-    def _create_dataset(self, app_id: str, dataset_id: str, description: str = None) -> str:
-        """Create a new dataset in an app."""
-        try:
-            app = App(app_id=app_id, user_id=self.user_id, pat=self.pat)
-            dataset = app.create_dataset(dataset_id=dataset_id, description=description)
-            return f"Dataset '{dataset_id}' created successfully in app '{app_id}'"
-        except Exception as e:
-            raise Exception(f"Failed to create dataset: {str(e)}")
-
-    def _list_datasets(self, app_id: str, page_no: int = None, per_page: int = None) -> List[str]:
-        """List all datasets in an app."""
-        try:
-            app = App(app_id=app_id, user_id=self.user_id, pat=self.pat)
-            datasets = []
-            for dataset in app.list_datasets(page_no=page_no, per_page=per_page):
-                datasets.append({"id": dataset.id})
-            return datasets
-        except Exception as e:
-            raise Exception(f"Failed to list datasets: {str(e)}")
-
-    # ===== Workflow Operations =====
-
-    def _list_workflows(self, app_id: str, page_no: int = None, per_page: int = None) -> List[str]:
-        """List all workflows in an app."""
-        try:
-            app = App(app_id=app_id, user_id=self.user_id, pat=self.pat)
-            workflows = []
-            for workflow in app.list_workflows(page_no=page_no, per_page=per_page):
-                workflows.append({"id": workflow.id})
-            return workflows
-        except Exception as e:
-            raise Exception(f"Failed to list workflows: {str(e)}")
 
 
 def parse_tool_calls_from_response(response_text: str) -> List[Dict[str, Any]]:
