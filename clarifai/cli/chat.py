@@ -128,6 +128,25 @@ def sanitize_sensitive_data(text: str) -> str:
         flags=re.IGNORECASE
     )
     
+    # Sanitize bare 32-character hex values that appear after keywords (table/text format)
+    # Pattern: "Authentication (PAT)            6b09c6dc2a694266921a3f62d25c9197"
+    text = re.sub(
+        r"((?:PAT|Token|API[_-]?Key|Secret|Authorization|Auth|Credential)\s+)([a-f0-9]{32})(?=\s|$|\(|,)",
+        r"\1" + "*" * 32,
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    # Additional pattern: bare 32-char hex after colons or equals (general case)
+    # But be careful not to match things that shouldn't be sanitized
+    # Only match if surrounded by spaces, newlines, parens, or quotes
+    text = re.sub(
+        r"([\s\(\"'])[a-f0-9]{32}([)\s\"\']|$)",
+        lambda m: m.group(1) + "*" * 32 + m.group(2),
+        text,
+        flags=re.IGNORECASE
+    )
+    
     return text
 
 
