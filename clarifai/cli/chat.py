@@ -367,9 +367,9 @@ RESPONSE RULES:
                                         )
                                 click.echo()  # Spacing
 
-                                # Tool results are already displayed above - no need for follow-up response
+                                # Tool results are already displayed above - provide simple completion message
                                 # This avoids serialization errors from the model processing tool data
-                                assistant_message = ""
+                                assistant_message = "✓ Tools executed. Results displayed above."
 
                             # Add to conversation history
                             conversation_history.append(
