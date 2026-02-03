@@ -74,9 +74,7 @@ def test_num_threads_in_proto(my_tmp_path):
     tests_dir = Path(__file__).parent.resolve()
     original_dummy_path = tests_dir / "dummy_runner_models"
     if not original_dummy_path.exists():
-        raise FileNotFoundError(
-            f"Could not find dummy_runner_models at {original_dummy_path}."
-        )
+        raise FileNotFoundError(f"Could not find dummy_runner_models at {original_dummy_path}.")
 
     # Copy the entire folder to tmp_path
     target_folder = my_tmp_path / "dummy_runner_models_proto"
