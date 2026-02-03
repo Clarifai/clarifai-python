@@ -1681,6 +1681,12 @@ class ModelBuilder:
             logger.error(f"Failed to process secrets: {e}")
             raise
 
+        # Add num_threads if specified
+        num_threads = self.config.get("num_threads")
+        if num_threads:
+            model_version_proto.num_threads = num_threads
+            logger.info(f"Added num_threads={num_threads} to model version")
+
         model_type_id = self.config.get('model').get('model_type_id')
         if model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE:
             if 'concepts' in self.config:
