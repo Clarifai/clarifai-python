@@ -1,3 +1,8 @@
+import errno
+import os
+import signal
+import subprocess
+import sys
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 
@@ -37,6 +42,7 @@ class BaseClient:
     """
 
     def __init__(self, **kwargs):
+        self._handle_init_process()
         token, pat = "", ""
         try:
             pat = get_from_dict_env_or_config(key="pat", env_key=CLARIFAI_PAT_ENV_VAR, **kwargs)
@@ -100,6 +106,55 @@ class BaseClient:
         if self._async_stub is None:
             self._async_stub = create_stub(self.auth_helper, is_async=True)
         return self._async_stub
+
+    def _handle_init_process(self):
+        if os.environ.get("CLARIFAI_DAEMONIZE", "").lower() != "true":
+            return
+
+        # Prepare environment for child
+        env = os.environ.copy()
+        del env["CLARIFAI_DAEMONIZE"]
+
+        # Spawn child process re-executing the current script
+        # We use sys.argv for the command arguments
+        cmd = [sys.executable] + sys.argv
+
+        # Start the child
+        proc = subprocess.Popen(cmd, env=env)
+        pid = proc.pid
+
+        # Parent process - acts as init
+
+        def handle_signal(signum, frame):
+            try:
+                os.kill(pid, signum)
+            except OSError:
+                pass
+
+        signal.signal(signal.SIGINT, handle_signal)
+        signal.signal(signal.SIGTERM, handle_signal)
+
+        # Loop to reap zombies
+        while True:
+            try:
+                # Wait for any child
+                wpid, status = os.waitpid(-1, 0)
+
+                if wpid == pid:
+                    # The main child exited
+                    if os.WIFEXITED(status):
+                        sys.exit(os.WEXITSTATUS(status))
+                    else:
+                        # Child killed by signal
+                        sys.exit(1)
+            except OSError as e:
+                if e.errno == errno.ECHILD:
+                    # No more children
+                    break
+                # Interrupted system call?
+                continue
+
+        sys.exit(0)
 
     @classmethod
     def from_env(cls, validate: bool = False) -> 'BaseClient':
