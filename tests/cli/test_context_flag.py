@@ -46,7 +46,9 @@ class TestContextFlag:
                 yaml.safe_dump(config_data, f)
 
             # Test without --context flag (should use current context)
-            result = runner.invoke(cli, ['--config', str(config_path), 'config', 'current-context'])
+            result = runner.invoke(
+                cli, ['--config', str(config_path), 'config', 'current-context']
+            )
             assert result.exit_code == 0
             assert 'context-a' in result.output
 
@@ -54,7 +56,15 @@ class TestContextFlag:
             # We test this by checking that the context override is set
             # The current-context command should still show the saved current context
             result = runner.invoke(
-                cli, ['--config', str(config_path), '--context', 'context-b', 'config', 'current-context']
+                cli,
+                [
+                    '--config',
+                    str(config_path),
+                    '--context',
+                    'context-b',
+                    'config',
+                    'current-context',
+                ],
             )
             # The current-context command shows the saved current context, not the override
             assert result.exit_code == 0
@@ -81,7 +91,15 @@ class TestContextFlag:
 
             # Test with invalid context name
             result = runner.invoke(
-                cli, ['--config', str(config_path), '--context', 'invalid-context', 'config', 'current-context']
+                cli,
+                [
+                    '--config',
+                    str(config_path),
+                    '--context',
+                    'invalid-context',
+                    'config',
+                    'current-context',
+                ],
             )
             assert result.exit_code != 0
             assert "Context 'invalid-context' not found" in result.output
@@ -112,7 +130,9 @@ class TestContextFlag:
 
             # Test run command with local --context option (not global)
             # This tests the existing run command's --context option still works
-            result = runner.invoke(cli, ['--config', str(config_path), 'run', '--context', 'context-b', 'echo test'])
+            result = runner.invoke(
+                cli, ['--config', str(config_path), 'run', '--context', 'context-b', 'echo test']
+            )
             # The command should execute (exit code 0 or command not found depending on environment)
             # We mainly want to ensure no error about context not found
             assert "Context 'context-b' not found" not in result.output
