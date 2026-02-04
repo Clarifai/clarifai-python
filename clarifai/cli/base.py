@@ -385,12 +385,20 @@ def env(ctx):
 @click.option('-o', '--output-format', default='yaml', type=click.Choice(['json', 'yaml']))
 @click.pass_context
 def view(ctx, output_format):
-    """Display the current configuration."""
+    """Display the current configuration with defaults."""
+    from clarifai.cli.chat import DEFAULT_CHAT_MODEL_URL
+
+    contexts_dict = {}
+    for name, context in ctx.obj.contexts.items():
+        context_data = context.to_serializable_dict()
+        # Add defaults for known configurable values if not explicitly set
+        if 'CLARIFAI_CHAT_MODEL_URL' not in context_data:
+            context_data['CLARIFAI_CHAT_MODEL_URL'] = f'{DEFAULT_CHAT_MODEL_URL} (default)'
+        contexts_dict[name] = context_data
+
     config_dict = {
         'current-context': ctx.obj.current_context,
-        'contexts': {
-            name: context.to_serializable_dict() for name, context in ctx.obj.contexts.items()
-        },
+        'contexts': contexts_dict,
     }
 
     if output_format == 'json':
