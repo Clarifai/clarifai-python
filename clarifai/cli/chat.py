@@ -26,6 +26,60 @@ DEFAULT_CHAT_MODEL_URL = "https://clarifai.com/openai/chat-completion/models/gpt
 console = Console()
 
 
+def get_cli_command_for_tool(tool_name: str, params: dict) -> str:
+    """Convert an agent tool call to the equivalent CLI command.
+
+    Args:
+        tool_name: Name of the agent tool (e.g., 'user_delete_app')
+        params: Parameters passed to the tool
+
+    Returns:
+        Equivalent CLI command string, or None if no mapping exists
+    """
+    # Map tool names to CLI commands
+    tool_to_cli = {
+        # User operations
+        'user_list_apps': 'clarifai app ls',
+        'user_create_app': 'clarifai app create {app_id}',
+        'user_delete_app': 'clarifai app delete {app_id}',
+        # App operations
+        'app_list_models': 'clarifai model ls --app_id {app_id}',
+        'app_list_datasets': 'clarifai dataset ls --app_id {app_id}',
+        'app_list_workflows': 'clarifai workflow ls --app_id {app_id}',
+        'app_create_model': 'clarifai model create {model_id} --app_id {app_id}',
+        'app_create_dataset': 'clarifai dataset create {dataset_id} --app_id {app_id}',
+        'app_delete_model': 'clarifai model delete {model_id} --app_id {app_id}',
+        'app_delete_dataset': 'clarifai dataset delete {dataset_id} --app_id {app_id}',
+        # Model operations
+        'model_predict': 'clarifai model predict --model_id {model_id} --app_id {app_id}',
+        'model_list_versions': 'clarifai model version ls --model_id {model_id} --app_id {app_id}',
+        # Dataset operations
+        'dataset_list_inputs': 'clarifai dataset inputs ls --dataset_id {dataset_id} --app_id {app_id}',
+        'dataset_upload_from_url': 'clarifai dataset inputs upload --dataset_id {dataset_id} --app_id {app_id} --url {url}',
+        # Inputs operations
+        'inputs_upload_from_url': 'clarifai inputs upload --app_id {app_id} --url {url}',
+        'inputs_upload_from_file': 'clarifai inputs upload --app_id {app_id} --file {file_path}',
+        'inputs_list': 'clarifai inputs ls --app_id {app_id}',
+        # Pipeline operations
+        'user_list_pipelines': 'clarifai pipeline ls --app_id {app_id}',
+        'pipeline_list_versions': 'clarifai pipeline version ls --pipeline_id {pipeline_id} --app_id {app_id}',
+    }
+
+    template = tool_to_cli.get(tool_name)
+    if not template:
+        return None
+
+    # Substitute params into template
+    try:
+        cmd = template.format(**params)
+        return cmd
+    except KeyError:
+        # If some params are missing, return template with available params
+        for key, value in params.items():
+            template = template.replace('{' + key + '}', str(value))
+        return template
+
+
 def normalize_response_with_tools(response_text: str, agent: ClarifaiAgent = None) -> str:
     """Normalize model response to prioritize tool calls and strip excessive explanation.
 
@@ -248,7 +302,12 @@ def chat(ctx):
 
                 if user_input.lower() == 'clear':
                     conversation_history = []
-                    click.secho("Conversation history cleared.\n", fg='green')
+                    # Clear the terminal screen
+                    click.clear()
+                    # Reprint a minimal header
+                    console.print("[bold green]Clarifai CLI Assistant[/bold green]")
+                    console.print("[dim]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/dim]")
+                    console.print("[green]✓[/green] Screen and conversation history cleared.\n")
                     continue
 
                 # Add to conversation history
@@ -345,25 +404,32 @@ RESPONSE RULES:
                             # Execute any tool calls
                             tool_results = {}
                             if tool_calls:
-                                click.secho("Executing tools...\n", fg='blue')
+                                click.secho("Executing actions...\n", fg='blue')
                                 for tool_call in tool_calls:
                                     tool_name = tool_call.get('tool')
                                     params = tool_call.get('params', {})
-                                    click.echo(
-                                        f"→ Executing: {tool_name}({', '.join(f'{k}={v}' for k, v in params.items())})"
-                                    )
+
+                                    # Show the equivalent CLI command if available
+                                    cli_cmd = get_cli_command_for_tool(tool_name, params)
+                                    if cli_cmd:
+                                        console.print(
+                                            f"[dim]CLI equivalent:[/dim] [cyan]{cli_cmd}[/cyan]"
+                                        )
+                                    else:
+                                        # Fallback: show the API operation
+                                        console.print(
+                                            f"[dim]API operation:[/dim] [cyan]{tool_name}({', '.join(f'{k}={v}' for k, v in params.items())})[/cyan]"
+                                        )
 
                                     # Execute the tool
                                     result = agent.execute_tool(tool_name, params)
                                     tool_results[tool_name] = result
 
                                     if result.get('success'):
-                                        # Only show brief success message, not the full result data
-                                        click.secho(f"  ✓ {tool_name}: Done", fg='green')
+                                        console.print("[green]  ✓ Done[/green]")
                                     else:
-                                        click.secho(
-                                            f"  ✗ {tool_name}: {result.get('error')}",
-                                            fg='red',
+                                        console.print(
+                                            f"[red]  ✗ Error: {result.get('error')}[/red]"
                                         )
                                 click.echo()  # Spacing
 
