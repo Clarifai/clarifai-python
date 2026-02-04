@@ -164,13 +164,15 @@ def chat(ctx):
     # Try to initialize the model
     model_available = True
     try:
-        click.secho("Initializing assistant...", fg='cyan')
+        console.print("[bold green]Clarifai CLI Assistant[/bold green]")
+        console.print("[dim]Your AI-powered guide to the Clarifai platform[/dim]\n")
 
         # Initialize model with the current context's PAT
-        model = Model(
-            url=chat_model_url,
-            pat=current_context.pat,
-        )
+        with console.status("[cyan]Connecting to AI model...[/cyan]", spinner="dots"):
+            model = Model(
+                url=chat_model_url,
+                pat=current_context.pat,
+            )
 
         # Initialize the agent for tool calling
         try:
@@ -178,22 +180,27 @@ def chat(ctx):
                 pat=current_context.pat,
                 user_id=current_context.user_id,
             )
-            click.secho("Agent ready for command execution.", fg='blue')
+            console.print("[green]✓[/green] Agent ready for command execution")
         except Exception as e:
             click.secho(f"(Warning: Could not initialize agent: {e})", fg='yellow')
             agent = None
-
-        click.secho("Connected! Type 'exit' or 'quit' to leave.\n", fg='green')
 
         # Initialize RAG system for CLI documentation
         try:
             # Find the clarifai-python root
             clarifai_root = os.path.dirname(os.path.dirname(clarifai.__file__))
             rag = ClarifaiCodeRAG(clarifai_root)
-            click.secho("(Knowledge base ready.)\n", fg='blue')
+            console.print("[green]✓[/green] Knowledge base loaded")
         except Exception as e:
-            click.secho(f"(Warning: Could not load knowledge base: {e})\n", fg='yellow')
+            click.secho(f"(Warning: Could not load knowledge base: {e})", fg='yellow')
             rag = None
+
+        console.print()
+        console.print("[dim]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/dim]")
+        console.print(
+            "[bold]Quick Commands:[/bold] [cyan]help[/cyan] | [cyan]history[/cyan] | [cyan]clear[/cyan] | [cyan]exit[/cyan]"
+        )
+        console.print("[dim]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/dim]\n")
 
         # Interactive chat loop
         conversation_history = []
@@ -229,7 +236,7 @@ def chat(ctx):
                     else:
                         click.echo("\nConversation History:")
                         for i, msg in enumerate(conversation_history, 1):
-                            role = "You" if msg['role'] == 'user' else "🤖 Assistant"
+                            role = "You" if msg['role'] == 'user' else "Assistant"
                             click.echo(f"\n{i}. {role}:")
                             click.echo(
                                 f"   {msg['message'][:300]}..."
