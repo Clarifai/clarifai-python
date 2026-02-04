@@ -172,7 +172,10 @@ class ClarifaiAgent:
                         continue
 
                     # Skip **kwargs and *args
-                    if param.kind in (inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL):
+                    if param.kind in (
+                        inspect.Parameter.VAR_KEYWORD,
+                        inspect.Parameter.VAR_POSITIONAL,
+                    ):
                         continue
 
                     if param.default == inspect.Parameter.empty:
@@ -181,25 +184,49 @@ class ClarifaiAgent:
                         optional_params.append(param_name)
 
                 # Add class instantiation parameters that weren't in the method signature
-                if class_name == 'App' and 'app_id' not in required_params and 'app_id' not in optional_params:
+                if (
+                    class_name == 'App'
+                    and 'app_id' not in required_params
+                    and 'app_id' not in optional_params
+                ):
                     required_params.insert(0, 'app_id')
-                elif class_name == 'Model' and 'model_id' not in required_params and 'model_id' not in optional_params:
+                elif (
+                    class_name == 'Model'
+                    and 'model_id' not in required_params
+                    and 'model_id' not in optional_params
+                ):
                     required_params.insert(0, 'model_id')
                     if 'app_id' not in required_params and 'app_id' not in optional_params:
                         required_params.insert(0, 'app_id')
-                elif class_name == 'Dataset' and 'dataset_id' not in required_params and 'dataset_id' not in optional_params:
+                elif (
+                    class_name == 'Dataset'
+                    and 'dataset_id' not in required_params
+                    and 'dataset_id' not in optional_params
+                ):
                     required_params.insert(0, 'dataset_id')
                     if 'app_id' not in required_params and 'app_id' not in optional_params:
                         required_params.insert(0, 'app_id')
-                elif class_name == 'Workflow' and 'workflow_id' not in required_params and 'workflow_id' not in optional_params:
+                elif (
+                    class_name == 'Workflow'
+                    and 'workflow_id' not in required_params
+                    and 'workflow_id' not in optional_params
+                ):
                     required_params.insert(0, 'workflow_id')
                     if 'app_id' not in required_params and 'app_id' not in optional_params:
                         required_params.insert(0, 'app_id')
-                elif class_name == 'Pipeline' and 'pipeline_id' not in required_params and 'pipeline_id' not in optional_params:
+                elif (
+                    class_name == 'Pipeline'
+                    and 'pipeline_id' not in required_params
+                    and 'pipeline_id' not in optional_params
+                ):
                     required_params.insert(0, 'pipeline_id')
                     if 'app_id' not in required_params and 'app_id' not in optional_params:
                         required_params.insert(0, 'app_id')
-                elif class_name == 'Inputs' and 'app_id' not in required_params and 'app_id' not in optional_params:
+                elif (
+                    class_name == 'Inputs'
+                    and 'app_id' not in required_params
+                    and 'app_id' not in optional_params
+                ):
                     required_params.insert(0, 'app_id')
                 elif class_name == 'User':
                     # User methods that need app_id context: list_pipelines, list_pipeline_steps, list_models
@@ -223,7 +250,9 @@ class ClarifaiAgent:
             except Exception as e:
                 logger.debug(f"Could not register {class_name}.{name}: {str(e)}")
 
-    def _create_method_wrapper(self, cls: type, method_name: str, class_name: str) -> Callable | None:
+    def _create_method_wrapper(
+        self, cls: type, method_name: str, class_name: str
+    ) -> Callable | None:
         """Create a wrapper function that calls a class method with proper initialization.
 
         Args:
@@ -240,17 +269,32 @@ class ClarifaiAgent:
                 # Instantiate the class with agent's credentials
                 if class_name == 'User':
                     # For User methods that need app_id context, extract it but don't pass to User.__init__
-                    app_id = kwargs.pop('app_id', None) if method_name in ['list_pipelines', 'list_pipeline_steps', 'list_models'] else None
+                    app_id = (
+                        kwargs.pop('app_id', None)
+                        if method_name in ['list_pipelines', 'list_pipeline_steps', 'list_models']
+                        else None
+                    )
                     instance = cls(user_id=self.user_id, pat=self.pat)
                     # If app_id provided for these methods, we need to override the user_app_id on the instance
-                    if app_id and method_name in ['list_pipelines', 'list_pipeline_steps', 'list_models']:
+                    if app_id and method_name in [
+                        'list_pipelines',
+                        'list_pipeline_steps',
+                        'list_models',
+                    ]:
                         from clarifai_grpc.grpc.api.resources_pb2 import UserAppIDSet
+
                         # Recreate user_app_id with the provided app_id
                         instance.user_app_id = UserAppIDSet(user_id=self.user_id, app_id=app_id)
                 else:
                     # For App, Model, Dataset, etc. - require app_id
                     app_id = kwargs.pop('app_id', None)
-                    if not app_id and class_name in ['App', 'Model', 'Dataset', 'Inputs', 'Workflow']:
+                    if not app_id and class_name in [
+                        'App',
+                        'Model',
+                        'Dataset',
+                        'Inputs',
+                        'Workflow',
+                    ]:
                         raise ValueError(f"{class_name} requires 'app_id' parameter")
 
                     if class_name in ['Model']:
@@ -265,21 +309,30 @@ class ClarifaiAgent:
                         if not dataset_id:
                             raise ValueError("Dataset requires 'dataset_id' parameter")
                         instance = cls(
-                            app_id=app_id, dataset_id=dataset_id, user_id=self.user_id, pat=self.pat
+                            app_id=app_id,
+                            dataset_id=dataset_id,
+                            user_id=self.user_id,
+                            pat=self.pat,
                         )
                     elif class_name in ['Workflow']:
                         workflow_id = kwargs.pop('workflow_id', None)
                         if not workflow_id:
                             raise ValueError("Workflow requires 'workflow_id' parameter")
                         instance = cls(
-                            app_id=app_id, workflow_id=workflow_id, user_id=self.user_id, pat=self.pat
+                            app_id=app_id,
+                            workflow_id=workflow_id,
+                            user_id=self.user_id,
+                            pat=self.pat,
                         )
                     elif class_name in ['Pipeline']:
                         pipeline_id = kwargs.pop('pipeline_id', None)
                         if not pipeline_id:
                             raise ValueError("Pipeline requires 'pipeline_id' parameter")
                         instance = cls(
-                            app_id=app_id, pipeline_id=pipeline_id, user_id=self.user_id, pat=self.pat
+                            app_id=app_id,
+                            pipeline_id=pipeline_id,
+                            user_id=self.user_id,
+                            pat=self.pat,
                         )
                     elif class_name in ['Search']:
                         instance = cls(app_id=app_id, user_id=self.user_id, pat=self.pat)
@@ -360,7 +413,14 @@ class ClarifaiAgent:
                 result = {}
 
                 # Skip certain problematic attributes
-                skip_attrs = {'stub', '_stub', 'grpc_channel', '_grpc_channel', 'credentials', '_credentials'}
+                skip_attrs = {
+                    'stub',
+                    '_stub',
+                    'grpc_channel',
+                    '_grpc_channel',
+                    'credentials',
+                    '_credentials',
+                }
 
                 for k, v in obj_dict.items():
                     if k in skip_attrs or k.startswith('_'):
@@ -373,8 +433,6 @@ class ClarifaiAgent:
 
         # Fallback to string representation
         return str(obj)
-
-        return wrapper
 
     def _extract_description(self, method: Callable) -> str:
         """Extract description from method docstring.
@@ -449,7 +507,7 @@ def parse_tool_calls_from_response(response_text: str) -> List[Dict[str, Any]]:
         # Look for JSON objects that have "tool" and "params" fields
         json_pattern = r'\{\s*"tool"\s*:\s*"([^"]+)"\s*,\s*"params"\s*:\s*(\{[^}]*\})\s*\}'
         json_matches = re.findall(json_pattern, response_text, re.DOTALL)
-        
+
         for tool_name, params_str in json_matches:
             try:
                 params = json.loads(params_str)
@@ -496,8 +554,45 @@ def build_agent_system_prompt(agent: ClarifaiAgent) -> str:
 DECISION LOGIC:
 1. **For ACTION requests** (list, create, delete, upload, run, etc.) → USE A TOOL
 2. **For QUESTIONS** (what is, how do I, explain, help, etc.) → ANSWER DIRECTLY without tools
+3. **For INTERACTIVE CLI COMMANDS** → PROVIDE INSTRUCTIONS (cannot execute from chat)
 
-AVAILABLE TOOLS:
+INTERACTIVE CLI COMMANDS (CANNOT be executed from chat - require user input):
+These commands require interactive input (prompts, confirmations, keyboard input) and MUST be run manually in a terminal:
+
+1. **clarifai login** - Authenticate with Clarifai
+   - Prompts for: user_id, PAT (Personal Access Token), context name
+   - Run: `clarifai login`
+
+2. **clarifai chat** - Start interactive chat session (you're already in it!)
+
+3. **clarifai config create-context** - Create a new configuration context
+   - Prompts for: user_id, base_url, PAT
+   - Run: `clarifai config create-context <name>`
+
+4. **clarifai artifact delete** (or `clarifai af rm`) - Delete artifacts
+   - Requires confirmation prompt (unless --force flag)
+   - Run: `clarifai af rm <path>` or `clarifai af rm <path> --force`
+
+5. **clarifai model upload** - Upload a model (when config.yaml is missing)
+   - May prompt for: model_id, user_id, app_id, model_type_id, compute info, checkpoints config
+   - Run: `clarifai model upload <path>` (ensure config.yaml exists first)
+
+6. **clarifai model init** - Initialize a new model project
+   - Prompts for: model configuration, may show "Press Enter to continue..."
+   - Run: `clarifai model init <path> [--model-type-id <type>] [--github-url <url>]`
+
+7. **clarifai model local-runner** - Run model locally for development
+   - May prompt to create: compute cluster, nodepool, app, model, deployment
+   - Run: `clarifai model local-runner <path>`
+
+8. **clarifai pipeline init** - Initialize a new pipeline project
+   - Prompts for: user_id, app_id, pipeline_id, step names, template parameters
+   - Run: `clarifai pipeline init <path> [--template <name>]`
+
+When user asks to perform ANY of these interactive commands, DO NOT try to execute them.
+Instead, provide clear instructions on how to run the command manually in their terminal.
+
+AVAILABLE TOOLS (for non-interactive operations):
 {tools_list}
 
 WHEN TO USE TOOLS (action keywords):
@@ -506,6 +601,15 @@ WHEN TO USE TOOLS (action keywords):
 - "delete/remove" → Use delete tool
 - "upload/add inputs" → Use upload tool
 - Commands that need to fetch or modify data
+
+WHEN TO PROVIDE INSTRUCTIONS (interactive commands):
+- "login" / "authenticate" → Explain how to run `clarifai login`
+- "init model" / "initialize model" → Explain how to run `clarifai model init`
+- "init pipeline" / "create pipeline project" → Explain how to run `clarifai pipeline init`
+- "upload model" → Explain how to run `clarifai model upload` with config.yaml
+- "run local" / "local runner" → Explain how to run `clarifai model local-runner`
+- "delete artifact" → Explain how to run `clarifai af rm`
+- "create context" / "new context" → Explain how to run `clarifai config create-context`
 
 WHEN TO ANSWER DIRECTLY (no tools needed):
 - "What is Clarifai?" → Answer directly
@@ -529,11 +633,36 @@ Response: An app in Clarifai is a container for your AI resources including mode
 User: "list models in my_app"
 Response: <tool_call>{{"tool": "app_list_models", "params": {{"app_id": "my_app"}}}}</tool_call>
 
+User: "login to clarifai"
+Response: The `clarifai login` command requires interactive input and cannot be run from this chat. Please run it manually in your terminal:
+
+```bash
+clarifai login
+```
+
+You will be prompted to enter:
+1. Your Clarifai user ID
+2. Your Personal Access Token (PAT) - get one from https://clarifai.com/<your-user-id>/settings/security
+3. A name for this context (optional, defaults to "default")
+
+User: "initialize a new model"
+Response: The `clarifai model init` command requires interactive input. Please run it manually in your terminal:
+
+```bash
+clarifai model init ./my-model
+```
+
+Optional flags:
+- `--model-type-id mcp|openai` - Specify model type
+- `--github-url <url>` - Initialize from a GitHub repository
+- `--toolkit ollama|lmstudio` - Use a specific toolkit
+
 User: "How do I upload images?"
 Response: You can upload images using the `inputs_upload_from_url` or `inputs_upload_from_file` tools. Just specify the app_id and provide the image URLs or file paths.
 
 RULES:
 - Use tools ONLY for actions that require fetching/modifying data
+- For interactive CLI commands, ALWAYS provide instructions instead of trying to execute
 - Answer questions directly without tools
 - Keep responses concise and helpful
 - When using tools, put the tool call first with minimal explanation after"""

@@ -28,30 +28,30 @@ console = Console()
 
 def normalize_response_with_tools(response_text: str, agent: ClarifaiAgent = None) -> str:
     """Normalize model response to prioritize tool calls and strip excessive explanation.
-    
+
     If the response contains tool calls, move them to the front and remove redundant explanation.
     Ensures tool calls are formatted correctly.
-    
+
     Args:
         response_text: Raw model response
         agent: ClarifaiAgent instance to check for valid tool names
-        
+
     Returns:
         Normalized response with tool calls prioritized
     """
     import re
-    
+
     # Extract all tool calls from the response
     tool_call_pattern = r'<tool_call>\s*(\{[^}]*"tool"[^}]*\})\s*</tool_call>'
     tool_calls = re.findall(tool_call_pattern, response_text)
-    
+
     if not tool_calls:
         return response_text
-    
+
     # Remove tool calls from the original response
     response_without_tools = re.sub(tool_call_pattern, '', response_text)
     response_without_tools = response_without_tools.strip()
-    
+
     # Remove excessive explanation before tool calls
     # If the explanation is more than 2 lines before tools, truncate it
     explanation_lines = response_without_tools.split('\n')
@@ -60,92 +60,79 @@ def normalize_response_with_tools(response_text: str, agent: ClarifaiAgent = Non
         brief_explanation = '\n'.join(explanation_lines[:1])
     else:
         brief_explanation = response_without_tools
-    
+
     # Reconstruct: tool calls first, then brief explanation
     normalized = ""
     for tool_call in tool_calls:
         normalized += f"<tool_call>{tool_call}</tool_call>\n"
-    
+
     if brief_explanation and brief_explanation.strip():
         normalized += brief_explanation.strip()
-    
+
     return normalized.strip()
 
 
 def sanitize_sensitive_data(text: str) -> str:
     """Sanitize sensitive credentials from response text.
-    
+
     Masks PAT (Personal Access Token), auth tokens, and other sensitive data
     by replacing them with asterisks.
-    
+
     Args:
         text: Text to sanitize
-        
+
     Returns:
         Text with sensitive data masked
     """
     import re
-    
+
     # 1. Sanitize any 32-character hex string that looks like a PAT/token
     #    This is the most aggressive pattern - catch bare hex values
-    text = re.sub(
-        r'\b[a-f0-9]{32}\b',
-        lambda m: '*' * 32,
-        text,
-        flags=re.IGNORECASE
-    )
-    
+    text = re.sub(r'\b[a-f0-9]{32}\b', lambda m: '*' * 32, text, flags=re.IGNORECASE)
+
     # 2. Sanitize PAT values in key:value format (various quote types)
     # Handle both ASCII and Unicode quotes
     text = re.sub(
-        r"(['\"`""'']pat['\"`""'']\s*:\s*['\"`""''])[a-f0-9*]{32}(['\"`""''])",
+        r"(['\"`" "'']pat['\"`" "'']\s*:\s*['\"`" "''])[a-f0-9*]{32}(['\"`" "''])",
         r"\1" + "*" * 32 + r"\2",
         text,
-        flags=re.IGNORECASE
+        flags=re.IGNORECASE,
     )
-    
+
     # 3. Sanitize token values
     text = re.sub(
-        r"(['\"`""'']token['\"`""'']\s*:\s*['\"`""''])[a-f0-9*]{32}(['\"`""''])",
+        r"(['\"`" "'']token['\"`" "'']\s*:\s*['\"`" "''])[a-f0-9*]{32}(['\"`" "''])",
         r"\1" + "*" * 32 + r"\2",
         text,
-        flags=re.IGNORECASE
+        flags=re.IGNORECASE,
     )
-    
+
     # 4. Sanitize after keyword patterns
     # e.g., "PAT: 6b09c6dc2a694266921a3f62d25c9197" or "Personal Access Token: 6b09c6dc..."
     text = re.sub(
         r'((?:PAT|Token|API[_-]?Key|Secret|Authorization|Auth|Credential|password)\s*[:=]\s*)[a-f0-9*]{32}',
         r"\1" + "*" * 32,
         text,
-        flags=re.IGNORECASE
+        flags=re.IGNORECASE,
     )
-    
+
     # 5. Sanitize environment variable format
     text = re.sub(
-        r'(CLARIFAI_PAT\s*=\s*)[a-f0-9*]{32}',
-        r"\1" + "*" * 32,
-        text,
-        flags=re.IGNORECASE
+        r'(CLARIFAI_PAT\s*=\s*)[a-f0-9*]{32}', r"\1" + "*" * 32, text, flags=re.IGNORECASE
     )
-    
+
     # 6. Sanitize in parentheses or brackets
     text = re.sub(
         r'([\(\[\{]\s*)[a-f0-9]{32}([\)\]\}])',
         lambda m: m.group(1) + "*" * 32 + m.group(2),
         text,
-        flags=re.IGNORECASE
+        flags=re.IGNORECASE,
     )
-    
+
     # 7. Ensure already-partially masked values don't create issues
     # Convert patterns like "6b09c6dc*" back to full mask
-    text = re.sub(
-        r'[a-f0-9]{16,}\*+',
-        "*" * 32,
-        text,
-        flags=re.IGNORECASE
-    )
-    
+    text = re.sub(r'[a-f0-9]{16,}\*+', "*" * 32, text, flags=re.IGNORECASE)
+
     return text
 
 
@@ -279,12 +266,11 @@ def chat(ctx):
                 if agent:
                     # Use agent system prompt as the primary prompt (includes tool definitions)
                     system_prompt = build_agent_system_prompt(agent)
+                # Use RAG or fallback system prompt
+                elif rag:
+                    system_prompt = build_system_prompt_with_rag(rag, user_input)
                 else:
-                    # Use RAG or fallback system prompt
-                    if rag:
-                        system_prompt = build_system_prompt_with_rag(rag, user_input)
-                    else:
-                        system_prompt = """You are an expert Clarifai CLI assistant. Your role is to help users with:
+                    system_prompt = """You are an expert Clarifai CLI assistant. Your role is to help users with:
 1. Using the Clarifai CLI commands (login, chat, config, deployment, pipeline, model, artifact, etc.)
 2. Understanding CLI options, parameters, and flags
 3. Troubleshooting CLI issues and errors
@@ -317,28 +303,37 @@ RESPONSE RULES:
                         output = response.outputs[0]
                         if hasattr(output, 'data') and hasattr(output.data, 'text'):
                             assistant_message = output.data.text.raw
-                            
+
                             # Normalize response to prioritize tool calls and reduce explanation
                             if agent:
-                                assistant_message = normalize_response_with_tools(assistant_message, agent)
-                            
+                                assistant_message = normalize_response_with_tools(
+                                    assistant_message, agent
+                                )
+
                             # Remove special model control tokens that shouldn't be displayed
                             import re
+
                             assistant_message = re.sub(r'<\|[a-z_]+\|>', '', assistant_message)
                             assistant_message = re.sub(r'</?[a-z_]+>', '', assistant_message)
-                            
+
                             # Sanitize sensitive data (PAT, tokens, etc.)
                             assistant_message = sanitize_sensitive_data(assistant_message)
-                            
+
                             # Remove bare JSON tool calls from the displayed message (they'll be parsed separately)
-                            assistant_message = re.sub(r'\{\s*"tool"\s*:\s*"[^"]+"\s*,\s*"params"\s*:\s*\{[^}]*\}\s*\}', '', assistant_message)
+                            assistant_message = re.sub(
+                                r'\{\s*"tool"\s*:\s*"[^"]+"\s*,\s*"params"\s*:\s*\{[^}]*\}\s*\}',
+                                '',
+                                assistant_message,
+                            )
                             # Clean up any extra whitespace left behind
                             assistant_message = re.sub(r'\n\s*\n', '\n', assistant_message).strip()
 
                             # Check for tool calls in the response
                             tool_calls = []
                             if agent:
-                                tool_calls = parse_tool_calls_from_response(output.data.text.raw)  # Parse from original before cleaning
+                                tool_calls = parse_tool_calls_from_response(
+                                    output.data.text.raw
+                                )  # Parse from original before cleaning
 
                             # Execute any tool calls
                             tool_results = {}
@@ -394,10 +389,17 @@ RESPONSE RULES:
                                                 assistant_message = follow_up_output.data.text.raw
                                                 # Remove special model control tokens
                                                 import re
-                                                assistant_message = re.sub(r'<\|[a-z_]+\|>', '', assistant_message)
-                                                assistant_message = re.sub(r'</?[a-z_]+>', '', assistant_message)
+
+                                                assistant_message = re.sub(
+                                                    r'<\|[a-z_]+\|>', '', assistant_message
+                                                )
+                                                assistant_message = re.sub(
+                                                    r'</?[a-z_]+>', '', assistant_message
+                                                )
                                                 # Sanitize sensitive data
-                                                assistant_message = sanitize_sensitive_data(assistant_message)
+                                                assistant_message = sanitize_sensitive_data(
+                                                    assistant_message
+                                                )
                                     except Exception as e:
                                         logger.warning(f"Failed to get follow-up response: {e}")
 
