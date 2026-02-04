@@ -201,9 +201,12 @@ class Config:
     @property
     def current(self) -> Context:
         """Get the current Context or an empty one if your config is not setup."""
-        if not self.current_context:
+        # Check if there's a context override (set by --context flag)
+        context_name = getattr(self, 'context_override', None) or self.current_context
+
+        if not context_name:
             logger.warning(
                 "No current context set, returning empty context. Run 'clarifai config' on the command line to create a config file."
             )
             return Context("_empty_")
-        return self.contexts[self.current_context]
+        return self.contexts[context_name]

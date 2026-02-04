@@ -14,9 +14,10 @@ from clarifai.utils.logging import logger
 
 @click.group(cls=AliasedGroup)
 @click.version_option(version=__version__)
-@click.option('--config', default=DEFAULT_CONFIG)
+@click.option('--config', default=DEFAULT_CONFIG, help='Path to config file')
+@click.option('--context', default=None, help='Context to use for this command')
 @click.pass_context
-def cli(ctx, config):
+def cli(ctx, config, context):
     """Clarifai CLI"""
     ctx.ensure_object(dict)
     if os.path.exists(config):
@@ -43,6 +44,14 @@ def cli(ctx, config):
                 "Could not write configuration to disk. Could be a read only file system."
             )
         ctx.obj = cfg  # still have the default config even if couldn't write.
+
+    # Store the context override in Click context for all commands to access
+    if context:
+        if context not in ctx.obj.contexts:
+            raise click.UsageError(
+                f"Context '{context}' not found. Available contexts: {', '.join(ctx.obj.contexts.keys())}"
+            )
+        ctx.obj.context_override = context
 
 
 @cli.command()
@@ -303,9 +312,18 @@ def view(ctx, output_format):
 @click.pass_context
 def run(ctx, script, context=None):
     """Execute a script with the current context's environment"""
-    context = ctx.obj.current if not context else context
-    cmd = f'CLARIFAI_USER_ID={context.user_id} CLARIFAI_API_BASE={context.api_base} CLARIFAI_PAT={context.pat} '
-    cmd += ' '.join([f'{k}={v}' for k, v in context.to_serializable_dict().items()])
+    # Get the effective context - either from --context flag or current context
+    if context:
+        if context not in ctx.obj.contexts:
+            raise click.UsageError(
+                f"Context '{context}' not found. Available contexts: {', '.join(ctx.obj.contexts.keys())}"
+            )
+        context_obj = ctx.obj.contexts[context]
+    else:
+        context_obj = ctx.obj.current
+
+    cmd = f'CLARIFAI_USER_ID={context_obj.user_id} CLARIFAI_API_BASE={context_obj.api_base} CLARIFAI_PAT={context_obj.pat} '
+    cmd += ' '.join([f'{k}={v}' for k, v in context_obj.to_serializable_dict().items()])
     cmd += f' {script}'
     os.system(cmd)
 
