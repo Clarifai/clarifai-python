@@ -16,6 +16,7 @@ from clarifai.client.auth.helper import ClarifaiAuthHelper
 from clarifai.constants.base import COMPUTE_ORCHESTRATION_RESOURCES
 from clarifai.errors import ApiError, UserError
 from clarifai.utils.constants import CLARIFAI_PAT_ENV_VAR, CLARIFAI_SESSION_TOKEN_ENV_VAR
+from clarifai.utils.logging import logger
 from clarifai.utils.misc import get_from_dict_env_or_config
 
 
@@ -115,6 +116,8 @@ class BaseClient:
         env = os.environ.copy()
         del env["CLARIFAI_DAEMONIZE"]
 
+        logger.debug("Init process started")
+
         # Spawn child process re-executing the current script
         # We use sys.argv for the command arguments
         cmd = [sys.executable] + sys.argv
@@ -122,6 +125,7 @@ class BaseClient:
         # Start the child
         proc = subprocess.Popen(cmd, env=env)
         pid = proc.pid
+        logger.debug(f"Child process started with PID: {pid}")
 
         # Parent process - acts as init
 
