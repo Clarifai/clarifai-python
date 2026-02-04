@@ -1,3 +1,8 @@
+import errno
+import os
+import signal
+import subprocess
+import sys
 import time
 from typing import Iterator, Optional, Union
 
@@ -35,6 +40,7 @@ class ModelRunner(BaseRunner):
         health_check_port: Union[int, None] = 8080,
         **kwargs,
     ) -> None:
+        self.start_init_process()
         super().__init__(
             runner_id,
             nodepool_id,
@@ -320,6 +326,62 @@ class ModelRunner(BaseRunner):
     def set_model(self, model: ModelClass):
         """Set the model for this runner."""
         self.model = model
+
+    @classmethod
+    def start_init_process(cls):
+        if os.environ.get("CLARIFAI_DAEMONIZE", "").lower() != "true":
+            return
+
+        # Prepare environment for child
+        env = os.environ.copy()
+        del env["CLARIFAI_DAEMONIZE"]
+
+        logger.info("Init process started")
+
+        # Spawn child process re-executing the current script
+        # We use sys.argv for the command arguments
+        cmd = [sys.executable] + sys.argv
+
+        # Start the child
+        proc = subprocess.Popen(cmd, env=env)
+        pid = proc.pid
+        logger.info(f"Child process started with PID: {pid}")
+
+        # Parent process - acts as init
+
+        def handle_signal(signum, frame):
+            try:
+                os.kill(pid, signum)
+            except OSError:
+                pass
+
+        signal.signal(signal.SIGINT, handle_signal)
+        signal.signal(signal.SIGTERM, handle_signal)
+
+        # Loop to reap zombies
+        while True:
+            try:
+                # Wait for any child
+                wpid, status = os.waitpid(-1, 0)
+
+                if wpid == pid:
+                    # The main child exited
+                    if os.WIFEXITED(status):
+                        sys.exit(os.WEXITSTATUS(status))
+                    else:
+                        # Child killed by signal
+                        sys.exit(1)
+
+                logger.debug(f"Reaped zombie process with PID: {wpid}")
+
+            except OSError as e:
+                if e.errno == errno.ECHILD:
+                    # No more children
+                    break
+                # Interrupted system call?
+                continue
+
+        sys.exit(0)
 
 
 def pmo_iterator(runner_item_iterator, auth_helper=None):
