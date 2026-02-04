@@ -295,6 +295,85 @@ def delete_context(ctx, name):
     print(f'{name} deleted')
 
 
+@config.command(aliases=['s'])
+@click.argument('key', type=str)
+@click.argument('value', type=str)
+@click.option(
+    '--context',
+    '-c',
+    type=str,
+    default=None,
+    help='Context to set the value in. Defaults to current context.',
+)
+@click.pass_context
+def set(ctx, key, value, context):
+    """Set a configuration value in the current or specified context.
+
+    Supported keys:
+        chat_model_url  - URL of the model to use for `clarifai chat`
+
+    Examples:
+        clarifai config set chat_model_url https://clarifai.com/openai/chat-completion/models/gpt-4o
+        clarifai config set chat_model_url https://clarifai.com/my-org/my-app/models/my-model -c my-context
+    """
+    # Determine which context to modify
+    context_name = context if context else ctx.obj.current_context
+
+    if context_name not in ctx.obj.contexts:
+        click.secho(f"Error: Context '{context_name}' not found.", fg='red')
+        sys.exit(1)
+
+    target_context = ctx.obj.contexts[context_name]
+
+    # Set the value in the context's env dict
+    # Use CLARIFAI_ prefix for consistency with other config values
+    env_key = f'CLARIFAI_{key.upper()}' if not key.upper().startswith('CLARIFAI_') else key.upper()
+    target_context['env'][env_key] = value
+
+    ctx.obj.to_yaml()
+    click.secho(f"✓ Set '{key}' = '{value}' in context '{context_name}'", fg='green')
+
+
+@config.command(aliases=['g'])
+@click.argument('key', type=str)
+@click.option(
+    '--context',
+    '-c',
+    type=str,
+    default=None,
+    help='Context to get the value from. Defaults to current context.',
+)
+@click.pass_context
+def get(ctx, key, context):
+    """Get a configuration value from the current or specified context.
+
+    Examples:
+        clarifai config get chat_model_url
+        clarifai config get pat -c my-context
+    """
+    # Determine which context to read from
+    context_name = context if context else ctx.obj.current_context
+
+    if context_name not in ctx.obj.contexts:
+        click.secho(f"Error: Context '{context_name}' not found.", fg='red')
+        sys.exit(1)
+
+    target_context = ctx.obj.contexts[context_name]
+
+    # Try to get the value
+    value = target_context.get(key)
+    if value is not None:
+        # Mask PAT values for security
+        if key.lower() in ('pat', 'token', 'secret'):
+            display_value = value[:5] + '****' if len(value) > 5 else '****'
+        else:
+            display_value = value
+        click.echo(display_value)
+    else:
+        click.secho(f"Key '{key}' not found in context '{context_name}'", fg='yellow')
+        sys.exit(1)
+
+
 @config.command(aliases=['get-env'])
 @click.pass_context
 def env(ctx):
