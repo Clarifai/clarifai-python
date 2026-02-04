@@ -47,10 +47,7 @@ def cli(ctx, config, context):
 
     # Store the context override in Click context for all commands to access
     if context:
-        if context not in ctx.obj.contexts:
-            raise click.UsageError(
-                f"Context '{context}' not found. Available contexts: {', '.join(ctx.obj.contexts.keys())}"
-            )
+        validate_and_get_context(ctx.obj, context)
         ctx.obj.context_override = context
 
 
@@ -139,6 +136,26 @@ def pat_display(pat):
 def input_or_default(prompt, default):
     value = input(prompt)
     return value if value else default
+
+
+def validate_and_get_context(config, context_name):
+    """Validate that a context exists and return it.
+
+    Args:
+        config: Config object containing contexts
+        context_name: Name of the context to validate
+
+    Returns:
+        Context object if found
+
+    Raises:
+        click.UsageError: If context is not found
+    """
+    if context_name not in config.contexts:
+        raise click.UsageError(
+            f"Context '{context_name}' not found. Available contexts: {', '.join(config.contexts.keys())}"
+        )
+    return config.contexts[context_name]
 
 
 # Context management commands under config group
@@ -314,11 +331,7 @@ def run(ctx, script, context=None):
     """Execute a script with the current context's environment"""
     # Get the effective context - either from --context flag or current context
     if context:
-        if context not in ctx.obj.contexts:
-            raise click.UsageError(
-                f"Context '{context}' not found. Available contexts: {', '.join(ctx.obj.contexts.keys())}"
-            )
-        context_obj = ctx.obj.contexts[context]
+        context_obj = validate_and_get_context(ctx.obj, context)
     else:
         context_obj = ctx.obj.current
 

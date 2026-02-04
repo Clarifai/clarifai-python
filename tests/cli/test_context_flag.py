@@ -3,6 +3,7 @@
 import tempfile
 from pathlib import Path
 
+import click
 import yaml
 from click.testing import CliRunner
 
@@ -70,6 +71,49 @@ class TestContextFlag:
             assert result.exit_code == 0
             assert 'context-a' in result.output  # Still shows the saved current context
 
+    def test_context_override_actually_used(self):
+        """Test that commands actually use the overridden context."""
+        runner = CliRunner()
+
+        # Add a test command that shows which context is being used
+        @cli.command()
+        @click.pass_context
+        def test_whoami(ctx):
+            """Show the current user ID."""
+            click.echo(f"user_id={ctx.obj.current.user_id}")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.yaml"
+            config_data = {
+                'current_context': 'context-a',
+                'contexts': {
+                    'context-a': {
+                        'CLARIFAI_USER_ID': 'user-a',
+                        'CLARIFAI_PAT': 'pat-a',
+                        'CLARIFAI_API_BASE': 'https://api.clarifai.com',
+                    },
+                    'context-b': {
+                        'CLARIFAI_USER_ID': 'user-b',
+                        'CLARIFAI_PAT': 'pat-b',
+                        'CLARIFAI_API_BASE': 'https://api.clarifai.com',
+                    },
+                },
+            }
+            with open(config_path, 'w') as f:
+                yaml.safe_dump(config_data, f)
+
+            # Test without --context flag (should use context-a)
+            result = runner.invoke(cli, ['--config', str(config_path), 'test-whoami'])
+            assert result.exit_code == 0
+            assert 'user_id=user-a' in result.output
+
+            # Test with --context flag (should use context-b)
+            result = runner.invoke(
+                cli, ['--config', str(config_path), '--context', 'context-b', 'test-whoami']
+            )
+            assert result.exit_code == 0
+            assert 'user_id=user-b' in result.output
+
     def test_context_flag_with_invalid_context(self):
         """Test that --context flag errors with invalid context name."""
         runner = CliRunner()
@@ -128,11 +172,17 @@ class TestContextFlag:
             with open(config_path, 'w') as f:
                 yaml.safe_dump(config_data, f)
 
-            # Test run command with local --context option (not global)
+            # Test 1: run command with local --context option (not global)
             # This tests the existing run command's --context option still works
             result = runner.invoke(
                 cli, ['--config', str(config_path), 'run', '--context', 'context-b', 'echo test']
             )
-            # The command should execute (exit code 0 or command not found depending on environment)
-            # We mainly want to ensure no error about context not found
+            # Verify no error about context not found
+            assert "Context 'context-b' not found" not in result.output
+
+            # Test 2: Verify the global --context flag also works with run command
+            result = runner.invoke(
+                cli, ['--config', str(config_path), '--context', 'context-b', 'run', 'echo test']
+            )
+            # Verify no error about context not found
             assert "Context 'context-b' not found" not in result.output
