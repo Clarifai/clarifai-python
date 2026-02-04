@@ -3,7 +3,6 @@
 import tempfile
 from pathlib import Path
 
-import click
 import yaml
 from click.testing import CliRunner
 
@@ -72,15 +71,8 @@ class TestContextFlag:
             assert 'context-a' in result.output  # Still shows the saved current context
 
     def test_context_override_actually_used(self):
-        """Test that commands actually use the overridden context."""
+        """Test that commands actually use the overridden context by accessing ctx.obj.current."""
         runner = CliRunner()
-
-        # Add a test command that shows which context is being used
-        @cli.command()
-        @click.pass_context
-        def test_whoami(ctx):
-            """Show the current user ID."""
-            click.echo(f"user_id={ctx.obj.current.user_id}")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "config.yaml"
@@ -102,17 +94,20 @@ class TestContextFlag:
             with open(config_path, 'w') as f:
                 yaml.safe_dump(config_data, f)
 
-            # Test without --context flag (should use context-a)
-            result = runner.invoke(cli, ['--config', str(config_path), 'test-whoami'])
+            # Test by checking that config env command uses the correct context
+            # This command prints environment variables from the current context
+            result = runner.invoke(cli, ['--config', str(config_path), 'config', 'env'])
             assert result.exit_code == 0
-            assert 'user_id=user-a' in result.output
+            # Should show environment variables from context-a
+            assert 'user-a' in result.output
 
-            # Test with --context flag (should use context-b)
+            # Test with --context override
             result = runner.invoke(
-                cli, ['--config', str(config_path), '--context', 'context-b', 'test-whoami']
+                cli, ['--config', str(config_path), '--context', 'context-b', 'config', 'env']
             )
             assert result.exit_code == 0
-            assert 'user_id=user-b' in result.output
+            # Should show environment variables from context-b
+            assert 'user-b' in result.output
 
     def test_context_flag_with_invalid_context(self):
         """Test that --context flag errors with invalid context name."""

@@ -158,6 +158,7 @@ class Config:
     current_context: str
     filename: str
     contexts: OrderedDict[str, Context] = field(default_factory=OrderedDict)
+    context_override: str = field(default=None, init=False, repr=False)
 
     def __post_init__(self):
         for k, v in self.contexts.items():
@@ -202,7 +203,7 @@ class Config:
     def current(self) -> Context:
         """Get the current Context or an empty one if your config is not setup."""
         # Check if there's a context override (set by --context flag)
-        context_name = getattr(self, 'context_override', None) or self.current_context
+        context_name = self.context_override or self.current_context
 
         if not context_name:
             logger.warning(
