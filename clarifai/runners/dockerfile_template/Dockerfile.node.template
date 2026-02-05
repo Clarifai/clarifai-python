@@ -55,8 +55,7 @@ ENV PYTHONPATH=${PYTHONPATH}:/home/nonroot/main \
 
 WORKDIR /home/nonroot/main
 
-# Finally run the clarifai entrypoint to start the runner loop and local runner server.
-# Note(zeiler): we may want to make this a clarifai CLI call.
-ENTRYPOINT ["python", "-m", "clarifai.runners.server"]
-CMD ["--model_path", "/home/nonroot/main"]
+# Finally run tini which acts as the init process to reap zombies and wraps the clarifai cmd that starts the runner loop and local runner server.
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["python", "-m", "clarifai.runners.server", "--model_path", "/home/nonroot/main"]
 #############################
