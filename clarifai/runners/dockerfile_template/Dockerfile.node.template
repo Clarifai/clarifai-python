@@ -3,16 +3,13 @@
 FROM --platform=$TARGETPLATFORM python:${PYTHON_VERSION}-slim
 # Install Node.js & npm (npx is included with npm)
 # This is required to run the Node.js MCP server via npx
-RUN apt-get update && apt-get install -y curl xz-utils \
+RUN apt-get update && apt-get install -y curl xz-utils tini \
     && curl -fsSL https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz -o node.tar.xz \
     && tar -xJf node.tar.xz -C /usr/local --strip-components=1 \
     && rm node.tar.xz \
     && node -v && npm -v && npx -v
 
 COPY --link requirements.txt /home/nonroot/requirements.txt
-
-# Copy tini wrapper used as our entrypoint.
-COPY --link /usr/bin/tini /usr/bin/tini
 
 # Update clarifai package so we always have latest protocol to the API. Everything should land in /venv
 RUN ["pip", "install", "--no-cache-dir", "-r", "/home/nonroot/requirements.txt"]
@@ -59,6 +56,6 @@ ENV PYTHONPATH=${PYTHONPATH}:/home/nonroot/main \
 WORKDIR /home/nonroot/main
 
 # Finally run tini which acts as the init process to reap zombies and wraps the clarifai cmd that starts the runner loop and local runner server.
-ENTRYPOINT ["/usr/bin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini-static", "--"]
 CMD ["python", "-m", "clarifai.runners.server", "--model_path", "/home/nonroot/main"]
 #############################
