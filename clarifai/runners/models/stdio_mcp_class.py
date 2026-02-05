@@ -23,11 +23,13 @@ from clarifai.utils.logging import logger
 
 try:
     from fastmcp import FastMCP
+    from fastmcp.tools.tool import FunctionTool
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
     from mcp.types import TextContent, Tool
 except ImportError:
     FastMCP = None
+    FunctionTool = None  # type: ignore[misc, assignment]
     ClientSession = None
     StdioServerParameters = None
     stdio_client = None
@@ -331,15 +333,12 @@ class StdioMCPModelClass(MCPModelClass):
 
                     func = self._create_tool_function(name, props, required, stdio_client)
                     func.__doc__ = desc
-                    server.add_tool(func)
 
-                    # Preserve original JSON‑schema
-                    if hasattr(server, "_tool_manager") and hasattr(
-                        server._tool_manager, "_tools"
-                    ):
-                        reg = server._tool_manager._tools.get(name)
-                        if reg and schema:
-                            reg.parameters = schema
+                    # FastMCP.add_tool expects a Tool (e.g. FunctionTool), not a raw function
+                    mcp_tool = FunctionTool.from_function(func, name=name, description=desc)
+                    if schema:
+                        mcp_tool.parameters = schema
+                    server.add_tool(mcp_tool)
 
                     logger.debug(f"   ✅ Registered {name}")
 
