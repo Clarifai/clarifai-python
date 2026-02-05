@@ -858,10 +858,8 @@ def _ensure_hf_token(ctx, model_path):
             try:
                 if "checkpoints" in config:
                     config_hf_token = config.get("checkpoints").get("hf_token")
-                else:
-                    config_hf_token = None
             except Exception:
-                logger.warning("No HF_TOKEN found in config.yaml")
+                logger.warning("Failed to read HF_TOKEN from config.yaml.")
         else:
             logger.error("`config.yaml` not found in model path.")
             raise click.Abort()
