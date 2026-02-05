@@ -43,6 +43,8 @@ COPY --link --chown=65532:65532 requirements.txt /home/nonroot/requirements.txt
 ENV VIRTUAL_ENV=/venv
 ENV PATH="/home/nonroot/.local/bin:$VIRTUAL_ENV/bin:$PATH"
 
+# Copy tini wrapper used as our entrypoint.
+COPY --link /usr/bin/tini /usr/bin/tini
 
 # Update clarifai package so we always have latest protocol to the API. Everything should land in /venv
 RUN ["uv", "pip", "install", "--no-cache-dir", "-r", "/home/nonroot/requirements.txt"]

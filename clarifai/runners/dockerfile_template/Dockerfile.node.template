@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y curl xz-utils \
 
 COPY --link requirements.txt /home/nonroot/requirements.txt
 
+# Copy tini wrapper used as our entrypoint.
+COPY --link /usr/bin/tini /usr/bin/tini
+
 # Update clarifai package so we always have latest protocol to the API. Everything should land in /venv
 RUN ["pip", "install", "--no-cache-dir", "-r", "/home/nonroot/requirements.txt"]
 RUN ["pip", "show", "--no-cache-dir", "clarifai"]
