@@ -147,7 +147,7 @@ def sanitize_sensitive_data(text: str) -> str:
     # 2. Sanitize PAT values in key:value format (various quote types)
     # Handle both ASCII and Unicode quotes
     text = re.sub(
-        r"(['\"`" "'']pat['\"`" "'']\s*:\s*['\"`" "''])[a-f0-9*]{32}(['\"`" "''])",
+        r"(['\"`" "'']pat['\"`" "'']\\s*:\\s*['\"`" "''])[a-f0-9*]{32}(['\"`" "''])",
         r"\1" + "*" * 32 + r"\2",
         text,
         flags=re.IGNORECASE,
@@ -155,7 +155,7 @@ def sanitize_sensitive_data(text: str) -> str:
 
     # 3. Sanitize token values
     text = re.sub(
-        r"(['\"`" "'']token['\"`" "'']\s*:\s*['\"`" "''])[a-f0-9*]{32}(['\"`" "''])",
+        r"(['\"`" "'']token['\"`" "'']\\s*:\\s*['\"`" "''])[a-f0-9*]{32}(['\"`" "''])",
         r"\1" + "*" * 32 + r"\2",
         text,
         flags=re.IGNORECASE,
@@ -249,10 +249,13 @@ def chat(ctx):
             click.secho(f"(Warning: Could not load knowledge base: {e})", fg='yellow')
             rag = None
 
+        # Platform-specific EOF shortcut
+        eof_shortcut = "Ctrl+Z" if sys.platform == "win32" else "Ctrl+D"
+
         console.print()
         console.print("[dim]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/dim]")
         console.print(
-            "[bold]Quick Commands:[/bold] [cyan]help[/cyan] | [cyan]history[/cyan] | [cyan]clear[/cyan] | [cyan]exit[/cyan]"
+            f"[bold]Quick Commands:[/bold] [cyan]help[/cyan] | [cyan]history[/cyan] | [cyan]clear[/cyan] | [cyan]exit[/cyan] | [dim]{eof_shortcut} to quit[/dim]"
         )
         console.print("[dim]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/dim]\n")
 
@@ -512,6 +515,10 @@ RESPONSE RULES:
             except KeyboardInterrupt:
                 click.echo()
                 click.secho("Chat interrupted. Goodbye!", fg='yellow')
+                break
+            except (EOFError, click.exceptions.Abort):
+                click.echo()
+                click.secho("Goodbye!", fg='yellow')
                 break
             except Exception as e:
                 click.secho(f"Error: {str(e)}", fg='red')
