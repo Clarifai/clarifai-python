@@ -331,7 +331,7 @@ class StdioMCPModelClass(MCPModelClass):
 
                     func = self._create_tool_function(name, props, required, stdio_client)
                     func.__doc__ = desc
-                    server.add_tool(func, name=name, description=desc)
+                    server.add_tool(func)
 
                     # Preserve original JSON‑schema
                     if hasattr(server, "_tool_manager") and hasattr(
