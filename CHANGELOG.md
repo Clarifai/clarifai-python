@@ -1,3 +1,8 @@
+## [[12.1.7]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.7) - [PyPI](https://pypi.org/project/clarifai/12.1.7/) - 2026-02-06
+
+### Changed
+- Version bump to 12.1.7
+
 ## [[12.1.6]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.6) - [PyPI](https://pypi.org/project/clarifai/12.1.6/) - 2026-01-26
 
 ### Added
