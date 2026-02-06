@@ -65,14 +65,6 @@ COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /ffprobe /usr/
 RUN uv pip install --no-cache-dir av
 """
 
-# parse the user's requirements.txt to determine the proper base image to build on top of, based on the torch and other large dependencies and it's versions
-# List of dependencies to look for
-dependencies = [
-    'torch',
-    'clarifai',
-    'vllm',
-]
-
 
 def is_related(object_class, main_class):
     # Check if the object_class is a subclass of main_class
@@ -603,7 +595,6 @@ class ModelBuilder:
             if issubclass(model_class, AgenticModelClass):
                 # Parse requirements.txt to check for required packages
                 dependencies = self._parse_requirements()
-
                 missing_packages = []
                 if 'fastmcp' not in dependencies:
                     missing_packages.append('fastmcp')
@@ -1001,14 +992,7 @@ class ModelBuilder:
         else:
             pkg, version = line, None  # No version specified
         pkg = pkg.strip()
-        for dep in dependencies:
-            if dep == pkg:
-                if (
-                    dep == 'torch' and line.find('whl/cpu') > 0
-                ):  # Ignore torch-cpu whl files, use base mage.
-                    return None, None
-                return pkg, version.strip() if version else None
-        return None, None
+        return pkg, version.strip() if version else None
 
     def _parse_requirements(self):
         dependencies_version = {}
@@ -1680,6 +1664,12 @@ class ModelBuilder:
         except Exception as e:
             logger.error(f"Failed to process secrets: {e}")
             raise
+
+        # Add num_threads if specified
+        num_threads = self.config.get("num_threads")
+        if num_threads:
+            model_version_proto.num_threads = num_threads
+            logger.info(f"Added num_threads={num_threads} to model version")
 
         model_type_id = self.config.get('model').get('model_type_id')
         if model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE:
