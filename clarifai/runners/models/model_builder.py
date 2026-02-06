@@ -114,9 +114,7 @@ def get_yes_no_input(prompt, default=None):
         print("❌ Please enter 'y' or 'n'.")
 
 
-def select_compute_option(
-    user_id: str, pat: Optional[str] = None, base_url: Optional[str] = None
-):
+def select_compute_option(user_id: str, pat: Optional[str] = None, base_url: Optional[str] = None):
     """
     Dynamically list compute-clusters and node-pools that belong to `user_id`
     and return a dict with nodepool_id, compute_cluster_id, cluster_user_id.
@@ -2082,9 +2080,7 @@ def deploy_model(
 
     try:
         # Instantiate Nodepool and create the deployment
-        nodepool = Nodepool(
-            nodepool_id=nodepool_id, user_id=user_id, pat=pat, base_url=base_url
-        )
+        nodepool = Nodepool(nodepool_id=nodepool_id, user_id=user_id, pat=pat, base_url=base_url)
         deployment = nodepool.create_deployment(
             deployment_id=deployment_id, deployment_config=deployment_config
         )
@@ -2177,9 +2173,7 @@ def setup_deployment_for_model(builder):
     """
 
 
-def delete_model_deployment(
-    deployment_id, user_id, nodepool_id=None, pat=None, base_url=None
-):
+def delete_model_deployment(deployment_id, user_id, nodepool_id=None, pat=None, base_url=None):
     """
     Delete a model deployment on Clarifai platform.
 
@@ -2192,9 +2186,7 @@ def delete_model_deployment(
     """
 
     # Instantiate the Nodepool object with given IDs
-    nodepool = Nodepool(
-        nodepool_id=nodepool_id, user_id=user_id, pat=pat, base_url=base_url
-    )
+    nodepool = Nodepool(nodepool_id=nodepool_id, user_id=user_id, pat=pat, base_url=base_url)
     # The delete_deployments method expects a list of deployment IDs
     try:
         nodepool.delete_deployments([deployment_id])
@@ -2233,9 +2225,7 @@ def delete_model_version(
         raise UserError("You must specify one of url or model_id.")
     if model_url:
         user_id, app_id, _, model_id, _ = ClarifaiUrlHelper.split_clarifai_url(model_url)
-    model = Model(
-        model_id=model_id, app_id=app_id, user_id=user_id, pat=pat, base_url=base_url
-    )
+    model = Model(model_id=model_id, app_id=app_id, user_id=user_id, pat=pat, base_url=base_url)
     try:
         model.delete_version(version_id=model_version_id)
         print(f"✅ Model version '{model_version_id}' successfully deleted.")
