@@ -7,6 +7,7 @@ import sys
 import click
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.theme import Theme
 
 import clarifai
 from clarifai.cli.chat.actions import (
@@ -36,8 +37,25 @@ from clarifai.utils.logging import logger
 # Default model URL for GPT-OSS-120B chat completion
 DEFAULT_CHAT_MODEL_URL = "https://clarifai.com/openai/chat-completion/models/gpt-oss-120b"
 
-# Rich console for formatted output
-console = Console()
+# Color constants (Clarifai brand colors from clarifai.com)
+BRAND = '#04AFFF'      # Primary Clarifai cyan
+SUCCESS = 'green'      # Success states
+ERROR = 'red'          # Errors
+WARNING = 'yellow'     # Warnings
+MUTED = 'dim'          # Muted/subtle text
+
+# Custom theme for Rich console - uses brand colors for code/links
+custom_theme = Theme({
+    "markdown.code": BRAND,              # Inline code: `code`
+    "markdown.code_block": BRAND,        # Code blocks: ```code```
+    "markdown.link": BRAND,              # Links: [text](url)
+    "markdown.link_url": f"dim {BRAND}", # URL part of links (subdued)
+    "markdown.item.bullet": BRAND,       # Bullet list markers (-, *)
+    "markdown.item.number": BRAND,       # Numbered list markers (1., 2., etc.)
+})
+
+# Rich console for formatted output with custom theme
+console = Console(theme=custom_theme)
 
 
 def sanitize_sensitive_data(text: str) -> str:
@@ -122,7 +140,7 @@ def chat(ctx):
     current_context = ctx.obj.current
 
     if current_context.name == '_empty_' or not current_context.pat:
-        click.secho("Error: No valid authentication found. Please login first.", fg='red')
+        click.secho("Error: No valid authentication found. Please login first.", fg=ERROR)
         click.echo("Run: clarifai login")
         sys.exit(1)
 
@@ -136,11 +154,11 @@ def chat(ctx):
     # Try to initialize the model
     model_available = True
     try:
-        console.print("[bold green]Clarifai CLI Assistant[/bold green]")
-        console.print("[dim]Your AI-powered guide to the Clarifai platform[/dim]\n")
+        console.print(f"[bold {BRAND}]Clarifai CLI Assistant[/bold {BRAND}]")
+        console.print(f"[{MUTED}]Your AI-powered guide to Clarifai[/{MUTED}]\n")
 
         # Initialize model with the current context's PAT
-        with console.status("[cyan]Connecting to AI model...[/cyan]", spinner="dots"):
+        with console.status(f"[{BRAND}]Connecting to AI model...[/{BRAND}]", spinner="dots"):
             model = Model(
                 url=chat_model_url,
                 pat=current_context.pat,
@@ -152,9 +170,9 @@ def chat(ctx):
                 pat=current_context.pat,
                 user_id=current_context.user_id,
             )
-            console.print("[green][OK][/green] Agent ready for command execution")
+            console.print(f"[{SUCCESS}][OK][/{SUCCESS}] Agent ready for command execution")
         except Exception as e:
-            click.secho(f"(Warning: Could not initialize agent: {e})", fg='yellow')
+            click.secho(f"(Warning: Could not initialize agent: {e})", fg=WARNING)
             agent = None
 
         # Initialize RAG system for CLI documentation
@@ -162,17 +180,20 @@ def chat(ctx):
             # Find the clarifai-python root
             clarifai_root = os.path.dirname(os.path.dirname(clarifai.__file__))
             rag = ClarifaiCodeRAG(clarifai_root)
-            console.print("[green][OK][/green] Knowledge base loaded")
+            console.print(f"[{SUCCESS}][OK][/{SUCCESS}] Knowledge base loaded")
         except Exception as e:
-            click.secho(f"(Warning: Could not load knowledge base: {e})", fg='yellow')
+            click.secho(f"(Warning: Could not load knowledge base: {e})", fg=WARNING)
             rag = None
 
+        # Platform-specific EOF shortcut
+        eof_shortcut = "Ctrl+Z" if sys.platform == "win32" else "Ctrl+D"
+
         console.print()
-        console.print("[dim]-----------------------------------------------[/dim]")
+        console.print(f"[{MUTED}]-----------------------------------------------[/{MUTED}]")
         console.print(
-            "[bold]Quick Commands:[/bold] [cyan]help[/cyan] | [cyan]history[/cyan] | [cyan]clear[/cyan] | [cyan]exit[/cyan]"
+            f"[bold {BRAND}]Quick Commands:[/bold {BRAND}] [{BRAND}]help[/{BRAND}] | [{BRAND}]history[/{BRAND}] | [{BRAND}]clear[/{BRAND}] | [{BRAND}]exit[/{BRAND}] | [{MUTED}]{eof_shortcut} to quit[/{MUTED}]"
         )
-        console.print("[dim]-----------------------------------------------[/dim]\n")
+        console.print(f"[{MUTED}]-----------------------------------------------[/{MUTED}]\n")
 
         # Interactive chat loop
         conversation_history = []
@@ -189,7 +210,7 @@ def chat(ctx):
 
                 # Check for special commands
                 if user_input.lower() in ('exit', 'quit', 'bye'):
-                    click.secho("Goodbye!", fg='yellow')
+                    click.secho("Goodbye!", fg=WARNING)
                     break
 
                 if user_input.lower() in ('help', '?'):
@@ -223,9 +244,9 @@ def chat(ctx):
                     # Clear the terminal screen
                     click.clear()
                     # Reprint a minimal header
-                    console.print("[bold green]Clarifai CLI Assistant[/bold green]")
-                    console.print("[dim]-----------------------------------------------[/dim]")
-                    console.print("[green][OK][/green] Screen and conversation history cleared.\n")
+                    console.print(f"[bold {BRAND}]Clarifai CLI Assistant[/bold {BRAND}]")
+                    console.print(f"[{MUTED}]-----------------------------------------------[/{MUTED}]")
+                    console.print(f"[{SUCCESS}][OK][/{SUCCESS}] Screen and conversation history cleared.\n")
                     continue
 
                 # Add to conversation history
@@ -336,59 +357,59 @@ RESPONSE RULES:
                                 action_def = get_action(action_name)
                                 
                                 if action_def:
-                                    console.print("\n[dim]--- SDK Action ---[/dim]")
-                                    console.print(f"[cyan]Action:[/cyan] {action_name}")
+                                    console.print(f"\n[{MUTED}]--- SDK Action ---[/{MUTED}]")
+                                    console.print(f"[{BRAND}]Action:[/{BRAND}] {action_name}")
                                     if action_params:
-                                        console.print(f"[dim]Params: {action_params}[/dim]")
+                                        console.print(f"[{MUTED}]Params: {action_params}[/{MUTED}]")
                                     
                                     if action_def.needs_confirmation:
                                         if click.confirm(f"Execute {action_name}?", default=False):
                                             result = execute_action(action_name, action_params)
                                             if result.success:
-                                                console.print(f"[green][OK][/green] {result.message}")
+                                                console.print(f"[{SUCCESS}][OK][/{SUCCESS}] {result.message}")
                                             else:
-                                                console.print(f"[red][FAIL][/red] {result.error}")
+                                                console.print(f"[{ERROR}][FAIL][/{ERROR}] {result.error}")
                                             conversation_history.append({
                                                 'role': 'system',
                                                 'message': f"Action {action_name} result: {result.message or result.error}"
                                             })
                                         else:
-                                            console.print("[yellow]Skipped[/yellow]")
+                                            console.print(f"[{WARNING}]Skipped[/{WARNING}]")
                                     else:
                                         result = execute_action(action_name, action_params)
                                         if result.success:
-                                            console.print(f"[green][OK][/green] {result.message}")
+                                            console.print(f"[{SUCCESS}][OK][/{SUCCESS}] {result.message}")
                                         else:
-                                            console.print(f"[red][FAIL][/red] {result.error}")
+                                            console.print(f"[{ERROR}][FAIL][/{ERROR}] {result.error}")
                                         conversation_history.append({
                                             'role': 'system',
                                             'message': f"Action {action_name} result: {result.message or result.error}"
                                         })
-                                    console.print("[dim]------------------[/dim]")
+                                    console.print(f"[{MUTED}]------------------[/{MUTED}]")
                                 else:
-                                    console.print(f"[yellow]Unknown action: {action_name}[/yellow]")
+                                    console.print(f"[{WARNING}]Unknown action: {action_name}[/{WARNING}]")
                             
                             # Also check for CLI commands (bash blocks)
                             commands, skipped = parse_commands_from_response(assistant_message)
                             
                             if skipped:
-                                console.print("\n[dim]--- Skipped Commands (need your input) ---[/dim]")
+                                console.print(f"\n[{MUTED}]--- Skipped Commands (need your input) ---[/{MUTED}]")
                                 for cmd, reason in skipped:
-                                    console.print(f"[yellow]! Skipped:[/yellow] `{cmd[:60]}...`" if len(cmd) > 60 else f"[yellow]! Skipped:[/yellow] `{cmd}`")
-                                    console.print(f"  [dim]Reason: {reason} - please replace with actual values[/dim]")
-                                console.print("[dim]-----------------------------------------[/dim]")
+                                    console.print(f"[{WARNING}]! Skipped:[/{WARNING}] `{cmd[:60]}...`" if len(cmd) > 60 else f"[{WARNING}]! Skipped:[/{WARNING}] `{cmd}`")
+                                    console.print(f"  [{MUTED}]Reason: {reason} - please replace with actual values[/{MUTED}]")
+                                console.print(f"[{MUTED}]-----------------------------------------[/{MUTED}]")
                             
                             if commands:
-                                console.print("\n[dim]--- Command Execution ---[/dim]")
+                                console.print(f"\n[{MUTED}]--- Command Execution ---[/{MUTED}]")
                                 for cmd, substitutions, cmd_type in commands:
                                     if substitutions:
-                                        console.print(f"[dim]Auto-substituted: {', '.join(substitutions)}[/dim]")
+                                        console.print(f"[{MUTED}]Auto-substituted: {', '.join(substitutions)}[/{MUTED}]")
                                     
                                     if cmd_type == 'python':
                                         # Python SDK code
                                         if is_safe_python_code(cmd):
-                                            console.print(f"[cyan]Running Python (SDK):[/cyan]")
-                                            console.print(f"[dim]{cmd[:100]}...[/dim]" if len(cmd) > 100 else f"[dim]{cmd}[/dim]")
+                                            console.print(f"[{BRAND}]Running Python (SDK):[/{BRAND}]")
+                                            console.print(f"[{MUTED}]{cmd[:100]}...[/{MUTED}]" if len(cmd) > 100 else f"[{MUTED}]{cmd}[/{MUTED}]")
                                             result = execute_python(cmd)
                                             console.print(Markdown(format_command_output(result)))
                                             conversation_history.append({
@@ -397,8 +418,8 @@ RESPONSE RULES:
                                             })
                                         else:
                                             # Ask for confirmation for non-safe Python code
-                                            console.print(f"[yellow]Python code to execute:[/yellow]")
-                                            console.print(f"[dim]{cmd[:200]}...[/dim]" if len(cmd) > 200 else f"[dim]{cmd}[/dim]")
+                                            console.print(f"[{WARNING}]Python code to execute:[/{WARNING}]")
+                                            console.print(f"[{MUTED}]{cmd[:200]}...[/{MUTED}]" if len(cmd) > 200 else f"[{MUTED}]{cmd}[/{MUTED}]")
                                             if click.confirm("Execute this Python code?", default=False):
                                                 result = execute_python(cmd)
                                                 console.print(Markdown(format_command_output(result)))
@@ -407,12 +428,12 @@ RESPONSE RULES:
                                                     'message': f"Python code returned:\n{result.output[:500]}"
                                                 })
                                             else:
-                                                console.print("[yellow]Skipped[/yellow]")
+                                                console.print(f"[{WARNING}]Skipped[/{WARNING}]")
                                     else:
                                         # CLI command
                                         if is_safe_command(cmd):
                                             # Execute safe commands automatically
-                                            console.print(f"[cyan]Running:[/cyan] {cmd}")
+                                            console.print(f"[{BRAND}]Running:[/{BRAND}] {cmd}")
                                             result = execute_command(cmd)
                                             console.print(Markdown(format_command_output(result)))
                                             # Add result to conversation history for context
@@ -423,7 +444,7 @@ RESPONSE RULES:
                                         else:
                                             # Ask for confirmation for non-safe commands
                                             if click.confirm(f"Execute: {cmd}?", default=False):
-                                                console.print(f"[cyan]Running:[/cyan] {cmd}")
+                                                console.print(f"[{BRAND}]Running:[/{BRAND}] {cmd}")
                                                 result = execute_command(cmd)
                                                 console.print(Markdown(format_command_output(result)))
                                                 conversation_history.append({
@@ -431,25 +452,25 @@ RESPONSE RULES:
                                                     'message': f"Command `{cmd}` returned:\n{result.output[:500]}"
                                                 })
                                             else:
-                                                console.print(f"[yellow]Skipped:[/yellow] {cmd}")
-                                console.print("[dim]--------------------------[/dim]")
+                                                console.print(f"[{WARNING}]Skipped:[/{WARNING}] {cmd}")
+                                console.print(f"[{MUTED}]--------------------------[/{MUTED}]")
                         else:
-                            click.secho("No text response received", fg='red')
+                            click.secho("No text response received", fg=ERROR)
                     else:
-                        click.secho("Invalid response format", fg='red')
+                        click.secho("Invalid response format", fg=ERROR)
 
                 except Exception as e:
                     error_msg = str(e).lower()
 
                     # Check for common reasons assistant might be unavailable
                     if 'not found' in error_msg or 'invalid' in error_msg:
-                        click.secho("Assistant is currently unavailable.", fg='yellow')
+                        click.secho("Assistant is currently unavailable.", fg=WARNING)
                         click.echo("  Please check your credentials or account status.")
                     elif 'permission' in error_msg or 'unauthorized' in error_msg:
-                        click.secho("Assistant is currently unavailable.", fg='yellow')
+                        click.secho("Assistant is currently unavailable.", fg=WARNING)
                         click.echo("  Access denied. Please verify your account status.")
                     else:
-                        click.secho("Assistant is temporarily unavailable.", fg='yellow')
+                        click.secho("Assistant is temporarily unavailable.", fg=WARNING)
                         click.echo("  Please try again in a moment.")
 
                     logger.exception("Chat model prediction error")
@@ -458,21 +479,21 @@ RESPONSE RULES:
 
             except KeyboardInterrupt:
                 click.echo()
-                click.secho("Chat interrupted. Goodbye!", fg='yellow')
+                click.secho("Chat interrupted. Goodbye!", fg=WARNING)
                 break
             except (EOFError, click.exceptions.Abort):
                 click.echo()
-                click.secho("Goodbye!", fg='yellow')
+                click.secho("Goodbye!", fg=WARNING)
                 break
             except Exception as e:
-                click.secho(f"Error: {str(e)}", fg='red')
+                click.secho(f"Error: {str(e)}", fg=ERROR)
                 logger.exception("Chat error")
     except ImportError as e:
-        click.secho(f"Error: Failed to import Clarifai SDK. {str(e)}", fg='red')
+        click.secho(f"Error: Failed to import Clarifai SDK. {str(e)}", fg=ERROR)
         sys.exit(1)
     except Exception as e:
-        click.secho("Assistant is currently unavailable.\n", fg='yellow')
-        click.secho("This could be due to:", fg='yellow')
+        click.secho("Assistant is currently unavailable.\n", fg=WARNING)
+        click.secho("This could be due to:", fg=WARNING)
         click.echo("  • Network connectivity issues")
         click.echo("  • API authentication problems\n")
         logger.exception("Chat initialization error")
