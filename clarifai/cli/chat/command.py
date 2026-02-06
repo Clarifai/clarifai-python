@@ -460,6 +460,10 @@ RESPONSE RULES:
                 click.echo()
                 click.secho("Chat interrupted. Goodbye!", fg='yellow')
                 break
+            except (EOFError, click.exceptions.Abort):
+                click.echo()
+                click.secho("Goodbye!", fg='yellow')
+                break
             except Exception as e:
                 click.secho(f"Error: {str(e)}", fg='red')
                 logger.exception("Chat error")
