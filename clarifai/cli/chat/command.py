@@ -1,6 +1,7 @@
 """Chat command for Clarifai CLI."""
 
 import os
+import re
 import sys
 
 import click
@@ -8,13 +9,26 @@ from rich.console import Console
 from rich.markdown import Markdown
 
 import clarifai
-from clarifai.cli.agent import (
+from clarifai.cli.chat.actions import (
+    parse_action_from_response,
+    execute_action,
+    get_action,
+)
+from clarifai.cli.chat.agent import (
     ClarifaiAgent,
     build_agent_system_prompt,
-    parse_tool_calls_from_response,
 )
 from clarifai.cli.base import cli
-from clarifai.cli.rag import ClarifaiCodeRAG, build_system_prompt_with_rag
+from clarifai.cli.chat.executor import (
+    execute_command,
+    execute_python,
+    parse_commands_from_response,
+    is_safe_command,
+    is_safe_python_code,
+    format_command_output,
+    set_current_user_id,
+)
+from clarifai.cli.chat.rag import ClarifaiCodeRAG
 from clarifai.client.model import Model
 from clarifai.utils.cli import validate_context
 from clarifai.utils.logging import logger
@@ -24,106 +38,6 @@ DEFAULT_CHAT_MODEL_URL = "https://clarifai.com/openai/chat-completion/models/gpt
 
 # Rich console for formatted output
 console = Console()
-
-
-def get_cli_command_for_tool(tool_name: str, params: dict) -> str:
-    """Convert an agent tool call to the equivalent CLI command.
-
-    Args:
-        tool_name: Name of the agent tool (e.g., 'user_delete_app')
-        params: Parameters passed to the tool
-
-    Returns:
-        Equivalent CLI command string, or None if no mapping exists
-    """
-    # Map tool names to CLI commands
-    tool_to_cli = {
-        # User operations
-        'user_list_apps': 'clarifai app ls',
-        'user_create_app': 'clarifai app create {app_id}',
-        'user_delete_app': 'clarifai app delete {app_id}',
-        # App operations
-        'app_list_models': 'clarifai model ls --app_id {app_id}',
-        'app_list_datasets': 'clarifai dataset ls --app_id {app_id}',
-        'app_list_workflows': 'clarifai workflow ls --app_id {app_id}',
-        'app_create_model': 'clarifai model create {model_id} --app_id {app_id}',
-        'app_create_dataset': 'clarifai dataset create {dataset_id} --app_id {app_id}',
-        'app_delete_model': 'clarifai model delete {model_id} --app_id {app_id}',
-        'app_delete_dataset': 'clarifai dataset delete {dataset_id} --app_id {app_id}',
-        # Model operations
-        'model_predict': 'clarifai model predict --model_id {model_id} --app_id {app_id}',
-        'model_list_versions': 'clarifai model version ls --model_id {model_id} --app_id {app_id}',
-        # Dataset operations
-        'dataset_list_inputs': 'clarifai dataset inputs ls --dataset_id {dataset_id} --app_id {app_id}',
-        'dataset_upload_from_url': 'clarifai dataset inputs upload --dataset_id {dataset_id} --app_id {app_id} --url {url}',
-        # Inputs operations
-        'inputs_upload_from_url': 'clarifai inputs upload --app_id {app_id} --url {url}',
-        'inputs_upload_from_file': 'clarifai inputs upload --app_id {app_id} --file {file_path}',
-        'inputs_list': 'clarifai inputs ls --app_id {app_id}',
-        # Pipeline operations
-        'user_list_pipelines': 'clarifai pipeline ls --app_id {app_id}',
-        'pipeline_list_versions': 'clarifai pipeline version ls --pipeline_id {pipeline_id} --app_id {app_id}',
-    }
-
-    template = tool_to_cli.get(tool_name)
-    if not template:
-        return None
-
-    # Substitute params into template
-    try:
-        cmd = template.format(**params)
-        return cmd
-    except KeyError:
-        # If some params are missing, return template with available params
-        for key, value in params.items():
-            template = template.replace('{' + key + '}', str(value))
-        return template
-
-
-def normalize_response_with_tools(response_text: str, agent: ClarifaiAgent = None) -> str:
-    """Normalize model response to prioritize tool calls and strip excessive explanation.
-
-    If the response contains tool calls, move them to the front and remove redundant explanation.
-    Ensures tool calls are formatted correctly.
-
-    Args:
-        response_text: Raw model response
-        agent: ClarifaiAgent instance to check for valid tool names
-
-    Returns:
-        Normalized response with tool calls prioritized
-    """
-    import re
-
-    # Extract all tool calls from the response
-    tool_call_pattern = r'<tool_call>\s*(\{[^}]*"tool"[^}]*\})\s*</tool_call>'
-    tool_calls = re.findall(tool_call_pattern, response_text)
-
-    if not tool_calls:
-        return response_text
-
-    # Remove tool calls from the original response
-    response_without_tools = re.sub(tool_call_pattern, '', response_text)
-    response_without_tools = response_without_tools.strip()
-
-    # Remove excessive explanation before tool calls
-    # If the explanation is more than 2 lines before tools, truncate it
-    explanation_lines = response_without_tools.split('\n')
-    if len(explanation_lines) > 2:
-        # Keep only brief explanation (first 1-2 lines)
-        brief_explanation = '\n'.join(explanation_lines[:1])
-    else:
-        brief_explanation = response_without_tools
-
-    # Reconstruct: tool calls first, then brief explanation
-    normalized = ""
-    for tool_call in tool_calls:
-        normalized += f"<tool_call>{tool_call}</tool_call>\n"
-
-    if brief_explanation and brief_explanation.strip():
-        normalized += brief_explanation.strip()
-
-    return normalized.strip()
 
 
 def sanitize_sensitive_data(text: str) -> str:
@@ -147,7 +61,7 @@ def sanitize_sensitive_data(text: str) -> str:
     # 2. Sanitize PAT values in key:value format (various quote types)
     # Handle both ASCII and Unicode quotes
     text = re.sub(
-        r"(['\"`" "'']pat['\"`" "'']\s*:\s*['\"`" "''])[a-f0-9*]{32}(['\"`" "''])",
+        r"(['\"`\u201c\u201d\u2018\u2019]pat['\"`\u201c\u201d\u2018\u2019]\s*:\s*['\"`\u201c\u201d\u2018\u2019])[a-f0-9*]{32}(['\"`\u201c\u201d\u2018\u2019])",
         r"\1" + "*" * 32 + r"\2",
         text,
         flags=re.IGNORECASE,
@@ -155,7 +69,7 @@ def sanitize_sensitive_data(text: str) -> str:
 
     # 3. Sanitize token values
     text = re.sub(
-        r"(['\"`" "'']token['\"`" "'']\s*:\s*['\"`" "''])[a-f0-9*]{32}(['\"`" "''])",
+        r"(['\"`\u201c\u201d\u2018\u2019]token['\"`\u201c\u201d\u2018\u2019]\s*:\s*['\"`\u201c\u201d\u2018\u2019])[a-f0-9*]{32}(['\"`\u201c\u201d\u2018\u2019])",
         r"\1" + "*" * 32 + r"\2",
         text,
         flags=re.IGNORECASE,
@@ -212,6 +126,10 @@ def chat(ctx):
         click.echo("Run: clarifai login")
         sys.exit(1)
 
+    # Set the user_id for command substitution (so placeholders like YOUR_USER_ID get replaced)
+    if current_context.user_id:
+        set_current_user_id(current_context.user_id)
+
     # Get chat model URL from config or use default
     chat_model_url = current_context.get('chat_model_url', DEFAULT_CHAT_MODEL_URL)
 
@@ -234,7 +152,7 @@ def chat(ctx):
                 pat=current_context.pat,
                 user_id=current_context.user_id,
             )
-            console.print("[green]✓[/green] Agent ready for command execution")
+            console.print("[green][OK][/green] Agent ready for command execution")
         except Exception as e:
             click.secho(f"(Warning: Could not initialize agent: {e})", fg='yellow')
             agent = None
@@ -244,17 +162,17 @@ def chat(ctx):
             # Find the clarifai-python root
             clarifai_root = os.path.dirname(os.path.dirname(clarifai.__file__))
             rag = ClarifaiCodeRAG(clarifai_root)
-            console.print("[green]✓[/green] Knowledge base loaded")
+            console.print("[green][OK][/green] Knowledge base loaded")
         except Exception as e:
             click.secho(f"(Warning: Could not load knowledge base: {e})", fg='yellow')
             rag = None
 
         console.print()
-        console.print("[dim]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/dim]")
+        console.print("[dim]-----------------------------------------------[/dim]")
         console.print(
             "[bold]Quick Commands:[/bold] [cyan]help[/cyan] | [cyan]history[/cyan] | [cyan]clear[/cyan] | [cyan]exit[/cyan]"
         )
-        console.print("[dim]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/dim]\n")
+        console.print("[dim]-----------------------------------------------[/dim]\n")
 
         # Interactive chat loop
         conversation_history = []
@@ -306,8 +224,8 @@ def chat(ctx):
                     click.clear()
                     # Reprint a minimal header
                     console.print("[bold green]Clarifai CLI Assistant[/bold green]")
-                    console.print("[dim]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/dim]")
-                    console.print("[green]✓[/green] Screen and conversation history cleared.\n")
+                    console.print("[dim]-----------------------------------------------[/dim]")
+                    console.print("[green][OK][/green] Screen and conversation history cleared.\n")
                     continue
 
                 # Add to conversation history
@@ -329,12 +247,25 @@ def chat(ctx):
                         conversation_context += f"{role}: {msg_text}\n\n"
 
                 # Build enhanced prompt with RAG context and agent tools
+                # Combine skills (for action guidance) AND RAG (for codebase context)
+                system_prompt_parts = []
+                
+                # Add skills guidance if agent is available
                 if agent:
-                    # Use agent system prompt as the primary prompt (includes tool definitions)
-                    system_prompt = build_agent_system_prompt(agent)
-                # Use RAG or fallback system prompt
-                elif rag:
-                    system_prompt = build_system_prompt_with_rag(rag, user_input)
+                    system_prompt_parts.append(build_agent_system_prompt(agent))
+                
+                # Add RAG context for codebase questions
+                if rag:
+                    search_results = rag.search(user_input, top_k=3)
+                    if search_results:
+                        rag_context = "\n## Relevant Code References:\n"
+                        for file_path, snippet in search_results:
+                            rag_context += f"\n### From {file_path}:\n```\n{snippet}\n```"
+                        system_prompt_parts.append(rag_context)
+                
+                # Combine or use fallback
+                if system_prompt_parts:
+                    system_prompt = "\n\n".join(system_prompt_parts)
                 else:
                     system_prompt = """You are an expert Clarifai CLI assistant. Your role is to help users with:
 1. Using the Clarifai CLI commands (login, chat, config, deployment, pipeline, model, artifact, etc.)
@@ -370,111 +301,19 @@ RESPONSE RULES:
                         if hasattr(output, 'data') and hasattr(output.data, 'text'):
                             assistant_message = output.data.text.raw
 
-                            # Normalize response to prioritize tool calls and reduce explanation
-                            if agent:
-                                assistant_message = normalize_response_with_tools(
-                                    assistant_message, agent
-                                )
-
                             # Remove special model control tokens that shouldn't be displayed
-                            import re
-
                             assistant_message = re.sub(r'<\|[a-z_]+\|>', '', assistant_message)
                             assistant_message = re.sub(r'</?[a-z_]+>', '', assistant_message)
+                            
+                            # Remove any skill/tool call tags (skills are now guidance, not executable)
+                            assistant_message = re.sub(r'<skill_call>.*?</skill_call>', '', assistant_message, flags=re.DOTALL)
+                            assistant_message = re.sub(r'<tool_call>.*?</tool_call>', '', assistant_message, flags=re.DOTALL)
 
                             # Sanitize sensitive data (PAT, tokens, etc.)
                             assistant_message = sanitize_sensitive_data(assistant_message)
 
-                            # Remove bare JSON tool calls from the displayed message (they'll be parsed separately)
-                            assistant_message = re.sub(
-                                r'\{\s*"tool"\s*:\s*"[^"]+"\s*,\s*"params"\s*:\s*\{[^}]*\}\s*\}',
-                                '',
-                                assistant_message,
-                            )
                             # Clean up any extra whitespace left behind
                             assistant_message = re.sub(r'\n\s*\n', '\n', assistant_message).strip()
-
-                            # Check for tool calls in the response
-                            tool_calls = []
-                            if agent:
-                                tool_calls = parse_tool_calls_from_response(
-                                    output.data.text.raw
-                                )  # Parse from original before cleaning
-
-                            # Execute any tool calls
-                            tool_results = {}
-                            if tool_calls:
-                                click.secho("Executing actions...\n", fg='blue')
-                                for tool_call in tool_calls:
-                                    tool_name = tool_call.get('tool')
-                                    params = tool_call.get('params', {})
-
-                                    # Show the equivalent CLI command if available
-                                    cli_cmd = get_cli_command_for_tool(tool_name, params)
-                                    if cli_cmd:
-                                        console.print(
-                                            f"[dim]CLI equivalent:[/dim] [cyan]{cli_cmd}[/cyan]"
-                                        )
-                                    else:
-                                        # Fallback: show the API operation
-                                        console.print(
-                                            f"[dim]API operation:[/dim] [cyan]{tool_name}({', '.join(f'{k}={v}' for k, v in params.items())})[/cyan]"
-                                        )
-
-                                    # Execute the tool
-                                    result = agent.execute_tool(tool_name, params)
-                                    tool_results[tool_name] = result
-
-                                    if result.get('success'):
-                                        console.print("[green]  ✓ Done[/green]")
-                                    else:
-                                        console.print(
-                                            f"[red]  ✗ Error: {result.get('error')}[/red]"
-                                        )
-                                click.echo()  # Spacing
-
-                                # If tools were executed, get a follow-up response from the model
-                                if tool_results:
-                                    tool_summary = "\n".join(
-                                        [
-                                            f"- {name}: {'Success' if r.get('success') else 'Error'} - {r.get('result') or r.get('error')}"
-                                            for name, r in tool_results.items()
-                                        ]
-                                    )
-                                    follow_up_input = f"Tool execution results:\n{tool_summary}\n\nPlease provide a summary of what was accomplished."
-
-                                    try:
-                                        follow_up_response = model.predict_by_bytes(
-                                            input_bytes=follow_up_input.encode('utf-8'),
-                                            input_type='text',
-                                            inference_params={'max_tokens': '300'},
-                                        )
-                                        if (
-                                            follow_up_response
-                                            and hasattr(follow_up_response, 'outputs')
-                                            and len(follow_up_response.outputs) > 0
-                                        ):
-                                            follow_up_output = follow_up_response.outputs[0]
-                                            if hasattr(follow_up_output, 'data') and hasattr(
-                                                follow_up_output.data, 'text'
-                                            ):
-                                                # Use the follow-up response as the final assistant message
-                                                assistant_message = follow_up_output.data.text.raw
-                                                # Remove special model control tokens
-                                                import re
-
-                                                assistant_message = re.sub(
-                                                    r'<\|[a-z_]+\|>', '', assistant_message
-                                                )
-                                                assistant_message = re.sub(
-                                                    r'</?[a-z_]+>', '', assistant_message
-                                                )
-                                                # Sanitize sensitive data
-                                                assistant_message = sanitize_sensitive_data(
-                                                    assistant_message
-                                                )
-                                    except Exception as e:
-                                        logger.warning(f"Failed to get follow-up response: {e}")
 
                             # Add to conversation history
                             conversation_history.append(
@@ -486,6 +325,114 @@ RESPONSE RULES:
                                 Markdown(f"**Assistant:**\n\n{assistant_message}"),
                                 style='green',
                             )
+                            
+                            # Parse and execute commands from the response
+                            # First try to parse JSON actions (preferred method)
+                            action_data = parse_action_from_response(assistant_message)
+                            
+                            if action_data:
+                                action_name = action_data.get('action')
+                                action_params = {k: v for k, v in action_data.items() if k != 'action'}
+                                action_def = get_action(action_name)
+                                
+                                if action_def:
+                                    console.print("\n[dim]--- SDK Action ---[/dim]")
+                                    console.print(f"[cyan]Action:[/cyan] {action_name}")
+                                    if action_params:
+                                        console.print(f"[dim]Params: {action_params}[/dim]")
+                                    
+                                    if action_def.needs_confirmation:
+                                        if click.confirm(f"Execute {action_name}?", default=False):
+                                            result = execute_action(action_name, action_params)
+                                            if result.success:
+                                                console.print(f"[green][OK][/green] {result.message}")
+                                            else:
+                                                console.print(f"[red][FAIL][/red] {result.error}")
+                                            conversation_history.append({
+                                                'role': 'system',
+                                                'message': f"Action {action_name} result: {result.message or result.error}"
+                                            })
+                                        else:
+                                            console.print("[yellow]Skipped[/yellow]")
+                                    else:
+                                        result = execute_action(action_name, action_params)
+                                        if result.success:
+                                            console.print(f"[green][OK][/green] {result.message}")
+                                        else:
+                                            console.print(f"[red][FAIL][/red] {result.error}")
+                                        conversation_history.append({
+                                            'role': 'system',
+                                            'message': f"Action {action_name} result: {result.message or result.error}"
+                                        })
+                                    console.print("[dim]------------------[/dim]")
+                                else:
+                                    console.print(f"[yellow]Unknown action: {action_name}[/yellow]")
+                            
+                            # Also check for CLI commands (bash blocks)
+                            commands, skipped = parse_commands_from_response(assistant_message)
+                            
+                            if skipped:
+                                console.print("\n[dim]--- Skipped Commands (need your input) ---[/dim]")
+                                for cmd, reason in skipped:
+                                    console.print(f"[yellow]! Skipped:[/yellow] `{cmd[:60]}...`" if len(cmd) > 60 else f"[yellow]! Skipped:[/yellow] `{cmd}`")
+                                    console.print(f"  [dim]Reason: {reason} - please replace with actual values[/dim]")
+                                console.print("[dim]-----------------------------------------[/dim]")
+                            
+                            if commands:
+                                console.print("\n[dim]--- Command Execution ---[/dim]")
+                                for cmd, substitutions, cmd_type in commands:
+                                    if substitutions:
+                                        console.print(f"[dim]Auto-substituted: {', '.join(substitutions)}[/dim]")
+                                    
+                                    if cmd_type == 'python':
+                                        # Python SDK code
+                                        if is_safe_python_code(cmd):
+                                            console.print(f"[cyan]Running Python (SDK):[/cyan]")
+                                            console.print(f"[dim]{cmd[:100]}...[/dim]" if len(cmd) > 100 else f"[dim]{cmd}[/dim]")
+                                            result = execute_python(cmd)
+                                            console.print(Markdown(format_command_output(result)))
+                                            conversation_history.append({
+                                                'role': 'system',
+                                                'message': f"Python code returned:\n{result.output[:500]}"
+                                            })
+                                        else:
+                                            # Ask for confirmation for non-safe Python code
+                                            console.print(f"[yellow]Python code to execute:[/yellow]")
+                                            console.print(f"[dim]{cmd[:200]}...[/dim]" if len(cmd) > 200 else f"[dim]{cmd}[/dim]")
+                                            if click.confirm("Execute this Python code?", default=False):
+                                                result = execute_python(cmd)
+                                                console.print(Markdown(format_command_output(result)))
+                                                conversation_history.append({
+                                                    'role': 'system', 
+                                                    'message': f"Python code returned:\n{result.output[:500]}"
+                                                })
+                                            else:
+                                                console.print("[yellow]Skipped[/yellow]")
+                                    else:
+                                        # CLI command
+                                        if is_safe_command(cmd):
+                                            # Execute safe commands automatically
+                                            console.print(f"[cyan]Running:[/cyan] {cmd}")
+                                            result = execute_command(cmd)
+                                            console.print(Markdown(format_command_output(result)))
+                                            # Add result to conversation history for context
+                                            conversation_history.append({
+                                                'role': 'system',
+                                                'message': f"Command `{cmd}` returned:\n{result.output[:500]}"
+                                            })
+                                        else:
+                                            # Ask for confirmation for non-safe commands
+                                            if click.confirm(f"Execute: {cmd}?", default=False):
+                                                console.print(f"[cyan]Running:[/cyan] {cmd}")
+                                                result = execute_command(cmd)
+                                                console.print(Markdown(format_command_output(result)))
+                                                conversation_history.append({
+                                                    'role': 'system', 
+                                                    'message': f"Command `{cmd}` returned:\n{result.output[:500]}"
+                                                })
+                                            else:
+                                                console.print(f"[yellow]Skipped:[/yellow] {cmd}")
+                                console.print("[dim]--------------------------[/dim]")
                         else:
                             click.secho("No text response received", fg='red')
                     else:
