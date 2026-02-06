@@ -1,7 +1,13 @@
 ## [[12.1.7]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.7) - [PyPI](https://pypi.org/project/clarifai/12.1.7/) - 2026-02-06
 
+### Added
+- Thread Configuration Management: Added functionality to pass num_threads from config.yaml to the model version protobuf.
+
 ### Changed
-- Version bump to 12.1.7
+- Docker Entrypoint: Switched to tini as the default entrypoint in Dockerfile templates to improve signal handling and zombie process reaping within runner containers.
+
+### Fixed
+- Stdio MCP Server: Refactored the Model Context Protocol (MCP) server to improve logging clarity and remove unused legacy code.
 
 ## [[12.1.6]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.6) - [PyPI](https://pypi.org/project/clarifai/12.1.6/) - 2026-01-26
 
