@@ -856,7 +856,8 @@ def _ensure_hf_token(ctx, model_path):
                 config = yaml.safe_load(file)
             config_hf_token = None
             try:
-                config_hf_token = config.get("checkpoints").get("hf_token")
+                if "checkpoints" in config:
+                    config_hf_token = config.get("checkpoints").get("hf_token")
             except Exception:
                 logger.warning("Failed to read HF_TOKEN from config.yaml.")
         else:
