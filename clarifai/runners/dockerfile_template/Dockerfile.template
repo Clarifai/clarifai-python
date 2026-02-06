@@ -43,7 +43,6 @@ COPY --link --chown=65532:65532 requirements.txt /home/nonroot/requirements.txt
 ENV VIRTUAL_ENV=/venv
 ENV PATH="/home/nonroot/.local/bin:$VIRTUAL_ENV/bin:$PATH"
 
-
 # Update clarifai package so we always have latest protocol to the API. Everything should land in /venv
 RUN ["uv", "pip", "install", "--no-cache-dir", "-r", "/home/nonroot/requirements.txt"]
 RUN ["uv", "pip", "show", "--no-cache-dir", "clarifai"]
@@ -68,8 +67,7 @@ ENV PYTHONPATH=${PYTHONPATH}:/home/nonroot/main \
     CLARIFAI_COMPUTE_CLUSTER_ID=${CLARIFAI_COMPUTE_CLUSTER_ID} \
     CLARIFAI_API_BASE=${CLARIFAI_API_BASE:-https://api.clarifai.com}
 
-# Finally run the clarifai entrypoint to start the runner loop and local runner server.
-# Note(zeiler): we may want to make this a clarifai CLI call.
-ENTRYPOINT ["python", "-m", "clarifai.runners.server"]
-CMD ["--model_path", "/home/nonroot/main"]
+# Finally run tini which acts as the init process to reap zombies and wraps the clarifai cmd that starts the runner loop and local runner server.
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["python", "-m", "clarifai.runners.server", "--model_path", "/home/nonroot/main"]
 #############################
