@@ -6,6 +6,7 @@ import sys
 import click
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.theme import Theme
 
 import clarifai
 from clarifai.cli.agent import (
@@ -22,8 +23,25 @@ from clarifai.utils.logging import logger
 # Default model URL for GPT-OSS-120B chat completion
 DEFAULT_CHAT_MODEL_URL = "https://clarifai.com/openai/chat-completion/models/gpt-oss-120b"
 
-# Rich console for formatted output
-console = Console()
+# Color constants (Clarifai brand colors from clarifai.com)
+BRAND = '#04AFFF'      # Primary Clarifai cyan
+SUCCESS = 'green'      # Success states
+ERROR = 'red'          # Errors
+WARNING = 'yellow'     # Warnings
+MUTED = 'dim'          # Muted/subtle text
+
+# Custom theme for Rich console - uses brand colors for code/links
+custom_theme = Theme({
+    "markdown.code": BRAND,              # Inline code: `code`
+    "markdown.code_block": BRAND,        # Code blocks: ```code```
+    "markdown.link": BRAND,              # Links: [text](url)
+    "markdown.link_url": f"dim {BRAND}", # URL part of links (subdued)
+    "markdown.item.bullet": BRAND,       # Bullet list markers (-, *)
+    "markdown.item.number": BRAND,       # Numbered list markers (1., 2., etc.)
+})
+
+# Rich console for formatted output with custom theme
+console = Console(theme=custom_theme)
 
 
 def get_cli_command_for_tool(tool_name: str, params: dict) -> str:
@@ -208,7 +226,7 @@ def chat(ctx):
     current_context = ctx.obj.current
 
     if current_context.name == '_empty_' or not current_context.pat:
-        click.secho("Error: No valid authentication found. Please login first.", fg='red')
+        click.secho("Error: No valid authentication found. Please login first.", fg=ERROR)
         click.echo("Run: clarifai login")
         sys.exit(1)
 
@@ -218,11 +236,11 @@ def chat(ctx):
     # Try to initialize the model
     model_available = True
     try:
-        console.print("[bold green]Clarifai CLI Assistant[/bold green]")
-        console.print("[dim]Your AI-powered guide to the Clarifai platform[/dim]\n")
+        console.print(f"[bold {BRAND}]Clarifai CLI Assistant[/bold {BRAND}]")
+        console.print(f"[{MUTED}]Your AI-powered guide to Clarifai[/{MUTED}]\n")
 
         # Initialize model with the current context's PAT
-        with console.status("[cyan]Connecting to AI model...[/cyan]", spinner="dots"):
+        with console.status(f"[{BRAND}]Connecting to AI model...[/{BRAND}]", spinner="dots"):
             model = Model(
                 url=chat_model_url,
                 pat=current_context.pat,
@@ -234,9 +252,9 @@ def chat(ctx):
                 pat=current_context.pat,
                 user_id=current_context.user_id,
             )
-            console.print("[green]✓[/green] Agent ready for command execution")
+            console.print(f"[{SUCCESS}]✓[/{SUCCESS}] Agent ready for command execution")
         except Exception as e:
-            click.secho(f"(Warning: Could not initialize agent: {e})", fg='yellow')
+            click.secho(f"(Warning: Could not initialize agent: {e})", fg=WARNING)
             agent = None
 
         # Initialize RAG system for CLI documentation
@@ -244,37 +262,44 @@ def chat(ctx):
             # Find the clarifai-python root
             clarifai_root = os.path.dirname(os.path.dirname(clarifai.__file__))
             rag = ClarifaiCodeRAG(clarifai_root)
-            console.print("[green]✓[/green] Knowledge base loaded")
+            console.print(f"[{SUCCESS}]✓[/{SUCCESS}] Knowledge base loaded")
         except Exception as e:
-            click.secho(f"(Warning: Could not load knowledge base: {e})", fg='yellow')
+            click.secho(f"(Warning: Could not load knowledge base: {e})", fg=WARNING)
             rag = None
 
         # Platform-specific EOF shortcut
         eof_shortcut = "Ctrl+Z" if sys.platform == "win32" else "Ctrl+D"
 
         console.print()
-        console.print("[dim]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/dim]")
+        console.print(f"[{MUTED}]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/{MUTED}]")
         console.print(
-            f"[bold]Quick Commands:[/bold] [cyan]help[/cyan] | [cyan]history[/cyan] | [cyan]clear[/cyan] | [cyan]exit[/cyan] | [dim]{eof_shortcut} to quit[/dim]"
+            f"[bold {BRAND}]Quick Commands:[/bold {BRAND}] [{BRAND}]help[/{BRAND}] | [{BRAND}]history[/{BRAND}] | [{BRAND}]clear[/{BRAND}] | [{BRAND}]exit[/{BRAND}] | [{MUTED}]{eof_shortcut} to quit[/{MUTED}]"
         )
-        console.print("[dim]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/dim]\n")
+        console.print(f"[{MUTED}]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/{MUTED}]\n")
 
         # Interactive chat loop
         conversation_history = []
 
         while True:
             try:
-                # Get user input
-                user_input = click.prompt(
-                    click.style("You", fg='cyan'), show_default=False, default=''
-                )
+                # Get user input with brand color (cursor appears after prompt)
+                console.print(f"[bold {BRAND}]>[/bold {BRAND}] ", end="")
+                try:
+                    user_input = input().strip()
+                    # Add blank line after user input for better readability
+                    if user_input:
+                        print()
+                except EOFError:
+                    click.echo()
+                    click.secho("Goodbye!", fg=WARNING)
+                    break
 
                 if not user_input:
                     continue
 
                 # Check for special commands
                 if user_input.lower() in ('exit', 'quit', 'bye'):
-                    click.secho("Goodbye!", fg='yellow')
+                    click.secho("Goodbye!", fg=WARNING)
                     break
 
                 if user_input.lower() in ('help', '?'):
@@ -308,15 +333,15 @@ def chat(ctx):
                     # Clear the terminal screen
                     click.clear()
                     # Reprint a minimal header
-                    console.print("[bold green]Clarifai CLI Assistant[/bold green]")
-                    console.print("[dim]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/dim]")
-                    console.print("[green]✓[/green] Screen and conversation history cleared.\n")
+                    console.print(f"[bold {BRAND}]Clarifai CLI Assistant[/bold {BRAND}]")
+                    console.print(f"[{MUTED}]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/{MUTED}]")
+                    console.print(f"[{SUCCESS}]✓[/{SUCCESS}] Screen and conversation history cleared.\n")
                     continue
 
                 # Add to conversation history
                 conversation_history.append({'role': 'user', 'message': user_input})
 
-                # click.secho("Thinking...", fg='yellow')
+                # click.secho("Thinking...", fg=WARNING)
 
                 # Build conversation context for follow-up questions
                 conversation_context = ""
@@ -407,7 +432,7 @@ RESPONSE RULES:
                             # Execute any tool calls
                             tool_results = {}
                             if tool_calls:
-                                click.secho("Executing actions...\n", fg='blue')
+                                console.print(f"[{BRAND}]Executing actions...[/{BRAND}]\n")
                                 for tool_call in tool_calls:
                                     tool_name = tool_call.get('tool')
                                     params = tool_call.get('params', {})
@@ -416,12 +441,12 @@ RESPONSE RULES:
                                     cli_cmd = get_cli_command_for_tool(tool_name, params)
                                     if cli_cmd:
                                         console.print(
-                                            f"[dim]CLI equivalent:[/dim] [cyan]{cli_cmd}[/cyan]"
+                                            f"[{MUTED}]CLI equivalent:[/{MUTED}] [{BRAND}]{cli_cmd}[/{BRAND}]"
                                         )
                                     else:
                                         # Fallback: show the API operation
                                         console.print(
-                                            f"[dim]API operation:[/dim] [cyan]{tool_name}({', '.join(f'{k}={v}' for k, v in params.items())})[/cyan]"
+                                            f"[{MUTED}]API operation:[/{MUTED}] [{BRAND}]{tool_name}({', '.join(f'{k}={v}' for k, v in params.items())})[/{BRAND}]"
                                         )
 
                                     # Execute the tool
@@ -429,10 +454,10 @@ RESPONSE RULES:
                                     tool_results[tool_name] = result
 
                                     if result.get('success'):
-                                        console.print("[green]  ✓ Done[/green]")
+                                        console.print(f"[{SUCCESS}]  ✓ Done[/{SUCCESS}]")
                                     else:
                                         console.print(
-                                            f"[red]  ✗ Error: {result.get('error')}[/red]"
+                                            f"[{ERROR}]  ✗ Error: {result.get('error')}[/{ERROR}]"
                                         )
                                 click.echo()  # Spacing
 
@@ -485,27 +510,24 @@ RESPONSE RULES:
                             )
 
                             # Display response with rich markdown rendering
-                            console.print(
-                                Markdown(f"**Assistant:**\n\n{assistant_message}"),
-                                style='green',
-                            )
+                            console.print(Markdown(assistant_message))
                         else:
-                            click.secho("No text response received", fg='red')
+                            click.secho("No text response received", fg=ERROR)
                     else:
-                        click.secho("Invalid response format", fg='red')
+                        click.secho("Invalid response format", fg=ERROR)
 
                 except Exception as e:
                     error_msg = str(e).lower()
 
                     # Check for common reasons assistant might be unavailable
                     if 'not found' in error_msg or 'invalid' in error_msg:
-                        click.secho("Assistant is currently unavailable.", fg='yellow')
+                        click.secho("Assistant is currently unavailable.", fg=WARNING)
                         click.echo("  Please check your credentials or account status.")
                     elif 'permission' in error_msg or 'unauthorized' in error_msg:
-                        click.secho("Assistant is currently unavailable.", fg='yellow')
+                        click.secho("Assistant is currently unavailable.", fg=WARNING)
                         click.echo("  Access denied. Please verify your account status.")
                     else:
-                        click.secho("Assistant is temporarily unavailable.", fg='yellow')
+                        click.secho("Assistant is temporarily unavailable.", fg=WARNING)
                         click.echo("  Please try again in a moment.")
 
                     logger.exception("Chat model prediction error")
@@ -514,21 +536,21 @@ RESPONSE RULES:
 
             except KeyboardInterrupt:
                 click.echo()
-                click.secho("Chat interrupted. Goodbye!", fg='yellow')
+                click.secho("Chat interrupted. Goodbye!", fg=WARNING)
                 break
             except (EOFError, click.exceptions.Abort):
                 click.echo()
-                click.secho("Goodbye!", fg='yellow')
+                click.secho("Goodbye!", fg=WARNING)
                 break
             except Exception as e:
-                click.secho(f"Error: {str(e)}", fg='red')
+                click.secho(f"Error: {str(e)}", fg=ERROR)
                 logger.exception("Chat error")
     except ImportError as e:
-        click.secho(f"Error: Failed to import Clarifai SDK. {str(e)}", fg='red')
+        click.secho(f"Error: Failed to import Clarifai SDK. {str(e)}", fg=ERROR)
         sys.exit(1)
     except Exception as e:
-        click.secho("Assistant is currently unavailable.\n", fg='yellow')
-        click.secho("This could be due to:", fg='yellow')
+        click.secho("Assistant is currently unavailable.\n", fg=WARNING)
+        click.secho("This could be due to:", fg=WARNING)
         click.echo("  • Network connectivity issues")
         click.echo("  • API authentication problems\n")
         logger.exception("Chat initialization error")
