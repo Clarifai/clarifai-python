@@ -32,6 +32,145 @@ def dump_yaml(data, filename: str):
         click.echo(f"Error writing YAML file: {e}", err=True)
 
 
+def masked_input(prompt='Password: ', mask='*'):
+    """Get password input with visual feedback using mask characters.
+
+    Supports common terminal shortcuts:
+    - Backspace: Delete one character
+    - Ctrl+U: Clear entire line
+    - Ctrl+W: Delete last word
+    - Ctrl+C: Cancel input
+
+    Args:
+        prompt: The prompt to display
+        mask: The character to show for each input character (default: '*')
+
+    Returns:
+        The entered password string
+    """
+    import sys
+
+    # Check if stdin is a terminal (not piped)
+    if not sys.stdin.isatty():
+        # Fall back to regular input for piped/non-interactive usage
+        click.echo(prompt, nl=False)
+        return sys.stdin.readline().rstrip('\r\n')
+
+    if os.name == 'nt':  # Windows
+        import msvcrt
+        click.echo(prompt, nl=False)
+        password = ''
+        while True:
+            ch = msvcrt.getch()
+            if not ch:  # EOF
+                sys.stdout.write('\r\n')
+                sys.stdout.flush()
+                break
+            if ch in (b'\r', b'\n'):
+                sys.stdout.write('\r\n')
+                sys.stdout.flush()
+                break
+            elif ch == b'\x08':  # Backspace
+                if password:
+                    password = password[:-1]
+                    sys.stdout.write('\b \b')
+                    sys.stdout.flush()
+            elif ch == b'\x15':  # Ctrl+U - Clear line
+                if password:
+                    sys.stdout.write('\b \b' * len(password))
+                    sys.stdout.flush()
+                    password = ''
+            elif ch == b'\x17':  # Ctrl+W - Delete word
+                if password:
+                    new_password = password.rstrip()
+                    if ' ' in new_password:
+                        new_password = new_password[:new_password.rfind(' ') + 1]
+                    else:
+                        new_password = ''
+                    chars_to_delete = len(password) - len(new_password)
+                    sys.stdout.write('\b \b' * chars_to_delete)
+                    sys.stdout.flush()
+                    password = new_password
+            elif ch == b'\x03':  # Ctrl+C
+                sys.stdout.write('\r\n')
+                sys.stdout.flush()
+                raise KeyboardInterrupt
+            elif ch in (b'\xe0', b'\x00'):  # Special key prefix (arrow keys, function keys)
+                # Consume the scan code byte without displaying anything
+                msvcrt.getch()
+            else:
+                decoded = ch.decode('utf-8', errors='ignore')
+                if decoded:  # Only add and display if decode produced a character
+                    password += decoded
+                    sys.stdout.write(mask)
+                    sys.stdout.flush()
+        return password
+    else:  # Unix/Linux/Mac
+        import termios
+        import tty
+        click.echo(prompt, nl=False)
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            password = ''
+            while True:
+                ch = sys.stdin.read(1)
+                if not ch:  # EOF - terminal connection lost
+                    sys.stdout.write('\r\n')
+                    sys.stdout.flush()
+                    break
+                if ch in ('\r', '\n'):
+                    sys.stdout.write('\r\n')
+                    sys.stdout.flush()
+                    break
+                elif ch == '\x7f':  # Backspace/Delete
+                    if password:
+                        password = password[:-1]
+                        sys.stdout.write('\b \b')
+                        sys.stdout.flush()
+                elif ch == '\x15':  # Ctrl+U - Clear line
+                    if password:
+                        # Clear all asterisks
+                        sys.stdout.write('\b \b' * len(password))
+                        sys.stdout.flush()
+                        password = ''
+                elif ch == '\x17':  # Ctrl+W - Delete word
+                    if password:
+                        # Find last space or delete whole thing
+                        new_password = password.rstrip()
+                        if ' ' in new_password:
+                            new_password = new_password[:new_password.rfind(' ') + 1]
+                        else:
+                            new_password = ''
+                        chars_to_delete = len(password) - len(new_password)
+                        sys.stdout.write('\b \b' * chars_to_delete)
+                        sys.stdout.flush()
+                        password = new_password
+                elif ch == '\x03':  # Ctrl+C
+                    sys.stdout.write('\r\n')
+                    sys.stdout.flush()
+                    raise KeyboardInterrupt
+                elif ch == '\x1b':  # ESC - start of escape sequence (arrow keys, function keys)
+                    # Consume the rest of the escape sequence
+                    # Common patterns: \x1b[A (up), \x1b[B (down), \x1b[3~ (delete), etc.
+                    next_ch = sys.stdin.read(1)
+                    if next_ch == '[':
+                        # Read until we hit a letter or ~
+                        while True:
+                            seq_ch = sys.stdin.read(1)
+                            if not seq_ch or seq_ch.isalpha() or seq_ch == '~':
+                                break
+                    # Ignore the escape sequence, don't add to password
+                else:
+                    password += ch
+                    sys.stdout.write(mask)
+                    sys.stdout.flush()
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        return password
+
+
 # Dynamically find and import all command modules from the cli directory
 def load_command_modules():
     package_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'cli')
