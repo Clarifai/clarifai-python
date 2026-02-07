@@ -10,23 +10,23 @@ from rich.markdown import Markdown
 from rich.theme import Theme
 
 import clarifai
+from clarifai.cli.base import cli
 from clarifai.cli.chat.actions import (
-    parse_action_from_response,
     execute_action,
     get_action,
+    parse_action_from_response,
 )
 from clarifai.cli.chat.agent import (
     ClarifaiAgent,
     build_agent_system_prompt,
 )
-from clarifai.cli.base import cli
 from clarifai.cli.chat.executor import (
     execute_command,
     execute_python,
-    parse_commands_from_response,
+    format_command_output,
     is_safe_command,
     is_safe_python_code,
-    format_command_output,
+    parse_commands_from_response,
     set_current_user_id,
 )
 from clarifai.cli.chat.rag import ClarifaiCodeRAG
@@ -38,21 +38,23 @@ from clarifai.utils.logging import logger
 DEFAULT_CHAT_MODEL_URL = "https://clarifai.com/openai/chat-completion/models/gpt-oss-120b"
 
 # Color constants (Clarifai brand colors from clarifai.com)
-BRAND = '#04AFFF'      # Primary Clarifai cyan
-SUCCESS = 'green'      # Success states
-ERROR = 'red'          # Errors
-WARNING = 'yellow'     # Warnings
-MUTED = 'dim'          # Muted/subtle text
+BRAND = '#04AFFF'  # Primary Clarifai cyan
+SUCCESS = 'green'  # Success states
+ERROR = 'red'  # Errors
+WARNING = 'yellow'  # Warnings
+MUTED = 'dim'  # Muted/subtle text
 
 # Custom theme for Rich console - uses brand colors for code/links
-custom_theme = Theme({
-    "markdown.code": BRAND,              # Inline code: `code`
-    "markdown.code_block": BRAND,        # Code blocks: ```code```
-    "markdown.link": BRAND,              # Links: [text](url)
-    "markdown.link_url": f"dim {BRAND}", # URL part of links (subdued)
-    "markdown.item.bullet": BRAND,       # Bullet list markers (-, *)
-    "markdown.item.number": BRAND,       # Numbered list markers (1., 2., etc.)
-})
+custom_theme = Theme(
+    {
+        "markdown.code": BRAND,  # Inline code: `code`
+        "markdown.code_block": BRAND,  # Code blocks: ```code```
+        "markdown.link": BRAND,  # Links: [text](url)
+        "markdown.link_url": f"dim {BRAND}",  # URL part of links (subdued)
+        "markdown.item.bullet": BRAND,  # Bullet list markers (-, *)
+        "markdown.item.number": BRAND,  # Numbered list markers (1., 2., etc.)
+    }
+)
 
 # Rich console for formatted output with custom theme
 console = Console(theme=custom_theme)
@@ -245,8 +247,12 @@ def chat(ctx):
                     click.clear()
                     # Reprint a minimal header
                     console.print(f"[bold {BRAND}]Clarifai CLI Assistant[/bold {BRAND}]")
-                    console.print(f"[{MUTED}]-----------------------------------------------[/{MUTED}]")
-                    console.print(f"[{SUCCESS}][OK][/{SUCCESS}] Screen and conversation history cleared.\n")
+                    console.print(
+                        f"[{MUTED}]-----------------------------------------------[/{MUTED}]"
+                    )
+                    console.print(
+                        f"[{SUCCESS}][OK][/{SUCCESS}] Screen and conversation history cleared.\n"
+                    )
                     continue
 
                 # Add to conversation history
@@ -270,11 +276,11 @@ def chat(ctx):
                 # Build enhanced prompt with RAG context and agent tools
                 # Combine skills (for action guidance) AND RAG (for codebase context)
                 system_prompt_parts = []
-                
+
                 # Add skills guidance if agent is available
                 if agent:
                     system_prompt_parts.append(build_agent_system_prompt(agent))
-                
+
                 # Add RAG context for codebase questions
                 if rag:
                     search_results = rag.search(user_input, top_k=3)
@@ -283,7 +289,7 @@ def chat(ctx):
                         for file_path, snippet in search_results:
                             rag_context += f"\n### From {file_path}:\n```\n{snippet}\n```"
                         system_prompt_parts.append(rag_context)
-                
+
                 # Combine or use fallback
                 if system_prompt_parts:
                     system_prompt = "\n\n".join(system_prompt_parts)
@@ -325,20 +331,34 @@ RESPONSE RULES:
                             # Remove special model control tokens that shouldn't be displayed
                             assistant_message = re.sub(r'<\|[a-z_]+\|>', '', assistant_message)
                             assistant_message = re.sub(r'</?[a-z_]+>', '', assistant_message)
-                            
+
                             # Remove any skill/tool call tags (skills are now guidance, not executable)
-                            assistant_message = re.sub(r'<skill_call>.*?</skill_call>', '', assistant_message, flags=re.DOTALL)
-                            assistant_message = re.sub(r'<tool_call>.*?</tool_call>', '', assistant_message, flags=re.DOTALL)
+                            assistant_message = re.sub(
+                                r'<skill_call>.*?</skill_call>',
+                                '',
+                                assistant_message,
+                                flags=re.DOTALL,
+                            )
+                            assistant_message = re.sub(
+                                r'<tool_call>.*?</tool_call>',
+                                '',
+                                assistant_message,
+                                flags=re.DOTALL,
+                            )
 
                             # Sanitize sensitive data (PAT, tokens, etc.)
                             assistant_message = sanitize_sensitive_data(assistant_message)
 
                             # Clean up excessive whitespace but preserve markdown formatting
                             # Collapse 3+ newlines to 2, keep double newlines for paragraphs/lists
-                            assistant_message = re.sub(r'\n{3,}', '\n\n', assistant_message).strip()
-                            
+                            assistant_message = re.sub(
+                                r'\n{3,}', '\n\n', assistant_message
+                            ).strip()
+
                             # Ensure numbered lists have blank line before them for proper markdown rendering
-                            assistant_message = re.sub(r'([^\n])\n(\d+\.)', r'\1\n\n\2', assistant_message)
+                            assistant_message = re.sub(
+                                r'([^\n])\n(\d+\.)', r'\1\n\n\2', assistant_message
+                            )
 
                             # Add to conversation history
                             conversation_history.append(
@@ -350,113 +370,165 @@ RESPONSE RULES:
                                 Markdown(f"**Assistant:**\n\n{assistant_message}"),
                                 style='green',
                             )
-                            
+
                             # Parse and execute commands from the response
                             # First try to parse JSON actions (preferred method)
                             action_data = parse_action_from_response(assistant_message)
-                            
+
                             if action_data:
                                 action_name = action_data.get('action')
-                                action_params = {k: v for k, v in action_data.items() if k != 'action'}
+                                action_params = {
+                                    k: v for k, v in action_data.items() if k != 'action'
+                                }
                                 action_def = get_action(action_name)
-                                
+
                                 if action_def:
                                     console.print(f"\n[{MUTED}]--- SDK Action ---[/{MUTED}]")
                                     console.print(f"[{BRAND}]Action:[/{BRAND}] {action_name}")
                                     if action_params:
-                                        console.print(f"[{MUTED}]Params: {action_params}[/{MUTED}]")
-                                    
+                                        console.print(
+                                            f"[{MUTED}]Params: {action_params}[/{MUTED}]"
+                                        )
+
                                     if action_def.needs_confirmation:
                                         if click.confirm(f"Execute {action_name}?", default=False):
                                             result = execute_action(action_name, action_params)
                                             if result.success:
-                                                console.print(f"[{SUCCESS}][OK][/{SUCCESS}] {result.message}")
+                                                console.print(
+                                                    f"[{SUCCESS}][OK][/{SUCCESS}] {result.message}"
+                                                )
                                             else:
-                                                console.print(f"[{ERROR}][FAIL][/{ERROR}] {result.error}")
-                                            conversation_history.append({
-                                                'role': 'system',
-                                                'message': f"Action {action_name} result: {result.message or result.error}"
-                                            })
+                                                console.print(
+                                                    f"[{ERROR}][FAIL][/{ERROR}] {result.error}"
+                                                )
+                                            conversation_history.append(
+                                                {
+                                                    'role': 'system',
+                                                    'message': f"Action {action_name} result: {result.message or result.error}",
+                                                }
+                                            )
                                         else:
                                             console.print(f"[{WARNING}]Skipped[/{WARNING}]")
                                     else:
                                         result = execute_action(action_name, action_params)
                                         if result.success:
-                                            console.print(f"[{SUCCESS}][OK][/{SUCCESS}] {result.message}")
+                                            console.print(
+                                                f"[{SUCCESS}][OK][/{SUCCESS}] {result.message}"
+                                            )
                                         else:
-                                            console.print(f"[{ERROR}][FAIL][/{ERROR}] {result.error}")
-                                        conversation_history.append({
-                                            'role': 'system',
-                                            'message': f"Action {action_name} result: {result.message or result.error}"
-                                        })
+                                            console.print(
+                                                f"[{ERROR}][FAIL][/{ERROR}] {result.error}"
+                                            )
+                                        conversation_history.append(
+                                            {
+                                                'role': 'system',
+                                                'message': f"Action {action_name} result: {result.message or result.error}",
+                                            }
+                                        )
                                     console.print(f"[{MUTED}]------------------[/{MUTED}]")
                                 else:
-                                    console.print(f"[{WARNING}]Unknown action: {action_name}[/{WARNING}]")
-                            
+                                    console.print(
+                                        f"[{WARNING}]Unknown action: {action_name}[/{WARNING}]"
+                                    )
+
                             # Also check for CLI commands (bash blocks)
                             commands, skipped = parse_commands_from_response(assistant_message)
-                            
+
                             if skipped:
-                                console.print(f"\n[{MUTED}]--- Skipped Commands (need your input) ---[/{MUTED}]")
+                                console.print(
+                                    f"\n[{MUTED}]--- Skipped Commands (need your input) ---[/{MUTED}]"
+                                )
                                 for cmd, reason in skipped:
-                                    console.print(f"[{WARNING}]! Skipped:[/{WARNING}] `{cmd[:60]}...`" if len(cmd) > 60 else f"[{WARNING}]! Skipped:[/{WARNING}] `{cmd}`")
-                                    console.print(f"  [{MUTED}]Reason: {reason} - please replace with actual values[/{MUTED}]")
-                                console.print(f"[{MUTED}]-----------------------------------------[/{MUTED}]")
-                            
+                                    console.print(
+                                        f"[{WARNING}]! Skipped:[/{WARNING}] `{cmd[:60]}...`"
+                                        if len(cmd) > 60
+                                        else f"[{WARNING}]! Skipped:[/{WARNING}] `{cmd}`"
+                                    )
+                                    console.print(
+                                        f"  [{MUTED}]Reason: {reason} - please replace with actual values[/{MUTED}]"
+                                    )
+                                console.print(
+                                    f"[{MUTED}]-----------------------------------------[/{MUTED}]"
+                                )
+
                             if commands:
                                 console.print(f"\n[{MUTED}]--- Command Execution ---[/{MUTED}]")
                                 for cmd, substitutions, cmd_type in commands:
                                     if substitutions:
-                                        console.print(f"[{MUTED}]Auto-substituted: {', '.join(substitutions)}[/{MUTED}]")
-                                    
+                                        console.print(
+                                            f"[{MUTED}]Auto-substituted: {', '.join(substitutions)}[/{MUTED}]"
+                                        )
+
                                     if cmd_type == 'python':
                                         # Python SDK code
                                         if is_safe_python_code(cmd):
-                                            console.print(f"[{BRAND}]Running Python (SDK):[/{BRAND}]")
-                                            console.print(f"[{MUTED}]{cmd[:100]}...[/{MUTED}]" if len(cmd) > 100 else f"[{MUTED}]{cmd}[/{MUTED}]")
+                                            console.print(
+                                                f"[{BRAND}]Running Python (SDK):[/{BRAND}]"
+                                            )
+                                            console.print(
+                                                f"[{MUTED}]{cmd[:100]}...[/{MUTED}]"
+                                                if len(cmd) > 100
+                                                else f"[{MUTED}]{cmd}[/{MUTED}]"
+                                            )
                                             result = execute_python(cmd)
                                             console.print(Markdown(format_command_output(result)))
-                                            conversation_history.append({
-                                                'role': 'system',
-                                                'message': f"Python code returned:\n{result.output[:500]}"
-                                            })
+                                            conversation_history.append(
+                                                {
+                                                    'role': 'system',
+                                                    'message': f"Python code returned:\n{result.output[:500]}",
+                                                }
+                                            )
                                         else:
                                             # Ask for confirmation for non-safe Python code
-                                            console.print(f"[{WARNING}]Python code to execute:[/{WARNING}]")
-                                            console.print(f"[{MUTED}]{cmd[:200]}...[/{MUTED}]" if len(cmd) > 200 else f"[{MUTED}]{cmd}[/{MUTED}]")
-                                            if click.confirm("Execute this Python code?", default=False):
+                                            console.print(
+                                                f"[{WARNING}]Python code to execute:[/{WARNING}]"
+                                            )
+                                            console.print(
+                                                f"[{MUTED}]{cmd[:200]}...[/{MUTED}]"
+                                                if len(cmd) > 200
+                                                else f"[{MUTED}]{cmd}[/{MUTED}]"
+                                            )
+                                            if click.confirm(
+                                                "Execute this Python code?", default=False
+                                            ):
                                                 result = execute_python(cmd)
-                                                console.print(Markdown(format_command_output(result)))
-                                                conversation_history.append({
-                                                    'role': 'system', 
-                                                    'message': f"Python code returned:\n{result.output[:500]}"
-                                                })
+                                                console.print(
+                                                    Markdown(format_command_output(result))
+                                                )
+                                                conversation_history.append(
+                                                    {
+                                                        'role': 'system',
+                                                        'message': f"Python code returned:\n{result.output[:500]}",
+                                                    }
+                                                )
                                             else:
                                                 console.print(f"[{WARNING}]Skipped[/{WARNING}]")
-                                    else:
-                                        # CLI command
-                                        if is_safe_command(cmd):
-                                            # Execute safe commands automatically
-                                            console.print(f"[{BRAND}]Running:[/{BRAND}] {cmd}")
-                                            result = execute_command(cmd)
-                                            console.print(Markdown(format_command_output(result)))
-                                            # Add result to conversation history for context
-                                            conversation_history.append({
+                                    # CLI command
+                                    elif is_safe_command(cmd):
+                                        # Execute safe commands automatically
+                                        console.print(f"[{BRAND}]Running:[/{BRAND}] {cmd}")
+                                        result = execute_command(cmd)
+                                        console.print(Markdown(format_command_output(result)))
+                                        # Add result to conversation history for context
+                                        conversation_history.append(
+                                            {
                                                 'role': 'system',
-                                                'message': f"Command `{cmd}` returned:\n{result.output[:500]}"
-                                            })
-                                        else:
-                                            # Ask for confirmation for non-safe commands
-                                            if click.confirm(f"Execute: {cmd}?", default=False):
-                                                console.print(f"[{BRAND}]Running:[/{BRAND}] {cmd}")
-                                                result = execute_command(cmd)
-                                                console.print(Markdown(format_command_output(result)))
-                                                conversation_history.append({
-                                                    'role': 'system', 
-                                                    'message': f"Command `{cmd}` returned:\n{result.output[:500]}"
-                                                })
-                                            else:
-                                                console.print(f"[{WARNING}]Skipped:[/{WARNING}] {cmd}")
+                                                'message': f"Command `{cmd}` returned:\n{result.output[:500]}",
+                                            }
+                                        )
+                                    # Ask for confirmation for non-safe commands
+                                    elif click.confirm(f"Execute: {cmd}?", default=False):
+                                        console.print(f"[{BRAND}]Running:[/{BRAND}] {cmd}")
+                                        result = execute_command(cmd)
+                                        console.print(Markdown(format_command_output(result)))
+                                        conversation_history.append(
+                                            {
+                                                'role': 'system',
+                                                'message': f"Command `{cmd}` returned:\n{result.output[:500]}",
+                                            }
+                                        )
+                                    else:
+                                        console.print(f"[{WARNING}]Skipped:[/{WARNING}] {cmd}")
                                 console.print(f"[{MUTED}]--------------------------[/{MUTED}]")
                         else:
                             click.secho("No text response received", fg=ERROR)

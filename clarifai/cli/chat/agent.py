@@ -15,7 +15,7 @@ from clarifai.utils.logging import logger
 
 class ClarifaiAgent:
     """Agent for Clarifai CLI that uses markdown-based skills for guidance.
-    
+
     Skills are documentation files that tell the LLM how to route requests
     and provide accurate guidance. They are NOT executable code.
     """
@@ -36,22 +36,22 @@ class ClarifaiAgent:
     def get_skills_for_llm(self) -> List[Dict[str, Any]]:
         """Get skill definitions formatted for LLM."""
         return self.skills.get_skills_for_llm()
-    
+
     def get_skill_names(self) -> List[str]:
         """Get list of loaded skill names."""
         return list(self.skills.skills.keys())
-    
+
     def reload_skills(self):
         """Reload skills from disk."""
         self.skills.reload()
-    
+
     # Backward compatibility - these no longer execute anything
     # but are kept to avoid breaking existing code
     @property
     def tools(self) -> Dict:
         """Backward compatibility property - returns skills."""
         return self.skills.skills
-    
+
     def get_tools_for_llm(self) -> List[Dict[str, Any]]:
         """Alias for get_skills_for_llm for backward compatibility."""
         return self.get_skills_for_llm()
@@ -72,7 +72,7 @@ def build_agent_system_prompt(agent: ClarifaiAgent) -> str:
 # Legacy parsing functions - kept for potential future use or backward compat
 def parse_skill_calls_from_response(response_text: str) -> List[Dict[str, Any]]:
     """Parse skill references from LLM response text.
-    
+
     Note: With markdown-based skills, the LLM provides guidance rather than
     requesting skill execution. This function is kept for potential future
     use where skills might have executable components.
@@ -105,10 +105,9 @@ def parse_skill_calls_from_response(response_text: str) -> List[Dict[str, Any]]:
         try:
             tool_call = json.loads(match)
             if "tool" in tool_call:
-                skill_calls.append({
-                    "skill": tool_call.get("tool"),
-                    "params": tool_call.get("params", {})
-                })
+                skill_calls.append(
+                    {"skill": tool_call.get("tool"), "params": tool_call.get("params", {})}
+                )
         except json.JSONDecodeError:
             logger.debug(f"Could not parse tool call: {match}")
 

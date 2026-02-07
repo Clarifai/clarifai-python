@@ -28,16 +28,16 @@ from clarifai.utils.logging import logger
 @dataclass
 class Skill:
     """A skill loaded from a markdown file.
-    
+
     Skills are documentation/guidance for the LLM, not executable code.
     They tell the LLM how to route requests and what advice to give.
     """
-    
+
     name: str
     description: str
     content: str  # Full markdown content after frontmatter
     source_file: Optional[str] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert skill to dictionary format."""
         return {
@@ -50,55 +50,55 @@ class Skill:
 
 def parse_skill_markdown(content: str, source_file: str = None) -> Optional[Skill]:
     """Parse a skill markdown file with YAML frontmatter.
-    
+
     Args:
         content: Raw markdown content
         source_file: Optional source file path for debugging
-        
+
     Returns:
         Skill object or None if parsing fails
     """
     # Match YAML frontmatter between --- delimiters
     frontmatter_pattern = r'^---\s*\n(.*?)\n---\s*\n(.*)$'
     match = re.match(frontmatter_pattern, content, re.DOTALL)
-    
+
     if not match:
         logger.warning(f"No frontmatter found in skill file: {source_file}")
         return None
-    
+
     frontmatter_text = match.group(1)
     markdown_body = match.group(2).strip()
-    
+
     # Parse YAML frontmatter manually (avoid yaml dependency for simple case)
     frontmatter = {}
     current_key = None
     current_value = []
-    
+
     for line in frontmatter_text.split('\n'):
         # Check if this is a new key
         if ':' in line and not line.startswith(' ') and not line.startswith('\t'):
             # Save previous key-value if exists
             if current_key:
                 frontmatter[current_key] = ' '.join(current_value).strip()
-            
+
             key, value = line.split(':', 1)
             current_key = key.strip()
             current_value = [value.strip()]
         elif current_key:
             # Continuation of previous value
             current_value.append(line.strip())
-    
+
     # Save last key-value
     if current_key:
         frontmatter[current_key] = ' '.join(current_value).strip()
-    
+
     name = frontmatter.get('name')
     description = frontmatter.get('description', '')
-    
+
     if not name:
         logger.warning(f"Skill missing 'name' in frontmatter: {source_file}")
         return None
-    
+
     return Skill(
         name=name,
         description=description,
@@ -109,10 +109,10 @@ def parse_skill_markdown(content: str, source_file: str = None) -> Optional[Skil
 
 class SkillLoader:
     """Loads skills from markdown files in a directory."""
-    
+
     def __init__(self, skills_dir: str = None):
         """Initialize the skill loader.
-        
+
         Args:
             skills_dir: Directory containing skill markdown files.
                        If None, uses default skills directory.
@@ -120,36 +120,36 @@ class SkillLoader:
         if skills_dir is None:
             # Default to skills directory relative to this file (chat/skills/)
             skills_dir = os.path.join(os.path.dirname(__file__), 'skills')
-        
+
         self.skills_dir = skills_dir
         self.skills: Dict[str, Skill] = {}
         self._load_skills()
-    
+
     def _load_skills(self):
         """Load all skill markdown files from the skills directory recursively."""
         if not os.path.exists(self.skills_dir):
             logger.debug(f"Skills directory does not exist: {self.skills_dir}")
             return
-        
+
         # Recursively find all SKILL.md files in subdirectories
         skills_path = Path(self.skills_dir)
         for skill_file in skills_path.rglob('SKILL.md'):
             self._load_skill_file(str(skill_file))
-        
+
         logger.debug(f"Loaded {len(self.skills)} skills from {self.skills_dir}")
-    
+
     def _load_skill_file(self, filepath: str):
         """Load a single skill file along with its references and examples."""
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
                 content = f.read()
-            
+
             skill = parse_skill_markdown(content, filepath)
             if skill:
                 # Load additional content from references/ and examples/ subdirectories
                 skill_dir = Path(filepath).parent
                 additional_content = []
-                
+
                 for subdir_name in ['references', 'examples']:
                     subdir = skill_dir / subdir_name
                     if subdir.exists() and subdir.is_dir():
@@ -158,29 +158,35 @@ class SkillLoader:
                                 with open(md_file, 'r', encoding='utf-8') as f:
                                     file_content = f.read()
                                 # Add section header based on filename
-                                section_name = md_file.stem.replace('-', ' ').replace('_', ' ').title()
-                                additional_content.append(f"\n\n## {subdir_name.title()}: {section_name}\n\n{file_content}")
-                                logger.debug(f"  Added {subdir_name}/{md_file.name} to skill {skill.name}")
+                                section_name = (
+                                    md_file.stem.replace('-', ' ').replace('_', ' ').title()
+                                )
+                                additional_content.append(
+                                    f"\n\n## {subdir_name.title()}: {section_name}\n\n{file_content}"
+                                )
+                                logger.debug(
+                                    f"  Added {subdir_name}/{md_file.name} to skill {skill.name}"
+                                )
                             except Exception as e:
                                 logger.warning(f"Failed to load {md_file}: {e}")
-                
+
                 # Append additional content to skill
                 if additional_content:
                     skill.content += ''.join(additional_content)
-                
+
                 self.skills[skill.name] = skill
                 logger.debug(f"Loaded skill: {skill.name}")
         except Exception as e:
             logger.warning(f"Failed to load skill from {filepath}: {e}")
-    
+
     def get_skill(self, name: str) -> Optional[Skill]:
         """Get a skill by name."""
         return self.skills.get(name)
-    
+
     def get_all_skills(self) -> List[Skill]:
         """Get all loaded skills."""
         return list(self.skills.values())
-    
+
     def reload(self):
         """Reload skills from disk."""
         self.skills.clear()
@@ -189,14 +195,14 @@ class SkillLoader:
 
 class SkillRegistry:
     """Registry of available skills for the agent.
-    
+
     This is now a thin wrapper around SkillLoader that maintains
     backward compatibility with the previous implementation.
     """
-    
+
     def __init__(self, pat: str = None, user_id: str = None, skills_dir: str = None):
         """Initialize the skill registry.
-        
+
         Args:
             pat: Personal Access Token (kept for backward compat, not used)
             user_id: Clarifai user ID (kept for backward compat, not used)
@@ -205,24 +211,24 @@ class SkillRegistry:
         self.pat = pat
         self.user_id = user_id
         self.loader = SkillLoader(skills_dir)
-    
+
     @property
     def skills(self) -> Dict[str, Skill]:
         """Get all skills as a dict."""
         return self.loader.skills
-    
+
     def get_skill(self, name: str) -> Optional[Skill]:
         """Get a skill by name."""
         return self.loader.get_skill(name)
-    
+
     def get_all_skills(self) -> List[Skill]:
         """Get all registered skills."""
         return self.loader.get_all_skills()
-    
+
     def get_skills_for_llm(self) -> List[Dict[str, Any]]:
         """Get skill definitions formatted for LLM."""
         return [skill.to_dict() for skill in self.get_all_skills()]
-    
+
     def reload(self):
         """Reload skills from disk."""
         self.loader.reload()
@@ -230,30 +236,26 @@ class SkillRegistry:
 
 def build_skills_system_prompt(registry: SkillRegistry) -> str:
     """Build a system prompt that includes all loaded skills.
-    
+
     Args:
         registry: SkillRegistry instance with loaded skills
-        
+
     Returns:
         System prompt string with skill routing information
     """
     skills = registry.get_all_skills()
-    
+
     if not skills:
         return _get_fallback_system_prompt()
-    
+
     # Build skill index for routing
-    skill_index = "\n".join([
-        f"- **{skill.name}**: {skill.description}"
-        for skill in skills
-    ])
-    
+    skill_index = "\n".join([f"- **{skill.name}**: {skill.description}" for skill in skills])
+
     # Include full skill content
-    skill_docs = "\n\n---\n\n".join([
-        f"# SKILL: {skill.name}\n\n{skill.content}"
-        for skill in skills
-    ])
-    
+    skill_docs = "\n\n---\n\n".join(
+        [f"# SKILL: {skill.name}\n\n{skill.content}" for skill in skills]
+    )
+
     return f"""You are a helpful Clarifai CLI assistant with access to specialized skills.
 
 ## CREDENTIALS
