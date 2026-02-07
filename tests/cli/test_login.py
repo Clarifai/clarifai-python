@@ -93,9 +93,7 @@ class TestLoginCommand:
         """Test that success message has correct format."""
         with runner.isolated_filesystem():
             with mock.patch.dict(os.environ, {'CLARIFAI_PAT': 'test_pat'}):
-                result = runner.invoke(
-                    cli, ['login'], input='myuser\ny\n', catch_exceptions=False
-                )
+                result = runner.invoke(cli, ['login'], input='myuser\ny\n', catch_exceptions=False)
 
             assert result.exit_code == 0
             # Check for new simplified success message
@@ -203,7 +201,9 @@ class TestCreateContextCommand:
             with mock.patch('clarifai.cli.base.DEFAULT_CONFIG', './config.yaml'):
                 # First create config with initial login
                 with mock.patch.dict(os.environ, {'CLARIFAI_PAT': 'test_pat'}):
-                    runner.invoke(cli, ['login', '--config', './config.yaml'], input='testuser\ny\n')
+                    runner.invoke(
+                        cli, ['login', '--config', './config.yaml'], input='testuser\ny\n'
+                    )
 
                 # Now test creating a new context
                 with mock.patch.dict(os.environ, {'CLARIFAI_PAT': 'another_pat'}):
@@ -223,7 +223,9 @@ class TestCreateContextCommand:
             with mock.patch('clarifai.cli.base.DEFAULT_CONFIG', './config.yaml'):
                 # First create config with initial login
                 with mock.patch.dict(os.environ, {'CLARIFAI_PAT': 'test_pat'}):
-                    runner.invoke(cli, ['login', '--config', './config.yaml'], input='testuser\ny\n')
+                    runner.invoke(
+                        cli, ['login', '--config', './config.yaml'], input='testuser\ny\n'
+                    )
 
                 # Now test creating a new context without env var
                 env = os.environ.copy()
@@ -247,7 +249,9 @@ class TestCreateContextCommand:
             with mock.patch('clarifai.cli.base.DEFAULT_CONFIG', './config.yaml'):
                 # First create config with initial login
                 with mock.patch.dict(os.environ, {'CLARIFAI_PAT': 'test_pat'}):
-                    runner.invoke(cli, ['login', '--config', './config.yaml'], input='testuser\ny\n')
+                    runner.invoke(
+                        cli, ['login', '--config', './config.yaml'], input='testuser\ny\n'
+                    )
 
                 # Now test creating a new context
                 env = os.environ.copy()

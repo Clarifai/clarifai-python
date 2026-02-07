@@ -11,7 +11,7 @@ These run automatically without confirmation:
 {"action": "list_apps"}
 ```
 
-### List Models  
+### List Models
 ```json
 {"action": "list_models"}
 ```

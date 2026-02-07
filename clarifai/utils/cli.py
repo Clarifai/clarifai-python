@@ -58,6 +58,7 @@ def masked_input(prompt='Password: ', mask='*'):
 
     if os.name == 'nt':  # Windows
         import msvcrt
+
         click.echo(prompt, nl=False)
         password = ''
         while True:
@@ -84,7 +85,7 @@ def masked_input(prompt='Password: ', mask='*'):
                 if password:
                     new_password = password.rstrip()
                     if ' ' in new_password:
-                        new_password = new_password[:new_password.rfind(' ') + 1]
+                        new_password = new_password[: new_password.rfind(' ') + 1]
                     else:
                         new_password = ''
                     chars_to_delete = len(password) - len(new_password)
@@ -108,6 +109,7 @@ def masked_input(prompt='Password: ', mask='*'):
     else:  # Unix/Linux/Mac
         import termios
         import tty
+
         click.echo(prompt, nl=False)
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
@@ -140,7 +142,7 @@ def masked_input(prompt='Password: ', mask='*'):
                         # Find last space or delete whole thing
                         new_password = password.rstrip()
                         if ' ' in new_password:
-                            new_password = new_password[:new_password.rfind(' ') + 1]
+                            new_password = new_password[: new_password.rfind(' ') + 1]
                         else:
                             new_password = ''
                         chars_to_delete = len(password) - len(new_password)
