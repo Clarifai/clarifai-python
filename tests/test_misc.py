@@ -4,7 +4,6 @@ import logging
 
 from clarifai.utils.logging import (
     JsonFormatter,
-    TerminalFormatter,
     _get_library_name,
     get_logger,
     set_logger_context,
@@ -16,7 +15,8 @@ def test_get_logger():
     assert logger.level == logging.DEBUG
     assert logger.name == "test_logger"
     assert isinstance(logger.handlers[0], logging.StreamHandler)
-    assert isinstance(logger.handlers[0].formatter, TerminalFormatter)
+    # Use type name comparison to handle module reloading in other tests
+    assert type(logger.handlers[0].formatter).__name__ == 'TerminalFormatter'
 
 
 def test_get_logger_defaults():
@@ -24,7 +24,8 @@ def test_get_logger_defaults():
     assert logger.level == logging.NOTSET
     assert logger.name == _get_library_name()
     assert isinstance(logger.handlers[0], logging.StreamHandler)
-    assert isinstance(logger.handlers[0].formatter, TerminalFormatter)
+    # Use type name comparison to handle module reloading in other tests
+    assert type(logger.handlers[0].formatter).__name__ == 'TerminalFormatter'
 
 
 def test_get_json_logger_defaults(monkeypatch):
@@ -35,7 +36,8 @@ def test_get_json_logger_defaults(monkeypatch):
     assert logger.level == logging.NOTSET
     assert logger.name == _get_library_name()
     assert isinstance(logger.handlers[0], logging.StreamHandler)
-    assert isinstance(logger.handlers[0].formatter, JsonFormatter)
+    # Use type name comparison to handle module reloading in other tests
+    assert type(logger.handlers[0].formatter).__name__ == 'JsonFormatter'
 
 
 def test_json_logger():
