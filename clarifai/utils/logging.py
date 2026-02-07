@@ -451,4 +451,4 @@ class TerminalFormatter(logging.Formatter):
 
 
 # the default logger for the SDK.
-logger = get_logger(logger_level=os.environ.get("LOG_LEVEL", "WARNING"), name="clarifai")
+logger = get_logger(logger_level=os.environ.get("LOG_LEVEL", "INFO"), name="clarifai")

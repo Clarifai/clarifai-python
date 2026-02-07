@@ -8,8 +8,8 @@ from unittest import mock
 class TestLoggingConfiguration:
     """Test cases for logging level configuration."""
 
-    def test_default_log_level_is_warning(self):
-        """Test that the default log level is WARNING (not INFO)."""
+    def test_default_log_level_is_info(self):
+        """Test that the default log level is INFO."""
         # Clear any LOG_LEVEL env var for this test
         with mock.patch.dict(os.environ, {}, clear=True):
             # Re-import to get fresh logger with default settings
@@ -19,9 +19,9 @@ class TestLoggingConfiguration:
 
             importlib.reload(logging_module)
 
-            # Check that the default logger level is WARNING
+            # Check that the default logger level is INFO
             logger = logging_module.logger
-            assert logger.level == logging.WARNING
+            assert logger.level == logging.INFO
 
     def test_log_level_env_var_override(self):
         """Test that LOG_LEVEL environment variable overrides default."""
@@ -46,8 +46,8 @@ class TestLoggingConfiguration:
                     f"Expected {expected_level} for LOG_LEVEL={env_value}, got {logger.level}"
                 )
 
-    def test_info_logs_not_shown_by_default(self):
-        """Test that INFO level logs are not displayed with default WARNING level."""
+    def test_info_logs_shown_by_default(self):
+        """Test that INFO level logs are displayed with default INFO level."""
         with mock.patch.dict(os.environ, {}, clear=True):
             import importlib
             from io import StringIO
@@ -64,17 +64,49 @@ class TestLoggingConfiguration:
             logger.addHandler(handler)
 
             # Try to log at INFO level
-            logger.info("This INFO message should not appear")
+            logger.info("This INFO message should appear")
 
-            # Log at WARNING level (should appear)
+            # Log at WARNING level (should also appear)
             logger.warning("This WARNING message should appear")
 
             log_output = log_capture.getvalue()
 
-            # INFO should not be in output
-            assert "This INFO message should not appear" not in log_output
-            # WARNING should be in output
+            # INFO should be in output
+            assert "This INFO message should appear" in log_output
+            # WARNING should also be in output
             assert "This WARNING message should appear" in log_output
+
+            logger.removeHandler(handler)
+
+    def test_debug_logs_not_shown_by_default(self):
+        """Test that DEBUG logs are not shown with default INFO level."""
+        with mock.patch.dict(os.environ, {}, clear=True):
+            import importlib
+            from io import StringIO
+
+            from clarifai.utils import logging as logging_module
+
+            importlib.reload(logging_module)
+
+            logger = logging_module.logger
+
+            # Capture log output
+            log_capture = StringIO()
+            handler = logging.StreamHandler(log_capture)
+            logger.addHandler(handler)
+
+            # Log at DEBUG level (should not appear with INFO default)
+            logger.debug("This DEBUG message should not appear")
+
+            # Log at INFO level (should appear)
+            logger.info("This INFO message should appear")
+
+            log_output = log_capture.getvalue()
+
+            # DEBUG should NOT be in output
+            assert "This DEBUG message should not appear" not in log_output
+            # INFO should be in output
+            assert "This INFO message should appear" in log_output
 
             logger.removeHandler(handler)
 
