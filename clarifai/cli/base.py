@@ -6,18 +6,21 @@ import click
 import yaml
 
 from clarifai import __version__
-from clarifai.utils.cli import AliasedGroup, TableFormatter, load_command_modules
+from clarifai.utils.cli import AliasedGroup, TableFormatter, load_command_modules, masked_input
 from clarifai.utils.config import Config, Context
 from clarifai.utils.constants import DEFAULT_BASE, DEFAULT_CONFIG, DEFAULT_UI
 from clarifai.utils.logging import logger
 
 
-@click.group(cls=AliasedGroup)
+@click.group(cls=AliasedGroup, invoke_without_command=True)
 @click.version_option(version=__version__)
 @click.option('--config', default=DEFAULT_CONFIG)
 @click.pass_context
 def cli(ctx, config):
-    """Clarifai CLI"""
+    """Clarifai CLI - Chat is the default command.
+
+    Run `clarifai` to start the chat interface, or use subcommands like `clarifai config`, `clarifai login`, etc.
+    """
     ctx.ensure_object(dict)
     if os.path.exists(config):
         cfg = Config.from_yaml(filename=config)
@@ -75,37 +78,29 @@ def login(ctx, api_url, user_id):
     if not user_id:
         user_id = click.prompt('Enter your Clarifai user ID', type=str)
 
-    click.echo('> To authenticate, you\'ll need a Personal Access Token (PAT).')
-    click.echo(
-        f'> You can create one from your account settings: https://clarifai.com/{user_id}/settings/security\n'
-    )
+    click.echo()  # Blank line for readability
 
-    # Securely input PAT
-    pat = input_or_default(
-        'Enter your Personal Access Token (PAT) value (or type "ENVVAR" to use an environment variable): ',
-        'ENVVAR',
-    )
-    if pat.lower() == 'envvar':
-        pat = os.environ.get('CLARIFAI_PAT')
-        if not pat:
-            logger.error(
-                'Environment variable "CLARIFAI_PAT" not set. Please set it in your terminal.'
-            )
-            click.echo(
-                'Aborting login. Please set the environment variable or provide a PAT value and try again.'
-            )
-            click.abort()
+    # Check for environment variable first
+    env_pat = os.environ.get('CLARIFAI_PAT')
+    if env_pat:
+        use_env = click.confirm('Use CLARIFAI_PAT from environment?', default=True)
+        if use_env:
+            pat = env_pat
+        else:
+            click.echo(f'> Create a PAT at: https://clarifai.com/{user_id}/settings/security')
+            pat = masked_input('Enter your Personal Access Token (PAT): ')
+    else:
+        click.echo('> To authenticate, you\'ll need a Personal Access Token (PAT).')
+        click.echo(f'> Create one at: https://clarifai.com/{user_id}/settings/security')
+        click.echo('> Tip: Set CLARIFAI_PAT environment variable to skip this prompt.\n')
+        pat = masked_input('Enter your Personal Access Token (PAT): ')
+
     # Progress indicator
     click.echo('\n> Verifying token...')
     validate_context_auth(pat, user_id, api_url)
 
-    # Context naming
-    default_context_name = 'default'
-    click.echo('\n> Let\'s save these credentials to a new context.')
-    click.echo('> You can have multiple contexts to easily switch between accounts or projects.\n')
-    context_name = click.prompt("Enter a name for this context", default=default_context_name)
-
-    # Save context
+    # Save context with default name
+    context_name = 'default'
     context = Context(
         context_name,
         CLARIFAI_API_BASE=api_url,
@@ -116,11 +111,30 @@ def login(ctx, api_url, user_id):
     ctx.obj.contexts[context_name] = context
     ctx.obj.current_context = context_name
     ctx.obj.to_yaml()
-    click.secho('✅ Success! You are now logged in.', fg='green')
-    click.echo(f'Credentials saved to the \'{context_name}\' context.\n')
-    click.echo('💡 To switch contexts later, use `clarifai config use-context <name>`.')
+    click.secho(f'✅ Success! You\'re logged in as {user_id}', fg='green')
+    click.echo('💡 Tip: Use `clarifai config` to manage multiple accounts or environments')
 
     logger.info(f"Login successful for user '{user_id}' in context '{context_name}'")
+
+
+@cli.command()
+@click.pass_context
+def logout(ctx):
+    """Logout from the current context by clearing the PAT."""
+    current_context_name = ctx.obj.current_context
+    current_context = ctx.obj.current
+
+    if current_context.name == '_empty_' or not current_context.pat:
+        click.secho("You are not currently logged in.", fg='yellow')
+        return
+
+    # Clear PAT from current context
+    current_context['env']['CLARIFAI_PAT'] = ''
+    ctx.obj.to_yaml()
+
+    click.secho(f"✅ Successfully logged out from '{current_context_name}'.", fg='green')
+    click.echo("Your PAT has been cleared from this context.")
+    logger.info(f"Logout successful from context '{current_context_name}'")
 
 
 def pat_display(pat):
@@ -219,7 +233,7 @@ def create_context(
     from clarifai.utils.cli import validate_context_auth
 
     if name in ctx.obj.contexts:
-        logger.info(f'"{name}" context already exists')
+        click.secho(f'Error: Context "{name}" already exists', fg='red', err=True)
         sys.exit(1)
     if not user_id:
         user_id = input('user id: ')
@@ -228,25 +242,22 @@ def create_context(
             'base url (default: https://api.clarifai.com): ', 'https://api.clarifai.com'
         )
     if not pat:
-        pat = input_or_default(
-            'personal access token value (default: "ENVVAR" to get our of env var rather than config): ',
-            'ENVVAR',
-        )
-    if pat.lower() == 'envvar':
-        pat = os.environ.get('CLARIFAI_PAT')
-        if not pat:
-            logger.error(
-                'Environment variable "CLARIFAI_PAT" not set. Please set it in your terminal.'
-            )
-            click.echo(
-                'Aborting context creation. Please set the environment variable or provide a PAT value and try again.'
-            )
-            click.abort()
+        # Check for environment variable first
+        env_pat = os.environ.get('CLARIFAI_PAT')
+        if env_pat:
+            use_env = click.confirm('Found CLARIFAI_PAT in environment. Use it?', default=True)
+            if use_env:
+                pat = env_pat
+            else:
+                pat = masked_input('Enter your Personal Access Token (PAT): ')
+        else:
+            click.echo('Tip: Set CLARIFAI_PAT environment variable to skip this step.')
+            pat = masked_input('Enter your Personal Access Token (PAT): ')
     validate_context_auth(pat, user_id, base_url)
     context = Context(name, CLARIFAI_USER_ID=user_id, CLARIFAI_API_BASE=base_url, CLARIFAI_PAT=pat)
     ctx.obj.contexts[context.name] = context
     ctx.obj.to_yaml()
-    logger.info(f"Context '{name}' created successfully")
+    click.secho(f"✅ Context '{name}' created successfully", fg='green')
 
 
 @config.command(aliases=['e'])
@@ -272,6 +283,85 @@ def delete_context(ctx, name):
     print(f'{name} deleted')
 
 
+@config.command(aliases=['s'])
+@click.argument('key', type=str)
+@click.argument('value', type=str)
+@click.option(
+    '--context',
+    '-c',
+    type=str,
+    default=None,
+    help='Context to set the value in. Defaults to current context.',
+)
+@click.pass_context
+def set(ctx, key, value, context):
+    """Set a configuration value in the current or specified context.
+
+    Supported keys:
+        chat_model_url  - URL of the model to use for `clarifai chat`
+
+    Examples:
+        clarifai config set chat_model_url https://clarifai.com/openai/chat-completion/models/gpt-4o
+        clarifai config set chat_model_url https://clarifai.com/my-org/my-app/models/my-model -c my-context
+    """
+    # Determine which context to modify
+    context_name = context if context else ctx.obj.current_context
+
+    if context_name not in ctx.obj.contexts:
+        click.secho(f"Error: Context '{context_name}' not found.", fg='red')
+        sys.exit(1)
+
+    target_context = ctx.obj.contexts[context_name]
+
+    # Set the value in the context's env dict
+    # Use CLARIFAI_ prefix for consistency with other config values
+    env_key = f'CLARIFAI_{key.upper()}' if not key.upper().startswith('CLARIFAI_') else key.upper()
+    target_context['env'][env_key] = value
+
+    ctx.obj.to_yaml()
+    click.secho(f"✓ Set '{key}' = '{value}' in context '{context_name}'", fg='green')
+
+
+@config.command(aliases=['g'])
+@click.argument('key', type=str)
+@click.option(
+    '--context',
+    '-c',
+    type=str,
+    default=None,
+    help='Context to get the value from. Defaults to current context.',
+)
+@click.pass_context
+def get(ctx, key, context):
+    """Get a configuration value from the current or specified context.
+
+    Examples:
+        clarifai config get chat_model_url
+        clarifai config get pat -c my-context
+    """
+    # Determine which context to read from
+    context_name = context if context else ctx.obj.current_context
+
+    if context_name not in ctx.obj.contexts:
+        click.secho(f"Error: Context '{context_name}' not found.", fg='red')
+        sys.exit(1)
+
+    target_context = ctx.obj.contexts[context_name]
+
+    # Try to get the value
+    value = target_context.get(key)
+    if value is not None:
+        # Mask PAT values for security
+        if key.lower() in ('pat', 'token', 'secret'):
+            display_value = value[:5] + '****' if len(value) > 5 else '****'
+        else:
+            display_value = value
+        click.echo(display_value)
+    else:
+        click.secho(f"Key '{key}' not found in context '{context_name}'", fg='yellow')
+        sys.exit(1)
+
+
 @config.command(aliases=['get-env'])
 @click.pass_context
 def env(ctx):
@@ -283,12 +373,20 @@ def env(ctx):
 @click.option('-o', '--output-format', default='yaml', type=click.Choice(['json', 'yaml']))
 @click.pass_context
 def view(ctx, output_format):
-    """Display the current configuration."""
+    """Display the current configuration with defaults."""
+    from clarifai.cli.chat import DEFAULT_CHAT_MODEL_URL
+
+    contexts_dict = {}
+    for name, context in ctx.obj.contexts.items():
+        context_data = context.to_serializable_dict()
+        # Add defaults for known configurable values if not explicitly set
+        if 'CLARIFAI_CHAT_MODEL_URL' not in context_data:
+            context_data['CLARIFAI_CHAT_MODEL_URL'] = f'{DEFAULT_CHAT_MODEL_URL} (default)'
+        contexts_dict[name] = context_data
+
     config_dict = {
         'current-context': ctx.obj.current_context,
-        'contexts': {
-            name: context.to_serializable_dict() for name, context in ctx.obj.contexts.items()
-        },
+        'contexts': contexts_dict,
     }
 
     if output_format == 'json':
@@ -312,6 +410,18 @@ def run(ctx, script, context=None):
 
 # Import the CLI commands to register them
 load_command_modules()
+
+
+@cli.result_callback()
+@click.pass_context
+def default_command(ctx, *args, **kwargs):
+    """If no subcommand is provided, run chat as the default."""
+    if ctx.invoked_subcommand is None:
+        # Import here to avoid circular imports
+        from clarifai.cli.chat import chat
+
+        # Invoke the chat command
+        ctx.invoke(chat)
 
 
 def main():
