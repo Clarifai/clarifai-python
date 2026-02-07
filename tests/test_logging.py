@@ -4,8 +4,6 @@ import logging
 import os
 from unittest import mock
 
-import pytest
-
 
 class TestLoggingConfiguration:
     """Test cases for logging level configuration."""
@@ -44,9 +42,9 @@ class TestLoggingConfiguration:
                 importlib.reload(logging_module)
 
                 logger = logging_module.logger
-                assert (
-                    logger.level == expected_level
-                ), f"Expected {expected_level} for LOG_LEVEL={env_value}, got {logger.level}"
+                assert logger.level == expected_level, (
+                    f"Expected {expected_level} for LOG_LEVEL={env_value}, got {logger.level}"
+                )
 
     def test_info_logs_not_shown_by_default(self):
         """Test that INFO level logs are not displayed with default WARNING level."""
