@@ -323,7 +323,7 @@ When a user makes a request, determine which skill applies based on their descri
 
 ---
 
-Remember: Use the skill documentation above to provide accurate, detailed guidance. 
+Remember: Use the skill documentation above to provide accurate, detailed guidance.
 If no skill matches, answer based on general Clarifai knowledge or ask for clarification."""
 
 
@@ -360,7 +360,7 @@ clarifai model list YOUR_USER_ID
 
 **Safe CLI commands** (auto-executed):
 - `clarifai model list YOUR_USER_ID` - List user's models
-- `clarifai pipeline list` - List pipelines  
+- `clarifai pipeline list` - List pipelines
 - `clarifai deployment list` - List deployments
 - `clarifai config show` - Show config
 
