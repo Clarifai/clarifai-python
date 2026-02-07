@@ -333,8 +333,12 @@ RESPONSE RULES:
                             # Sanitize sensitive data (PAT, tokens, etc.)
                             assistant_message = sanitize_sensitive_data(assistant_message)
 
-                            # Clean up any extra whitespace left behind
-                            assistant_message = re.sub(r'\n\s*\n', '\n', assistant_message).strip()
+                            # Clean up excessive whitespace but preserve markdown formatting
+                            # Collapse 3+ newlines to 2, keep double newlines for paragraphs/lists
+                            assistant_message = re.sub(r'\n{3,}', '\n\n', assistant_message).strip()
+                            
+                            # Ensure numbered lists have blank line before them for proper markdown rendering
+                            assistant_message = re.sub(r'([^\n])\n(\d+\.)', r'\1\n\n\2', assistant_message)
 
                             # Add to conversation history
                             conversation_history.append(
