@@ -1,5 +1,5 @@
 clarifai-grpc>=12.0.6
-clarifai-protocol==0.0.35
+clarifai-protocol>=0.0.35,<0.1.0
 numpy>=1.22.0
 tqdm>=4.65.0
 PyYAML>=6.0.1
