@@ -48,7 +48,9 @@ class TestMaskedInput:
 
     def test_ctrl_w_deletes_word(self, unix_terminal):
         # Type "hello world", Ctrl+W, "test" -> "hello test"
-        assert unix_terminal(list("hello world") + ['\x17'] + list("test") + ['\n']) == "hello test"
+        assert (
+            unix_terminal(list("hello world") + ['\x17'] + list("test") + ['\n']) == "hello test"
+        )
 
     def test_ctrl_c_raises_keyboard_interrupt(self, unix_terminal):
         with pytest.raises(KeyboardInterrupt):
