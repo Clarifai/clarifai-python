@@ -2,29 +2,22 @@
 
 import logging
 import os
+from io import StringIO
 from unittest import mock
+
+from clarifai.utils.logging import get_logger
 
 
 class TestLoggingConfiguration:
     """Test cases for logging level configuration."""
 
     def test_default_log_level_is_info(self):
-        """Test that the default log level is INFO."""
-        # Clear any LOG_LEVEL env var for this test
-        with mock.patch.dict(os.environ, {}, clear=True):
-            # Re-import to get fresh logger with default settings
-            import importlib
+        """Test that get_logger with INFO level sets the correct level."""
+        logger = get_logger(logger_level="INFO", name="test_default_info")
+        assert logger.level == logging.INFO
 
-            from clarifai.utils import logging as logging_module
-
-            importlib.reload(logging_module)
-
-            # Check that the default logger level is INFO
-            logger = logging_module.logger
-            assert logger.level == logging.INFO
-
-    def test_log_level_env_var_override(self):
-        """Test that LOG_LEVEL environment variable overrides default."""
+    def test_log_level_override(self):
+        """Test that get_logger respects the requested log level."""
         test_cases = [
             ('DEBUG', logging.DEBUG),
             ('INFO', logging.INFO),
@@ -32,82 +25,48 @@ class TestLoggingConfiguration:
             ('ERROR', logging.ERROR),
         ]
 
-        for env_value, expected_level in test_cases:
-            with mock.patch.dict(os.environ, {'LOG_LEVEL': env_value}):
-                # Re-import to get fresh logger with new env var
-                import importlib
-
-                from clarifai.utils import logging as logging_module
-
-                importlib.reload(logging_module)
-
-                logger = logging_module.logger
-                assert logger.level == expected_level, (
-                    f"Expected {expected_level} for LOG_LEVEL={env_value}, got {logger.level}"
-                )
+        for level_value, expected_level in test_cases:
+            logger = get_logger(logger_level=level_value, name=f"test_{level_value}")
+            assert logger.level == expected_level, (
+                f"Expected {expected_level} for level={level_value}, got {logger.level}"
+            )
 
     def test_info_logs_shown_by_default(self):
-        """Test that INFO level logs are displayed with default INFO level."""
-        with mock.patch.dict(os.environ, {}, clear=True):
-            import importlib
-            from io import StringIO
+        """Test that INFO level logs are displayed with INFO level."""
+        logger = get_logger(logger_level="INFO", name="test_info_visible")
 
-            from clarifai.utils import logging as logging_module
+        log_capture = StringIO()
+        handler = logging.StreamHandler(log_capture)
+        logger.addHandler(handler)
 
-            importlib.reload(logging_module)
+        logger.info("This INFO message should appear")
+        logger.debug("This DEBUG message should not appear")
 
-            logger = logging_module.logger
+        log_output = log_capture.getvalue()
 
-            # Capture log output
-            log_capture = StringIO()
-            handler = logging.StreamHandler(log_capture)
-            logger.addHandler(handler)
+        assert "This INFO message should appear" in log_output
+        assert "This DEBUG message should not appear" not in log_output
 
-            # Log at INFO level (should appear)
-            logger.info("This INFO message should appear")
-
-            # Log at DEBUG level (should not appear)
-            logger.debug("This DEBUG message should not appear")
-
-            log_output = log_capture.getvalue()
-
-            # INFO should be in output
-            assert "This INFO message should appear" in log_output
-            # DEBUG should not be in output
-            assert "This DEBUG message should not appear" not in log_output
-
-            logger.removeHandler(handler)
+        logger.removeHandler(handler)
 
     def test_debug_logs_shown_with_debug_level(self):
-        """Test that DEBUG logs are shown when LOG_LEVEL=DEBUG."""
-        with mock.patch.dict(os.environ, {'LOG_LEVEL': 'DEBUG'}):
-            import importlib
-            from io import StringIO
+        """Test that DEBUG logs are shown when level is DEBUG."""
+        logger = get_logger(logger_level="DEBUG", name="test_debug_visible")
 
-            from clarifai.utils import logging as logging_module
+        log_capture = StringIO()
+        handler = logging.StreamHandler(log_capture)
+        logger.addHandler(handler)
 
-            importlib.reload(logging_module)
+        logger.debug("This DEBUG message should appear")
 
-            logger = logging_module.logger
+        log_output = log_capture.getvalue()
 
-            # Capture log output
-            log_capture = StringIO()
-            handler = logging.StreamHandler(log_capture)
-            logger.addHandler(handler)
+        assert "This DEBUG message should appear" in log_output
 
-            # Log at DEBUG level
-            logger.debug("This DEBUG message should appear")
-
-            log_output = log_capture.getvalue()
-
-            # DEBUG should be in output
-            assert "This DEBUG message should appear" in log_output
-
-            logger.removeHandler(handler)
+        logger.removeHandler(handler)
 
     def test_login_uses_clean_output(self):
         """Test that login command has clean output without verbose validation logs."""
-        from unittest import mock
 
         from click.testing import CliRunner
 
