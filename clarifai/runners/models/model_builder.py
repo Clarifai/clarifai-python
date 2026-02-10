@@ -81,6 +81,15 @@ def is_related(object_class, main_class):
 
 def get_user_input(prompt, required=True, default=None):
     """Get user input with optional default value."""
+    if not sys.stdin.isatty():
+        if default is not None:
+            logger.info(f"{prompt} [Non-interactive: using default {default}]")
+            return default
+        elif not required:
+            return ""
+        else:
+            raise UserError(f"Input required for prompt: '{prompt}' but stdin is not a TTY.")
+
     if default:
         prompt = f"{prompt} [{default}]: "
     else:
@@ -98,6 +107,13 @@ def get_user_input(prompt, required=True, default=None):
 
 def get_yes_no_input(prompt, default=None):
     """Get yes/no input from user."""
+    if not sys.stdin.isatty():
+        if default is not None:
+            logger.info(f"{prompt} [Non-interactive: using default {'Y/n' if default else 'y/N'}]")
+            return default
+        else:
+            raise UserError(f"Input required for prompt: '{prompt}' but stdin is not a TTY.")
+
     if default is not None:
         prompt = f"{prompt} [{'Y/n' if default else 'y/N'}]: "
     else:
@@ -1377,16 +1393,10 @@ class ModelBuilder:
                     )
                     should_create_dockerfile = False
                 else:
-                    logger.info("Dockerfile already exists with different content.")
-                    response = input(
-                        "A different Dockerfile already exists. Do you want to overwrite it with the generated one? "
-                        "Type 'y' to overwrite, 'n' to keep your custom Dockerfile: "
+                    logger.warning(
+                        "A different Dockerfile already exists. Keeping the existing one to avoid overwriting custom changes."
                     )
-                    if response.lower() != 'y':
-                        logger.info("Keeping existing custom Dockerfile.")
-                        should_create_dockerfile = False
-                    else:
-                        logger.info("Overwriting existing Dockerfile with generated content.")
+                    should_create_dockerfile = False
 
         if should_create_dockerfile:
             # Write Dockerfile
@@ -1579,11 +1589,8 @@ class ModelBuilder:
             if status_result.stdout.strip():
                 logger.warning("Uncommitted changes detected in model path:")
                 logger.warning(status_result.stdout)
-
-                response = input(
-                    "\nDo you want to continue upload with uncommitted changes? (y/N): "
-                )
-                return response.lower() in ['y', 'yes']
+                logger.warning("Continuing upload with uncommitted changes.")
+                return True
             else:
                 logger.info("Model path has no uncommitted changes.")
                 return True
@@ -1721,8 +1728,8 @@ class ModelBuilder:
                     if when != "upload" and not HuggingFaceLoader.validate_config(
                         self.checkpoint_path
                     ):
-                        input(
-                            "Press Enter to download the HuggingFace model's config.json file to infer the concepts and continue..."
+                        logger.info(
+                            "Downloading the HuggingFace model's config.json file to infer the concepts..."
                         )
                         loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
                         loader.download_config(self.checkpoint_path)
@@ -1977,7 +1984,6 @@ def upload_model(
         if not builder._check_git_status_and_prompt():
             logger.info("Upload cancelled by user due to uncommitted changes.")
             return
-    input("Press Enter to continue...")
 
     model_version = builder.upload_model_version(git_info)
 

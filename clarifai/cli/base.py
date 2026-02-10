@@ -128,6 +128,9 @@ def pat_display(pat):
 
 
 def input_or_default(prompt, default):
+    if not sys.stdin.isatty():
+        logger.info(f"{prompt} [Non-interactive: using default {default}]")
+        return default
     value = input(prompt)
     return value if value else default
 

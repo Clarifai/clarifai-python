@@ -651,7 +651,6 @@ def init(
             files_to_download[i] = f"{i + 1}. {file}"
         files_to_download = '\n'.join(files_to_download)
         logger.info(f"Files to be downloaded are:\n{files_to_download}")
-        input("Press Enter to continue...")
         if not toolkit:
             if folder_path != "":
                 try:
@@ -781,7 +780,6 @@ def init(
     # Fall back to template-based initialization if no GitHub repo or if GitHub repo failed
     if not github_url:
         logger.info("Initializing model with default templates...")
-        input("Press Enter to continue...")
 
         from clarifai.cli.base import input_or_default
         from clarifai.cli.templates.model_templates import (
