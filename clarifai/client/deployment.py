@@ -172,11 +172,70 @@ class Deployment(Lister, BaseClient):
         response = self._grpc_request(self.STUB.PatchDeployments, request)
         if response.status.code != status_code_pb2.SUCCESS:
             self.logger.error(f"PatchDeployments failed. Status: {response.status}")
-            raise Exception(f"Failed to patch deployment: {response.status.details}")
+            raise Exception(f"Failed to patch deployment: {response}")
 
         # Update local deployment_info if success
         dict_to_protobuf(self.deployment_info, kwargs)
         return response
+
+    def status(self) -> str:
+        """Get the status of the deployment.
+
+        This aggregates runner metrics across all nodepools to determine readiness.
+        - READY: At least one replica is ready.
+        - INITIALIZING: At least one replica is claimed but not ready.
+        - QUEUED: No replicas are alive yet.
+
+        Returns:
+            str: The status ('READY', 'INITIALIZING', or 'QUEUED').
+
+        Example:
+            >>> from clarifai.client.deployment import Deployment
+            >>> deployment = Deployment(deployment_id="deployment_id", user_id="user_id")
+            >>> print(deployment.status())
+        """
+        if not self.deployment_info.worker.HasField(
+            "model"
+        ) and not self.deployment_info.worker.HasField("workflow"):
+            self.refresh()
+
+        from clarifai.client.user import User
+
+        user = User(user_id=self.user_id, pat=self.pat, base_url=self.base_url)
+
+        model_version_ids = None
+        workflow_version_ids = None
+        if self.worker.HasField("model"):
+            model_version_ids = [self.worker.model.model_version.id]
+        elif self.worker.HasField("workflow"):
+            workflow_version_ids = [self.worker.workflow.workflow_version.id]
+
+        total_replicas = 0
+        ready_replicas = 0
+
+        for np_proto in self.deployment_info.nodepools:
+            filter_by = {
+                "nodepool_id": np_proto.id,
+                "compute_cluster_id": np_proto.compute_cluster.id,
+            }
+            if model_version_ids:
+                filter_by["model_version_ids"] = model_version_ids
+            if workflow_version_ids:
+                filter_by["workflow_version_ids"] = workflow_version_ids
+
+            runners = user.list_runners(filter_by=filter_by)
+
+            for runner in runners:
+                metrics = runner.get("runner_metrics")
+                if metrics:
+                    total_replicas += metrics.get("pods_total", 0)
+                    ready_replicas += metrics.get("pods_running", 0)
+
+        if ready_replicas > 0:
+            return "READY"
+        if total_replicas > 0:
+            return "INITIALIZING"
+        return "QUEUED"
 
     def update(self, min_replicas: int = None, max_replicas: int = None):
         """Update deployment replicas.
