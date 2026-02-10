@@ -6,7 +6,7 @@ import click
 import yaml
 
 from clarifai import __version__
-from clarifai.utils.cli import AliasedGroup, TableFormatter, load_command_modules
+from clarifai.utils.cli import AliasedGroup, TableFormatter, load_command_modules, masked_input
 from clarifai.utils.config import Config, Context
 from clarifai.utils.constants import DEFAULT_BASE, DEFAULT_CONFIG, DEFAULT_UI
 from clarifai.utils.logging import logger
@@ -75,37 +75,29 @@ def login(ctx, api_url, user_id):
     if not user_id:
         user_id = click.prompt('Enter your Clarifai user ID', type=str)
 
-    click.echo('> To authenticate, you\'ll need a Personal Access Token (PAT).')
-    click.echo(
-        f'> You can create one from your account settings: https://clarifai.com/{user_id}/settings/security\n'
-    )
+    click.echo()  # Blank line for readability
 
-    # Securely input PAT
-    pat = input_or_default(
-        'Enter your Personal Access Token (PAT) value (or type "ENVVAR" to use an environment variable): ',
-        'ENVVAR',
-    )
-    if pat.lower() == 'envvar':
-        pat = os.environ.get('CLARIFAI_PAT')
-        if not pat:
-            logger.error(
-                'Environment variable "CLARIFAI_PAT" not set. Please set it in your terminal.'
-            )
-            click.echo(
-                'Aborting login. Please set the environment variable or provide a PAT value and try again.'
-            )
-            click.abort()
+    # Check for environment variable first
+    env_pat = os.environ.get('CLARIFAI_PAT')
+    if env_pat:
+        use_env = click.confirm('Use CLARIFAI_PAT from environment?', default=True)
+        if use_env:
+            pat = env_pat
+        else:
+            click.echo(f'> Create a PAT at: https://clarifai.com/{user_id}/settings/security')
+            pat = masked_input('Enter your Personal Access Token (PAT): ')
+    else:
+        click.echo('> To authenticate, you\'ll need a Personal Access Token (PAT).')
+        click.echo(f'> Create one at: https://clarifai.com/{user_id}/settings/security')
+        click.echo('> Tip: Set CLARIFAI_PAT environment variable to skip this prompt.\n')
+        pat = masked_input('Enter your Personal Access Token (PAT): ')
+
     # Progress indicator
     click.echo('\n> Verifying token...')
     validate_context_auth(pat, user_id, api_url)
 
-    # Context naming
-    default_context_name = 'default'
-    click.echo('\n> Let\'s save these credentials to a new context.')
-    click.echo('> You can have multiple contexts to easily switch between accounts or projects.\n')
-    context_name = click.prompt("Enter a name for this context", default=default_context_name)
-
-    # Save context
+    # Save context with default name
+    context_name = 'default'
     context = Context(
         context_name,
         CLARIFAI_API_BASE=api_url,
@@ -116,9 +108,8 @@ def login(ctx, api_url, user_id):
     ctx.obj.contexts[context_name] = context
     ctx.obj.current_context = context_name
     ctx.obj.to_yaml()
-    click.secho('✅ Success! You are now logged in.', fg='green')
-    click.echo(f'Credentials saved to the \'{context_name}\' context.\n')
-    click.echo('💡 To switch contexts later, use `clarifai config use-context <name>`.')
+    click.secho(f'✅ Success! You\'re logged in as {user_id}', fg='green')
+    click.echo('💡 Tip: Use `clarifai config` to manage multiple accounts or environments')
 
     logger.info(f"Login successful for user '{user_id}' in context '{context_name}'")
 
@@ -219,7 +210,7 @@ def create_context(
     from clarifai.utils.cli import validate_context_auth
 
     if name in ctx.obj.contexts:
-        logger.info(f'"{name}" context already exists')
+        click.secho(f'Error: Context "{name}" already exists', fg='red', err=True)
         sys.exit(1)
     if not user_id:
         user_id = input('user id: ')
@@ -228,25 +219,22 @@ def create_context(
             'base url (default: https://api.clarifai.com): ', 'https://api.clarifai.com'
         )
     if not pat:
-        pat = input_or_default(
-            'personal access token value (default: "ENVVAR" to get our of env var rather than config): ',
-            'ENVVAR',
-        )
-    if pat.lower() == 'envvar':
-        pat = os.environ.get('CLARIFAI_PAT')
-        if not pat:
-            logger.error(
-                'Environment variable "CLARIFAI_PAT" not set. Please set it in your terminal.'
-            )
-            click.echo(
-                'Aborting context creation. Please set the environment variable or provide a PAT value and try again.'
-            )
-            click.abort()
+        # Check for environment variable first
+        env_pat = os.environ.get('CLARIFAI_PAT')
+        if env_pat:
+            use_env = click.confirm('Found CLARIFAI_PAT in environment. Use it?', default=True)
+            if use_env:
+                pat = env_pat
+            else:
+                pat = masked_input('Enter your Personal Access Token (PAT): ')
+        else:
+            click.echo('Tip: Set CLARIFAI_PAT environment variable to skip this step.')
+            pat = masked_input('Enter your Personal Access Token (PAT): ')
     validate_context_auth(pat, user_id, base_url)
     context = Context(name, CLARIFAI_USER_ID=user_id, CLARIFAI_API_BASE=base_url, CLARIFAI_PAT=pat)
     ctx.obj.contexts[context.name] = context
     ctx.obj.to_yaml()
-    logger.info(f"Context '{name}' created successfully")
+    click.secho(f"✅ Context '{name}' created successfully", fg='green')
 
 
 @config.command(aliases=['e'])
