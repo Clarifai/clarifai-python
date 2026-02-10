@@ -4,8 +4,6 @@ import logging
 import os
 from unittest import mock
 
-import pytest
-
 
 class TestLoggingConfiguration:
     """Test cases for logging level configuration."""
@@ -44,9 +42,9 @@ class TestLoggingConfiguration:
                 importlib.reload(logging_module)
 
                 logger = logging_module.logger
-                assert (
-                    logger.level == expected_level
-                ), f"Expected {expected_level} for LOG_LEVEL={env_value}, got {logger.level}"
+                assert logger.level == expected_level, (
+                    f"Expected {expected_level} for LOG_LEVEL={env_value}, got {logger.level}"
+                )
 
     def test_info_logs_shown_by_default(self):
         """Test that INFO level logs are displayed with default INFO level."""
@@ -109,8 +107,9 @@ class TestLoggingConfiguration:
 
     def test_login_uses_clean_output(self):
         """Test that login command has clean output without verbose validation logs."""
-        from click.testing import CliRunner
         from unittest import mock
+
+        from click.testing import CliRunner
 
         from clarifai.cli.base import cli
 
@@ -121,7 +120,9 @@ class TestLoggingConfiguration:
             with mock.patch('clarifai.cli.base.DEFAULT_CONFIG', './config.yaml'):
                 with mock.patch.dict(os.environ, {'CLARIFAI_PAT': 'test_pat'}):
                     with mock.patch('clarifai.utils.cli.validate_context_auth'):
-                        result = runner.invoke(cli, ['--config', './config.yaml', 'login'], input='testuser\ny\n')
+                        result = runner.invoke(
+                            cli, ['--config', './config.yaml', 'login'], input='testuser\ny\n'
+                        )
 
         # Should not show validation debug logs
         assert 'Validating the Context Credentials' not in result.output
