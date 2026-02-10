@@ -154,12 +154,14 @@ class Nodepool(Lister, BaseClient):
         config_filepath: str = None,
         deployment_id: str = None,
         deployment_config: Dict[str, Any] = None,
+        wait: bool = True,
     ) -> Deployment:
         """Creates a deployment for the nodepool.
 
         Args:
             config_filepath (str): The path to the deployment config file.
             deployment_id (str): New deployment ID for the deployment to create.
+            wait (bool): Whether to wait for the deployment to be successful. Defaults to True.
 
         Returns:
             Deployment: A Deployment object for the specified deployment ID.
@@ -186,16 +188,23 @@ class Nodepool(Lister, BaseClient):
         else:
             raise AssertionError("Either config_filepath or deployment_config must be provided.")
 
-        deployment_config = self._process_deployment_config(deployment_config)
+        # Extract min_replicas before processing config as it might be mutated into proto objects
+        min_replicas = int(
+            deployment_config.get('deployment', {})
+            .get('autoscale_config', {})
+            .get('min_replicas', 1)
+        )
 
-        if 'id' in deployment_config:
+        processed_config = self._process_deployment_config(deployment_config)
+
+        if 'id' in processed_config:
             if deployment_id is None:
-                deployment_id = deployment_config['id']
-            deployment_config.pop('id')
+                deployment_id = processed_config['id']
+            processed_config.pop('id')
 
         request = service_pb2.PostDeploymentsRequest(
             user_app_id=self.user_app_id,
-            deployments=[resources_pb2.Deployment(id=deployment_id, **deployment_config)],
+            deployments=[resources_pb2.Deployment(id=deployment_id, **processed_config)],
         )
         response = self._grpc_request(self.STUB.PostDeployments, request)
         if response.status.code != status_code_pb2.SUCCESS:
@@ -208,7 +217,56 @@ class Nodepool(Lister, BaseClient):
             response.deployments[0], preserving_proto_field_name=True, use_integers_for_enums=True
         )
         kwargs = self.process_response_keys(dict_response, "deployment")
-        return Deployment.from_auth_helper(auth=self.auth_helper, **kwargs)
+        deployment = Deployment.from_auth_helper(auth=self.auth_helper, **kwargs)
+
+        if wait:
+            if min_replicas == 0:
+                self.logger.warning(
+                    "min_replicas is set to 0. Actual replicas of this model "
+                    "will not be deployed until a prediction request is received. This saves "
+                    "on infrastructure costs but will result in longer warmup time for the "
+                    "first prediction."
+                )
+            else:
+                import threading
+                import time
+
+                stop_event = threading.Event()
+
+                def stream_logs(log_type, prefix):
+                    try:
+                        for entry in deployment.logs(stream=True, log_type=log_type):
+                            if stop_event.is_set():
+                                break
+                            timestamp = entry.time.ToDatetime().isoformat()
+                            print(f"[{prefix}] {timestamp} {entry.message}")
+                    except Exception:
+                        pass
+
+                self.logger.info(
+                    f"Waiting for deployment '{deployment_id}' to reach {min_replicas} running replicas..."
+                )
+                print("Streaming logs (runner and runner.events):\n")
+
+                threads = []
+                for log_type, prefix in [("runner", "RUNNER"), ("runner.events", "EVENT")]:
+                    t = threading.Thread(target=stream_logs, args=(log_type, prefix), daemon=True)
+                    t.start()
+                    threads.append(t)
+
+                try:
+                    while True:
+                        metrics = deployment.runner_metrics()
+                        if metrics["pods_running"] >= min_replicas:
+                            self.logger.info(
+                                f"Deployment '{deployment_id}' is successful! ({metrics['pods_running']} replicas running)"
+                            )
+                            break
+                        time.sleep(5)
+                finally:
+                    stop_event.set()
+
+        return deployment
 
     def deployment(self, deployment_id: str) -> Deployment:
         """Returns a Deployment object for the existing deployment ID.
