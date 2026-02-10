@@ -347,7 +347,7 @@ def validate_context_auth(pat: str, user_id: str, api_base: str = None):
 
         from clarifai.client.user import User
 
-        logger.info("Validating the Context Credentials...")
+        logger.debug("Validating the Context Credentials...")
 
         # Create user client for validation
         if api_base:
@@ -359,7 +359,7 @@ def validate_context_auth(pat: str, user_id: str, api_base: str = None):
         response = user_client.get_user_info()
 
         if response.status.code == status_code_pb2.SUCCESS:
-            logger.info("✅ Context is valid")
+            logger.debug("✅ Context is valid")
 
     except Exception as e:
         # Check for common authentication errors and provide user-friendly messages

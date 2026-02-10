@@ -10,8 +10,8 @@ import pytest
 class TestLoggingConfiguration:
     """Test cases for logging level configuration."""
 
-    def test_default_log_level_is_warning(self):
-        """Test that the default log level is WARNING (not INFO)."""
+    def test_default_log_level_is_info(self):
+        """Test that the default log level is INFO."""
         # Clear any LOG_LEVEL env var for this test
         with mock.patch.dict(os.environ, {}, clear=True):
             # Re-import to get fresh logger with default settings
@@ -21,9 +21,9 @@ class TestLoggingConfiguration:
 
             importlib.reload(logging_module)
 
-            # Check that the default logger level is WARNING
+            # Check that the default logger level is INFO
             logger = logging_module.logger
-            assert logger.level == logging.WARNING
+            assert logger.level == logging.INFO
 
     def test_log_level_env_var_override(self):
         """Test that LOG_LEVEL environment variable overrides default."""
@@ -48,8 +48,8 @@ class TestLoggingConfiguration:
                     logger.level == expected_level
                 ), f"Expected {expected_level} for LOG_LEVEL={env_value}, got {logger.level}"
 
-    def test_info_logs_not_shown_by_default(self):
-        """Test that INFO level logs are not displayed with default WARNING level."""
+    def test_info_logs_shown_by_default(self):
+        """Test that INFO level logs are displayed with default INFO level."""
         with mock.patch.dict(os.environ, {}, clear=True):
             import importlib
             from io import StringIO
@@ -65,18 +65,18 @@ class TestLoggingConfiguration:
             handler = logging.StreamHandler(log_capture)
             logger.addHandler(handler)
 
-            # Try to log at INFO level
-            logger.info("This INFO message should not appear")
+            # Log at INFO level (should appear)
+            logger.info("This INFO message should appear")
 
-            # Log at WARNING level (should appear)
-            logger.warning("This WARNING message should appear")
+            # Log at DEBUG level (should not appear)
+            logger.debug("This DEBUG message should not appear")
 
             log_output = log_capture.getvalue()
 
-            # INFO should not be in output
-            assert "This INFO message should not appear" not in log_output
-            # WARNING should be in output
-            assert "This WARNING message should appear" in log_output
+            # INFO should be in output
+            assert "This INFO message should appear" in log_output
+            # DEBUG should not be in output
+            assert "This DEBUG message should not appear" not in log_output
 
             logger.removeHandler(handler)
 
@@ -107,20 +107,24 @@ class TestLoggingConfiguration:
 
             logger.removeHandler(handler)
 
-    def test_cli_uses_clean_output_by_default(self):
-        """Test that CLI commands have clean output without verbose logs."""
+    def test_login_uses_clean_output(self):
+        """Test that login command has clean output without verbose validation logs."""
         from click.testing import CliRunner
+        from unittest import mock
 
         from clarifai.cli.base import cli
 
         runner = CliRunner()
 
-        # Test a simple command that would normally produce INFO logs
-        with mock.patch.dict(os.environ, {'CLARIFAI_PAT': 'test_pat'}, clear=False):
-            result = runner.invoke(cli, ['--help'])
+        # Test login command - validation logs should be DEBUG level (not shown)
+        with runner.isolated_filesystem():
+            with mock.patch('clarifai.cli.base.DEFAULT_CONFIG', './config.yaml'):
+                with mock.patch.dict(os.environ, {'CLARIFAI_PAT': 'test_pat'}):
+                    with mock.patch('clarifai.utils.cli.validate_context_auth'):
+                        result = runner.invoke(cli, ['--config', './config.yaml', 'login'], input='testuser\ny\n')
 
-        # Help output should not contain log formatting
-        assert '[INFO]' not in result.output
-        assert 'thread=' not in result.output
-        # Should just show clean help text
-        assert 'Usage:' in result.output
+        # Should not show validation debug logs
+        assert 'Validating the Context Credentials' not in result.output
+        assert 'Context is valid' not in result.output
+        # Should show clean success message
+        assert 'Success!' in result.output

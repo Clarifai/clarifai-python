@@ -167,8 +167,8 @@ class TestLoginCommand:
             mock_masked.assert_called_once()
             assert 'Enter your Personal Access Token (PAT):' in mock_masked.call_args[0][0]
 
-    def test_login_no_info_logs_by_default(self, runner, mock_validate):
-        """Test that INFO logs are not shown by default (WARNING level)."""
+    def test_login_no_validation_logs_by_default(self, runner, mock_validate):
+        """Test that validation debug logs are not shown by default."""
         with runner.isolated_filesystem():
             with mock.patch.dict(os.environ, {'CLARIFAI_PAT': 'test_pat'}):
                 result = runner.invoke(
@@ -176,10 +176,11 @@ class TestLoginCommand:
                 )
 
             assert result.exit_code == 0
-            # Should NOT show verbose INFO logs
-            assert '[INFO]' not in result.output or 'LOG_LEVEL' in os.environ
-            # Clean output without thread IDs and timestamps
-            assert 'thread=' not in result.output or 'LOG_LEVEL' in os.environ
+            # Should NOT show validation debug messages
+            assert 'Validating the Context Credentials' not in result.output
+            assert 'Context is valid' not in result.output
+            # Should show clean success message
+            assert "Success! You're logged in" in result.output
 
 
 class TestCreateContextCommand:
@@ -203,7 +204,7 @@ class TestCreateContextCommand:
             with mock.patch('clarifai.cli.base.DEFAULT_CONFIG', './config.yaml'):
                 # First create config with initial login
                 with mock.patch.dict(os.environ, {'CLARIFAI_PAT': 'test_pat'}):
-                    runner.invoke(cli, ['login', '--config', './config.yaml'], input='testuser\ny\n')
+                    runner.invoke(cli, ['--config', './config.yaml', 'login'], input='testuser\ny\n')
 
                 # Now test creating a new context
                 with mock.patch.dict(os.environ, {'CLARIFAI_PAT': 'another_pat'}):
@@ -223,7 +224,7 @@ class TestCreateContextCommand:
             with mock.patch('clarifai.cli.base.DEFAULT_CONFIG', './config.yaml'):
                 # First create config with initial login
                 with mock.patch.dict(os.environ, {'CLARIFAI_PAT': 'test_pat'}):
-                    runner.invoke(cli, ['login', '--config', './config.yaml'], input='testuser\ny\n')
+                    runner.invoke(cli, ['--config', './config.yaml', 'login'], input='testuser\ny\n')
 
                 # Now test creating a new context without env var
                 env = os.environ.copy()
@@ -247,7 +248,7 @@ class TestCreateContextCommand:
             with mock.patch('clarifai.cli.base.DEFAULT_CONFIG', './config.yaml'):
                 # First create config with initial login
                 with mock.patch.dict(os.environ, {'CLARIFAI_PAT': 'test_pat'}):
-                    runner.invoke(cli, ['login', '--config', './config.yaml'], input='testuser\ny\n')
+                    runner.invoke(cli, ['--config', './config.yaml', 'login'], input='testuser\ny\n')
 
                 # Now test creating a new context
                 env = os.environ.copy()
