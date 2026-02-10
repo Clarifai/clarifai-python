@@ -2,7 +2,6 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 from typing import Any, Dict, Optional
 
@@ -74,74 +73,8 @@ def _select_context(ctx_config: Config) -> Optional[Context]:
     create_idx = len(context_names) + 1
     click.echo(f"  [{create_idx}] Create new context")
 
-    if not sys.stdin.isatty():
-        return contexts_map.get(current_name)
-
-    selection = input(
-        "Enter the context number or name to use (press Enter to keep current): "
-    ).strip()
-    if selection == "":
-        return contexts_map.get(current_name)
-    if selection.isdigit() and int(selection) == create_idx:
-        click.echo(click.style("Launching `clarifai login` to create a new context.", fg="yellow"))
-        try:
-            subprocess.run(["clarifai", "login"], check=True)
-        except subprocess.CalledProcessError as exc:
-            click.echo(
-                click.style(
-                    "`clarifai login` exited with an error. Continuing with existing contexts.",
-                    fg="red",
-                ),
-                err=True,
-            )
-            return contexts_map.get(current_name)
-
-        try:
-            refreshed = Config.from_yaml(filename=ctx_config.filename)
-            ctx_config.contexts = refreshed.contexts
-            ctx_config.current_context = refreshed.current_context
-            ctx_config.to_yaml()
-        except Exception as exc:
-            click.echo(
-                click.style(
-                    "Failed to reload contexts after login. Continuing with existing contexts.",
-                    fg="red",
-                ),
-                err=True,
-            )
-            logger.debug(f"Unable to reload contexts after login: {exc}")
-            return contexts_map.get(current_name)
-        return ctx_config.contexts.get(ctx_config.current_context)
-
-    if not selection:
-        return contexts_map.get(current_name)
-
-    chosen_name: Optional[str] = None
-    if selection.isdigit():
-        idx = int(selection)
-        if 1 <= idx <= len(context_names):
-            chosen_name = context_names[idx - 1]
-    elif selection in context_names:
-        chosen_name = selection
-
-    if not chosen_name:
-        click.echo(
-            click.style(
-                "Unrecognized selection. Continuing with the current context.",
-                fg="yellow",
-            )
-        )
-        return contexts_map.get(current_name)
-
-    if chosen_name != current_name:
-        ctx_config.current_context = chosen_name
-        try:
-            ctx_config.to_yaml()
-        except Exception as exc:
-            logger.debug(f"Unable to context switch: {exc}")
-        click.echo(click.style(f"Using context '{chosen_name}' for this upload.", fg="green"))
-
-    return ctx_config.contexts[chosen_name]
+    logger.info(f"Selecting current context: {current_name}")
+    return contexts_map.get(current_name)
 
 
 def ensure_config_exists_for_upload(ctx, model_path: str) -> None:

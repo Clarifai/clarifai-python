@@ -81,24 +81,19 @@ def is_related(object_class, main_class):
 
 def get_user_input(prompt, required=True, default=None):
     """Get user input with optional default value."""
+    if default is not None:
+        logger.info(f"{prompt} [Using default: {default}]")
+        return default
+
     if not sys.stdin.isatty():
-        if default is not None:
-            logger.info(f"{prompt} [Non-interactive: using default {default}]")
-            return default
-        elif not required:
+        if not required:
             return ""
         else:
             raise UserError(f"Input required for prompt: '{prompt}' but stdin is not a TTY.")
 
-    if default:
-        prompt = f"{prompt} [{default}]: "
-    else:
-        prompt = f"{prompt}: "
-
+    prompt = f"{prompt}: "
     while True:
         value = input(prompt).strip()
-        if not value and default:
-            return default
         if not value and required:
             print("❌ This field is required. Please enter a value.")
             continue
@@ -107,22 +102,16 @@ def get_user_input(prompt, required=True, default=None):
 
 def get_yes_no_input(prompt, default=None):
     """Get yes/no input from user."""
-    if not sys.stdin.isatty():
-        if default is not None:
-            logger.info(f"{prompt} [Non-interactive: using default {'Y/n' if default else 'y/N'}]")
-            return default
-        else:
-            raise UserError(f"Input required for prompt: '{prompt}' but stdin is not a TTY.")
-
     if default is not None:
-        prompt = f"{prompt} [{'Y/n' if default else 'y/N'}]: "
-    else:
-        prompt = f"{prompt} [y/n]: "
+        logger.info(f"{prompt} [Using default: {'Y/n' if default else 'y/N'}]")
+        return default
 
+    if not sys.stdin.isatty():
+        raise UserError(f"Input required for prompt: '{prompt}' but stdin is not a TTY.")
+
+    prompt = f"{prompt} [y/n]: "
     while True:
         response = input(prompt).strip().lower()
-        if not response and default is not None:
-            return default
         if response in ['y', 'yes']:
             return True
         if response in ['n', 'no']:
@@ -147,23 +136,8 @@ def select_compute_option(user_id: str, pat: Optional[str] = None, base_url: Opt
         desc = getattr(cc, "description", "") or "No description"
         print(f"{idx}. {cc.id}  –  {desc}")
 
-    if not sys.stdin.isatty():
-        cluster = clusters[0]
-        logger.info(f"Non-interactive: selecting first compute cluster: {cluster.id}")
-    else:
-        while True:
-            try:
-                sel = input("Select compute cluster (number) [1]: ").strip()
-                if not sel:
-                    sel_idx = 0
-                else:
-                    sel_idx = int(sel) - 1
-                if 0 <= sel_idx < len(clusters):
-                    cluster = clusters[sel_idx]
-                    break
-                print("❌ Invalid selection.")
-            except ValueError:
-                print("❌ Please enter a number.")
+    cluster = clusters[0]
+    logger.info(f"Selecting first compute cluster: {cluster.id}")
 
     nodepools = list(cluster.list_nodepools())
     if not nodepools:
@@ -174,23 +148,8 @@ def select_compute_option(user_id: str, pat: Optional[str] = None, base_url: Opt
         desc = getattr(np, "description", "") or "No description"
         print(f"{idx}. {np.id}  –  {desc}")
 
-    if not sys.stdin.isatty():
-        nodepool = nodepools[0]
-        logger.info(f"Non-interactive: selecting first nodepool: {nodepool.id}")
-    else:
-        while True:
-            try:
-                sel = input("Select nodepool (number) [1]: ").strip()
-                if not sel:
-                    sel_idx = 0
-                else:
-                    sel_idx = int(sel) - 1
-                if 0 <= sel_idx < len(nodepools):
-                    nodepool = nodepools[sel_idx]
-                    break
-                print("❌ Invalid selection.")
-            except ValueError:
-                print("❌ Please enter a number.")
+    nodepool = nodepools[0]
+    logger.info(f"Selecting first nodepool: {nodepool.id}")
 
     return {
         "nodepool_id": nodepool.id,
@@ -1754,14 +1713,9 @@ class ModelBuilder:
                     if when != "upload" and not HuggingFaceLoader.validate_config(
                         self.checkpoint_path
                     ):
-                        if sys.stdin.isatty():
-                            input(
-                                "\n☕ Press Enter to download the HuggingFace model's config.json file to infer the concepts and continue..."
-                            )
-                        else:
-                            logger.info(
-                                "Non-interactive: downloading the HuggingFace model's config.json file to infer the concepts."
-                            )
+                        logger.info(
+                            "Downloading the HuggingFace model's config.json file to infer the concepts."
+                        )
                         loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
                         loader.download_config(self.checkpoint_path)
 
@@ -2016,21 +1970,13 @@ def upload_model(
             logger.info("Upload cancelled by user due to uncommitted changes.")
             return
 
-    if sys.stdin.isatty():
-        input("\n☕ Ready to upload? Press Enter to continue...")
+    logger.info("Ready to upload. Starting model version upload.")
+    if get_yes_no_input("\n🔶 Do you want to deploy the model?", True):
+        # Setup deployment for the uploaded model
+        setup_deployment_for_model(builder)
     else:
-        logger.info("Non-interactive: skipping 'Press Enter' pause before upload.")
-
-    model_version = builder.upload_model_version(git_info)
-
-    # Ask user if they want to deploy the model
-    if model_version is not None:  # if it comes back None then it failed.
-        if get_yes_no_input("\n🔶 Do you want to deploy the model?", True):
-            # Setup deployment for the uploaded model
-            setup_deployment_for_model(builder)
-        else:
-            logger.info("Model uploaded successfully. Skipping deployment setup.")
-            return
+        logger.info("Model uploaded successfully. Skipping deployment setup.")
+        return
 
 
 def deploy_model(

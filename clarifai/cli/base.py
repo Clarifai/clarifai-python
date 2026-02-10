@@ -73,6 +73,9 @@ def login(ctx, api_url, user_id):
 
     # Input user_id if not supplied
     if not user_id:
+        if not sys.stdin.isatty():
+            logger.error("User ID is required for login in non-interactive mode.")
+            raise click.Abort()
         user_id = click.prompt('Enter your Clarifai user ID', type=str)
 
     click.echo('> To authenticate, you\'ll need a Personal Access Token (PAT).')
@@ -103,7 +106,9 @@ def login(ctx, api_url, user_id):
     default_context_name = 'default'
     click.echo('\n> Let\'s save these credentials to a new context.')
     click.echo('> You can have multiple contexts to easily switch between accounts or projects.\n')
-    context_name = click.prompt("Enter a name for this context", default=default_context_name)
+
+    context_name = default_context_name
+    logger.info(f"Using default context name: {context_name}")
 
     # Save context
     context = Context(
@@ -128,9 +133,11 @@ def pat_display(pat):
 
 
 def input_or_default(prompt, default):
-    if not sys.stdin.isatty():
-        logger.info(f"{prompt} [Non-interactive: using default {default}]")
+    if default is not None:
+        logger.info(f"{prompt} [Using default: {default}]")
         return default
+    if not sys.stdin.isatty():
+        raise click.Abort()
     value = input(prompt)
     return value if value else default
 
