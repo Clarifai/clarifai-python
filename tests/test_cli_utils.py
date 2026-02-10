@@ -122,9 +122,12 @@ class TestMaskedInput:
         test_password = "test123"
         inputs = [bytes([c]) for c in test_password.encode()] + [b'\r']
 
-        with mock.patch('msvcrt.getch', side_effect=inputs):
-            with mock.patch('sys.stdout', new=StringIO()):
-                result = masked_input('Enter password: ')
+        with mock.patch('os.name', 'nt'):
+            with mock.patch('sys.stdin') as mock_stdin:
+                mock_stdin.isatty.return_value = True
+                with mock.patch('msvcrt.getch', side_effect=inputs):
+                    with mock.patch('sys.stdout', new=StringIO()):
+                        result = masked_input('Enter password: ')
 
         assert result == test_password
 
@@ -133,24 +136,26 @@ class TestMaskedInput:
         """Test that Ctrl+U clears the entire line on Windows."""
         inputs = [b'w', b'r', b'o', b'n', b'g', b'\x15', b'o', b'k', b'\r']
 
-        with mock.patch('msvcrt.getch', side_effect=inputs):
-            with mock.patch('sys.stdout', new=StringIO()):
-                result = masked_input('Enter password: ')
+        with mock.patch('os.name', 'nt'):
+            with mock.patch('sys.stdin') as mock_stdin:
+                mock_stdin.isatty.return_value = True
+                with mock.patch('msvcrt.getch', side_effect=inputs):
+                    with mock.patch('sys.stdout', new=StringIO()):
+                        result = masked_input('Enter password: ')
 
         assert result == "ok"
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Requires termios (Unix-only)")
     def test_masked_input_custom_mask(self):
         """Test that custom mask character is used."""
-        # This test is more about the API than actual functionality
-        # We just verify the function accepts the mask parameter
         with mock.patch('os.name', 'posix'):
             with mock.patch('sys.stdin') as mock_stdin:
+                mock_stdin.isatty.return_value = True
                 mock_stdin.read = mock.Mock(side_effect=['\n'])
                 mock_stdin.fileno.return_value = 0
                 with mock.patch('termios.tcgetattr', return_value=[]):
                     with mock.patch('termios.tcsetattr'):
                         with mock.patch('tty.setraw'):
-                            with mock.patch('sys.stdout', new=StringIO()) as mock_stdout:
+                            with mock.patch('sys.stdout', new=StringIO()):
                                 result = masked_input('Enter password: ', mask='#')
-                                # Just verify it doesn't crash with custom mask
                                 assert result == ""

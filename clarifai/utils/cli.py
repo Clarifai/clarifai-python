@@ -50,12 +50,6 @@ def masked_input(prompt='Password: ', mask='*'):
     """
     import sys
 
-    # Check if stdin is a terminal (not piped)
-    if not sys.stdin.isatty():
-        # Fall back to regular input for piped/non-interactive usage
-        click.echo(prompt, nl=False)
-        return sys.stdin.readline().rstrip('\r\n')
-
     if os.name == 'nt':  # Windows
         import msvcrt
 
@@ -107,6 +101,11 @@ def masked_input(prompt='Password: ', mask='*'):
                     sys.stdout.flush()
         return password
     else:  # Unix/Linux/Mac
+        # Check if stdin is a terminal (not piped)
+        if not sys.stdin.isatty():
+            click.echo(prompt, nl=False)
+            return sys.stdin.readline().rstrip('\r\n')
+
         import termios
         import tty
 
