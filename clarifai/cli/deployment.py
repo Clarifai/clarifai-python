@@ -16,24 +16,53 @@ def deployment():
 
 
 @deployment.command(['c'])
-@click.argument('nodepool_id')
-@click.argument('deployment_id')
 @click.option(
     '--config',
     type=click.Path(exists=True),
     required=True,
-    help='Path to the deployment config file.',
+    help='Path to the deployment config YAML file.',
 )
 @click.pass_context
 def create(ctx, nodepool_id, deployment_id, config):
-    """Create a new Deployment with the given config file."""
+    """
+    Create a new Deployment from a config file.
+
+    The config file is a YAML that defines the worker (model or workflow),
+    nodepools, autoscale settings, and visibility.
+
+    Ex: clarifai deployment create --config deployment.yaml
+
+    Example deployment.yaml:
+
+    \b
+    deployment:
+      id: "my-deployment"
+      worker:
+        model:
+          id: "model-id"
+          model_version:
+            id: "version-id"
+          user_id: "owner-id"
+          app_id: "app-id"
+      nodepools:
+        - id: "nodepool-id"
+          compute_cluster:
+            id: "cluster-id"
+            user_id: "cluster-owner-id"
+      autoscale_config:
+        min_replicas: 1
+        max_replicas: 1
+        scale_to_zero_delay_seconds: 300
+      deploy_latest_version: true
+
+    """
 
     from clarifai.client.nodepool import Nodepool
 
     validate_context(ctx)
-    if not nodepool_id:
-        deployment_config = from_yaml(config)
-        nodepool_id = deployment_config['deployment']['nodepools'][0]['id']
+    deployment_config = from_yaml(config)
+    nodepool_id = deployment_config['deployment']['nodepools'][0]['id']
+    deployment_id = deployment_config['deployment']['id']
 
     nodepool = Nodepool(
         nodepool_id=nodepool_id,
@@ -41,10 +70,7 @@ def create(ctx, nodepool_id, deployment_id, config):
         pat=ctx.obj.current.pat,
         base_url=ctx.obj.current.api_base,
     )
-    if deployment_id:
-        nodepool.create_deployment(config, deployment_id=deployment_id)
-    else:
-        nodepool.create_deployment(config)
+    nodepool.create_deployment(config, deployment_id=deployment_id)
 
 
 @deployment.command(['ls'])

@@ -157,6 +157,7 @@ def get_contexts(ctx, output_format):
             'USER_ID': lambda c: c.user_id,
             'API_BASE': lambda c: c.api_base,
             'PAT': lambda c: pat_display(c.pat),
+            'HF_TOKEN': lambda c: pat_display(c.hf_token) if hasattr(c, 'hf_token') else "",
         }
         additional_columns = set()
         for cont in ctx.obj.contexts.values():

@@ -424,26 +424,31 @@ class ModelBuilder:
         )
         assert loader_type == "huggingface", "Only huggingface loader supported for now"
         if loader_type == "huggingface":
-            assert "repo_id" in self.config.get("checkpoints"), (
-                "No repo_id specified in the config file"
-            )
-            repo_id = self.config.get("checkpoints").get("repo_id")
+            assert "repo_id" in checkpoints, "No repo_id specified in the config file"
+            repo_id = checkpoints.get("repo_id")
 
-            # get from config.yaml otherwise fall back to HF_TOKEN env var.
-            hf_token = self.config.get("checkpoints").get("hf_token")
+            # Priority: 1. config.yaml, 2. HF_TOKEN env var, 3. User prompt
+            hf_token = checkpoints.get("hf_token")
             if not hf_token:
-                hf_token = os.environ.get("HF_TOKEN", None)
+                hf_token = os.environ.get("HF_TOKEN")
+                if hf_token:
+                    logger.info("Using HF_TOKEN from environment variable.")
+                elif sys.stdin.isatty():
+                    hf_token = get_user_input(
+                        "Hugging Face token not found. Please enter it (optional, press enter to skip)",
+                        required=False,
+                    )
 
-            if not hf_token:
-                from clarifai.utils.cli import prompt_optional_field
+            # Update config file if a token was found elsewhere.
+            if hf_token and hf_token != checkpoints.get("hf_token"):
+                self.config["checkpoints"]["hf_token"] = hf_token
+                try:
+                    self._save_config(os.path.join(self.folder, "config.yaml"), self.config)
+                    logger.info("Updated config.yaml with Hugging Face token.")
+                except Exception as e:
+                    logger.warning(f"Could not update config.yaml with Hugging Face token: {e}")
 
-                hf_token = prompt_optional_field(
-                    "Optional HuggingFace Token (required for gated models)", default=None
-                )
-
-            allowed_file_patterns = self.config.get("checkpoints").get(
-                'allowed_file_patterns', None
-            )
+            allowed_file_patterns = checkpoints.get("allowed_file_patterns", None)
             if isinstance(allowed_file_patterns, str):
                 allowed_file_patterns = [allowed_file_patterns]
             ignore_file_patterns = self.config.get("checkpoints").get('ignore_file_patterns', None)
