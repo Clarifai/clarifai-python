@@ -884,6 +884,8 @@ def _ensure_hf_token(ctx, model_path):
             if 'checkpoints' not in config:
                 config['checkpoints'] = {}
             config["checkpoints"]["hf_token"] = hf_token
+    except click.Abort:
+        raise
     except Exception as e:
         logger.warning(f"Unexpected error ensuring HF_TOKEN: {e}")
 
