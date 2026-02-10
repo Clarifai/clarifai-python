@@ -146,15 +146,25 @@ def select_compute_option(user_id: str, pat: Optional[str] = None, base_url: Opt
     for idx, cc in enumerate(clusters, 1):
         desc = getattr(cc, "description", "") or "No description"
         print(f"{idx}. {cc.id}  –  {desc}")
-    while True:
-        try:
-            sel = int(input("Select compute cluster (number): ")) - 1
-            if 0 <= sel < len(clusters):
-                cluster = clusters[sel]
-                break
-            print("❌ Invalid selection.")
-        except ValueError:
-            print("❌ Please enter a number.")
+
+    if not sys.stdin.isatty():
+        cluster = clusters[0]
+        logger.info(f"Non-interactive: selecting first compute cluster: {cluster.id}")
+    else:
+        while True:
+            try:
+                sel = input("Select compute cluster (number) [1]: ").strip()
+                if not sel:
+                    sel_idx = 0
+                else:
+                    sel_idx = int(sel) - 1
+                if 0 <= sel_idx < len(clusters):
+                    cluster = clusters[sel_idx]
+                    break
+                print("❌ Invalid selection.")
+            except ValueError:
+                print("❌ Please enter a number.")
+
     nodepools = list(cluster.list_nodepools())
     if not nodepools:
         print("❌ No nodepools in selected cluster.")
@@ -163,15 +173,25 @@ def select_compute_option(user_id: str, pat: Optional[str] = None, base_url: Opt
     for idx, np in enumerate(nodepools, 1):
         desc = getattr(np, "description", "") or "No description"
         print(f"{idx}. {np.id}  –  {desc}")
-    while True:
-        try:
-            sel = int(input("Select nodepool (number): ")) - 1
-            if 0 <= sel < len(nodepools):
-                nodepool = nodepools[sel]
-                break
-            print("❌ Invalid selection.")
-        except ValueError:
-            print("❌ Please enter a number.")
+
+    if not sys.stdin.isatty():
+        nodepool = nodepools[0]
+        logger.info(f"Non-interactive: selecting first nodepool: {nodepool.id}")
+    else:
+        while True:
+            try:
+                sel = input("Select nodepool (number) [1]: ").strip()
+                if not sel:
+                    sel_idx = 0
+                else:
+                    sel_idx = int(sel) - 1
+                if 0 <= sel_idx < len(nodepools):
+                    nodepool = nodepools[sel_idx]
+                    break
+                print("❌ Invalid selection.")
+            except ValueError:
+                print("❌ Please enter a number.")
+
     return {
         "nodepool_id": nodepool.id,
         "compute_cluster_id": cluster.id,
@@ -504,8 +524,7 @@ class ModelBuilder:
             logger.info(f"App {app_id} not found for user {user_id}.")
 
             if self.app_not_found_action == "prompt":
-                create_app_prompt = input(f"Do you want to create App `{app_id}`? (y/n): ")
-                if create_app_prompt.lower() == 'y':
+                if get_yes_no_input(f"Do you want to create App `{app_id}`?", True):
                     create_app()
                     return True
                 else:
@@ -1393,10 +1412,13 @@ class ModelBuilder:
                     )
                     should_create_dockerfile = False
                 else:
-                    logger.warning(
-                        "A different Dockerfile already exists. Keeping the existing one to avoid overwriting custom changes."
-                    )
-                    should_create_dockerfile = False
+                    logger.warning("A different Dockerfile already exists.")
+                    if get_yes_no_input(
+                        "Do you want to overwrite the existing Dockerfile?", False
+                    ):
+                        should_create_dockerfile = True
+                    else:
+                        should_create_dockerfile = False
 
         if should_create_dockerfile:
             # Write Dockerfile
@@ -1589,8 +1611,12 @@ class ModelBuilder:
             if status_result.stdout.strip():
                 logger.warning("Uncommitted changes detected in model path:")
                 logger.warning(status_result.stdout)
-                logger.warning("Continuing upload with uncommitted changes.")
-                return True
+                if get_yes_no_input(
+                    "Do you want to continue upload with uncommitted changes?", True
+                ):
+                    return True
+                else:
+                    return False
             else:
                 logger.info("Model path has no uncommitted changes.")
                 return True
@@ -1728,9 +1754,14 @@ class ModelBuilder:
                     if when != "upload" and not HuggingFaceLoader.validate_config(
                         self.checkpoint_path
                     ):
-                        logger.info(
-                            "Downloading the HuggingFace model's config.json file to infer the concepts..."
-                        )
+                        if sys.stdin.isatty():
+                            input(
+                                "\n☕ Press Enter to download the HuggingFace model's config.json file to infer the concepts and continue..."
+                            )
+                        else:
+                            logger.info(
+                                "Non-interactive: downloading the HuggingFace model's config.json file to infer the concepts."
+                            )
                         loader = HuggingFaceLoader(repo_id=repo_id, token=hf_token)
                         loader.download_config(self.checkpoint_path)
 
@@ -1984,6 +2015,11 @@ def upload_model(
         if not builder._check_git_status_and_prompt():
             logger.info("Upload cancelled by user due to uncommitted changes.")
             return
+
+    if sys.stdin.isatty():
+        input("\n☕ Ready to upload? Press Enter to continue...")
+    else:
+        logger.info("Non-interactive: skipping 'Press Enter' pause before upload.")
 
     model_version = builder.upload_model_version(git_info)
 

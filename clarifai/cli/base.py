@@ -225,6 +225,9 @@ def create_context(
         logger.info(f'"{name}" context already exists')
         sys.exit(1)
     if not user_id:
+        if not sys.stdin.isatty():
+            click.echo("Error: user-id is required in non-interactive mode.", err=True)
+            sys.exit(1)
         user_id = input('user id: ')
     if not base_url:
         base_url = input_or_default(
