@@ -1,3 +1,5 @@
+from typing import Dict
+
 from clarifai_grpc.grpc.api import resources_pb2, service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
@@ -178,21 +180,19 @@ class Deployment(Lister, BaseClient):
         dict_to_protobuf(self.deployment_info, kwargs)
         return response
 
-    def status(self) -> str:
-        """Get the status of the deployment.
+    def runner_metrics(self) -> Dict[str, int]:
+        """Get the accumulated runner metrics for the deployment.
 
-        This aggregates runner metrics across all nodepools to determine readiness.
-        - READY: At least one replica is ready.
-        - INITIALIZING: At least one replica is claimed but not ready.
-        - QUEUED: No replicas are alive yet.
+        This aggregates runner metrics across all nodepools to find the total pods
+        running across all of them.
 
         Returns:
-            str: The status ('READY', 'INITIALIZING', or 'QUEUED').
+            Dict[str, int]: A dictionary with 'pods_total' and 'pods_running'.
 
         Example:
             >>> from clarifai.client.deployment import Deployment
             >>> deployment = Deployment(deployment_id="deployment_id", user_id="user_id")
-            >>> print(deployment.status())
+            >>> print(deployment.runner_metrics())
         """
         if not self.deployment_info.worker.HasField(
             "model"
@@ -210,8 +210,8 @@ class Deployment(Lister, BaseClient):
         elif self.worker.HasField("workflow"):
             workflow_version_ids = [self.worker.workflow.workflow_version.id]
 
-        total_replicas = 0
-        ready_replicas = 0
+        pods_total = 0
+        pods_running = 0
 
         for np_proto in self.deployment_info.nodepools:
             filter_by = {
@@ -228,14 +228,10 @@ class Deployment(Lister, BaseClient):
             for runner in runners:
                 metrics = runner.get("runner_metrics")
                 if metrics:
-                    total_replicas += metrics.get("pods_total", 0)
-                    ready_replicas += metrics.get("pods_running", 0)
+                    pods_total += metrics.get("pods_total", 0)
+                    pods_running += metrics.get("pods_running", 0)
 
-        if ready_replicas > 0:
-            return "READY"
-        if total_replicas > 0:
-            return "INITIALIZING"
-        return "QUEUED"
+        return {"pods_total": pods_total, "pods_running": pods_running}
 
     def update(self, min_replicas: int = None, max_replicas: int = None):
         """Update deployment replicas.
