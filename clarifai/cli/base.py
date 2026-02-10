@@ -136,7 +136,7 @@ def input_or_default(prompt, default):
 
 
 # Context management commands under config group
-@config.command(aliases=['get-contexts', 'list-contexts', 'ls'])
+@config.command(aliases=['get-contexts', 'list-contexts', 'ls', 'list'])
 @click.option(
     '-o', '--output-format', default='wide', type=click.Choice(['wide', 'name', 'json', 'yaml'])
 )
