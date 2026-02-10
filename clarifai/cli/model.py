@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from typing import Any, Dict, Optional
 
@@ -72,6 +73,9 @@ def _select_context(ctx_config: Config) -> Optional[Context]:
         click.echo(f"  [{idx}] {name}{marker}")
     create_idx = len(context_names) + 1
     click.echo(f"  [{create_idx}] Create new context")
+
+    if not sys.stdin.isatty():
+        return contexts_map.get(current_name)
 
     selection = input(
         "Enter the context number or name to use (press Enter to keep current): "
@@ -1296,10 +1300,10 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
         raise
     except Exception as e:
         logger.warning(f"Failed to get compute cluster with ID '{compute_cluster_id}':\n{e}")
-        y = input(
-            f"Compute cluster not found. Do you want to create a new compute cluster {user_id}/{compute_cluster_id}? (y/n): "
-        )
-        if y.lower() != 'y':
+        if not prompt_yes_no(
+            f"Compute cluster not found. Do you want to create a new compute cluster {user_id}/{compute_cluster_id}?",
+            default=True,
+        ):
             raise click.Abort()
         # Create a compute cluster with default configuration for local runner.
         compute_cluster = user.create_compute_cluster(
@@ -1325,10 +1329,10 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
             ctx.obj.to_yaml()  # save to yaml file.
     except Exception as e:
         logger.warning(f"Failed to get nodepool with ID '{nodepool_id}':\n{e}")
-        y = input(
-            f"Nodepool not found. Do you want to create a new nodepool {user_id}/{compute_cluster_id}/{nodepool_id}? (y/n): "
-        )
-        if y.lower() != 'y':
+        if not prompt_yes_no(
+            f"Nodepool not found. Do you want to create a new nodepool {user_id}/{compute_cluster_id}/{nodepool_id}?",
+            default=True,
+        ):
             raise click.Abort()
         nodepool = compute_cluster.create_nodepool(
             nodepool_config=DEFAULT_LOCAL_RUNNER_NODEPOOL_CONFIG, nodepool_id=nodepool_id
@@ -1353,8 +1357,9 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
             ctx.obj.to_yaml()  # save to yaml file.
     except Exception as e:
         logger.warning(f"Failed to get app with ID '{app_id}':\n{e}")
-        y = input(f"App not found. Do you want to create a new app {user_id}/{app_id}? (y/n): ")
-        if y.lower() != 'y':
+        if not prompt_yes_no(
+            f"App not found. Do you want to create a new app {user_id}/{app_id}?", default=True
+        ):
             raise click.Abort()
         app = user.create_app(app_id)
         ctx.obj.current.CLARIFAI_APP_ID = app_id
@@ -1383,10 +1388,10 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
             raise Exception
     except Exception as e:
         logger.warning(f"Failed to get model with ID '{model_id}':\n{e}")
-        y = input(
-            f"Model not found. Do you want to create a new model {user_id}/{app_id}/models/{model_id}? (y/n): "
-        )
-        if y.lower() != 'y':
+        if not prompt_yes_no(
+            f"Model not found. Do you want to create a new model {user_id}/{app_id}/models/{model_id}?",
+            default=True,
+        ):
             raise click.Abort()
 
         model = app.create_model(model_id, model_type_id=uploaded_model_type_id)
@@ -1529,10 +1534,10 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
             ctx.obj.to_yaml()  # save to yaml file.
     except Exception as e:
         logger.warning(f"Failed to get deployment with ID {deployment_id}:\n{e}")
-        y = input(
-            f"Deployment not found. Do you want to create a new deployment {user_id}/{compute_cluster_id}/{nodepool_id}/{deployment_id}? (y/n): "
-        )
-        if y.lower() != 'y':
+        if not prompt_yes_no(
+            f"Deployment not found. Do you want to create a new deployment {user_id}/{compute_cluster_id}/{nodepool_id}/{deployment_id}?",
+            default=True,
+        ):
             raise click.Abort()
         nodepool.create_deployment(
             deployment_id=deployment_id,
@@ -1563,10 +1568,10 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
     # The config.yaml doens't match what we created above.
     if 'model' in config and model_id != config['model'].get('id'):
         logger.info(f"Current model section of config.yaml: {config.get('model', {})}")
-        y = input(
-            "Do you want to backup config.yaml to config.yaml.bk then update the config.yaml with the new model information? (y/n): "
-        )
-        if y.lower() != 'y':
+        if not prompt_yes_no(
+            "Do you want to backup config.yaml to config.yaml.bk then update the config.yaml with the new model information?",
+            default=True,
+        ):
             raise click.Abort()
         config = ModelBuilder._set_local_runner_model(
             config, user_id, app_id, model_id, uploaded_model_type_id

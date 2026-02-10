@@ -616,8 +616,6 @@ def upload_pipeline_step(folder, skip_dockerfile=False):
             f"New pipeline step {builder.pipeline_step_id} will be created with its first version."
         )
 
-    input("Press Enter to continue...")
-
     success = builder.upload_pipeline_step_version()
     if success:
         logger.info("Pipeline step upload completed successfully!")

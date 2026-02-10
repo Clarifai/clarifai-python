@@ -492,6 +492,14 @@ def prompt_required_field(message: str, default: Optional[str] = None) -> str:
     Returns:
         str: The value entered by the user.
     """
+    if not sys.stdin.isatty():
+        if default:
+            logger.info(f"{message} [Non-interactive: using default {default}]")
+            return default
+        else:
+            logger.error(f"{message} [Non-interactive: required field missing, aborting]")
+            raise click.Abort()
+
     while True:
         prompt = f"{message}"
         if default:
@@ -515,6 +523,9 @@ def prompt_optional_field(message: str, default: Optional[str] = None) -> Option
     Returns:
         Optional[str]: The value entered by the user.
     """
+    if not sys.stdin.isatty():
+        return default
+
     prompt = f"{message}"
     if default:
         prompt += f" [{default}]"
@@ -535,6 +546,14 @@ def prompt_int_field(message: str, default: Optional[int] = None) -> int:
     Returns:
         int: The value entered by the user.
     """
+    if not sys.stdin.isatty():
+        if default is not None:
+            logger.info(f"{message} [Non-interactive: using default {default}]")
+            return default
+        else:
+            logger.error(f"{message} [Non-interactive: required field missing, aborting]")
+            raise click.Abort()
+
     while True:
         prompt = f"{message}"
         if default is not None:
@@ -559,6 +578,11 @@ def prompt_yes_no(message: str, default: Optional[bool] = None) -> bool:
     Returns:
         bool: The value entered by the user.
     """
+    if not sys.stdin.isatty():
+        res = default if default is not None else True
+        logger.info(f"{message} [Non-interactive: using {res}]")
+        return res
+
     if default is True:
         suffix = " [Y/n]"
     elif default is False:
