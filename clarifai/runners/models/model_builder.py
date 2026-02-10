@@ -124,9 +124,7 @@ def select_compute_option(user_id: str, pat: Optional[str] = None, base_url: Opt
     Dynamically list compute-clusters and node-pools that belong to `user_id`
     and return a dict with nodepool_id, compute_cluster_id, cluster_user_id.
     """
-    user = User(
-        user_id=user_id, pat=pat, base_url=base_url
-    )  # PAT / BASE URL are picked from env-vars
+    user = User(user_id=user_id, pat=pat, base_url=base_url)
     clusters = list(user.list_compute_clusters())
     if not clusters:
         print("❌ No compute clusters found for this user.")
@@ -136,8 +134,12 @@ def select_compute_option(user_id: str, pat: Optional[str] = None, base_url: Opt
         desc = getattr(cc, "description", "") or "No description"
         print(f"{idx}. {cc.id}  –  {desc}")
 
-    cluster = clusters[0]
-    logger.info(f"Selecting first compute cluster: {cluster.id}")
+    if len(clusters) > 1:
+        cluster_idx = int(get_user_input("Select compute cluster (enter number)", default="1"))
+        cluster = clusters[cluster_idx - 1]
+    else:
+        cluster = clusters[0]
+        logger.info(f"Selecting compute cluster: {cluster.id}")
 
     nodepools = list(cluster.list_nodepools())
     if not nodepools:
@@ -148,8 +150,12 @@ def select_compute_option(user_id: str, pat: Optional[str] = None, base_url: Opt
         desc = getattr(np, "description", "") or "No description"
         print(f"{idx}. {np.id}  –  {desc}")
 
-    nodepool = nodepools[0]
-    logger.info(f"Selecting first nodepool: {nodepool.id}")
+    if len(nodepools) > 1:
+        nodepool_idx = int(get_user_input("Select nodepool (enter number)", default="1"))
+        nodepool = nodepools[nodepool_idx - 1]
+    else:
+        nodepool = nodepools[0]
+        logger.info(f"Selecting nodepool: {nodepool.id}")
 
     return {
         "nodepool_id": nodepool.id,
@@ -424,9 +430,16 @@ class ModelBuilder:
             repo_id = self.config.get("checkpoints").get("repo_id")
 
             # get from config.yaml otherwise fall back to HF_TOKEN env var.
-            hf_token = self.config.get("checkpoints").get(
-                "hf_token", os.environ.get("HF_TOKEN", None)
-            )
+            hf_token = self.config.get("checkpoints").get("hf_token")
+            if not hf_token:
+                hf_token = os.environ.get("HF_TOKEN", None)
+
+            if not hf_token:
+                from clarifai.utils.cli import prompt_optional_field
+
+                hf_token = prompt_optional_field(
+                    "Optional HuggingFace Token (required for gated models)", default=None
+                )
 
             allowed_file_patterns = self.config.get("checkpoints").get(
                 'allowed_file_patterns', None
@@ -1927,6 +1940,7 @@ def upload_model(
     stage,
     skip_dockerfile,
     platform: Optional[str] = None,
+    autodeploy: bool = False,
     pat: Optional[str] = None,
     base_url: Optional[str] = None,
 ):
@@ -1937,6 +1951,7 @@ def upload_model(
     :param stage: The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.
     :param skip_dockerfile: If True, will skip Dockerfile generation entirely. If False or not provided, intelligently handle existing Dockerfiles with user confirmation.
     :param platform: Target platform(s) for Docker image build (e.g., "linux/amd64" or "linux/amd64,linux/arm64"). This overrides the platform specified in config.yaml.
+    :param autodeploy: If True, will automatically setup deployment for the model after upload.
     :param pat: Personal access token for authentication. If None, will use environment variables.
     :param base_url: Base URL for the API. If None, will use environment variables.
     """
@@ -1971,7 +1986,9 @@ def upload_model(
             return
 
     logger.info("Ready to upload. Starting model version upload.")
-    if get_yes_no_input("\n🔶 Do you want to deploy the model?", True):
+    builder.upload_model_version(git_info)
+
+    if autodeploy:
         # Setup deployment for the uploaded model
         setup_deployment_for_model(builder)
     else:
