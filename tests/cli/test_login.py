@@ -58,7 +58,9 @@ class TestLoginCommand:
             env.pop('CLARIFAI_PAT', None)
 
             with mock.patch.dict(os.environ, env, clear=True):
-                with mock.patch('clarifai.cli.base.masked_input', return_value='typed_pat') as mock_masked:
+                with mock.patch(
+                    'clarifai.cli.base.masked_input', return_value='typed_pat'
+                ) as mock_masked:
                     result = self.runner.invoke(
                         cli, ['login'], input='testuser\n', catch_exceptions=False
                     )
@@ -97,9 +99,7 @@ class TestCreateContextCommand:
     def _login_first(self, config_path='./config.yaml'):
         """Helper to create initial config via login."""
         with mock.patch.dict(os.environ, {'CLARIFAI_PAT': 'test_pat'}):
-            self.runner.invoke(
-                cli, ['--config', config_path, 'login'], input='testuser\ny\n'
-            )
+            self.runner.invoke(cli, ['--config', config_path, 'login'], input='testuser\ny\n')
 
     def test_create_context_with_env_var(self):
         """Test create-context detects and offers CLARIFAI_PAT from environment."""
@@ -128,7 +128,9 @@ class TestCreateContextCommand:
                 env.pop('CLARIFAI_PAT', None)
 
                 with mock.patch.dict(os.environ, env, clear=True):
-                    with mock.patch('clarifai.cli.base.masked_input', return_value='new_pat') as mock_masked:
+                    with mock.patch(
+                        'clarifai.cli.base.masked_input', return_value='new_pat'
+                    ) as mock_masked:
                         result = self.runner.invoke(
                             cli,
                             ['--config', './config.yaml', 'config', 'create-context', 'prod'],
