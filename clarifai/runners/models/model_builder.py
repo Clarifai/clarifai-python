@@ -2000,7 +2000,9 @@ def upload_model(
         # Setup deployment for the uploaded model
         setup_deployment_for_model(builder)
     else:
-        logger.info("Model uploaded successfully. Skipping deployment setup.")
+        logger.info(
+            "Model uploaded successfully. Skipping deployment setup, you can create a deployment in UI or CLI."
+        )
         return
 
 
@@ -2142,6 +2144,7 @@ def setup_deployment_for_model(builder):
     deployment_id = get_user_input(
         "Enter deployment ID", default=f"deploy-{state['model_id']}-{uuid.uuid4().hex[:6]}"
     )
+
     min_replicas = int(get_user_input("Enter minimum replicas", default="1"))
     max_replicas = int(get_user_input("Enter maximum replicas", default="5"))
 
