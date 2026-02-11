@@ -23,7 +23,7 @@ def deployment():
     help='Path to the deployment config YAML file.',
 )
 @click.pass_context
-def create(ctx, nodepool_id, deployment_id, config):
+def create(ctx, config):
     """
     Create a new Deployment from a config file.
 

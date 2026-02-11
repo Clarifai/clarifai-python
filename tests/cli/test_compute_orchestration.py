@@ -159,8 +159,6 @@ class TestComputeOrchestration:
             [
                 "deployment",
                 "create",
-                CREATE_NODEPOOL_ID,
-                CREATE_DEPLOYMENT_ID,
                 "--config",
                 DEPLOYMENT_CONFIG_FILE,
             ],

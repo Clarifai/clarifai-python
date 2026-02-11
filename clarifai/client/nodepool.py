@@ -92,7 +92,6 @@ class Nodepool(Lister, BaseClient):
         assert ("worker" in deployment) and (
             ("model" in deployment["worker"]) or ("workflow" in deployment["worker"])
         ), "worker info not found in the config file"
-        assert "scheduling_choice" in deployment, "scheduling_choice not found in the config file"
         assert "nodepools" in deployment, "nodepools not found in the config file"
         deployment['user_id'] = (
             deployment['user_id'] if 'user_id' in deployment else self.user_app_id.user_id
@@ -232,21 +231,23 @@ class Nodepool(Lister, BaseClient):
                 import time
 
                 stop_event = threading.Event()
+                logs_received = threading.Event()
 
                 def stream_logs(log_type, prefix):
                     try:
                         for entry in deployment.logs(stream=True, log_type=log_type):
                             if stop_event.is_set():
                                 break
+                            logs_received.set()
                             timestamp = entry.time.ToDatetime().isoformat()
-                            print(f"[{prefix}] {timestamp} {entry.message}")
+                            self.logger.info(f"[{prefix}] {timestamp} {entry.message}")
                     except Exception:
                         pass
 
                 self.logger.info(
                     f"Waiting for deployment '{deployment_id}' to reach {min_replicas} running replicas..."
                 )
-                print("Streaming logs (runner and runner.events):\n")
+                self.logger.info("Streaming logs (runner and runner.events):\n")
 
                 threads = []
                 for log_type, prefix in [("runner", "RUNNER"), ("runner.events", "EVENT")]:
@@ -257,7 +258,8 @@ class Nodepool(Lister, BaseClient):
                 try:
                     while True:
                         metrics = deployment.runner_metrics()
-                        if metrics["pods_running"] >= min_replicas:
+                        # Exit only if replicas are running AND we've seen at least one log entry
+                        if metrics["pods_running"] >= min_replicas and logs_received.is_set():
                             self.logger.info(
                                 f"Deployment '{deployment_id}' is successful! ({metrics['pods_running']} replicas running)"
                             )

@@ -100,7 +100,8 @@ class Deployment(Lister, BaseClient):
 
         Args:
             stream (bool): Whether to stream the logs or list them.
-            log_type (str): The type of logs to retrieve. Defaults to "runner". Use "builder" for build logs.
+            log_type (str): The type of logs to retrieve. Defaults to "runner".
+                Valid types are "runner" and "runner.events".
             page (int): The page number to list (only for list).
             per_page (int): The number of items per page (only for list).
 
@@ -113,6 +114,11 @@ class Deployment(Lister, BaseClient):
             >>> for entry in deployment.logs(stream=True):
             ...     print(entry.message)
         """
+        if log_type not in ["runner", "runner.events"]:
+            raise ValueError(
+                f"Invalid log_type '{log_type}'. Valid types for deployment are 'runner' and 'runner.events'."
+            )
+
         if not self.deployment_info.HasField("worker"):
             self.refresh()
 
@@ -145,7 +151,7 @@ class Deployment(Lister, BaseClient):
             request = service_pb2.StreamLogEntriesRequest(**request_kwargs)
             for response in self.STUB.StreamLogEntries(request):
                 if response.status.code != status_code_pb2.SUCCESS:
-                    raise Exception(f"Failed to stream logs: {response.status.details}")
+                    raise Exception(f"Failed to stream logs: {response}")
                 for entry in response.log_entries:
                     yield entry
         else:
@@ -154,7 +160,7 @@ class Deployment(Lister, BaseClient):
             request = service_pb2.ListLogEntriesRequest(**request_kwargs)
             response = self.STUB.ListLogEntries(request)
             if response.status.code != status_code_pb2.SUCCESS:
-                raise Exception(f"Failed to list logs: {response.status.details}")
+                raise Exception(f"Failed to list logs: {response}")
             for entry in response.log_entries:
                 yield entry
 
@@ -201,7 +207,7 @@ class Deployment(Lister, BaseClient):
 
         from clarifai.client.user import User
 
-        user = User(user_id=self.user_id, pat=self.pat, base_url=self.base_url)
+        user = User(user_id=self.user_app_id.user_id, pat=self.pat, base_url=self.base)
 
         model_version_ids = None
         workflow_version_ids = None
