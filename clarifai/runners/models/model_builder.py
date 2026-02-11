@@ -81,37 +81,45 @@ def is_related(object_class, main_class):
 
 def get_user_input(prompt, required=True, default=None):
     """Get user input with optional default value."""
-    if default is not None:
-        logger.info(f"{prompt} [Using default: {default}]")
-        return default
-
     if not sys.stdin.isatty():
+        if default is not None:
+            logger.info(f"{prompt} [Using default: {default}]")
+            return default
         if not required:
             return ""
         else:
             raise UserError(f"Input required for prompt: '{prompt}' but stdin is not a TTY.")
 
-    prompt = f"{prompt}: "
+    if default is not None:
+        prompt_text = f"{prompt} [{default}]: "
+    else:
+        prompt_text = f"{prompt}: "
+
     while True:
-        value = input(prompt).strip()
-        if not value and required:
-            print("❌ This field is required. Please enter a value.")
-            continue
+        value = input(prompt_text).strip()
+        if not value:
+            if default is not None:
+                return default
+            if required:
+                print("❌ This field is required. Please enter a value.")
+                continue
+            return ""
         return value
 
 
 def get_yes_no_input(prompt, default=None):
     """Get yes/no input from user."""
-    if default is not None:
-        logger.info(f"{prompt} [Using default: {'Y/n' if default else 'y/N'}]")
-        return default
-
     if not sys.stdin.isatty():
+        if default is not None:
+            logger.info(f"{prompt} [Using default: {'Y/n' if default else 'y/N'}]")
+            return default
         raise UserError(f"Input required for prompt: '{prompt}' but stdin is not a TTY.")
 
-    prompt = f"{prompt} [y/n]: "
+    full_prompt = f"{prompt} [{'Y/n' if default else 'y/N' if default is not None else 'y/n'}]: "
     while True:
-        response = input(prompt).strip().lower()
+        response = input(full_prompt).strip().lower()
+        if not response and default is not None:
+            return default
         if response in ['y', 'yes']:
             return True
         if response in ['n', 'no']:
@@ -1588,12 +1596,7 @@ class ModelBuilder:
             if status_result.stdout.strip():
                 logger.warning("Uncommitted changes detected in model path:")
                 logger.warning(status_result.stdout)
-                if get_yes_no_input(
-                    "Do you want to continue upload with uncommitted changes?", True
-                ):
-                    return True
-                else:
-                    return False
+                return True
             else:
                 logger.info("Model path has no uncommitted changes.")
                 return True
