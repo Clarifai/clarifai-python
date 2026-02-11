@@ -113,17 +113,6 @@ class ModelRunner(BaseRunner):
     def runner_item_predict(
         self, runner_item: service_pb2.RunnerItem
     ) -> service_pb2.RunnerItemOutput:
-        """
-        Run the model on the given request. You shouldn't need to override this method, see run_input
-        for the implementation to process each input in the request.
-
-        Args:
-          request: service_pb2.PostModelOutputsRequest - the request to run the model on
-
-        Returns:
-          service_pb2.MultiOutputResponse - the response from the model's run_input implementation.
-        """
-
         if not runner_item.HasField('post_model_outputs_request'):
             raise Exception("Unexpected work item type: {}".format(runner_item))
         request = runner_item.post_model_outputs_request
