@@ -141,6 +141,10 @@ def _logout_one_context(cfg, name, delete=False):
     """
     ctx_obj = cfg.contexts.get(name)
     if not ctx_obj:
+        if not cfg.contexts:
+            raise click.ClickException(
+                "No contexts are configured. Run `clarifai login` first."
+            )
         available = ', '.join(cfg.contexts.keys())
         raise click.ClickException(f"Context '{name}' not found. Available: {available}")
 
