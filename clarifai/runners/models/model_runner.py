@@ -116,7 +116,7 @@ class ModelRunner(BaseRunner):
         The time in seconds to wait before retrying admission control. If the model defines this backoff, we use that.
         """
         if hasattr(self.model, 'admission_control_backoff'):
-            return self.model.admission_contorl_backoff
+            return self.model.admission_control_backoff
         return super().admission_control_backoff
 
     def check_admission(self) -> bool:
