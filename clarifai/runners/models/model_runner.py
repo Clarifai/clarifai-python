@@ -113,7 +113,7 @@ class ModelRunner(BaseRunner):
     @property
     def admission_control_backoff(self) -> float:
         """
-        The time in seconds to wait before retrying admission control.
+        The time in seconds to wait before retrying admission control. If the model defines this backoff, we use that.
         """
         if hasattr(self.model, 'admission_control_backoff'):
             return self.model.admission_contorl_backoff
@@ -121,8 +121,7 @@ class ModelRunner(BaseRunner):
 
     def check_admission(self) -> bool:
         """
-        Check if the runner is ready to accept new work.
-        This can be overridden by subclasses to implement custom admission control logic.
+        Check if the runner is ready to accept new work. If the model has a check_admission func, we call that. 
 
         Returns:
           bool: True if the runner is ready to accept work, False otherwise.
