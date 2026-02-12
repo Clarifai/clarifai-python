@@ -13,9 +13,13 @@ from clarifai.utils.config import Config, Context
 
 @pytest.fixture(autouse=True)
 def _clean_env():
-    """Ensure CLARIFAI_PAT is not leaked from the host environment into tests."""
+    """Ensure CLARIFAI_* variables are not leaked from the host environment into tests."""
     with mock.patch.dict(os.environ, {}, clear=False):
-        os.environ.pop('CLARIFAI_PAT', None)
+        # Remove all Clarifai-related environment variables to avoid leaking
+        # host configuration (PAT, user ID, API base, etc.) into tests.
+        for key in list(os.environ.keys()):
+            if key.startswith('CLARIFAI_'):
+                os.environ.pop(key, None)
         yield
 
 
