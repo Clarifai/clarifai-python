@@ -262,10 +262,13 @@ class TestLogoutFlagValidation:
         assert "--all cannot be combined" in result.output
 
     def test_not_logged_in(self, tmp_path):
-        """Logout with no config should handle gracefully."""
+        """Logout with no config and no env PAT should say already logged out."""
         config_path = str(tmp_path / 'nonexistent_config')
         runner = CliRunner()
-        result = runner.invoke(cli, ['--config', config_path, 'logout', '--current'], input='n\n')
+        # No config file exists.  The cli() group handler creates a default
+        # Config with CLARIFAI_PAT='' (the autouse _clean_env fixture ensures
+        # the env var is unset), so --current finds an empty PAT.
+        result = runner.invoke(cli, ['--config', config_path, 'logout', '--current'])
         assert result.exit_code == 0
         assert "Already logged out" in result.output
 
