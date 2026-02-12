@@ -180,17 +180,17 @@ def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
     """
     cfg = ctx.obj
     if not cfg or not hasattr(cfg, 'contexts'):
-        click.secho("Not logged in. Run `clarifai login` first.", fg='red', err=True)
-        sys.exit(1)
+        raise click.ClickException("Not logged in. Run `clarifai login` first.")
 
     # --- Validation for flag combinations ---
+    if flag_all and (flag_current or flag_context or flag_delete):
+        raise click.UsageError("--all cannot be combined with --current, --context, or --delete.")
+
     if flag_delete and not (flag_current or flag_context):
-        click.secho("Error: --delete requires --current or --context.", fg='red', err=True)
-        sys.exit(1)
+        raise click.UsageError("--delete requires --current or --context.")
 
     if flag_current and flag_context:
-        click.secho("Error: Cannot use --current and --context together.", fg='red', err=True)
-        sys.exit(1)
+        raise click.UsageError("Cannot use --current and --context together.")
 
     # --- Non-interactive paths ---
     if flag_all:
@@ -210,8 +210,7 @@ def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
         cur_name = cfg.current_context
         cur_ctx = cfg.contexts.get(cur_name)
         if not cur_ctx:
-            click.secho(f"Current context '{cur_name}' not found.", fg='red', err=True)
-            sys.exit(1)
+            raise click.ClickException(f"Current context '{cur_name}' not found.")
         if flag_delete:
             if len(cfg.contexts) <= 1:
                 _clear_context_pat(cur_ctx)
@@ -240,12 +239,9 @@ def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
         target = cfg.contexts.get(flag_context)
         if not target:
             available = ', '.join(cfg.contexts.keys())
-            click.secho(
-                f"Error: Context '{flag_context}' not found. Available: {available}",
-                fg='red',
-                err=True,
+            raise click.ClickException(
+                f"Context '{flag_context}' not found. Available: {available}"
             )
-            sys.exit(1)
         if flag_delete:
             if len(cfg.contexts) <= 1:
                 _clear_context_pat(target)
@@ -273,8 +269,7 @@ def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
     cur_name = cfg.current_context
     cur_ctx = cfg.contexts.get(cur_name)
     if not cur_ctx:
-        click.secho("No active context found. Run `clarifai login` first.", fg='red', err=True)
-        sys.exit(1)
+        raise click.ClickException("No active context found. Run `clarifai login` first.")
 
     user_id = getattr(cur_ctx, 'user_id', 'unknown')
     api_base = getattr(cur_ctx, 'api_base', DEFAULT_BASE)

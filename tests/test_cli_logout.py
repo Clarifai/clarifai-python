@@ -214,6 +214,25 @@ class TestLogoutFlagValidation:
         assert result.exit_code != 0
         assert "Cannot use --current and --context together" in result.output
 
+    def test_all_with_other_flags(self, tmp_path):
+        """--all combined with --current, --context, or --delete should error."""
+        config_path = _make_config(tmp_path=tmp_path)
+        runner = CliRunner()
+        # --all + --current
+        result = runner.invoke(cli, ['--config', config_path, 'logout', '--all', '--current'])
+        assert result.exit_code != 0
+        assert "--all cannot be combined" in result.output
+        # --all + --context
+        result = runner.invoke(
+            cli, ['--config', config_path, 'logout', '--all', '--context', 'default']
+        )
+        assert result.exit_code != 0
+        assert "--all cannot be combined" in result.output
+        # --all + --delete
+        result = runner.invoke(cli, ['--config', config_path, 'logout', '--all', '--delete'])
+        assert result.exit_code != 0
+        assert "--all cannot be combined" in result.output
+
     def test_not_logged_in(self, tmp_path):
         """Logout with no config should handle gracefully."""
         config_path = str(tmp_path / 'nonexistent_config')
