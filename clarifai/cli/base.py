@@ -268,7 +268,9 @@ def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
 
     user_id = cur_ctx['env'].get('CLARIFAI_USER_ID', 'unknown')
     api_base = cur_ctx['env'].get('CLARIFAI_API_BASE', DEFAULT_BASE)
-    click.echo(f"\nCurrently logged in as '{user_id}' (context: '{cur_name}', api: {api_base})\n")
+    click.echo(
+        f"\nCurrent context is configured for user '{user_id}' (context: '{cur_name}', api: {api_base})\n"
+    )
 
     # Build menu
     choices = []
