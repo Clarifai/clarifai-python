@@ -4,10 +4,19 @@ import os
 from collections import OrderedDict
 from unittest import mock
 
+import pytest
 from click.testing import CliRunner
 
 from clarifai.cli.base import cli
 from clarifai.utils.config import Config, Context
+
+
+@pytest.fixture(autouse=True)
+def _clean_env():
+    """Ensure CLARIFAI_PAT is not leaked from the host environment into tests."""
+    with mock.patch.dict(os.environ, {}, clear=False):
+        os.environ.pop('CLARIFAI_PAT', None)
+        yield
 
 
 def _make_config(tmp_path, contexts=None, current_context='default'):
@@ -256,13 +265,7 @@ class TestLogoutFlagValidation:
         """Logout with no config should handle gracefully."""
         config_path = str(tmp_path / 'nonexistent_config')
         runner = CliRunner()
-        # Clear CLARIFAI_PAT so the auto-created default context has an empty PAT.
-        env = os.environ.copy()
-        env.pop('CLARIFAI_PAT', None)
-        with mock.patch.dict(os.environ, env, clear=True):
-            result = runner.invoke(
-                cli, ['--config', config_path, 'logout', '--current'], input='n\n'
-            )
+        result = runner.invoke(cli, ['--config', config_path, 'logout', '--current'], input='n\n')
         assert result.exit_code == 0
         assert "Already logged out" in result.output
 
@@ -283,10 +286,7 @@ class TestLogoutEnvVarWarning:
         """Should not warn if env var is not set."""
         config_path = _make_config(tmp_path)
         runner = CliRunner()
-        env = os.environ.copy()
-        env.pop('CLARIFAI_PAT', None)
-        with mock.patch.dict(os.environ, env, clear=True):
-            result = runner.invoke(cli, ['--config', config_path, 'logout', '--current'])
+        result = runner.invoke(cli, ['--config', config_path, 'logout', '--current'])
         assert result.exit_code == 0
         assert "CLARIFAI_PAT environment variable" not in result.output
 
