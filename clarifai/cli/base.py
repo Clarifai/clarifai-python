@@ -179,7 +179,7 @@ def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
       clarifai logout --all                  # Clear every context PAT
     """
     cfg = ctx.obj
-    if cfg == {} or not hasattr(cfg, 'contexts'):
+    if not cfg or not hasattr(cfg, 'contexts'):
         click.secho("Not logged in. Run `clarifai login` first.", fg='red', err=True)
         sys.exit(1)
 
@@ -276,8 +276,8 @@ def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
         click.secho("No active context found. Run `clarifai login` first.", fg='red', err=True)
         sys.exit(1)
 
-    user_id = cur_ctx.get('user_id', 'unknown')
-    api_base = cur_ctx.get('api_base', DEFAULT_BASE)
+    user_id = getattr(cur_ctx, 'user_id', 'unknown')
+    api_base = getattr(cur_ctx, 'api_base', DEFAULT_BASE)
     click.echo(f"\nCurrently logged in as '{user_id}' (context: '{cur_name}', api: {api_base})\n")
 
     # Build menu
@@ -306,7 +306,7 @@ def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
             return
         click.echo('\nAvailable contexts:')
         for i, name in enumerate(other_contexts, 1):
-            uid = cfg.contexts[name].get('user_id', 'unknown')
+            uid = getattr(cfg.contexts[name], 'user_id', 'unknown')
             click.echo(f"  {i}. {name} (user: {uid})")
         click.echo()
         idx = click.prompt('Switch to', type=click.IntRange(1, len(other_contexts)))
