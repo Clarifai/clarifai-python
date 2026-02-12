@@ -215,13 +215,16 @@ class TestLogoutFlagValidation:
         assert "Cannot use --current and --context together" in result.output
 
     def test_not_logged_in(self, tmp_path):
-        """Logout with no config should error gracefully."""
+        """Logout with no config should handle gracefully."""
         config_path = str(tmp_path / 'nonexistent_config')
         runner = CliRunner()
-        # The cli() handler creates a default config when file doesn't exist,
-        # so the logout interactive flow will proceed with an empty PAT.
-        # This should still work without crashing.
-        result = runner.invoke(cli, ['--config', config_path, 'logout', '--current'], input='n\n')
+        # Clear CLARIFAI_PAT so the auto-created default context has an empty PAT.
+        env = os.environ.copy()
+        env.pop('CLARIFAI_PAT', None)
+        with mock.patch.dict(os.environ, env, clear=True):
+            result = runner.invoke(
+                cli, ['--config', config_path, 'logout', '--current'], input='n\n'
+            )
         assert result.exit_code == 0
         assert "Already logged out" in result.output
 
