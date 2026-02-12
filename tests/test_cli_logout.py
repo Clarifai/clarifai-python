@@ -291,7 +291,7 @@ class TestLogoutInteractive:
         runner = CliRunner()
         result = runner.invoke(cli, ['--config', config_path, 'logout'], input='2\n')
         assert result.exit_code == 0
-        assert "Credentials cleared" in result.output
+        assert "Logged out of context 'default'" in result.output
         cfg = _load_config(config_path)
         assert cfg.contexts['default']['env']['CLARIFAI_PAT'] == ''
 

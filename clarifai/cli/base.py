@@ -134,6 +134,38 @@ def _clear_context_pat(context):
     return False
 
 
+def _logout_one_context(cfg, name, delete=False):
+    """Clear (and optionally delete) a single context.
+
+    Handles last-context protection, auto-switching, persistence, and messaging.
+    """
+    ctx_obj = cfg.contexts.get(name)
+    if not ctx_obj:
+        available = ', '.join(cfg.contexts.keys())
+        raise click.ClickException(f"Context '{name}' not found. Available: {available}")
+
+    if delete:
+        if len(cfg.contexts) <= 1:
+            _clear_context_pat(ctx_obj)
+            cfg.to_yaml()
+            click.secho(
+                f"Cleared credentials for '{name}' (kept as it is the only context).",
+                fg='green',
+            )
+        else:
+            cfg.contexts.pop(name)
+            if cfg.current_context == name:
+                cfg.current_context = next(iter(cfg.contexts))
+                click.echo(f"Switched to context '{cfg.current_context}'.")
+            cfg.to_yaml()
+            click.secho(f"Context '{name}' deleted.", fg='green')
+    elif _clear_context_pat(ctx_obj):
+        cfg.to_yaml()
+        click.secho(f"Logged out of context '{name}'.", fg='green')
+    else:
+        click.echo(f"Already logged out of context '{name}'.")
+
+
 def _logout_all_contexts(cfg):
     """Clear PATs from every context, persist, and print a summary.
 
@@ -213,61 +245,12 @@ def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
         return
 
     if flag_current:
-        cur_name = cfg.current_context
-        cur_ctx = cfg.contexts.get(cur_name)
-        if not cur_ctx:
-            raise click.ClickException(f"Current context '{cur_name}' not found.")
-        if flag_delete:
-            if len(cfg.contexts) <= 1:
-                _clear_context_pat(cur_ctx)
-                cfg.to_yaml()
-                click.secho(
-                    f"Cleared credentials for '{cur_name}' (kept as it is the only context).",
-                    fg='green',
-                )
-            else:
-                cfg.contexts.pop(cur_name)
-                cfg.current_context = next(iter(cfg.contexts))
-                cfg.to_yaml()
-                click.secho(
-                    f"Context '{cur_name}' deleted. Switched to '{cfg.current_context}'.",
-                    fg='green',
-                )
-        elif _clear_context_pat(cur_ctx):
-            cfg.to_yaml()
-            click.secho(f"Logged out of context '{cur_name}'.", fg='green')
-        else:
-            click.echo(f"Already logged out of context '{cur_name}'.")
+        _logout_one_context(cfg, cfg.current_context, delete=flag_delete)
         _warn_env_pat()
         return
 
     if flag_context:
-        target = cfg.contexts.get(flag_context)
-        if not target:
-            available = ', '.join(cfg.contexts.keys())
-            raise click.ClickException(
-                f"Context '{flag_context}' not found. Available: {available}"
-            )
-        if flag_delete:
-            if len(cfg.contexts) <= 1:
-                _clear_context_pat(target)
-                cfg.to_yaml()
-                click.secho(
-                    f"Cleared credentials for '{flag_context}' (kept as it is the only context).",
-                    fg='green',
-                )
-            else:
-                cfg.contexts.pop(flag_context)
-                if cfg.current_context == flag_context:
-                    cfg.current_context = next(iter(cfg.contexts))
-                    click.echo(f"Switched to context '{cfg.current_context}'.")
-                cfg.to_yaml()
-                click.secho(f"Context '{flag_context}' deleted.", fg='green')
-        elif _clear_context_pat(target):
-            cfg.to_yaml()
-            click.secho(f"Logged out of context '{flag_context}'.", fg='green')
-        else:
-            click.echo(f"Already logged out of context '{flag_context}'.")
+        _logout_one_context(cfg, flag_context, delete=flag_delete)
         _warn_env_pat()
         return
 
@@ -277,8 +260,8 @@ def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
     if not cur_ctx:
         raise click.ClickException("No active context found. Run `clarifai login` first.")
 
-    user_id = getattr(cur_ctx, 'user_id', 'unknown')
-    api_base = getattr(cur_ctx, 'api_base', DEFAULT_BASE)
+    user_id = cur_ctx['env'].get('CLARIFAI_USER_ID', 'unknown')
+    api_base = cur_ctx['env'].get('CLARIFAI_API_BASE', DEFAULT_BASE)
     click.echo(f"\nCurrently logged in as '{user_id}' (context: '{cur_name}', api: {api_base})\n")
 
     # Build menu
@@ -307,7 +290,7 @@ def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
             return
         click.echo('\nAvailable contexts:')
         for i, name in enumerate(other_contexts, 1):
-            uid = getattr(cfg.contexts[name], 'user_id', 'unknown')
+            uid = cfg.contexts[name]['env'].get('CLARIFAI_USER_ID', 'unknown')
             click.echo(f"  {i}. {name} (user: {uid})")
         click.echo()
         idx = click.prompt('Switch to', type=click.IntRange(1, len(other_contexts)))
@@ -320,27 +303,10 @@ def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
         return
 
     if action == 'logout_current':
-        if _clear_context_pat(cur_ctx):
-            cfg.to_yaml()
-            click.secho(f"Logged out of context '{cur_name}'. Credentials cleared.", fg='green')
-        else:
-            click.echo(f"Already logged out of context '{cur_name}'.")
+        _logout_one_context(cfg, cur_name)
 
     elif action == 'logout_delete':
-        if len(cfg.contexts) <= 1:
-            _clear_context_pat(cur_ctx)
-            cfg.to_yaml()
-            click.secho(
-                f"Cleared credentials for '{cur_name}' (kept as it is the only context).",
-                fg='green',
-            )
-        else:
-            cfg.contexts.pop(cur_name)
-            cfg.current_context = next(iter(cfg.contexts))
-            cfg.to_yaml()
-            click.secho(
-                f"Context '{cur_name}' deleted. Switched to '{cfg.current_context}'.", fg='green'
-            )
+        _logout_one_context(cfg, cur_name, delete=True)
 
     elif action == 'logout_all':
         _logout_all_contexts(cfg)
