@@ -118,7 +118,7 @@ def _warn_env_pat():
     """Warn if CLARIFAI_PAT environment variable is still set."""
     if os.environ.get('CLARIFAI_PAT'):
         click.echo()
-        click.secho("⚠️  Warning: CLARIFAI_PAT environment variable is still set.", fg='yellow')
+        click.secho("Warning: CLARIFAI_PAT environment variable is still set.", fg='yellow')
         click.echo(
             "   Run `unset CLARIFAI_PAT` (Linux/Mac) or `$env:CLARIFAI_PAT = ''` (PowerShell) to fully log out."
         )
