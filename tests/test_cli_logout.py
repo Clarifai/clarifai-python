@@ -101,6 +101,25 @@ class TestLogoutNonInteractive:
         assert cfg.contexts['default']['env']['CLARIFAI_PAT'] == ''
         assert "only context" in result.output
 
+    def test_logout_current_delete_single_already_empty(self, tmp_path):
+        """--current --delete when PAT already empty should say already logged out."""
+        contexts = OrderedDict(
+            {
+                'default': Context(
+                    'default',
+                    CLARIFAI_PAT='',
+                    CLARIFAI_USER_ID='test_user',
+                    CLARIFAI_API_BASE='https://api.clarifai.com',
+                ),
+            }
+        )
+        config_path = _make_config(tmp_path, contexts=contexts)
+        runner = CliRunner()
+        result = runner.invoke(cli, ['--config', config_path, 'logout', '--current', '--delete'])
+        assert result.exit_code == 0
+        assert "Already logged out" in result.output
+        assert "only context" in result.output
+
     def test_logout_current_delete_multi_context(self, tmp_path):
         """--current --delete with multiple contexts should delete and switch."""
         config_path = _multi_context_config(tmp_path=tmp_path)

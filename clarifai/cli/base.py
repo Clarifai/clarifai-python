@@ -146,12 +146,16 @@ def _logout_one_context(cfg, name, delete=False):
 
     if delete:
         if len(cfg.contexts) <= 1:
-            _clear_context_pat(ctx_obj)
-            cfg.to_yaml()
-            click.secho(
-                f"Cleared credentials for '{name}' (kept as it is the only context).",
-                fg='green',
-            )
+            if _clear_context_pat(ctx_obj):
+                cfg.to_yaml()
+                click.secho(
+                    f"Cleared credentials for '{name}' (kept as it is the only context).",
+                    fg='green',
+                )
+            else:
+                click.echo(
+                    f"Already logged out of context '{name}' (kept as it is the only context)."
+                )
         else:
             cfg.contexts.pop(name)
             if cfg.current_context == name:
