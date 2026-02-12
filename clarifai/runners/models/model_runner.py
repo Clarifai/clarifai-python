@@ -121,7 +121,7 @@ class ModelRunner(BaseRunner):
 
     def check_admission(self) -> bool:
         """
-        Check if the runner is ready to accept new work. If the model has a check_admission func, we call that. 
+        Check if the runner is ready to accept new work. If the model has a check_admission func, we call that.
 
         Returns:
           bool: True if the runner is ready to accept work, False otherwise.
