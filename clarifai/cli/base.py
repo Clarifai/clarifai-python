@@ -134,6 +134,20 @@ def _clear_context_pat(context):
     return False
 
 
+def _logout_all_contexts(cfg):
+    """Clear PATs from every context, persist, and print a summary.
+
+    Returns the number of contexts that were actually cleared.
+    """
+    cleared = sum(1 for ctx in cfg.contexts.values() if _clear_context_pat(ctx))
+    cfg.to_yaml()
+    if cleared:
+        click.secho(f"Logged out of all contexts ({cleared} cleared).", fg='green')
+    else:
+        click.echo("Already logged out of all contexts.")
+    return cleared
+
+
 @cli.command()
 @click.option(
     '--current',
@@ -194,15 +208,7 @@ def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
 
     # --- Non-interactive paths ---
     if flag_all:
-        cleared = 0
-        for name, context in cfg.contexts.items():
-            if _clear_context_pat(context):
-                cleared += 1
-        cfg.to_yaml()
-        if cleared:
-            click.secho(f"Logged out of all contexts ({cleared} cleared).", fg='green')
-        else:
-            click.echo("Already logged out of all contexts.")
+        _logout_all_contexts(cfg)
         _warn_env_pat()
         return
 
@@ -337,15 +343,7 @@ def logout(ctx, flag_current, flag_all, flag_context, flag_delete):
             )
 
     elif action == 'logout_all':
-        cleared = 0
-        for name, context in cfg.contexts.items():
-            if _clear_context_pat(context):
-                cleared += 1
-        cfg.to_yaml()
-        if cleared:
-            click.secho(f"Logged out of all contexts ({cleared} cleared).", fg='green')
-        else:
-            click.echo("Already logged out of all contexts.")
+        _logout_all_contexts(cfg)
 
     _warn_env_pat()
     click.echo("\nRun 'clarifai login' to re-authenticate.")
