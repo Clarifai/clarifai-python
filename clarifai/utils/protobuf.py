@@ -37,7 +37,7 @@ def dict_to_protobuf(pb_obj: Message, data: dict) -> None:
 
         try:
             # Handle repeated fields (lists)
-            if field_descriptor.label == FieldDescriptor.LABEL_REPEATED:
+            if field_descriptor.is_repeated:
                 _handle_repeated_field(pb_obj, field_descriptor, field, value)
 
             # Handle message fields (nested messages)

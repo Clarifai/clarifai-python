@@ -581,3 +581,12 @@ Also see the official [Python SDK docs](https://clarifai-python.readthedocs.io/e
 
 Examples for uploading models and runners have been moved to this [repo](https://github.com/Clarifai/runners-examples).
 Find our official documentation at [docs.clarifai.com/compute/models/upload](https://docs.clarifai.com/compute/models/upload).
+
+## Versioning
+
+This project uses [CalVer](https://calver.org/) with the format **`YY.MM.PATCH`**:
+- **YY** — two-digit year (e.g. `12` for 2026)
+- **MM** — month number, not zero-padded (e.g. `1` for January, `12` for December)
+- **PATCH** — incremental release within that month, starting at `0`
+
+Git tags use the same format without a `v` prefix (e.g. `12.2.0`). The version is defined in `clarifai/__init__.py`.
