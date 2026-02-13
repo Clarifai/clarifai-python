@@ -585,7 +585,7 @@ Find our official documentation at [docs.clarifai.com/compute/models/upload](htt
 ## Versioning
 
 This project uses [CalVer](https://calver.org/) with the format **`YY.MM.PATCH`**:
-- **YY** — two-digit year (e.g. `12` for 2026)
+- **YY** — Clarifai year, counting from the company's founding (e.g. `12` for the 12th year)
 - **MM** — month number, not zero-padded (e.g. `1` for January, `12` for December)
 - **PATCH** — incremental release within that month, starting at `0`
 

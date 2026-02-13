@@ -1,3 +1,18 @@
+## [[12.2.0]](https://github.com/Clarifai/clarifai-python/releases/tag/12.2.0) - [PyPI](https://pypi.org/project/clarifai/12.2.0/) - 2026-02-13
+
+### Added
+- Admission Control: Added admission control support for model runners [(#941)](https://github.com/Clarifai/clarifai-python/pull/941)
+- OpenAI Dependency: Added openai as a core dependency [(#938)](https://github.com/Clarifai/clarifai-python/pull/938)
+
+### Changed
+- Local Runner: Removed inference_compute_info requirement for local model runners [(#911)](https://github.com/Clarifai/clarifai-python/pull/911)
+- CLI Login: Improved CLI login experience with better UX and security [(#928)](https://github.com/Clarifai/clarifai-python/pull/928)
+- Relaxed clarifai-protocol version constraint from ==0.0.35 to >=0.0.35,<0.1.0 [(#932)](https://github.com/Clarifai/clarifai-python/pull/932)
+
+### Fixed
+- Fixed dependency version constraints [(#943)](https://github.com/Clarifai/clarifai-python/pull/943)
+- Fixed authentication in model deployment CLI [(#927)](https://github.com/Clarifai/clarifai-python/pull/927)
+
 ## [[12.1.7]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.7) - [PyPI](https://pypi.org/project/clarifai/12.1.7/) - 2026-02-06
 
 ### Added
