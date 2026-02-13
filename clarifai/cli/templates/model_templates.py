@@ -177,12 +177,46 @@ class MyModel(OpenAIModelClass):
 '''
 
 
-def get_config_template(user_id: str = None, model_type_id: str = "any-to-any") -> str:
-    """Return the template for config.yaml."""
+def get_config_template(
+    user_id: str = None,
+    model_type_id: str = "any-to-any",
+    model_id: str = "my-model",
+    simplified: bool = True,
+) -> str:
+    """Return the template for config.yaml.
+
+    Args:
+        user_id: User ID to include in the config. In simplified mode, this is omitted
+                 (resolved from CLI context at deploy time).
+        model_type_id: Model type ID.
+        model_id: Model ID.
+        simplified: If True, generate simplified config (no TODOs, compute.gpu shorthand).
+                    If False, generate verbose config with all fields.
+    """
+    if simplified:
+        return f'''model:
+  id: "{model_id}"
+  model_type_id: "{model_type_id}"
+
+compute:
+  gpu: g5.xlarge  # Run 'clarifai model deploy --gpu-info' to see all options.
+
+# Uncomment to auto-download model checkpoints:
+# checkpoints:
+#   repo_id: owner/model-name
+'''
+    else:
+        return _get_verbose_config_template(user_id, model_type_id, model_id)
+
+
+def _get_verbose_config_template(
+    user_id: str = None, model_type_id: str = "any-to-any", model_id: str = "my-model"
+) -> str:
+    """Return the verbose template for config.yaml (original format)."""
     return f'''# Configuration file for your Clarifai model
 
 model:
-  id: "my-model"  # TODO: please fill in - replace with your model ID
+  id: "{model_id}"  # TODO: please fill in - replace with your model ID
   user_id: "{user_id}"  # TODO: please fill in - replace with your user ID
   app_id: "app_id"  # TODO: please fill in - replace with your app ID
   model_type_id: "{model_type_id}"  # TODO: please fill in - replace if different model type ID

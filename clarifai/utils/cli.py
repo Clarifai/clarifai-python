@@ -385,8 +385,6 @@ def customize_ollama_model(
         with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
 
-        # Update the user_id in the model section
-        config['model']['user_id'] = user_id
         if 'toolkit' not in config or config['toolkit'] is None:
             config['toolkit'] = {}
         if model_name is not None:
@@ -397,6 +395,9 @@ def customize_ollama_model(
             config['toolkit']['context_length'] = context_length
         with open(config_path, 'w', encoding='utf-8') as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+        # Simplify the cloned config (remove placeholder user_id/app_id, convert to compute.gpu)
+        simplify_cloned_config(config_path, model_name=model_name)
 
     model_py_path = os.path.join(model_path, "1", "model.py")
 
@@ -574,9 +575,6 @@ def customize_huggingface_model(model_path, user_id, model_name):
         with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
 
-        # Update the user_id in the model section
-        config['model']['user_id'] = user_id
-
         if model_name:
             # Update the repo_id in checkpoints section
             if 'checkpoints' not in config:
@@ -586,9 +584,57 @@ def customize_huggingface_model(model_path, user_id, model_name):
         with open(config_path, 'w', encoding='utf-8') as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
+        # Simplify the cloned config to use compute.gpu shorthand
+        simplify_cloned_config(config_path, model_name=model_name)
+
         logger.info(f"Updated Hugging Face model repo_id to: {model_name}")
     else:
         logger.warning(f"config.yaml not found at {config_path}, skipping model configuration")
+
+
+def simplify_cloned_config(config_path, user_id=None, model_name=None):
+    """Post-process a cloned config.yaml to simplified format.
+
+    - Removes user_id/app_id placeholders (will be injected from CLI context at deploy time)
+    - Converts inference_compute_info to compute.gpu shorthand (if it matches a preset)
+    - Keeps model.id, model_type_id, checkpoints, build_info as-is
+    """
+    if not os.path.exists(config_path):
+        return
+
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+
+    if not config:
+        return
+
+    # Remove placeholder user_id/app_id from model section
+    model = config.get('model', {})
+    placeholder_values = {'user_id', 'YOUR_USER_ID', 'app_id', 'YOUR_APP_ID', ''}
+    if model.get('user_id') in placeholder_values:
+        model.pop('user_id', None)
+    if model.get('app_id') in placeholder_values:
+        model.pop('app_id', None)
+
+    # Convert inference_compute_info to compute.gpu shorthand
+    if 'inference_compute_info' in config and 'compute' not in config:
+        from clarifai.utils.compute_presets import infer_gpu_from_config
+
+        gpu_name = infer_gpu_from_config(config)
+        if gpu_name:
+            config['compute'] = {'gpu': gpu_name}
+            del config['inference_compute_info']
+
+    # Update model_id from directory name if it's a placeholder
+    if model_name:
+        # Use the last part of the model_name (e.g. 'Llama-3-8B' from 'meta-llama/Llama-3-8B')
+        simple_name = model_name.split('/')[-1] if '/' in model_name else model_name
+        model['id'] = simple_name
+
+    config['model'] = model
+
+    with open(config_path, 'w', encoding='utf-8') as f:
+        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
 
 def customize_lmstudio_model(model_path, user_id, model_name=None, port=None, context_length=None):
@@ -605,8 +651,6 @@ def customize_lmstudio_model(model_path, user_id, model_name=None, port=None, co
     if os.path.exists(config_path):
         with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
-        # Update the user_id in the model section
-        config['model']['user_id'] = user_id
         if 'toolkit' not in config or config['toolkit'] is None:
             config['toolkit'] = {}
         if model_name is not None:
@@ -617,6 +661,10 @@ def customize_lmstudio_model(model_path, user_id, model_name=None, port=None, co
             config['toolkit']['context_length'] = context_length
         with open(config_path, 'w', encoding='utf-8') as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+        # Simplify the cloned config (remove placeholder user_id/app_id, convert to compute.gpu)
+        simplify_cloned_config(config_path, model_name=model_name)
+
         logger.info(f"Updated LM Studio model configuration in: {config_path}")
     else:
         logger.warning(f"config.yaml not found at {config_path}, skipping model configuration")

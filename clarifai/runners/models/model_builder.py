@@ -175,6 +175,8 @@ class ModelBuilder:
         platform: Optional[str] = None,
         pat: Optional[str] = None,
         base_url: Optional[str] = None,
+        user_id: Optional[str] = None,
+        app_id: Optional[str] = None,
     ):
         """
         :param folder: The folder containing the model.py, config.yaml, requirements.txt and
@@ -188,6 +190,8 @@ class ModelBuilder:
         :param platform: Target platform(s) for Docker image build (e.g., "linux/amd64" or "linux/amd64,linux/arm64"). This overrides the platform specified in config.yaml.
         :param pat: Personal access token for authentication. If None, will use environment variables.
         :param base_url: Base URL for the API. If None, will use environment variables.
+        :param user_id: Optional user ID to inject into config if missing (for simplified configs).
+        :param app_id: Optional app ID to inject into config if missing (for simplified configs).
         """
         assert app_not_found_action in ["auto_create", "prompt", "error"], ValueError(
             f"Expected one of {['auto_create', 'prompt', 'error']}, got {app_not_found_action=}"
@@ -202,6 +206,7 @@ class ModelBuilder:
         self.download_validation_only = download_validation_only
         self.folder = self._validate_folder(folder)
         self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
+        self.config = self.normalize_config(self.config, user_id=user_id, app_id=app_id)
         self._validate_config()
         self._validate_config_secrets()
         self._validate_stream_options()
@@ -501,6 +506,53 @@ class ModelBuilder:
             elif self.app_not_found_action == "auto_create":
                 create_app()
                 return True
+
+    @staticmethod
+    def normalize_config(config, user_id=None, app_id=None):
+        """Expand simplified config format to full format.
+
+        Handles:
+        1. Inject user_id/app_id from CLI context if missing
+        2. Expand compute.gpu -> inference_compute_info
+        3. Expand simplified checkpoints (infer type, default when)
+        4. Set build_info defaults
+
+        This is a no-op for configs that already have all fields.
+        """
+        config = dict(config)
+
+        # 1. Inject user_id/app_id into model section if missing
+        model = dict(config.get('model', {}))
+        if user_id and 'user_id' not in model:
+            model['user_id'] = user_id
+        if app_id and 'app_id' not in model:
+            model['app_id'] = app_id
+        config['model'] = model
+
+        # 2. Expand compute.gpu -> inference_compute_info
+        compute = config.pop('compute', None)
+        if compute and 'inference_compute_info' not in config:
+            gpu = compute.get('gpu')
+            if gpu:
+                from clarifai.utils.compute_presets import get_inference_compute_for_gpu
+
+                config['inference_compute_info'] = get_inference_compute_for_gpu(gpu)
+
+        # 3. Expand simplified checkpoints
+        checkpoints = config.get('checkpoints')
+        if checkpoints:
+            checkpoints = dict(checkpoints)
+            if 'type' not in checkpoints and 'repo_id' in checkpoints:
+                checkpoints['type'] = 'huggingface'
+            if 'when' not in checkpoints:
+                checkpoints['when'] = 'runtime'
+            config['checkpoints'] = checkpoints
+
+        # 4. Build info defaults
+        if 'build_info' not in config:
+            config['build_info'] = {'python_version': '3.12'}
+
+        return config
 
     def _validate_config_model(self):
         assert "model" in self.config, "model section not found in the config file"

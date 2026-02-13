@@ -47,10 +47,8 @@ from clarifai.utils.constants import (
 )
 from clarifai.utils.logging import logger
 from clarifai.utils.misc import (
-    GitHubDownloader,
     clone_github_repo,
     format_github_repo_url,
-    get_list_of_files_to_download,
 )
 
 
@@ -500,81 +498,42 @@ def model():
     default=".",
 )
 @click.option(
-    '--model-type-id',
-    type=click.Choice(['mcp', 'openai'], case_sensitive=False),
-    required=False,
-    help='Model type: "mcp" for MCPModelClass, "openai" for OpenAIModelClass, or leave empty for default ModelClass.',
-)
-@click.option(
-    '--github-pat',
-    required=False,
-    help='GitHub Personal Access Token for authentication when cloning private repositories.',
-)
-@click.option(
-    '--github-url',
-    required=False,
-    help='GitHub repository URL or "user/repo" format to clone a repository from. If provided, the entire repository contents will be copied to the target directory instead of using default templates.',
-)
-@click.option(
     '--toolkit',
     type=click.Choice(
-        ['ollama', 'huggingface', 'lmstudio', 'vllm', 'sglang', 'python'], case_sensitive=False
+        ['ollama', 'huggingface', 'lmstudio', 'vllm', 'sglang', 'python', 'mcp', 'openai'],
+        case_sensitive=False,
     ),
     required=False,
-    help='Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio", "vllm", "sglang" and "python".',
+    help='Toolkit/template to use for model initialization.',
 )
 @click.option(
     '--model-name',
     required=False,
-    help='Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For vllm, sglang & huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "unsloth/Llama-3.2-1B-Instruct").\n For lmstudio toolkit, this sets the LM Studio model name (e.g., "qwen/qwen3-4b-thinking-2507").\n',
-)
-@click.option(
-    '--port',
-    type=str,
-    help='Port to run the Ollama server on. Defaults to 23333.',
-    required=False,
-)
-@click.option(
-    '--context-length',
-    type=str,
-    help='Context length for the Ollama model. Defaults to 8192.',
-    required=False,
+    help='Model name to configure when using --toolkit (e.g., "meta-llama/Llama-3-8B" for vllm/huggingface, "llama3.1" for ollama).',
 )
 @click.pass_context
 def init(
     ctx,
     model_path,
-    model_type_id,
-    github_pat,
-    github_url,
     toolkit,
     model_name,
-    port,
-    context_length,
 ):
     """Initialize a new model directory structure.
 
-    Creates the following structure in the specified directory:\n
-    ├── 1/\n
-    │   └── model.py\n
-    ├── requirements.txt\n
-    └── config.yaml\n
+    \b
+    Creates the following structure:
+      MODEL_PATH/
+      ├── 1/model.py
+      ├── requirements.txt
+      └── config.yaml
 
-    If --github-repo is provided, the entire repository contents will be copied to the target
-    directory instead of using default templates. The --github-pat option can be used for authentication
-    when cloning private repositories. The --branch option can be used to specify a specific
-    branch to clone from.
-
-    MODEL_PATH: Path where to create the model directory structure. If not specified, the current directory is used by default.\n
-
-    OPTIONS:\n
-    MODEL_TYPE_ID: Type of model to create. If not specified, defaults to "text-to-text" for text models.\n
-    GITHUB_PAT: GitHub Personal Access Token for authentication when cloning private repositories.\n
-    GITHUB_URL: GitHub repository URL or "repo" format to clone a repository from. If provided, the entire repository contents will be copied to the target directory instead of using default templates.\n
-    TOOLKIT: Toolkit to use for model initialization. Currently supports "ollama", "huggingface", "lmstudio", "vllm", "sglang" and "python".\n
-    MODEL_NAME: Model name to configure when using --toolkit. For ollama toolkit, this sets the Ollama model to use (e.g., "llama3.1", "mistral", etc.). For vllm, sglang & huggingface toolkit, this sets the Hugging Face model repo_id (e.g., "Qwen/Qwen3-4B-Instruct-2507"). For lmstudio toolkit, this sets the LM Studio model name (e.g., "qwen/qwen3-4b-thinking-2507").\n
-    PORT: Port to run the (Ollama/lmstudio) server on. Defaults to 23333.\n
-    CONTEXT_LENGTH: Context length for the (Ollama/lmstudio) model. Defaults to 8192.\n
+    \b
+    Examples:
+      clarifai model init my-model
+      clarifai model init --toolkit vllm --model-name meta-llama/Llama-3-8B my-llama
+      clarifai model init --toolkit ollama --model-name llama3.1 my-ollama
+      clarifai model init --toolkit mcp my-mcp-server
+      clarifai model init --toolkit openai my-openai-model
     """
     validate_context(ctx)
     user_id = ctx.obj.current.user_id
@@ -584,25 +543,18 @@ def init(
     # Create the model directory if it doesn't exist
     os.makedirs(model_path, exist_ok=True)
 
-    # Validate parameters
-    if port and not port.isdigit():
-        logger.error("Invalid value: --port must be a number")
-        raise click.Abort()
-
-    if context_length and not context_length.isdigit():
-        logger.error("Invalid value: --context-length must be a number")
-        raise click.Abort()
-
     # Validate option combinations
-    if model_name and not (toolkit):
+    if model_name and not toolkit:
         logger.error("--model-name can only be used with --toolkit")
         raise click.Abort()
 
-    if toolkit and (github_url):
-        logger.error("Cannot specify both --toolkit and --github-repo")
-        raise click.Abort()
+    # Template-based toolkits (mcp, openai) use local templates, not GitHub clone
+    TEMPLATE_TOOLKITS = ('mcp', 'openai')
 
-    # --toolkit option
+    github_url = None
+    branch = None
+
+    # --toolkit option (GitHub-cloned toolkits)
     if toolkit == 'ollama':
         if not check_ollama_installed():
             logger.error(
@@ -632,112 +584,16 @@ def init(
         github_url = DEFAULT_TOOLKIT_MODEL_REPO
         branch = DEFAULT_PYTHON_MODEL_REPO_BRANCH
 
-    if github_url:
-        downloader = GitHubDownloader(
-            max_retries=3,
-            github_token=github_pat,
-        )
-        if toolkit:
-            owner, repo, _, folder_path = downloader.parse_github_url(url=github_url)
-        else:
-            owner, repo, branch, folder_path = downloader.parse_github_url(url=github_url)
-        logger.info(
-            f"Parsed GitHub repository: owner={owner}, repo={repo}, branch={branch}, folder_path={folder_path}"
-        )
-        files_to_download = get_list_of_files_to_download(
-            downloader, owner, repo, folder_path, branch, []
-        )
-        for i, file in enumerate(files_to_download):
-            files_to_download[i] = f"{i + 1}. {file}"
-        files_to_download = '\n'.join(files_to_download)
-        logger.info(f"Files to be downloaded are:\n{files_to_download}")
-        input("Press Enter to continue...")
-        if not toolkit:
-            if folder_path != "":
-                try:
-                    downloader.download_github_folder(
-                        url=github_url,
-                        output_dir=model_path,
-                        github_token=github_pat,
-                    )
-                    logger.info(f"Successfully downloaded folder contents to {model_path}")
-                    logger.info("Model initialization complete with GitHub folder download")
-                    logger.info("Next steps:")
-                    logger.info("1. Review the model configuration")
-                    logger.info("2. Install any required dependencies manually")
-                    logger.info("3. Test the model locally using 'clarifai model local-test'")
-                    return
+    if toolkit and github_url:
+        logger.info(f"Initializing model with {toolkit} toolkit...")
 
-                except Exception as e:
-                    logger.error(f"Failed to download GitHub folder: {e}")
-                    # Continue with the rest of the initialization process
-                    github_url = None  # Fall back to template mode
-
-            elif branch and folder_path == "":
-                # When we have a branch but no specific folder path
-                logger.info(
-                    f"Initializing model from GitHub repository: {github_url} (branch: {branch})"
-                )
-
-                # Check if it's a local path or normalize the GitHub repo URL
-                if os.path.exists(github_url):
-                    repo_url = github_url
-                else:
-                    repo_url = format_github_repo_url(github_url)
-                    repo_url = f"https://github.com/{owner}/{repo}"
-
-                try:
-                    # Create a temporary directory for cloning
-                    with tempfile.TemporaryDirectory(prefix="clarifai_model_") as clone_dir:
-                        # Clone the repository with explicit branch parameter
-                        if not clone_github_repo(repo_url, clone_dir, github_pat, branch):
-                            logger.error(f"Failed to clone repository from {repo_url}")
-                            github_url = None  # Fall back to template mode
-
-                        else:
-                            # Copy the entire repository content to target directory (excluding .git)
-                            for item in os.listdir(clone_dir):
-                                if item == '.git':
-                                    continue
-
-                                source_path = os.path.join(clone_dir, item)
-                                target_path = os.path.join(model_path, item)
-
-                                if os.path.isdir(source_path):
-                                    shutil.copytree(source_path, target_path, dirs_exist_ok=True)
-                                else:
-                                    shutil.copy2(source_path, target_path)
-
-                            logger.info(f"Successfully cloned repository to {model_path}")
-                            logger.info(
-                                "Model initialization complete with GitHub repository clone"
-                            )
-                            logger.info("Next steps:")
-                            logger.info("1. Review the model configuration")
-                            logger.info("2. Install any required dependencies manually")
-                            logger.info(
-                                "3. Test the model locally using 'clarifai model local-test'"
-                            )
-                            return
-
-                except Exception as e:
-                    logger.error(f"Failed to clone GitHub repository: {e}")
-                    github_url = None  # Fall back to template mode
-
-    if toolkit:
-        logger.info(f"Initializing model from GitHub repository: {github_url}")
-
-        # Check if it's a local path or normalize the GitHub repo URL
-        if os.path.exists(github_url):
-            repo_url = github_url
-        else:
-            repo_url = format_github_repo_url(github_url)
+        repo_url = format_github_repo_url(github_url)
 
         try:
             # Create a temporary directory for cloning
             with tempfile.TemporaryDirectory(prefix="clarifai_model_") as clone_dir:
                 # Clone the repository with explicit branch parameter
-                if not clone_github_repo(repo_url, clone_dir, github_pat, branch):
+                if not clone_github_repo(repo_url, clone_dir, None, branch):
                     logger.error(f"Failed to clone repository from {repo_url}")
                     github_url = None  # Fall back to template mode
 
@@ -759,43 +615,37 @@ def init(
             logger.error(f"Failed to clone GitHub repository: {e}")
             github_url = None
 
-    if (user_id or model_name or port or context_length) and (toolkit == 'ollama'):
-        customize_ollama_model(model_path, user_id, model_name, port, context_length)
+    if toolkit == 'ollama':
+        customize_ollama_model(model_path, user_id, model_name)
 
-    if (user_id or model_name or port or context_length) and (toolkit == 'lmstudio'):
-        customize_lmstudio_model(model_path, user_id, model_name, port, context_length)
+    if toolkit == 'lmstudio':
+        customize_lmstudio_model(model_path, user_id, model_name)
 
-    if (user_id or model_name) and (
-        toolkit == 'huggingface' or toolkit == 'vllm' or toolkit == 'sglang'
-    ):
-        # Update the config.yaml file with the provided model name
+    if toolkit in ('huggingface', 'vllm', 'sglang'):
         customize_huggingface_model(model_path, user_id, model_name)
 
     if github_url:
-        logger.info("Model initialization complete with GitHub repository")
+        logger.info(f"Model initialization complete in {model_path}")
         logger.info("Next steps:")
-        logger.info("1. Review the model configuration")
-        logger.info("2. Install any required dependencies manually")
-        logger.info("3. Test the model locally using 'clarifai model local-test'")
+        logger.info("1. Review the model configuration in config.yaml")
+        logger.info("2. Deploy: clarifai model deploy %s --gpu g5.xlarge" % model_path)
 
     # Fall back to template-based initialization if no GitHub repo or if GitHub repo failed
+    # Also handles template toolkits (mcp, openai) which don't clone from GitHub
     if not github_url:
-        logger.info("Initializing model with default templates...")
-        input("Press Enter to continue...")
+        # Determine model_type_id from toolkit (mcp/openai) or default
+        model_type_id = toolkit if toolkit in TEMPLATE_TOOLKITS else None
 
-        from clarifai.cli.base import input_or_default
+        if model_type_id:
+            logger.info(f"Initializing {model_type_id} model from template...")
+        else:
+            logger.info("Initializing model with default templates...")
+
         from clarifai.cli.templates.model_templates import (
             get_config_template,
             get_model_template,
             get_requirements_template,
         )
-
-        # Collect additional parameters for OpenAI template
-        template_kwargs = {}
-        if model_type_id == "openai":
-            logger.info("Configuring OpenAI local runner...")
-            port = input_or_default("Enter port (default: 8000): ", "8000")
-            template_kwargs = {"port": port}
 
         # Create the 1/ subdirectory
         model_version_dir = os.path.join(model_path, "1")
@@ -806,7 +656,7 @@ def init(
         if os.path.exists(model_py_path):
             logger.warning(f"File {model_py_path} already exists, skipping...")
         else:
-            model_template = get_model_template(model_type_id, **template_kwargs)
+            model_template = get_model_template(model_type_id)
             with open(model_py_path, 'w') as f:
                 f.write(model_template)
             logger.info(f"Created {model_py_path}")
@@ -826,10 +676,11 @@ def init(
         if os.path.exists(config_path):
             logger.warning(f"File {config_path} already exists, skipping...")
         else:
-            config_model_type_id = DEFAULT_LOCAL_RUNNER_MODEL_TYPE  # default
+            dir_name = os.path.basename(os.path.abspath(model_path))
+            config_model_type_id = model_type_id or DEFAULT_LOCAL_RUNNER_MODEL_TYPE
 
             config_template = get_config_template(
-                user_id=user_id, model_type_id=config_model_type_id
+                user_id=user_id, model_type_id=config_model_type_id, model_id=dir_name
             )
             with open(config_path, 'w') as f:
                 f.write(config_template)
@@ -837,10 +688,9 @@ def init(
 
         logger.info(f"Model initialization complete in {model_path}")
         logger.info("Next steps:")
-        logger.info("1. Search for '# TODO: please fill in' comments in the generated files")
-        logger.info("2. Update the model configuration in config.yaml")
-        logger.info("3. Add your model dependencies to requirements.txt")
-        logger.info("4. Implement your model logic in 1/model.py")
+        logger.info("1. Implement your model logic in 1/model.py")
+        logger.info("2. Add your model dependencies to requirements.txt")
+        logger.info("3. Deploy: clarifai model deploy %s --gpu g5.xlarge" % model_path)
 
 
 def _ensure_hf_token(ctx, model_path):
@@ -928,6 +778,142 @@ def upload(ctx, model_path, stage, skip_dockerfile, platform):
         pat=ctx.obj.current.pat,
         base_url=ctx.obj.current.api_base,
     )
+
+
+@model.command(help="Deploy a model to Clarifai compute.")
+@click.argument('model_path', type=click.Path(), required=False, default=None)
+@click.option(
+    '--model-url', default=None, help='Clarifai model URL (for deploying existing model).'
+)
+@click.option(
+    '--model-version-id', default=None, help='Specific version to deploy (default: latest).'
+)
+@click.option(
+    '--gpu',
+    default=None,
+    help="Instance type for deployment (e.g. 'g5.xlarge', 'g6e.2xlarge'). Run --gpu-info to see options.",
+)
+@click.option(
+    '--cloud',
+    default=None,
+    help="Cloud provider (e.g. 'aws', 'gcp', 'vultr'). Auto-detected from GPU if not specified.",
+)
+@click.option(
+    '--region',
+    default=None,
+    help="Cloud region (e.g. 'us-east-1', 'us-central1'). Auto-detected from GPU if not specified.",
+)
+@click.option('--deployment-id', default=None, help='Custom deployment ID.')
+@click.option('--min-replicas', default=1, type=int, help='Minimum replicas (default: 1).')
+@click.option('--max-replicas', default=5, type=int, help='Maximum replicas (default: 5).')
+@click.option('--compute-cluster-id', default=None, help='[Advanced] Explicit compute cluster ID.')
+@click.option('--nodepool-id', default=None, help='[Advanced] Explicit nodepool ID.')
+@click.option('--gpu-info', is_flag=True, help='Show available instance types and exit.')
+@click.pass_context
+def deploy(
+    ctx,
+    model_path,
+    model_url,
+    model_version_id,
+    gpu,
+    cloud,
+    region,
+    deployment_id,
+    min_replicas,
+    max_replicas,
+    compute_cluster_id,
+    nodepool_id,
+    gpu_info,
+):
+    """Deploy a model to Clarifai compute.
+
+    \b
+    LOCAL MODEL (upload + deploy in one step):
+      clarifai model deploy ./my-model --gpu g5.xlarge
+
+    \b
+    EXISTING MODEL (deploy only):
+      clarifai model deploy --model-url https://clarifai.com/user/app/models/id --gpu g5.xlarge
+
+    \b
+    DEPLOY TO SPECIFIC CLOUD:
+      clarifai model deploy ./my-model --gpu g5.xlarge --cloud aws --region us-east-1
+
+    \b
+    SHOW INSTANCE TYPES:
+      clarifai model deploy --gpu-info
+    """
+    if gpu_info:
+        from clarifai.utils.compute_presets import list_gpu_presets
+
+        pat_val = None
+        base_url_val = None
+        try:
+            validate_context(ctx)
+            pat_val = ctx.obj.current.pat
+            base_url_val = ctx.obj.current.api_base
+        except Exception:
+            pass
+        click.echo(
+            list_gpu_presets(
+                pat=pat_val, base_url=base_url_val, cloud_provider=cloud, region=region
+            )
+        )
+        return
+
+    validate_context(ctx)
+    user_id = ctx.obj.current.user_id
+    app_id = getattr(ctx.obj.current, 'app_id', None)
+
+    # Resolve model_path to absolute if provided
+    if model_path:
+        model_path = os.path.abspath(model_path)
+        if not os.path.isdir(model_path):
+            raise click.BadParameter(f"Model path '{model_path}' is not a directory.")
+
+    from clarifai.runners.models.model_deploy import ModelDeployer
+
+    deployer = ModelDeployer(
+        model_path=model_path,
+        model_url=model_url,
+        user_id=user_id,
+        app_id=app_id,
+        model_version_id=model_version_id,
+        gpu=gpu,
+        cloud_provider=cloud,
+        region=region,
+        compute_cluster_id=compute_cluster_id,
+        nodepool_id=nodepool_id,
+        deployment_id=deployment_id,
+        min_replicas=min_replicas,
+        max_replicas=max_replicas,
+        pat=ctx.obj.current.pat,
+        base_url=ctx.obj.current.api_base,
+    )
+
+    result = deployer.deploy()
+    _print_deploy_result(result)
+
+
+def _print_deploy_result(result):
+    """Print a formatted deployment result."""
+    click.echo("\nModel deployed successfully!\n")
+    click.echo(f"  Model:      {result['model_url']}")
+    click.echo(f"  Version:    {result['model_version_id']}")
+    click.echo(f"  Deployment: {result['deployment_id']}")
+    if result.get('gpu'):
+        click.echo(f"  GPU:        {result['gpu']}")
+    click.echo("")
+    click.echo("  Predict:")
+    click.echo(
+        f'    clarifai model predict --model-url "{result["model_url"]}" '
+        f"--input '{{\"prompt\": \"Hello\"}}'"
+    )
+    click.echo("")
+    click.echo("  Python:")
+    click.echo('    from clarifai.client import Model')
+    click.echo(f'    Model(url="{result["model_url"]}").predict(prompt="Hello")')
+    click.echo("")
 
 
 @model.command(help="Download model checkpoint files.")
