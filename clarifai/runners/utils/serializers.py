@@ -21,7 +21,7 @@ class Serializer:
 
 def is_repeated_field(field_name):
     descriptor = resources_pb2.Data.DESCRIPTOR.fields_by_name.get(field_name)
-    return descriptor and descriptor.label == descriptor.LABEL_REPEATED
+    return descriptor and descriptor.is_repeated
 
 
 class AtomicFieldSerializer(Serializer):

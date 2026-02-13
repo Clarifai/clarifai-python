@@ -5,7 +5,7 @@ import sys
 import typing as t
 from collections import defaultdict
 from pathlib import Path
-from typing import OrderedDict
+from typing import Optional, OrderedDict
 
 import click
 import yaml
@@ -17,7 +17,7 @@ from clarifai.utils.logging import logger
 
 def from_yaml(filename: str):
     try:
-        with open(filename, 'r') as f:
+        with open(filename, 'r', encoding='utf-8') as f:
             return yaml.safe_load(f)
     except yaml.YAMLError as e:
         click.echo(f"Error reading YAML file: {e}", err=True)
@@ -26,10 +26,150 @@ def from_yaml(filename: str):
 
 def dump_yaml(data, filename: str):
     try:
-        with open(filename, 'w') as f:
+        with open(filename, 'w', encoding='utf-8') as f:
             yaml.dump(data, f)
     except Exception as e:
         click.echo(f"Error writing YAML file: {e}", err=True)
+
+
+def masked_input(prompt='Password: ', mask='*'):
+    """Get password input with visual feedback using mask characters.
+
+    Supports common terminal shortcuts:
+    - Backspace: Delete one character
+    - Ctrl+U: Clear entire line
+    - Ctrl+W: Delete last word
+    - Ctrl+C: Cancel input
+
+    Args:
+        prompt: The prompt to display
+        mask: The character to show for each input character (default: '*')
+
+    Returns:
+        The entered password string
+    """
+    import sys
+
+    if os.name == 'nt':  # Windows
+        import msvcrt
+
+        click.echo(prompt, nl=False)
+        password = ''
+        while True:
+            ch = msvcrt.getch()
+            if not ch:  # EOF
+                sys.stdout.write('\r\n')
+                sys.stdout.flush()
+                break
+            if ch in (b'\r', b'\n'):
+                sys.stdout.write('\r\n')
+                sys.stdout.flush()
+                break
+            elif ch == b'\x08':  # Backspace
+                if password:
+                    password = password[:-1]
+                    sys.stdout.write('\b \b')
+                    sys.stdout.flush()
+            elif ch == b'\x15':  # Ctrl+U - Clear line
+                if password:
+                    sys.stdout.write('\b \b' * len(password))
+                    sys.stdout.flush()
+                    password = ''
+            elif ch == b'\x17':  # Ctrl+W - Delete word
+                if password:
+                    new_password = password.rstrip()
+                    if ' ' in new_password:
+                        new_password = new_password[: new_password.rfind(' ') + 1]
+                    else:
+                        new_password = ''
+                    chars_to_delete = len(password) - len(new_password)
+                    sys.stdout.write('\b \b' * chars_to_delete)
+                    sys.stdout.flush()
+                    password = new_password
+            elif ch == b'\x03':  # Ctrl+C
+                sys.stdout.write('\r\n')
+                sys.stdout.flush()
+                raise KeyboardInterrupt
+            elif ch in (b'\xe0', b'\x00'):  # Special key prefix (arrow keys, function keys)
+                # Consume the scan code byte without displaying anything
+                msvcrt.getch()
+            else:
+                decoded = ch.decode('utf-8', errors='ignore')
+                if decoded:  # Only add and display if decode produced a character
+                    password += decoded
+                    sys.stdout.write(mask)
+                    sys.stdout.flush()
+        return password
+    else:  # Unix/Linux/Mac
+        # Check if stdin is a terminal (not piped)
+        if not sys.stdin.isatty():
+            click.echo(prompt, nl=False)
+            return sys.stdin.readline().rstrip('\r\n')
+
+        import termios
+        import tty
+
+        click.echo(prompt, nl=False)
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            password = ''
+            while True:
+                ch = sys.stdin.read(1)
+                if not ch:  # EOF - terminal connection lost
+                    sys.stdout.write('\r\n')
+                    sys.stdout.flush()
+                    break
+                if ch in ('\r', '\n'):
+                    sys.stdout.write('\r\n')
+                    sys.stdout.flush()
+                    break
+                elif ch == '\x7f':  # Backspace/Delete
+                    if password:
+                        password = password[:-1]
+                        sys.stdout.write('\b \b')
+                        sys.stdout.flush()
+                elif ch == '\x15':  # Ctrl+U - Clear line
+                    if password:
+                        # Clear all asterisks
+                        sys.stdout.write('\b \b' * len(password))
+                        sys.stdout.flush()
+                        password = ''
+                elif ch == '\x17':  # Ctrl+W - Delete word
+                    if password:
+                        # Find last space or delete whole thing
+                        new_password = password.rstrip()
+                        if ' ' in new_password:
+                            new_password = new_password[: new_password.rfind(' ') + 1]
+                        else:
+                            new_password = ''
+                        chars_to_delete = len(password) - len(new_password)
+                        sys.stdout.write('\b \b' * chars_to_delete)
+                        sys.stdout.flush()
+                        password = new_password
+                elif ch == '\x03':  # Ctrl+C
+                    sys.stdout.write('\r\n')
+                    sys.stdout.flush()
+                    raise KeyboardInterrupt
+                elif ch == '\x1b':  # ESC - start of escape sequence (arrow keys, function keys)
+                    # Consume the rest of the escape sequence
+                    # Common patterns: \x1b[A (up), \x1b[B (down), \x1b[3~ (delete), etc.
+                    next_ch = sys.stdin.read(1)
+                    if next_ch == '[':
+                        # Read until we hit a letter or ~
+                        while True:
+                            seq_ch = sys.stdin.read(1)
+                            if not seq_ch or seq_ch.isalpha() or seq_ch == '~':
+                                break
+                    # Ignore the escape sequence, don't add to password
+                else:
+                    password += ch
+                    sys.stdout.write(mask)
+                    sys.stdout.flush()
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        return password
 
 
 # Dynamically find and import all command modules from the cli directory
@@ -208,7 +348,7 @@ def validate_context_auth(pat: str, user_id: str, api_base: str = None):
 
         from clarifai.client.user import User
 
-        logger.info("Validating the Context Credentials...")
+        logger.debug("Validating the Context Credentials...")
 
         # Create user client for validation
         if api_base:
@@ -220,7 +360,7 @@ def validate_context_auth(pat: str, user_id: str, api_base: str = None):
         response = user_client.get_user_info()
 
         if response.status.code == status_code_pb2.SUCCESS:
-            logger.info("✅ Context is valid")
+            logger.debug("✅ Context is valid")
 
     except Exception as e:
         # Check for common authentication errors and provide user-friendly messages
@@ -242,7 +382,7 @@ def customize_ollama_model(
     """
     config_path = os.path.join(model_path, 'config.yaml')
     if os.path.exists(config_path):
-        with open(config_path, 'r') as f:
+        with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
 
         # Update the user_id in the model section
@@ -255,7 +395,7 @@ def customize_ollama_model(
             config['toolkit']['port'] = port
         if context_length is not None:
             config['toolkit']['context_length'] = context_length
-        with open(config_path, 'w') as f:
+        with open(config_path, 'w', encoding='utf-8') as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
     model_py_path = os.path.join(model_path, "1", "model.py")
@@ -266,7 +406,7 @@ def customize_ollama_model(
 
     try:
         # Read the model.py file
-        with open(model_py_path, 'r') as file:
+        with open(model_py_path, 'r', encoding='utf-8') as file:
             content = file.read()
         if model_name:
             # Replace the default model name in the load_model method
@@ -292,7 +432,7 @@ def customize_ollama_model(
             content = content.replace("VERBOSE_OLLAMA = False", f"VERBOSE_OLLAMA = {verbose_str}")
 
         # Write the modified content back to model.py
-        with open(model_py_path, 'w') as file:
+        with open(model_py_path, 'w', encoding='utf-8') as file:
             file.write(content)
 
     except Exception as e:
@@ -369,32 +509,37 @@ def parse_requirements(model_path: str):
     return deps
 
 
-def check_requirements_installed(model_path):
-    """Check if all dependencies in requirements.txt are installed."""
+def check_requirements_installed(model_path: str = None, dependencies: dict = None):
+    """Check if all dependencies in requirements.txt are installed.
+    Args:
+        model_path: Path to the model directory
+        dependencies: Dictionary of dependencies
+    Returns:
+        True if all dependencies are installed, False otherwise
+    """
+
+    if model_path and dependencies:
+        logger.warning(
+            "model_path and dependencies cannot be provided together, using dependencies instead"
+        )
+        dependencies = parse_requirements(model_path)
 
     try:
-        # Getting package name and version (for logging)
-        requirements = parse_requirements(model_path)
-
-        if not requirements:
-            logger.info("No dependencies found in requirements.txt")
-            return True
-
-        logger.info(f"Checking {len(requirements)} dependencies...")
-
+        if not dependencies:
+            dependencies = parse_requirements(model_path)
         missing = [
             full_req
-            for package_name, full_req in requirements.items()
+            for package_name, full_req in dependencies.items()
             if not _is_package_installed(package_name)
         ]
 
         if not missing:
-            logger.info(f"✅ All {len(requirements)} dependencies are installed!")
+            logger.info(f"✅ All {len(dependencies)} dependencies are installed!")
             return True
 
         # Report missing packages
         logger.error(
-            f"❌ {len(missing)} of {len(requirements)} required packages are missing in the current environment"
+            f"❌ {len(missing)} of {len(dependencies)} required packages are missing in the current environment"
         )
         logger.error("\n".join(f"  - {pkg}" for pkg in missing))
         requirements_path = Path(model_path) / "requirements.txt"
@@ -426,7 +571,7 @@ def convert_timestamp_to_string(timestamp: Timestamp) -> str:
 def customize_huggingface_model(model_path, user_id, model_name):
     config_path = os.path.join(model_path, 'config.yaml')
     if os.path.exists(config_path):
-        with open(config_path, 'r') as f:
+        with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
 
         # Update the user_id in the model section
@@ -438,7 +583,7 @@ def customize_huggingface_model(model_path, user_id, model_name):
                 config['checkpoints'] = {}
             config['checkpoints']['repo_id'] = model_name
 
-        with open(config_path, 'w') as f:
+        with open(config_path, 'w', encoding='utf-8') as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
         logger.info(f"Updated Hugging Face model repo_id to: {model_name}")
@@ -458,7 +603,7 @@ def customize_lmstudio_model(model_path, user_id, model_name=None, port=None, co
     config_path = os.path.join(model_path, 'config.yaml')
 
     if os.path.exists(config_path):
-        with open(config_path, 'r') as f:
+        with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
         # Update the user_id in the model section
         config['model']['user_id'] = user_id
@@ -470,8 +615,131 @@ def customize_lmstudio_model(model_path, user_id, model_name=None, port=None, co
             config['toolkit']['port'] = port
         if context_length is not None:
             config['toolkit']['context_length'] = context_length
-        with open(config_path, 'w') as f:
+        with open(config_path, 'w', encoding='utf-8') as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
         logger.info(f"Updated LM Studio model configuration in: {config_path}")
     else:
         logger.warning(f"config.yaml not found at {config_path}, skipping model configuration")
+
+
+def prompt_required_field(message: str, default: Optional[str] = None) -> str:
+    """Prompt the user for a required field, optionally with a default.
+    Used inside the model CLI to prompt the user for required fields if config.yaml is missing.
+    Args:
+        message (str): The message to display to the user.
+        default (Optional[str]): The default value to use if the user does not enter a value.
+
+    Returns:
+        str: The value entered by the user.
+    """
+    while True:
+        prompt = f"{message}"
+        if default:
+            prompt += f" [{default}]"
+        prompt += ": "
+        value = input(prompt).strip()
+        if not value and default:
+            return default
+        if value:
+            return value
+        click.echo("❌ This field is required. Please enter a value.")
+
+
+def prompt_optional_field(message: str, default: Optional[str] = None) -> Optional[str]:
+    """Prompt the user for an optional field.
+    Used inside the model CLI to prompt the user for optional fields if config.yaml is missing.
+    Args:
+        message (str): The message to display to the user.
+        default (Optional[str]): The default value to use if the user does not enter a value.
+
+    Returns:
+        Optional[str]: The value entered by the user.
+    """
+    prompt = f"{message}"
+    if default:
+        prompt += f" [{default}]"
+    prompt += ": "
+    value = input(prompt).strip()
+    if not value:
+        return default
+    return value
+
+
+def prompt_int_field(message: str, default: Optional[int] = None) -> int:
+    """Prompt the user for an integer field (required).
+    Used inside the model CLI to prompt the user for integer fields if config.yaml is missing.
+    Args:
+        message (str): The message to display to the user.
+        default (Optional[int]): The default value to use if the user does not enter a value.
+
+    Returns:
+        int: The value entered by the user.
+    """
+    while True:
+        prompt = f"{message}"
+        if default is not None:
+            prompt += f" [{default}]"
+        prompt += ": "
+        raw = input(prompt).strip()
+        if not raw and default is not None:
+            return default
+        try:
+            return int(raw)
+        except ValueError:
+            click.echo("❌ Please enter a valid integer.")
+
+
+def prompt_yes_no(message: str, default: Optional[bool] = None) -> bool:
+    """Prompt the user for a yes/no decision.
+    Used inside the model CLI to prompt the user for yes/no fields if config.yaml is missing.
+    Args:
+        message (str): The message to display to the user.
+        default (Optional[bool]): The default value to use if the user does not enter a value.
+
+    Returns:
+        bool: The value entered by the user.
+    """
+    if default is True:
+        suffix = " [Y/n]"
+    elif default is False:
+        suffix = " [y/N]"
+    else:
+        suffix = " [y/n]"
+    prompt = f"{message}{suffix}: "
+    while True:
+        response = input(prompt).strip().lower()
+        if not response and default is not None:
+            return default
+        if response in ("y", "yes"):
+            return True
+        if response in ("n", "no"):
+            return False
+        click.echo("❌ Please respond with 'y' or 'n'.")
+
+
+def print_section(title: str, description: str, note: Optional[str] = None) -> None:
+    """Print a section with a title, description, and note.
+    Used inside the model CLI to print sections if config.yaml is missing.
+    Args:
+        title (str): The title of the section.
+        description (str): The description of the section.
+        note (Optional[str]): The note to display below the section.
+    """
+    click.echo()
+    click.echo(click.style(title, fg="bright_cyan", bold=True))
+    if description:
+        click.echo(description)
+    if note:
+        click.echo(click.style(note, fg="yellow"))
+
+
+def print_field_help(name: str, description: str) -> None:
+    """Print a field with a name and description.
+    Used inside the model CLI to print fields if config.yaml is missing.
+    Args:
+        name (str): The name of the field.
+        description (str): The description of the field.
+    """
+    click.echo(click.style(f"➤ {name}", fg="bright_green", bold=True))
+    if description:
+        click.echo(click.style(f"    {description}", fg="green"))

@@ -12,6 +12,7 @@ from clarifai_grpc.grpc.api import service_pb2_grpc
 from clarifai_protocol.utils.grpc_server import GRPCServer
 
 from clarifai.runners.models.model_builder import ModelBuilder
+from clarifai.runners.models.model_run_locally import ModelRunLocally
 from clarifai.runners.models.model_runner import ModelRunner
 from clarifai.runners.models.model_servicer import ModelServicer
 from clarifai.utils.logging import logger
@@ -65,11 +66,71 @@ def main():
         required=True,
         help='The path to the model directory that contains implemention of the model.',
     )
+    parser.add_argument(
+        '--compute_cluster_id',
+        type=str,
+        default=None,
+        help='The compute cluster ID for the runner.',
+    )
+    parser.add_argument(
+        '--user_id',
+        type=str,
+        default=None,
+        help='The user ID for the runner.',
+    )
+    parser.add_argument(
+        '--nodepool_id',
+        type=str,
+        default=None,
+        help='The nodepool ID for the runner.',
+    )
+    parser.add_argument(
+        '--runner_id',
+        type=str,
+        default=None,
+        help='The runner ID for the runner.',
+    )
+    parser.add_argument(
+        '--base_url',
+        type=str,
+        default=None,
+        help='The base URL for the Clarifai API.',
+    )
+    parser.add_argument(
+        '--pat',
+        type=str,
+        default=None,
+        help='The personal access token for the Clarifai API.',
+    )
+    parser.add_argument(
+        '--num_threads',
+        type=int,
+        default=0,
+        help='The number of threads for the runner to use (default: 0, which means read from config.yaml).',
+    )
 
     parsed_args = parser.parse_args()
-
     server = ModelServer(parsed_args.model_path)
+
+    user_id = parsed_args.user_id or os.environ.get("CLARIFAI_USER_ID", None)
+    compute_cluster_id = parsed_args.compute_cluster_id or os.environ.get(
+        "CLARIFAI_COMPUTE_CLUSTER_ID", None
+    )
+    nodepool_id = parsed_args.nodepool_id or os.environ.get("CLARIFAI_NODEPOOL_ID", None)
+    runner_id = parsed_args.runner_id or os.environ.get("CLARIFAI_RUNNER_ID", None)
+    base_url = parsed_args.base_url or os.environ.get(
+        "CLARIFAI_API_BASE", "https://api.clarifai.com"
+    )
+    pat = parsed_args.pat or os.environ.get("CLARIFAI_PAT", None)
+
     server.serve(
+        compute_cluster_id=compute_cluster_id,
+        user_id=user_id,
+        nodepool_id=nodepool_id,
+        runner_id=runner_id,
+        base_url=base_url,
+        pat=pat,
+        num_threads=parsed_args.num_threads,
         port=parsed_args.port,
         pool_size=parsed_args.pool_size,
         max_queue_size=parsed_args.max_queue_size,
@@ -80,8 +141,19 @@ def main():
 
 
 class ModelServer:
-    def __init__(self, model_path):
+    def __init__(
+        self,
+        model_path,
+        model_runner_local: ModelRunLocally = None,
+        model_builder: ModelBuilder = None,
+    ):
+        """Initialize the ModelServer.
+        Args:
+            model_path: Path to the model directory
+            model_runner_local: ModelRunLocally instance (This is used to run the model locally with different modes like container or environment and patch it to Local Runner)
+        """
         self.model_path = model_path
+        self.model_runner_local = model_runner_local
         self._servicer = None
         self._runner = None
         self._secrets_path = get_secrets_path()
@@ -91,8 +163,13 @@ class ModelServer:
         self._initialize_secrets_system()
 
         # Build model after secrets are loaded
-        self._builder = ModelBuilder(model_path, download_validation_only=True)
+        self._builder = (
+            model_builder
+            if model_builder
+            else ModelBuilder(model_path, download_validation_only=True)
+        )
         self._current_model = self._builder.create_model_instance()
+
         logger.info("ModelServer initialized successfully")
 
     def _initialize_secrets_system(self):
@@ -220,7 +297,6 @@ class ModelServer:
         else:
             # start the runner with the proper env variables and as a runner protocol.
             self.start_runner(
-                context,
                 compute_cluster_id,
                 user_id,
                 nodepool_id,
@@ -252,7 +328,6 @@ class ModelServer:
 
     def start_runner(
         self,
-        context,
         compute_cluster_id,
         user_id,
         nodepool_id,
@@ -277,35 +352,6 @@ class ModelServer:
             num_parallel_polls=num_threads,
         )
 
-        if context is None:
-            logger.debug("Context is None. Skipping code snippet generation.")
-        else:
-            method_signatures = self._builder.get_method_signatures(mocking=False)
-            from clarifai.runners.utils import code_script
-
-            snippet = code_script.generate_client_script(
-                method_signatures,
-                user_id=context.user_id,
-                app_id=context.app_id,
-                model_id=context.model_id,
-                deployment_id=context.deployment_id,
-                deployment_user_id=context.user_id,
-                base_url=context.api_base,
-                colorize=True,
-            )
-            logger.info(
-                "✅ Your model is running locally and is ready for requests from the API...\n"
-            )
-            logger.info(
-                f"> Code Snippet: To call your model via the API, use this code snippet:\n{snippet}"
-            )
-            logger.info(
-                f"> Playground:   To chat with your model, visit: {context.ui}/playground?model={context.model_id}__{context.model_version_id}&user_id={context.user_id}&app_id={context.app_id}\n"
-            )
-            logger.info(
-                f"> API URL:      To call your model via the API, use this model URL: {context.ui}/{context.user_id}/{context.app_id}/models/{context.model_id}\n"
-            )
-            logger.info("Press CTRL+C to stop the runner.\n")
         self._runner.start()  # start the runner to fetch work from the API.
 
 

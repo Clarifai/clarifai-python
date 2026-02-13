@@ -91,6 +91,8 @@ class ModelRunner(BaseRunner):
         HealthProbeRequestHandler.is_startup = True
 
         start_health_server_thread(port=health_check_port, address='')
+        if health_check_port is not None:
+            start_health_server_thread(port=health_check_port, address='')
 
     def get_runner_item_output_for_status(
         self, status: status_pb2.Status
@@ -109,6 +111,27 @@ class ModelRunner(BaseRunner):
             multi_output_response=service_pb2.MultiOutputResponse(status=status)
         )
         return rio
+
+    @property
+    def admission_control_backoff(self) -> float:
+        """
+        The time in seconds to wait before retrying admission control. If the model defines this backoff, we use that.
+        """
+        if hasattr(self.model, 'admission_control_backoff'):
+            return self.model.admission_control_backoff
+        return super().admission_control_backoff
+
+    def check_admission(self) -> bool:
+        """
+        Check if the runner is ready to accept new work. If the model has a check_admission func, we call that.
+
+        Returns:
+          bool: True if the runner is ready to accept work, False otherwise.
+        """
+        if hasattr(self.model, 'check_admission'):
+            return self.model.check_admission()
+        else:
+            return super().check_admission()
 
     def runner_item_predict(
         self, runner_item: service_pb2.RunnerItem
@@ -132,8 +155,8 @@ class ModelRunner(BaseRunner):
         start_time = time.time()
         req_id = get_req_id_from_context()
         status_str = STATUS_UNKNOWN
-        # Endpoint is always POST /v2/.../outputs for this runner
-        endpoint = "POST /v2/.../outputs         "
+        # Operation name for logging purposes
+        endpoint = "model_predict"
 
         # if method_name == '_GET_SIGNATURES' then the request is for getting signatures and we don't want to log it.
         # This is a workaround to avoid logging the _GET_SIGNATURES method call.
@@ -204,7 +227,7 @@ class ModelRunner(BaseRunner):
         start_time = time.time()
         req_id = get_req_id_from_context()
         status_str = STATUS_UNKNOWN
-        endpoint = "POST /v2/.../outputs/generate"
+        endpoint = "model_generate"
 
         # Use req_secrets_context to temporarily set request-type secrets as environment variables
         with req_secrets_context(request):
@@ -260,7 +283,7 @@ class ModelRunner(BaseRunner):
         start_time = time.time()
         req_id = get_req_id_from_context()
         status_str = STATUS_UNKNOWN
-        endpoint = "POST /v2/.../outputs/stream  "
+        endpoint = "model_stream"
 
         # Get the first request to establish secrets context
         first_request = None
@@ -306,8 +329,8 @@ class ModelRunner(BaseRunner):
                     status_str = STATUS_MIXED
                 else:
                     status = status_pb2.Status(
-                        code=status_code_pb2.FAILURE,
-                        description="Failed",
+                        code=status_code_pb2.RUNNER_PROCESSING_FAILED,
+                        description="Runner Processing Failed",
                     )
                     status_str = STATUS_FAIL
                 resp.status.CopyFrom(status)

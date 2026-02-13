@@ -1,3 +1,173 @@
+## [[12.2.0]](https://github.com/Clarifai/clarifai-python/releases/tag/12.2.0) - [PyPI](https://pypi.org/project/clarifai/12.2.0/) - 2026-02-13
+
+### Added
+- Admission Control: Added admission control support for model runners [(#941)](https://github.com/Clarifai/clarifai-python/pull/941)
+- OpenAI Dependency: Added openai as a core dependency [(#938)](https://github.com/Clarifai/clarifai-python/pull/938)
+
+### Changed
+- Local Runner: Removed inference_compute_info requirement for local model runners [(#911)](https://github.com/Clarifai/clarifai-python/pull/911)
+- CLI Login: Improved CLI login experience with better UX and security [(#928)](https://github.com/Clarifai/clarifai-python/pull/928)
+- Relaxed clarifai-protocol version constraint from ==0.0.35 to >=0.0.35,<0.1.0 [(#932)](https://github.com/Clarifai/clarifai-python/pull/932)
+
+### Fixed
+- Fixed dependency version constraints [(#943)](https://github.com/Clarifai/clarifai-python/pull/943)
+- Fixed authentication in model deployment CLI [(#927)](https://github.com/Clarifai/clarifai-python/pull/927)
+
+## [[12.1.7]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.7) - [PyPI](https://pypi.org/project/clarifai/12.1.7/) - 2026-02-06
+
+### Added
+- Thread Configuration Management: Added functionality to pass num_threads from config.yaml to the model version protobuf.
+
+### Changed
+- Docker Entrypoint: Switched to tini as the default entrypoint in Dockerfile templates to improve signal handling and zombie process reaping within runner containers.
+
+### Fixed
+- Stdio MCP Server: Refactored the Model Context Protocol (MCP) server to improve logging clarity and remove unused legacy code.
+
+## [[12.1.6]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.6) - [PyPI](https://pypi.org/project/clarifai/12.1.6/) - 2026-01-26
+
+### Added
+- Add support for concept IDs from config.yaml in visual detector/classifier [(#913)](https://github.com/Clarifai/clarifai-python/pull/913)
+  - Added `load_concepts_from_config()` method to `VisualDetectorClass` and `VisualClassifierClass` to load concepts from config.yaml
+  - Added optional `concepts_map` parameter to `process_detections()` and `process_concepts()` methods
+  - When `concepts_map` is provided, concept IDs are taken from config.yaml instead of being auto-generated from names
+  - Fixes mismatch between concept IDs in model output_info and actual prediction output
+
+## [[12.1.5]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.5) - [PyPI](https://pypi.org/project/clarifai/12.1.5/) - 2026-01-21
+
+### Added
+- Added a dockerfile template that conditionally adds packages for video streaming [(#902)](https://github.com/Clarifai/clarifai-python/pull/902)
+
+### Fixed
+- Fixed the deployment cleaning logic to only target failed model deployments [(#895)](https://github.com/Clarifai/clarifai-python/pull/895)
+
+## [[12.1.4]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.4) - [PyPI](https://pypi.org/project/clarifai/12.1.4/) - 2026-01-13
+
+### Added
+- [EAGLE-7083]: Add retry logic to OpenAI API calls [(#878)](https://github.com/Clarifai/clarifai-python/pull/878)
+  - Implements an automatic retry mechanism for OpenAI API calls to handle transient httpx.ConnectError exceptions
+  - Adds tenacity as a dependency
+  - Wraps all OpenAI API calls in OpenAIModelClass with a @retry decorator
+  - Configures the retry to happen up to 3 times with exponential backoff on httpx.ConnectError
+
+### Fixed
+- Fix agentic OpenAI transport [(#900)](https://github.com/Clarifai/clarifai-python/pull/900)
+  - Fixed attribute access for OpenAI response objects in agentic transport to use hasattr() checks instead of dictionary .get() methods
+  - Added "none" mode to the --mode CLI option for local-runner command and changed the default from "env" to "none"
+- Fix top_k when playground hits openai_transport_* methods [(#791)](https://github.com/Clarifai/clarifai-python/pull/791)
+
+## [[12.1.3]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.3) - [PyPI](https://pypi.org/project/clarifai/12.1.3/) - 2026-01-09
+
+### Added
+- [PR-1090] Agentic Class [(#869)](https://github.com/Clarifai/clarifai-python/pull/869)
+  - Introduced new `AgenticModelClass` that extends `OpenAIModelClass` to enable agentic behavior by integrating LLMs with MCP (Model Context Protocol) servers
+  - Added tool discovery, execution, and iterative tool calling capabilities for both chat completions and responses endpoints
+  - Supports both streaming and non-streaming modes
+- [PR-1092][PR-1093] Optimised MCPModelClass and supports for Stdio MCP servers [(#872)](https://github.com/Clarifai/clarifai-python/pull/872)
+  - Refactored `MCPModelClass` with persistent session management using background thread with long-lived event loop
+  - Added persistent FastMCP client session that opens once during `load_model()` and reuses for all subsequent requests
+  - Introduced new `StdioMCPModelClass` for stdio MCP servers with automatic tool discovery
+  - Added support for single long-lived Node.js process for stdio servers
+  - Added configuration via YAML with support for environment variables and secrets
+
+### Fixed
+- Validate requirements.txt for Agentic Models [(#897)](https://github.com/Clarifai/clarifai-python/pull/897)
+  - Added validation for requirements.txt in agentic models
+
+## [[12.1.2]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.2) - [PyPI](https://pypi.org/project/clarifai/12.1.2/) - 2026-01-09
+
+### Added
+- Add CLI support for pause, cancel, resume, and monitor Pipeline Runs [(#881)](https://github.com/Clarifai/clarifai-python/pull/881)
+  - `clarifai pipelinerun` (alias `pr`) with subcommands: `pause`, `cancel`, `resume`, `monitor`
+  - Accepts pipeline_version_run_id as positional arg or explicit flag
+  - Auto-loads user_id, app_id, pipeline_id, pipeline_version_id from config-lock.yaml when present
+  - Helper functions extract shared logic for config loading, validation, and pipeline instantiation
+  - `monitor` command polls status and logs with configurable --timeout and --monitor_interval options
+
+### Fixed
+- Fixed Artifacts Download and Improved Output Formatting [(#893)](https://github.com/Clarifai/clarifai-python/pull/893)
+  - Fix Artifact download authentication issue.
+  - Standardize table formatting by using the existing display_co_resources function.
+  - Artifacts list table have more details such as version, created_at, etc.
+  - Artifact version list displayed integers in the visibility column, fixed to human readable strings.
+
+## [[12.1.1]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.1) - [PyPI](https://pypi.org/project/clarifai/12.1.1/) - 2026-01-06
+
+### Fixed
+- Fixed local model runner issues [(#886)](https://github.com/Clarifai/clarifai-python/pull/886)
+  - Re-enabled copying from the working directory to the container, which was previously disabled
+  - Corrected incorrect argument configuration for uploaded models from earlier work
+
+## [[12.1.0]](https://github.com/Clarifai/clarifai-python/releases/tag/12.1.0) - [PyPI](https://pypi.org/project/clarifai/12.1.0/) - 2026-01-06
+
+### Fixed
+- Fixed checkpoint downloads failed when hf_transfer wasn't installed [(#888)](https://github.com/Clarifai/clarifai-python/pull/888)
+  - Added compatibility check that temporarily disables HF_HUB_ENABLE_HF_TRANSFER environment variable during downloads when hf_transfer package is unavailable
+  - Prevents download failures from Hugging Face when environment variable is set but package is not installed
+- Fix conflicts with latest vLLM [(#887)](https://github.com/Clarifai/clarifai-python/pull/887)
+  - Fixed vLLM model upload failures caused by hardcoded dependencies in SDK
+
+## [[11.12.2]](https://github.com/Clarifai/clarifai-python/releases/tag/11.12.2) - [PyPI](https://pypi.org/project/clarifai/11.12.2/) - 2025-12-23
+
+### Added
+- PIPE-1120: Artifact CLI/SDK implementation [(#860)](https://github.com/Clarifai/clarifai-python/pull/860)
+  - Added comprehensive artifact management system for SDK and CLI
+  - Added Artifact and ArtifactVersion client classes for metadata and file operations
+  - Added CLI commands for artifact operations (list, get, cp, delete) with alias support
+  - Added file upload/download with streaming, progress tracking, and retry logic
+  - Added 80+ test methods across 4 test files for comprehensive coverage
+- PR-1014: Interactive config.yaml creation during model upload process [(#843)](https://github.com/Clarifai/clarifai-python/pull/843)
+  - Added interactive CLI prompts for creating config.yaml when missing during model upload
+  - Added helper functions for prompting required, optional, integer, and yes/no fields
+  - Added context selection during upload process
+- Added container and Env model for Local runners [(#856)](https://github.com/Clarifai/clarifai-python/pull/856)
+  - Added CLI options (--mode, --keep_image) for local_runner command
+  - Added ModelRunLocally class for environment setup and Docker operations
+  - Added support for running models in virtual environment or Docker container
+- Add comprehensive test coverage for MCPConnectionPool connection lifecycle [(#875)](https://github.com/Clarifai/clarifai-python/pull/875)
+  - Added 22 unit tests for connection lifecycle operations
+  - Added tests for singleton behavior, connection cleanup, and parallel operations
+
+### Changed
+- Update status code and description for model runner failure case [(#870)](https://github.com/Clarifai/clarifai-python/pull/870)
+  - Updated status code to RUNNER_PROCESSING_FAILED for model runner failures
+
+### Fixed
+- [EAGLE-7007]: Prevent TypeError during model version creation [(#858)](https://github.com/Clarifai/clarifai-python/pull/858)
+  - Fixed TypeError by filtering None values from method signatures before protobuf constructor
+- Fixed runner-id bug for local-runners [(#867)](https://github.com/Clarifai/clarifai-python/pull/867)
+  - Fixed runner selection and error handling logic to reuse existing runners
+  - Fixed runner ID missing error when local-runner is initiated from fresh login
+- Add fix for user verification in dev [(#868)](https://github.com/Clarifai/clarifai-python/pull/868)
+  - Fixed CONN_INSUFFICIENT_SCOPES error during model upload in dev environment
+  - Added graceful handling of insufficient scopes for Clarifai employee check
+- [SVMB-1361]: Upgrade urllib3>2.6.2 [(#877)](https://github.com/Clarifai/clarifai-python/pull/877)
+  - Upgraded requests dependency to ensure urllib3>2.6.2 for security fix
+- [EAGLE-7083]: Add retry logic to OpenAI API calls and fix test mocks [(#879)](https://github.com/Clarifai/clarifai-python/pull/879)
+  - Added retry mechanism with exponential backoff for OpenAI API calls
+  - Added tenacity dependency for retry logic
+  - Fixed test mocks with missing OpenAI client methods
+
+## [[11.12.1]](https://github.com/Clarifai/clarifai-python/releases/tag/11.12.1) - [PyPI](https://pypi.org/project/clarifai/11.12.1/) - 2025-12-03
+
+### Fixed
+- Fix TypeError when accelerator_type is None in config.yaml [(#864)](https://github.com/Clarifai/clarifai-python/pull/864)
+  - Added null check before iterating over accelerator_type
+  - Prevents crash during model upload for CPU-only models
+
+## [[11.12.0]](https://github.com/Clarifai/clarifai-python/releases/tag/11.12.0) - [PyPI](https://pypi.org/project/clarifai/11.12.0/) - 2025-12-02
+
+### Changed
+- Fixed local-runner to handle duplicate runner id errors [(#850)](https://github.com/Clarifai/clarifai-python/pull/850)
+- Added CLARIFAI_HF_TOKEN to CLI Context [(#851)](https://github.com/Clarifai/clarifai-python/pull/851)
+
+### Added
+- Add comprehensive test coverage for cli.pipeline_step module [(#795)](https://github.com/Clarifai/clarifai-python/pull/795)
+- Add tests for local-runner CLI command [(#853)](https://github.com/Clarifai/clarifai-python/pull/853)
+
+### Removed
+- Remove auto-generating file [(#854)](https://github.com/Clarifai/clarifai-python/pull/854)
+
 ## [[11.10.3]](https://github.com/Clarifai/clarifai-python/releases/tag/11.10.3) - [PyPI](https://pypi.org/project/clarifai/11.10.3/) - 2025-11-27
 
 ### Added

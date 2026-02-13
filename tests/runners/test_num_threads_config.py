@@ -65,3 +65,34 @@ def test_num_threads(my_tmp_path, num_threads, monkeypatch):
     elif num_threads in [-1, 0, "a", 1.5]:
         with pytest.raises(AssertionError):
             builder = ModelBuilder(target_folder, validate_api_ids=False)
+
+
+def test_num_threads_in_proto(my_tmp_path):
+    """
+    Verify that num_threads is correctly set in the model version proto
+    """
+    tests_dir = Path(__file__).parent.resolve()
+    original_dummy_path = tests_dir / "dummy_runner_models"
+    if not original_dummy_path.exists():
+        raise FileNotFoundError(f"Could not find dummy_runner_models at {original_dummy_path}.")
+
+    # Copy the entire folder to tmp_path
+    target_folder = my_tmp_path / "dummy_runner_models_proto"
+    shutil.copytree(original_dummy_path, target_folder)
+
+    config_yaml_path = target_folder / "config.yaml"
+    with config_yaml_path.open("r") as f:
+        config = yaml.safe_load(f)
+
+    # Set num_threads in config
+    num_threads_value = 42
+    config["num_threads"] = num_threads_value
+
+    with config_yaml_path.open("w") as f:
+        yaml.dump(config, f, sort_keys=False)
+
+    builder = ModelBuilder(str(target_folder), validate_api_ids=False)
+
+    proto = builder.get_model_version_proto()
+
+    assert proto.num_threads == num_threads_value

@@ -18,13 +18,36 @@ from clarifai.utils.logging import logger
 
 
 class ModelRunLocally:
-    def __init__(self, model_path):
-        self.model_path = model_path
+    def __init__(self, model_path, model_builder: ModelBuilder = None):
+        """
+        Initialize a helper to run a Clarifai model locally in an isolated environment.
+
+        Parameters
+        ----------
+        model_path : str
+            Filesystem path to the root directory of the model. This directory is expected
+            to contain the model code and a ``requirements.txt`` file describing its
+            Python dependencies.
+        model_builder : ModelBuilder, optional
+            An existing :class:`ModelBuilder` instance to use for interacting with the
+            model. Pass this when you already have a configured builder you want to
+            reuse. If ``None`` (the default), a new ``ModelBuilder`` is created for
+            ``model_path`` with ``download_validation_only=True``.
+        """
+        self.model_path = os.path.abspath(model_path)
         self.requirements_file = os.path.join(self.model_path, "requirements.txt")
 
         # ModelBuilder contains multiple useful methods to interact with the model
-        self.builder = ModelBuilder(self.model_path, download_validation_only=True)
+        self.builder = (
+            model_builder
+            if model_builder
+            else ModelBuilder(self.model_path, download_validation_only=True)
+        )
         self.config = self.builder.config
+
+    def _get_method_signatures(self):
+        """Get the method signatures for the model."""
+        return self.builder.get_method_signatures()
 
     def _requirements_hash(self):
         """Generate a hash of the requirements file."""
@@ -232,9 +255,7 @@ class ModelRunLocally:
             # Comment out the COPY instruction that copies the current folder
             modified_lines = []
             for line in lines:
-                if 'COPY' in line and '/home/nonroot/main' in line:
-                    modified_lines.append(f'# {line}')
-                elif 'download-checkpoints' in line and '/home/nonroot/main' in line:
+                if 'download-checkpoints' in line and '/home/nonroot/main' in line:
                     modified_lines.append(f'# {line}')
                 else:
                     modified_lines.append(line)
@@ -357,7 +378,13 @@ class ModelRunLocally:
         return True
 
     def run_docker_container(
-        self, image_name, container_name="clarifai-model-container", port=8080, env_vars=None
+        self,
+        image_name,
+        container_name="clarifai-model-container",
+        port=8080,
+        env_vars=None,
+        is_local_runner: bool = False,
+        **kwargs,
     ):
         """Runs a Docker container from the specified image."""
         try:
@@ -379,8 +406,32 @@ class ModelRunLocally:
             # Add the image name
             cmd.append(image_name)
             # update the CMD to run the server
-            cmd.extend(["--model_path", "/home/nonroot/main", "--grpc", "--port", str(port)])
+            if is_local_runner:
+                kwargs.pop("pool_size", None)  # remove pool_size if exists
+                cmd.extend(
+                    [
+                        "--model_path",
+                        "/home/nonroot/main",
+                        "--compute_cluster_id",
+                        str(kwargs.get("compute_cluster_id", None)),
+                        "--user_id",
+                        str(kwargs.get("user_id", None)),
+                        "--nodepool_id",
+                        str(kwargs.get("nodepool_id", None)),
+                        "--runner_id",
+                        str(kwargs.get("runner_id", None)),
+                        "--base_url",
+                        str(kwargs.get("base_url", None)),
+                        "--pat",
+                        str(kwargs.get("pat", None)),
+                        "--num_threads",
+                        str(kwargs.get("num_threads", 0)),
+                    ]
+                )
+            else:
+                cmd.extend(["--model_path", "/home/nonroot/main", "--grpc", "--port", str(port)])
             # Run the container
+            logger.info(f"Running docker commands: {cmd}")
             process = subprocess.Popen(
                 cmd,
             )

@@ -393,6 +393,11 @@ class ClarifaiAuthHelper:
         """Return the personal access token."""
         return self._pat
 
+    @pat.setter
+    def pat(self, value: str):
+        """Set the personal access token."""
+        self._pat = value
+
     def __str__(self):
         return "ClarifaiAuthHelper:\n- base: %s\n- user_id: %s\n- app_id: %s\n" % (
             self._base,

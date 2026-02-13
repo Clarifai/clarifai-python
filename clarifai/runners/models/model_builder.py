@@ -22,6 +22,7 @@ from clarifai.client import Model, Nodepool
 from clarifai.client.base import BaseClient
 from clarifai.client.user import User
 from clarifai.errors import UserError
+from clarifai.runners.models.agentic_class import AgenticModelClass
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils import code_script
 from clarifai.runners.utils.const import (
@@ -47,13 +48,22 @@ from clarifai.versions import get_latest_version_from_pypi
 
 CLARIFAI_LATEST_VERSION = get_latest_version_from_pypi()
 
-# parse the user's requirements.txt to determine the proper base image to build on top of, based on the torch and other large dependencies and it's versions
-# List of dependencies to look for
-dependencies = [
-    'torch',
-    'clarifai',
-    'vllm',
-]
+# Additional package installation if the model will be used w/ a streaming video runner:
+# Dockerfile: Install ffmpeg and av
+#
+# Our base images are distroless, so we do not have apt-get or other package managers
+# available; however, we will also not be able to use those package repositories on-prem.
+# As a result, we build our own static ffmpeg image to serve as the source of these deps.
+# See: https://github.com/Clarifai/models-images/tree/main/static_streaming
+#
+# TODO: before we make this public, we need to figure out how to distribute the src;
+# line to copy in src commented out because it's 500MB
+STREAMING_VIDEO_ADDITIONAL_PACKAGE_INSTALLATION = """
+COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /ffmpeg /usr/local/bin/
+COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /ffprobe /usr/local/bin/
+# COPY --from=public.ecr.aws/clarifai-models/static-streaming:5.1.8 /src /usr/local/src/
+RUN uv pip install --no-cache-dir av
+"""
 
 
 def is_related(object_class, main_class):
@@ -104,12 +114,14 @@ def get_yes_no_input(prompt, default=None):
         print("❌ Please enter 'y' or 'n'.")
 
 
-def select_compute_option(user_id: str):
+def select_compute_option(user_id: str, pat: Optional[str] = None, base_url: Optional[str] = None):
     """
     Dynamically list compute-clusters and node-pools that belong to `user_id`
     and return a dict with nodepool_id, compute_cluster_id, cluster_user_id.
     """
-    user = User(user_id=user_id)  # PAT / BASE URL are picked from env-vars
+    user = User(
+        user_id=user_id, pat=pat, base_url=base_url
+    )  # PAT / BASE URL are picked from env-vars
     clusters = list(user.list_compute_clusters())
     if not clusters:
         print("❌ No compute clusters found for this user.")
@@ -163,6 +175,7 @@ class ModelBuilder:
         platform: Optional[str] = None,
         pat: Optional[str] = None,
         base_url: Optional[str] = None,
+        compute_info_required: bool = False,
     ):
         """
         :param folder: The folder containing the model.py, config.yaml, requirements.txt and
@@ -176,6 +189,7 @@ class ModelBuilder:
         :param platform: Target platform(s) for Docker image build (e.g., "linux/amd64" or "linux/amd64,linux/arm64"). This overrides the platform specified in config.yaml.
         :param pat: Personal access token for authentication. If None, will use environment variables.
         :param base_url: Base URL for the API. If None, will use environment variables.
+        :param compute_info_required: Whether inference compute info is required. This affects certain validation and behavior.
         """
         assert app_not_found_action in ["auto_create", "prompt", "error"], ValueError(
             f"Expected one of {['auto_create', 'prompt', 'error']}, got {app_not_found_action=}"
@@ -196,7 +210,9 @@ class ModelBuilder:
         self.model_proto = self._get_model_proto()
         self.model_id = self.model_proto.id
         self.model_version_id = None
-        self.inference_compute_info = self._get_inference_compute_info()
+        self.inference_compute_info = self._get_inference_compute_info(
+            compute_info_required=compute_info_required
+        )
         self.is_v3 = True  # Do model build for v3
 
     def create_model_instance(self, load_model=True, mocking=False) -> ModelClass:
@@ -569,10 +585,48 @@ class ModelBuilder:
             num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 16))
             self.config["num_threads"] = num_threads
 
+        # Validate AgenticModelClass requirements
+        if not self.download_validation_only:
+            self._validate_agentic_model_requirements()
+
+    def _validate_agentic_model_requirements(self):
+        """
+        Validate that AgenticModelClass models have required dependencies (fastmcp and mcp) in requirements.txt.
+        """
+        try:
+            # Load the model class with mocking to avoid import errors
+            model_class = self.load_model_class(mocking=True)
+
+            # Check if the model class is a subclass of AgenticModelClass
+            if issubclass(model_class, AgenticModelClass):
+                # Parse requirements.txt to check for required packages
+                dependencies = self._parse_requirements()
+                missing_packages = []
+                if 'fastmcp' not in dependencies:
+                    missing_packages.append('fastmcp')
+                if 'mcp' not in dependencies:
+                    missing_packages.append('mcp')
+
+                if missing_packages:
+                    logger.error(
+                        f"Model class '{model_class.__name__}' inherits from AgenticModelClass, "
+                        f"but the following required packages are missing from requirements.txt: {', '.join(missing_packages)}, which are required for agentic models. "
+                        f"Please add these packages to your requirements.txt file."
+                    )
+                    sys.exit(1)
+        except Exception as e:
+            # If we can't load the model class, log a warning but don't fail
+            # This could happen if there are import errors, but we don't want to block
+            # non-agentic models from being uploaded
+            logger.debug(f"Could not validate AgenticModelClass requirements: {e}")
+
     def _validate_stream_options(self):
         """
         Validate OpenAI streaming configuration for Clarifai models.
         """
+        if self.download_validation_only:
+            return
+
         if not self._is_clarifai_internal():
             return  # Skip validation for non-clarifai models
 
@@ -715,10 +769,6 @@ class ModelBuilder:
             )
             user_response = user_client.get_user_info()
 
-            if user_response.status.code != status_code_pb2.SUCCESS:
-                logger.debug("Could not retrieve user info for Clarifai internal user validation")
-                return False
-
             user = user_response.user
 
             # Check primary email domain
@@ -728,7 +778,12 @@ class ModelBuilder:
             return False
 
         except Exception as e:
-            logger.debug(f"Employee validation failed: {e}")
+            # Gracefully handle insufficient scopes (dev environment) or any other errors
+            error_msg = str(e)
+            if "CONN_INSUFFICIENT_SCOPES" in error_msg:
+                logger.debug("Skipping user validation due to insufficient scopes")
+            else:
+                logger.debug(f"User validation failed (skip validation and continue): {e}")
             return False
 
     def _get_all_python_content(self):
@@ -800,7 +855,9 @@ class ModelBuilder:
         """
         model_class = self.load_model_class(mocking=mocking)
         method_infos = model_class._get_method_infos()
-        signatures = [method.signature for method in method_infos.values()]
+        signatures = [
+            method.signature for method in method_infos.values() if method.signature is not None
+        ]
         return signatures
 
     @property
@@ -884,11 +941,12 @@ class ModelBuilder:
 
         return model_proto
 
-    def _get_inference_compute_info(self):
-        assert "inference_compute_info" in self.config, (
-            "inference_compute_info not found in the config file"
-        )
-        inference_compute_info = self.config.get('inference_compute_info')
+    def _get_inference_compute_info(self, compute_info_required=False):
+        if compute_info_required:
+            assert "inference_compute_info" in self.config, (
+                "inference_compute_info not found in the config file"
+            )
+        inference_compute_info = self.config.get('inference_compute_info') or {}
         # Ensure cpu_limit is a string if it exists and is an int
         if 'cpu_limit' in inference_compute_info and isinstance(
             inference_compute_info['cpu_limit'], int
@@ -941,14 +999,7 @@ class ModelBuilder:
         else:
             pkg, version = line, None  # No version specified
         pkg = pkg.strip()
-        for dep in dependencies:
-            if dep == pkg:
-                if (
-                    dep == 'torch' and line.find('whl/cpu') > 0
-                ):  # Ignore torch-cpu whl files, use base mage.
-                    return None, None
-                return pkg, version.strip() if version else None
-        return None, None
+        return pkg, version.strip() if version else None
 
     def _parse_requirements(self):
         dependencies_version = {}
@@ -1006,11 +1057,13 @@ class ModelBuilder:
         if "inference_compute_info" in self.config:
             inference_compute_info = self.config.get('inference_compute_info')
             if 'accelerator_type' in inference_compute_info:
-                for accelerator in inference_compute_info['accelerator_type']:
-                    if 'amd' in accelerator.lower():
-                        is_amd_gpu = True
-                    elif 'nvidia' in accelerator.lower():
-                        is_nvidia_gpu = True
+                accelerator_type = inference_compute_info['accelerator_type']
+                if accelerator_type:  # Check if not None or empty
+                    for accelerator in accelerator_type:
+                        if 'amd' in accelerator.lower():
+                            is_amd_gpu = True
+                        elif 'nvidia' in accelerator.lower():
+                            is_nvidia_gpu = True
         if is_amd_gpu and is_nvidia_gpu:
             raise Exception(
                 "Both AMD and NVIDIA GPUs are specified in the config file, please use only one type of GPU."
@@ -1040,21 +1093,33 @@ class ModelBuilder:
                     python_files.append(os.path.join(root, file))
         if not python_files:
             logger.info("No Python files found to lint, skipping linting step.")
+        elif len(python_files) > 10:
+            logger.info(f"Setup: Linting {len(python_files)} Python files.")
         else:
             logger.info(f"Setup: Linting Python files: {python_files}")
+
         # Run ruff to lint the python code.
         # Use --no-cache to prevent .ruff_cache folder generation in model directories
         command = "ruff check --select=F --no-cache"
-        result = subprocess.run(
-            f"{command} {' '.join(python_files)}",
-            shell=True,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            logger.error(f"Error linting Python code: {result.stderr}")
-            logger.error("Output: " + result.stdout)
+
+        # Batch linting to avoid "Argument list too long" error
+        batch_size = 100
+        all_success = True
+        for i in range(0, len(python_files), batch_size):
+            batch = python_files[i : i + batch_size]
+            result = subprocess.run(
+                f"{command} {' '.join(batch)}",
+                shell=True,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            if result.returncode != 0:
+                all_success = False
+                logger.error(f"Error linting Python code: {result.stderr}")
+                logger.error("Output: " + result.stdout)
+
+        if not all_success:
             logger.error(
                 f"Failed to lint the Python code, please check the code for errors using '{command}' so you don't have simple errors in your code prior to upload."
             )
@@ -1081,19 +1146,40 @@ class ModelBuilder:
         Generate the Dockerfile content based on the model configuration.
         This is a helper method that returns the content without writing to file.
         """
-        dockerfile_template = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            'dockerfile_template',
-            'Dockerfile.template',
-        )
 
-        with open(dockerfile_template, 'r') as template_file:
+        additional_packages = ""
+        streaming_video_consumer = self.config.get('streaming_video_consumer', False)
+        if streaming_video_consumer:
+            additional_packages = STREAMING_VIDEO_ADDITIONAL_PACKAGE_INSTALLATION
+
+        # Get the Python version from the config file
+        build_info = self.config.get('build_info', {})
+
+        # Check if node_version is specified - if so, use the Node.js Dockerfile template
+        node_version = build_info.get('node_version', '') or ''
+        use_node_template = bool(node_version and str(node_version).strip())
+
+        if use_node_template:
+            dockerfile_template_path = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                'dockerfile_template',
+                'Dockerfile.node.template',
+            )
+            logger.info(
+                f"Setup: Node version {node_version} specified in config.yaml, using Node.js Dockerfile template"
+            )
+        else:
+            dockerfile_template_path = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                'dockerfile_template',
+                'Dockerfile.template',
+            )
+
+        with open(dockerfile_template_path, 'r') as template_file:
             dockerfile_template = template_file.read()
 
         dockerfile_template = Template(dockerfile_template)
 
-        # Get the Python version from the config file
-        build_info = self.config.get('build_info', {})
         if 'python_version' in build_info:
             python_version = build_info['python_version']
             if python_version not in AVAILABLE_PYTHON_IMAGES:
@@ -1120,6 +1206,43 @@ class ModelBuilder:
         # Parse the requirements.txt file to determine the base image
         dependencies = self._parse_requirements()
 
+        # If using Node.js template, use simpler substitution
+        if use_node_template:
+            if 'clarifai' not in dependencies:
+                raise Exception(
+                    f"clarifai not found in requirements.txt, please add clarifai to the requirements.txt file with a fixed version. Current version is clarifai=={CLARIFAI_LATEST_VERSION}"
+                )
+            clarifai_version = dependencies['clarifai']
+            if not clarifai_version:
+                logger.warn(
+                    f"clarifai version not found in requirements.txt, using the latest version {CLARIFAI_LATEST_VERSION}"
+                )
+                clarifai_version = CLARIFAI_LATEST_VERSION
+                lines = []
+                with open(os.path.join(self.folder, 'requirements.txt'), 'r') as file:
+                    for line in file:
+                        # if the line without whitespace is "clarifai"
+                        dependency, version = self._match_req_line(line)
+                        if dependency and dependency == "clarifai":
+                            lines.append(
+                                line.replace("clarifai", f"clarifai=={CLARIFAI_LATEST_VERSION}")
+                            )
+                        else:
+                            lines.append(line)
+                with open(os.path.join(self.folder, 'requirements.txt'), 'w') as file:
+                    file.writelines(lines)
+                logger.warn(
+                    f"Updated requirements.txt to have clarifai=={CLARIFAI_LATEST_VERSION}"
+                )
+
+            # Replace placeholders with actual values for Node.js template
+            dockerfile_content = dockerfile_template.safe_substitute(
+                PYTHON_VERSION=python_version,
+                NODE_VERSION=str(node_version).strip(),
+            )
+            return dockerfile_content
+
+        # Standard template logic (multi-stage build)
         is_amd_gpu = self._is_amd()
         if is_amd_gpu:
             final_image = AMD_PYTHON_BASE_IMAGE.format(python_version=python_version)
@@ -1227,6 +1350,7 @@ class ModelBuilder:
             FINAL_IMAGE=final_image,  # for pip requirements
             DOWNLOADER_IMAGE=downloader_image,  # for downloading checkpoints
             CLARIFAI_VERSION=clarifai_version,  # for clarifai
+            ADDITIONAL_PACKAGES=additional_packages,
         )
 
         return dockerfile_content
@@ -1548,6 +1672,12 @@ class ModelBuilder:
             logger.error(f"Failed to process secrets: {e}")
             raise
 
+        # Add num_threads if specified
+        num_threads = self.config.get("num_threads")
+        if num_threads:
+            model_version_proto.num_threads = num_threads
+            logger.info(f"Added num_threads={num_threads} to model version")
+
         model_type_id = self.config.get('model').get('model_type_id')
         if model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE:
             if 'concepts' in self.config:
@@ -1824,7 +1954,12 @@ def upload_model(
     :param base_url: Base URL for the API. If None, will use environment variables.
     """
     builder = ModelBuilder(
-        folder, app_not_found_action="prompt", platform=platform, pat=pat, base_url=base_url
+        folder,
+        app_not_found_action="prompt",
+        platform=platform,
+        pat=pat,
+        base_url=base_url,
+        compute_info_required=True,
     )
     builder.download_checkpoints(stage=stage)
 
@@ -1878,6 +2013,8 @@ def deploy_model(
     cluster_user_id=None,
     min_replicas=0,
     max_replicas=5,
+    pat=None,
+    base_url=None,
 ):
     """
     Deploy a model on Clarifai platform.
@@ -1893,6 +2030,8 @@ def deploy_model(
         cluster_user_id (str): The user ID that owns the compute cluster.
         min_replicas (int): Minimum number of replicas for autoscaling.
         max_replicas (int): Maximum number of replicas for autoscaling.
+        pat (str): Personal access token for authentication.
+        base_url (str): Base URL for the API.
     """
     if model_url and model_id:
         raise UserError("You can only specify one of url or model_id.")
@@ -1901,7 +2040,9 @@ def deploy_model(
     if model_url:
         user_id, app_id, _, model_id, _ = ClarifaiUrlHelper.split_clarifai_url(model_url)
     if not model_version_id:
-        model = Model(model_id=model_id, app_id=app_id, user_id=user_id)
+        model = Model(
+            model_id=model_id, app_id=app_id, user_id=user_id, pat=pat, base_url=base_url
+        )
         model_versions = [v for v in model.list_versions()]
         if not model_versions:
             raise UserError(f"No versions found for model {model_id}.")
@@ -1949,7 +2090,7 @@ def deploy_model(
 
     try:
         # Instantiate Nodepool and create the deployment
-        nodepool = Nodepool(nodepool_id=nodepool_id, user_id=user_id)
+        nodepool = Nodepool(nodepool_id=nodepool_id, user_id=user_id, pat=pat, base_url=base_url)
         deployment = nodepool.create_deployment(
             deployment_id=deployment_id, deployment_config=deployment_config
         )
@@ -1983,11 +2124,15 @@ def setup_deployment_for_model(builder):
             'app_id': model.get('app_id'),
             'model_id': model.get('id'),
             'model_version_id': builder.model_version_id,
+            'pat': builder._pat,
+            'base_url': builder._base_url,
         }
     )
 
     # Select compute options
-    compute_config = select_compute_option(user_id=state['user_id'])
+    compute_config = select_compute_option(
+        user_id=state['user_id'], pat=builder._pat, base_url=builder._base_url
+    )
 
     # Get deployment configuration
     print("\n⌨️  Enter Deployment Configuration:")
@@ -1998,42 +2143,47 @@ def setup_deployment_for_model(builder):
     max_replicas = int(get_user_input("Enter maximum replicas", default="5"))
 
     print("\n⏳ Deploying model...")
+    success = deploy_model(
+        model_id=state['model_id'],
+        app_id=state['app_id'],
+        user_id=state['user_id'],
+        deployment_id=deployment_id,
+        model_version_id=state['model_version_id'],
+        nodepool_id=compute_config['nodepool_id'],
+        compute_cluster_id=compute_config['compute_cluster_id'],
+        cluster_user_id=compute_config['cluster_user_id'],
+        min_replicas=min_replicas,
+        max_replicas=max_replicas,
+        pat=builder._pat,
+        base_url=builder._base_url,
+    )
 
-    # Retry logic for deployment
-    max_retries = 1
-    for attempt in range(max_retries):
-        success = deploy_model(
-            model_id=state['model_id'],
-            app_id=state['app_id'],
-            user_id=state['user_id'],
-            deployment_id=deployment_id,
-            model_version_id=state['model_version_id'],
-            nodepool_id=compute_config['nodepool_id'],
-            compute_cluster_id=compute_config['compute_cluster_id'],
-            cluster_user_id=compute_config['cluster_user_id'],
-            min_replicas=min_replicas,
-            max_replicas=max_replicas,
+    if success:
+        state.update(
+            {
+                'deployed': True,
+                'deployment_id': deployment_id,
+                'nodepool_id': compute_config['nodepool_id'],
+            }
         )
+        print("Model deployed successfully! You can test it now.")
+        time.sleep(2)  # Give some time for the deployment to stabilize
+    else:
+        logger.warning("Deployment failed. Initiating backtrack & cleanup.")
+        backtrack_workflow(state)
+        return
 
-        if success:
-            state.update(
-                {
-                    'deployed': True,
-                    'deployment_id': deployment_id,
-                    'nodepool_id': compute_config['nodepool_id'],
-                }
-            )
-            print("Model deployed successfully! You can test it now.")
-            time.sleep(2)  # Give some time for the deployment to stabilize
-        elif attempt < max_retries - 1:
-            if get_yes_no_input("Deployment failed. Do you want to retry?", True):
-                continue
+    """
+    # NOTE: Backtrack & cleanup option for users is disabled.
+    # Reason: The prompt is ambiguous and could unintentionally delete deployments or model versions.
 
     if get_yes_no_input("\n🗑️ Do you want to backtrack and clean up?", True):
         backtrack_workflow(state)
 
+    """
 
-def delete_model_deployment(deployment_id, user_id, nodepool_id=None):
+
+def delete_model_deployment(deployment_id, user_id, nodepool_id=None, pat=None, base_url=None):
     """
     Delete a model deployment on Clarifai platform.
 
@@ -2041,10 +2191,12 @@ def delete_model_deployment(deployment_id, user_id, nodepool_id=None):
         deployment_id (str): The ID of the deployment to be deleted.
         nodepool_id (str): The ID of the nodepool where the deployment resides.
         user_id (str): The Clarifai user ID (usually owner of the deployment).
+        pat (str): Personal access token for authentication.
+        base_url (str): Base URL for the API.
     """
 
     # Instantiate the Nodepool object with given IDs
-    nodepool = Nodepool(nodepool_id=nodepool_id, user_id=user_id)
+    nodepool = Nodepool(nodepool_id=nodepool_id, user_id=user_id, pat=pat, base_url=base_url)
     # The delete_deployments method expects a list of deployment IDs
     try:
         nodepool.delete_deployments([deployment_id])
@@ -2056,7 +2208,13 @@ def delete_model_deployment(deployment_id, user_id, nodepool_id=None):
 
 
 def delete_model_version(
-    model_url=None, model_id=None, app_id=None, user_id=None, model_version_id=None
+    model_url=None,
+    model_id=None,
+    app_id=None,
+    user_id=None,
+    model_version_id=None,
+    pat=None,
+    base_url=None,
 ):
     """
     Delete a specific version of a model on Clarifai platform.
@@ -2066,6 +2224,8 @@ def delete_model_version(
         app_id (str): The ID of the application the model belongs to.
         user_id (str): The ID of the user who owns the model.
         model_version_id (str): The ID of the model version to be deleted.
+        pat (str): Personal access token for authentication.
+        base_url (str): Base URL for the API.
     """
     if not model_version_id:
         raise UserError("You must specify a model_version_id to delete.")
@@ -2075,7 +2235,7 @@ def delete_model_version(
         raise UserError("You must specify one of url or model_id.")
     if model_url:
         user_id, app_id, _, model_id, _ = ClarifaiUrlHelper.split_clarifai_url(model_url)
-    model = Model(model_id=model_id, app_id=app_id, user_id=user_id)
+    model = Model(model_id=model_id, app_id=app_id, user_id=user_id, pat=pat, base_url=base_url)
     try:
         model.delete_version(version_id=model_version_id)
         print(f"✅ Model version '{model_version_id}' successfully deleted.")
@@ -2096,6 +2256,8 @@ def backtrack_workflow(state):
                 deployment_id=state['deployment_id'],
                 user_id=state['user_id'],
                 nodepool_id=state.get('nodepool_id'),
+                pat=state.get('pat'),
+                base_url=state.get('base_url'),
             )
             if success:
                 state['deployed'] = False
@@ -2108,6 +2270,8 @@ def backtrack_workflow(state):
                 app_id=state['app_id'],
                 user_id=state['user_id'],
                 model_version_id=state['model_version_id'],
+                pat=state.get('pat'),
+                base_url=state.get('base_url'),
             )
             if success:
                 state['uploaded'] = False
