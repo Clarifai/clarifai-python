@@ -84,11 +84,11 @@ def login(ctx, api_url, user_id):
         if use_env:
             pat = env_pat
         else:
-            click.echo(f'> Create a PAT at: https://clarifai.com/{user_id}/settings/security')
+            click.echo(f'> Create a PAT at: https://clarifai.com/{user_id}/settings/secrets')
             pat = masked_input('Enter your Personal Access Token (PAT): ')
     else:
         click.echo('> To authenticate, you\'ll need a Personal Access Token (PAT).')
-        click.echo(f'> Create one at: https://clarifai.com/{user_id}/settings/security')
+        click.echo(f'> Create one at: https://clarifai.com/{user_id}/settings/secrets')
         click.echo('> Tip: Set CLARIFAI_PAT environment variable to skip this prompt.\n')
         pat = masked_input('Enter your Personal Access Token (PAT): ')
 
