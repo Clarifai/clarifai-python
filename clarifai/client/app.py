@@ -13,7 +13,6 @@ from clarifai.client.dataset import Dataset
 from clarifai.client.input import Inputs
 from clarifai.client.lister import Lister
 from clarifai.client.model import Model
-from clarifai.client.module import Module
 from clarifai.client.pipeline import Pipeline
 from clarifai.client.pipeline_step import PipelineStep
 from clarifai.client.search import Search
@@ -345,86 +344,7 @@ class App(Lister, BaseClient):
             if pipeline_step is not None:
                 yield pipeline_step
 
-    def list_modules(
-        self,
-        filter_by: Dict[str, Any] = {},
-        only_in_app: bool = True,
-        page_no: int = None,
-        per_page: int = None,
-    ) -> Generator[Module, None, None]:
-        """Lists all the available modules for the user.
 
-        Args:
-            filter_by (dict): A dictionary of filters to apply to the list of modules.
-            only_in_app (bool): If True, only return modules that are in the app.
-            page_no (int): The page number to list.
-            per_page (int): The number of items per page.
-
-        Yields:
-            Module: Module objects for the modules in the app.
-
-        Example:
-            >>> from clarifai.client.app import App
-            >>> app = App(app_id="app_id", user_id="user_id")
-            >>> all_modules = list(app.list_modules())
-
-        Note:
-            Defaults to 16 per page if page_no is specified and per_page is not specified.
-            If both page_no and per_page are None, then lists all the resources.
-        """
-        request_data = dict(user_app_id=self.user_app_id, **filter_by)
-        all_modules_info = self.list_pages_generator(
-            self.STUB.ListModules,
-            service_pb2.ListModulesRequest,
-            request_data,
-            per_page=per_page,
-            page_no=page_no,
-        )
-
-        for module_info in all_modules_info:
-            if only_in_app:
-                if module_info['app_id'] != self.id:
-                    continue
-            yield Module.from_auth_helper(auth=self.auth_helper, **module_info)
-
-    def list_installed_module_versions(
-        self, filter_by: Dict[str, Any] = {}, page_no: int = None, per_page: int = None
-    ) -> Generator[Module, None, None]:
-        """Lists all installed module versions in the app.
-
-        Args:
-            filter_by (dict): A dictionary of filters to apply to the list of installed module versions.
-            page_no (int): The page number to list.
-            per_page (int): The number of items per page.
-
-        Yields:
-            Module: Module objects for the installed module versions in the app.
-
-        Example:
-            >>> from clarifai.client.app import App
-            >>> app = App(app_id="app_id", user_id="user_id")
-            >>> all_installed_module_versions = list(app.list_installed_module_versions())
-
-        Note:
-            Defaults to 16 per page if page_no is specified and per_page is not specified.
-            If both page_no and per_page are None, then lists all the resources.
-        """
-        request_data = dict(user_app_id=self.user_app_id, **filter_by)
-        all_imv_infos = self.list_pages_generator(
-            self.STUB.ListInstalledModuleVersions,
-            service_pb2.ListInstalledModuleVersionsRequest,
-            request_data,
-            per_page=per_page,
-            page_no=page_no,
-        )
-        for imv_info in all_imv_infos:
-            del imv_info['deploy_url']
-            del imv_info['installed_module_version_id']  # TODO: remove this after the backend fix
-            yield Module.from_auth_helper(
-                auth=self.auth_helper,
-                module_id=imv_info['module_version']['module_id'],
-                **imv_info,
-            )
 
     def get_input_count(self) -> int:
         """Get count of all the inputs in the app.
@@ -700,33 +620,6 @@ class App(Lister, BaseClient):
 
         return Workflow.from_auth_helper(auth=self.auth_helper, **kwargs)
 
-    def create_module(self, module_id: str, description: str, **kwargs) -> Module:
-        """Creates a module for the app.
-
-        Args:
-            module_id (str): The module ID for the module to create.
-            description (str): The description of the module to create.
-            **kwargs: Additional keyword arguments to be passed to the module.
-
-        Returns:
-            Module: A Module object for the specified module ID.
-
-        Example:
-            >>> from clarifai.client.app import App
-            >>> app = App(app_id="app_id", user_id="user_id")
-            >>> module = app.create_module(module_id="module_id")
-        """
-        request = service_pb2.PostModulesRequest(
-            user_app_id=self.user_app_id,
-            modules=[resources_pb2.Module(id=module_id, description=description, **kwargs)],
-        )
-        response = self._grpc_request(self.STUB.PostModules, request)
-
-        if response.status.code != status_code_pb2.SUCCESS:
-            raise Exception(response.status)
-        self.logger.info("\nModule created\n%s", response.status)
-
-        return Module.from_auth_helper(auth=self.auth_helper, module_id=module_id, **kwargs)
 
     def create_concepts(self, concept_ids: List[str], concepts: List[str] = []) -> None:
         """Add concepts to the app.
@@ -882,30 +775,8 @@ class App(Lister, BaseClient):
 
         return Workflow.from_auth_helper(auth=self.auth_helper, **kwargs)
 
-    def module(self, module_id: str, **kwargs) -> Module:
-        """Returns a Module object for the existing module ID.
 
-        Args:
-            module_id (str): The module ID for the module to interact with.
-            module_version_id (str): The module version ID for the module version to interact with.
 
-        Returns:
-            Module: A Module object for the existing module ID.
-
-        Example:
-            >>> from clarifai.client.app import App
-            >>> app = App(app_id="app_id", user_id="user_id")
-            >>> module = app.module(module_id="module_id")
-        """
-        request = service_pb2.GetModuleRequest(user_app_id=self.user_app_id, module_id=module_id)
-        response = self._grpc_request(self.STUB.GetModule, request)
-
-        if response.status.code != status_code_pb2.SUCCESS:
-            raise Exception(response.status)
-        dict_response = MessageToDict(response, preserving_proto_field_name=True)
-        kwargs = self.process_response_keys(dict_response['module'], 'module')
-
-        return Module.from_auth_helper(auth=self.auth_helper, **kwargs)
 
     def inputs(
         self,
@@ -1074,23 +945,6 @@ class App(Lister, BaseClient):
             raise Exception(response.status)
         self.logger.info("\nWorkflow Deleted\n%s", response.status)
 
-    def delete_module(self, module_id: str) -> None:
-        """Deletes an module for the user.
-
-        Args:
-            module_id (str): The module ID for the app to delete.
-
-        Example:
-            >>> from clarifai.client.app import App
-            >>> app = App(app_id="app_id", user_id="user_id")
-            >>> app.delete_module(module_id="module_id")
-        """
-        request = service_pb2.DeleteModulesRequest(user_app_id=self.user_app_id, ids=[module_id])
-        response = self._grpc_request(self.STUB.DeleteModules, request)
-
-        if response.status.code != status_code_pb2.SUCCESS:
-            raise Exception(response.status)
-        self.logger.info("\nModule Deleted\n%s", response.status)
 
     def delete_concept_relations(
         self, concept_id: str, concept_relation_ids: List[str] = []

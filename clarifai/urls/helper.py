@@ -159,7 +159,7 @@ class ClarifaiUrlHelper(object):
         """This is the path to the resource in the API.
 
         Example:
-          https://api.clarifai.com/v2/zeiler/app/modules/module1/versions/2
+          https://api.clarifai.com/v2/zeiler/app/modules/module1/versions/
           https://api.clarifai.com/v2/zeiler/app/models/model1/versions/2
           https://api.clarifai.com/v2/zeiler/app/concepts/concept1
           https://api.clarifai.com/v2/zeiler/app/workflows/workflow1
@@ -169,7 +169,7 @@ class ClarifaiUrlHelper(object):
         Args:
           user_id: the author of the resource.
           app_id: the author's app the resource was created in.
-          resource_type: the type of resource. One of "modules", "models", "concepts", "inputs", "workflows", "tasks"
+          resource_type: the type of resource. One of "models", "concepts", "inputs", "workflows", "tasks"
           resource_id: the resource ID
         """
         if user_id is None:
@@ -188,7 +188,7 @@ class ClarifaiUrlHelper(object):
                 resource_id,
             )
 
-        if resource_type in ["concepts", "tasks", "installed_module_versions"]:
+        if resource_type in ["concepts", "tasks"]:
             raise ValueError(f"{resource_type} do not have versions.")
         return "%s/v2/users/%s/apps/%s/%s/%s/versions/%s" % (
             self.base,
@@ -201,16 +201,14 @@ class ClarifaiUrlHelper(object):
 
     def _validate_resource_type(self, resource_type):
         if resource_type not in [
-            "modules",
             "models",
             "concepts",
             "inputs",
             "workflows",
             "tasks",
-            "installed_module_versions",
         ]:
             raise ValueError(
-                "resource_type must be one of modules, models, concepts, inputs, workflows, tasks, installed_module_versions but was %s"
+                "resource_type must be one of models, concepts, inputs, workflows, tasks but was %s"
                 % resource_type
             )
 
@@ -225,17 +223,15 @@ class ClarifaiUrlHelper(object):
         """This is the path to the resource in community UI.
 
         Example:
-          https://clarifai.com/zeiler/modules/module1/versions/2
           https://clarifai.com/zeiler/models/model1/versions/2
           https://clarifai.com/zeiler/concepts/concept1
           https://clarifai.com/zeiler/workflows/workflow1
           https://clarifai.com/zeiler/tasks/task1
-          https://clarifai.com/zeiler/installed_module_versions/module_manager_install
 
         Args:
           user_id: the author of the resource.
           app_id: the author's app the resource was created in.
-          resource_type: the type of resource. One of "modules", "models", "concepts", "inputs", "workflows", "tasks", "installed_module_versions"
+          resource_type: the type of resource. One of "models", "concepts", "inputs", "workflows", "tasks"
           resource_id: the resource ID
           version_id: the version of the resource.
         """
@@ -300,22 +296,3 @@ class ClarifaiUrlHelper(object):
             resource_version_id = None
         return user_id, app_id, resource_type, resource_id, resource_version_id
 
-    @classmethod
-    def split_module_ui_url(cls, install: str):
-        """Takes in a path like https://clarifai.com/zeiler/app/modules/module1/versions/2 to split it apart into it's IDs.
-
-        Returns:
-          user_id: the author of the module.
-          app_id: the author's app the module was created in.
-          module_id: the module ID
-          module_version_id: the version of the module.
-        """
-        user_id, app_id, resource_type, resource_id, resource_version_id = cls.split_clarifai_url(
-            install
-        )
-
-        if resource_type != "modules" or resource_version_id is None:
-            raise ValueError(
-                "Provided install url must have 6 parts after the domain name. These are {user_id}/{app_id}/modules/{module_id}/versions/{module_version_id}"
-            )
-        return user_id, app_id, resource_id, resource_version_id
