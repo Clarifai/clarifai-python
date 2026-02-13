@@ -90,7 +90,9 @@ class ModelRunner(BaseRunner):
         HealthProbeRequestHandler.is_ready = True
         HealthProbeRequestHandler.is_startup = True
 
-        start_health_server_thread(port=health_check_port, address='')
+        # Only start health server if a port is specified
+        if health_check_port is not None:
+            start_health_server_thread(port=health_check_port, address='')
 
     def get_runner_item_output_for_status(
         self, status: status_pb2.Status
