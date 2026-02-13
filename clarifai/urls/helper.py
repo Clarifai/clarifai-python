@@ -11,15 +11,13 @@ class ClarifaiUrlHelper(object):
     def __init__(
         self,
         auth=None,
-        module_manager_imv_id: str = "module_manager_install",
     ):
         """
         Args:
           auth: a ClarifaiAuthHelper object. Pass None to use the values from the current context.
-          module_manager_imv_id: the ID of the module manager installed module version.
         """
         self._auth = auth
-        self._module_manager_imv_id = module_manager_imv_id
+        self._current_context = None
         self._current_context = None
         if self._auth is None:
             self._auth = auth_obj(self.current_ctx.ui, self.current_ctx.api_base)
@@ -40,64 +38,6 @@ class ClarifaiUrlHelper(object):
             self._current_context = Config.from_yaml().current
         return self._current_context
 
-    def module_ui_url(
-        self,
-        user_id: str = None,
-        app_id: str = None,
-        module_id: str = None,
-        module_version_id: str = None,
-    ):
-        """This is the path to the module in community."""
-        if user_id is None:
-            user_id = self.current_ctx.user_id
-        if app_id is None:
-            app_id = self.current_ctx.app_id
-        if module_id is None:
-            module_id = self.current_ctx.module_id
-        if module_version_id is None:
-            module_version_id = self.current_ctx.module_version_id
-
-        return "%s/%s/%s/modules/%s/versions/%s" % (
-            self.ui,
-            user_id,
-            app_id,
-            module_id,
-            module_version_id,
-        )
-
-    def module_install_ui_url(
-        self, dest_user_id: str = None, dest_app_id: str = None, module_url: str = None
-    ):
-        """This is a url that allows for installation of the module from the community at 'module_url'
-        into the destination app_id of the destination user_id."""
-        if dest_user_id is None:
-            dest_user_id = self.current_ctx.user_id
-        if dest_app_id is None:
-            dest_app_id = self.current_ctx.app_id
-        if module_url is None:
-            raise ValueError("module_url must be provided to install a module.")
-        return "%s/%s/%s/installed_module_versions/%s/install?install=%s" % (
-            self.ui,
-            dest_user_id,
-            dest_app_id,
-            self._module_manager_imv_id,
-            module_url,
-        )
-
-    def imv_ui_url(self, dest_user_id: str = None, dest_app_id: str = None, imv_id: str = None):
-        """This is the path to the resource in the UI."""
-        if dest_user_id is None:
-            dest_user_id = self.current_ctx.user_id
-        if dest_app_id is None:
-            dest_app_id = self.current_ctx.app_id
-        if imv_id is None:
-            raise ValueError("imv_id must be provided to get the IMV API URL.")
-        return "%s/%s/%s/installed_module_versions/%s" % (
-            self.ui,
-            dest_user_id,
-            dest_app_id,
-            imv_id,
-        )
 
     def mcp_api_url(
         self, user_id: str = None, app_id: str = None, model_id: str = None, version_id: str = None
@@ -159,12 +99,10 @@ class ClarifaiUrlHelper(object):
         """This is the path to the resource in the API.
 
         Example:
-          https://api.clarifai.com/v2/zeiler/app/modules/module1/versions/
           https://api.clarifai.com/v2/zeiler/app/models/model1/versions/2
           https://api.clarifai.com/v2/zeiler/app/concepts/concept1
           https://api.clarifai.com/v2/zeiler/app/workflows/workflow1
           https://api.clarifai.com/v2/zeiler/app/tasks/task1
-          https://api.clarifai.com/v2/zeiler/app/installed_module_versions/module_manager_install
 
         Args:
           user_id: the author of the resource.
