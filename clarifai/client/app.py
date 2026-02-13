@@ -344,8 +344,6 @@ class App(Lister, BaseClient):
             if pipeline_step is not None:
                 yield pipeline_step
 
-
-
     def get_input_count(self) -> int:
         """Get count of all the inputs in the app.
 
@@ -620,7 +618,6 @@ class App(Lister, BaseClient):
 
         return Workflow.from_auth_helper(auth=self.auth_helper, **kwargs)
 
-
     def create_concepts(self, concept_ids: List[str], concepts: List[str] = []) -> None:
         """Add concepts to the app.
 
@@ -774,9 +771,6 @@ class App(Lister, BaseClient):
         kwargs = self.process_response_keys(dict_response['workflow'], "workflow")
 
         return Workflow.from_auth_helper(auth=self.auth_helper, **kwargs)
-
-
-
 
     def inputs(
         self,
@@ -944,7 +938,6 @@ class App(Lister, BaseClient):
         if response.status.code != status_code_pb2.SUCCESS:
             raise Exception(response.status)
         self.logger.info("\nWorkflow Deleted\n%s", response.status)
-
 
     def delete_concept_relations(
         self, concept_id: str, concept_relation_ids: List[str] = []

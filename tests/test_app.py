@@ -78,7 +78,6 @@ class TestApp:
         all_workflows = list(app.list_workflows(page_no=1, per_page=10))
         assert len(all_workflows) == 7
 
-
     def test_list_apps(self, client):
         all_apps = list(client.list_apps())
         assert len(all_apps) > 0
@@ -132,7 +131,6 @@ class TestApp:
             and model.user_id == CREATE_APP_USER_ID
         )
 
-
     def test_create_concept_relations(self, create_app, caplog):
         create_app.create_concepts([OBJECT_CONCEPT_ID, SUBJECT_CONCEPT_ID])
         with caplog.at_level(logging.INFO):
@@ -151,7 +149,6 @@ class TestApp:
             and dataset.app_id == CREATE_APP_ID
             and dataset.user_id == CREATE_APP_USER_ID
         )
-
 
     def test_list_datasets(self, create_app):
         all_datasets = list(create_app.list_datasets())
@@ -216,7 +213,6 @@ class TestApp:
         with caplog.at_level(logging.INFO):
             create_app.delete_model(CREATE_MODEL_ID)
             assert "SUCCESS" in caplog.text
-
 
     def test_delete_concept_relations(self, create_app, caplog):
         with caplog.at_level(logging.INFO):

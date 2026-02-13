@@ -37,7 +37,6 @@ class ClarifaiUrlHelper(object):
             self._current_context = Config.from_yaml().current
         return self._current_context
 
-
     def mcp_api_url(
         self, user_id: str = None, app_id: str = None, model_id: str = None, version_id: str = None
     ):
@@ -232,4 +231,3 @@ class ClarifaiUrlHelper(object):
         else:
             resource_version_id = None
         return user_id, app_id, resource_type, resource_id, resource_version_id
-
