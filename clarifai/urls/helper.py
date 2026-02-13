@@ -6,7 +6,7 @@ auth_obj = namedtuple("auth", ["ui", "base"])
 
 
 class ClarifaiUrlHelper(object):
-    """Lots of helper functionality for dealing with urls around modules."""
+    """Lots of helper functionality for dealing with urls."""
 
     def __init__(
         self,
@@ -17,7 +17,6 @@ class ClarifaiUrlHelper(object):
           auth: a ClarifaiAuthHelper object. Pass None to use the values from the current context.
         """
         self._auth = auth
-        self._current_context = None
         self._current_context = None
         if self._auth is None:
             self._auth = auth_obj(self.current_ctx.ui, self.current_ctx.api_base)
