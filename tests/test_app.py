@@ -18,7 +18,6 @@ CREATE_APP_USER_ID = os.environ["CLARIFAI_USER_ID"]
 CREATE_APP_ID = f"ci_test_app_{NOW}"
 CREATE_MODEL_ID = f"ci_test_model_{NOW}"
 CREATE_DATASET_ID = f"ci_test_dataset_{NOW}"
-CREATE_MODULE_ID = f"ci_test_module_{NOW}"
 CREATE_RUNNER_ID = f"ci_test_runner_{NOW}"
 
 # assets
@@ -79,14 +78,6 @@ class TestApp:
         all_workflows = list(app.list_workflows(page_no=1, per_page=10))
         assert len(all_workflows) == 7
 
-    def test_list_modules(self, app):
-        all_modules = list(app.list_modules())
-        assert len(all_modules) >= 0
-
-    def test_list_installed_module_versions(self, app):
-        all_installed_module_versions = list(app.list_installed_module_versions())
-        assert len(all_installed_module_versions) == 0
-
     def test_list_apps(self, client):
         all_apps = list(client.list_apps())
         assert len(all_apps) > 0
@@ -140,14 +131,6 @@ class TestApp:
             and model.user_id == CREATE_APP_USER_ID
         )
 
-    def test_create_module(self, create_app):
-        module = create_app.create_module(CREATE_MODULE_ID, description="CI test module")
-        assert (
-            module.id == CREATE_MODULE_ID
-            and module.app_id == CREATE_APP_ID
-            and module.user_id == CREATE_APP_USER_ID
-        )
-
     def test_create_concept_relations(self, create_app, caplog):
         create_app.create_concepts([OBJECT_CONCEPT_ID, SUBJECT_CONCEPT_ID])
         with caplog.at_level(logging.INFO):
@@ -165,16 +148,6 @@ class TestApp:
             dataset.id == CREATE_DATASET_ID
             and dataset.app_id == CREATE_APP_ID
             and dataset.user_id == CREATE_APP_USER_ID
-        )
-
-    def test_get_module(self, create_app):
-        module = create_app.module(module_id=CREATE_MODULE_ID)
-        versions = list(module.list_versions())
-        assert len(versions) == 0  # test for list_versions
-        assert (
-            module.id == CREATE_MODULE_ID
-            and module.app_id == CREATE_APP_ID
-            and module.user_id == CREATE_APP_USER_ID
         )
 
     def test_list_datasets(self, create_app):
@@ -239,11 +212,6 @@ class TestApp:
     def test_delete_model(self, create_app, caplog):
         with caplog.at_level(logging.INFO):
             create_app.delete_model(CREATE_MODEL_ID)
-            assert "SUCCESS" in caplog.text
-
-    def test_delete_module(self, create_app, caplog):
-        with caplog.at_level(logging.INFO):
-            create_app.delete_module(CREATE_MODULE_ID)
             assert "SUCCESS" in caplog.text
 
     def test_delete_concept_relations(self, create_app, caplog):
