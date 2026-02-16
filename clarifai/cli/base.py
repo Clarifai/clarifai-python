@@ -14,9 +14,10 @@ from clarifai.utils.logging import logger
 
 @click.group(cls=AliasedGroup)
 @click.version_option(version=__version__)
-@click.option('--config', default=DEFAULT_CONFIG)
+@click.option('--config', default=DEFAULT_CONFIG, help='Path to config file')
+@click.option('--context', default=None, help='Context to use for this command')
 @click.pass_context
-def cli(ctx, config):
+def cli(ctx, config, context):
     """Clarifai CLI"""
     ctx.ensure_object(dict)
     if os.path.exists(config):
@@ -43,6 +44,11 @@ def cli(ctx, config):
                 "Could not write configuration to disk. Could be a read only file system."
             )
         ctx.obj = cfg  # still have the default config even if couldn't write.
+
+    # Store the context override in Click context for all commands to access
+    if context:
+        validate_and_get_context(ctx.obj, context)
+        ctx.obj.context_override = context
 
 
 @cli.command()
@@ -332,6 +338,26 @@ def input_or_default(prompt, default):
     return value if value else default
 
 
+def validate_and_get_context(config, context_name):
+    """Validate that a context exists and return it.
+
+    Args:
+        config: Config object containing contexts
+        context_name: Name of the context to validate
+
+    Returns:
+        Context object if found
+
+    Raises:
+        click.UsageError: If context is not found
+    """
+    if context_name not in config.contexts:
+        raise click.UsageError(
+            f"Context '{context_name}' not found. Available contexts: {', '.join(config.contexts.keys())}"
+        )
+    return config.contexts[context_name]
+
+
 # Context management commands under config group
 @config.command(aliases=['get-contexts', 'list-contexts', 'ls'])
 @click.option(
@@ -500,9 +526,14 @@ def view(ctx, output_format):
 @click.pass_context
 def run(ctx, script, context=None):
     """Execute a script with the current context's environment"""
-    context = ctx.obj.current if not context else context
-    cmd = f'CLARIFAI_USER_ID={context.user_id} CLARIFAI_API_BASE={context.api_base} CLARIFAI_PAT={context.pat} '
-    cmd += ' '.join([f'{k}={v}' for k, v in context.to_serializable_dict().items()])
+    # Get the effective context - either from --context flag or current context
+    if context:
+        context_obj = validate_and_get_context(ctx.obj, context)
+    else:
+        context_obj = ctx.obj.current
+
+    cmd = f'CLARIFAI_USER_ID={context_obj.user_id} CLARIFAI_API_BASE={context_obj.api_base} CLARIFAI_PAT={context_obj.pat} '
+    cmd += ' '.join([f'{k}={v}' for k, v in context_obj.to_serializable_dict().items()])
     cmd += f' {script}'
     os.system(cmd)
 
