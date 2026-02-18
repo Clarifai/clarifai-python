@@ -73,7 +73,7 @@ def get_pipeline_step_config_template(step_id: str, user_id="your_user_id", app_
   # Optional: visibility for the pipeline step
   # gettable values: PRIVATE(10), ORG(30), PUBLIC(50)
   visibility:
-    gettable: PUBLIC
+    gettable: PRIVATE
 
 pipeline_step_input_params:
   - name: input_text

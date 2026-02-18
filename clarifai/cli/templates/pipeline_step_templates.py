@@ -12,7 +12,7 @@ def get_config_template():
   # Optional: visibility for the pipeline step
   # gettable values: PRIVATE(10), ORG(30), PUBLIC(50)
   visibility:
-    gettable: PUBLIC
+    gettable: PRIVATE
 
 pipeline_step_input_params:
   - name: param_a
