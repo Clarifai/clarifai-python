@@ -18,6 +18,13 @@ WRAPPER_TYPES = {
 }
 
 
+def _field_is_repeated(field_descriptor: FieldDescriptor) -> bool:
+    is_repeated = getattr(field_descriptor, 'is_repeated', None)
+    if is_repeated is not None:
+        return bool(is_repeated)
+    return field_descriptor.label == FieldDescriptor.LABEL_REPEATED
+
+
 def dict_to_protobuf(pb_obj: Message, data: dict) -> None:
     """Recursively convert a nested dictionary to a Protobuf message object.
 
@@ -37,7 +44,7 @@ def dict_to_protobuf(pb_obj: Message, data: dict) -> None:
 
         try:
             # Handle repeated fields (lists)
-            if field_descriptor.is_repeated:
+            if _field_is_repeated(field_descriptor):
                 _handle_repeated_field(pb_obj, field_descriptor, field, value)
 
             # Handle message fields (nested messages)
