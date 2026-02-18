@@ -6,13 +6,66 @@ This module provides:
 3. Auto-create compute cluster & nodepool configs for model deployment
 """
 
+import re
+
 from clarifai.utils.logging import logger
+
+# Kubernetes quantity suffixes and their multipliers (in bytes or millicores)
+_K8S_SUFFIXES = {
+    '': 1,
+    'm': 0.001,  # millicores (CPU)
+    'k': 1e3,
+    'K': 1e3,
+    'Ki': 1024,
+    'M': 1e6,
+    'Mi': 1024**2,
+    'G': 1e9,
+    'Gi': 1024**3,
+    'T': 1e12,
+    'Ti': 1024**4,
+}
+
+
+def parse_k8s_quantity(value):
+    """Parse a Kubernetes quantity string to a numeric value.
+
+    Handles formats like: "24Gi", "16Mi", "4", "100m", "4.5", "1500Mi", "3Gi"
+    Returns a float (bytes for memory, cores for CPU).
+
+    Args:
+        value: K8s quantity string or numeric value.
+
+    Returns:
+        float: Parsed numeric value, or 0 if parsing fails.
+    """
+    if value is None:
+        return 0
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    value = str(value).strip()
+    if not value:
+        return 0
+
+    match = re.match(r'^([0-9]*\.?[0-9]+)\s*([A-Za-z]*)$', value)
+    if not match:
+        return 0
+
+    number = float(match.group(1))
+    suffix = match.group(2)
+
+    multiplier = _K8S_SUFFIXES.get(suffix)
+    if multiplier is None:
+        return 0
+
+    return number * multiplier
+
 
 # Hardcoded fallback presets (used when API is unavailable)
 FALLBACK_GPU_PRESETS = {
     "CPU": {
         "description": "CPU only (no GPU)",
-        "instance_type_id": "cpu-t3a-2xlarge",
+        "instance_type_id": "t3a.2xlarge",
         "cloud_provider": "aws",
         "region": "us-east-1",
         "inference_compute_info": {
@@ -72,7 +125,13 @@ def get_deploy_compute_cluster_id(cloud_provider="aws", region="us-east-1"):
 
 def get_deploy_nodepool_id(instance_type_id):
     """Return a deterministic nodepool ID for the given instance type."""
-    return f"deploy-np-{instance_type_id}"
+    import re
+
+    # Sanitize: only alphanumeric, hyphens, underscores allowed in IDs
+    sanitized = re.sub(r'[^a-zA-Z0-9_-]', '-', instance_type_id)
+    # Collapse consecutive hyphens
+    sanitized = re.sub(r'-{2,}', '-', sanitized)
+    return f"deploy-np-{sanitized}"
 
 
 # Module-level cache for instance types (avoids repeated API calls in one session)
@@ -137,6 +196,22 @@ def _try_list_instance_types(cloud_provider="aws", region="us-east-1", pat=None,
     except Exception as e:
         logger.debug(f"Failed to fetch instance types from API: {e}")
         return None
+
+
+def _sort_instance_types(instance_types):
+    """Sort instance types by cloud provider, GPU count desc, then ID.
+
+    This ensures consistent priority: aws before gcp before vultr,
+    matching the display order of --instance-info.
+    """
+    return sorted(
+        instance_types,
+        key=lambda it: (
+            it.cloud_provider.id if it.cloud_provider else "",
+            -(it.compute_info.num_accelerators if it.compute_info else 0),
+            it.id,
+        ),
+    )
 
 
 def _match_gpu_name_to_instance_type(gpu_name, instance_types):
@@ -206,6 +281,9 @@ def resolve_gpu(gpu_name, pat=None, base_url=None, cloud_provider=None, region=N
         instance_types = _try_list_all_instance_types(pat=pat, base_url=base_url)
 
     if instance_types:
+        # Sort for consistent priority (aws first, matching --instance-info order)
+        instance_types = _sort_instance_types(instance_types)
+
         # Optionally filter by cloud_provider (even when querying all)
         filtered = instance_types
         if cloud_provider:
@@ -241,7 +319,7 @@ def resolve_gpu(gpu_name, pat=None, base_url=None, cloud_provider=None, region=N
     if gpu_upper in FALLBACK_GPU_PRESETS:
         return dict(FALLBACK_GPU_PRESETS[gpu_upper])
 
-    available = "Run 'clarifai model deploy --gpu-info' to see available options."
+    available = "Run 'clarifai model deploy --instance-info' to see available options."
     raise ValueError(f"Unknown instance type '{gpu_name}'. {available}")
 
 
@@ -308,7 +386,7 @@ def list_gpu_presets(pat=None, base_url=None, cloud_provider=None, region=None):
         str: Formatted table string.
     """
     rows = []
-    header = "Available instance types (use the ID with --gpu flag):\n"
+    header = "Available instance types (use the ID with --instance flag):\n"
 
     # Try API first (all providers/regions)
     instance_types = _try_list_all_instance_types(pat=pat, base_url=base_url)
@@ -339,14 +417,7 @@ def list_gpu_presets(pat=None, base_url=None, cloud_provider=None, region=None):
                 deduped.append(it)
 
         # Sort: cloud first, then GPU count desc, then ID
-        sorted_types = sorted(
-            deduped,
-            key=lambda it: (
-                it.cloud_provider.id if it.cloud_provider else "",
-                -(it.compute_info.num_accelerators or 0),
-                it.id,
-            ),
-        )
+        sorted_types = _sort_instance_types(deduped)
         for it in sorted_types:
             ci = it.compute_info
             acc_type = ", ".join(ci.accelerator_type) if ci.accelerator_type else "-"
@@ -355,7 +426,7 @@ def list_gpu_presets(pat=None, base_url=None, cloud_provider=None, region=None):
             rgn = it.region or "-"
             rows.append(
                 {
-                    "--gpu value": it.id,
+                    "--instance value": it.id,
                     "Cloud": cloud,
                     "Region": rgn,
                     "GPUs": ci.num_accelerators or 0,
@@ -373,7 +444,7 @@ def list_gpu_presets(pat=None, base_url=None, cloud_provider=None, region=None):
     from tabulate import tabulate
 
     table = tabulate(rows, headers="keys", tablefmt="simple")
-    example = "\nExample: clarifai model deploy ./my-model --gpu g5.xlarge"
+    example = "\nExample: clarifai model deploy ./my-model --instance g5.xlarge"
     return header + table + example
 
 
@@ -395,7 +466,7 @@ def get_compute_cluster_config(user_id, cloud_provider="aws", region="us-east-1"
             "cloud_provider": {"id": cloud_provider},
             "region": region,
             "managed_by": "clarifai",
-            "cluster_type": "k8s",
+            "cluster_type": "dedicated",
         }
     }
 

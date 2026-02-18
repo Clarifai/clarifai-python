@@ -207,3 +207,47 @@ class Config:
             )
             return Context("_empty_")
         return self.contexts[self.current_context]
+
+
+def resolve_user_id(pat=None, base_url=None):
+    """Resolve user_id from CLI config or API.
+
+    Resolution order:
+    1. CLI config file (~/.config/clarifai/config) current context's CLARIFAI_USER_ID
+    2. API call using PAT: GET /v2/users/me
+
+    Args:
+        pat: Optional PAT for API auth (used for API fallback).
+        base_url: Optional API base URL (used for API fallback).
+
+    Returns:
+        str or None: The resolved user_id, or None if resolution fails.
+    """
+    # 1. Try CLI config file
+    try:
+        config = Config.from_yaml()
+        user_id = config.current.get('user_id')
+        if user_id and user_id != '_empty_':
+            logger.debug(f"Resolved user_id from CLI config: {user_id}")
+            return user_id
+    except Exception:
+        pass
+
+    # 2. Try API call using PAT
+    try:
+        from clarifai.client.user import User
+
+        kwargs = {}
+        if pat:
+            kwargs['pat'] = pat
+        if base_url:
+            kwargs['base_url'] = base_url
+        user = User(**kwargs)
+        user_id = user.get_user_info(user_id='me').user.id
+        if user_id:
+            logger.debug(f"Resolved user_id from API: {user_id}")
+            return user_id
+    except Exception as e:
+        logger.debug(f"Failed to resolve user_id from API: {e}")
+
+    return None

@@ -206,6 +206,11 @@ class ModelBuilder:
         self.download_validation_only = download_validation_only
         self.folder = self._validate_folder(folder)
         self.config = self._load_config(os.path.join(self.folder, 'config.yaml'))
+        # Auto-resolve user_id if not provided and not in config
+        if not user_id and 'user_id' not in self.config.get('model', {}):
+            from clarifai.utils.config import resolve_user_id
+
+            user_id = resolve_user_id(pat=pat, base_url=base_url)
         self.config = self.normalize_config(self.config, user_id=user_id, app_id=app_id)
         self._validate_config()
         self._validate_config_secrets()
@@ -361,14 +366,18 @@ class ModelBuilder:
                 f"Folder {folder} not found, please provide a valid folder path"
             )
         files = os.listdir(folder)
-        assert "config.yaml" in files, "config.yaml not found in the folder"
+        if "config.yaml" not in files:
+            raise UserError(f"config.yaml not found in {folder}")
         # If just downloading we don't need requirements.txt or the python code, we do need the
         # 1/ folder to put 1/checkpoints into.
-        assert "1" in files, "Subfolder '1' not found in the folder"
+        if "1" not in files:
+            raise UserError(f"Subfolder '1' not found in {folder}")
         if not self.download_validation_only:
-            assert "requirements.txt" in files, "requirements.txt not found in the folder"
+            if "requirements.txt" not in files:
+                raise UserError(f"requirements.txt not found in {folder}")
             subfolder_files = os.listdir(os.path.join(folder, '1'))
-            assert 'model.py' in subfolder_files, "model.py not found in the folder"
+            if 'model.py' not in subfolder_files:
+                raise UserError(f"model.py not found in {folder}/1/")
         return folder
 
     @staticmethod
@@ -406,9 +415,8 @@ class ModelBuilder:
         """
         if "checkpoints" not in self.config:
             return None, None, None, DEFAULT_DOWNLOAD_CHECKPOINT_WHEN, None, None
-        assert "type" in self.config.get("checkpoints"), (
-            "No loader type specified in the config file"
-        )
+        if "type" not in self.config.get("checkpoints"):
+            raise UserError("No loader type specified in checkpoints section of config.yaml")
         loader_type = self.config.get("checkpoints").get("type")
         if not loader_type:
             logger.info("No loader type specified in the config file for checkpoints")
@@ -419,18 +427,17 @@ class ModelBuilder:
                 f"No 'when' specified in the config file for checkpoints, defaulting to download at {DEFAULT_DOWNLOAD_CHECKPOINT_WHEN}"
             )
         when = checkpoints.get("when", DEFAULT_DOWNLOAD_CHECKPOINT_WHEN)
-        assert when in [
-            "upload",
-            "build",
-            "runtime",
-        ], (
-            "Invalid value for when in the checkpoint loader when, needs to be one of ['upload', 'build', 'runtime']"
-        )
-        assert loader_type == "huggingface", "Only huggingface loader supported for now"
-        if loader_type == "huggingface":
-            assert "repo_id" in self.config.get("checkpoints"), (
-                "No repo_id specified in the config file"
+        if when not in ["upload", "build", "runtime"]:
+            raise UserError(
+                f"Invalid value '{when}' for checkpoints.when. Must be one of: upload, build, runtime"
             )
+        if loader_type != "huggingface":
+            raise UserError(
+                f"Unsupported checkpoint loader type '{loader_type}'. Only 'huggingface' is supported."
+            )
+        if loader_type == "huggingface":
+            if "repo_id" not in self.config.get("checkpoints"):
+                raise UserError("No repo_id specified in checkpoints section of config.yaml")
             repo_id = self.config.get("checkpoints").get("repo_id")
 
             # get from config.yaml otherwise fall back to HF_TOKEN env var.
@@ -513,7 +520,7 @@ class ModelBuilder:
 
         Handles:
         1. Inject user_id/app_id from CLI context if missing
-        2. Expand compute.gpu -> inference_compute_info
+        2. Expand compute.instance (or legacy compute.gpu) -> inference_compute_info
         3. Expand simplified checkpoints (infer type, default when)
         4. Set build_info defaults
 
@@ -527,16 +534,30 @@ class ModelBuilder:
             model['user_id'] = user_id
         if app_id and 'app_id' not in model:
             model['app_id'] = app_id
+        # Default app_id to "app" if still missing (auto-created on deploy/upload)
+        if 'app_id' not in model:
+            model['app_id'] = 'app'
+        # Default model_type_id to "any-to-any" if not specified
+        if 'model_type_id' not in model:
+            model['model_type_id'] = 'any-to-any'
         config['model'] = model
 
-        # 2. Expand compute.gpu -> inference_compute_info
-        compute = config.pop('compute', None)
+        # 2. Expand compute.instance (or legacy compute.gpu) -> inference_compute_info
+        compute = config.get('compute')
         if compute and 'inference_compute_info' not in config:
-            gpu = compute.get('gpu')
-            if gpu:
+            instance = compute.get('instance') or compute.get('gpu')
+            if instance:
                 from clarifai.utils.compute_presets import get_inference_compute_for_gpu
 
-                config['inference_compute_info'] = get_inference_compute_for_gpu(gpu)
+                ici = get_inference_compute_for_gpu(instance)
+                # Always use wildcard accelerator_type so the model can be scheduled
+                # on any compatible NVIDIA GPU, not locked to a specific type.
+                if ici.get('num_accelerators', 0) > 0:
+                    ici['accelerator_type'] = ['NVIDIA-*']
+                config['inference_compute_info'] = ici
+                # Normalize to compute.instance
+                compute['instance'] = instance
+                compute.pop('gpu', None)
 
         # 3. Expand simplified checkpoints
         checkpoints = config.get('checkpoints')
@@ -555,22 +576,33 @@ class ModelBuilder:
         return config
 
     def _validate_config_model(self):
-        assert "model" in self.config, "model section not found in the config file"
+        if "model" not in self.config:
+            raise UserError("'model' section not found in config.yaml")
         model = self.config.get('model')
-        assert "user_id" in model, "user_id not found in the config file"
-        assert "app_id" in model, "app_id not found in the config file"
-        assert "model_type_id" in model, "model_type_id not found in the config file"
-        assert "id" in model, "model_id not found in the config file"
-        if '.' in model.get('id'):
-            logger.error(
-                "Model ID cannot contain '.', please remove it from the model_id in the config file"
+        if "user_id" not in model:
+            raise UserError(
+                "user_id could not be resolved. Either:\n"
+                "  - Add 'user_id' to the model section in config.yaml\n"
+                "  - Run 'clarifai login' to set up your CLI config"
             )
-            sys.exit(1)
-
-        assert model.get('user_id') != "", "user_id cannot be empty in the config file"
-        assert model.get('app_id') != "", "app_id cannot be empty in the config file"
-        assert model.get('model_type_id') != "", "model_type_id cannot be empty in the config file"
-        assert model.get('id') != "", "model_id cannot be empty in the config file"
+        if "app_id" not in model:
+            raise UserError("app_id not found in config.yaml")
+        if "model_type_id" not in model:
+            raise UserError("model_type_id not found in the model section of config.yaml")
+        if "id" not in model:
+            raise UserError("model id not found in the model section of config.yaml")
+        if '.' in model.get('id', ''):
+            raise UserError(
+                "Model ID cannot contain '.'. Please remove it from the model id in config.yaml."
+            )
+        if not model.get('user_id'):
+            raise UserError("user_id cannot be empty in config.yaml")
+        if not model.get('app_id'):
+            raise UserError("app_id cannot be empty in config.yaml")
+        if not model.get('model_type_id'):
+            raise UserError("model_type_id cannot be empty in config.yaml")
+        if not model.get('id'):
+            raise UserError("model id cannot be empty in config.yaml")
 
         if not self._check_app_exists():
             sys.exit(1)
@@ -593,15 +625,16 @@ class ModelBuilder:
         if not self.download_validation_only:
             self._validate_config_model()
 
-            assert "inference_compute_info" in self.config, (
-                "inference_compute_info not found in the config file"
-            )
+            if "inference_compute_info" not in self.config:
+                logger.warning(
+                    "inference_compute_info not found in config. "
+                    "Set 'compute.instance' or 'inference_compute_info' in config.yaml for deployment."
+                )
 
             if self.config.get("concepts"):
                 model_type_id = self.config.get('model').get('model_type_id')
-                assert model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE, (
-                    f"Model type {model_type_id} not supported for concepts"
-                )
+                if model_type_id not in CONCEPTS_REQUIRED_MODEL_TYPE:
+                    raise UserError(f"Model type '{model_type_id}' not supported for concepts")
 
         if self.config.get("checkpoints"):
             loader_type, _, hf_token, _, _, _ = self._validate_config_checkpoints()
@@ -626,9 +659,8 @@ class ModelBuilder:
 
         num_threads = self.config.get("num_threads")
         if num_threads or num_threads == 0:
-            assert isinstance(num_threads, int) and num_threads >= 1, ValueError(
-                f"`num_threads` must be an integer greater than or equal to 1. Received type {type(num_threads)} with value {num_threads}."
-            )
+            if not isinstance(num_threads, int) or num_threads < 1:
+                raise UserError(f"num_threads must be an integer >= 1. Got: {num_threads!r}")
         else:
             num_threads = int(os.environ.get("CLARIFAI_NUM_THREADS", 16))
             self.config["num_threads"] = num_threads
@@ -911,10 +943,13 @@ class ModelBuilder:
     @property
     def client(self):
         if self._client is None:
-            assert "model" in self.config, "model info not found in the config file"
+            if "model" not in self.config:
+                raise UserError("'model' section not found in config.yaml")
             model = self.config.get('model')
-            assert "user_id" in model, "user_id not found in the config file"
-            assert "app_id" in model, "app_id not found in the config file"
+            if "user_id" not in model:
+                raise UserError("user_id not found in config.yaml")
+            if "app_id" not in model:
+                raise UserError("app_id not found in config.yaml")
             # The owner of the model and the app.
             user_id = model.get('user_id')
             app_id = model.get('app_id')
@@ -976,24 +1011,32 @@ class ModelBuilder:
             )
 
     def _get_model_proto(self):
-        assert "model" in self.config, "model info not found in the config file"
+        if "model" not in self.config:
+            raise UserError("'model' section not found in config.yaml")
         model = self.config.get('model')
 
-        assert "model_type_id" in model, "model_type_id not found in the config file"
-        assert "id" in model, "model_id not found in the config file"
+        if "model_type_id" not in model:
+            raise UserError("model_type_id not found in the model section of config.yaml")
+        if "id" not in model:
+            raise UserError("model id not found in the model section of config.yaml")
         if not self.download_validation_only:
-            assert "user_id" in model, "user_id not found in the config file"
-            assert "app_id" in model, "app_id not found in the config file"
+            if "user_id" not in model:
+                raise UserError("user_id not found in config.yaml")
+            if "app_id" not in model:
+                raise UserError("app_id not found in config.yaml")
 
         model_proto = json_format.ParseDict(model, resources_pb2.Model())
 
         return model_proto
 
     def _get_inference_compute_info(self):
-        assert "inference_compute_info" in self.config, (
-            "inference_compute_info not found in the config file"
-        )
         inference_compute_info = self.config.get('inference_compute_info')
+        if not inference_compute_info:
+            logger.debug(
+                "inference_compute_info not found in config. "
+                "Set 'compute.instance' or 'inference_compute_info' in config.yaml for deployment."
+            )
+            return None
         # Ensure cpu_limit is a string if it exists and is an int
         if 'cpu_limit' in inference_compute_info and isinstance(
             inference_compute_info['cpu_limit'], int
@@ -1202,6 +1245,11 @@ class ModelBuilder:
         # Get the Python version from the config file
         build_info = self.config.get('build_info', {})
 
+        # Check if custom base image is specified
+        custom_image = build_info.get('image', '') or ''
+        if custom_image and str(custom_image).strip():
+            return self._generate_custom_image_dockerfile(custom_image.strip())
+
         # Check if node_version is specified - if so, use the Node.js Dockerfile template
         node_version = build_info.get('node_version', '') or ''
         use_node_template = bool(node_version and str(node_version).strip())
@@ -1402,6 +1450,22 @@ class ModelBuilder:
 
         return dockerfile_content
 
+    def _generate_custom_image_dockerfile(self, image):
+        """Generate Dockerfile using a custom base image specified in build_info.image."""
+        dockerfile_template_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            'dockerfile_template',
+            'Dockerfile.custom_image.template',
+        )
+        with open(dockerfile_template_path, 'r') as template_file:
+            dockerfile_template = template_file.read()
+
+        dockerfile_template = Template(dockerfile_template)
+        dockerfile_content = dockerfile_template.safe_substitute(IMAGE=image)
+
+        logger.info(f"Setup: Using custom base image '{image}' from build_info.image")
+        return dockerfile_content
+
     def create_dockerfile(self, generate_dockerfile=False):
         """
         Create a Dockerfile for the model based on its configuration.
@@ -1537,9 +1601,8 @@ class ModelBuilder:
             config = yaml.safe_load(file)
         model = config.get('model')
         model_type_id = model.get('model_type_id')
-        assert model_type_id in CONCEPTS_REQUIRED_MODEL_TYPE, (
-            f"Model type {model_type_id} not supported for concepts"
-        )
+        if model_type_id not in CONCEPTS_REQUIRED_MODEL_TYPE:
+            raise UserError(f"Model type '{model_type_id}' not supported for concepts")
         concept_protos = self._concepts_protos_from_concepts(labels)
 
         config['concepts'] = [
@@ -1752,7 +1815,22 @@ class ModelBuilder:
                 )
         return model_version_proto
 
-    def upload_model_version(self, git_info=None):
+    def upload_model_version(self, git_info=None, show_client_script=True):
+        if self.inference_compute_info is None:
+            raise ValueError(
+                "inference_compute_info is required for uploading a model.\n"
+                "  Add one of the following to your config.yaml:\n"
+                "    compute:\n"
+                "      instance: g5.xlarge    # simplified format\n"
+                "  Or:\n"
+                "    inference_compute_info:\n"
+                "      cpu_limit: '4'\n"
+                "      cpu_memory: '16Gi'\n"
+                "      num_accelerators: 1\n"
+                "      accelerator_type: ['NVIDIA-A10G']\n"
+                "      accelerator_memory: '24Gi'\n"
+                "  Run 'clarifai model deploy --instance-info' to see available options."
+            )
         file_path = f"{self.folder}.tar.gz"
         logger.debug(f"Will tar it into file: {file_path}")
 
@@ -1792,10 +1870,25 @@ class ModelBuilder:
             exclude = [self.tar_file, "*~", "*.pyc", "*.pyo", "__pycache__", ".ruff_cache"]
             if when != "upload":
                 exclude.append(self.checkpoint_suffix)
+            # Exclude on-disk config.yaml — we inject the normalized in-memory version below
+            if name == './config.yaml' or name == 'config.yaml':
+                return None
             return None if any(name.endswith(ex) for ex in exclude) else tarinfo
+
+        import io
 
         with tarfile.open(self.tar_file, "w:gz") as tar:
             tar.add(self.folder, arcname=".", filter=filter_func)
+            # Inject the normalized in-memory config (with user_id, app_id,
+            # inference_compute_info, etc.) so the packaged image has the full config
+            # without ever modifying the user's on-disk config.yaml.
+            config_bytes = yaml.dump(
+                self.config, default_flow_style=False, sort_keys=False
+            ).encode('utf-8')
+            config_info = tarfile.TarInfo(name='./config.yaml')
+            config_info.size = len(config_bytes)
+            config_info.mtime = int(time.time())
+            tar.addfile(config_info, io.BytesIO(config_bytes))
         logger.debug("Tarring complete, about to start upload.")
 
         file_size = os.path.getsize(self.tar_file)
@@ -1841,7 +1934,7 @@ class ModelBuilder:
         is_uploaded = False
         try:
             is_uploaded = self.monitor_model_build()
-            if is_uploaded:
+            if is_uploaded and show_client_script:
                 # python code to run the model.
 
                 method_signatures = self.get_method_signatures()

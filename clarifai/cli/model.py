@@ -628,7 +628,7 @@ def init(
         logger.info(f"Model initialization complete in {model_path}")
         logger.info("Next steps:")
         logger.info("1. Review the model configuration in config.yaml")
-        logger.info("2. Deploy: clarifai model deploy %s --gpu g5.xlarge" % model_path)
+        logger.info("2. Deploy: clarifai model deploy %s --instance g5.xlarge" % model_path)
 
     # Fall back to template-based initialization if no GitHub repo or if GitHub repo failed
     # Also handles template toolkits (mcp, openai) which don't clone from GitHub
@@ -690,7 +690,7 @@ def init(
         logger.info("Next steps:")
         logger.info("1. Implement your model logic in 1/model.py")
         logger.info("2. Add your model dependencies to requirements.txt")
-        logger.info("3. Deploy: clarifai model deploy %s --gpu g5.xlarge" % model_path)
+        logger.info("3. Deploy: clarifai model deploy %s --instance g5.xlarge" % model_path)
 
 
 def _ensure_hf_token(ctx, model_path):
@@ -780,70 +780,81 @@ def upload(ctx, model_path, stage, skip_dockerfile, platform):
     )
 
 
-@model.command(help="Deploy a model to Clarifai compute.")
+@model.command()
 @click.argument('model_path', type=click.Path(), required=False, default=None)
 @click.option(
-    '--model-url', default=None, help='Clarifai model URL (for deploying existing model).'
-)
-@click.option(
-    '--model-version-id', default=None, help='Specific version to deploy (default: latest).'
-)
-@click.option(
-    '--gpu',
+    '--instance',
     default=None,
-    help="Instance type for deployment (e.g. 'g5.xlarge', 'g6e.2xlarge'). Run --gpu-info to see options.",
+    help="Hardware to deploy on. Run '--instance-info' to see available options.",
+)
+@click.option(
+    '--instance-info',
+    is_flag=True,
+    help='List all available instance types and exit.',
+)
+@click.option(
+    '--model-url',
+    default=None,
+    help='Deploy an existing model by URL instead of a local directory.',
+)
+@click.option(
+    '--model-version-id',
+    default=None,
+    help='Version to deploy. Defaults to the latest version.',
+)
+@click.option(
+    '--min-replicas', default=1, type=int, show_default=True, help='Minimum number of replicas.'
+)
+@click.option(
+    '--max-replicas', default=5, type=int, show_default=True, help='Maximum number of replicas.'
 )
 @click.option(
     '--cloud',
     default=None,
-    help="Cloud provider (e.g. 'aws', 'gcp', 'vultr'). Auto-detected from GPU if not specified.",
+    help="Cloud provider. Auto-detected from --instance if not set.",
 )
 @click.option(
     '--region',
     default=None,
-    help="Cloud region (e.g. 'us-east-1', 'us-central1'). Auto-detected from GPU if not specified.",
+    help="Cloud region. Auto-detected from --instance if not set.",
 )
-@click.option('--deployment-id', default=None, help='Custom deployment ID.')
-@click.option('--min-replicas', default=1, type=int, help='Minimum replicas (default: 1).')
-@click.option('--max-replicas', default=5, type=int, help='Maximum replicas (default: 5).')
-@click.option('--compute-cluster-id', default=None, help='[Advanced] Explicit compute cluster ID.')
-@click.option('--nodepool-id', default=None, help='[Advanced] Explicit nodepool ID.')
-@click.option('--gpu-info', is_flag=True, help='Show available instance types and exit.')
+@click.option(
+    '--compute-cluster-id',
+    default=None,
+    help='[Advanced] Use an existing compute cluster instead of auto-creating one.',
+)
+@click.option(
+    '--nodepool-id',
+    default=None,
+    help='[Advanced] Use an existing nodepool instead of auto-creating one.',
+)
 @click.pass_context
 def deploy(
     ctx,
     model_path,
+    instance,
+    instance_info,
     model_url,
     model_version_id,
-    gpu,
-    cloud,
-    region,
-    deployment_id,
     min_replicas,
     max_replicas,
+    cloud,
+    region,
     compute_cluster_id,
     nodepool_id,
-    gpu_info,
 ):
     """Deploy a model to Clarifai compute.
 
-    \b
-    LOCAL MODEL (upload + deploy in one step):
-      clarifai model deploy ./my-model --gpu g5.xlarge
+    Uploads, builds, and deploys in one step. Compute infrastructure
+    (cluster + nodepool) is auto-created if needed.
 
     \b
-    EXISTING MODEL (deploy only):
-      clarifai model deploy --model-url https://clarifai.com/user/app/models/id --gpu g5.xlarge
-
-    \b
-    DEPLOY TO SPECIFIC CLOUD:
-      clarifai model deploy ./my-model --gpu g5.xlarge --cloud aws --region us-east-1
-
-    \b
-    SHOW INSTANCE TYPES:
-      clarifai model deploy --gpu-info
+    Examples:
+      clarifai model deploy ./my-model --instance g5.xlarge
+      clarifai model deploy --model-url https://clarifai.com/user/app/models/id --instance g5.xlarge
+      clarifai model deploy --instance-info
     """
-    if gpu_info:
+    if instance_info:
         from clarifai.utils.compute_presets import list_gpu_presets
 
         pat_val = None
@@ -879,12 +890,11 @@ def deploy(
         user_id=user_id,
         app_id=app_id,
         model_version_id=model_version_id,
-        gpu=gpu,
+        instance_type=instance,
         cloud_provider=cloud,
         region=region,
         compute_cluster_id=compute_cluster_id,
         nodepool_id=nodepool_id,
-        deployment_id=deployment_id,
         min_replicas=min_replicas,
         max_replicas=max_replicas,
         pat=ctx.obj.current.pat,
@@ -897,23 +907,85 @@ def deploy(
 
 def _print_deploy_result(result):
     """Print a formatted deployment result."""
+    model_url = result['model_url']
+
     click.echo("\nModel deployed successfully!\n")
-    click.echo(f"  Model:      {result['model_url']}")
+    click.echo(f"  Model:      {model_url}")
     click.echo(f"  Version:    {result['model_version_id']}")
     click.echo(f"  Deployment: {result['deployment_id']}")
-    if result.get('gpu'):
-        click.echo(f"  GPU:        {result['gpu']}")
-    click.echo("")
-    click.echo("  Predict:")
-    click.echo(
-        f'    clarifai model predict --model-url "{result["model_url"]}" '
-        f"--input '{{\"prompt\": \"Hello\"}}'"
-    )
-    click.echo("")
-    click.echo("  Python:")
+    if result.get('instance_type'):
+        click.echo(f"  Instance:   {result['instance_type']}")
+
+    click.echo("\n  Predict:")
     click.echo('    from clarifai.client import Model')
-    click.echo(f'    Model(url="{result["model_url"]}").predict(prompt="Hello")')
+    click.echo(f'    model = Model(url="{model_url}")')
+    click.echo('    model.predict(...)  # see model.method_signatures for available methods')
+
+    click.echo("\n  Logs:")
+    click.echo(f'    clarifai model logs --model-url "{model_url}"')
     click.echo("")
+
+
+@model.command(help="Stream model runner logs.")
+@click.option('--model-url', default=None, help='Clarifai model URL.')
+@click.option('--model-id', default=None, help='Model ID.')
+@click.option('--model-version-id', default=None, help='Specific version (default: latest).')
+@click.option(
+    '--compute-cluster-id', default=None, help='[Advanced] Filter by compute cluster ID.'
+)
+@click.option('--nodepool-id', default=None, help='[Advanced] Filter by nodepool ID.')
+@click.option(
+    '--follow/--no-follow',
+    default=True,
+    help='Continuously tail logs (default: --follow). Use --no-follow to print existing logs and exit.',
+)
+@click.option(
+    '--duration',
+    default=None,
+    type=int,
+    help='Max seconds to stream logs (default: unlimited, until Ctrl+C).',
+)
+@click.pass_context
+def logs(
+    ctx, model_url, model_id, model_version_id, compute_cluster_id, nodepool_id, follow, duration
+):
+    """Stream model runner pod logs.
+
+    \b
+    Shows stdout/stderr from the model's runner pod, useful for viewing
+    model loading progress, inference logs, and debugging.
+
+    \b
+    EXAMPLES:
+      clarifai model logs --model-url https://clarifai.com/user/app/models/id
+      clarifai model logs --model-url <url> --no-follow
+      clarifai model logs --model-url <url> --duration 60
+    """
+    validate_context(ctx)
+
+    from clarifai.errors import UserError
+    from clarifai.runners.models.model_deploy import stream_model_logs
+
+    user_id = ctx.obj.current.user_id
+    app_id = getattr(ctx.obj.current, 'app_id', None)
+
+    try:
+        stream_model_logs(
+            model_url=model_url,
+            model_id=model_id,
+            user_id=user_id,
+            app_id=app_id,
+            model_version_id=model_version_id,
+            compute_cluster_id=compute_cluster_id,
+            nodepool_id=nodepool_id,
+            pat=ctx.obj.current.pat,
+            base_url=ctx.obj.current.api_base,
+            follow=follow,
+            duration=duration,
+        )
+    except UserError as e:
+        click.echo(click.style(f"\nError: {e}", fg="red"), err=True)
+        raise SystemExit(1)
 
 
 @model.command(help="Download model checkpoint files.")

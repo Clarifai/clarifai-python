@@ -190,7 +190,7 @@ def get_config_template(
                  (resolved from CLI context at deploy time).
         model_type_id: Model type ID.
         model_id: Model ID.
-        simplified: If True, generate simplified config (no TODOs, compute.gpu shorthand).
+        simplified: If True, generate simplified config (no TODOs, compute.instance shorthand).
                     If False, generate verbose config with all fields.
     """
     if simplified:
@@ -199,7 +199,7 @@ def get_config_template(
   model_type_id: "{model_type_id}"
 
 compute:
-  gpu: g5.xlarge  # Run 'clarifai model deploy --gpu-info' to see all options.
+  instance: g5.xlarge  # Run 'clarifai model deploy --instance-info' to see all options.
 
 # Uncomment to auto-download model checkpoints:
 # checkpoints:
