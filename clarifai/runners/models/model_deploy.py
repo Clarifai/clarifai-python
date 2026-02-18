@@ -189,6 +189,21 @@ class ModelDeployer:
         self.model_version_id = model_version_id
         logger.info(f"Model uploaded. Version: {self.model_version_id}")
 
+        # Capture client script for display after deployment
+        try:
+            from clarifai.runners.utils import code_script
+
+            method_signatures = self._builder.get_method_signatures()
+            self._client_script = code_script.generate_client_script(
+                method_signatures,
+                user_id=self.user_id,
+                app_id=self.app_id,
+                model_id=self.model_id,
+                colorize=True,
+            )
+        except Exception:
+            self._client_script = None
+
         # Deploy
         return self._create_deployment()
 
@@ -633,6 +648,7 @@ class ModelDeployer:
             "instance_type": instance_desc,
             "user_id": self.user_id,
             "app_id": self.app_id,
+            "client_script": getattr(self, '_client_script', None),
         }
 
     def _tail_runner_logs(

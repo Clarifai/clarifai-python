@@ -916,12 +916,21 @@ def _print_deploy_result(result):
     if result.get('instance_type'):
         click.echo(f"  Instance:   {result['instance_type']}")
 
-    click.echo("\n  Predict:")
-    click.echo('    from clarifai.client import Model')
-    click.echo(f'    model = Model(url="{model_url}")')
-    click.echo('    model.predict(...)  # see model.method_signatures for available methods')
+    # Show client script (same as upload output)
+    client_script = result.get('client_script')
+    if client_script:
+        click.echo("\n" + "=" * 60)
+        click.echo("# Here is a code snippet to use this model:")
+        click.echo("=" * 60)
+        click.echo(client_script)
+        click.echo("=" * 60)
+    else:
+        click.echo("\n  Predict:")
+        click.echo('    from clarifai.client import Model')
+        click.echo(f'    model = Model(url="{model_url}")')
+        click.echo('    model.predict(...)  # see model.method_signatures for available methods')
 
-    click.echo("\n  Logs:")
+    click.echo("\n  Check the Model Logs:")
     click.echo(f'    clarifai model logs --model-url "{model_url}"')
     click.echo("")
 
