@@ -9,6 +9,10 @@ def get_config_template():
   id: "text-classifier-train-upload-step"  # TODO: please fill in
   user_id: "your_user_id"  # TODO: please fill in
   app_id: "your_app_id"  # TODO: please fill in
+  # Optional: visibility for the pipeline step
+  # gettable values: PRIVATE(10), ORG(30), PUBLIC(50)
+  visibility:
+    gettable: PUBLIC
 
 pipeline_step_input_params:
   - name: param_a
