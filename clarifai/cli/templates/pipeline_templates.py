@@ -33,10 +33,10 @@ def get_pipeline_config_template(
   id: "{pipeline_id}"
   user_id: "{user_id}"
   app_id: "{app_id}"
-      # Optional: visibility for the pipeline
-      # gettable values: PRIVATE(10), ORG(30), PUBLIC(50)
-      visibility:
-        gettable: PUBLIC
+  # Optional: visibility for the pipeline
+  # gettable values: PRIVATE(10), ORG(30), PUBLIC(50)
+  visibility:
+    gettable: PUBLIC
   step_directories:
 {step_directories}
   orchestration_spec:
