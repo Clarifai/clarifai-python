@@ -129,9 +129,7 @@ class PipelineStepBuilder:
 
         if isinstance(visibility_config, dict):
             if "gettable" not in visibility_config:
-                raise ValueError(
-                    "pipeline_step.visibility must include 'gettable' in config.yaml"
-                )
+                raise ValueError("pipeline_step.visibility must include 'gettable' in config.yaml")
             gettable = self._parse_visibility_gettable(visibility_config["gettable"])
             return resources_pb2.Visibility(gettable=gettable)
 
@@ -465,9 +463,7 @@ COPY --link=true requirements.txt config.yaml /home/nonroot/main/
         if self.pipeline_step_visibility is not None:
             pipeline_step_version_kwargs["visibility"] = self.pipeline_step_visibility
 
-        pipeline_step_version = resources_pb2.PipelineStepVersion(
-            **pipeline_step_version_kwargs
-        )
+        pipeline_step_version = resources_pb2.PipelineStepVersion(**pipeline_step_version_kwargs)
 
         return service_pb2.PostPipelineStepVersionsUploadRequest(
             upload_config=service_pb2.PostPipelineStepVersionsUploadConfig(

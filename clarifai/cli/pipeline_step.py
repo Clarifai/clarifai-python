@@ -144,9 +144,7 @@ def list(ctx, page_no, per_page, app_id, user_id, pipeline_id):
         pat=ctx.obj.current.pat,
         base_url=ctx.obj.current.api_base,
     )
-    response = app.list_pipeline_steps(
-        pipeline_id=pipeline_id, page_no=page_no, per_page=per_page
-    )
+    response = app.list_pipeline_steps(pipeline_id=pipeline_id, page_no=page_no, per_page=per_page)
 
     display_co_resources(
         response,
