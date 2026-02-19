@@ -361,7 +361,10 @@ class User(Lister, BaseClient):
             raise Exception(response.status)
 
         kwargs['user_id'] = self.id
-        return App.from_auth_helper(auth=self.auth_helper, app_id=app_id, **kwargs)
+        kwargs['app_id'] = app_id
+        app = App.from_auth_helper(auth=self.auth_helper, **kwargs)
+        app.app_info.CopyFrom(response.app)
+        return app
 
     def runner(self, runner_id: str) -> dict:
         """Returns a Runner object if exists.
