@@ -1,3 +1,18 @@
+## [[12.2.1]](https://github.com/Clarifai/clarifai-python/releases/tag/12.2.1) - [PyPI](https://pypi.org/project/clarifai/12.2.1/) - 2026-02-19
+
+### Added
+- Added interactive `clarifai logout` command support with programmatic flags for non-interactive usage [(#933)](https://github.com/Clarifai/clarifai-python/pull/933)
+- Added `--context` CLI flag to override active context on a per-command basis [(#919)](https://github.com/Clarifai/clarifai-python/pull/919)
+
+### Changed
+- Added visibility and `user_id` filtering support for Pipeline and Pipeline Step resources in CLI and builders [(#951)](https://github.com/Clarifai/clarifai-python/pull/951)
+- Pipeline and Pipeline Step templates now initialize with `PRIVATE` visibility by default [(#951)](https://github.com/Clarifai/clarifai-python/pull/951)
+- Dropped support for Modules and removed associated module components [(#949)](https://github.com/Clarifai/clarifai-python/pull/949)
+
+### Fixed
+- Fixed PAT creation URL in CLI login from `/settings/security` to `/settings/secrets` [(#950)](https://github.com/Clarifai/clarifai-python/pull/950)
+- Fixed a serializer regression affecting runner serialization utilities [(#952)](https://github.com/Clarifai/clarifai-python/pull/952)
+
 ## [[12.2.0]](https://github.com/Clarifai/clarifai-python/releases/tag/12.2.0) - [PyPI](https://pypi.org/project/clarifai/12.2.0/) - 2026-02-13
 
 ### Added
