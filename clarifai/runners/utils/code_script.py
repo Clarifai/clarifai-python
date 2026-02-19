@@ -23,6 +23,18 @@ def has_signature_method(
     )
 
 
+def _colorize_script(script: str) -> str:
+    """Apply Python syntax highlighting to a script string using pygments."""
+    try:
+        from pygments import highlight  # type: ignore
+        from pygments.formatters import TerminalFormatter  # type: ignore
+        from pygments.lexers import PythonLexer  # type: ignore
+
+        return highlight(script, PythonLexer(), TerminalFormatter())
+    except Exception:
+        return script
+
+
 def generate_client_script(
     method_signatures: List[resources_pb2.MethodSignature],
     user_id,
@@ -69,7 +81,7 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 """
-        return _CLIENT_TEMPLATE
+        return _colorize_script(_CLIENT_TEMPLATE) if colorize else _CLIENT_TEMPLATE
 
     if has_signature_method(OPENAI_TRANSPORT_NAME, method_signatures):
         openai_api_base = url_helper.openai_api_url()
@@ -98,7 +110,7 @@ response = client.chat.completions.create(
 )
 print(response)
 """
-        return _CLIENT_TEMPLATE
+        return _colorize_script(_CLIENT_TEMPLATE) if colorize else _CLIENT_TEMPLATE
     # Generate client template
     _CLIENT_TEMPLATE = (
         "import os\n\n"
@@ -224,17 +236,7 @@ model = Model.from_current_context()
     script_lines.append(method_signatures_str)
     script_lines.append("")
     script = "\n".join(script_lines)
-    if colorize:
-        try:
-            from pygments import highlight  # type: ignore
-            from pygments.formatters import TerminalFormatter  # type: ignore
-            from pygments.lexers import PythonLexer  # type: ignore
-
-            return highlight(script, PythonLexer(), TerminalFormatter())
-        except Exception:
-            # Fallback to plain text if pygments is unavailable
-            return script
-    return script
+    return _colorize_script(script) if colorize else script
 
 
 # get annotations source with default values

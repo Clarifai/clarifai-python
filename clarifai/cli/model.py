@@ -828,6 +828,12 @@ def upload(ctx, model_path, stage, skip_dockerfile, platform):
     default=None,
     help='[Advanced] Use an existing nodepool instead of auto-creating one.',
 )
+@click.option(
+    '--verbose',
+    '-v',
+    is_flag=True,
+    help='Show detailed build, deploy, and runner logs.',
+)
 @click.pass_context
 def deploy(
     ctx,
@@ -842,6 +848,7 @@ def deploy(
     region,
     compute_cluster_id,
     nodepool_id,
+    verbose,
 ):
     """Deploy a model to Clarifai compute.
 
@@ -899,6 +906,7 @@ def deploy(
         max_replicas=max_replicas,
         pat=ctx.obj.current.pat,
         base_url=ctx.obj.current.api_base,
+        verbose=verbose,
     )
 
     result = deployer.deploy()
@@ -907,14 +915,23 @@ def deploy(
 
 def _print_deploy_result(result):
     """Print a formatted deployment result."""
+    from clarifai.runners.models import deploy_output as out
+
     model_url = result['model_url']
 
-    click.echo("\nModel deployed successfully!\n")
-    click.echo(f"  Model:      {model_url}")
-    click.echo(f"  Version:    {result['model_version_id']}")
-    click.echo(f"  Deployment: {result['deployment_id']}")
+    out.phase_header("Ready")
+    click.echo()
+    out.success("Model deployed successfully!")
+    click.echo()
+    out.info("Model", model_url)
+    out.info("Version", result['model_version_id'])
+    out.info("Deployment", result['deployment_id'])
     if result.get('instance_type'):
-        click.echo(f"  Instance:   {result['instance_type']}")
+        out.info("Instance", result['instance_type'])
+    if result.get('cloud_provider') or result.get('region'):
+        cloud = result.get('cloud_provider', '').upper()
+        region = result.get('region', '')
+        out.info("Cloud", f"{cloud} / {region}" if cloud and region else cloud or region)
 
     # Show client script (same as upload output)
     client_script = result.get('client_script')

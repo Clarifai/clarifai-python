@@ -6,6 +6,9 @@ with actionable fix instructions. This class NEVER calls input(), click.confirm(
 click.prompt(), or any interactive function.
 """
 
+import contextlib
+import json
+import logging
 import os
 import re
 import time
@@ -25,7 +28,53 @@ from clarifai.utils.logging import logger
 # Default deployment monitoring settings
 DEFAULT_MONITOR_TIMEOUT = 600  # 10 minutes
 DEFAULT_POLL_INTERVAL = 5  # seconds
-DEFAULT_LOG_TAIL_DURATION = 20  # seconds to tail logs after pods are ready
+DEFAULT_LOG_TAIL_DURATION = 15  # seconds to check for runner logs after pods are ready
+
+# K8s events to skip in default (non-verbose) mode — transient scheduler noise
+_SKIP_EVENTS = {"TaintManagerEviction", "SandboxChanged", "FailedCreatePodSandBox"}
+
+# Map k8s Reason to human-friendly status for non-verbose mode
+_EVENT_PHASE_MAP = {
+    "FailedScheduling": "Scheduling",
+    "NotTriggerScaleUp": "Scaling",
+    "NominatedNode": "Nominated",
+    "Nominated": "Nominated",
+    "Scheduled": "Scheduled",
+    "Pulling": "Pulling image",
+    "Pulled": "Image pulled",
+    "Created": "Starting",
+    "Started": "Running",
+    "BackOff": "Restarting",
+    "Unhealthy": "Health check",
+    "Killing": "Stopping",
+    "Preempted": "Preempted",
+    "FailedMount": "Volume",
+    "FailedAttachVolume": "Volume",
+    "SuccessfulAttachVolume": "Volume",
+    "ScalingReplicaSet": "Scaling",
+}
+
+
+@contextlib.contextmanager
+def _quiet_sdk_logger(suppress=True):
+    """Temporarily suppress SDK logger INFO output for clean deploy output.
+
+    When suppress=True, raises the logger level to WARNING so that only
+    WARNING/ERROR messages are visible. INFO-level noise (thread IDs,
+    microsecond timestamps, protobuf status dumps) is hidden.
+
+    Args:
+        suppress: If True, suppress INFO. If False, no-op (verbose mode).
+    """
+    if not suppress:
+        yield
+        return
+    old_level = logger.level
+    logger.setLevel(logging.WARNING)
+    try:
+        yield
+    finally:
+        logger.setLevel(old_level)
 
 
 class ModelDeployer:
@@ -53,6 +102,7 @@ class ModelDeployer:
         pat=None,
         base_url=None,
         stage="runtime",
+        verbose=False,
     ):
         self.model_path = model_path
         self.model_url = model_url
@@ -70,6 +120,7 @@ class ModelDeployer:
         self.pat = pat
         self.base_url = base_url
         self.stage = stage
+        self.verbose = verbose
 
         # Resolved during deploy
         self._builder = None
@@ -122,17 +173,22 @@ class ModelDeployer:
 
     def _deploy_local_model(self):
         """Upload model from local path, then deploy."""
+        from clarifai.runners.models import deploy_output as out
         from clarifai.runners.models.model_builder import ModelBuilder
 
-        logger.info("Validating model config...")
-        self._builder = ModelBuilder(
-            self.model_path,
-            app_not_found_action="auto_create",
-            pat=self.pat,
-            base_url=self.base_url,
-            user_id=self.user_id,
-            app_id=self.app_id,
-        )
+        suppress = not self.verbose
+
+        # ── Validate ──
+        out.phase_header("Validate")
+        with _quiet_sdk_logger(suppress):
+            self._builder = ModelBuilder(
+                self.model_path,
+                app_not_found_action="auto_create",
+                pat=self.pat,
+                base_url=self.base_url,
+                user_id=self.user_id,
+                app_id=self.app_id,
+            )
 
         # Resolve IDs from the builder's config
         model_config = self._builder.config.get('model', {})
@@ -147,7 +203,6 @@ class ModelDeployer:
             compute_instance = compute.get('instance') or compute.get('gpu')
             if compute_instance:
                 self.instance_type = compute_instance
-                logger.info(f"Using instance type from config: {self.instance_type}")
             else:
                 # Fallback: try to infer from inference_compute_info
                 from clarifai.utils.compute_presets import infer_gpu_from_config
@@ -155,7 +210,6 @@ class ModelDeployer:
                 inferred = infer_gpu_from_config(self._builder.config)
                 if inferred:
                     self.instance_type = inferred
-                    logger.info(f"Inferred instance type from config: {self.instance_type}")
                 else:
                     raise UserError(
                         "You must specify --instance or set 'compute.instance' in config.yaml.\n"
@@ -166,28 +220,51 @@ class ModelDeployer:
                         "  Run 'clarifai model deploy --instance-info' to see available options."
                     )
 
-        # Download checkpoints
-        self._builder.download_checkpoints(stage=self.stage)
-
-        # Create dockerfile (skip if one already exists in the model folder)
+        # Show clean validation summary
+        model_type_id = model_config.get('model_type_id', 'unknown')
+        instance_label = self.instance_type or 'cpu'
+        checkpoints = self._builder.config.get('checkpoints', {})
+        has_checkpoints = bool(checkpoints and checkpoints.get('repo_id'))
         dockerfile_path = os.path.join(self.model_path, 'Dockerfile')
-        if os.path.exists(dockerfile_path):
-            logger.info("Using existing Dockerfile.")
-        else:
-            self._builder.create_dockerfile(generate_dockerfile=True)
+        has_dockerfile = os.path.exists(dockerfile_path)
 
-        # Upload — the tar now injects the normalized in-memory config automatically,
-        # so the user's on-disk config.yaml is never modified.
-        # Suppress client script here; it will be shown after deployment + monitoring.
-        logger.info("Uploading model...")
+        out.info("Model", f"{self.user_id}/{self.app_id}/models/{self.model_id}")
+        out.info("Type", model_type_id)
+        out.info("Instance", instance_label)
+        if has_checkpoints:
+            out.info("Checkpoints", checkpoints.get('repo_id', ''))
+        out.info("Dockerfile", "existing" if has_dockerfile else "auto-generated")
+
+        # Download checkpoints and create dockerfile
+        with _quiet_sdk_logger(suppress):
+            self._builder.download_checkpoints(stage=self.stage)
+            if has_dockerfile:
+                pass  # Use existing
+            else:
+                self._builder.create_dockerfile(generate_dockerfile=True)
+
+        # ── Upload ──
+        out.phase_header("Upload")
         git_info = self._builder._get_git_info()
-        model_version_id = self._builder.upload_model_version(git_info, show_client_script=False)
+
+        # Callback emits Version/URL after upload completes but before build starts,
+        # so these info lines appear under Upload, not under the Build phase header.
+        def _on_upload_complete(version_id, url):
+            out.info("Version", version_id)
+            out.info("URL", url)
+
+        with _quiet_sdk_logger(suppress):
+            model_version_id = self._builder.upload_model_version(
+                git_info,
+                show_client_script=False,
+                quiet_build=True,
+                post_upload_callback=_on_upload_complete,
+            )
 
         if not model_version_id:
             raise UserError("Model upload failed. Check logs above for details.")
 
         self.model_version_id = model_version_id
-        logger.info(f"Model uploaded. Version: {self.model_version_id}")
 
         # Capture client script for display after deployment
         try:
@@ -204,33 +281,42 @@ class ModelDeployer:
         except Exception:
             self._client_script = None
 
-        # Deploy
+        # ── Deploy ──
+        out.phase_header("Deploy")
         return self._create_deployment()
 
     def _deploy_existing_model(self):
         """Deploy an already-uploaded model."""
         from clarifai.client import Model
+        from clarifai.runners.models import deploy_output as out
 
-        model = Model(
-            model_id=self.model_id,
-            app_id=self.app_id,
-            user_id=self.user_id,
-            pat=self.pat,
-            base_url=self.base_url,
-        )
+        suppress = not self.verbose
 
-        # Get latest version if not specified
-        if not self.model_version_id:
-            logger.info("Fetching latest model version...")
-            versions = list(model.list_versions())
-            if not versions:
-                raise UserError(f"No versions found for model '{self.model_id}'.")
-            self.model_version_id = versions[0].model_version.id
-            logger.info(f"Using latest version: {self.model_version_id}")
+        out.phase_header("Deploy")
 
-        # Auto-update compute info if the target instance exceeds model version's spec
-        if self.instance_type:
-            self._auto_update_compute_if_needed(model)
+        with _quiet_sdk_logger(suppress):
+            model = Model(
+                model_id=self.model_id,
+                app_id=self.app_id,
+                user_id=self.user_id,
+                pat=self.pat,
+                base_url=self.base_url,
+            )
+
+            # Get latest version if not specified
+            if not self.model_version_id:
+                versions = list(model.list_versions())
+                if not versions:
+                    raise UserError(f"No versions found for model '{self.model_id}'.")
+                self.model_version_id = versions[0].model_version.id
+
+            # Auto-update compute info if the target instance exceeds model version's spec
+            if self.instance_type:
+                self._auto_update_compute_if_needed(model)
+
+        out.info("Model", f"{self.user_id}/{self.app_id}/models/{self.model_id}")
+        out.info("Version", self.model_version_id)
+        out.info("Instance", self.instance_type or "cpu")
 
         return self._create_deployment()
 
@@ -342,15 +428,15 @@ class ModelDeployer:
         )
 
         reason_str = "; ".join(reasons)
-        logger.info(
-            f"Updating model version compute info to match instance "
-            f"'{self.instance_type}' ({reason_str})"
-        )
+        if self.verbose:
+            logger.info(
+                f"Updating model version compute info to match instance "
+                f"'{self.instance_type}' ({reason_str})"
+            )
         model.patch_version(
             version_id=self.model_version_id,
             inference_compute_info=patch_compute,
         )
-        logger.info("Model version compute info updated.")
 
     def _get_cloud_and_region(self):
         """Determine cloud_provider and region for infrastructure creation.
@@ -384,8 +470,12 @@ class ModelDeployer:
             return self.compute_cluster_id, self.nodepool_id, self.user_id
 
         from clarifai.client.user import User
+        from clarifai.runners.models import deploy_output as out
 
-        user = User(user_id=self.user_id, pat=self.pat, base_url=self.base_url)
+        suppress = not self.verbose
+
+        with _quiet_sdk_logger(suppress):
+            user = User(user_id=self.user_id, pat=self.pat, base_url=self.base_url)
         gpu_preset = self._resolve_gpu()
         cloud, region = self._get_cloud_and_region()
 
@@ -393,13 +483,13 @@ class ModelDeployer:
         cc_id = self.compute_cluster_id or get_deploy_compute_cluster_id(cloud, region)
 
         # Try to get existing compute cluster, create if not found
-        try:
-            user.compute_cluster(cc_id)
-            logger.debug(f"Using existing compute cluster: {cc_id}")
-        except Exception:
-            logger.info(f"Creating compute cluster: {cc_id}")
-            cc_config = get_compute_cluster_config(self.user_id, cloud, region)
-            user.create_compute_cluster(compute_cluster_config=cc_config)
+        with _quiet_sdk_logger(suppress):
+            try:
+                user.compute_cluster(cc_id)
+            except Exception:
+                out.status(f"Creating compute cluster '{cc_id}'...")
+                cc_config = get_compute_cluster_config(self.user_id, cloud, region)
+                user.create_compute_cluster(compute_cluster_config=cc_config)
 
         # Determine nodepool ID
         if self.nodepool_id:
@@ -411,55 +501,63 @@ class ModelDeployer:
             # Try to get existing nodepool, create if not found
             from clarifai.client.compute_cluster import ComputeCluster
 
-            cc = ComputeCluster(
-                compute_cluster_id=cc_id,
-                user_id=self.user_id,
-                pat=self.pat,
-                base_url=self.base_url,
-            )
-            try:
-                cc.nodepool(np_id)
-                logger.debug(f"Using existing nodepool: {np_id}")
-            except Exception:
-                logger.info(f"Creating nodepool: {np_id}")
-                np_config = get_nodepool_config(
-                    instance_type_id=instance_type_id,
+            with _quiet_sdk_logger(suppress):
+                cc = ComputeCluster(
                     compute_cluster_id=cc_id,
                     user_id=self.user_id,
-                    compute_info=gpu_preset.get("inference_compute_info") if gpu_preset else None,
+                    pat=self.pat,
+                    base_url=self.base_url,
                 )
-                cc.create_nodepool(nodepool_config=np_config)
+                try:
+                    cc.nodepool(np_id)
+                except Exception:
+                    out.status(f"Creating nodepool '{np_id}'...")
+                    np_config = get_nodepool_config(
+                        instance_type_id=instance_type_id,
+                        compute_cluster_id=cc_id,
+                        user_id=self.user_id,
+                        compute_info=gpu_preset.get("inference_compute_info")
+                        if gpu_preset
+                        else None,
+                    )
+                    cc.create_nodepool(nodepool_config=np_config)
 
         return cc_id, np_id, self.user_id
 
     def _create_deployment(self):
         """Create the deployment using existing deploy_model function."""
+        from clarifai.runners.models import deploy_output as out
         from clarifai.runners.models.model_builder import deploy_model
 
         cc_id, np_id, cluster_user_id = self._ensure_compute_infrastructure()
 
         deployment_id = f"deploy-{self.model_id}-{uuid.uuid4().hex[:6]}"
+        suppress = not self.verbose
 
-        logger.info(f"Deploying model '{self.model_id}' to nodepool '{np_id}'...")
-        success = deploy_model(
-            model_id=self.model_id,
-            app_id=self.app_id,
-            user_id=self.user_id,
-            deployment_id=deployment_id,
-            model_version_id=self.model_version_id,
-            nodepool_id=np_id,
-            compute_cluster_id=cc_id,
-            cluster_user_id=cluster_user_id,
-            min_replicas=self.min_replicas,
-            max_replicas=self.max_replicas,
-            pat=self.pat,
-            base_url=self.base_url,
-        )
+        out.status(f"Deploying to nodepool '{np_id}'...")
+        with _quiet_sdk_logger(suppress):
+            success = deploy_model(
+                model_id=self.model_id,
+                app_id=self.app_id,
+                user_id=self.user_id,
+                deployment_id=deployment_id,
+                model_version_id=self.model_version_id,
+                nodepool_id=np_id,
+                compute_cluster_id=cc_id,
+                cluster_user_id=cluster_user_id,
+                min_replicas=self.min_replicas,
+                max_replicas=self.max_replicas,
+                pat=self.pat,
+                base_url=self.base_url,
+                quiet=suppress,
+            )
 
         if not success:
             raise UserError(
                 f"Deployment failed for model '{self.model_id}'. Check logs above for details."
             )
+
+        out.success(f"Deployment '{deployment_id}' created")
 
         # Skip monitoring when min_replicas is 0 — no pods will be scheduled
         if self.min_replicas > 0:
@@ -477,6 +575,9 @@ class ModelDeployer:
 
         from clarifai.client.auth import create_stub
         from clarifai.client.auth.helper import ClarifaiAuthHelper
+        from clarifai.runners.models import deploy_output as out
+
+        out.phase_header("Monitor")
 
         # Create a lightweight client for gRPC calls
         auth = ClarifaiAuthHelper.from_env(
@@ -489,10 +590,9 @@ class ModelDeployer:
         poll_interval = DEFAULT_POLL_INTERVAL
         start_time = time.time()
         seen_logs = set()
+        seen_messages = set()  # Dedup simplified event messages across polls
         log_page = 1
         has_inline_progress = False  # Track if we printed \r progress
-
-        print("\nMonitoring deployment status...", flush=True)
 
         while time.time() - start_time < timeout:
             elapsed = int(time.time() - start_time)
@@ -527,25 +627,46 @@ class ModelDeployer:
                     runner.id,
                     seen_logs,
                     log_page,
+                    verbose=self.verbose,
+                    seen_messages=seen_messages,
                 )
 
                 # Print log lines if any (clear inline progress first)
                 if log_lines:
                     if has_inline_progress:
-                        print()
+                        out.clear_inline()
                         has_inline_progress = False
                     for line in log_lines:
                         print(line, flush=True)
 
                 # Check if ready
                 if pods_running >= max(self.min_replicas, 1):
+                    # Brief delay to let late-arriving k8s events propagate to the API,
+                    # then fetch one final time so fast deploys still show events.
+                    time.sleep(3)
+                    _, final_lines = self._fetch_runner_logs(
+                        stub,
+                        user_app_id,
+                        compute_cluster_id,
+                        nodepool_id,
+                        runner.id,
+                        seen_logs,
+                        log_page,
+                        verbose=self.verbose,
+                        seen_messages=seen_messages,
+                    )
+                    if final_lines:
+                        if has_inline_progress:
+                            out.clear_inline()
+                            has_inline_progress = False
+                        for line in final_lines:
+                            print(line, flush=True)
+
                     if has_inline_progress:
-                        print()
+                        out.clear_inline()
                         has_inline_progress = False
-                    print(
-                        f"  Model is running! Pods: {pods_running}/{pods_total} "
-                        f"({elapsed}s elapsed)",
-                        flush=True,
+                    out.success(
+                        f"Model is running! Pods: {pods_running}/{pods_total} ({elapsed}s)"
                     )
                     # Tail model logs briefly to show startup output
                     self._tail_runner_logs(
@@ -554,71 +675,81 @@ class ModelDeployer:
                         compute_cluster_id,
                         nodepool_id,
                         runner.id,
-                        seen_logs,
-                        log_page,
                     )
                     return
 
-                status_msg = f"  Pods: {pods_running}/{pods_total} running ({elapsed}s elapsed)"
+                status_msg = f"Pods: {pods_running}/{pods_total} running ({elapsed}s elapsed)"
             else:
-                status_msg = f"  Waiting for runner to be scheduled... ({elapsed}s elapsed)"
+                status_msg = f"Waiting for runner to be scheduled... ({elapsed}s elapsed)"
 
             # Inline progress update (overwrite same line)
-            print(f"\r{status_msg:<60}", end='', flush=True)
+            out.inline_progress(status_msg)
             has_inline_progress = True
 
             time.sleep(poll_interval)
 
         # Timeout reached
         if has_inline_progress:
-            print()
-        print(
-            f"\n  Deployment monitoring timed out after {timeout}s.\n"
-            "  The deployment may still be in progress.\n"
-            "  Check status with: clarifai deployment list",
-            flush=True,
+            out.clear_inline()
+        out.warning(
+            f"Deployment monitoring timed out after {timeout}s. "
+            "The deployment may still be in progress."
         )
+        out.status("Check status with: clarifai deployment list")
 
     @staticmethod
     def _fetch_runner_logs(
-        stub, user_app_id, compute_cluster_id, nodepool_id, runner_id, seen_logs, current_page
+        stub,
+        user_app_id,
+        compute_cluster_id,
+        nodepool_id,
+        runner_id,
+        seen_logs,
+        current_page,
+        verbose=False,
+        seen_messages=None,
     ):
-        """Fetch runner logs, returns (updated_page, list_of_formatted_lines)."""
+        """Fetch k8s event logs during monitoring.
+
+        Only fetches "runner.events" (k8s events like scheduling, pulling, starting).
+        Model stdout/stderr ("runner" logs) are reserved for the Startup Logs phase
+        to avoid consuming them here and leaving that section empty.
+
+        Args:
+            seen_messages: Optional set for deduplicating simplified output lines across
+                poll cycles. When not verbose, repeated messages like "Scheduling: Waiting
+                for node..." are suppressed after the first occurrence.
+        """
         from clarifai_grpc.grpc.api import service_pb2
 
         lines = []
 
-        for log_type in ("runner.events", "runner"):
-            try:
-                resp = stub.ListLogEntries(
-                    service_pb2.ListLogEntriesRequest(
-                        log_type=log_type,
-                        user_app_id=user_app_id,
-                        compute_cluster_id=compute_cluster_id,
-                        nodepool_id=nodepool_id,
-                        runner_id=runner_id,
-                        page=current_page,
-                        per_page=50,
-                    )
+        try:
+            resp = stub.ListLogEntries(
+                service_pb2.ListLogEntriesRequest(
+                    log_type="runner.events",
+                    user_app_id=user_app_id,
+                    compute_cluster_id=compute_cluster_id,
+                    nodepool_id=nodepool_id,
+                    runner_id=runner_id,
+                    page=current_page,
+                    per_page=50,
                 )
-                entries_count = 0
-                for entry in resp.log_entries:
-                    entries_count += 1
-                    log_key = (log_type, entry.url or entry.message[:100])
-                    if log_key not in seen_logs:
-                        seen_logs.add(log_key)
-                        if log_type == "runner.events":
-                            lines.extend(_format_event_logs(entry.message.strip()))
-                        else:
-                            msg = entry.message.strip()
-                            if msg:
-                                lines.append(f"  [runner] {msg}")
-
-                # Paginate if we got a full page
-                if log_type == "runner" and entries_count == 50:
-                    current_page += 1
-            except Exception:
-                pass  # Log fetching is best-effort
+            )
+            for entry in resp.log_entries:
+                log_key = ("runner.events", entry.url or entry.message[:100])
+                if log_key not in seen_logs:
+                    seen_logs.add(log_key)
+                    event_lines = _format_event_logs(entry.message.strip(), verbose=verbose)
+                    for line in event_lines:
+                        # Deduplicate simplified messages across polls
+                        if seen_messages is not None and not verbose:
+                            if line in seen_messages:
+                                continue
+                            seen_messages.add(line)
+                        lines.append(line)
+        except Exception:
+            pass  # Log fetching is best-effort
 
         return current_page, lines
 
@@ -638,6 +769,8 @@ class ModelDeployer:
         elif self.instance_type:
             instance_desc = self.instance_type
 
+        cloud, region = self._get_cloud_and_region()
+
         return {
             "model_url": model_url,
             "model_id": self.model_id,
@@ -646,33 +779,43 @@ class ModelDeployer:
             "nodepool_id": nodepool_id,
             "compute_cluster_id": compute_cluster_id,
             "instance_type": instance_desc,
+            "cloud_provider": cloud,
+            "region": region,
             "user_id": self.user_id,
             "app_id": self.app_id,
             "client_script": getattr(self, '_client_script', None),
         }
 
-    def _tail_runner_logs(
-        self, stub, user_app_id, compute_cluster_id, nodepool_id, runner_id, seen_logs, log_page
-    ):
+    def _tail_runner_logs(self, stub, user_app_id, compute_cluster_id, nodepool_id, runner_id):
         """Briefly tail runner logs after pods are ready to show model startup output.
 
         Fetches log_type="runner" (model pod stdout/stderr) for a short period
         so the user can see model loading progress, then exits with a hint.
+
+        Uses the same print-raw approach as stream_model_logs() for reliability,
+        with optional JSON parsing for cleaner output.
         """
         from clarifai_grpc.grpc.api import service_pb2
 
-        tail_duration = DEFAULT_LOG_TAIL_DURATION
-        tail_start = time.time()
-        print("\n  Tailing model logs...", flush=True)
+        from clarifai.runners.models import deploy_output as out
 
-        while time.time() - tail_start < tail_duration:
+        model_url = f"https://clarifai.com/{self.user_id}/{self.app_id}/models/{self.model_id}"
+
+        seen_logs = set()
+        log_page = 1
+        has_logs = False
+        tail_start = time.time()
+        total_api_entries = 0  # Track raw API entry count for diagnostics
+
+        while time.time() - tail_start < DEFAULT_LOG_TAIL_DURATION:
+            new_entries = 0
             try:
                 resp = stub.ListLogEntries(
                     service_pb2.ListLogEntriesRequest(
                         log_type="runner",
                         user_app_id=user_app_id,
-                        compute_cluster_id=compute_cluster_id,
-                        nodepool_id=nodepool_id,
+                        compute_cluster_id=compute_cluster_id or "",
+                        nodepool_id=nodepool_id or "",
                         runner_id=runner_id,
                         page=log_page,
                         per_page=50,
@@ -681,33 +824,140 @@ class ModelDeployer:
                 entries_count = 0
                 for entry in resp.log_entries:
                     entries_count += 1
-                    log_key = ("runner", entry.url or entry.message[:100])
-                    if log_key not in seen_logs:
-                        seen_logs.add(log_key)
-                        msg = entry.message.strip()
-                        if msg:
-                            print(f"  [runner] {msg}", flush=True)
+                    total_api_entries += 1
+                    log_key = entry.url or entry.message[:100]
+                    if log_key in seen_logs:
+                        continue
+                    seen_logs.add(log_key)
+                    msg = entry.message.strip()
+                    if not msg:
+                        continue
+
+                    # Try to extract clean message from JSON logs.
+                    parsed = _parse_runner_log(msg, verbose=self.verbose)
+                    display = parsed
+                    if not display and self.verbose:
+                        display = msg[:200]
+
+                    if display:
+                        if not has_logs:
+                            out.phase_header("Startup Logs")
+                            has_logs = True
+                        out.status(display)
+                        new_entries += 1
                 if entries_count == 50:
                     log_page += 1
-            except Exception:
-                pass
+            except Exception as e:
+                # Make errors visible — logger.debug is not shown at default level
+                out.event(f"Log fetch error: {e}")
 
-            time.sleep(DEFAULT_POLL_INTERVAL)
+            # If we displayed logs and then an empty poll, we're done
+            if has_logs and new_entries == 0:
+                break
 
-        model_url = f"https://clarifai.com/{self.user_id}/{self.app_id}/models/{self.model_id}"
-        print(
-            f"\n  For continued log streaming, run:\n"
-            f"    clarifai model logs --model-url \"{model_url}\"",
-            flush=True,
-        )
+            time.sleep(3)
+
+        if not has_logs:
+            out.phase_header("Startup Logs")
+            if total_api_entries > 0:
+                out.status(
+                    f"{total_api_entries} log entries found but all filtered "
+                    f"(use --verbose to see). Logs may appear shortly."
+                )
+            else:
+                out.status("No startup logs available yet.")
+
+        out.status("")
+        out.status("Stream model logs:")
+        out.status(f'  clarifai model logs --model-url "{model_url}"')
 
 
-def _format_event_logs(raw_message):
+def _parse_runner_log(raw_msg, verbose=False):
+    """Parse a runner log line, extracting the message from JSON if possible.
+
+    Raw input example:
+        '{"msg": "Starting MCP bridge...", "@timestamp": "...", "stack_info": null, ...}'
+    Output: "Starting MCP bridge..."
+
+    In non-verbose mode, filters out:
+    - DeprecationWarning lines
+    - pip download progress lines
+    - Empty messages
+
+    Args:
+        raw_msg: Raw log message string.
+        verbose: If True, pass through all messages unfiltered.
+
+    Returns:
+        Cleaned message string, or None if the message should be suppressed.
+    """
+    if not raw_msg:
+        return None
+    # Try to parse as JSON (runner logs are often JSON-formatted)
+    try:
+        data = json.loads(raw_msg)
+        if isinstance(data, dict) and "msg" in data:
+            msg = data["msg"]
+            if msg:
+                return msg
+            return None
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    # Return raw message as-is
+    return raw_msg
+
+
+def _simplify_k8s_message(reason, message):
+    """Simplify k8s event messages for non-verbose mode.
+
+    Strips internal node IPs, taint specifications, and pod full names.
+
+    Args:
+        reason: K8s event reason (e.g. "FailedScheduling", "Pulling").
+        message: Raw k8s event message.
+
+    Returns:
+        Simplified, human-friendly message string.
+    """
+    _SIMPLE = {
+        "FailedScheduling": "Waiting for node to become available...",
+        "NotTriggerScaleUp": "Waiting for cluster to scale up...",
+        "NominatedNode": "Node selected for scheduling",
+        "Nominated": "Node selected for scheduling",
+        "Scheduled": "Pod scheduled on node",
+        "Pulling": "Pulling model image...",
+        "Pulled": "Model image pulled",
+        "Created": "Container created",
+        "Started": "Container started",
+        "BackOff": "Container restarting (back-off)",
+        "Unhealthy": "Health check failed, waiting...",
+        "Killing": "Stopping container...",
+        "Preempted": "Pod preempted, rescheduling...",
+        "FailedMount": "Volume mount failed",
+        "FailedAttachVolume": "Volume attach failed",
+        "SuccessfulAttachVolume": "Volume attached",
+        "ScalingReplicaSet": "Scaling replicas...",
+    }
+    simplified = _SIMPLE.get(reason)
+    if simplified:
+        return simplified
+    # Truncate anything beyond 80 chars
+    if len(message) > 80:
+        return message[:77] + "..."
+    return message
+
+
+def _format_event_logs(raw_message, verbose=False):
     """Parse Kubernetes-style event log entries into formatted lines.
 
     Raw format: "Name: pod-xyz, Type: Warning, Source: {karpenter }, Reason: FailedScheduling,
                  FirstTimestamp: ..., LastTimestamp: ..., Message: ..."
     Multiple events may be concatenated with newlines.
+
+    Args:
+        raw_message: Raw k8s event log string.
+        verbose: If True, show all events with full detail. If False, simplify and filter.
 
     Returns:
         list of formatted strings.
@@ -719,31 +969,41 @@ def _format_event_logs(raw_message):
     # Split concatenated events (each starts with "Name:")
     events = re.split(r'\n(?=Name:\s)', raw_message)
 
-    for event in events:
-        event = event.strip()
-        if not event:
+    for event_str in events:
+        event_str = event_str.strip()
+        if not event_str:
             continue
 
         # Extract key fields
-        type_match = re.search(r'Type:\s*(\w+)', event)
-        reason_match = re.search(r'Reason:\s*(\w+)', event)
-        message_match = re.search(r'Message:\s*(.+?)(?:\s*$)', event, re.DOTALL)
+        type_match = re.search(r'Type:\s*(\w+)', event_str)
+        reason_match = re.search(r'Reason:\s*(\w+)', event_str)
+        message_match = re.search(r'Message:\s*(.+?)(?:\s*$)', event_str, re.DOTALL)
 
         event_type = type_match.group(1) if type_match else ""
         reason = reason_match.group(1) if reason_match else ""
-        message = message_match.group(1).strip() if message_match else event
+        message = message_match.group(1).strip() if message_match else event_str
 
-        # Truncate very long messages
-        if len(message) > 200:
-            message = message[:197] + "..."
+        # In non-verbose mode, skip transient noise events
+        if not verbose and reason in _SKIP_EVENTS:
+            continue
 
-        # Format with type indicator
-        prefix = "  [warning]" if event_type == "Warning" else "  [event] "
-
-        if reason:
-            lines.append(f"{prefix} {reason}: {message}")
+        # In non-verbose mode, simplify messages
+        if not verbose:
+            message = _simplify_k8s_message(reason, message)
+            phase = _EVENT_PHASE_MAP.get(reason, reason)
         else:
-            lines.append(f"{prefix} {message}")
+            phase = reason
+            # Truncate very long messages in verbose mode too
+            if len(message) > 200:
+                message = message[:197] + "..."
+
+        # Format with type indicator (consistent width)
+        tag = "warning" if event_type == "Warning" else "event"
+
+        if phase:
+            lines.append(f"  [{tag:7s}] {phase}: {message}")
+        else:
+            lines.append(f"  [{tag:7s}] {message}")
 
     return lines
 

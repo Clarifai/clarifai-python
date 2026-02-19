@@ -1815,7 +1815,9 @@ class ModelBuilder:
                 )
         return model_version_proto
 
-    def upload_model_version(self, git_info=None, show_client_script=True):
+    def upload_model_version(
+        self, git_info=None, show_client_script=True, quiet_build=False, post_upload_callback=None
+    ):
         if self.inference_compute_info is None:
             raise ValueError(
                 "inference_compute_info is required for uploading a model.\n"
@@ -1919,21 +1921,36 @@ class ModelBuilder:
                 percent_completed = response.status.percent_completed
             details = response.status.details
 
-            print(
-                f"Status: {response.status.description}, Progress: {percent_completed}% - {details} ",
-                f"request_id: {response.status.req_id}",
-                end='\r',
-                flush=True,
-            )
+            if quiet_build:
+                print(
+                    f"\r  Uploading... {percent_completed}%",
+                    end='',
+                    flush=True,
+                )
+            else:
+                print(
+                    f"Status: {response.status.description}, Progress: {percent_completed}% - {details} ",
+                    f"request_id: {response.status.req_id}",
+                    end='\r',
+                    flush=True,
+                )
+        if quiet_build:
+            # Overwrite "Uploading... X%" with "done" and newline
+            print(f"\r  Uploading... done{' ':50}", flush=True)
         if response.status.code != status_code_pb2.MODEL_BUILDING:
             logger.error(f"Failed to upload model version: {response}")
             return
         self.model_version_id = response.model_version_id
         logger.info(f"Created Model Version ID: {self.model_version_id}")
         logger.info(f"Full url to that version is: {self.model_ui_url}")
+
+        # Callback for deploy orchestrator to emit Version/URL before build starts
+        if post_upload_callback:
+            post_upload_callback(self.model_version_id, self.model_ui_url)
+
         is_uploaded = False
         try:
-            is_uploaded = self.monitor_model_build()
+            is_uploaded = self.monitor_model_build(quiet=quiet_build)
             if is_uploaded and show_client_script:
                 # python code to run the model.
 
@@ -2022,10 +2039,21 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
         response = self.client.STUB.ListLogEntries(logs_request)
         return response
 
-    def monitor_model_build(self):
+    def monitor_model_build(self, quiet=False):
+        """Monitor model build, optionally suppressing detailed Docker build logs.
+
+        Args:
+            quiet: If True, suppress Docker build step logs and show only a progress
+                   indicator. Build completion/failure is always shown.
+        """
         st = time.time()
         seen_logs = set()  # To avoid duplicate log messages
         current_page = 1  # Track current page for log pagination
+        if quiet:
+            from clarifai.runners.models import deploy_output as out
+
+            out.phase_header("Build")
+
         while True:
             resp = self.client.STUB.GetModelVersion(
                 service_pb2.GetModelVersionRequest(
@@ -2036,42 +2064,60 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
             )
 
             status_code = resp.model_version.status.code
-            logs = self.get_model_build_logs(current_page)
-            entries_count = 0
-            for log_entry in logs.log_entries:
-                entries_count += 1
-                if log_entry.url not in seen_logs:
-                    seen_logs.add(log_entry.url)
-                    log_entry_msg = re.sub(
-                        r"(\\*)(\[[a-z#/@][^[]*?])",
-                        lambda m: f"{m.group(1)}{m.group(1)}\\{m.group(2)}",
-                        log_entry.message.strip(),
-                    )
-                    logger.info(log_entry_msg)
 
-            # If we got a full page (50 entries), there might be more logs on the next page
-            # If we got fewer than 50 entries, we've reached the end and should stay on current page
-            if entries_count == 50:
-                current_page += 1
-            # else: stay on current_page
+            if not quiet:
+                logs = self.get_model_build_logs(current_page)
+                entries_count = 0
+                for log_entry in logs.log_entries:
+                    entries_count += 1
+                    if log_entry.url not in seen_logs:
+                        seen_logs.add(log_entry.url)
+                        log_entry_msg = re.sub(
+                            r"(\\*)(\[[a-z#/@][^[]*?])",
+                            lambda m: f"{m.group(1)}{m.group(1)}\\{m.group(2)}",
+                            log_entry.message.strip(),
+                        )
+                        logger.info(log_entry_msg)
+
+                # If we got a full page (50 entries), there might be more logs on the next page
+                if entries_count == 50:
+                    current_page += 1
+
             if status_code == status_code_pb2.MODEL_BUILDING:
-                print(
-                    f"Model is building... (elapsed {time.time() - st:.1f}s)", end='\r', flush=True
-                )
-
-                # Fetch and display the logs
+                elapsed = time.time() - st
+                if quiet:
+                    out.inline_progress(f"Building image... ({elapsed:.0f}s)")
+                else:
+                    print(
+                        f"Model is building... (elapsed {elapsed:.1f}s)",
+                        end='\r',
+                        flush=True,
+                    )
                 time.sleep(1)
             elif status_code == status_code_pb2.MODEL_TRAINED:
-                logger.info("Model build complete!")
-                logger.info(f"Build time elapsed {time.time() - st:.1f}s)")
-                logger.info(
-                    f"Check out the model at {self.model_ui_url} version: {self.model_version_id}"
-                )
+                elapsed = time.time() - st
+                if quiet:
+                    out.clear_inline()
+                    out.status(f"Building image... done ({elapsed:.1f}s)")
+                else:
+                    logger.info("Model build complete!")
+                    logger.info(f"Build time elapsed {elapsed:.1f}s)")
+                    logger.info(
+                        f"Check out the model at {self.model_ui_url} version: {self.model_version_id}"
+                    )
                 return True
             else:
-                logger.info(
-                    f"\nModel build failed with status: {resp.model_version.status} and response {resp}"
-                )
+                if quiet:
+                    out.clear_inline()
+                    from clarifai.runners.models import deploy_output as out_err
+
+                    out_err.warning(
+                        f"Model build failed with status: {resp.model_version.status.description}"
+                    )
+                else:
+                    logger.info(
+                        f"\nModel build failed with status: {resp.model_version.status} and response {resp}"
+                    )
                 return False
 
 
@@ -2150,6 +2196,7 @@ def deploy_model(
     max_replicas=5,
     pat=None,
     base_url=None,
+    quiet=False,
 ):
     """
     Deploy a model on Clarifai platform.
@@ -2230,12 +2277,14 @@ def deploy_model(
             deployment_id=deployment_id, deployment_config=deployment_config
         )
 
-        print(
-            f"✅ Deployment '{deployment_id}' successfully created for model '{model_id}' with version '{model_version_id}'."
-        )
+        if not quiet:
+            print(
+                f"✅ Deployment '{deployment_id}' successfully created for model '{model_id}' with version '{model_version_id}'."
+            )
         return True
     except Exception as e:
-        print(f"❌ Failed to create deployment '{deployment_id}': {e}")
+        if not quiet:
+            print(f"❌ Failed to create deployment '{deployment_id}': {e}")
         return False
 
 

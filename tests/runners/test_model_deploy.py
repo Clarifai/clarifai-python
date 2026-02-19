@@ -515,7 +515,11 @@ class TestDeploymentMonitoring:
     """Test deployment monitoring logic."""
 
     def test_fetch_runner_logs_deduplicates(self):
-        """Runner log fetching deduplicates by (log_type, url/message)."""
+        """Runner log fetching deduplicates by (log_type, url/message).
+
+        _fetch_runner_logs only fetches "runner.events" (k8s events).
+        Model stdout/stderr ("runner" logs) are reserved for _tail_runner_logs.
+        """
         from unittest.mock import MagicMock
 
         from clarifai_grpc.grpc.api import resources_pb2
@@ -549,10 +553,10 @@ class TestDeploymentMonitoring:
             1,
         )
 
-        # Both log types are fetched (runner.events and runner)
-        assert mock_stub.ListLogEntries.call_count == 2
-        # Logs should be tracked in seen_logs (2 entries x 2 log types = 4)
-        assert len(seen_logs) == 4
+        # Only "runner.events" is fetched (not "runner" — that's for Startup Logs)
+        assert mock_stub.ListLogEntries.call_count == 1
+        # 2 entries from runner.events
+        assert len(seen_logs) == 2
         assert len(lines) > 0
 
         # Second call with same logs - should not add new entries
@@ -606,7 +610,8 @@ class TestDeploymentMonitoring:
             "LastTimestamp: 2026-02-16 15:49:06 +0000 UTC, "
             'Message: Failed to schedule pod, incompatible requirements'
         )
-        lines = _format_event_logs(raw)
+        # verbose=True preserves the original reason
+        lines = _format_event_logs(raw, verbose=True)
         assert len(lines) == 1
         assert "FailedScheduling" in lines[0]
         assert "Failed to schedule pod" in lines[0]
@@ -626,10 +631,45 @@ class TestDeploymentMonitoring:
             "FirstTimestamp: 2026-01-01 00:01:00, LastTimestamp: 2026-01-01 00:01:00, "
             "Message: Scaling up node group"
         )
-        lines = _format_event_logs(raw)
+        lines = _format_event_logs(raw, verbose=True)
         assert len(lines) == 2
         assert "FailedScheduling" in lines[0]
         assert "ScaleUp" in lines[1]
+
+    def test_format_event_logs_non_verbose_simplifies(self):
+        """Non-verbose mode simplifies FailedScheduling messages."""
+        from clarifai.runners.models.model_deploy import _format_event_logs
+
+        raw = (
+            "Name: pod-1.abc, Type: Warning, Source: {karpenter }, "
+            "Reason: FailedScheduling, FirstTimestamp: 2026-02-16 15:49:06, "
+            "LastTimestamp: 2026-02-16 15:49:06, "
+            "Message: 0/5 nodes are available: 3 had untolerated taint "
+            "{infra.clarifai.com/karpenter: }, 2 didn't match Pod topology"
+        )
+        lines = _format_event_logs(raw, verbose=False)
+        assert len(lines) == 1
+        assert "Scheduling" in lines[0]
+        assert "Waiting for node" in lines[0]
+        # Should NOT contain taint details
+        assert "untolerated taint" not in lines[0]
+
+    def test_format_event_logs_non_verbose_skips_noise(self):
+        """Non-verbose mode skips TaintManagerEviction and other noise events."""
+        from clarifai.runners.models.model_deploy import _format_event_logs
+
+        raw = (
+            "Name: pod-1.abc, Type: Normal, Source: {scheduler}, "
+            "Reason: TaintManagerEviction, FirstTimestamp: 2026-02-16 15:49:06, "
+            "LastTimestamp: 2026-02-16 15:49:06, "
+            "Message: Taint manager evicted the pod"
+        )
+        lines = _format_event_logs(raw, verbose=False)
+        assert len(lines) == 0
+
+        # Same event in verbose mode should appear
+        lines_verbose = _format_event_logs(raw, verbose=True)
+        assert len(lines_verbose) == 1
 
     def test_monitor_constants(self):
         """Monitoring constants are set to reasonable values."""
@@ -641,7 +681,7 @@ class TestDeploymentMonitoring:
 
         assert DEFAULT_MONITOR_TIMEOUT == 600  # 10 minutes
         assert DEFAULT_POLL_INTERVAL == 5  # 5 seconds
-        assert DEFAULT_LOG_TAIL_DURATION == 20  # 20 seconds tail after ready
+        assert DEFAULT_LOG_TAIL_DURATION == 15  # 15 seconds quick check after ready
 
 
 class TestParseK8sQuantity:
@@ -1050,3 +1090,361 @@ class TestCustomImageDockerfile:
 
             # Should NOT trigger custom image path
             assert "nvcr.io" not in content
+
+
+class TestParseRunnerLog:
+    """Test _parse_runner_log() JSON log parsing and filtering."""
+
+    def test_json_log_extracts_msg(self):
+        """JSON runner log extracts the 'msg' field."""
+        from clarifai.runners.models.model_deploy import _parse_runner_log
+
+        raw = '{"msg": "Starting MCP bridge...", "@timestamp": "2026-02-18T13:15:15Z", "stack_info": null}'
+        assert _parse_runner_log(raw) == "Starting MCP bridge..."
+
+    def test_json_log_empty_msg_returns_none(self):
+        """JSON runner log with empty msg returns None."""
+        from clarifai.runners.models.model_deploy import _parse_runner_log
+
+        raw = '{"msg": "", "@timestamp": "2026-02-18T13:15:15Z"}'
+        assert _parse_runner_log(raw) is None
+
+    def test_json_log_no_msg_field_passthrough(self):
+        """JSON object without 'msg' field passes through as raw string."""
+        from clarifai.runners.models.model_deploy import _parse_runner_log
+
+        raw = '{"level": "info", "@timestamp": "2026-02-18T13:15:15Z"}'
+        assert _parse_runner_log(raw) == raw
+
+    def test_plain_text_passthrough(self):
+        """Non-JSON text passes through unchanged."""
+        from clarifai.runners.models.model_deploy import _parse_runner_log
+
+        raw = "[02/18/26 13:15:22] INFO Starting server on port 8080"
+        assert _parse_runner_log(raw) == raw
+
+    def test_deprecation_warning_filtered(self):
+        """DeprecationWarning lines are filtered in non-verbose mode."""
+        from clarifai.runners.models.model_deploy import _parse_runner_log
+
+        raw = "/usr/local/lib/python3.12/site-packages/foo.py:42: DeprecationWarning: datetime.utcnow() is deprecated"
+        assert _parse_runner_log(raw, verbose=False) is None
+        # Verbose mode keeps it
+        assert _parse_runner_log(raw, verbose=True) == raw
+
+    def test_pip_download_filtered(self):
+        """pip download lines are filtered in non-verbose mode."""
+        from clarifai.runners.models.model_deploy import _parse_runner_log
+
+        raw = "Downloading pygments (1.2MiB)"
+        assert _parse_runner_log(raw, verbose=False) is None
+        assert _parse_runner_log(raw, verbose=True) == raw
+
+    def test_empty_and_none(self):
+        """Empty string and None return None."""
+        from clarifai.runners.models.model_deploy import _parse_runner_log
+
+        assert _parse_runner_log("") is None
+        assert _parse_runner_log(None) is None
+
+    def test_installing_packages_filtered(self):
+        """'Installing collected packages:' lines are filtered in non-verbose mode."""
+        from clarifai.runners.models.model_deploy import _parse_runner_log
+
+        raw = "Installing collected packages: numpy, pandas, torch"
+        assert _parse_runner_log(raw, verbose=False) is None
+
+
+class TestSimplifyK8sMessage:
+    """Test _simplify_k8s_message() human-friendly event mapping."""
+
+    def test_failed_scheduling_simplified(self):
+        """FailedScheduling becomes a simple 'waiting' message."""
+        from clarifai.runners.models.model_deploy import _simplify_k8s_message
+
+        msg = _simplify_k8s_message(
+            "FailedScheduling",
+            "0/5 nodes are available: 3 had untolerated taint {infra.clarifai.com/karpenter: }",
+        )
+        assert msg == "Waiting for node to become available..."
+
+    def test_scheduled_simplified(self):
+        from clarifai.runners.models.model_deploy import _simplify_k8s_message
+
+        msg = _simplify_k8s_message(
+            "Scheduled", "Successfully assigned to ip-10-7-1-42.ec2.internal"
+        )
+        assert msg == "Pod scheduled on node"
+
+    def test_pulling_simplified(self):
+        from clarifai.runners.models.model_deploy import _simplify_k8s_message
+
+        msg = _simplify_k8s_message(
+            "Pulling", "Pulling image public.ecr.aws/clarifai/runner:sha-abc123"
+        )
+        assert msg == "Pulling model image..."
+
+    def test_long_message_truncated(self):
+        from clarifai.runners.models.model_deploy import _simplify_k8s_message
+
+        long_msg = "x" * 100
+        result = _simplify_k8s_message("UnknownReason", long_msg)
+        assert len(result) == 80
+        assert result.endswith("...")
+
+    def test_short_message_passthrough(self):
+        from clarifai.runners.models.model_deploy import _simplify_k8s_message
+
+        msg = _simplify_k8s_message("UnknownReason", "Short message")
+        assert msg == "Short message"
+
+    def test_nominated_simplified(self):
+        """Nominated/NominatedNode hides internal node IPs."""
+        from clarifai.runners.models.model_deploy import _simplify_k8s_message
+
+        msg = _simplify_k8s_message(
+            "Nominated", "Pod should schedule on: node/ip-10-7-158-85.ec2.internal"
+        )
+        assert msg == "Node selected for scheduling"
+        assert "ip-10" not in msg
+
+        msg2 = _simplify_k8s_message(
+            "NominatedNode", "Pod should schedule on: node/ip-10-7-158-85.ec2.internal"
+        )
+        assert msg2 == "Node selected for scheduling"
+
+
+class TestEventDedup:
+    """Test that simplified event messages are deduplicated across polls."""
+
+    def test_seen_messages_deduplicates_events(self):
+        """Repeated simplified events are suppressed when seen_messages is used."""
+        from clarifai.runners.models.model_deploy import _format_event_logs
+
+        raw = (
+            "Name: pod-1.abc, Type: Warning, Source: {karpenter }, "
+            "Reason: FailedScheduling, FirstTimestamp: 2026-02-16 15:49:06, "
+            "LastTimestamp: 2026-02-16 15:49:06, "
+            "Message: 0/5 nodes are available"
+        )
+        raw2 = (
+            "Name: pod-1.def, Type: Warning, Source: {karpenter }, "
+            "Reason: FailedScheduling, FirstTimestamp: 2026-02-16 15:49:11, "
+            "LastTimestamp: 2026-02-16 15:49:11, "
+            "Message: 0/5 nodes are available (different timestamp)"
+        )
+
+        # Both simplify to the same message
+        lines1 = _format_event_logs(raw, verbose=False)
+        lines2 = _format_event_logs(raw2, verbose=False)
+        assert len(lines1) == 1
+        assert len(lines2) == 1
+        # Both have the same simplified text
+        assert lines1[0] == lines2[0]
+
+    def test_event_prefix_alignment(self):
+        """[warning] and [event  ] prefixes have consistent width."""
+        from clarifai.runners.models.model_deploy import _format_event_logs
+
+        warning_raw = (
+            "Name: pod-1, Type: Warning, Source: {}, Reason: FailedScheduling, "
+            "FirstTimestamp: 2026-01-01, LastTimestamp: 2026-01-01, "
+            "Message: test"
+        )
+        normal_raw = (
+            "Name: pod-1, Type: Normal, Source: {}, Reason: Scheduled, "
+            "FirstTimestamp: 2026-01-01, LastTimestamp: 2026-01-01, "
+            "Message: test"
+        )
+        warning_lines = _format_event_logs(warning_raw, verbose=True)
+        normal_lines = _format_event_logs(normal_raw, verbose=True)
+        assert len(warning_lines) == 1
+        assert len(normal_lines) == 1
+        # Both prefixes should align — same character position for the reason
+        assert "[warning]" in warning_lines[0]
+        assert "[event  ]" in normal_lines[0]
+
+
+class TestDeployOutput:
+    """Test deploy_output.py helper functions."""
+
+    def test_phase_header_outputs(self, capsys):
+        """phase_header prints a formatted header."""
+        from clarifai.runners.models.deploy_output import phase_header
+
+        phase_header("Validate")
+        captured = capsys.readouterr()
+        assert "Validate" in captured.out
+        assert "\u2500" in captured.out  # em dash character
+
+    def test_info_outputs(self, capsys):
+        """info prints a labeled line."""
+        from clarifai.runners.models.deploy_output import info
+
+        info("Model", "my-model-id")
+        captured = capsys.readouterr()
+        assert "Model:" in captured.out
+        assert "my-model-id" in captured.out
+
+    def test_status_outputs(self, capsys):
+        """status prints a status message."""
+        from clarifai.runners.models.deploy_output import status
+
+        status("Building image...")
+        captured = capsys.readouterr()
+        assert "Building image..." in captured.out
+
+    def test_success_outputs(self, capsys):
+        """success prints a green message."""
+        from clarifai.runners.models.deploy_output import success
+
+        success("Model deployed!")
+        captured = capsys.readouterr()
+        assert "Model deployed!" in captured.out
+
+    def test_warning_outputs(self, capsys):
+        """warning prints a yellow [warning] message."""
+        from clarifai.runners.models.deploy_output import warning
+
+        warning("Timeout reached")
+        captured = capsys.readouterr()
+        assert "[warning]" in captured.out
+        assert "Timeout reached" in captured.out
+
+
+class TestVerboseFlag:
+    """Test that verbose flag is properly plumbed through ModelDeployer."""
+
+    def test_deployer_accepts_verbose(self):
+        """ModelDeployer accepts verbose parameter."""
+        from clarifai.runners.models.model_deploy import ModelDeployer
+
+        deployer = ModelDeployer(verbose=True)
+        assert deployer.verbose is True
+
+        deployer2 = ModelDeployer()
+        assert deployer2.verbose is False
+
+    def test_fetch_runner_logs_passes_verbose(self):
+        """_fetch_runner_logs accepts and passes verbose to formatters."""
+        from unittest.mock import MagicMock
+
+        from clarifai_grpc.grpc.api import resources_pb2
+
+        from clarifai.runners.models.model_deploy import ModelDeployer
+
+        mock_stub = MagicMock()
+        mock_entry = resources_pb2.LogEntry(
+            url="http://log1", message='{"msg": "Hello", "@timestamp": "2026-01-01"}'
+        )
+        mock_response = MagicMock()
+        mock_response.log_entries = [mock_entry]
+        mock_stub.ListLogEntries.return_value = mock_response
+
+        user_app_id = resources_pb2.UserAppIDSet(user_id="test-user")
+
+        # Should not raise with verbose=True
+        page, lines = ModelDeployer._fetch_runner_logs(
+            mock_stub, user_app_id, "cc", "np", "runner-1", set(), 1, verbose=True
+        )
+        assert page >= 1
+
+
+class TestQuietSdkLogger:
+    """Test the _quiet_sdk_logger context manager."""
+
+    def test_suppresses_info_when_enabled(self):
+        """Logger level is raised to WARNING inside the context."""
+        import logging
+
+        from clarifai.runners.models.model_deploy import _quiet_sdk_logger
+        from clarifai.utils.logging import logger
+
+        original_level = logger.level
+        with _quiet_sdk_logger(suppress=True):
+            assert logger.level >= logging.WARNING
+        # Restored after exiting
+        assert logger.level == original_level
+
+    def test_noop_when_disabled(self):
+        """Logger level is unchanged when suppress=False."""
+
+        from clarifai.runners.models.model_deploy import _quiet_sdk_logger
+        from clarifai.utils.logging import logger
+
+        original_level = logger.level
+        with _quiet_sdk_logger(suppress=False):
+            assert logger.level == original_level
+
+    def test_restores_on_exception(self):
+        """Logger level is restored even if an exception is raised."""
+        import logging
+
+        from clarifai.runners.models.model_deploy import _quiet_sdk_logger
+        from clarifai.utils.logging import logger
+
+        original_level = logger.level
+        with pytest.raises(ValueError):
+            with _quiet_sdk_logger(suppress=True):
+                assert logger.level >= logging.WARNING
+                raise ValueError("test error")
+        assert logger.level == original_level
+
+
+class TestDeployModelQuiet:
+    """Test the quiet parameter on deploy_model."""
+
+    def test_deploy_model_quiet_suppresses_print(self, capsys):
+        """deploy_model with quiet=True should not print success/failure messages."""
+        from unittest.mock import MagicMock, patch
+
+        from clarifai.runners.models.model_builder import deploy_model
+
+        mock_nodepool = MagicMock()
+        mock_deployment = MagicMock()
+        mock_nodepool.create_deployment.return_value = mock_deployment
+
+        with patch('clarifai.runners.models.model_builder.Nodepool', return_value=mock_nodepool):
+            result = deploy_model(
+                model_id="test-model",
+                app_id="test-app",
+                user_id="test-user",
+                deployment_id="deploy-test",
+                model_version_id="v1",
+                nodepool_id="np-1",
+                compute_cluster_id="cc-1",
+                cluster_user_id="test-user",
+                quiet=True,
+            )
+
+        assert result is True
+        captured = capsys.readouterr()
+        assert "✅" not in captured.out
+        assert "Deployment" not in captured.out
+
+    def test_deploy_model_not_quiet_prints(self, capsys):
+        """deploy_model with quiet=False should print success message."""
+        from unittest.mock import MagicMock, patch
+
+        from clarifai.runners.models.model_builder import deploy_model
+
+        mock_nodepool = MagicMock()
+        mock_deployment = MagicMock()
+        mock_nodepool.create_deployment.return_value = mock_deployment
+
+        with patch('clarifai.runners.models.model_builder.Nodepool', return_value=mock_nodepool):
+            result = deploy_model(
+                model_id="test-model",
+                app_id="test-app",
+                user_id="test-user",
+                deployment_id="deploy-test",
+                model_version_id="v1",
+                nodepool_id="np-1",
+                compute_cluster_id="cc-1",
+                cluster_user_id="test-user",
+                quiet=False,
+            )
+
+        assert result is True
+        captured = capsys.readouterr()
+        assert "Deployment" in captured.out

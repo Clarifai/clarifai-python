@@ -394,7 +394,9 @@ class JsonFormatter(logging.Formatter):
         logr.update(
             {
                 JSON_LOG_KEY: msg,
-                '@timestamp': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
+                '@timestamp': datetime.datetime.now(datetime.timezone.utc).strftime(
+                    '%Y-%m-%dT%H:%M:%S.%fZ'
+                ),
             }
         )
 
