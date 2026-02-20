@@ -1662,31 +1662,8 @@ class TestPipelineRunCommand:
 class TestPipelineListCommand:
     """Test cases for the pipeline list CLI command."""
 
-    @patch('clarifai.cli.pipeline.validate_context')
-    @patch('clarifai.client.user.User')
-    @patch('clarifai.cli.pipeline.display_co_resources')
-    def test_list_command_success_no_app_id(self, mock_display, mock_user_class, mock_validate):
-        """Test that list command works without app_id (lists across all apps)."""
-        # Setup mocks
-        mock_validate.return_value = None
-        mock_user_instance = Mock()
-        mock_user_class.return_value = mock_user_instance
-        mock_user_instance.list_pipelines.return_value = [
-            {
-                'id': 'pipeline1',
-                'user_id': 'user1',
-                'app_id': 'app1',
-                'description': 'Test pipeline 1',
-            },
-            {
-                'id': 'pipeline2',
-                'user_id': 'user1',
-                'app_id': 'app2',
-                'description': 'Test pipeline 2',
-            },
-        ]
-
-        # Setup context
+    def test_list_command_requires_app_id(self):
+        """Test that list command requires app_id."""
         runner = CliRunner()
         ctx_obj = Mock()
         ctx_obj.current.user_id = 'test-user'
@@ -1702,13 +1679,8 @@ class TestPipelineListCommand:
             obj=ctx_obj,
         )
 
-        assert result.exit_code == 0
-        mock_validate.assert_called_once()
-        mock_user_class.assert_called_once_with(
-            user_id='test-user', pat='test-pat', base_url='https://api.clarifai.com'
-        )
-        mock_user_instance.list_pipelines.assert_called_once_with(page_no=1, per_page=10)
-        mock_display.assert_called_once()
+        assert result.exit_code != 0
+        assert "Missing option '--app_id'" in result.output
 
     @patch('clarifai.cli.pipeline.validate_context')
     @patch('clarifai.client.app.App')
@@ -1771,16 +1743,22 @@ class TestPipelineListCommand:
         # Import here to avoid circular imports in testing
         from clarifai.cli.pipeline import list as list_command
 
-        with patch('clarifai.client.user.User') as mock_user_class:
-            mock_user_instance = Mock()
-            mock_user_class.return_value = mock_user_instance
-            mock_user_instance.list_pipelines.return_value = []
+        with patch('clarifai.client.app.App') as mock_app_class:
+            mock_app_instance = Mock()
+            mock_app_class.return_value = mock_app_instance
+            mock_app_instance.list_pipelines.return_value = []
 
             with patch('clarifai.cli.pipeline.display_co_resources') as mock_display:
-                result = runner.invoke(list_command, [], obj=ctx_obj)
+                result = runner.invoke(list_command, ['--app_id', 'test-app'], obj=ctx_obj)
 
                 assert result.exit_code == 0
-                mock_user_instance.list_pipelines.assert_called_once_with(page_no=1, per_page=16)
+                mock_app_class.assert_called_once_with(
+                    app_id='test-app',
+                    user_id='test-user',
+                    pat='test-pat',
+                    base_url='https://api.clarifai.com',
+                )
+                mock_app_instance.list_pipelines.assert_called_once_with(page_no=1, per_page=16)
 
 
 class TestPipelineTemplateCommands:

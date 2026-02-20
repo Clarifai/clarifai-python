@@ -1212,7 +1212,7 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
     model_path = os.path.abspath(model_path)
     _ensure_hf_token(ctx, model_path)
     builder = ModelBuilder(model_path, download_validation_only=True)
-    manager = ModelRunLocally(model_path)
+    manager = ModelRunLocally(model_path, model_builder=builder)
 
     port = 8080
     if mode == "env":
@@ -1675,7 +1675,7 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
     else:
         print_code_snippet()
         # This reads the config.yaml from the model_path so we alter it above first.
-        server = ModelServer(model_path=model_path, model_runner_local=None)
+        server = ModelServer(model_path=model_path, model_runner_local=None, model_builder=builder)
         server.serve(**serving_args)
 
 
