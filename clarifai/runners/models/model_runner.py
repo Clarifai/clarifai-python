@@ -90,7 +90,6 @@ class ModelRunner(BaseRunner):
         HealthProbeRequestHandler.is_ready = True
         HealthProbeRequestHandler.is_startup = True
 
-        start_health_server_thread(port=health_check_port, address='')
         if health_check_port is not None:
             start_health_server_thread(port=health_check_port, address='')
 
