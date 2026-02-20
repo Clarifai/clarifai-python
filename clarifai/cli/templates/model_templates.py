@@ -200,6 +200,8 @@ def get_config_template(
 
 compute:
   instance: g5.xlarge  # Run 'clarifai model deploy --instance-info' to see all options.
+  # cloud: aws          # Cloud provider (aws, gcp, vultr). Auto-detected from instance.
+  # region: us-east-1   # Cloud region. Auto-detected from instance.
 
 # Uncomment to auto-download model checkpoints:
 # checkpoints:

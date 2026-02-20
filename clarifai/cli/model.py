@@ -741,25 +741,18 @@ def _ensure_hf_token(ctx, model_path):
 @model.command(help="Upload a trained model.")
 @click.argument("model_path", type=click.Path(exists=True), required=False, default=".")
 @click.option(
-    '--stage',
-    required=False,
-    type=click.Choice(['runtime', 'build', 'upload'], case_sensitive=True),
-    default="upload",
-    show_default=True,
-    help='The stage we are calling download checkpoints from. Typically this would "upload" and will download checkpoints if config.yaml checkpoints section has when set to "upload". Other options include "runtime" to be used in load_model or "upload" to be used during model upload. Set this stage to whatever you have in config.yaml to force downloading now.',
-)
-@click.option(
-    '--skip_dockerfile',
-    is_flag=True,
-    help='Flag to skip generating a dockerfile so that you can manually edit an already created dockerfile. If not provided, intelligently handle existing Dockerfiles with user confirmation.',
-)
-@click.option(
     '--platform',
     required=False,
     help='Target platform(s) for Docker image build (e.g., "linux/amd64" or "linux/amd64,linux/arm64"). This overrides the platform specified in config.yaml.',
 )
+@click.option(
+    '--verbose',
+    '-v',
+    is_flag=True,
+    help='Show detailed build logs and SDK messages.',
+)
 @click.pass_context
-def upload(ctx, model_path, stage, skip_dockerfile, platform):
+def upload(ctx, model_path, platform, verbose):
     """Upload a model to Clarifai.
 
     MODEL_PATH: Path to the model directory. If not specified, the current directory is used by default.
@@ -772,11 +765,10 @@ def upload(ctx, model_path, stage, skip_dockerfile, platform):
     _ensure_hf_token(ctx, model_path)
     upload_model(
         model_path,
-        stage,
-        skip_dockerfile,
         platform=platform,
         pat=ctx.obj.current.pat,
         base_url=ctx.obj.current.api_base,
+        verbose=verbose,
     )
 
 

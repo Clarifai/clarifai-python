@@ -196,10 +196,17 @@ class ModelDeployer:
         self.app_id = self.app_id or model_config.get('app_id')
         self.model_id = self._builder.model_id
 
-        # If gpu not specified, try to read from config
+        # Read compute section from config (instance, cloud, region)
+        compute = self._builder.config.get('compute', {})
+
+        # Cloud and region from config (CLI flags take priority)
+        if not self.cloud_provider:
+            self.cloud_provider = compute.get('cloud')
+        if not self.region:
+            self.region = compute.get('region')
+
+        # If instance not specified, try to read from config
         if not self.instance_type and not self.nodepool_id:
-            # First check compute.instance (the original instance type ID from config)
-            compute = self._builder.config.get('compute', {})
             compute_instance = compute.get('instance') or compute.get('gpu')
             if compute_instance:
                 self.instance_type = compute_instance
@@ -898,7 +905,12 @@ def _parse_runner_log(raw_msg, verbose=False):
         data = json.loads(raw_msg)
         if isinstance(data, dict) and "msg" in data:
             msg = data["msg"]
-            if msg:
+            if msg and isinstance(msg, str):
+                # Decode unicode escapes if present (e.g. \ud83d\ude80 → emoji)
+                try:
+                    msg = msg.encode('utf-16', 'surrogatepass').decode('utf-16')
+                except (UnicodeDecodeError, UnicodeEncodeError):
+                    pass
                 return msg
             return None
     except (json.JSONDecodeError, TypeError):
