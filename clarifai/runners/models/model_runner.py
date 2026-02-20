@@ -121,6 +121,15 @@ class ModelRunner(BaseRunner):
             return self.model.admission_control_backoff
         return super().admission_control_backoff
 
+    @property
+    def time_between_stream_requests(self) -> float:
+        """
+        The time in seconds to wait between stream requests. If the model defines this, we use that.
+        """
+        if hasattr(self.model, 'time_between_stream_requests'):
+            return self.model.time_between_stream_requests
+        return super().time_between_stream_requests
+
     def check_admission(self) -> bool:
         """
         Check if the runner is ready to accept new work. If the model has a check_admission func, we call that.
