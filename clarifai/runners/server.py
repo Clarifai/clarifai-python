@@ -108,6 +108,12 @@ def main():
         default=0,
         help='The number of threads for the runner to use (default: 0, which means read from config.yaml).',
     )
+    parser.add_argument(
+        '--health_check_port',
+        type=int,
+        default=8080,
+        help="The port to host the health check server at. Set to 0 or -1 to disable.",
+    )
 
     parsed_args = parser.parse_args()
     server = ModelServer(parsed_args.model_path)
@@ -137,6 +143,7 @@ def main():
         max_msg_length=parsed_args.max_msg_length,
         enable_tls=parsed_args.enable_tls,
         grpc=parsed_args.grpc,
+        health_check_port=parsed_args.health_check_port,
     )
 
 
@@ -273,6 +280,7 @@ class ModelServer:
         max_msg_length=1024 * 1024 * 1024,
         enable_tls=False,
         grpc=False,
+        health_check_port=8080,
         user_id: Optional[str] = os.environ.get("CLARIFAI_USER_ID", None),
         compute_cluster_id: Optional[str] = os.environ.get("CLARIFAI_COMPUTE_CLUSTER_ID", None),
         nodepool_id: Optional[str] = os.environ.get("CLARIFAI_NODEPOOL_ID", None),
@@ -304,6 +312,7 @@ class ModelServer:
                 base_url,
                 pat,
                 num_threads,
+                health_check_port,
             )
 
     def start_servicer(self, port, pool_size, max_queue_size, max_msg_length, enable_tls):
@@ -335,6 +344,7 @@ class ModelServer:
         base_url,
         pat,
         num_threads,
+        health_check_port,
     ):
         # initialize the Runner class. This is what the user implements.
         assert compute_cluster_id is not None, "compute_cluster_id must be set for the runner."
@@ -350,6 +360,7 @@ class ModelServer:
             base_url=base_url,
             pat=pat,
             num_parallel_polls=num_threads,
+            health_check_port=health_check_port,
         )
 
         self._runner.start()  # start the runner to fetch work from the API.

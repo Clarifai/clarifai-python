@@ -1,8 +1,10 @@
 import json
 import os
 import shutil
+import socket
 import subprocess
 import tempfile
+from contextlib import closing
 from typing import Any, Dict, Optional
 
 import click
@@ -52,6 +54,19 @@ from clarifai.utils.misc import (
     format_github_repo_url,
     get_list_of_files_to_download,
 )
+
+
+def find_available_port(start_port=8080):
+    """Find the first available port starting from start_port."""
+    port = start_port
+    while port <= 65535:
+        with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
+            try:
+                sock.bind(('', port))
+                return port
+            except OSError:
+                port += 1
+    raise RuntimeError("No available port found")
 
 
 def _select_context(ctx_config: Config) -> Optional[Context]:
@@ -1165,8 +1180,35 @@ def run_locally(ctx, model_path, port, mode, keep_env, keep_image, skip_dockerfi
     is_flag=True,
     help='Keep the Docker image after testing the model locally (applicable for container mode). Defaults to False.',
 )
+@click.option(
+    '--health-check-port',
+    type=int,
+    default=8080,
+    show_default=True,
+    help='The port to run the health check server on. Defaults to 8080.',
+)
+@click.option(
+    '--disable-health-check',
+    is_flag=True,
+    help='Disable the health check server.',
+)
+@click.option(
+    '--auto-find-health-check-port',
+    is_flag=True,
+    help='Automatically find an available port starting from --health-check-port.',
+)
 @click.pass_context
-def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_image):
+def local_runner(
+    ctx,
+    model_path,
+    pool_size,
+    suppress_toolkit_logs,
+    mode,
+    keep_image,
+    health_check_port,
+    disable_health_check,
+    auto_find_health_check_port,
+):
     """Run the model as a local runner to help debug your model connected to the API or to
       leverage local compute resources manually. This relies on many variables being present in the env
       of the currently selected context. If they are not present then default values will be used to
@@ -1213,6 +1255,11 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
     _ensure_hf_token(ctx, model_path)
     builder = ModelBuilder(model_path, download_validation_only=True)
     manager = ModelRunLocally(model_path, model_builder=builder)
+
+    if disable_health_check:
+        health_check_port = -1
+    elif auto_find_health_check_port:
+        health_check_port = find_available_port(health_check_port)
 
     port = 8080
     if mode == "env":
@@ -1640,6 +1687,7 @@ def local_runner(ctx, model_path, pool_size, suppress_toolkit_logs, mode, keep_i
         "base_url": ctx.obj.current.api_base,
         "pat": ctx.obj.current.pat,
         "context": ctx.obj.current,
+        "health_check_port": health_check_port,
     }
 
     if mode == "container":
